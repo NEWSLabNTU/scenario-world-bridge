@@ -419,6 +419,12 @@ direction: mud's sideways peak rose from 0.167 to 0.237 of the load (the soil la
   thresholds (0.25, 0.15) still sit past the peak on ice (0.08) and packed snow (0.15) and
   before it on sand and gravel (0.3); slip targets that follow the ground are a follow-up for
   `sim_vehicle_ecu`, with ice and snow cases in the suite to measure them.
+- Then each wheel is held against the road speed its place on the car gives in a turn (the
+  yaw rate times half the tread, the steered fronts along their heading; `sim_vehicle_ecu`
+  `03b7065`, `2026-10-25_009b-ecu-{off,esc}`): the inner and outer wheels no longer read
+  slips 0.02 apart that are not there. Within the runs' scatter past the limit otherwise (mud
+  circle 1.38 / 1.45 m/s^2 held, ESC off / on); the mud stop's false 6.6 deg peak sideslip
+  goes to 0.4; the sines unchanged.
 - aib's vehicle-check passes (`play_log/vehicle_check/2026-10-25_t1`; aib's own runner has no
   surface layer, so it checks the aib change only).
 - `town01_mud.xosc` with Autoware on Isaac passes with T1, recorded

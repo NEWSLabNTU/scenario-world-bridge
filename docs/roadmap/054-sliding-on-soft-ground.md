@@ -425,6 +425,12 @@ direction: mud's sideways peak rose from 0.167 to 0.237 of the load (the soil la
   slips 0.02 apart that are not there. Within the runs' scatter past the limit otherwise (mud
   circle 1.38 / 1.45 m/s^2 held, ESC off / on); the mud stop's false 6.6 deg peak sideslip
   goes to 0.4; the sines unchanged.
+- With both fixes aib's vehicle-check passes (`play_log/vehicle_check/2026-10-25_009`) and
+  `town01_mud.xosc` with Autoware on Isaac passes, recorded
+  (`play_log/record/2026-10-25_19-17-54-ego/run.mp4`): across the mud at 13.0-14.4 km/h,
+  Autoware asking up to 0.67 m/s^2; the rear wheels at up to 0.086 of PhysX's slip, which the
+  brake module now reads as 0.087 (before the fix it would have read about twice that);
+  traction control never acts.
 - aib's vehicle-check passes (`play_log/vehicle_check/2026-10-25_t1`; aib's own runner has no
   surface layer, so it checks the aib change only).
 - `town01_mud.xosc` with Autoware on Isaac passes with T1, recorded

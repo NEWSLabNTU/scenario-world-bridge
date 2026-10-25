@@ -50,7 +50,7 @@ resolved inside `traffic_simulator` and reaches the backend only as a finished p
 | | `npc_logic_started` | honored: NPCs held still until true | ego model frozen until true | – |
 | | `overwrite_ego_status` | honored | honored, **and** when ControlModeReport is MANUAL | MANUAL fallback dropped: the bridge has no ROS node (014) |
 | | unknown entity name | rejected | throws | – |
-| | ego reply | CARLA: the server's read-back with acceleration and jerk (`READS_BACK`); Isaac: the bridge differences velocity | model state | Isaac: jerk and angular acceleration 0; `current_action` empty on both |
+| | ego reply | CARLA: the server's read-back with acceleration and jerk (`READS_BACK`); Isaac: the bridge differences velocity | model state | – : a read-back keeps the `current_action` SSv2 sent (SSv2 takes a non-ego's whole status from the reply); for the ego SSv2 reads only pose, twist and acceleration, so Isaac's zero jerk and angular acceleration go unread |
 | UpdateTrafficLights | `id`, `color` | honored via lanelet→OpenDRIVE (`<map>/carla/traffic_lights.yaml`), both simulators; freeze plus long phase times on CARLA | passed to pseudo detector | – |
 | | `shape` (arrows), `status` FLASHING, `relation_ids`, `confidence` | flattened / lit / ignored / ignored | full | CARLA has no arrow bulbs; protected turns and flashing lost |
 | Attach{Lidar,Detection,OccupancyGrid,Imu,PseudoTrafficLightDetector} | all fields | **rejected**, `Success=false` | publishes the topic | by design: the vehicle bridges publish real sensors. Detection knobs: §3 |
@@ -171,12 +171,12 @@ LightStateAction, AnimationAction / Appearance / Visibility, Override* / Activat
 Trailer; detection-sensor knobs (unsupported by decision); `DomeImage` (fork does not send it).
 
 **Backend, CARLA**: arrows / flashing / `relation_ids` (CARLA limit); lanelet2 vs OpenDRIVE
-registration unmeasured; `current_action` empty in replies; CARLA free-runs at ~79 % GPU
+registration unmeasured; CARLA free-runs at ~79 % GPU
 while idle (044 open item 5).
 
 **Backend, Isaac against CARLA**: no `AUTOPILOT` (simulator traffic; `town01_simulator_autopilot`
-deferred), no `AGENT_VEHICLES` (background AVs), no `READS_BACK` (jerk and angular
-acceleration 0 in the ego reply), no `WEATHER` presets; several Autoware egos (039); a lead
+deferred), no `AGENT_VEHICLES` (background AVs), no `READS_BACK` (the bridge reads
+the ego back itself; jerk 0, unread by SSv2), no `WEATHER` presets; several Autoware egos (039); a lead
 NPC on soil sinking and riding in ruts (052); first-render material compile moved into
 `Spawn` (044, unverified live); the 52 walkers not all seen rendered.
 

@@ -416,6 +416,33 @@ fn a_server_that_reads_back_and_tracks_is_believed() {
 }
 
 #[test]
+fn a_read_back_keeps_the_action_ssv2_named() {
+    // SSv2 takes a non-ego's whole status from the reply, `current_action` too; the
+    // simulator knows the motion, not the action.
+    for (srv, motion) in [
+        (server(honest_with(CARLA_LIKE, "one")), NpcMotion::Tracked),
+        (server(honest()), NpcMotion::Kinematic),
+    ] {
+        let mut b = backend_with(&srv, motion);
+        b.initialize(&episode()).unwrap();
+        b.spawn(&vehicle("ego", Driver::Ego, 0.0)).unwrap();
+        let out = b.update_entity_status(batch(vec![EntityStatus {
+            action_status: Some(ActionStatus {
+                current_action: "follow_lane".into(),
+                ..Default::default()
+            }),
+            ..status("ego", 99.0)
+        }]));
+        assert_eq!(out.failure, None);
+        let ego = out.entities.iter().find(|e| e.name == "ego").unwrap();
+        assert_eq!(
+            ego.action_status.as_ref().unwrap().current_action,
+            "follow_lane"
+        );
+    }
+}
+
+#[test]
 fn the_egos_contacts_are_counted_per_other_entity() {
     let mut b = backend(&server(honest()));
     b.initialize(&episode()).unwrap();

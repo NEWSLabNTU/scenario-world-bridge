@@ -725,6 +725,15 @@ loaded`. Cross-track on CARLA is 0.09-0.15 m against Isaac's 0.01-0.04, inside a
      Simulated time does not move while a spawn compiles; whether the ego stack's
      wall-clock timers notice the pause is checked by the first run with a body this world
      server has not rendered.
+     **First attempt (2026-10-24, server139): no evidence.** The fresh world server logged
+     the new line only for its warm-up body (`vehicle.micro.microlino`, 0.0 s); the run never
+     reached the walker. The ego's `Spawn` render failed with `ERROR_OUT_OF_DEVICE_MEMORY`
+     (another user's GPU jobs grew from 15.6 to 28.5 of 32 GB mid-run), the world server
+     died (exit 139, `gpuOutOfMemory = 'oom'`), the bridge exited 75 after the 300 s load
+     timeout, SSv2 reported no response. GPU runs on server139 are deferred (user,
+     2026-10-25); this check and open item 3's walker render moved to newslab-118-server, on
+     the point-cloud world (118 cannot render SimReady Town01, issue 005). The mechanism is
+     the body's own materials, so `pcd_world` is evidence for it.
 3. **`walker.pedestrian.NNNN` -> blueprint** (step 6 found it unreadable from the editor:
    WalkerFactory builds it in its Blueprint graph, so `csb_isaac.walkers.pick` chose by the
    id's number). **Read from the package instead (2026-10-22).** The graph compiles each

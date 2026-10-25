@@ -2059,7 +2059,7 @@ impl SimBackend for RemoteBackend {
                 }
             }
             let reported = if row.read_back {
-                match (reads_back, read_backs.get(&row.handle)) {
+                let mut reported = match (reads_back, read_backs.get(&row.handle)) {
                     (true, Some(rb)) => read_back_status(&name, rb, origin),
                     // The server could not read it: echo what SSv2 sent, as CARLA always did.
                     (true, None) => row.status.clone(),
@@ -2072,7 +2072,16 @@ impl SimBackend for RemoteBackend {
                             pose: Some(entity.pose),
                         }
                     }
+                };
+                // The simulator knows the motion, not the action, and SSv2 takes a non-ego's
+                // whole status from this reply: keep the action SSv2 named.
+                if let (Some(sent), Some(a)) = (
+                    row.status.action_status.as_ref(),
+                    reported.action_status.as_mut(),
+                ) {
+                    a.current_action.clone_from(&sent.current_action);
                 }
+                reported
             } else {
                 row.status.clone()
             };

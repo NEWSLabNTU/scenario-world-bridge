@@ -60,7 +60,8 @@ Output: one summary line on stdout; with --out, findings.json (schema below, `SC
 every finding as {check, priority, entities, frames [first, last], count, numbers, ...},
 info notes the same shape, the G4 class, the run's gap signature (contract x entity class x
 geometry, e.g. "C1:vehicle:ssv2") and the ego pairs' margins (min d_ssv2, min d_carla,
-min and max d_ssv2 - d_carla), which the generator (025) takes as feedback.
+min and max d_ssv2 - d_carla, and the smallest distance to a G1 disagreement:
+`disagreement_distance`), which the generator (025) takes as feedback.
 
 Exit status: 0 whatever was found (findings are data, not failures); 2 when the trace
 cannot be read. A trace cut short (no end record) is judged and marked `complete: false`.
@@ -234,6 +235,14 @@ def margin(a, b):
     return d, d <= gg.TOUCH_TOLERANCE
 
 
+def disagreement_distance(d_s, d_c, band):
+    """How far one frame of a pair is from a G1 disagreement, in metres: one geometry
+    overlapping (d <= 0), the other clear, and the two apart by more than the lag band. The
+    generator's (025) closeness comes from the run's smallest."""
+    split = min(max(0.0, d_s) + max(0.0, -d_c), max(0.0, d_c) + max(0.0, -d_s))
+    return split + max(0.0, band - abs(d_s - d_c))
+
+
 # --- the oracle ---------------------------------------------------------------------------
 
 
@@ -343,6 +352,8 @@ def analyze(trace, tol=None, junit=None):
                     if d_s is not None and d_c is not None:
                         track("min_margin_difference", d_s - d_c, where)
                         track_max("max_margin_difference", d_s - d_c, where)
+                        track("min_disagreement_distance",
+                              disagreement_distance(d_s, d_c, band), where)
 
     findings, info = [], []
     g1, g1_info = _g1(pairs, egos, kinds)

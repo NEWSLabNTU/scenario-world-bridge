@@ -235,6 +235,33 @@ class G1OverlapDisagreement(unittest.TestCase):
         self.assertEqual(len(checks(run(make_trace(["ego", "car"], frames), touch=-0.25),
                                 "G1")), 1)
 
+    def test_distance_to_disagreement(self):
+        # How far the closest ego-pair frame is from a G1 disagreement (025's closeness):
+        # one geometry overlapping (d <= 0), the other clear, by more than the band.
+        def dist(frames):
+            return run(make_trace(["ego", "truck"], frames))["margins"][
+                "min_disagreement_distance"]
+
+        # disagreeing: SSv2 2.25 m deep, CARLA 1.3 m clear
+        self.assertAlmostEqual(dist([truck_behind(n) for n in range(1, 4)]), 0.0, places=6)
+        # both clear: SSv2's boxes 9.25 m apart would have to meet
+        self.assertAlmostEqual(dist([truck_behind(n, gap=20.0) for n in range(1, 4)]), 9.25,
+                               places=6)
+        # both overlapping (they agree): CARLA's bodies would have to part, by their
+        # shortest way out, sideways (2.1 m of width overlap; 2.2 m along the road)
+        self.assertAlmostEqual(dist([truck_behind(n, gap=5.0) for n in range(1, 4)]), 2.1,
+                               places=6)
+        # the closest frame counts
+        frames = [truck_behind(1, gap=20.0), truck_behind(2, gap=15.0)]
+        r = run(make_trace(["ego", "truck"], frames))
+        self.assertAlmostEqual(r["margins"]["min_disagreement_distance"], 4.25, places=6)
+        self.assertEqual(r["margins"]["min_disagreement_distance_at"]["frame"], 2)
+        # within the ego's lag band: SSv2 0.1 deep, CARLA 0.1 clear, band 0.45: 0.25 short
+        frames = [frame(n, ("ego", state("ego", 0.0, dx=0.4)), ("car", state("car", -4.4)))
+                  for n in range(1, 4)]
+        r = run(make_trace(["ego", "car"], frames))
+        self.assertAlmostEqual(r["margins"]["min_disagreement_distance"], 0.25, places=6)
+
     def test_the_lag_does_not_excuse_a_large_difference(self):
         # Same lag, the declared 12 m truck: CARLA 0.2 m clear, SSv2 3.75 m deep.
         frames = [frame(n, ("ego", state("ego", 0.0, dx=0.4)), ("truck", state("truck", -7.0)))

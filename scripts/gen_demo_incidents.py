@@ -142,8 +142,22 @@ def npc_object(name, body, props=None):
 		</ScenarioObject>"""
 
 
-def car(name, props=None):
-    return npc_object(name, CAR.format(bp=name, vmax=20, **STARTER_CAR), props)
+def car(name, props=None, S=None):
+    """a car NPC: the starter car box, or what the sites entry `S` gives it (roadmap 025's
+    genes): `bodies[name]`, a blueprint declaring its measured box and axles, or
+    `boxes[name]`, a declared [length, width, height] grown from the starter car's rear
+    axle (its rear overhang and axles kept)"""
+    S = S or {}
+    bp = S.get("bodies", {}).get(name)
+    if bp:
+        return npc_object(name, CAR.format(bp=bp, vmax=20, **scenario_vehicle.strings(bp)), props)
+    box = S.get("boxes", {}).get(name)
+    dims = STARTER_CAR
+    if box:
+        length, width, height = box
+        dims = dict(STARTER_CAR, length=f"{length:g}", width=f"{width:g}", height=f"{height:g}",
+                    center_x=f"{length / 2 - 0.75:g}", center_z=f"{height / 2:g}")
+    return npc_object(name, CAR.format(bp=name, vmax=20, **dims), props)
 
 
 def bicycle(name):
@@ -398,7 +412,7 @@ def incident_groups(i, S):
             event(on_road, [speed("i1_cruise", lead_mps, 2.0)], [reach("i1_lead_merged", lead, S["lead_on_road"], 3.0)]),
             # brake ~6 m/s2 to a stop when the ego is within `brake_gap` m (box to box), or at
             # the brake point whatever the gap
-            event(brake, [speed_profile("i1_brake_hard", 0.0, 3.0, 6.0, 60.0), log("i1_brake_log", "i1", "brake", lead)],
+            event(brake, [speed_profile("i1_brake_hard", 0.0, 3.0, S.get("lead_decel", 6.0), 60.0), log("i1_brake_log", "i1", "brake", lead)],
                   [state("i1_brake_after_merge", on_road), gap_below("i1_ego_close", "ego", lead, brake_gap)],
                   [reach("i1_lead_at_brake_point", lead, S["brake_at"], 2.5)]),
             # drive off once the ego has stood behind it for 4 s (or 20 s after the brake)
@@ -412,7 +426,7 @@ def incident_groups(i, S):
                         reach("i1_trigger", "ego", S["trigger"], 3.0),
                         [delete(lead)], [[reach("i1_lead_gone", lead, S["lead_end"], 4.0)]],
                         [go_event("i1", 6.0), *extra])
-        return [car(lead)], [g]
+        return [car(lead, S=S)], [g]
 
     if i == 2:
         ped = "i2_ped"
@@ -428,15 +442,16 @@ def incident_groups(i, S):
         # Out from behind the van into the ego's lane, stop there 4 s (startled), then
         # on across the oncoming lane to the far kerb.
         b = "i2_ped_busy"
+        ped_mps, hold_s = S.get("ped_mps", 1.5), S.get("ped_hold_s", 4.0)
         # he faces the way he walks: from the kerb across the ego's lane
         walk_yaw = math.atan2(S["ped_far"]["y"] - line["y"], S["ped_far"]["x"] - line["x"])
         ped_extra = [
-            event("i2_ped_dart", [speed("i2_ped_walk", 1.5, rate=WALKER_START_RATE), trajectory("i2_dart", [(None, S["ped_spawn"]), (None, S["ped_in_lane"])], yaw=walk_yaw),
+            event("i2_ped_dart", [speed("i2_ped_walk", ped_mps, rate=WALKER_START_RATE), trajectory("i2_dart", [(None, S["ped_spawn"]), (None, S["ped_in_lane"])], yaw=walk_yaw),
                                   set_param("i2_dart_running", b, 1), log("i2_dart_log", "i2", "dart", ped)],
                   [reach("i2_ego_near", "ego", S["dart"], 2.0), param_is("i2_dart_live", "i2_ped_phase", 1)]),
             event("i2_ped_hold", [speed("i2_ped_stop", 0.0)], [state("i2_ped_in_lane", "i2_ped_dart")]),
-            event("i2_ped_cross", [speed("i2_ped_walk_on", 1.5, rate=WALKER_START_RATE), trajectory("i2_cross", [(None, S["ped_hold"]), (None, S["ped_far"])], yaw=walk_yaw)],
-                  [state("i2_ped_held", "i2_ped_hold", delay=4.0)]),
+            event("i2_ped_cross", [speed("i2_ped_walk_on", ped_mps, rate=WALKER_START_RATE), trajectory("i2_cross", [(None, S["ped_hold"]), (None, S["ped_far"])], yaw=walk_yaw)],
+                  [state("i2_ped_held", "i2_ped_hold", delay=hold_s)]),
             event("i2_ped_across", [speed("i2_ped_stop_far", 0.0), set_param("i2_ped_walked_far", b, 2)],
                   [state("i2_ped_crossed", "i2_ped_cross")]),
         ]
@@ -484,7 +499,7 @@ def incident_groups(i, S):
                             trigger("i4_trigger_oncoming"), [delete(a) for a in onc],
                             [[reach("i4_oncoming_gone", onc[1], S["oncoming_end"], 4.0)]],
                             [go_event("i4_oncoming", S.get("oncoming_mps", 6.0))])
-        return [car(broken), *[car(a) for a in onc]], [g_broken, g_onc]
+        return [car(broken, S=S), *[car(a) for a in onc]], [g_broken, g_onc]
 
     if i == 5:
         cross = ["i5_cross_a", "i5_cross_b"]
@@ -493,7 +508,7 @@ def incident_groups(i, S):
                          speed("i5_cross_hold", 0.0), acquire("i5_cross_route", S["cross_target"])],
                         reach("i5_trigger", "ego", S["trigger"], 3.0),
                         [delete(a) for a in cross], [[reach("i5_cross_gone", cross[1], S["cross_end"], 4.0)]],
-                        [go_event("i5", 8.0)])
+                        [go_event("i5", S.get("cross_mps", 8.0))])
         return [car(a) for a in cross], [g]
 
     if i == 6:

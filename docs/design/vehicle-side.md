@@ -62,6 +62,8 @@ change does (time-and-ticking, "Episodes and vehicle stacks").
   SSv2 ─ scenario-world-bridge (adapter, world servers, relay, agent)   needs SSv2
                 │ uses
   acb (CARLA vehicle bridge)    aib (Isaac vehicle library)           one per simulator
+                │ both use       │ uses
+                │               sim_vehicle_ecu: the car's onboard computers   no simulator, no ROS
                 │ both use
   autoware_sim_vehicle: generated Autoware packages, pedal maps,
                  the Autoware launch profile, the I5 contract and its check   Autoware's view
@@ -93,6 +95,34 @@ and aib carry them under `deps/`, which holds a committed `COLCON_IGNORE` so swb
 direct submodule, never builds a second copy (colcon refuses duplicate packages). A pin
 check in swb fails when acb's or aib's pin of either is not an ancestor of swb's
 (roadmap 051, decision 4). Submodules only; no `.repos` files.
+
+## The car's onboard computers
+
+(Roadmap 055, issue 007.) Between the vehicle interface and the wheels a real car has its
+onboard computers: the drive unit's controller (VCU: the acceleration request to motor
+torque, regen blended with the friction brakes), the brake module (brake distribution, ABS,
+traction control and ESC, one unit) and the power steering (EPS). Autoware never sees them,
+and they see only the car's own sensors: wheel speeds, a yaw-rate and acceleration sensor, the
+steering angle. They live in `sim_vehicle_ecu`, with the actuators PhysX's drive-none vehicle
+lacks (the motor's envelope and lag, the brake hydraulics, the steering motor):
+
+![The ego's control path on CARLA and Isaac Sim](vehicle-ecu.svg)
+
+(`vehicle-ecu.typ`; `typst compile` it to the SVG.)
+
+- **Interface**: `Ecu.step(Request, Sensors, dt) -> Actuation`. The request is the by-wire
+  command (acceleration, velocity, tire angle, gear); the sensors are four wheel speeds, the
+  yaw rate and the longitudinal and lateral accelerations; the actuation is each wheel's drive
+  and brake torque and the bicycle tire angle. The reference speed, the wheel slips, the
+  sideslip and the friction are the ECU's own estimates.
+- **Calibration**: from the spec (`Calibration.from_spec`), overridden per run by an ego
+  config's `ecu:` mapping.
+- **Who runs it**: the simulator host, every physics substep, next to the physics: on Isaac
+  aib's `Vehicle.apply` (in swb_isaac_world's world server or `aib.runner`). Not over ROS: a
+  brake module closes its loop in milliseconds on the car.
+- **CARLA** does not run it: CARLA 0.9.16 takes throttle, brake and steering, not per-wheel
+  torque, and its car has its own model. What CARLA cannot express stays listed in
+  `carla_physics.yaml` as before.
 
 ## The rule for sharing
 

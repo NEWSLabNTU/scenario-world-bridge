@@ -734,6 +734,22 @@ loaded`. Cross-track on CARLA is 0.09-0.15 m against Isaac's 0.01-0.04, inside a
      2026-10-25); this check and open item 3's walker render moved to newslab-118-server, on
      the point-cloud world (118 cannot render SimReady Town01, issue 005). The mechanism is
      the body's own materials, so `pcd_world` is evidence for it.
+     **Verified on pcd_world (2026-10-25, newslab-118-server, main `7843908`); SimReady Town01
+     not re-run (118 issue 005).** Two runs of incident 2, each on a fresh world server
+     (`just isaac-world` on Town01's point-cloud world, `just run sim:=isaac` with a gap trace,
+     `just ego-isaac` as the tour runs it). Both PASS: SSv2 0 failures, judge PASS (run B:
+     the ego stood 6.7 s, pedestrian 5.14 m away; run A had no context log), gap oracle G1-G3 0,
+     G4 agree, 0 contacts, no bridge respawn (no exit 75). Run A was this host's first van ever:
+     `first vehicle.mercedes.sprinter in this world server: rendered in 16.7 s` inside Spawn,
+     and the bridge's whole-run frame budget shows it there and not in a Step (processing max
+     17361 ms, tick max 166.5 ms); the ego stack rode through the pause. Run B, a new process:
+     the van rendered in 0.3 s, processing max 749 ms, tick max 95.5 ms. So on 118 the compile
+     does survive a world-server restart (a driver or Kit cache outside `~/.cache/ov`; not
+     traced), unlike the 2.4 MB cache noted above, and only a host's first render of a body
+     pays it. The walker (`i2_ped` with no model wears `bp_walker_femaleafro03_v1` here, not
+     139's `bp_walker_maleamer_cop`: `pick` spreads by name over this host's 53 exports)
+     rendered in 0.4 s in both runs, after open item 3's line-up had already rendered every
+     walker on this host. Logs: `play_log/044/i2_fresh_118{,_b}/` on 118.
 3. **`walker.pedestrian.NNNN` -> blueprint** (step 6 found it unreadable from the editor:
    WalkerFactory builds it in its Blueprint graph, so `csb_isaac.walkers.pick` chose by the
    id's number). **Read from the package instead (2026-10-22).** The graph compiles each
@@ -750,6 +766,19 @@ loaded`. Cross-track on CARLA is 0.09-0.15 m against Isaac's 0.01-0.04, inside a
    missing>`, 1420 s of SimReady export, 14 GB in `$CSB_VEHICLE_USD/walkers/`; `walkers.json`
    has 52, `ue_meta.json` no error, every id's `pick` is its own blueprint. The 8 children are
    1.22-1.35 m. Not yet seen rendered on Isaac (GPU held by other work).
+   **Seen rendered (2026-10-25, newslab-118-server):** all 52 ids through `IsaacWorld` on a
+   ground plane, rows of 13 at 1.6 m, rows 1 and 3 walking at 1.3 m/s (139's line-up script,
+   run as given; the set exported on 118 the same day, 53 walkers, 14 GB). `WALKING 52 of 52`:
+   every one got a walk cycle. In the shots (front, back, one per row) every body is there,
+   upright, textured, feet on the plane, the walking rows mid-stride; none missing or broken.
+   **But the variants lose their colours.** CARLA's `_v2`, `_v3`, ... blueprints reuse their
+   base's skeletal mesh and override its materials (`BP_Walker_Female1_v2` imports
+   `MI_Female1_v2`, `_v3` `MI_Female1_v3`); the SimReady export writes the mesh's own
+   materials, so every variant's textures are byte-identical to its base's. The 52 ids show
+   30 looks; 34 ids share one in 12 groups: 0001/0005-0008, 0002-0004, 0009-0011,
+   0012-0014, 0015/0019, 0022/0023, 0027-0029, 0031/0041, 0034/0038, 0035-0037, 0042-0044,
+   0045-0047. **Open**: export each blueprint's material overrides. Shots and the script:
+   `/mnt/renegade/aeon/csb-044/walkers52/` on 118.
    The whole set (towns, vehicles, props, walkers) now moves as one directory: relative
    paths in its indexes, a `MANIFEST.sha256`, `just isaac-assets check|manifest`, obtainable
    from NEWSLab (docs/design/isaac-assets.md, 2026-10-23).

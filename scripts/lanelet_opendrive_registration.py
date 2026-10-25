@@ -15,40 +15,24 @@ every matching lane (a lanelet drawn longer than its lane) is unmatched.
         data/carla-autoware-bridge/Town01/lanelet2_map.osm \\
         $CARLA_DIR/CarlaUE4/Content/Carla/Maps/OpenDrive/Town01.xodr [--step 1.0] [--worst 10]
 
-Lanelet2 positions are its lat/lon, projected as Autoware projects them for these maps
-(`project`: TransverseMercator about 0/0 on WGS84, k0 0.9996). Not the nodes' local_x/local_y:
-those are a spherical Mercator on R = 6 378 137 m, 0.7 % long in y against CARLA (2.2 m on
-Town01's y = -330 road), while the point cloud map's kerbs and the driven ego agree with the
-projected lat/lon. CARLA's frame is (x, -y).
+Lanelet2 positions are its lat/lon, projected as Autoware projects them
+(`autoware_projection.py`: the map's TransverseMercator, WGS84, k0 0.9996). Not the pack's
+local_x/local_y: those were a spherical Mercator on R = 6 378 137 m, 0.7 % long in y against
+CARLA (2.2 m on Town01's y = -330 road), while the point cloud map's kerbs and the driven ego
+agree with the projected lat/lon; repair_lanelet_local_coords.py now rewrites them.
+CARLA's frame is (x, -y).
 """
 
 import argparse
 import math
 import statistics
+import sys
 from collections import Counter
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# Autoware's projector for these maps: TransverseMercator about (0, 0) on WGS84, scale k0
-# (map_projector_info.yaml; GeographicLib's TransverseMercatorExact). Near the origin it is
-# x = k0 N lon cos(lat), y = k0 M(lat), M the meridian arc: within a millimetre over a town.
-WGS84_A = 6378137.0
-WGS84_F = 1 / 298.257223563
-K0 = 0.9996
-
-
-def project(lat_deg, lon_deg):
-    """Autoware's map-frame metres for a lat/lon (see K0)"""
-    e2 = WGS84_F * (2 - WGS84_F)
-    lat, lon = math.radians(lat_deg), math.radians(lon_deg)
-    s = math.sin(lat)
-    n = WGS84_A / math.sqrt(1 - e2 * s * s)
-    e4, e6 = e2 * e2, e2 * e2 * e2
-    m = WGS84_A * ((1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * lat
-                   - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * math.sin(2 * lat)
-                   + (15 * e4 / 256 + 45 * e6 / 1024) * math.sin(4 * lat))
-    return (K0 * n * lon * math.cos(lat),
-            K0 * (m + n * math.tan(lat) * (lon * math.cos(lat)) ** 2 / 2))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from autoware_projection import Projector  # noqa: E402
 
 
 def parse_lanelets(path, subtypes=("road",)):
@@ -57,6 +41,7 @@ def parse_lanelets(path, subtypes=("road",)):
     lanes). A left bound drawn against the right one is reversed, as Lanelet2 does: the
     right bound gives the driving direction."""
     root = ET.parse(path).getroot()
+    project = Projector.for_map(path).project
     nodes = {n.get("id"): project(float(n.get("lat")), float(n.get("lon")))
              for n in root.iter("node")}
     ways = {w.get("id"): [nodes[nd.get("ref")] for nd in w.iter("nd")] for w in root.iter("way")}

@@ -127,6 +127,9 @@ class RepairTurnDirection(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "Town99" / "lanelet2_map.osm"
         self.path.parent.mkdir()
+        (self.path.parent / "map_projector_info.yaml").write_text(
+            "projector_type: TransverseMercator\nmap_origin:\n  latitude: 0.0\n"
+            "  longitude: 0.0\n", encoding="utf-8")
         self.original, self.ids = build()
         self.path.write_text(self.original, encoding="utf-8")
 

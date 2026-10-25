@@ -26,10 +26,13 @@ regulatory element, because that is the definition Autoware is checking against 
 sidesteps having to pin down CARLA's own actor-yaw convention.
 
 Positions are written as lat/lon *and* local_x/local_y/ele. lat/lon is what Autoware's
-loader projects (map_projector_info.yaml declares TransverseMercator about 0,0, so
-x = radians(lon) * 6378137 and y = radians(lat) * 6378137); local_x/local_y is what swb's
-own parser reads. Writing one and not the other leaves the two halves of the stack
-disagreeing about where the light is.
+loader and SSv2's project, with the TransverseMercator map_projector_info.yaml declares
+(WGS84, k0 0.9996: `autoware_projection.py`), so it is written with `Projector.unproject`;
+local_x/local_y is what swb's own parser reads, the same point in the same frame (see
+`repair_lanelet_local_coords.py`). Writing one and not the other leaves the two halves of
+the stack disagreeing about where the light is. Until 2026-10-25 this wrote lat = y / R,
+which the TransverseMercator reads 0.7 % short in y (2.3 m at y = -330): rerun it on a map
+it edited before then.
 
 Needs CARLA running with the town already loaded, and the CARLA PythonAPI importable:
 
@@ -42,20 +45,18 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from autoware_projection import Projector  # noqa: E402
+
 try:
     import carla
 except ImportError:
     sys.exit("carla PythonAPI not importable -- see this script's docstring")
 
-EARTH_RADIUS = 6378137.0
 # How far a CARLA light head may sit from the map's stub and still be the same light.
 # The stubs are roughly in the right place; this only has to beat the spacing between
 # neighbouring signals at one junction.
 MATCH_TOLERANCE = 8.0
-
-
-def to_latlon(x, y):
-    return math.degrees(y / EARTH_RADIUS), math.degrees(x / EARTH_RADIUS)
 
 
 def carla_heads(world):
@@ -72,7 +73,7 @@ def carla_heads(world):
     return heads
 
 
-def parse_map(path):
+def parse_map(path, projector):
     root = ET.parse(path).getroot()
     nodes, ways = {}, {}
     for n in root.findall("node"):
@@ -80,10 +81,7 @@ def parse_map(path):
         if "local_x" in tags:
             nodes[n.get("id")] = (float(tags["local_x"]), float(tags["local_y"]))
         elif n.get("lat"):
-            nodes[n.get("id")] = (
-                math.radians(float(n.get("lon"))) * EARTH_RADIUS,
-                math.radians(float(n.get("lat"))) * EARTH_RADIUS,
-            )
+            nodes[n.get("id")] = projector.project(float(n.get("lat")), float(n.get("lon")))
     for w in root.findall("way"):
         ways[w.get("id")] = [nd.get("ref") for nd in w.findall("nd")]
 
@@ -140,8 +138,8 @@ def set_tag(block, key, value):
     return block.replace("</way>", "    " + new + "\n  </way>")
 
 
-def rewrite_node(text, node_id, x, y, z):
-    lat, lon = to_latlon(x, y)
+def rewrite_node(text, projector, node_id, x, y, z):
+    lat, lon = projector.unproject(x, y)
     block_re = re.compile(r'<node id="%s"[^>]*>.*?</node>' % re.escape(node_id), re.S)
     m = block_re.search(text)
     if not m:
@@ -174,7 +172,8 @@ def main():
     heads = carla_heads(world)
     if not heads:
         sys.exit("CARLA reported no traffic light heads")
-    nodes, ways, elements = parse_map(map_path)
+    projector = Projector.for_map(map_path)
+    nodes, ways, elements = parse_map(map_path, projector)
     print(f"{town}: {len(heads)} CARLA signal head(s), "
           f"{len(elements)} lanelet traffic light element(s)")
 
@@ -210,8 +209,8 @@ def main():
         bottom = hz - height / 2.0
 
         node_ids = ways[way_id]
-        text, ok_a = rewrite_node(text, node_ids[0], hx - dx, hy - dy, bottom)
-        text, ok_b = rewrite_node(text, node_ids[-1], hx + dx, hy + dy, bottom)
+        text, ok_a = rewrite_node(text, projector, node_ids[0], hx - dx, hy - dy, bottom)
+        text, ok_b = rewrite_node(text, projector, node_ids[-1], hx + dx, hy + dy, bottom)
         if not (ok_a and ok_b):
             skipped.append((eid, "node blocks not found"))
             continue

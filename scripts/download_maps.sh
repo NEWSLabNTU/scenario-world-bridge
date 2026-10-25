@@ -39,8 +39,9 @@ repair_maps() {
     # Some lanelets ship with no subtype at all (kerb strips, mostly), which makes
     # Autoware's map_based_prediction abort as soon as a pedestrian is near one.
     python3 "$(dirname "$0")/repair_lanelet_subtypes.py" "$1"
-    # A few nodes (stop lines, signs) carry only lat/lon, which Autoware projects with a
-    # different transform than the one that made them: up to 2.4 m off. Tag them locally.
+    # The pack's local_x/local_y (what swb reads) are a spherical Mercator, 0.7 % long in
+    # y against the TransverseMercator Autoware and SSv2 project lat/lon with: 2.2 m on
+    # Town01's southern road. Rewrite every node's from its lat/lon.
     python3 "$(dirname "$0")/repair_lanelet_local_coords.py" "$1"
     # No lanelet carries turn_direction, so Autoware's intersection and blind_spot
     # modules never launch. Tag the junction lanelets from their heading change.

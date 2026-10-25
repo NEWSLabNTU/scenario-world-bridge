@@ -111,12 +111,20 @@ needs a fork protocol slot, as `UpdateEnvironment` was for weather (047).
     OpenDRIVE's lane edges (-332.6, -324.6), not the local tags' (-334.8, -326.8), and the
     ego in recorded incident 3 runs drove at y = -330.5, the projected lat/lon's lane centre
     (-330.46). So Autoware, whose loader takes the local tags only under a `Local`
-    projector, uses lat/lon here; `scripts/repair_lanelet_local_coords.py`'s premise that it
-    reads the local tags does not hold for these maps, and
-    `scripts/regenerate_light_geometry.py` writes lat = y / R, which the TransverseMercator
-    reads 0.7 % short in y (a light head at y = -330 lands 2.3 m off). swb_core's
-    `lanelet_map.rs` reads the local tags, for the position fallback of light matching only
-    (Town01 matches 36 of 36 by signal id). Not fixed: each needs its own check.
+    projector, uses lat/lon here, and so does SSv2 (`lanelet_loader.cpp`: `lanelet::load`
+    with a TransverseMercatorProjector, k0 0.9996 by default). **Fixed 2026-10-25**: the
+    projection now lives in `scripts/autoware_projection.py` (`project`, `unproject`;
+    TransverseMercator about the map's origin on WGS84, k0 0.9996, checked against pyproj to
+    a millimetre), and every tool that writes or derives positions uses it.
+    `repair_lanelet_local_coords.py` rewrites every node's `local_x`/`local_y` from its
+    lat/lon, so the tags hold the frame Autoware, SSv2 and CARLA share and every reader of
+    them (swb_core's light fallback, the repair scripts, swb_isaac_world's surface check) is
+    right with no change of its own. `regenerate_light_geometry.py` and
+    `repair_lanelet_signal_links.py` write lat/lon with `unproject` (they wrote lat = y / R,
+    which TransverseMercator reads 0.7 % short in y: a light head at y = -330 landed 2.3 m
+    off); a map either one wrote before the fix has its new nodes' lat/lon wrong and its
+    tags right, so rerun that script before the repair. swb_core's fallback for a node with
+    no tags (`lanelet_map.rs`) projects the same way.
   - **45 `road`-subtype lanelets are not driving lanes**: 28 lie on OpenDRIVE sidewalks and
     17 on shoulders. Whether SSv2 or Autoware ever routes or canonicalises onto them is
     unchecked.
@@ -191,8 +199,8 @@ LightStateAction, AnimationAction / Appearance / Visibility, Override* / Activat
 Trailer; detection-sensor knobs (unsupported by decision); `DomeImage` (fork does not send it).
 
 **Backend, CARLA**: arrows / flashing / `relation_ids` (CARLA limit); lanelet2 vs OpenDRIVE
-registration measured on Town01 only (driving lanes within 0.21 m; the local tags 0.7 % off
-in y and 45 `road` lanelets on sidewalks or shoulders, §2); CARLA free-runs at ~79 % GPU
+registration measured on Town01 only (driving lanes within 0.21 m; 45 `road` lanelets on
+sidewalks or shoulders, §2; the local tags' 0.7 % in y fixed); CARLA free-runs at ~79 % GPU
 while idle (044 open item 5).
 
 **Backend, Isaac against CARLA**: no `AUTOPILOT` (simulator traffic; `town01_simulator_autopilot`

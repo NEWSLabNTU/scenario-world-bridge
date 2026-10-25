@@ -23,8 +23,9 @@ point of each lane it governs. For each light this script
 
 Road lanelets keep only the traffic-light elements assigned here (a wrong link is
 removed); walkways and other regulatory elements are untouched. The light ways and the
-element ids stay, so the signal table stays valid. New nodes carry lat/lon and
-local_x/local_y, as `regenerate_light_geometry.py` writes them. Edits are text edits;
+element ids stay, so the signal table stays valid. New nodes carry lat/lon (Autoware's
+TransverseMercator, `autoware_projection.py`) and local_x/local_y, as
+`regenerate_light_geometry.py` writes them. Edits are text edits;
 the first run keeps `<map>.orig-signal-links` and every run starts from it, so a rerun
 writes the same file.
 
@@ -43,6 +44,9 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from autoware_projection import Projector  # noqa: E402
+
 try:
     import carla
 except ImportError:
@@ -52,12 +56,7 @@ try:
 except ImportError:
     sys.exit("PyYAML not importable (python3-yaml)")
 
-EARTH_RADIUS = 6378137.0
 HEADING_COS = 0.8  # a stop waypoint's lane and the lanelet agree within ~37 degrees
-
-
-def to_latlon(x, y):
-    return math.degrees(y / EARTH_RADIUS), math.degrees(x / EARTH_RADIUS)
 
 
 def seg_dist(p, a, b):
@@ -243,11 +242,12 @@ def main():
     text = backup.read_text(encoding="utf-8", errors="surrogateescape")
     new_xml = []
     nid = max_id
+    projector = Projector.for_map(osm)
     for e, ((p0, p1, z), _, od) in sorted(plan.items()):
         ids = []
         for x, y in (p0, p1):
             nid += 1
-            lat, lon = to_latlon(x, y)
+            lat, lon = projector.unproject(x, y)
             new_xml.append(
                 f'  <node id="{nid}" lat="{lat:.12f}" lon="{lon:.12f}">\n'
                 f'    <tag k="ele" v="{z:.3f}"/>\n'

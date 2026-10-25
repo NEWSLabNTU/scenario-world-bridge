@@ -41,10 +41,10 @@ centreline, positive counter-clockwise (ROS frame): above +TURN_DEG is `left`, b
 -TURN_DEG `right`, else `straight`. TURN_DEG = 45 is the bisector of straight (0) and a
 right-angle turn (90): across the five towns the junction lanelets fall at 0 +- 20 deg and
 90 +- 20 deg, with only a handful of Town03's oblique and roundabout connectors between 30
-and 60. Positions come from lat/lon, which every node has, through the spherical Mercator
-of repair_lanelet_local_coords.py (so they equal the pack's `local_x` / `local_y` where
-those exist). That frame is 0.67 % long in y against CARLA's lanes (033 step 3), which
-bends a heading by at most 0.2 deg: nothing against a 45 deg threshold. Checked on Town01:
+and 60. Positions come from lat/lon, which every node has, through Autoware's projection
+(`autoware_projection.py`, the frame repair_lanelet_local_coords.py writes into `local_x` /
+`local_y`). Until 2026-10-25 this used the pack's spherical Mercator, 0.67 % long in y,
+which bends a heading by at most 0.2 deg: the tags it wrote then stand. Checked on Town01:
 all 72 tagged lanelets match a CARLA junction segment (`get_topology`) turning the same way.
 
 The repair adds `turn_direction` to the junction lanelets that have none; a tag already
@@ -62,15 +62,11 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-R = 6378137.0
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from autoware_projection import Projector  # noqa: E402
+
 TURN_DEG = 45.0
 DRIVEABLE = ("road", "highway")
-
-
-def carla_local(lat_deg, lon_deg):
-    """Local (ROS-frame) metres for a lat/lon made by CARLA's geo transform about (0, 0)."""
-    lat, lon = math.radians(lat_deg), math.radians(lon_deg)
-    return R * lon, R * math.log(math.tan(math.pi / 4 + lat / 2))
 
 
 def direction(change):
@@ -112,7 +108,8 @@ def heading_change(left, right):
 def targets(path):
     """(id, turn_direction) for every junction lanelet that has no turn_direction tag."""
     root = ET.parse(path).getroot()
-    nodes = {n.get("id"): carla_local(float(n.get("lat")), float(n.get("lon")))
+    projector = Projector.for_map(path)
+    nodes = {n.get("id"): projector.project(float(n.get("lat")), float(n.get("lon")))
              for n in root.findall("node")}
     ways = {w.get("id"): [nd.get("ref") for nd in w.findall("nd")] for w in root.findall("way")}
     lanes, tagged = {}, set()

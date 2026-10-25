@@ -7,7 +7,7 @@ control, ESC) and the power steering become one simulator-free library that the 
 steps every physics substep beside PhysX. aib keeps what a vehicle bridge does: Autoware's
 command in, status and sensors out, and the PhysX vehicle.
 
-**Status**: done, 2026-10-25 (the repository waits to be published on GitHub; see Progress).
+**Status**: done, 2026-10-25 (published: github.com/NEWSLabNTU/sim_vehicle_ecu).
 
 **Source**: user direction 2026-10-25, after 054 step 3: "Aib is the bridge. I don't think
 it's a proper place to do control adjustment. The Autoware focus on planning and high level

@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below).
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`; steps 5-8 (T2) open.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -176,7 +176,7 @@ small ones), each class `unvalidated:` until 053.
   dwell on dry asphalt against FMVSS 126's criteria (yaw rate at most 35 % of its peak 1 s
   after the steering ends, at most 20 % at 1.75 s; at least 1.83 m lateral displacement at
   1.07 s).
-- [ ] **4. T1: each surface's own curve** (design: "T1 in detail" above).
+- [x] **4. T1: each surface's own curve** (design: "T1 in detail" above).
   - [x] **4a. PhysX's tire, measured** (below). A spike sweeping the slip angle (a slowly growing steer
     at constant speed) and the slip (a ramped brake) on dry asphalt and on mud, today's
     tire: `TIRE_FORCE` over the load against PhysX's reported slips. Confirms the peak at

@@ -99,7 +99,27 @@ needs a fork protocol slot, as `UpdateEnvironment` was for weather (047).
   rear axle. Decision 2026-09-25: rear axle everywhere ([roadmap 014](../roadmap/014-feature-completeness.md)).
 - **Lane position.** SSv2 re-canonicalises the ego pose from CARLA onto lanelet2; CARLA works
   in OpenDRIVE. Any misregistration between the two maps appears as lane-matching failures.
-  **Still unmeasured** (2026-10-24).
+  **Measured 2026-10-25, Town01** (`scripts/lanelet_opendrive_registration.py`, offline:
+  CARLA's Python API parses the `.xodr`): the 124 `road` lanelets on OpenDRIVE driving lanes
+  sit within 0.21 m of their lane centres (p50 0.05, p95 0.16; most of it the projector's
+  k0 = 0.9996, 0.04 % of x) and agree in width (p95 0.05 m), with lat/lon projected as
+  Autoware projects them (TransverseMercator about 0/0, WGS84). Two things the measurement
+  turned up:
+  - **The nodes' `local_x`/`local_y` are not CARLA's frame.** They are a spherical Mercator
+    (R = 6 378 137 m), 0.7 % long in y: 2.2 m on the y = -330 road, 0.9 m at y = -130,
+    nothing near y = 0. The point cloud map's kerbs at x = 200 (-332.9 and -324.6) match
+    OpenDRIVE's lane edges (-332.6, -324.6), not the local tags' (-334.8, -326.8), and the
+    ego in recorded incident 3 runs drove at y = -330.5, the projected lat/lon's lane centre
+    (-330.46). So Autoware, whose loader takes the local tags only under a `Local`
+    projector, uses lat/lon here; `scripts/repair_lanelet_local_coords.py`'s premise that it
+    reads the local tags does not hold for these maps, and
+    `scripts/regenerate_light_geometry.py` writes lat = y / R, which the TransverseMercator
+    reads 0.7 % short in y (a light head at y = -330 lands 2.3 m off). swb_core's
+    `lanelet_map.rs` reads the local tags, for the position fallback of light matching only
+    (Town01 matches 36 of 36 by signal id). Not fixed: each needs its own check.
+  - **45 `road`-subtype lanelets are not driving lanes**: 28 lie on OpenDRIVE sidewalks and
+    17 on shoulders. Whether SSv2 or Autoware ever routes or canonicalises onto them is
+    unchecked.
 
 ## 3. Ego / Autoware contract
 
@@ -171,7 +191,8 @@ LightStateAction, AnimationAction / Appearance / Visibility, Override* / Activat
 Trailer; detection-sensor knobs (unsupported by decision); `DomeImage` (fork does not send it).
 
 **Backend, CARLA**: arrows / flashing / `relation_ids` (CARLA limit); lanelet2 vs OpenDRIVE
-registration unmeasured; CARLA free-runs at ~79 % GPU
+registration measured on Town01 only (driving lanes within 0.21 m; the local tags 0.7 % off
+in y and 45 `road` lanelets on sidewalks or shoulders, §2); CARLA free-runs at ~79 % GPU
 while idle (044 open item 5).
 
 **Backend, Isaac against CARLA**: no `AUTOPILOT` (simulator traffic; `town01_simulator_autopilot`

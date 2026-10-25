@@ -89,6 +89,9 @@ T2 is the balance point: it reuses what the grid already computes (pressure, sin
 ruts, the part with history) and replaces only the shear integration, so it adds every missing
 mud effect for about a tenth of the grid's cost.
 
+The table is the plan as first written. T2 as decided is narrower: PhysX keeps the shear, and
+T2 adds the soil against the tire's side ("T2 in detail" below).
+
 
 ### T1 in detail (explored and decided 2026-10-25)
 
@@ -159,6 +162,45 @@ come from the literature's ranges (dry asphalt peaks at 4-8 deg and 0.10-0.15 sl
 0.75-0.85 of the peak; soft and loose ground at larger slips and lower sliding shares; ice at
 small ones), each class `unvalidated:` until 053.
 
+### T2 in detail (explored and decided 2026-10-25)
+
+Explored against the code after T1:
+
+- **T1 already shapes the shear on soil.** A soil wheel's friction is the soil's traction
+  limit over its load, and since T1 it follows the class's curve: mud peaks at 12.8 deg. So
+  the step steer on mud already builds over a larger slip angle than on asphalt.
+- **The rut's floor is already PhysX's.** Where a zone has `ground_z`, each wheel rides on a
+  plate fitted to the ruts over its footprint (`soil_tiles`, 047 S3): a tire half over a rut
+  sits half in it, tilted toward it. A rut-wall force on top would count it twice.
+- **Our own tire on soil (the brush as first written) needs our own wheel.** With PhysX's
+  friction near zero, the brush's F_x must come back on the wheel's spin as a torque the host
+  sets a substep late. Mud's shear stiffness (about 10 kN per unit slip) on a 1.4 kg m^2 wheel
+  at 1/60 s is explicit-stable only above about 4-8 m/s (the slip's denominator is |v| + 4):
+  it would oscillate at the speeds Autoware takes mud at (13 km/h). It needs the wheel
+  integrated implicitly on soil, a spike of its own.
+- **What no tier has yet: the soil against the tire's side.** Pushed sideways, a sunk tire
+  drives its side into the soil, which answers with its passive earth pressure (Ishigami et
+  al. 2007's bulldozing, Bekker's resistance per unit width): on fresh soil at the sinkage, in
+  an old rut at the height its wall stands above the wheel's bottom.
+
+**Decided (user, 2026-10-25): T2 adds to PhysX (option B), on every physics vehicle on soil.**
+
+- **The sidewall force**, per wheel on soil: `soil.sidewall`, Bekker's bulldozing resultant
+  over the contact length, `L (0.67 c z K_pc + 0.5 gamma z^2 K_pgamma)` with
+  `K_pc = (N_c - tan phi) cos^2 phi`, `K_pgamma = (2 N_gamma / tan phi + 1) cos^2 phi`
+  (Terzaghi's factors, Vesic's N_gamma), z the height the soil beside the leading side stands
+  above the wheel's bottom (`SoilGrid.side_heights`: the nodes one and two spacings outside
+  the tire, along its contact; the closed-form wheel: the sinkage), L the contact chord.
+  Mud at 4 cm of sinkage: about 210 N a wheel; at 8 cm, 740 N.
+- **Against the contact's lateral speed**, `tanh(v_lat / 0.1 m/s)` (none rolling straight, full
+  sliding), v_lat from PhysX's lateral slip; through the class's relaxation length as T1's
+  drop; at the contact, beside the resistance, in one force. A body force, so the wheel's spin
+  is untouched and nothing new runs explicit on a stiff loop: its damping, 2 kN s/m a wheel,
+  is two orders under the step's limit.
+- **New soil key**: `unit_weight` (N/m^3, default 16000), for the weight term.
+- **Our own tire on soil (option A)** stays an open question below, for when T2's numbers say
+  the shear needs more than T1's curve.
+
 ## Steps
 
 - [x] **1. What PhysX lets us change while playing.** A spike setting each tire attribute on a
@@ -191,13 +233,9 @@ small ones), each class `unvalidated:` until 053.
     vehicle-check; town01_mud with Autoware, recorded. On mud the step steer's lateral force
     builds over a larger slip angle than on asphalt and falls toward the sliding share past
     it.
-- [ ] **5. T2: the brush on soil.** In `soil.py`, pure Python and numpy and unit-tested like
-  the grid: the brush, bulldozing and rut-wall terms from the grid's state under the wheel.
-  In `SurfaceLayer._soil`: PhysX's friction near zero by the soil's share (the zone edge's
-  blend stays), our F_x, F_y and M_z at the contact; in aib a per-wheel torque the host sets,
-  taken off the drive torque, for the soil's reaction on the wheel. The relaxation lag,
-  semi-implicit damping and the hand-back to PhysX below 3 m/s as above. Resistance-only
-  `_soil` stays available as the fallback.
+- [x] **5. T2: the soil against the tire's side** (design: "T2 in detail" above).
+  `soil.sidewall`, `SoilGrid.side_heights`, the force in `SurfaceLayer._soil` beside the
+  resistance, `unit_weight`; unit-tested like the grid; the suite against T1's numbers.
 - [ ] **6. Low-speed and edge checks.** Creeping across a zone edge at 0.5-3 m/s, stopping and
   holding on soil, starting from rest in a rut, one side on soil: no oscillation in yaw rate or
   lateral velocity, no jump at the hand-back speed.
@@ -438,10 +476,40 @@ direction: mud's sideways peak rose from 0.167 to 0.237 of the load (the soil la
   as before, Autoware asking up to 0.64 m/s^2; the rear wheels run at 0.06-0.08 slip on the
   mud (0.02 before: the softer tire), under traction control's threshold, so it never acts.
 
+### Step 5: T2, built and measured (2026-10-25)
+
+**Built** (swb_isaac_world): `soil.sidewall` (with `bearing_factors`, `contact_length`),
+`SoilGrid.side_heights` and `WheelSoil.side`, the force in `SurfaceLayer._soil` beside the
+resistance (`_sidewall`: lagged over the class's relaxation length, `side_force` per wheel, the
+recorder's `side_n`), the soil key `unit_weight`; five new unit tests (124 in all).
+
+**The suite with T2** (`2026-10-25_t2-ecu-{off,esc}`, against T1 with issue 009's fix,
+`2026-10-25_009b-*`). Dry and wet unchanged (no soil); on mud:
+
+| case | T1, ESC off | T2, ESC off | T1, ESC on | T2, ESC on |
+|---|---|---|---|---|
+| mud step, steady sideslip / yaw rate ratio | -10.3 deg / 1.16 | -5.8 deg / 0.84 | -6.7 deg / 0.86 | -5.3 deg / 0.82 |
+| mud circle, lateral acceleration held | 1.38 | 1.87 | 1.45 | 1.73 |
+| mud sine, yaw ratio at 1 s / lateral at 1.07 s | 0.955 / 0.38 m | 0.838 / 0.51 m | 0.048 / 0.39 m | 0.002 / 0.54 m |
+| mud lane change, path error | 4.2 m (spins) | 5.4 m (spins) | 0.99 m | 0.88 m, 17.0 s (21.0) |
+| mud brake in a turn, peak sideslip / distance | -3.8 deg / 14.9 m | -0.6 deg / 15.4 m | -4.2 deg / 14.7 m | -0.7 deg / 15.3 m |
+| mud lateral sweep, peak sideslip | -81 deg | -25 deg | -11.3 deg | -9.9 deg |
+| split-mu brake, heading | -7.9 deg | -6.2 deg | -7.9 deg | -6.1 deg |
+| mud brake, distance | 15.7 m | 15.7 m | 15.7 m | 15.7 m |
+
+The sunk tires' sides hold the car on mud: about a third more lateral acceleration held on
+the circle, half the step steer's sideslip, a slide past the limit far slower to grow (the
+lateral sweep's tail). Braking straight is unchanged (no lateral speed); in a turn the stop is
+0.5 m longer, the soil's side force taking some of the tires' budget off the deceleration's
+direction. Without ESC the mud lane change still spins. Rut crossing at a shallow angle (the
+acceptance's second half) is not in the suite: the mud pad has no plates, and step 8's
+scenarios carry it.
+
 ## Open questions
 
-- Whether the soil's reaction on the wheel can stay a drive-torque offset, or the wheel's spin
-  needs our own integration on soil (PhysX's wheel with near-zero friction and our torque).
+- Whether T2 later needs our own tire on soil (option A): PhysX's wheel with near-zero
+  friction there, the brush's F_x on an implicitly integrated wheel spin. Only if T1's curve
+  over the soil's traction limit proves short of the shear's behaviour.
 - Where a vehicle hands T2 back to T1 when several are on soil and the frame budget is short
   (distance from the ego, or the ego only).
 - Mud has no measured lateral data that the survey found; El-Razaz 1988, Ishigami 2007 and

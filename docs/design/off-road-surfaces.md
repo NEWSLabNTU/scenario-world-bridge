@@ -179,6 +179,9 @@ numpy/warp if the cost asks):
 3. return through the channels measured above:
    - **traction cap**: the soil-limited friction into the wheel's own table;
    - **motion resistance** (compaction and bulldozing): `apply_force_at_pos` at the contact;
+   - **the soil against the tire's side** (054 T2): the passive pressure on a sunk tire's
+     side pushed sideways (`soil.sidewall`, at the height the soil beside it stands above the
+     wheel's bottom), against the contact's lateral speed, in the same force;
    - **sinkage and ruts**: the zone's collision is a set of small tiles (2 x 2 m at 5 cm, 1600
      triangles); a tile whose nodes moved more than a threshold is re-cooked, at most a few
      per frame and staggered, so the wheel and every other vehicle meet the rut.

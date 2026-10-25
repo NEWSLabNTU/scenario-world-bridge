@@ -177,7 +177,7 @@ small ones), each class `unvalidated:` until 053.
   after the steering ends, at most 20 % at 1.75 s; at least 1.83 m lateral displacement at
   1.07 s).
 - [ ] **4. T1: each surface's own curve** (design: "T1 in detail" above).
-  - **4a. PhysX's tire, measured.** A spike sweeping the slip angle (a slowly growing steer
+  - [x] **4a. PhysX's tire, measured** (below). A spike sweeping the slip angle (a slowly growing steer
     at constant speed) and the slip (a ramped brake) on dry asphalt and on mud, today's
     tire: `TIRE_FORCE` over the load against PhysX's reported slips. Confirms the peak at
     2 mu F_z / C and the flat top; if not, the stiffness rule changes before anything is
@@ -293,6 +293,49 @@ neither matters with ESC off, which stays the default until it is decided for th
 The circle also shows the car steering neutrally: an understeer gradient of 0.06 deg/g on dry
 asphalt and -0.04 on wet (the yaw rate 0.99 of the kinematic in the step). A road car
 understeers; this is the rig's tires (equal stiffness per load front and rear), for T1.
+
+### Step 4a: PhysX's tire, measured (2026-10-25)
+
+`spikes/tire_curve.py` on the proving ground, ABS off for the braking sweep: a steering ramp
+(0 to 25 deg at 4 deg/s, 8 m/s held) and a braking ramp (0 to 10 m/s^2 asked over 2 s), each
+on dry asphalt, on dry asphalt with the rig's tire friction at 0.35 (`dry035`: the same tire,
+only the friction lower) and on the mud pad. Every frame reads each wheel's `TIRE_FORCE`,
+both slips, the suspension force and `TIRE_FRICTION` from PhysX
+(`play_log/tire_curve/2026-10-25_4a/`, `curves.png`).
+
+| | dry | dry035 | mud (soil friction 0.17-0.19) |
+|---|---|---|---|
+| lateral stiffness C (small slip), N/rad | 62 000 front, 69 000 rear | 58 000, 66 000 | 54 000 front |
+| slip angle where the force tops out | not reached at 25 deg steering (5.8 deg front at 0.94 of the cap) | 2.7-3.4 deg | 1.6-1.8 deg |
+| 2.3 mu F_z / C | 8.6 deg | 3.2 deg | 1.7 deg |
+| longitudinal stiffness, N per unit slip | 40 000-44 000 | 39 000-41 000 | 36 000-38 000 |
+| longitudinal slip where it tops out | 0.25 front | 0.09-0.11 | about 0.05 |
+| 2.3 mu F_z / C | 0.23 | 0.085-0.09 | 0.045-0.05 |
+| past the top | flat to 0.4 slip | flat to 17 deg and 0.7 slip | flat to 18 deg and slip 3 |
+
+What it settles:
+
+- **The design's premise holds.** The force rises at the tire's stiffness, bends over and
+  saturates at a slip of about 2.3 mu F_z / C in both directions, then stays flat: no drop
+  at all, sideways or lengthways. The peak's slip is proportional to the friction: the same
+  tire peaks at 3 deg on 0.35 and at 1.7 deg on mud's 0.17, where a real tire on mud peaks
+  far later.
+- **The cap is about 1.15 mu times the suspension force**, not 1.0: the tire's load includes
+  more than the suspension reports (the wheel's own weight is 196 N of it). A constant; the
+  rule takes the measured 2.3 instead of 2.
+- **The stiffness follows the load**, C/F_z about 15 sideways (the graph's 17 per N of rest
+  load, a little less in use), so the scaling works on the graph's value and keeps its shape.
+- **PhysX's friction-vs-slip graph reads the longitudinal slip only**: `TIRE_FRICTION` fell
+  from 0.35 to 0.31 as the wheel locked (the rig's graph, 1.0 to 0.8), and stayed at 0.35
+  through the whole steering sweep. So the sideways drop has to come through the friction
+  value, as designed.
+- **The rig's own peaks on dry asphalt**, the reference T1 keeps: about 8.6 deg and 0.24
+  slip, softer than the 4-8 deg and 0.10-0.15 the literature gives for a road tire.
+  Not changed here.
+
+So the stiffness rule is: to put a class's peak at slip angle alpha_c with friction mu_c,
+scale the lateral stiffness by mu_c tan(alpha_rig) / tan(alpha_c), alpha_rig the rig's peak at
+friction 1.0 (tan 0.15); the same lengthways with the rig's 0.24.
 
 ## Open questions
 

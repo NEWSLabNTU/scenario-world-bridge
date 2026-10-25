@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it.
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below).
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -81,13 +81,83 @@ Three tiers, chosen per zone and per vehicle:
 
 | tier | where | model | cost per wheel and substep |
 |---|---|---|---|
-| **T1** shaped PhysX tire | all rigid ground, every vehicle | PhysX's tire; per surface class the friction written each substep as its peak times its own curve over the wheel's combined slip (static to sliding drop, a Stribeck speed term, the water film already in `hydroplane_factor`); ESC in aib | microseconds (one value written, as today) |
+| **T1** shaped PhysX tire | all rigid ground, every vehicle | PhysX's tire; per surface class the friction written each substep as its peak times its own curve over the wheel's combined slip (static to sliding drop, a Stribeck speed term, the water film already in `hydroplane_factor`); ESC in `sim_vehicle_ecu` (055) | microseconds (one value written, as today) |
 | **T2** brush on soil | soil zones, the ego and physics vehicles near it | our tire: a brush of 10-20 points along the contact patch, Janosi shear (c + sigma tan phi)(1 - exp(-j/K)) along the combined slip direction with sigma from the grid's sinkage under the wheel, giving F_x, F_y and M_z; sidewall bulldozing growing with sinkage against lateral slip; a rut-wall term from the grid's height gradient across the tire; relaxation lag, semi-implicit damping, PhysX below 3 m/s | 50-100 us in Python per wheel, about 30 us batched with numpy (estimate) |
 | **T3** grid-integrated shear | reference and calibration only | each grid node's shear along its own slip velocity, as Chrono SCM | 0.45 ms today, +20-40 % with direction (estimate) |
 
 T2 is the balance point: it reuses what the grid already computes (pressure, sinkage, the
 ruts, the part with history) and replaces only the shear integration, so it adds every missing
 mud effect for about a tenth of the grid's cost.
+
+
+### T1 in detail (explored and decided 2026-10-25)
+
+**What already exists.** A class may carry a `slip:` curve, friction over longitudinal slip
+(mud: 0.7 at no slip, 1.0 at 0.25, 0.9 locked), applied through the wheel's friction value as
+class(slip) / vehicle(slip) (`surfaces.WheelSurfaces.update`). So the longitudinal half of T1
+is in place; nothing acts sideways.
+
+**Why a slide on mud snaps.** PhysX's default tire (as PhysX 3 and 4 wrote it; step 4a
+confirms it on 5) builds force linearly with slip at the tire's stiffness C and saturates at
+the friction value times the load, near a slip of 2 mu F_z / C, flat beyond. The stiffness is
+the rig's on every ground, so only mu moves the peak, and on low grip it moves to a tiny slip.
+With the rig's tire (lateral stiffness about 69 kN/rad, longitudinal 45 kN, about 4300 N per
+wheel):
+
+| ground | friction, relative to dry | slip angle at the peak | longitudinal slip at the peak |
+|---|---|---|---|
+| dry asphalt | 1.0 | about 7 deg | about 0.19 |
+| wet mud | 0.35 | about 2.5 deg | about 0.07 |
+| packed snow | 0.24 | about 1.7 deg | about 0.05 |
+| ice | 0.12 | about 0.8 deg | about 0.02 |
+
+A stiff tire on a slippery surface: ice, wherever the class says mud. And past the peak the
+force stays flat, because PhysX's friction-vs-slip graph reads longitudinal slip only: a wheel
+sliding sideways keeps its peak friction. Shaping the friction value alone (the plan before
+this exploration) would add the sliding drop but leave mud's peak at 2.5 deg, still snapping.
+
+**Decided: friction value and stiffness, per class** (user, 2026-10-25, against friction
+alone and against our own tire force, which stays T2's).
+
+- **Stiffness puts PhysX's own peak where the class's is.** Per class, `peak_slip` and
+  `peak_slip_angle`; each wheel's longitudinal stiffness and lateral stiffness graph scaled
+  by (class mu / reference mu) x (reference peak / class peak), so that 2 mu F_z / C lands on
+  the class's peak. The reference ground's peaks are the rig's own (from its stiffness and
+  nominal load), so dry asphalt's linear range, everything Autoware and the ESC are tuned in,
+  does not change. Written only when the wheel's blended ground changes by more than a few per
+  cent (step 1: both attributes take while playing), never every substep.
+- **The friction value falls past the peak, in both directions.** With kappa the wheel's
+  longitudinal slip, alpha its slip angle (`TIRE_LATERAL_SLIP`, which PhysX reports and aib
+  does not read yet) and rho = sqrt((kappa / kappa_peak)^2 + (tan alpha / tan alpha_peak)^2)
+  the combined slip against the class's own peaks: g(rho) = 1 up to rho = 1, then
+  s + (1 - s) / rho, s the class's `sliding` share of the peak (mud seeded from BeamNG's
+  0.55 to 0.35, about 0.64). The value written is tire_friction x peak x g(rho) / vehicle
+  graph(kappa), dividing out the curve PhysX applies itself. This replaces `slip:` (no
+  shims: the key is refused by name, not read alongside).
+- **Dry asphalt gets the sideways drop too** (user, 2026-10-25: realism past the limit over
+  keeping the dry numbers). The reference class gets `sliding` like any other, and a world
+  without a surface map runs every wheel on the reference class, so a map of only asphalt
+  still drives as no map at all. Everything measured on dry ground past the limit changes:
+  the 054 suite, 055's table, vehicle-check and the Autoware scenarios are run again (step 4).
+- **Sliding speed (Stribeck), optional per class** (user, 2026-10-25): `stribeck: {speed,
+  sliding}` lowers the sliding share with the sliding speed v_s = |v| sqrt(kappa^2 +
+  tan^2 alpha): s(v_s) = sliding_fast + (s - sliding_fast) exp(-(v_s / speed)^2). Meant for
+  wet asphalt and ice; engineered values, `unvalidated:`.
+- **Relaxation in T1 delays the drop, not the force.** T1 cannot lag PhysX's force, so the
+  falling part of g passes a first-order lag with time constant `relaxation` / |v| (sigma
+  0.5-1.5 m): a softer onset, and damping for the loop a friction written one substep late
+  closes (the drop raises the slip, which lowers the friction). Below 1 m/s no lag.
+- **aib** reads the lateral slip into its `WheelState` and gets a per-wheel stiffness setter
+  beside `set_wheel_friction`. The onboard computers (`sim_vehicle_ecu`) do not change: they
+  find the new limits through their estimates. ABS and TC release at 0.25 slip, about mud's
+  peak and before sand's (0.3); the suite shows what that costs.
+- **Cost**: as today, one value per wheel and substep; stiffness writes at ground changes only.
+
+Per class, then: `mu`, `peak_slip`, `peak_slip_angle` (deg), `sliding`, `relaxation` (m),
+optional `stribeck`. The reference class leaves the peaks out (the rig's). The first values
+come from the literature's ranges (dry asphalt peaks at 4-8 deg and 0.10-0.15 slip, sliding
+0.75-0.85 of the peak; soft and loose ground at larger slips and lower sliding shares; ice at
+small ones), each class `unvalidated:` until 053.
 
 ## Steps
 
@@ -106,11 +176,21 @@ mud effect for about a tenth of the grid's cost.
   dwell on dry asphalt against FMVSS 126's criteria (yaw rate at most 35 % of its peak 1 s
   after the steering ends, at most 20 % at 1.75 s; at least 1.83 m lateral displacement at
   1.07 s).
-- [ ] **4. T1: each surface's own curve.** Per class in `surface_classes.yaml`: peak and
-  sliding friction, the Stribeck speed, a relaxation length and a cornering factor (applied
-  through step 1's attribute if one takes, otherwise through the friction value). Each wheel's
-  combined slip from its contact velocity (lateral slip is not in today's wheel states).
-  Mud's ratio seeded from BeamNG's, wet asphalt from 047's values; `unvalidated:` as today.
+- [ ] **4. T1: each surface's own curve** (design: "T1 in detail" above).
+  - **4a. PhysX's tire, measured.** A spike sweeping the slip angle (a slowly growing steer
+    at constant speed) and the slip (a ramped brake) on dry asphalt and on mud, today's
+    tire: `TIRE_FORCE` over the load against PhysX's reported slips. Confirms the peak at
+    2 mu F_z / C and the flat top; if not, the stiffness rule changes before anything is
+    built.
+  - **4b. The slip sweep in the suite.** 4a's two sweeps as manoeuvres of the suite, per
+    class, so every later change shows each class's realized curve.
+  - **4c. T1.** The class table's new keys (`slip:` refused), the lateral slip and the
+    stiffness setter in aib, the stiffness rule and g(rho) with the lag in the surface layer,
+    the reference class applied without a surface map; unit-tested like `surfaces.py`.
+  - **4d. Measure.** The suite (now with the sweeps) against step 2's and 055's numbers; aib's
+    vehicle-check; town01_mud with Autoware, recorded. On mud the step steer's lateral force
+    builds over a larger slip angle than on asphalt and falls toward the sliding share past
+    it.
 - [ ] **5. T2: the brush on soil.** In `soil.py`, pure Python and numpy and unit-tested like
   the grid: the brush, bulldozing and rut-wall terms from the grid's state under the wheel.
   In `SurfaceLayer._soil`: PhysX's friction near zero by the soil's share (the zone edge's

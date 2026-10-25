@@ -396,15 +396,29 @@ direction: mud's sideways peak rose from 0.167 to 0.237 of the load (the soil la
   (the wet one's lateral displacement now 1.87 m, close to its 1.83 m floor) and the mud lane
   change holds the path to 1.0 m. The mud sine was a non-event before (the car barely turned
   on 0.167 of sideways grip); now it can turn, and spin.
-- **On mud the onboard computers' slip thresholds no longer fit the tire.** The mud circle
-  starves: with mud's peak at 0.25 slip on a tire a quarter as stiff, driving at a modest
-  force needs 0.1-0.2 slip, and traction control cuts the motor at 0.25 and gives it back only
-  under 0.15 (its factor fell to 0.1-0.3), so the car slowed from 4.5 to 2.2 m/s against a
-  driver asking for more. ABS has the same mismatch (it releases at 0.25 and reapplies at
-  0.15, under mud's peak), hence the 1.1 m longer mud stop; wet asphalt's longer stop is the
-  sliding drop under ABS's cycling. A real brake module's thresholds adapt to the ground (or
-  the driver selects an off-road mode); `sim_vehicle_ecu`'s are asphalt's, fixed. Follow-up
-  for 055's repository: slip targets that follow the estimated peak slip.
+- **On mud traction control starved the car, and the cause was 055's slip estimate, not the
+  thresholds** (issue 009). The mud circle slowed from 4.5 to 0.1 m/s against a driver asking
+  for 3 m/s^2, traction control's factor at 0.15-0.33, and the mud stop was 1.1 m longer. The
+  brake module divided the wheel's slip by `max(|v|, 4 m/s)` where PhysX divides by
+  `|v| + 4 m/s`, so it read 1.9 times PhysX's slip at 4.5 m/s (0.197 against 0.103 driving
+  straight on mud) and ABS and traction control, tuned against PhysX's slip, acted at about
+  half their slip. T1's softer mud tire only made it show. With the estimate on PhysX's
+  definition (`sim_vehicle_ecu` `8742540`; `2026-10-25_009-ecu-{off,esc}`):
+
+  | case | T1, ESC off | T1 + 009, ESC off | T1, ESC on | T1 + 009, ESC on |
+  |---|---|---|---|---|
+  | mud circle, lateral acceleration held | 0.28 | 1.50 (to 24 km/h) | 0.28 | 1.35 (to 29 km/h) |
+  | mud brake, distance / deceleration | 17.96 m / 3.15 | 15.71 m / 3.65 | 17.96 m / 3.15 | 15.71 m / 3.65 |
+  | mud brake in a turn, distance | 17.68 m | 14.93 m | 17.62 m | 14.75 m |
+  | mud lane change, path error / end speed | 3.45 m (spins) | 4.93 m (spins) | 1.02 m / 0.3 km/h | 0.99 m / 20.6 km/h |
+  | mud sine, yaw ratio at 1 s | | | 0.094 | 0.048 |
+  | split-mu brake, distance / heading | 11.32 m / -8.5 deg | 10.76 m / -7.9 deg | 11.32 m / -8.5 deg | 10.75 m / -7.86 deg |
+
+  Dry and wet are unchanged within 2 % but for the wet stop's ABS share. Traction control now
+  works the rear wheels at 0.22-0.28 of PhysX's slip on the mud circle, mud's peak. The fixed
+  thresholds (0.25, 0.15) still sit past the peak on ice (0.08) and packed snow (0.15) and
+  before it on sand and gravel (0.3); slip targets that follow the ground are a follow-up for
+  `sim_vehicle_ecu`, with ice and snow cases in the suite to measure them.
 - aib's vehicle-check passes (`play_log/vehicle_check/2026-10-25_t1`; aib's own runner has no
   surface layer, so it checks the aib change only).
 - `town01_mud.xosc` with Autoware on Isaac passes with T1, recorded

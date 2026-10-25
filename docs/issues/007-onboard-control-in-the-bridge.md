@@ -1,6 +1,6 @@
 # 007: The car's onboard control lives in its vehicle bridge, and its ESC reads the ground
 
-**Severity**: medium. **Status**: open, fixed by roadmap
+**Severity**: medium. **Status**: fixed by roadmap
 [055](../roadmap/055-onboard-computers.md). **Found**: 2026-10-25, review of roadmap 054
 step 3 (user: "Aib is the bridge. I don't think it's a proper place to do control adjustment.
 ... The esc seems to live in on board computer in practice").

@@ -7,8 +7,8 @@ The adapter that makes a simulator a backend for tier4/scenario_simulator_v2 (SS
 is a **world server** behind one protocol (`swb_world.proto`, in `swb_world_protocol`);
 CARLA's is `swb_carla_world`, Isaac Sim's `swb_isaac_world`. The bridge knows no simulator.
 
-Since roadmap 051 the project is eight repositories, all NEWSLabNTU, each a direct submodule
-here (`docs/roadmap/051-target-shape.md`):
+Since roadmap 051 the project is eight repositories, nine since 055 (`sim_vehicle_ecu`), all
+NEWSLabNTU, each a direct submodule here (`docs/roadmap/051-target-shape.md`):
 
 | repository (`src/`) | holds |
 |---|---|
@@ -18,7 +18,8 @@ here (`docs/roadmap/051-target-shape.md`):
 | `swb_carla_world` | the CARLA world server, the only code using carla-rust; CARLA's weather presets and fields |
 | `swb_isaac_world` | the Isaac world server (Python, Isaac's venv) and its USD tooling |
 | `autoware_carla_bridge` (acb) | the CARLA vehicle bridge (`acb_bridge`), CARLA's stand-alone bring-up and demo, map tools |
-| `autoware_isaac_bridge` (aib) | the Isaac vehicle library and `aib.runner`; it generates the Isaac rig from the spec |
+| `sim_vehicle_ecu` | the car's onboard computers below its vehicle interface: the drive unit's controller, the brake module (EBD, ABS, TC, ESC) and the power steering, on the car's own sensors (speed, slip, sideslip and friction estimated); pure Python, no simulator, no ROS; calibrated from the spec (roadmap 055) |
+| `autoware_isaac_bridge` (aib) | the Isaac vehicle library and `aib.runner`: the vehicle interface, the sensors, the PhysX vehicle, which it drives through `sim_vehicle_ecu`; it generates the Isaac rig from the spec |
 | this one | the bridge, the relay, `swb_agent`, `swb_launch`, the run tooling, `swb_examples`, the gap oracle; it pins every repository above |
 
 **Design**: `docs/design/` (start at `architecture.md`, `simulator-interface-split.md`,
@@ -74,6 +75,7 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 ├── src/sim_vehicle_spec/       # submodule: the vehicle spec and its generated outputs
 ├── src/autoware_sim_vehicle/   # submodule: the car for Autoware, the profile, vehicle_check
 ├── src/autoware_carla_bridge/  # submodule: acb (the CARLA vehicle bridge)
+├── src/sim_vehicle_ecu/        # submodule: the car's onboard computers (VCU, brakes, ESC, steering)
 ├── src/autoware_isaac_bridge/  # submodule: aib (the Isaac vehicle library)
 ├── src/scenario_simulator_v2/  # submodule: the SSv2 fork (branch managed-ego-unforked)
 ├── src/swb_interfaces/         # rosidl: SetWeather.srv, GetWeather.srv (generic weather)

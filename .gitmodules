@@ -33,3 +33,7 @@
 	path = src/sim_vehicle_spec
 	url = https://github.com/NEWSLabNTU/sim_vehicle_spec.git
 	branch = main
+[submodule "src/sim_vehicle_ecu"]
+	path = src/sim_vehicle_ecu
+	url = https://github.com/NEWSLabNTU/sim_vehicle_ecu.git
+	branch = main

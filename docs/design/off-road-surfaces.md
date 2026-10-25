@@ -97,12 +97,17 @@ soil model must return to the wheel has a working channel.
   `tire_friction` and a map of asphalt drives exactly as no map. It follows a change of
   surface through a first-order filter in distance travelled, `blend_length` (0.2 m, about a
   contact patch), so a class edge is no step for ABS/TC to chatter on, yet stays per wheel.
-- **The slip curve's shape** differs by class: gravel and loose snow flat or rising after the
-  peak (a locked wheel is not worse than ABS there), asphalt falling. PhysX fixes a tire's
-  `frictionVsSlipGraph` once the simulation runs (measured above), so the class's curve goes
-  through the same friction value: `* class_graph(slip) / vehicle_graph(slip)` on the last
-  step's longitudinal slip. PhysX applies the vehicle's graph on top, so the product is the
-  class's curve, one physics step (17 ms) late.
+- **The tire's curve** differs by class (roadmap 054 T1, replacing 047's `slip:` graphs).
+  PhysX's tire builds force at its stiffness and saturates near a slip of 2.3 mu F_z / C,
+  flat beyond, and its `frictionVsSlipGraph` reads the longitudinal slip only and is fixed
+  once the simulation runs (054 step 4a). So per class `peak_slip` and `peak_slip_angle` put
+  the peak where the ground has it: each wheel's lateral and longitudinal stiffness is scaled
+  by mu / peak against the rig's (`Vehicle.set_wheel_stiffness`, written only on a change of
+  more than 2 %); absent, the rig's own peak (about 0.24 and 8.6 deg at friction 1.0).
+  Past the peak the friction value falls with the combined slip, sideways and lengthways,
+  toward the class's `sliding` share, optionally lower with sliding speed (`stribeck`), lagged
+  over `relaxation` metres; it divides out the rig's graph, which PhysX applies on top. Dry
+  asphalt below its peak is the rig's tire unchanged.
 - **Water**: a zone's `water_depth` (a number, or a raster) or the wetness's implied film
   (`wetness_depth` in the class table) picks the wetness level it reaches, and on paved
   classes (`hydroplaning: true`) a hydroplaning factor: Horne's onset speed for the tire
@@ -275,7 +280,9 @@ Host newslab-server-241 at load average 68 from other users' jobs.
   against Chrono decides between them; until then the grid is the default and the closed
   form is a check.
 - Front wheels in a zone carry the class's slip curve at zero slip (sand 0.6 of peak), which
-  also takes their lateral grip: the S1 shape applied through the one friction value.
+  also takes their lateral grip: the S1 shape applied through the one friction value. (Gone
+  with 054 T1: below its peak a wheel has the class's full friction in every direction, so
+  sideways grip on soft classes rose by the old zero-slip share's inverse, mud's by 1/0.7.)
 - Entry at 20 m/s: the resistance ramps over 12 substeps (front, then rear axle, 2.9 m apart,
   plus the 1.11 m blend); the largest change between two substeps was 535 N of 2388 N.
 - Cost: the surface layer's update per vehicle per substep was 3.7 ms in a zone with the

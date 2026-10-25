@@ -182,12 +182,12 @@ small ones), each class `unvalidated:` until 053.
     tire: `TIRE_FORCE` over the load against PhysX's reported slips. Confirms the peak at
     2 mu F_z / C and the flat top; if not, the stiffness rule changes before anything is
     built.
-  - **4b. The slip sweep in the suite.** 4a's two sweeps as manoeuvres of the suite, per
+  - [x] **4b. The slip sweep in the suite.** 4a's two sweeps as manoeuvres of the suite, per
     class, so every later change shows each class's realized curve.
-  - **4c. T1.** The class table's new keys (`slip:` refused), the lateral slip and the
+  - [x] **4c. T1.** The class table's new keys (`slip:` refused), the lateral slip and the
     stiffness setter in aib, the stiffness rule and g(rho) with the lag in the surface layer,
     the reference class applied without a surface map; unit-tested like `surfaces.py`.
-  - **4d. Measure.** The suite (now with the sweeps) against step 2's and 055's numbers; aib's
+  - [x] **4d. Measure.** The suite (now with the sweeps) against step 2's and 055's numbers; aib's
     vehicle-check; town01_mud with Autoware, recorded. On mud the step steer's lateral force
     builds over a larger slip angle than on asphalt and falls toward the sliding share past
     it.
@@ -336,6 +336,81 @@ What it settles:
 So the stiffness rule is: to put a class's peak at slip angle alpha_c with friction mu_c,
 scale the lateral stiffness by mu_c tan(alpha_rig) / tan(alpha_c), alpha_rig the rig's peak at
 friction 1.0 (tan 0.15); the same lengthways with the rig's 0.24.
+
+### Steps 4b-4d: T1, built and measured (2026-10-25)
+
+**Built.** aib (`9416d80`): each wheel's slip angle and tire force read back,
+`set_wheel_stiffness` (shares of the rig's, written on a change of more than 2 %).
+swb_isaac_world: the class table's `slip:` graphs replaced by `peak_slip`, `peak_slip_angle`,
+`sliding`, `relaxation`, `stribeck` (the old key refused by name); `surfaces.WheelSurfaces`
+scales the stiffness and lowers the friction past the peak as designed; a world without a
+surface map runs on the reference class; the suite gains `sweep_lat` (from 10 m/s, the tire
+angle to 35 deg at 5 deg/s) and `sweep_long` (ABS off, 15 m/s^2 asked over 1 s), each
+summarising each axle's realized curve. First values, engineered (`surface_classes.yaml`):
+
+| class | peak slip | peak slip angle | sliding | relaxation |
+|---|---|---|---|---|
+| asphalt, concrete | the rig's (0.24) | the rig's (8.6 deg) | 0.8 | 0.5 m |
+| gravel | 0.3 | 12 deg | 0.9 | 1.0 m |
+| dirt | 0.2 | 10 deg | 0.85 | 1.0 m |
+| grass | 0.15 | 9 deg | 0.75 | 1.0 m |
+| sand | 0.3 | 14 deg | 0.95 | 1.5 m |
+| mud_wet | 0.25 | 12 deg | 0.64 | 1.2 m |
+| snow_packed | 0.15 | 6 deg | 0.8 | 0.8 m |
+| snow_loose | 0.3 | 12 deg | 1.0 | 1.5 m |
+| ice | 0.08 | 3 deg | 0.6, Stribeck to 0.4 past 3 m/s | 0.5 m |
+
+**The curves come out as designed** (`play_log/manoeuvres/2026-10-25_t1-sweeps2/curves.png`).
+Sideways: dry asphalt peaks at 8.8 deg (the rig's 8.6) and falls to 0.88 of the peak at
+24 deg (0.87 predicted); wet asphalt alike, at 0.75 of the friction (stiffness 0.75); mud
+peaks at 12.8 deg (the class's 12; before T1, 1.7 deg) and falls to 0.78 of the peak at 34 deg
+(0.75 predicted). Lengthways the drop shows less (dry 0.93 of the peak at 0.64 slip, wet 0.94,
+mud's rear 0.83 at 1.9): the brakes take the wheels only to about 0.6 slip, and the lag holds
+at low speed.
+
+**Mud grips more sideways than before, by design.** The old `slip:` graphs started below 1 at
+zero slip (mud 0.7, sand 0.6), and PhysX reads them by longitudinal slip only, so a wheel
+rolling straight while cornering had its sideways grip cut by that share (off-road-surfaces.md
+noted it at 047). T1 gives a wheel below its peak the class's full friction in every
+direction: mud's sideways peak rose from 0.167 to 0.237 of the load (the soil layer's own
+0.237 both times; checked with and without T1's stiffness, `play_log/tire_curve/2026-10-25_soil-{on,off}`).
+
+**The suite with T1** (`2026-10-25_t1-ecu-{off,esc}`, against 055's estimator runs):
+
+| case | 055, ESC off | T1, ESC off | 055, ESC on | T1, ESC on |
+|---|---|---|---|---|
+| dry: brake, step, lane change, circle | | unchanged (below the peak) | | unchanged |
+| dry sine with dwell, yaw ratio at 1 s | 0.432 | 1.005 (spins: heading -100 deg) | 0.0 | 0.0 (passes) |
+| wet brake, distance / deceleration | 9.21 m / 6.94 | 9.30 m / 6.46 | 9.21 m / 6.94 | 9.30 m / 6.46 |
+| wet sine, yaw ratio at 1 s / lateral at 1.07 s | 0.918 / 2.42 m | 1.0 (spins) / 2.08 m | 0.0 / 2.16 m | 0.001 / 1.87 m (limit 1.83) |
+| wet circle, lateral acceleration held | 7.41 | 6.68 | 7.39 | 6.63 |
+| mud brake, distance / deceleration | 16.89 m / 3.54 | 17.96 m / 3.15 | 16.89 m / 3.54 | 17.96 m / 3.15 |
+| mud step, steady sideslip | -10.27 deg | -9.25 deg | -5.6 deg | -6.66 deg |
+| mud sine, heading change | -4.7 deg | -63.5 deg (spins) | -4.9 deg | -18.4 deg |
+| mud lane change, path error | 3.39 m | 3.45 m (spins: heading -238 deg) | 0.21 m | 1.02 m |
+| mud circle, lateral acceleration held | 1.78 | 0.28 (cannot hold the speed) | 1.59 | 0.28 |
+| split-mu brake, heading | -7.72 deg | -8.5 deg | -7.68 deg | -8.5 deg |
+
+- **Past the limit the car now lets go the way a car does**: without ESC the dry, wet and mud
+  sines and the mud lane change spin; with ESC the dry and wet sines still pass FMVSS 126
+  (the wet one's lateral displacement now 1.87 m, close to its 1.83 m floor) and the mud lane
+  change holds the path to 1.0 m. The mud sine was a non-event before (the car barely turned
+  on 0.167 of sideways grip); now it can turn, and spin.
+- **On mud the onboard computers' slip thresholds no longer fit the tire.** The mud circle
+  starves: with mud's peak at 0.25 slip on a tire a quarter as stiff, driving at a modest
+  force needs 0.1-0.2 slip, and traction control cuts the motor at 0.25 and gives it back only
+  under 0.15 (its factor fell to 0.1-0.3), so the car slowed from 4.5 to 2.2 m/s against a
+  driver asking for more. ABS has the same mismatch (it releases at 0.25 and reapplies at
+  0.15, under mud's peak), hence the 1.1 m longer mud stop; wet asphalt's longer stop is the
+  sliding drop under ABS's cycling. A real brake module's thresholds adapt to the ground (or
+  the driver selects an off-road mode); `sim_vehicle_ecu`'s are asphalt's, fixed. Follow-up
+  for 055's repository: slip targets that follow the estimated peak slip.
+- aib's vehicle-check passes (`play_log/vehicle_check/2026-10-25_t1`; aib's own runner has no
+  surface layer, so it checks the aib change only).
+- `town01_mud.xosc` with Autoware on Isaac passes with T1, recorded
+  (`play_log/record/2026-10-25_15-43-56-ego/run.mp4`): the car crosses the mud at 13-14 km/h
+  as before, Autoware asking up to 0.64 m/s^2; the rear wheels run at 0.06-0.08 slip on the
+  mud (0.02 before: the softer tire), under traction control's threshold, so it never acts.
 
 ## Open questions
 

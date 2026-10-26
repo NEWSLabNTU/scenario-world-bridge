@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`; steps 5-8 (T2) open.
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; steps 7-8 open.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -236,7 +236,7 @@ Explored against the code after T1:
 - [x] **5. T2: the soil against the tire's side** (design: "T2 in detail" above).
   `soil.sidewall`, `SoilGrid.side_heights`, the force in `SurfaceLayer._soil` beside the
   resistance, `unit_weight`; unit-tested like the grid; the suite against T1's numbers.
-- [ ] **6. Low-speed and edge checks.** Creeping across a zone edge at 0.5-3 m/s, stopping and
+- [x] **6. Low-speed and edge checks.** Creeping across a zone edge at 0.5-3 m/s, stopping and
   holding on soil, starting from rest in a rut, one side on soil: no oscillation in yaw rate or
   lateral velocity, no jump at the hand-back speed.
 - [ ] **7. Cost.** `spikes/multi_ego_soil.py` with T2 on: one, two and four egos, frame p50 and
@@ -255,7 +255,7 @@ Explored against the code after T1:
 - [ ] On mud, the step steer's lateral force builds over a larger slip angle than on asphalt
   (the slide no longer snaps), and a car crossing ruts at a shallow angle feels a lateral force
   from them.
-- [ ] No oscillation below 3 m/s on soil, at zone edges or at the hand-back (step 6).
+- [x] No oscillation below 3 m/s on soil, at zone edges or at the hand-back (step 6).
 - [ ] Four egos on soil with T2 within 10 % of 052 step 5's frame time.
 - [ ] Step 8's scenarios pass on Isaac with Autoware, or their failures are explained.
 
@@ -504,6 +504,66 @@ lateral sweep's tail). Braking straight is unchanged (no lateral speed); in a tu
 direction. Without ESC the mud lane change still spins. Rut crossing at a shallow angle (the
 acceptance's second half) is not in the suite: the mud pad has no plates, and step 8's
 scenarios carry it.
+
+### Step 6: low speed and edges (2026-10-26)
+
+**Built**: `spikes/low_speed.py`, one ego without Autoware on manoeuvres' proving ground, every
+substep kept, each case beside the same one on dry asphalt: crossing into the soil at 0.5, 1,
+2 and 3 m/s; the split pad's lane at those speeds (left wheels in soil); a 15 deg tire angle
+held at 0.5, 1 and 2 m/s from rest; a speed ramp 0 to 4 to 0 m/s at 0.25 m/s^2 with 5 deg of
+tire angle (through `LAG_MIN_SPEED`, `RESIST_V0` and the brake module's slip offset, both
+ways); a stop in the soil held 10 s, then a start; a start from rest 0.15 m beside that stop's
+ruts. Oscillation is the rms of yaw rate, lateral velocity and acceleration after a 0.5 s
+moving average, a jump the largest change between two substeps; `SOIL=dirt` runs the pads as
+dirt. The speed is held by a PI driver (near Autoware's longitudinal controller's gains): the
+drive unit is feedforward only, so the soil's extra resistance is the driver's to overcome.
+
+**It found issue [010](../issues/010-soil-digs-at-physx-low-speed-slip.md)**: the soil's slip
+sinkage read the wheel's real slip, where PhysX's tire needs about 0.5 m/s of overspeed for
+any drive (its 4 m/s slip denominator); at a creep that reads as spinning in place, and the
+driven wheels dug from 4 to 9 cm. Fixed in swb_isaac_world: the soil digs at the real slip
+with its denominator held at PhysX's 4 m/s (`soil.tire_slip`), so nothing changes above
+4 m/s. On mud_wet with the PI driver, before (`SLIP=real`, `play_log/low_speed/
+2026-10-26_real-mud_wet`) and after (`_010b-mud_wet`): into the mud at 0.5 m/s it sank to
+0.06 m/s before and holds 0.33-0.51 after; the 15 deg turn at 0.5 m/s 0.06-0.09 against
+0.28-0.51 m/s; the start after the stop 0.11 against 0.89 m/s at most; the rear wheels' ruts
+9.0 against 6.2 cm deep. The manoeuvre suite's mud pads with the fix
+(`play_log/manoeuvres/2026-10-26_010b-ecu-{off,esc}`) match step 5's table; only the last
+0.15 s of a stop, below 4 m/s, is a little longer (the mud stop still 15.72 m).
+
+**With the fix and the PI driver** (`2026-10-26_010b-{mud_wet,dirt}`):
+
+| | dirt | mud_wet | dry asphalt |
+|---|---|---|---|
+| yaw rate wobble, rms | 0.08 deg/s or less | 0.06 deg/s or less | 0.0003 deg/s straight, 0.04-0.11 turning in |
+| lateral velocity wobble, rms | 0.002 m/s or less | 0.002 m/s or less | 0.0002 m/s or less |
+| sidewall force, most / sign flips | 55 N / none | 44 N / none | |
+| acceleration wobble rolling on the soil, rms | 0.05-0.11 m/s^2 | 0.05-0.13 m/s^2 (0.26 under traction control) | 0.007-0.02 m/s^2 |
+| into the soil at 0.5-3 m/s: speed dip / largest step in acceleration | 0.17-0.25 m/s / 0.39 m/s^2 | 0.19-0.33 m/s / 0.41 m/s^2 | none / 0.14 m/s^2 |
+| held 10 s on the hold brake: drift | 1 mm | 1 mm | 0 |
+| start after the stop: to 2.9 m/s | 1.7 s | not in 60 s (0.89 m/s at most), traction control throughout | 1.4 s |
+| start beside the ruts | 1.8 s to 2.9 m/s | 0.16 m/s at most in 9 s | |
+| 15 deg held from rest at 0.5 / 1 / 2 m/s | 0.5 / 1.0 / 2.0 m/s | 0.5 / 0.11 / 0.12 m/s | 0.5 / 1.0 / 2.0 m/s |
+| ramp to 4 m/s and back | follows | 0.39 m/s at most | follows |
+
+No oscillation anywhere below 3 m/s, at an edge or through the low-speed thresholds: the
+sidewall force never chatters, the yaw rate and lateral velocity wobble stays two orders
+under anything a passenger would feel, and the ramp shows no step where the lag and the
+resistance fade hand over (the one jump in yaw rate and acceleration, at the instant the car
+comes to rest, is the hold brake's and the same on asphalt). The acceleration wobble on soil
+is the grid's 5 cm nodes passing under the tires, about 0.1 m/s^2.
+
+**Mud_wet is at the edge of what this car can start in.** A rear-driven Model 3 on Wong's
+wettest clay row: on fresh soil a wheel's compaction resistance at its static sinkage
+(about 3.9 cm, 500-750 N) against a driven wheel's traction limit (about 830 N, mu 0.2 of
+its load) leaves almost nothing to accelerate with. Rolling, it holds any speed from 0.5 m/s up; from
+rest it barely gets away, the less the more it is asked (with PhysX's own slip as the soil's,
+a version tried first, the start reached 2.9 m/s in 15 s at a steady 1 m/s^2 and 40 s with the
+PI driver's up to 3 m/s^2: more torque, more spin, deeper ruts), and in a turn or from beside
+its own ruts not at all. On dirt every case runs as on asphalt. This is the
+soil as engineered, not a defect: whether a road car should be able to start in town01_mud's
+mud is 053's to settle with measured soil, and step 8's emergency stop on mud expects not to
+drive off again.
 
 ## Open questions
 

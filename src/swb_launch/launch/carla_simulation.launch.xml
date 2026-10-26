@@ -8,6 +8,12 @@
     play_launch launch FLAGS swb_launch carla_simulation.launch.xml [carla_host:=localhost]
         [carla_port:=2000] [world_port:=5591] [ssv2_port:=5555] [agent_port:=5560]
         [weather:=ClearNoon] [gap_trace_dir:=DIR] [npc_contact_sensors:=false]
+        [vehicle_physics:=<carla_physics.yaml>|none]
+
+  vehicle_physics: the vehicle spec's CARLA physics on the ego and agent vehicles (roadmap
+  051), e.g. $(find-pkg-share sim_vehicle_spec)/generated/tesla_model3/carla_physics.yaml;
+  the default, none, keeps the blueprints' own. Give the vehicle sides the same file as
+  carla_physics:= so that acb reads it back.
 
   The bridge's timeouts sit above CARLA's own watchdogs (roadmap 034: a tick 45 s, a spawn
   75 s, an Initialize 280 s), so a hung CARLA call is reported by the world server first,
@@ -27,6 +33,7 @@
   <arg name="gap_trace_dir" default=""/>
   <arg name="contact_report_dir" default=""/>
   <arg name="npc_contact_sensors" default=""/>
+  <arg name="vehicle_physics" default="none"/>
 
   <!-- Scoped: a launch argument an include sets (config_file) would otherwise leak into the
        next one. -->
@@ -38,6 +45,7 @@
     <arg name="carla_port" value="$(var carla_port)"/>
     <arg name="ssv2_port" value="$(var ssv2_port)"/>
     <arg name="npc_contact_sensors" value="$(var npc_contact_sensors)"/>
+    <arg name="vehicle_physics" value="$(var vehicle_physics)"/>
   </include>
   </group>
   <include file="$(find-pkg-share swb_launch)/launch/simulation.launch.xml">

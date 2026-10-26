@@ -33,6 +33,8 @@
     nothing and kills nothing, so one ego stack serves consecutive scenario runs.
   -->
   <arg name="map_path" description="Directory with lanelet2_map.osm and pointcloud_map.pcd" />
+  <arg name="carla_physics" default="none"
+       description="the carla_physics.yaml the simulation side's vehicle_physics names; none (the default) = the blueprint's own physics, nothing to read back" />
   <!-- Default "hero": SSv2 spawns the ego with role_name "hero", (bridge_config ego.role_name);
        an agent-driven background AV is named after its entity. -->
   <arg name="vehicle_name" default="hero" description="CARLA role_name of the ego vehicle" />
@@ -129,8 +131,9 @@
     <arg name="control_trace_path" value="$(var control_trace_path)" />
     <arg name="accel_map_path" value="$(var accel_map_path)" />
     <arg name="brake_map_path" value="$(var brake_map_path)" />
-    <!-- The CARLA world server applies the spec's physics at the spawn; acb reads it back
-         (roadmap 051). -->
+    <!-- Given a spec's physics, the CARLA world server applies it at the spawn and acb reads
+         it back (roadmap 051); with none, the default, neither touches it. -->
+    <arg name="carla_physics" value="$(var carla_physics)" />
     <arg name="carla_physics_mode" value="verify" />
   </include>
 

@@ -286,9 +286,10 @@ where they went:
   aliases, ticking, the Traffic Manager, the collision sensors, the sensor-release channel,
   the weather preset), chosen by `swb_carla_world_config:=`, default
   `share/swb_carla_world/config/swb_carla_world.yaml`; `blueprint_boxes_<version>.yaml` is
-  read beside it. Its ROS parameter `vehicle_physics` names the ego's physics (default the
-  installed `sim_vehicle_spec/generated/tesla_model3/carla_physics.yaml`; `none` keeps the
-  blueprint's).
+  read beside it. Its ROS parameter `vehicle_physics` (launch argument `vehicle_physics:=`)
+  names the ego's physics, a vehicle spec's `carla_physics.yaml` such as the installed
+  `sim_vehicle_spec/generated/tesla_model3/carla_physics.yaml`; the default, `none`, keeps
+  the blueprint's. The vehicle sides take the same file as `carla_physics:=`, to read it back.
 
 Both log the file they loaded. `ros2 param get /scenario_world_bridge config_file` names the
 bridge's. The older `CSB_CONFIG_DIR` variable is refused.

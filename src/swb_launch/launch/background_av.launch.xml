@@ -38,6 +38,8 @@
     CARLA work, no scenario.
   -->
   <arg name="entity" default="bg_av_1" description="the scenario entity this vehicle is (controller `agent`)" />
+  <arg name="carla_physics" default="none"
+       description="the carla_physics.yaml the simulation side's vehicle_physics names; none (the default) = the blueprint's own physics, nothing to read back" />
   <arg name="vehicle_name" default="$(var entity)"
        description="CARLA role_name of the vehicle; the bridge names an agent-driven vehicle after its entity" />
   <arg name="relay" default="tcp://localhost:5560" description="the scenario's agent relay; none = local mode" />
@@ -85,8 +87,9 @@
     <arg name="release_ack_endpoint" value="$(var release_ack_endpoint)" />
     <arg name="vehicle_name" value="$(var vehicle_name)" />
     <arg name="publish_clock" value="true" />
-    <!-- The CARLA world server applies the spec's physics to an agent vehicle at the spawn;
-         acb reads it back (roadmap 051). -->
+    <!-- Given a spec's physics, the CARLA world server applies it at the spawn and acb reads
+         it back (roadmap 051); with none, the default, neither touches it. -->
+    <arg name="carla_physics" value="$(var carla_physics)" />
     <arg name="carla_physics_mode" value="verify" />
   </include>
 </launch>

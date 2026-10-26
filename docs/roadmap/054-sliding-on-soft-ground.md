@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; steps 7-8 open.
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 open.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -239,7 +239,7 @@ Explored against the code after T1:
 - [x] **6. Low-speed and edge checks.** Creeping across a zone edge at 0.5-3 m/s, stopping and
   holding on soil, starting from rest in a rut, one side on soil: no oscillation in yaw rate or
   lateral velocity, no jump at the hand-back speed.
-- [ ] **7. Cost.** `spikes/multi_ego_soil.py` with T2 on: one, two and four egos, frame p50 and
+- [x] **7. Cost.** `spikes/multi_ego_soil.py` with T2 on: one, two and four egos, frame p50 and
   p95 and the soil layer's share beside 052 step 5's (29.2 / 45.5 / 77.4 ms at p50).
 - [ ] **8. With Autoware.** New scenarios on Isaac, each recorded with `record:=` for the video:
   an emergency stop on mud (a pedestrian stepping out), braking with mud on only the right
@@ -256,7 +256,7 @@ Explored against the code after T1:
   (the slide no longer snaps), and a car crossing ruts at a shallow angle feels a lateral force
   from them.
 - [x] No oscillation below 3 m/s on soil, at zone edges or at the hand-back (step 6).
-- [ ] Four egos on soil with T2 within 10 % of 052 step 5's frame time.
+- [ ] Four egos on soil with T2 within 10 % of 052 step 5's frame time (step 7: +1.3 % by the per-wheel measurement; the frame time to repeat on a quiet host).
 - [ ] Step 8's scenarios pass on Isaac with Autoware, or their failures are explained.
 
 ## Progress
@@ -564,6 +564,39 @@ its own ruts not at all. On dirt every case runs as on asphalt. This is the
 soil as engineered, not a defect: whether a road car should be able to start in town01_mud's
 mud is 053's to settle with measured soil, and step 8's emergency stop on mud expects not to
 drive off again.
+
+### Step 7: cost (2026-10-26)
+
+`spikes/multi_ego_soil.py` (052 step 5's: Town01, 88 m of dirt, every rig sensor on, egos held
+to 4 m/s) with `MULTI_T2=ab`: each case run with the sidewall force off and on in turn, three
+times, in one world server (`play_log/multi_ego_soil/2026-10-26_t2b`; the first run,
+`_t2`, before the change below).
+
+**The host was not 052's quiet machine.** Another project's simulations and a language-model
+evaluation held the CPUs at a load of 50-62 on 24 cores and one GPU at 100 %. The same case
+repeated spread two to three times: one ego 35-119 ms a frame at p50 (052: 29.2), four egos
+244-305 ms with the force off. Frame times from today cannot be held against 052's within
+10 %, and a T2 cost of a few per cent is under the noise between repeats (the soil layer's
+share, paired: +0.1 to +3.5 ms a frame for one or two egos, and for four egos the "on" runs
+came out faster than the "off" ones).
+
+**So T2's cost was measured where the noise allows**: the grid step of one wheel rolled 4 m
+at 4 m/s on fresh soil with T2's work (`SoilGrid.side_heights` and the force's arithmetic)
+off and on, alternated, the least of seven (`soil` alone, no Isaac):
+
+| | wheel and substep, off | on | T2 |
+|---|---|---|---|
+| T2 as built in step 5 | 235-245 us | 300-302 us | +55-67 us (22-28 %) |
+| `side_heights` as plain loops on floats | 307-308 us | 327-329 us | +20 us (6.7 %) |
+
+The first version read the 20 nodes beside a tire through `depth()` and `np.linspace` and
+compared numpy scalars; as plain loops on Python floats they cost a third. With it, T2 adds
+about 20 us a wheel and substep, 0.25 ms an ego and frame (12 wheel steps): on 052's four
+egos, 77.4 ms at p50, about 1.0 ms or 1.3 %, inside the acceptance's 10 % by estimate. The
+frame time itself is to be measured again on a quiet host.
+
+Memory over eight cycles of four egos with T2 (`_t2`): RSS 14265 to 14334 MB (+8.6 MB a
+cycle, against 052's +4.8), GPU 6642-6646 MB throughout.
 
 ## Open questions
 

@@ -92,9 +92,12 @@ wheelspin, beyond any published work) and C (wet drift zones).
    into a 100 m left bend. First: -18.3 deg held 4.85 s, but the speed ran from 100 to 126
    km/h and the line out to 128 m (power-on drift gains speed). With the drive taken back
    past the hold's entry speed (autoware-drift b78527d): -15.2 deg held 6 s on 97.7 m at 109
-   km/h, 113 deg of heading, rear slip 0.17/0.15, then exit and hand back at 98 km/h. To do:
-   240 Hz physics and 10 ms frames (csb 241), the sideslip back to its 20 deg target, a
-   Town05 bend.
+   km/h, 113 deg of heading, rear slip 0.17/0.15, then exit and hand back at 98 km/h. At 240
+   Hz physics and 10 ms frames (superproject 113df37, csb 241's physics_hz) the same: -15.2
+   deg on 97.8 m at 109 km/h, so the rate does not limit the hold. The sideslip and the line
+   trade: with the cap softened (0.7 m/s^2 per m/s, not 1.5) -16.6 deg on 107 m at 113 km/h.
+   At mu ~1 a 100 m bend's grip at ~110 km/h leaves room for 15-17 deg; 20 deg needs a slower
+   drift. Kept: the firmer cap, which holds the bend's line. To do: a Town05 bend.
 6. [ ] **Laps.** Every turn, several laps: the repeat rate and what ends a drift that fails.
 
 ## Risks

@@ -9,7 +9,11 @@ become the local check at the end.
 
 **Status**: in progress, 2026-10-24. Step 1 (the survey) done. 2026-10-26: steps 2 and 3
 done for sand (two classes now, `sand` and `sand_loose`, fitted to He 2020's measured tire);
-dirt, mud and snow wait for data a script cannot fetch (step 2).
+dirt, mud and snow wait for data a script cannot fetch (step 2). 2026-10-27: mud and snow
+fitted (the user fetched the reports a script could not; two mud classes now, `mud_wet` and
+`mud_soft`; snow with a new key, `sinkage_limit`), and issue 012 fixed on the way (the car
+gripped more on soil than the measured tire). Dirt waits: its only measured source, the
+NG-NRMM CDT FTP server, does not answer.
 
 **Source**: user direction 2026-10-24: "Does soil calibration require real data? If yes, I
 prefer to find real dataset online. Same for mud and snow cases. We can do dataset survey and
@@ -25,12 +29,12 @@ keep them noted."
   for each class (dry sand, sandy loam, wet clay as mud, snow), the published measurements
   (bevameter, shear, cone index, single-wheel and vehicle tests of pneumatic tires: pull,
   resistance and sinkage against slip), with soil state, tire, load, format and access.
-- [ ] **2. One reference per class.** Sand done (He 2020, both compactions, read off the
-  plots); dirt, mud and snow need the data fetched by hand (below). A primary and a fallback dataset per class, preferring
+- [ ] **2. One reference per class.** Sand (He 2020), mud (Wismer 1966) and snow (Richmond
+  1995) done; dirt has none (the CDT FTP server does not answer; below). A primary and a fallback dataset per class, preferring
   a pneumatic tire near the Model 3's 4.5 kN wheel load; obtain the data (digitise a plot
   when only a plot is published, and say so).
-- [ ] **3. Fit.** Sand done (`spikes/fit_reference.py`, below), with a new soil term,
-  `rolling_resistance`. The single-wheel rig on our grid at the reference's tire and load, against
+- [ ] **3. Fit.** Sand, mud and snow done (`spikes/fit_reference.py`, below), with new soil
+  terms `rolling_resistance` and `sinkage_limit`; dirt waits for its data. The single-wheel rig on our grid at the reference's tire and load, against
   the measured curves; fit what 047 S5 fitted (Janosi K, slip sinkage) and, where the
   reference measures it, the pressure-sinkage row. A table per class: measured, ours before,
   ours after.
@@ -179,6 +183,67 @@ coasting into `sand` at 15 m/s slows 0.33 m/s^2 (Wong's row 1.22), holding 10 m/
 0.35 m/s^2 with 1.4 cm of sinkage, the launch above, and a stop from 15 m/s takes 24.7 m
 (dry asphalt 14.0).
 
+### Steps 2 and 3 for mud and snow (2026-10-27)
+
+**Where the data came from.** The user found the reports a script could not fetch: WES TR
+3-666 Reports 3, 4 and 5 and the WES wet-surface tire study are on Wikimedia Commons (USACE's
+digital library), CRREL 95-7 on ROSAP (saved from a browser), and Virginia Tech's tire tests
+on ice on Zenodo (three parts, not used yet). They are kept in `data/terramechanics/`
+(git-ignored) and, with a README naming each file's source and checksum, on the lab NAS at
+`/home/aeon/nas/autoveh/dataset/2026-10-27 Terramechanics tire-soil test data/`. The NG-NRMM CDT FTP server did not answer, so dirt has no measured source.
+
+**Mud: Wismer (1966), WES TR 3-666 Report 3.** 184 tests of a 9.00-14 2-PR smooth tire in a
+saturated fat clay (95 % saturation, no friction angle in undrained shear). The references
+(`spikes/references/wes1966_clay_ci{17,25,46}.yaml`) take the first passes at 890 lb (3.96
+kN) and 15 % deflection, 40-42 psi (the Model 3's 42), every number checked against the
+scanned pages: the towed point (Table 3), the self-propelled slip (Table 6), 20 % slip
+(Table 5) and one constant-slip test (Table 4). The report has no pull-slip curve at a stated
+soil strength and load, so the slips between are not measured. Its runs were slow (about
+0.15 m/s); faster lowers the towed force and raises the pull (its paragraphs 45-47).
+
+| | cone index 46 (320 kPa, 37-39 % moisture) | | cone index 25 (170 kPa, 43-45 %) | |
+|---|---|---|---|---|
+| slip | measured pull / sinkage | ours: before, `mud_wet` | measured | ours: before, `mud_soft` |
+| towed | -0.085 / 15 mm | -0.111 / 36 mm; -0.085 / 17 mm | -0.209 / 42 mm | -0.111 / 36 mm; -0.209 / 40 mm |
+| self-propelled | 0 at 0.5 % / 14 mm | -0.107 / 36; 0.000 / 17 | 0 at 12.8 % / 44 mm | -0.023 / 40; 0.000 / 46 |
+| 13.5 % | 0.209 / 30 mm | -0.020 / 41; 0.194 / 20 | | |
+| 20 % | 0.202 / 17 mm | 0.003 / 43; 0.215 / 22 | 0.052 / 49 mm | 0.004 / 43; 0.052 / 50 |
+
+Wong's clay row (the old `mud_wet`) sank like the softer clay and pulled like neither. Two
+classes, as for sand: `mud_wet` is the firmer clay, which a rear-drive car drives through;
+`mud_soft`, new, the softer, on which its driven wheels at 20 % slip pull less than the free
+ones resist, so it stalls. `mud_soft` is within tolerance at every point. `mud_wet`'s pull
+is (-7..+6 %); two of its sinkages are not, being two tests 1.7 times apart (30 mm at 13.5 %,
+17 mm at 20 %) with ours between them, so it keeps `unvalidated:` with that reason. The rows
+are a rigid wheel's equivalent of a smooth tire: friction angle 2 deg, cohesion 28-30 kPa,
+Janosi K 1.4 and 19 mm. Measured 17-cone-index clay (`wes1966_clay_ci17.yaml`, one test)
+stalls any car; not a class.
+
+**Snow: Richmond (1995), CRREL 95-7.** The CRREL Instrumented Vehicle's leading
+light-truck tire (LT 235/85R16, 6.5-7.3 kN) towed through fresh snow on a packed base,
+Table 3: in 20 cm of 220 kg/m^3 snow (19 runs) the resistance coefficient 0.074 and the
+sinkage 16.0 cm; in 15 cm of 110 kg/m^3 (6 runs) 0.035 and 11.9 cm
+(`spikes/references/richmond1995_civ_snow{220,110}.yaml`). Wong's US snow row sank to the
+grid's 30 cm floor and resisted 0.100 in both. A snow layer compacts only to its final
+density, so its sinkage is its depth times (1 - density / 500 kg/m^3) (the report's eq. 1,
+15.9 cm predicted), whatever the load; a Bekker row knows no depth. So the soil gained
+`sinkage_limit`: the wheel goes no deeper, and the base carries the rest of its load. With
+it, k_phi fitted to the towed resistance alone is 7.05e5 for the first snow and 6.96e5 for the
+second: one row fits both within 1 %, the depth carrying the difference. `snow_loose` is the
+second (15 cm of light snow, `sinkage_limit: 0.119`); a deeper snow is a larger limit. The
+report tows only, so the snow's traction is still Wong's row, and `snow_loose` keeps
+`unvalidated:` for it (CRREL 93-9 measures it, on DTIC).
+
+**On the car, and issue 012.** Driven (`spikes/soil_drive.py` with `SOIL_SPIKE_MUD_CLASS`),
+the fits showed two faults of the car's soil, not of the fits: a wheel's friction was the
+soil's whole shear limit, above the measured tire's gross traction (soft mud let a
+rear-drive car drive away), and on a snow layer's base the base's load had no grip (0.02).
+[Issue 012](../issues/012-soil-grip-beyond-the-tires.md): the friction is held at the class's
+`mu`, now each fitted class's measured gross traction (the pull at its peak plus its towed
+resistance: sand 0.265, sand_loose 0.245, mud_wet 0.29, mud_soft 0.26), and the base grips at
+it. After it, `sand_loose` and `mud_soft` stop a rear-drive car from rest, the others drive
+(the table in the issue).
+
 ### Step 5: the scenarios after the fit (2026-10-26)
 
 On Isaac with Autoware, one at a time, each with its own surface map and every stack stopped
@@ -197,3 +262,24 @@ change nothing for them. On the fitted sand the ego crossed at 3.9-4.2 m/s with 
 longitudinal slip at most 0.02 (`town01_mixed_ground`, 123 frames on sand); `town01_soil`'s
 route clips its sand zone for only 0.3 s, so the mixed-ground run is the one that exercises it.
 
+**Again after mud, snow and issue 012 (2026-10-27).** The same way, the host at a load of about
+33 on 24 cores; the four above and 054 step 8's three mud scenarios, now on the measured mud:
+
+| scenario | result | recording (`play_log/record/`) |
+|---|---|---|
+| `town01_soil` | PASS | `2026-10-27_00-50-15-ego` |
+| `town01_mixed_ground` | PASS | `2026-10-27_00-55-19-ego` |
+| `town01_mud` | PASS | `2026-10-27_01-01-04-ego` |
+| `town01_snow` | PASS | `2026-10-27_01-04-34-ego` |
+| `town01_mud_curve` | PASS | `2026-10-27_01-07-44-ego` |
+| `town01_mud_right` | PASS | `2026-10-27_01-13-09-ego` |
+| `town01_mud_stop` | FAIL, timeout: stops without contact, does not drive off | `2026-10-27_01-17-42-ego` |
+
+`town01_mud_stop` fails as in 054 step 8, for the reason written there, which 053 now
+answers with a measurement. Stopped on mud_wet, Autoware holds its request at its
+feedforward, 0.51 m/s^2 (about 950 N of drive; its PID does not integrate below 0.5 m/s),
+and the measured tire's towed resistance on this clay is 0.085 of the load (Wismer 1966,
+cone index 46), about 1470 N for the car: the car creeps at 0.07-0.08 m/s for the rest of
+the run, where the resistance's fade below 0.1 m/s balances it. A road car on a stock
+Autoware does not get going again in this mud; the scenario stays as a finding, not a
+regression.

@@ -47,6 +47,10 @@
        time acb publishes on /clock. Useful to reproduce an overloaded host
        deterministically. -->
   <arg name="global_real_time_factor" default="1.0" description="SSv2 real-time factor" />
+  <arg name="frame_rate" default="20"
+       description="SSv2's frames per simulated second (global_frame_rate): 20, a 50 ms step, as below; 100 for a 10 ms step (a car whose controller needs it, swb roadmap 057)" />
+  <arg name="vehicle_model" default="tesla_model3"
+       description="the ego's car: its &lt;name&gt;_description package and &lt;name&gt;_sensor_kit" />
   <!-- false: an ego no Autoware drives (it stands, or follows a trajectory SSv2 drives),
        with no agent behind the relay (roadmap 037, Isaac before its vehicle bridge); its
        scenario must not use ego autonomy actions (RoutingAction and the like). -->
@@ -73,8 +77,8 @@
     <arg name="architecture_type" value="awf/universe/20250130" />
     <!-- Still required with launch_autoware:=false: EgoEntity reads both before it
          reaches the launch_autoware branch (ego_entity.cpp:64-65). -->
-    <arg name="sensor_model" value="tesla_model3_sensor_kit" />
-    <arg name="vehicle_model" value="tesla_model3" />
+    <arg name="sensor_model" value="$(var vehicle_model)_sensor_kit" />
+    <arg name="vehicle_model" value="$(var vehicle_model)" />
 
     <!-- CARLA adapter mode - no built-in simulator, real sensors -->
     <arg name="launch_simple_sensor_simulator" value="false" />
@@ -135,7 +139,7 @@
          sweep are unchanged and only the ZMQ round trips double. Not 30 Hz: this host
          could not keep the sim near realtime there, and Autoware's topic_state_monitor
          timeouts are wall time, so a slow sim starves them. -->
-    <arg name="global_frame_rate" value="20" />
+    <arg name="global_frame_rate" value="$(var frame_rate)" />
     <arg name="global_real_time_factor" value="$(var global_real_time_factor)" />
 
     <!-- User-configurable pass-through -->

@@ -84,8 +84,11 @@
        map_path. Empty turns acb's signal publisher off. -->
   <arg name="traffic_light_map_path" default="$(var map_path)/carla/traffic_lights.yaml" />
   <arg name="control_trace_path" default="" />
-  <arg name="accel_map_path" default="$(find-pkg-share $(var vehicle_model)_description)/config/accel_map.csv" />
-  <arg name="brake_map_path" default="$(find-pkg-share $(var vehicle_model)_description)/config/brake_map.csv" />
+  <!-- The pedal maps of the physics the car runs: the blueprint's with carla_physics none
+       (acb_launch's config/blueprint/), the spec car's otherwise, as acb_launch chooses. -->
+  <arg name="vehicle_maps_dir" default="$(eval &quot;'$(find-pkg-share acb_launch)/config/blueprint/$(var vehicle_model)' if '$(var carla_physics)' == 'none' else '$(find-pkg-share $(var vehicle_model)_description)/config'&quot;)" />
+  <arg name="accel_map_path" default="$(var vehicle_maps_dir)/accel_map.csv" />
+  <arg name="brake_map_path" default="$(var vehicle_maps_dir)/brake_map.csv" />
   <!-- clustering = CPU-only rule-based lidar detection. This host shares its GPU;
        CARLA takes what headroom there is and centerpoint's TensorRT engine does
        not fit beside it. -->

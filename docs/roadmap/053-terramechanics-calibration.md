@@ -36,7 +36,7 @@ keep them noted."
   ours after.
 - [ ] **4. Drop the flags.** A class within tolerance (pull within ±20 % over slip 0.1-0.5,
   sinkage within ±25 %) loses `unvalidated:`; one that is not keeps it, with the reason.
-- [ ] **5. Re-run.** `town01_soil.xosc`, `town01_mud.xosc` and `town01_snow.xosc` on Isaac
+- [x] **5. Re-run.** `town01_soil.xosc`, `town01_mud.xosc` and `town01_snow.xosc` on Isaac
   with Autoware after the fit, against 052's runs.
 - [ ] **6. The field (040).** Cone index and a drawbar test of a road tire on the field's
   sand and dirt, held to the same tolerance, when the field is available.
@@ -46,7 +46,8 @@ keep them noted."
 - [x] Every soil class names its reference in `surface_classes.yaml` (`calibration:`, required
   of a soil class: the measurements, or where the row comes from and what is missing).
 - [ ] The per-class table in this doc; each class calibrated or flagged with the reason.
-- [ ] The three soil scenarios PASS after the fit.
+- [x] The three soil scenarios PASS after the fit (2026-10-26, below; `town01_mixed_ground`
+  too).
 
 ## Progress
 
@@ -176,6 +177,23 @@ and 3 run as for sand. Until then the three keep Wong's rows and say so in `cali
 On the car (`spikes/soil_drive.py`, `play_log/soil_drive/2026-10-26_053-sand-until.log`):
 coasting into `sand` at 15 m/s slows 0.33 m/s^2 (Wong's row 1.22), holding 10 m/s asks
 0.35 m/s^2 with 1.4 cm of sinkage, the launch above, and a stop from 15 m/s takes 24.7 m
-(dry asphalt 14.0). Step 5's Autoware runs are still to do: the host was at a load of 100
-on 24 cores from other work when the fit was done.
+(dry asphalt 14.0).
+
+### Step 5: the scenarios after the fit (2026-10-26)
+
+On Isaac with Autoware, one at a time, each with its own surface map and every stack stopped
+between them, the host at a load of 20-90 on 24 cores from other work:
+
+| scenario | result | recording (`play_log/record/`) |
+|---|---|---|
+| `town01_soil` | PASS | `2026-10-26_21-45-06-ego` |
+| `town01_mixed_ground` | PASS | `2026-10-26_21-50-09-ego` |
+| `town01_mud` | PASS | `2026-10-26_21-55-18-ego` |
+| `town01_snow` | PASS | `2026-10-26_21-58-53-ego` |
+
+Mud and snow keep Wong's rows, so their runs only show that the new code paths
+(`rolling_resistance` and `slip_sinkage_until` at their defaults, the `calibration:` check)
+change nothing for them. On the fitted sand the ego crossed at 3.9-4.2 m/s with the wheels'
+longitudinal slip at most 0.02 (`town01_mixed_ground`, 123 frames on sand); `town01_soil`'s
+route clips its sand zone for only 0.3 s, so the mixed-ground run is the one that exercises it.
 

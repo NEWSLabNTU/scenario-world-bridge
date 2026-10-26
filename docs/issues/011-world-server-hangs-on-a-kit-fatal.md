@@ -26,8 +26,9 @@ launch's respawn never fired and `scripts/isaac_up.sh` waited out its 30 minutes
 
 The first looked like the zone's size: each tile is its own mesh, and smaller zones (32, 60,
 90, 99 tiles) had loaded. It is not. The same 221-tile zone, loaded again in a world server
-started on its own (`just isaac-world` with that `surfaces.yaml`), was up in 120 s and rendered three more minutes without a fatal; the fatal appears once in every Isaac log
-on the host. Both hangs came on a host loaded by other work (load 36-85 on 24 cores, the
+started on its own (`just isaac-world` with that `surfaces.yaml`), was up in 120 s and
+rendered three more minutes without a fatal; across all the host's Isaac logs the fatal
+appears that once. Both hangs came on a host loaded by other work (load 36-85 on 24 cores, the
 GPUs shared), several world servers started and stopped back to back; the kernel's log (Xid)
 is not readable here, so whether the GPU reset as in issue 005 is not known.
 

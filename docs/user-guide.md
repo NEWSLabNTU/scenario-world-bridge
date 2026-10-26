@@ -506,7 +506,9 @@ Declare only what the simulator does (`Capability`): the bridge never sends a re
 drive the server did not declare, and answers SSv2 with an honest failure naming the missing
 capability. A map tells the server which world it means in `<map dir>/<simulator name>/world.yaml`
 (`world`, `ground_paths`, `map_origin`). Check the server with
-`swb_world_check conformance tcp://127.0.0.1:<port> --map <map dir>` before a scenario, then
+`swb_world_check conformance tcp://127.0.0.1:<port> --map <map dir>` before a scenario (a
+server declaring `SIGNALS` must answer `GetSignals` with what its world shows: the check sets
+one lamp of the map's `traffic_lights.yaml` and reads it back), then
 run the starter scenarios against it: start the simulation side with
 `ros2 launch swb_launch simulation.launch.xml world_endpoint:=tcp://127.0.0.1:<port>`, then
 scenarios as above. The vehicle under test needs a vehicle bridge of its own

@@ -7,7 +7,7 @@ vehicle spec), and the design's step 8 (the repository split), which this phase 
 Designs: [design/vehicle-side.md](../design/vehicle-side.md),
 [design/simulator-interface-split.md](../design/simulator-interface-split.md).
 
-**Status**: in progress, 2026-10-23. K0 done (below, "Progress").
+**Status**: done, 2026-10-24: landed on main `04dbb83` ("Landed", below), proved on main the same day; what is left is listed under "After 051", at the end.
 
 **Source**: user direction 2026-10-23: "now that we'll go through Autoware package and
 simulation interface refactor in phase 50 and so on, I'd like to refactor them to the
@@ -802,3 +802,11 @@ is needed. Every acceptance item is met.
   the nearest CARLA lights 11 and 12 m away). Their regulatory elements (37148, 37150) are on
   no lanelet, in the converted map as it came, so Autoware never reads them: the table lists
   them as unmapped and nothing else needs doing.
+- `swb_world_check conformance` sent an empty `SetSignals` and never read a lamp back, so a
+  server could declare `SIGNALS` and drive nothing. Closed 2026-10-26: `GetSignals`
+  (swb_world_protocol `fa41a73`, no version bump: only the check sends it) reads the colour
+  from the world -- CARLA's light state (swb_carla_world `aeeedfd`), the lens materials bound
+  on Isaac (swb_isaac_world `634b14b`) -- and the check sets one lamp of the map's table red,
+  then green, and reads it back. CARLA 2010, Town01: lamp 362 Red then Green, 27 passed, 0
+  failed. Isaac probed headless (red, green, amber, off; a colour recorded but never bound
+  reads OFF); not run against an Isaac world with lamps on newslab-118-server (issue 005).

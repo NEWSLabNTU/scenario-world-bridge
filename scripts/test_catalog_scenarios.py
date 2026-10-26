@@ -20,9 +20,11 @@ def check(tmp_path, text):
     return lint.check_file(path, sv.load_table(), 0.02, lint.catalog_parameters(), cs.entries())
 
 
-def test_the_catalog_has_the_model3():
-    assert cs.entries() == {"vehicle.tesla.model3": "tesla_model3"}
-    assert lint.catalog_parameters() == {"tesla_model3": {p for p, _, _ in cs.ASSIGNED}}
+def test_the_catalog_has_every_spec():
+    assert cs.entries() == {"vehicle.tesla.model3": "tesla_model3",
+                            "vehicle.ford.mustang": "drift_mustang"}
+    assert lint.catalog_parameters() == {name: {p for p, _, _ in cs.ASSIGNED}
+                                         for name in ("tesla_model3", "drift_mustang")}
 
 
 def test_rewrite_makes_a_reference_assigning_the_scenarios_values():

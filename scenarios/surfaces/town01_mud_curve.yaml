@@ -1,4 +1,4 @@
-# Roadmap 054 step 8: town01_mud_curve.xosc's ground. Town01's south-west corner: the southbound lane's 90 deg left bend (about 12 m radius) onto the south road, in wet mud (99 tiles: a 221-tile zone over the bend and 10 m either side ran RTX out of resource descriptors). Mud's soil parameters are a stand-in (a wet
+# Roadmap 054 step 8: town01_mud_curve.xosc's ground. Town01's south-west corner: the southbound lane's 90 deg left bend (about 12 m radius) onto the south road, in wet mud. Mud's soil parameters are a stand-in (a wet
 # clay row, 047 D6), so the map opts in by name. Copy to
 # data/carla-autoware-bridge/Town01/surfaces.yaml for a run.
 allow_unvalidated: [mud_wet]

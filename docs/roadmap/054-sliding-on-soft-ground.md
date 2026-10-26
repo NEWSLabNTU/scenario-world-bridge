@@ -612,7 +612,7 @@ its profile's limit, 15 km/h (`max_vel` 4.17 m/s; `max_velocity:=` raises it). T
 - `town01_mud_right`: the same with only the lane's right half in mud (x -4..-2, the right
   wheels' track): the stop is split-mu.
 - `town01_mud_curve`: the south-west corner, a 90 deg left bend of about 12 m radius, in mud
-  (99 tiles); it passes once the ego is at x 60 on the south road, before the next junction's
+  (99 tiles, the bend alone); it passes once the ego is at x 60 on the south road, before the next junction's
   traffic light.
 
 `just scenario <xosc> sim:=isaac worlds:=Town01 initialize_duration:=300 global_timeout:=1200`
@@ -640,9 +640,11 @@ and the stack started fresh for every run (the surface map is read when the worl
 starts), which failed about a third of the starts (6 of 17) before the scenario began: Autoware still
 INITIALIZING when SSv2's budget ran out (NDT's first align took 5-130 s, normally about 2;
 hence `initialize_duration:=`), and once the ego's spawn taking 95 s against SSv2's 90 s
-response limit. Two other things found on the way: the curve's first surface map, 221 tiles
-over the bend and 10 m either side, ran RTX out of resource descriptors and hung the world
-server (issue [011](../issues/011-large-soil-zone-runs-rtx-out-of-descriptors.md)); and a goal
+response limit. Two other things found on the way: once, with the curve's first surface map (221 tiles
+over the bend and 10 m either side), RTX ran out of resource descriptors and the world server
+hung instead of exiting, and another start sat in Kit for 16 minutes (issue
+[011](../issues/011-world-server-hangs-on-a-kit-fatal.md): not the zone's size, which loads
+when tried again; the world server now exits on either and is respawned); and a goal
 at y -332.8 on the south road, which lanelet 7768's bounds put at the lane's centre, made
 Autoware's route empty, while it drives that road at y -330.5 (the demo tour's line), where
 the goal now is.

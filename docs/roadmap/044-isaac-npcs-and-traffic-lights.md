@@ -777,8 +777,23 @@ loaded`. Cross-track on CARLA is 0.09-0.15 m against Isaac's 0.01-0.04, inside a
    materials, so every variant's textures are byte-identical to its base's. The 52 ids show
    30 looks; 34 ids share one in 12 groups: 0001/0005-0008, 0002-0004, 0009-0011,
    0012-0014, 0015/0019, 0022/0023, 0027-0029, 0031/0041, 0034/0038, 0035-0037, 0042-0044,
-   0045-0047. **Open**: export each blueprint's material overrides. Shots and the script:
-   `/mnt/renegade/aeon/csb-044/walkers52/` on 118.
+   0045-0047. Shots and the script: `/mnt/renegade/aeon/csb-044/walkers52/` on 118.
+   **Closed 2026-10-26 (newslab-118-server): each blueprint's materials are exported.**
+   `ue_vehicle_levels.py` reads what the blueprint's skeletal mesh component wears
+   (`get_materials()`, its overrides included) and sets every slot that differs from the
+   mesh's own on the export level's `SkeletalMeshActor`; `ue_meta.json` records
+   `materials` and `materials_overridden` per walker. 25 of the 34 shared-look blueprints
+   override (e.g. `bp_walker_female1_v2`: slots 0, 4, 14-17 to `MI_Female1_Hair` and
+   `MI_Female1_v2`; `bp_walkerkid1_v3`: `M_Kid1Shoes_v3`, `M_Kid1Cloth_v3`); the other nine
+   are the bases, which wear the mesh's own. Those 34 were exported again (`just
+   isaac-vehicles walkers:=true export:=true only:=<the 34>`, 1438 s; the old ones kept in
+   `/mnt/renegade/aeon/csb-044/walkers-before-overrides/`), and the manifest rewritten. **52
+   ids, 52 looks** (distinct texture sets; 30 before). The same line-up
+   (`/mnt/renegade/aeon/csb-044/walkers52-overrides/`, `WALKING 52 of 52`): the Female1
+   variants in red, teal and orange trousers, the MaleAmer ones in their own jackets, the
+   Male1 ones in their own skin and clothes, where all wore the base before. Another host's
+   asset set (server139, NEWSLab's copy) keeps the old looks until it exports those 34 again
+   or takes 118's.
    The whole set (towns, vehicles, props, walkers) now moves as one directory: relative
    paths in its indexes, a `MANIFEST.sha256`, `just isaac-assets check|manifest`, obtainable
    from NEWSLab (docs/design/isaac-assets.md, 2026-10-23).

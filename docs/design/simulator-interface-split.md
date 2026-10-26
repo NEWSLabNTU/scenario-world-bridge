@@ -4,9 +4,8 @@
 proposal (user direction 2026-10-22: SSv2 and the simulators modular; swb is the CARLA glue,
 a second glue for Isaac Sim, both standalone packages on one interface defined on SSv2's
 side). Builds on [simulator-backends.md](simulator-backends.md) (the seam, roadmap 035) and
-the as-built Isaac stack (037, 038, 043, 044, 045). Nothing here is implemented yet;
-[roadmap 046](../roadmap/046-unified-world-interface.md) implements steps 1-6 inside this
-repository (unify, test on both simulators) and then renames the project.
+the as-built Isaac stack (037, 038, 043, 044, 045). This was the proposal as written;
+it is now implemented, as the two paragraphs below say: 046 did steps 1-6, 051 the rest.
 
 **Implemented** by [roadmap 046](../roadmap/046-unified-world-interface.md) (2026-10-22),
 inside this repository and under the names `scenario-world-bridge` (`swb_`) after its part B.

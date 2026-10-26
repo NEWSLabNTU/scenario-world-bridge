@@ -548,6 +548,10 @@ much where the wheels spin: a full-throttle launch in sand reaches 3.29 m/s in 3
 1.15, the rear wheels digging in less; dirt 7.66 against 7.36. Entry at 20 m/s: the same
 537 N largest step.
 
+Since roadmap 053 (2026-10-26) `sand` is no longer Wong's row with this fit: it is fitted to a
+measured road tire (He 2020's SRTT on dry loamy sand), and the same measurement put the truth
+for pull between SCM and CRM, nearer CRM (053, "Steps 2 and 3 for sand"). Dirt keeps this fit.
+
 ### Still to measure
 
 - **Physics rate in a zone.** Answered (047 D4, S3): the grid sweeps each wheel along its

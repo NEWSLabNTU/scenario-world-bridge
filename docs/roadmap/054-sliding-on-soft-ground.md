@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). Open: the suite side-by-side table, rut crossing at a shallow angle, the four-ego frame time.
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). 2026-10-26: the suite side by side. Open: rut crossing at a shallow angle, the four-ego frame time.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -249,8 +249,8 @@ Explored against the code after T1:
 ## Acceptance
 
 - [x] Which tire attributes PhysX accepts while playing, written down (step 1).
-- [ ] The manoeuvre suite runs from one command on asphalt, wet asphalt and mud, and its
-  results for today's model, T1 and T2 sit side by side here.
+- [x] The manoeuvre suite runs from one command on asphalt, wet asphalt and mud, and its
+  results for today's model, T1 and T2 sit side by side here ("The suite side by side").
 - [x] ESC meets FMVSS 126's sine-with-dwell criteria on dry asphalt, and off it is today's car.
 - [ ] On mud, the step steer's lateral force builds over a larger slip angle than on asphalt
   (the slide no longer snaps), and a car crossing ruts at a shallow angle feels a lateral force
@@ -649,9 +649,91 @@ at y -332.8 on the south road, which lanelet 7768's bounds put at the lane's cen
 Autoware's route empty, while it drives that road at y -330.5 (the demo tour's line), where
 the goal now is.
 
-Not covered: a car crossing old ruts at a shallow angle (the acceptance's second half). Every
-run starts on fresh soil; that needs a scenario that drives the same mud twice, or one started
-from a saved rut set (`ruts`, 047 S6).
+Not covered here: a car crossing old ruts at a shallow angle (the acceptance's second half),
+since every scenario run starts on fresh soil. It is now in the suite, below.
+
+### Rut crossing (2026-10-26)
+
+`manoeuvres.py`'s `rut_cross` (mud pad only): a pass at 20 km/h along the lane lays ruts,
+the car then crosses them at 6 deg on a straight line driven by the pure-pursuit driver, and
+the same crossing again on fresh soil (`play_log/manoeuvres/2026-10-26_rut-cross`). While
+its wheels cross the ruts:
+
+| | ruts | fresh soil |
+|---|---|---|
+| largest soil side force on a wheel, N | 29 | 2 |
+| most off the line, m | 0.010 | 0.001 |
+| largest yaw rate, deg/s | 0.47 | 0.09 |
+| steering swing, deg | 0.19 | 0.02 |
+
+The ruts are felt, ten times fresh soil's, and they are small: 29 N on a 4.3 kN wheel. T2's
+side force acts when the tire moves sideways against soil standing beside it, and a tire
+rolling across a rut at 6 deg does not slide sideways. What a driver feels crossing a rut,
+the tire climbing its wall and being steered along it (tramlining), is the wheel's contact
+with the rut's shape, which this pad cannot give: its wheels stay on the flat ground (no
+`ground_z`, no plates). A Town01 zone has them; a scenario that drives the same mud twice is
+the test for that, and the acceptance item stays open for it.
+
+### The suite side by side (2026-10-26)
+
+`spikes/manoeuvres.py`, one command, all pads; the runs already made, read from their
+`summary.json`. **Today** is the car before this phase's tire work (`2026-10-25_055-ecu-*`,
+055's brake module with its slip estimate as it was then); **T1** is each surface's own tire
+curve with issue 009's two fixes to that estimate (`2026-10-25_009b-ecu-*`); **T2** adds the
+soil against the tire's side, with issue 010's fix (`2026-10-26_010b-ecu-*`, mud and split
+pads; dry and wet, which have no soil, are T1's). Speeds and inputs as in step 2.
+
+Without ESC:
+
+| case | today | T1 | T2 |
+|---|---|---|---|
+| dry brake, distance m / deceleration m/s^2 | 8.34 / 7.05 | 8.34 / 7.05 | 8.34 / 7.05 |
+| dry step steer, steady sideslip deg / yaw rate ratio | -1.6 / 0.99 | -1.6 / 0.99 | -1.6 / 0.99 |
+| dry sine with dwell, yaw ratio at 1 s / lateral m at 1.07 s | 0.432 / 2.77 | 1.005 (spins) / 2.77 | 1.005 (spins) / 2.77 |
+| dry lane change, path error m | 0.77 | 0.77 | 0.77 |
+| dry circle, lateral acceleration held m/s^2 | 8.41 | 8.43 | 8.43 |
+| wet brake, distance m / deceleration | 9.21 / 6.94 | 9.19 / 6.44 | 9.19 / 6.44 |
+| wet sine with dwell, yaw ratio at 1 s / lateral m | 0.918 / 2.42 | 1.000 (spins) / 2.08 | 1.000 (spins) / 2.08 |
+| wet lane change, path error m | 0.86 | 1.23 | 1.23 |
+| wet circle, lateral acceleration held | 7.41 | 6.69 | 6.69 |
+| mud brake, distance m / deceleration | 16.89 / 3.54 | 15.71 / 3.76 | 15.85 / 3.41 |
+| mud brake in a turn, distance m / peak sideslip deg | 16.35 / -3.7 | 14.88 / -3.8 | 15.49 / -0.6 |
+| mud step steer, steady sideslip deg / yaw rate ratio | -10.3 / 1.10 | -10.3 / 1.16 | -5.8 / 0.84 |
+| mud sine with dwell, yaw ratio at 1 s / heading deg | 0.002 / -5 | 0.955 / -64 (spins) | 0.838 / -59 (spins) |
+| mud lane change, path error m / peak sideslip deg | 3.39 / 34 | 4.20 / 86 (spins) | 5.42 / -77 (spins) |
+| mud circle, lateral acceleration held | 1.78 | 1.38 | 1.87 |
+| mud lateral sweep, peak sideslip deg | (no sweep) | -81 | -25 |
+| split-mu brake, distance m / heading deg | 11.10 / -7.7 | 10.76 / -7.9 | 10.77 / -6.3 |
+
+With ESC:
+
+| case | today | T1 | T2 |
+|---|---|---|---|
+| dry sine with dwell, yaw ratio at 1 s / lateral m | 0.000 / 2.43 | 0.000 / 2.44 | 0.000 / 2.44 |
+| dry lane change, path error m | 0.69 | 0.69 | 0.69 |
+| dry circle, lateral acceleration held | 8.43 | 8.42 | 8.42 |
+| wet sine with dwell, yaw ratio at 1 s / lateral m | 0.000 / 2.16 | 0.001 / 1.88 | 0.001 / 1.88 |
+| wet lane change, path error m | 0.74 | 1.03 | 1.03 |
+| wet circle, lateral acceleration held | 7.39 | 6.70 | 6.70 |
+| mud brake in a turn, distance m / peak sideslip deg | 16.25 / -3.9 | 14.72 / -4.2 | 15.42 / -0.7 |
+| mud step steer, steady sideslip deg / yaw rate ratio | -5.6 / 0.83 | -6.7 / 0.86 | -5.3 / 0.82 |
+| mud sine with dwell, yaw ratio at 1 s / heading deg | -0.002 / -5 | 0.048 / -13 | 0.002 / -13 |
+| mud lane change, path error m / end speed km/h | 0.21 / 30 | 0.99 / 21 | 0.88 / 24 |
+| mud circle, lateral acceleration held | 1.59 | 1.45 | 1.73 |
+| mud lateral sweep, peak sideslip deg | (no sweep) | -11 | -10 |
+| split-mu brake, distance m / heading deg | 11.12 / -7.7 | 10.75 / -7.9 | 10.75 / -6.2 |
+
+(The dry brake and step and the straight braking cases are the same with ESC, which does not
+act on them.) Read across: T1 changes nothing below the peak (dry braking, steps, lane changes
+to the centimetre) and lets the car go past it the way a car does: the dry, wet and mud sines
+spin without ESC where today's car either recovered (dry, 0.43) or barely turned on mud
+(heading -5 deg on 0.17 of sideways grip). Wet asphalt grips less in a long slide (circle 7.4
+to 6.7 m/s^2, the drop past the peak). On mud T1 alone holds less in the circle (1.38) and
+spins more; T2's sunk tire sides give back more than T1 took (1.87 held, the step steer's
+sideslip halved, the lateral sweep's slide at -25 deg instead of -81). The mud lane change
+slides out without ESC under all three, further under T1 and T2 (peak sideslip 77-86 deg
+against 34), which turn harder before they let go. With ESC every case holds, the mud lane change to 0.9-1.0 m against today's 0.21
+(today's car steered less and lost less speed doing it).
 
 ## Open questions
 

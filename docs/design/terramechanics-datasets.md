@@ -4,8 +4,9 @@ Survey for [off-road-surfaces.md](off-road-surfaces.md), 2026-10-24: published, 
 measurements that the soil layer's classes (`src/isaac_world/config/surface_classes.yaml`)
 could be calibrated against. The earlier survey
 ([survey-localized-deformable-terrain.md](survey-localized-deformable-terrain.md)) chose the
-model; this one looks for ground truth. Nothing here was measured by us, and nothing was
-fitted yet.
+model; this one looks for ground truth. Nothing here was measured by us. Roadmap 053 fitted
+`sand` and `sand_loose` to He (2020) on 2026-10-26 (053, "Steps 2 and 3 for sand"); the other
+classes wait for their data.
 
 ## Purpose
 

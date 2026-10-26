@@ -244,6 +244,39 @@ resistance: sand 0.265, sand_loose 0.245, mud_wet 0.29, mud_soft 0.26), and the 
 it. After it, `sand_loose` and `mud_soft` stop a rear-drive car from rest, the others drive
 (the table in the issue).
 
+### Ice (2026-10-27)
+
+Virginia Tech's tire tests on ice (Zenodo, CC BY 4.0, 252 runs: a passenger tire on the
+Terramechanics Rig's ice lane, slip pinned in four steps a run, braking and driving, 1.5-3.5
+bar, 3.5-6.5 kN, and at 2.5 bar and 5 kN under a water film at five conditions). The files
+hold no slip channel: the wheel's speed is the controlled one, so each run is cut into its
+four programmed steps (`spikes/ice_curve.py`; the wheel's speed confirms each step).
+`spikes/references/vt2017_ice.yaml`, the mean of braking and driving at 5 kN:
+
+| slip | 1 % | 2 % | 5 % | 7 % | 12 % | 20 % |
+|---|---|---|---|---|---|---|
+| bare ice (2.5 and 3.5 bar) | 0.071 | 0.226 | 0.269 | 0.264 | 0.234 | 0.186 |
+| under a water film (all five) | 0.071 | 0.087 | 0.125 | 0.111 | 0.114 | 0.101 |
+
+`ice` was 0.1 peaking at 8 % (a glare-ice guess). Now dry `ice` is bare ice (0.265 at 5 %,
+0.70 of it past the peak) and `moist` is the film (0.47 of bare ice at every slip). The rig
+runs at about 0.05 m/s, so the fall of sliding friction with speed (`stribeck`) and the
+sideways peak are not in the data and stay. On the car (`spikes/manoeuvres.py` with
+`PROVING_GROUND=proving_ground_ice.yaml`), the realised peak came out a third high, 0.35,
+which found [issue 013](../issues/013-surface-friction-relative-to-the-wrong-asphalt.md):
+every class's `mu` was written relative to asphalt's textbook 0.85 while the car's tire
+peaks at 1.12 there. With asphalt's `mu` the car's measured 1.12: bare ice 0.27, film 0.126;
+stops from 40 km/h in 29.9 m and 65.4 m.
+
+**Mud after issue 013.** Without the third of extra grip, a rear-drive car stopped in
+mud_wet no longer starts ([issue 014](../issues/014-car-cannot-start-in-firm-mud.md)). Two
+findings: the mud classes' tire curve fell past its peak where the measured clay's does not
+(Wismer's Fig. 3: no definite maximum; now `peak_slip: 0.2`, `sliding: 1.0`); and, with that
+fixed, the car still does not start, which is what a rear-drive road car with traction
+control does in clay at the limit of its mobility (the issue gives the evidence: the
+Wismer-Luth equations, WES's 4x2 observations, Tesla's Stuck Assist, traction control
+patents).
+
 ### Step 5: the scenarios after the fit (2026-10-26)
 
 On Isaac with Autoware, one at a time, each with its own surface map and every stack stopped
@@ -283,3 +316,10 @@ cone index 46), about 1470 N for the car: the car creeps at 0.07-0.08 m/s for th
 the run, where the resistance's fade below 0.1 m/s balances it. A road car on a stock
 Autoware does not get going again in this mud; the scenario stays as a finding, not a
 regression.
+
+**Again after issues 013 and 014 (2026-10-27).** All seven after issue 013
+(`play_log/record/2026-10-27_01-49-21-ego` .. `_02-05-19-ego`), then the mud ones and
+`town01_mixed_ground` again on the mud's measured tire curve (`2026-10-27_02-17-47-ego` ..
+`_02-34-27-ego`): the same six pass, and `town01_mud_stop` stays stopped, which issue 014
+shows a real rear-drive car with traction control does there.
+

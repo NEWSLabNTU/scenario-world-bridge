@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). 2026-10-26: the suite side by side. Open: rut crossing at a shallow angle, the four-ego frame time.
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). 2026-10-26: the suite side by side. 2026-10-26: rut crossing on Town01 (the ruts catch the wheels). Open: the four-ego frame time.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -252,9 +252,10 @@ Explored against the code after T1:
 - [x] The manoeuvre suite runs from one command on asphalt, wet asphalt and mud, and its
   results for today's model, T1 and T2 sit side by side here ("The suite side by side").
 - [x] ESC meets FMVSS 126's sine-with-dwell criteria on dry asphalt, and off it is today's car.
-- [ ] On mud, the step steer's lateral force builds over a larger slip angle than on asphalt
-  (the slide no longer snaps), and a car crossing ruts at a shallow angle feels a lateral force
-  from them.
+- [x] On mud, the step steer's lateral force builds over a larger slip angle than on asphalt
+  (the slide no longer snaps; T1's sweep: mud peaks at 12.8 deg, dry asphalt at 8.8), and a car
+  crossing ruts at a shallow angle feels a lateral force from them (Town01, "Crossing old ruts
+  on Town01": the ruts catch the wheels and steer the car along them).
 - [x] No oscillation below 3 m/s on soil, at zone edges or at the hand-back (step 6).
 - [ ] Four egos on soil with T2 within 10 % of 052 step 5's frame time (step 7: +1.3 % by the per-wheel measurement; the frame time to repeat on a quiet host).
 - [x] Step 8's scenarios pass on Isaac with Autoware, or their failures are explained (`town01_mud_stop` stops without contact but does not drive off: the car on mud_wet and Autoware's controller, step 8).
@@ -671,8 +672,37 @@ side force acts when the tire moves sideways against soil standing beside it, an
 rolling across a rut at 6 deg does not slide sideways. What a driver feels crossing a rut,
 the tire climbing its wall and being steered along it (tramlining), is the wheel's contact
 with the rut's shape, which this pad cannot give: its wheels stay on the flat ground (no
-`ground_z`, no plates). A Town01 zone has them; a scenario that drives the same mud twice is
-the test for that, and the acceptance item stays open for it.
+`ground_z`, no plates). A Town01 zone has them: below.
+
+### Crossing old ruts on Town01 (2026-10-26)
+
+`spikes/rut_town.py`: Town01's SimReady world, a wet mud zone with its own ground
+(`spikes/rut_town.yaml`, x 136.0..177.6, y -134.4..-128.0 over town01_ego_drive's road: render
+tiles, the town cut out under it, each wheel on a plate fitted to the ruts under it), aib's
+Model 3 without Autoware. Per angle: a pass at 20 km/h along the lane (y -130) lays ruts at
+y -130.8 and -129.2, 3.6-4.3 cm deep; the car then crosses them on a straight line, from the
+far lane into the zone and reaching y -129.6 at x 138, the pure-pursuit driver on the line at
+20 km/h; then the same crossing on fresh soil (`play_log/rut_town/2026-10-26_town01`). While
+the car is in the zone:
+
+| | 6 deg, ruts | 6 deg, fresh | 3 deg, ruts | 3 deg, fresh |
+|---|---|---|---|---|
+| most off the line, m | 0.46 | 0.09 | 0.42 | 0.04 |
+| largest yaw rate, deg/s | 14.2 | 5.0 | 14.1 | 2.2 |
+| steering swing, deg | 3.7 | 2.0 | 3.8 | 1.1 |
+| largest soil side force on a wheel, N | 268 | 138 | 274 | 49 |
+| lowest wheel below the zone's ground, cm | 3.2 | 0 | 3.2 | 0 |
+
+(Fresh soil's numbers at 6 deg are the driver turning onto the line at the zone's edge.) This
+is tramlining. Each wheel that meets a rut drops into it (3.2 cm), and from then on the rut
+holds it: at 3 deg all four wheels sit in the two ruts from x 149 to 139, their contacts within
+2 cm of the ruts' lines, the car back on the lane while the line it is asked for runs away from
+it; the driver steers 4.5 deg against the ruts and the car stays in them until the front
+wheels leave the zone, 0.42 m off the line. At 6 deg the front wheels climb out and the rear
+ones are caught for the last 7 m (0.46 m). Each drop and climb is a jolt of 10-14 deg/s in yaw.
+The wall is PhysX's (the wheel on the plate tilted toward the rut); T2's side force against the
+rut's wall adds 200-270 N a wheel while the car is pulled across it, ten times the flat pad's.
+Fresh soil crossed at the same angles stays within 4-9 cm of the line.
 
 ### The suite side by side (2026-10-26)
 

@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). 2026-10-26: the suite side by side. 2026-10-26: rut crossing on Town01 (the ruts catch the wheels). Open: the four-ego frame time.
+**Status**: done, 2026-10-26. 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). 2026-10-26: the suite side by side. 2026-10-26: rut crossing on Town01 (the ruts catch the wheels); the four-ego frame time measured again, T2 +1.1 %. Every acceptance item met.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -257,7 +257,7 @@ Explored against the code after T1:
   crossing ruts at a shallow angle feels a lateral force from them (Town01, "Crossing old ruts
   on Town01": the ruts catch the wheels and steer the car along them).
 - [x] No oscillation below 3 m/s on soil, at zone edges or at the hand-back (step 6).
-- [ ] Four egos on soil with T2 within 10 % of 052 step 5's frame time (step 7: +1.3 % by the per-wheel measurement; the frame time to repeat on a quiet host).
+- [x] Four egos on soil with T2 within 10 % of 052 step 5's frame time (step 7: +1.3 % by the per-wheel measurement; measured again 2026-10-26, paired on the same host: +1.1 %. Against 052's absolute 77.4 ms both T2 off and on run about 100 ms on a host at a load of 27-43, so the comparison holds T2 against the same frame without it, below).
 - [x] Step 8's scenarios pass on Isaac with Autoware, or their failures are explained (`town01_mud_stop` stops without contact but does not drive off: the car on mud_wet and Autoware's controller, step 8).
 
 ## Progress
@@ -598,6 +598,27 @@ frame time itself is to be measured again on a quiet host.
 
 Memory over eight cycles of four egos with T2 (`_t2`): RSS 14265 to 14334 MB (+8.6 MB a
 cycle, against 052's +4.8), GPU 6642-6646 MB throughout.
+
+**Measured again (2026-10-26, evening)**, `MULTI_T2=ab MULTI_REPEATS=3`
+(`play_log/multi_ego_soil/2026-10-26_quiet`, the load sampled every 30 s in `load.log`). Same
+host and GPU as 052 (newslab-server-241, RTX 5090), both GPUs otherwise idle, but the CPUs never
+got quiet: the load stayed at 27-43 on 24 cores from other projects' jobs throughout. Four
+egos, frame p50 / soil layer p50, ms:
+
+| repeat | T2 off | T2 on | T2 |
+|---|---|---|---|
+| 1 | 105.3 / 28.1 | 98.3 / 26.4 | -7.0 |
+| 2 | 107.5 / 29.0 | 110.6 / 30.8 | +3.1 |
+| 3 | 92.2 / 23.6 | 99.2 / 26.0 | +7.1 |
+| mean | 101.7 / 26.9 | 102.7 / 27.7 | **+1.1 (+1.0 %)** |
+
+T2 costs about 1 ms a frame on four egos, as the per-wheel estimate said (1.0 ms), and well
+inside 10 %; one, two in a column and two side by side alike (+0.1, -2.9, +0.7 ms on the
+means, within the spread between repeats). Both columns sit about 30 % above 052's 77.4 ms,
+T2 off as much as on, and so does one ego (35-47 against 29.2): the host's load, not T2.
+Repeating 052's absolute number needs the host as idle as it was on 2026-10-24; that is a
+check of the host, no longer of this phase. Memory over two cycles of four egos: RSS 14449 to
+14459 MB, GPU 6740-6744 MB.
 
 ### Step 8: with Autoware (2026-10-26)
 

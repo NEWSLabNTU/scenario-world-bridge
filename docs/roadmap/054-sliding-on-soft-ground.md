@@ -7,7 +7,7 @@ lets go sharply where a tire in soft ground builds its force slowly, the soil pu
 sideways, and the car has no stability control. This phase adds those in tiers, cheapest
 first, each measured for what it changes and what it costs.
 
-**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 open.
+**Status**: in progress, 2026-10-24: steps 1-3 done (ESC in aib, off unless a rig enables it). 2026-10-25: the ESC, with the powertrain, ABS and traction control, moves out of aib into `sim_vehicle_ecu` and onto the car's own sensors ([055](055-onboard-computers.md), issue 007); step 4 waits for it. 2026-10-25: 055 done; step 4's design explored and decided ("T1 in detail" below). 2026-10-25: step 4 (T1) done, with issue 009 fixed in `sim_vehicle_ecu`. 2026-10-25: step 5 (T2) done. 2026-10-26: step 6 done, with issue 010 fixed in swb_isaac_world; step 7 measured (T2 +1.3 % on four egos by estimate, the frame time to repeat on a quiet host); step 8 done (two of three pass; the mud stop does not drive off, explained). Open: the suite side-by-side table, rut crossing at a shallow angle, the four-ego frame time.
 
 **Source**: user direction 2026-10-24: "I expect that the muddy road would tilt the steering",
 then "I'm looking for proper physics modeling and see if we can simulate the effect in a
@@ -241,7 +241,7 @@ Explored against the code after T1:
   lateral velocity, no jump at the hand-back speed.
 - [x] **7. Cost.** `spikes/multi_ego_soil.py` with T2 on: one, two and four egos, frame p50 and
   p95 and the soil layer's share beside 052 step 5's (29.2 / 45.5 / 77.4 ms at p50).
-- [ ] **8. With Autoware.** New scenarios on Isaac, each recorded with `record:=` for the video:
+- [x] **8. With Autoware.** New scenarios on Isaac, each recorded with `record:=` for the video:
   an emergency stop on mud (a pedestrian stepping out), braking with mud on only the right
   half of the lane, a curve in mud taken at the speed limit. Each passes, or fails for a
   reason written down (a slide Autoware cannot hold is a finding, not a bug).
@@ -257,7 +257,7 @@ Explored against the code after T1:
   from them.
 - [x] No oscillation below 3 m/s on soil, at zone edges or at the hand-back (step 6).
 - [ ] Four egos on soil with T2 within 10 % of 052 step 5's frame time (step 7: +1.3 % by the per-wheel measurement; the frame time to repeat on a quiet host).
-- [ ] Step 8's scenarios pass on Isaac with Autoware, or their failures are explained.
+- [x] Step 8's scenarios pass on Isaac with Autoware, or their failures are explained (`town01_mud_stop` stops without contact but does not drive off: the car on mud_wet and Autoware's controller, step 8).
 
 ## Progress
 
@@ -597,6 +597,59 @@ frame time itself is to be measured again on a quiet host.
 
 Memory over eight cycles of four egos with T2 (`_t2`): RSS 14265 to 14334 MB (+8.6 MB a
 cycle, against 052's +4.8), GPU 6642-6646 MB throughout.
+
+### Step 8: with Autoware (2026-10-26)
+
+Three scenarios on Town01, Isaac only, each with its surface map beside it in
+`scenarios/surfaces/` (copied to the map directory for a run), recorded with the world
+server's `record:=` and made into a video by `scripts/record_video.py`. Autoware drives at
+its profile's limit, 15 km/h (`max_vel` 4.17 m/s; `max_velocity:=` raises it). The mud is
+`mud_wet` with `ground_z` (its own plates), fresh at every run.
+
+- `town01_mud_stop`: the west road's southbound lane in mud over y -232..-184 (48 m); a
+  pedestrian darts from the right kerb into the lane at y -214.4 when the ego is 20 m short
+  of it (demo incident 2's dart), waits 4 s, crosses; no contact, then the goal at y -285.
+- `town01_mud_right`: the same with only the lane's right half in mud (x -4..-2, the right
+  wheels' track): the stop is split-mu.
+- `town01_mud_curve`: the south-west corner, a 90 deg left bend of about 12 m radius, in mud
+  (99 tiles); it passes once the ego is at x 60 on the south road, before the next junction's
+  traffic light.
+
+`just scenario <xosc> sim:=isaac worlds:=Town01 initialize_duration:=300 global_timeout:=1200`
+(`initialize_duration:=` new to the recipe here: SSv2's budget for Autoware from start to
+engage, 120 s by default).
+
+| scenario | verdict | what happened | recording |
+|---|---|---|---|
+| `town01_mud_stop` | fails (its 240 s timeout), for the reason below | from 3.8 m/s braked to rest in the mud at up to 2.1 m/s^2, 9 m short of the pedestrian's line, no contact (both runs); then crawled at 0.06-0.07 m/s, 12.7 m in 170 s | `play_log/record/2026-10-26_13-54-52-ego` |
+| `town01_mud_right` | PASS (twice: the dart at 40 m and at 20 m) | at 20 m Autoware asked -4.06 m/s^2: 4.5 m/s^2 at the peak, ABS working the mud side (0.63), the heading within 0.53 deg and the line within 0.07 m; stopped 9 m short, no contact; away again to 3 m/s in 14.8 s, the left wheels on asphalt | `2026-10-26_13-03-46-ego` |
+| `town01_mud_curve` | PASS | Autoware slowed from 4.1 to 2.6 m/s into the bend (about 0.56 m/s^2 sideways on 12 m); sideslip at most 0.65 deg, slip angles 2.25 deg, the sidewall 97 N at most; ESC and traction control never acted | `2026-10-26_14-33-30-ego` |
+
+**Why the stop on mud does not drive off.** Two things together. The car: a rear-driven
+Model 3 on fresh mud_wet barely starts (step 6): at rest each wheel meets 350-450 N of
+compaction resistance, 1650 N in all, against a driven wheel's traction limit of about 880 N.
+And Autoware: its longitudinal controller (`pid.param.yaml`, stock) has
+`enable_integration_at_low_speed: false` below 0.5 m/s, so it holds its request at its
+feedforward, 0.51 m/s^2 here (about 950 N of drive), and never raises it against a resistance
+it does not model. With the left wheels on asphalt (`town01_mud_right`) the same request
+starts the car. Whether a road car should get going in this mud is 053's (measured soil);
+whether Autoware should integrate at low speed is Autoware's tuning, not changed here.
+
+**What the runs cost besides.** The host was loaded by other work (load 36-85 on 24 cores)
+and the stack started fresh for every run (the surface map is read when the world server
+starts), which failed about a third of the starts (6 of 17) before the scenario began: Autoware still
+INITIALIZING when SSv2's budget ran out (NDT's first align took 5-130 s, normally about 2;
+hence `initialize_duration:=`), and once the ego's spawn taking 95 s against SSv2's 90 s
+response limit. Two other things found on the way: the curve's first surface map, 221 tiles
+over the bend and 10 m either side, ran RTX out of resource descriptors and hung the world
+server (issue [011](../issues/011-large-soil-zone-runs-rtx-out-of-descriptors.md)); and a goal
+at y -332.8 on the south road, which lanelet 7768's bounds put at the lane's centre, made
+Autoware's route empty, while it drives that road at y -330.5 (the demo tour's line), where
+the goal now is.
+
+Not covered: a car crossing old ruts at a shallow angle (the acceptance's second half). Every
+run starts on fresh soil; that needs a scenario that drives the same mud twice, or one started
+from a saved rut set (`ruts`, 047 S6).
 
 ## Open questions
 

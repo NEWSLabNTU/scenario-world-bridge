@@ -1,0 +1,11 @@
+# Roadmap 054 step 8: town01_mud_right.xosc's ground. Town01's west road, the right half of the southbound lane (x -4..-2, the right wheels' track) in wet mud over y -232..-184, where a pedestrian darts out: a split-mu stop. Mud's soil parameters are a stand-in (a wet
+# clay row, 047 D6), so the map opts in by name. Copy to
+# data/carla-autoware-bridge/Town01/surfaces.yaml for a run.
+allow_unvalidated: [mud_wet]
+defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
+zones:
+  - id: mud_right_half
+    class: mud_wet
+    soil: grid
+    ground_z: 0.0
+    polygon: [[-4.0, -232.0], [-2.0, -232.0], [-2.0, -184.0], [-4.0, -184.0]]

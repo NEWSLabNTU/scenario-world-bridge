@@ -1302,7 +1302,9 @@ _clear-stale-scenario:
 # server started here preloads, map names under CARLA_MAPS or paths (default: the scenario's
 # map). output_directory:=<dir> (default /tmp): the verdict is
 # <dir>/scenario_test_runner/result.junit.xml. global_timeout:=<s>: the runner's wall-clock cap
-# (default 400 s; raise it for a scenario that drives longer).
+# (default 400 s; raise it for a scenario that drives longer). initialize_duration:=<s>: SSv2's
+# budget for Autoware from start to engage (default 120 s; on a loaded host NDT's first align
+# alone has taken 75 s, roadmap 054 step 8).
 #
 # Usage: just scenario <xosc> [sim:=carla|isaac] [worlds:=Town01,..] [output_directory:=<dir>]
 [positional-arguments]
@@ -1318,8 +1320,9 @@ scenario scenario_file *args:
             backend:=*) echo "scenario: backend:= is now sim:= (roadmap 046)" >&2; exit 2 ;;
             worlds:=*) worlds="${a#worlds:=}" ;;
             output_directory:=?*) output_directory="${a#*:=}" ;;
-            global_timeout:=?*) timeout_args=("global_timeout:=${a#*:=}") ;;
-            *) echo "scenario: unknown argument '$a' (sim:=carla|isaac, worlds:=, output_directory:=, global_timeout:=)" >&2; exit 2 ;;
+            global_timeout:=?*) timeout_args+=("global_timeout:=${a#*:=}") ;;
+            initialize_duration:=?*) timeout_args+=("initialize_duration:=${a#*:=}") ;;
+            *) echo "scenario: unknown argument '$a' (sim:=carla|isaac, worlds:=, output_directory:=, global_timeout:=, initialize_duration:=)" >&2; exit 2 ;;
         esac
     done
     up="{{project}}/scripts/${sim}_up.sh"

@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-10-26T00:00:00+00:00" description="Roadmap 054 step 8: a curve in mud. Town01's west road south into its south-west corner, a 90 deg left bend of about 12 m radius, the bend in wet mud (a soil zone on unvalidated parameters), at the speed Autoware plans; then east; it passes once at x 60 on the south road, before the next junction's traffic light (the route runs on to the demo tour's waypoint, 213.62, -330.6). Isaac only" revMajor="1" revMinor="2" />
+	<ParameterDeclarations>
+	</ParameterDeclarations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork><LogicFile filepath="$(env CARLA_MAPS)/Town01" /></RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="13.89" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="Autoware"><Properties>
+				<Property name="maxJerk" value="1.5" /><Property name="minJerk" value="-1.5" />
+			</Properties></Controller></ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init><Actions>
+			<GlobalAction><EnvironmentAction><Environment name="mud">
+				<RoadCondition frictionScaleFactor="1.0" wetness="dry"></RoadCondition>
+			</Environment></EnvironmentAction></GlobalAction>
+			<Private entityRef="ego">
+				<PrivateAction><TeleportAction><Position><WorldPosition x="-2.03" y="-100.0" z="0.00" h="-1.5712" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="213.62" y="-330.6" z="0.00" h="0.0" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+			</Private>
+		</Actions></Init>
+		<Story name="town01_mud_curve">
+			<Act name="act">
+				<ManeuverGroup maximumExecutionCount="1" name="ego_group">
+					<Actors selectTriggeringEntities="false"><EntityRef entityRef="ego" /></Actors>
+					<Maneuver name="end_conditions">
+						<Event name="success" priority="parallel" maximumExecutionCount="1">
+							<Action name="exit_success"><UserDefinedAction><CustomCommandAction type="exitSuccess" /></UserDefinedAction></Action>
+							<StartTrigger><ConditionGroup><Condition name="reach_goal" delay="0" conditionEdge="none"><ByEntityCondition>
+								<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities>
+								<EntityCondition><ReachPositionCondition tolerance="5.0"><Position><WorldPosition x="60.0" y="-330.5" z="0.00" h="0.0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition>
+							</ByEntityCondition></Condition></ConditionGroup></StartTrigger>
+						</Event>
+						<Event name="timeout" priority="parallel" maximumExecutionCount="1">
+							<Action name="exit_failure"><UserDefinedAction><CustomCommandAction type="exitFailure" /></UserDefinedAction></Action>
+							<StartTrigger><ConditionGroup><Condition name="timeout_condition" delay="0" conditionEdge="none"><ByValueCondition>
+								<SimulationTimeCondition value="300" rule="greaterThan" />
+							</ByValueCondition></Condition></ConditionGroup></StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<StartTrigger><ConditionGroup><Condition name="start" delay="0" conditionEdge="none"><ByValueCondition>
+					<SimulationTimeCondition value="0" rule="greaterThan" />
+				</ByValueCondition></Condition></ConditionGroup></StartTrigger>
+			</Act>
+		</Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

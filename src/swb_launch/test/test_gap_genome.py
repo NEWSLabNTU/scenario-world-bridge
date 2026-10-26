@@ -73,11 +73,11 @@ def structural_failures(text):
 
 
 class Genes(unittest.TestCase):
-    def test_families_cover_the_four_incidents(self):
+    def test_families_cover_the_incidents(self):
         self.assertEqual(
             {f: gg.FAMILIES[f].incident for f in gg.FAMILIES},
             {"lead_brake": 1, "crossing_pedestrian": 2, "parked_obstacle": 4,
-             "cross_traffic": 5, "cyclist": 6})
+             "cross_traffic": 5, "cyclist": 6, "cut_in": 7, "rear_approach": 8})
 
     def test_defaults_come_from_the_sites_file(self):
         g = gg.default("lead_brake")
@@ -171,6 +171,40 @@ class Render(unittest.TestCase):
         near = [c for c in root.iter("Condition") if c.get("name") == "i2_ego_near"][0]
         y = float(near.find(".//WorldPosition").get("y"))
         self.assertAlmostEqual(y, S["dart"]["y"] - 5.0, places=1)
+
+    def test_cut_in_genes_reach_the_scenario(self):
+        d = gg.default("cut_in")
+        v = dict(d.values, cut_gap_m=8.0, merge_len_m=25.0, cut_mps=9.0, cut_accel=4.5,
+                 cut_body="vehicle.mercedes.sprinter")
+        root = ET.fromstring(gg.render(gg.Genome("cut_in", v)))
+        S = gg.SITES["incidents"][7]
+        # the road heads east: along is +x
+        trig = [c for c in root.iter("Condition") if c.get("name") == "i7_trigger"][0]
+        self.assertAlmostEqual(float(trig.find(".//WorldPosition").get("x")),
+                               S["cut_spawn"]["x"] - 8.0, places=2)
+        path = [a for a in root.iter("Action") if a.get("name") == "i7_pull_out"][0]
+        xs = [float(w.get("x")) for w in path.iter("WorldPosition")]
+        self.assertEqual(xs, [S["cut_spawn"]["x"], S["cut_spawn"]["x"] + 25.0,
+                              S["cut_spawn"]["x"] + 35.0])
+        go = [a for a in root.iter("Action") if a.get("name") == "i7_cut_go"][0]
+        self.assertEqual(float(go.find(".//AbsoluteTargetSpeed").get("value")), 9.0)
+        self.assertEqual(float(go.find(".//SpeedActionDynamics").get("value")), 4.5)
+        cut = [o for o in root.iter("ScenarioObject") if o.get("name") == "i7_cut"][0]
+        self.assertEqual(cut.find("Vehicle").get("name"), "vehicle.mercedes.sprinter")
+
+    def test_rear_approach_genes_reach_the_scenario(self):
+        d = gg.default("rear_approach")
+        v = dict(d.values, rear_mps=15.0, rear_gap_m=50.0, rear_accel=2.0, rear_length=9.0)
+        root = ET.fromstring(gg.render(gg.Genome("rear_approach", v)))
+        S = gg.SITES["incidents"][8]
+        add = [a for a in root.iter("Action") if a.get("name") == "add_i8_rear"][0]
+        self.assertAlmostEqual(float(add.find(".//WorldPosition").get("x")),
+                               S["trigger"]["x"] - 50.0, places=1)
+        go = [a for a in root.iter("Action") if a.get("name") == "i8_rear_drive_off"][0]
+        self.assertEqual(float(go.find(".//AbsoluteTargetSpeed").get("value")), 15.0)
+        self.assertEqual(float(go.find(".//SpeedActionDynamics").get("value")), 2.0)
+        rear = [o for o in root.iter("ScenarioObject") if o.get("name") == "i8_rear"][0]
+        self.assertEqual(float(rear.find(".//BoundingBox/Dimensions").get("length")), 9.0)
 
     def test_a_declared_box_or_a_blueprint_reaches_the_lead(self):
         d = gg.default("lead_brake")

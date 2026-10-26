@@ -248,3 +248,85 @@ incidents:
       yaw: -1.5714
       route_m: 1271.8
     cyclist_mps: 7.5
+  # Roadmap 025's gap campaign templates, off the tour (gen_demo_tour.py's route order does not
+  # name them). Both on the southern road, heading east; the ego's lane is lanelet 9379.
+  7:
+    name: cut_in
+    title: Car pulls out from the kerb
+    start:
+      x: -1.99
+      y: -219.96
+      yaw: -1.5702
+      route_m: 200.0
+    goal:
+      x: 251.53
+      y: -330.61
+      yaw: -0.0001
+      route_m: 559.0
+    appear:
+      x: 100.0
+      y: -330.47
+      yaw: -0.0001
+      route_m: 407.5
+    trigger:
+      x: 150.0
+      y: -330.47
+      yaw: -0.0001
+      route_m: 457.5
+    # on the shoulder lanelet 10281 (a road lanelet, 4 m wide, centre y -334.76)
+    cut_spawn:
+      x: 170.0
+      y: -334.76
+      yaw: 0.0
+    cut_in_lane:
+      x: 185.0
+      y: -330.47
+      yaw: 0.0
+    cut_settle:
+      x: 195.0
+      y: -330.47
+      yaw: 0.0
+    cut_target:
+      x: 301.62
+      y: -330.61
+      yaw: -0.0
+    cut_end:
+      x: 241.62
+      y: -330.6
+      yaw: -0.0
+  8:
+    name: rear_approach
+    title: Car closes from behind at a red light
+    start:
+      x: 132.53
+      y: -330.59
+      yaw: -0.0001
+      route_m: 440.0
+    goal:
+      x: 396.34
+      y: -304.62
+      yaw: 1.5712
+      route_m: 725.0
+    trigger:
+      x: 250.53
+      y: -330.61
+      yaw: -0.0001
+      route_m: 558.0
+    signal: 43757
+    stop_line:
+      x: 325.73
+      y: -330.61
+      yaw: -0.0
+      route_m: 633.2
+    rear_spawn:
+      x: 220.53
+      y: -330.6
+      yaw: -0.0001
+    rear_target:
+      x: 396.33
+      y: -254.62
+      yaw: 1.5712
+    rear_end:
+      x: 396.35
+      y: -274.62
+      yaw: 1.5712

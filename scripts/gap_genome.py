@@ -156,9 +156,38 @@ def apply_cyclist(S, v):
         S[k] = shift(S[k], across=v["cyclist_lateral_m"])
 
 
+def apply_cut_in(S, v):
+    set_if_changed(S, "cut_mps", v["cut_mps"], 6.0)
+    set_if_changed(S, "cut_accel", v["cut_accel"], 3.0)
+    # the ego's trigger `cut_gap_m` behind the parked car (20 m in the sites file), the
+    # merge point `merge_len_m` past it (15 m)
+    S["trigger"] = shift(S["trigger"], along=round(20.0 - v["cut_gap_m"], DECIMALS))
+    for k in ("cut_in_lane", "cut_settle"):
+        S[k] = shift(S[k], along=round(v["merge_len_m"] - 15.0, DECIMALS))
+    body(S, "i7_cut", v["cut_body"], (v["cut_length"], v["cut_width"], v["cut_height"]))
+
+
+def apply_rear_approach(S, v):
+    set_if_changed(S, "rear_mps", v["rear_mps"], 12.0)
+    set_if_changed(S, "rear_accel", v["rear_accel"], gen.GO_ACCEL)
+    # added `rear_gap_m` behind the trigger (30 m in the sites file)
+    S["rear_spawn"] = shift(S["rear_spawn"], along=round(30.0 - v["rear_gap_m"], DECIMALS))
+    body(S, "i8_rear", v["rear_body"], (v["rear_length"], v["rear_width"], v["rear_height"]))
+
+
 LEAD_BODIES = ("box", "vehicle.tesla.model3", "vehicle.mercedes.sprinter",
                "vehicle.carlamotors.carlacola", "vehicle.mini.cooper_s",
                "vehicle.tesla.cybertruck", "vehicle.volkswagen.t2")
+
+def body_genes(prefix):
+    """an actor's body: a blueprint or a declared box (the starter car's by default)"""
+    return {
+        f"{prefix}_body": Choice(LEAD_BODIES, const("box")),
+        f"{prefix}_length": Real(3.5, 12.0, 1.0, const(STARTER_BOX[0])),
+        f"{prefix}_width": Real(1.6, 2.6, 0.15, const(STARTER_BOX[1])),
+        f"{prefix}_height": Real(1.4, 3.8, 0.3, const(STARTER_BOX[2])),
+    }
+
 
 FAMILIES = {
     "lead_brake": Family(1, {
@@ -188,6 +217,19 @@ FAMILIES = {
         "cyclist_mps": Real(3.0, 9.0, 0.7, site("cyclist_mps", 5.5)),
         "cyclist_lateral_m": Real(-0.6, 0.6, 0.15, const(0.0)),
     }, apply_cyclist),
+    "cut_in": Family(7, {
+        "cut_gap_m": Real(5.0, 40.0, 3.0, const(20.0)),
+        "merge_len_m": Real(6.0, 30.0, 3.0, const(15.0)),
+        "cut_mps": Real(2.0, 10.0, 1.0, site("cut_mps", 6.0)),
+        "cut_accel": Real(1.0, 5.0, 0.5, site("cut_accel", 3.0)),
+        **body_genes("cut"),
+    }, apply_cut_in),
+    "rear_approach": Family(8, {
+        "rear_mps": Real(6.0, 16.0, 1.5, site("rear_mps", 12.0)),
+        "rear_gap_m": Real(10.0, 60.0, 5.0, const(30.0)),
+        "rear_accel": Real(1.5, 6.0, 0.5, site("rear_accel", gen.GO_ACCEL)),
+        **body_genes("rear"),
+    }, apply_rear_approach),
 }
 
 

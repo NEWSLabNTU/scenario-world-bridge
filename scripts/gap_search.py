@@ -39,6 +39,8 @@ DESCRIPTORS = {
     "parked_obstacle": ("broken_length", "broken_lateral_m"),
     "cross_traffic": ("cross_mps",),
     "cyclist": ("cyclist_mps", "cyclist_lateral_m"),
+    "cut_in": ("cut_gap_m", "merge_len_m"),
+    "rear_approach": ("rear_mps", "rear_gap_m"),
 }
 OPERATORS = ("nudge", "boundary", "reset", "swap", "splice")
 GAMMA = 0.1  # Exp3's exploration share

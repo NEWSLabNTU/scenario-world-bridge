@@ -77,6 +77,9 @@ FILES = {
     4: "town01_i4_blocked_lane.xosc",
     5: "town01_i5_cross_turn.xosc",
     6: "town01_i6_cyclist_inside.xosc",
+    # roadmap 025's gap campaign templates, not on the tour
+    7: "town01_i7_cut_in.xosc",
+    8: "town01_i8_rear_approach.xosc",
 }
 # Incident 6 is in the set again (2026-10-18): it needs a classifying perception (CenterPoint)
 # and the 042 overlay's blind_spot fix. scenarios/demo/town01_i6_cyclist_inside.xosc is the
@@ -400,6 +403,23 @@ def busy_event(gname, name, actions, *conds):
             event(f"{name}_done", [set_param(f"{name}_finished", b, 2)], [state(f"{name}_complete", name)])]
 
 
+def red_light_group(tag, S):
+    """incident 3's red light under the prefix `tag`: the signal turns red when the ego
+    reaches the trigger, green again once it has waited, or after a fallback (degraded)"""
+    sid = str(S["signal"])
+    ph = f"{tag}_phase"  # 1 red, 2 green again
+    evs = [
+        event(f"{tag}_red", [signal(f"{tag}_set_red", sid, "red"), set_param(f"{tag}_is_red", ph, 1), log(f"{tag}_red_log", tag, "red", sid)],
+              [reach(f"{tag}_trigger", "ego", S["trigger"], 3.0)]),
+        event(f"{tag}_green", [signal(f"{tag}_set_green", sid, "green"), set_param(f"{tag}_is_green", ph, 2), log(f"{tag}_green_log", tag, "green", sid)],
+              [param_is(f"{tag}_green_while_red", ph, 1), *standstill(f"{tag}_ego_waited", "ego", I3_GREEN_AFTER_STOP_S)]),
+        event(f"{tag}_watchdog", [signal(f"{tag}_force_green", sid, "green"), set_param(f"{tag}_forced_green", ph, 2),
+                                  log(f"{tag}_watchdog_log", tag, "watchdog", "degraded", sid)],
+              [param_is(f"{tag}_still_red", ph, 1), state(f"{tag}_red_too_long", f"{tag}_red", delay=I3_GREEN_FALLBACK_S)]),
+    ]
+    return group(tag, ["ego"], evs)
+
+
 def incident_groups(i, S):
     """(entities, groups) of incident `i` from the sites file's poses `S`"""
     if i == 1:
@@ -473,18 +493,7 @@ def incident_groups(i, S):
         return [*[parked(n, bp) for n, bp, _ in cars], walker(ped)], [g_parked, g_ped]
 
     if i == 3:
-        sid = str(S["signal"])
-        ph = "i3_phase"  # 1 red, 2 green again
-        evs = [
-            event("i3_red", [signal("i3_set_red", sid, "red"), set_param("i3_is_red", ph, 1), log("i3_red_log", "i3", "red", sid)],
-                  [reach("i3_trigger", "ego", S["trigger"], 3.0)]),
-            event("i3_green", [signal("i3_set_green", sid, "green"), set_param("i3_is_green", ph, 2), log("i3_green_log", "i3", "green", sid)],
-                  [param_is("i3_green_while_red", ph, 1), *standstill("i3_ego_waited", "ego", I3_GREEN_AFTER_STOP_S)]),
-            event("i3_watchdog", [signal("i3_force_green", sid, "green"), set_param("i3_forced_green", ph, 2),
-                                  log("i3_watchdog_log", "i3", "watchdog", "degraded", sid)],
-                  [param_is("i3_still_red", ph, 1), state("i3_red_too_long", "i3_red", delay=I3_GREEN_FALLBACK_S)]),
-        ]
-        return [], [group("i3", ["ego"], evs)]
+        return [], [red_light_group("i3", S)]
 
     if i == 4:
         broken, onc = "i4_broken", ["i4_oncoming_a", "i4_oncoming_b"]
@@ -527,6 +536,36 @@ def incident_groups(i, S):
                         [delete(bike)], [[param_is("i6_rode", "i6_busy", 2)]],
                         busy_event("i6", "i6_ride", [ride], [state("i6_ride_go", "i6_start")]), busy=True)
         return [bicycle(bike)], [g]
+
+    if i == 7:
+        cut = "i7_cut"
+        # Stands on the shoulder lanelet beside the ego's lane from `appear` on; when the
+        # ego reaches `trigger` it drives off and out into the ego's lane on an untimed
+        # trajectory (followed at its target speed), then routes on along the road.
+        pull_out = trajectory("i7_pull_out", [(None, S["cut_spawn"]), (None, S["cut_in_lane"]),
+                                              (None, S["cut_settle"])])
+        go = [speed("i7_cut_go", S.get("cut_mps", 6.0), S.get("cut_accel", 3.0)), pull_out,
+              log("i7_pull_out_log", "i7", "pull_out", cut)]
+        g = actor_group(7, "i7", [cut], [add(cut, S["cut_spawn"]), speed("i7_cut_hold", 0.0)],
+                        reach("i7_appear", "ego", S["appear"], 3.0),
+                        [delete(cut)], [[reach("i7_cut_gone", cut, S["cut_end"], 4.0)]],
+                        [*busy_event("i7", "i7_pull_out", go, [reach("i7_trigger", "ego", S["trigger"], 3.0)]),
+                         event("i7_on_lane", [acquire("i7_cut_route", S["cut_target"])],
+                               [state("i7_pulled_out", "i7_pull_out")])],
+                        busy=True)
+        return [car(cut, S=S)], [g]
+
+    if i == 8:
+        rear = "i8_rear"
+        # i3's red light, and a car added standing behind the ego as it reaches the trigger,
+        # closing on it as it brakes for the red; SSv2 stops it for the light and the ego
+        g = actor_group(8, "i8_rear", [rear],
+                        [add(rear, S["rear_spawn"]), speed("i8_rear_hold", 0.0),
+                         acquire("i8_rear_route", S["rear_target"])],
+                        reach("i8_trigger_rear", "ego", S["trigger"], 3.0),
+                        [delete(rear)], [[reach("i8_rear_gone", rear, S["rear_end"], 4.0)]],
+                        [go_event("i8_rear", S.get("rear_mps", 12.0), S.get("rear_accel", GO_ACCEL))])
+        return [car(rear, S=S)], [red_light_group("i8", S), g]
 
     raise ValueError(i)
 

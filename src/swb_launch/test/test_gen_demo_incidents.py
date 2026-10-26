@@ -34,8 +34,8 @@ def objects(root):
 
 class GenDemoIncidents(unittest.TestCase):
     def test_every_incident_generates(self):
-        self.assertEqual(sorted(SITES["incidents"]), [1, 2, 3, 4, 5, 6])
-        for i in range(1, 7):
+        self.assertEqual(sorted(SITES["incidents"]), [1, 2, 3, 4, 5, 6, 7, 8])
+        for i in range(1, 9):
             root = parse(i)
             names = [g.get("name") for g in root.iter("ManeuverGroup")]
             self.assertIn("ego_group", names, i)
@@ -45,7 +45,7 @@ class GenDemoIncidents(unittest.TestCase):
             self.assertLessEqual(refs, decl, i)
 
     def test_ego_max_speed_above_cap(self):
-        for i in range(1, 7):
+        for i in range(1, 9):
             perf = objects(parse(i))["ego"].find("Vehicle/Performance")
             self.assertEqual(float(perf.get("maxSpeed")), gen.EGO_MAX_SPEED)
             self.assertGreater(gen.EGO_MAX_SPEED, 11.11)
@@ -83,9 +83,40 @@ class GenDemoIncidents(unittest.TestCase):
         self.assertIn('<AbsoluteTargetSpeed value="7.25" />', gen.template(1, s))
         self.assertIn('<AbsoluteTargetSpeed value="6.75" />', gen.template(4, s))
 
+    def test_incident_7_pulls_out_from_the_shoulder(self):
+        root = parse(7)
+        S = SITES["incidents"][7]
+        self.assertIsNotNone(objects(root)["i7_cut"].find("Vehicle"))
+        grp = next(g for g in root.iter("ManeuverGroup") if g.get("name") == "i7")
+        events = {e.get("name") for e in grp.iter("Event")}
+        self.assertLessEqual({"i7_start", "i7_pull_out", "i7_pull_out_done", "i7_on_lane",
+                              "i7_end", "i7_watchdog"}, events)
+        # out of the shoulder (y -334.76) into the ego's lane (y -330.47)
+        path = next(a for a in grp.iter("Action") if a.get("name") == "i7_pull_out")
+        ys = [float(w.get("y")) for w in path.iter("WorldPosition")]
+        self.assertEqual(ys, [S["cut_spawn"]["y"], S["cut_in_lane"]["y"], S["cut_settle"]["y"]])
+        self.assertGreater(ys[1] - ys[0], 4.0)
+        # the watchdog waits while the trajectory runs
+        wd = next(e for e in grp.iter("Event") if e.get("name") == "i7_watchdog")
+        refs = {c.get("parameterRef") for c in wd.iter("ParameterCondition")}
+        self.assertIn("i7_busy", refs)
+
+    def test_incident_8_is_the_red_light_and_a_closing_car(self):
+        root = parse(8)
+        names = [g.get("name") for g in root.iter("ManeuverGroup")]
+        self.assertEqual(names, ["ego_group", "i8", "i8_rear"])
+        # i3's red light under its own prefix, same signal
+        sig = {a.get("name") for a in root.iter("TrafficSignalStateAction")}
+        self.assertEqual(sig, {str(SITES["incidents"][8]["signal"])})
+        self.assertIn("i8_red", {e.get("name") for e in root.iter("Event")})
+        self.assertNotIn("i3_red", {e.get("name") for e in root.iter("Event")})
+        rear = objects(root)["i8_rear"]
+        self.assertIsNotNone(rear.find("Vehicle"))
+        self.assertEqual(rear.find(".//Controller/Properties").findall("Property"), [])  # not blind
+
     def test_incident_6_installed(self):
         with tempfile.TemporaryDirectory() as d:
-            for i in range(1, 7):
+            for i in range(1, 9):
                 (Path(d) / gen.FILES[i]).write_text(gen.template(i, SITES))
             self.assertTrue((Path(d) / "town01_i6_cyclist_inside.xosc").exists())
         self.assertTrue((gen.DEFAULT_OUT / "town01_i6_cyclist_inside.xosc").exists())

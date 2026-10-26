@@ -5,7 +5,7 @@ swb: Autoware drives the laps at 100 km/h, and at each turn's waypoint a drift c
 takes the car into a drift, holds it through the bend, recovers and hands back. The
 question is whether the drift repeats, turn after turn, lap after lap.
 
-**Status**: planned, 2026-10-27.
+**Status**: in progress, 2026-10-27: the car is in every repository (pins 6225c1a) and drifts on Isaac's proving ground; Town05 and Autoware to come.
 
 **Source**: user direction 2026-10-27: "see if we can make a drift on a very speedy car ...
 a CARLA town with a long and closed road with turns and without traffic signals ...
@@ -75,15 +75,26 @@ wheelspin, beyond any published work) and C (wet drift zones).
 
 ## Steps
 
-1. [ ] **Docs.** This plan (2026-10-27).
+1. [x] **Docs.** This plan (2026-10-27).
 2. [ ] **Track.** A route around Town05's ring; Autoware drives a lap at 100 km/h on the
    Model 3 (no drift): localization holds, the route closes.
-3. [ ] **Car.** The drift spec and the ECU's locked axle; `vehicle_check` and step
-   responses at speed: grip limit, power-over at turn-in on a flat pad.
+3. [x] **Car.** `drift_mustang` (sim_vehicle_spec e2a1d46, reviewed by csb 241), the ECU's
+   locked axle (sim_vehicle_ecu 142c9a6, csb 241), its car packages and pedal maps (measured
+   on CARLA 2010, physics_hash 933597f5), its aib rig; every component in lockstep (6225c1a).
+   Still to do: `vehicle_check`, and the tire curves on the Mustang (`sweep_lat`/`sweep_long`, csb 241).
 4. [ ] **Project.** `autoware-drift`: launcher, car packages, `drift_controller` tested
-   offline against a bicycle model with a saturating rear axle.
+   offline against a bicycle model with a saturating rear axle (done: b78527d; the launch to
+   come).
 5. [ ] **One drift.** On a flat pad in Isaac (`spikes/manoeuvres.py`, a power-over case on
    its constant-radius circle), then on one of Town05's bends: initiate, hold, exit.
+   **Pad, 2026-10-27 (newslab-118-server; the proving ground renders nothing, so issue 005
+   does not apply; 60 Hz physics, 50 ms frames):** the manoeuvre spike's `drift` case, 100 km/h
+   into a 100 m left bend. First: -18.3 deg held 4.85 s, but the speed ran from 100 to 126
+   km/h and the line out to 128 m (power-on drift gains speed). With the drive taken back
+   past the hold's entry speed (autoware-drift b78527d): -15.2 deg held 6 s on 97.7 m at 109
+   km/h, 113 deg of heading, rear slip 0.17/0.15, then exit and hand back at 98 km/h. To do:
+   240 Hz physics and 10 ms frames (csb 241), the sideslip back to its 20 deg target, a
+   Town05 bend.
 6. [ ] **Laps.** Every turn, several laps: the repeat rate and what ends a drift that fails.
 
 ## Risks

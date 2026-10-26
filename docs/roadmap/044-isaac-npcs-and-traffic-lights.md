@@ -801,6 +801,37 @@ loaded`. Cross-track on CARLA is 0.09-0.15 m against Isaac's 0.01-0.04, inside a
    (20-30 m), so no crossing is predicted, on both backends; `town01_pedestrian` passes in
    SSv2 while the ego touches the walker (Isaac 4 of 5, CARLA too). The scenario's and the
    ego config's, not Isaac's.
+   **Closed 2026-10-27 (newslab-118-server, CARLA): the verdict is honest now; the
+   perception is a known limitation of the stock stack.** Measured on the tour's stack
+   (CenterPoint, `max_velocity:=11.11`, tracker merger off), three runs with a bag of every
+   perception stage (`play_log/044/i4/r3..r5`):
+
+   | run | first seen | CenterPoint PEDESTRIAN | tracked PEDESTRIAN from | first stop factor | top speed | CARLA contacts |
+   |---|---|---|---|---|---|---|
+   | r3 | 32.5 m | 8 of 27 samples | 2.5 m | 17.0 m | 10.9 m/s | 10 |
+   | r4 | 31.3 m | 5 of 26 | 1.9 m | 12.8 m | 11.1 m/s | 6 |
+   | r5 | 33.3 m | 7 of 26 | 4.3 m | 15.2 m | 11.1 m/s | 7 |
+
+   (Distances from the ego's rear axle to the walker's x; the bumper is ~3.9 m ahead.) The
+   chain: clustering sees the walker first, as UNKNOWN; the tracker's `can_assign_matrix`
+   lets an UNKNOWN track take only UNKNOWN measurements, and CenterPoint's PEDESTRIAN comes
+   too seldom between 27 and 12 m to start a track of its own, so the walker stays UNKNOWN
+   until it is under the bumper. `run_out` targets PEDESTRIAN, BICYCLE and MOTORCYCLE only,
+   and `obstacle_stop` ignores an UNKNOWN beside the path (`check_outside.unknown: false`)
+   and caps its braking for one at -1.2 m/s^2; so the first stop factor (`route-obstacle`)
+   comes once the walker is inside the footprint, 9-13 m ahead of the bumper at 11 m/s.
+   The default stack (4.17 m/s) stops 4.6 m short, then drives on past the walker.
+
+   **Fix (user, 2026-10-27: an honest verdict, Autoware stock):** `town01_pedestrian` fails
+   when the walker is in the ego's path (lateral freespace under 0.3 m, Autoware's own
+   lateral margin) and less than 1 m ahead (longitudinal freespace), or on SSv2's collision.
+   A plain euclidean freespace limit did not separate the two stacks: the default stack
+   passes the walker alongside at 0.91 m, the CenterPoint runs struck it at 0.87 and 0.57 m;
+   and `CollisionCondition` alone missed two of three contacts (CARLA's walker touched while
+   SSv2's boxes were ~0.7 m apart, gap oracle G3). Result: default stack PASS 2/2
+   (`d3`, `d4`), CenterPoint stack FAIL 2/2 on `pedestrian_in_ego_path` +
+   `ego_within_1m_of_pedestrian_ahead` (0.90, 0.87 m; `f3`, `f4`). Not re-run on Isaac
+   (the same SSv2 conditions; Isaac's contact was the same perception chain).
 5. **CARLA free-runs while our simulation side is stopped**: the server goes asynchronous
    at ~79 % GPU. Harmless to runs, costly to a host shared with Isaac; left alone.
 6. **A transient colcon failure**: `acb_bridge` once failed with "no matching package

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-08-16T00:00:00+00:00" description="Town01 ego drive past a misc object and through a pedestrian crossing" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-08-16T00:00:00+00:00" description="Town01 ego drive past a misc object and through a pedestrian crossing, keeping 1 m clear of the walker in its path" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
@@ -129,6 +129,57 @@
 														<WorldPosition x="135.0" y="-129.8" z="0.0" h="0" p="0" r="0" />
 													</Position>
 												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<!-- The ego must not come within 1 m of the walker in its path (roadmap 044 open
+						     item 4): a contact passed before, because nothing checked it. In its path:
+						     less than 0.3 m apart across the ego (Autoware's own lateral margin), so a
+						     walker passed alongside at a stop's pace does not count. By distance, not
+						     CollisionCondition alone: CARLA's walker can touch the ego while SSv2's
+						     boxes are still ~0.7 m apart. -->
+						<Event name="pedestrian_clearance" priority="parallel">
+							<Action name="exit_failure_clearance">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="pedestrian_in_ego_path" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<RelativeDistanceCondition entityRef="pedestrian_0" freespace="true" relativeDistanceType="lateral" coordinateSystem="entity" rule="lessThan" value="0.3" />
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+									<Condition name="ego_within_1m_of_pedestrian_ahead" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<RelativeDistanceCondition entityRef="pedestrian_0" freespace="true" relativeDistanceType="longitudinal" coordinateSystem="entity" rule="lessThan" value="1.0" />
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+								<ConditionGroup>
+									<Condition name="ego_hits_pedestrian" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<CollisionCondition>
+													<EntityRef entityRef="pedestrian_0" />
+												</CollisionCondition>
 											</EntityCondition>
 										</ByEntityCondition>
 									</Condition>

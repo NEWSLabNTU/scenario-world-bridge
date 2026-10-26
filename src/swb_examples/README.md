@@ -25,7 +25,7 @@ SSv2 start-up and the ego's engage, which is most of a short scenario.
 | --- | --- | --- | --- |
 | `town01_ego_drive.xosc` | Town01 | The ego, routed by `AcquirePositionAction`, engages and drives to its goal (westbound, x 190.8 -> 120). The smoke test. | 45 s |
 | `town01_engage_state.xosc` | Town01 | Same drive, judged on Autoware's own state: `DRIVING` seen, then `ARRIVED_GOAL`. | 47 s |
-| `town01_pedestrian.xosc` | Town01 | The ego passes a misc object (street barriers) and stops for a pedestrian crossing its lane, then resumes. | 128 s |
+| `town01_pedestrian.xosc` | Town01 | The ego passes a misc object (street barriers) and stops for a pedestrian crossing its lane, then resumes; it fails if the ego comes within 1 m of the pedestrian in its path. | 128 s |
 | `town01_rear_contact.xosc` | Town01 | A blind NPC runs into the ego from behind; SSv2's `CollisionCondition` must see it (compare with swb's CARLA collision summary). | 35 s |
 | `town01_simulator_autopilot.xosc` | Town01 | Three drivers in one scenario: Autoware ego, an SSv2-driven NPC, and a CARLA Traffic Manager NPC (`simulator_autopilot`). | 50 s |
 | `town01_traffic_light.xosc` | Town01 | The ego stops at an SSv2-commanded red light, then proceeds on green. | 187 s |

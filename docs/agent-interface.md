@@ -203,7 +203,9 @@ ros2 run swb_agent autoware_agent --relay tcp://sim-host:5560 --entity ego --con
 
 `agent.yaml` takes `use_sim_time` (true for a simulator) and the bounds: `ready_timeout`
 (60 s), `scan_wait` (10), `scans_required` (2), `converge_timeout` (30),
-`initialize_attempts` (5), `engage_retry` (3), `settle` (2). Under `just ego-av` the same
+`initialize_attempts` (5), `engage_retry` (3), `settle` (2). An initialize
+found unavailable (Autoware's services restarting mid-reset, e.g. a healer restarting a hung
+ADAPI container) is not an attempt: the agent waits for the services, up to `ready_timeout`. Under `just ego-av` the same
 file is `agent_config:=agent.yaml`. Each step is a method to override in a subclass:
 
 ```python

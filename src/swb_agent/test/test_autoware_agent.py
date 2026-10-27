@@ -121,6 +121,30 @@ def test_reset_gives_up_after_the_initialize_attempts(rig):
     assert autoware.calls.count("initialize") == agent.cfg["initialize_attempts"]
 
 
+def test_reset_waits_out_services_restarting_mid_reset(rig):
+    # The ADAPI container restarting under a healer: initialize is unavailable, not
+    # refused, for longer than the attempts would last; no attempt is spent on it.
+    clock, autoware, agent = rig
+    original = autoware.initialize
+    down = []
+
+    def initialize(pose, stamp):
+        if not down:
+            down.append(clock())
+            autoware.s.ready = False
+            return False, "/api/localization/initialize: service not available"
+        return original(pose, stamp)
+
+    def back():
+        if down and clock() - down[0] > 40.0:
+            autoware.s.ready = True
+
+    autoware.initialize = initialize
+    clock.hooks.append(back)
+    agent.on_reset(Episode(pose=START))
+    assert agent.phase == P.IDLE and autoware.calls.count("initialize") == 1
+
+
 def test_reset_waits_for_autoware(rig):
     clock, autoware, agent = rig
     autoware.s.ready = False

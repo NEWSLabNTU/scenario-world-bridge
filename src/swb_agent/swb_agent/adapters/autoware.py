@@ -160,6 +160,7 @@ class Relocalization:
     fresh_scans: int = 0
     attempts: int = 0
     next_try: float = 0.0
+    unready_since: float | None = None  # Autoware's services went away mid-reset
     deadline: float = 0.0
     last_scan_count: int = field(default=0)
     failure: str = ""
@@ -435,7 +436,22 @@ class AutowareAgent(swb_agent.Agent):
                     self.log.info(f"only {r.fresh_scans} fresh scan(s) in "
                                   f"{c['scan_wait']:.0f} s; initializing localization anyway")
                 r.stage, r.next_try = "initialize", now
+        if r.stage == "initialize" and now >= r.next_try and not s.ready:
+            # Not a refusal: the services are restarting (a healer restarting a hung
+            # ADAPI container takes about half a minute). Wait for them, up to
+            # ready_timeout, without spending an attempt.
+            if r.unready_since is None:
+                r.unready_since = now
+                self.log.info("Autoware's services went away; waiting for them")
+            if now - r.unready_since >= c["ready_timeout"]:
+                r.stage = "failed"
+                r.failure = (f"Autoware's services did not come back in "
+                             f"{c['ready_timeout']:.0f} s")
+                self.log.warning(r.failure)
+                return
+            r.next_try = now + c["initialize_retry"]
         if r.stage == "initialize" and now >= r.next_try:
+            r.unready_since = None
             r.attempts += 1
             ok, message = self.port.initialize(r.pose, s.scan_stamp or None)
             if ok:

@@ -58,6 +58,10 @@ repair_maps() {
     # SWB_XODR_DIR: <Town>.xodr or <Town>/main.xodr (default CARLA_SRC's OpenDrive).
     python3 "$(dirname "$0")/repair_lanelet_speed_limits.py" "$1" \
         ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
+    # The maps are flat, so a walkway under a bridge crosses the bridge's lanes: Autoware's
+    # walkway module stops on Town05's raised ring highway for footpaths 10 m below.
+    python3 "$(dirname "$0")/repair_lanelet_walkways_under_roads.py" "$1" \
+        ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
 }
 
 # Skip if already present

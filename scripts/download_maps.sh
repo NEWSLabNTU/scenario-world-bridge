@@ -52,6 +52,12 @@ repair_maps() {
     # Town05 and Town10 each carry a right_of_way element with no right-of-way lanelet,
     # which scenario_simulator_v2 refuses to load the map over.
     python3 "$(dirname "$0")/repair_lanelet_right_of_way.py" "$1"
+    # No lanelet carries a speed_limit, so Autoware drives every road at lanelet2's urban
+    # default, 50 km/h (Town05's 65 mph ring too). Tag each road lanelet from its OpenDRIVE
+    # road's speed record (after the local coordinates: it matches in OpenDRIVE's frame).
+    # SWB_XODR_DIR: <Town>.xodr or <Town>/main.xodr (default CARLA_SRC's OpenDrive).
+    python3 "$(dirname "$0")/repair_lanelet_speed_limits.py" "$1" \
+        ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
 }
 
 # Skip if already present

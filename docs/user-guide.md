@@ -142,11 +142,13 @@ download link (`scripts/download_maps.sh`) is dead at the time of writing, so th
 public download yet; providing the maps is a separate effort. With a copy of the pack,
 `SWB_MAP_SOURCE=<pack dir> scripts/download_maps.sh` installs it under
 `data/carla-autoware-bridge/<Town>/` with the projector fix SSv2 needs; then generate each
-town's `carla/traffic_lights.yaml` as above. The script also repairs six defects of the
+town's `carla/traffic_lights.yaml` as above. The script also repairs seven defects of the
 pack, idempotently (`scripts/repair_lanelet_traffic_lights.py`, `scripts/repair_lanelet_subtypes.py`,
 `scripts/repair_lanelet_local_coords.py`, `scripts/repair_lanelet_turn_direction.py`,
-`scripts/repair_lanelet_joins.py`, `scripts/repair_lanelet_right_of_way.py`; run them on a copy you
-installed another way):
+`scripts/repair_lanelet_joins.py`, `scripts/repair_lanelet_right_of_way.py`,
+`scripts/repair_lanelet_speed_limits.py`; run them on a copy you installed another way, the
+speed limits after the local coordinates and with `--xodr-dir` at CARLA's OpenDRIVE files,
+`SWB_XODR_DIR` for the installer):
 traffic lights whose type tags are empty (invisible to Autoware and SSv2); lanelets with no
 `subtype` tag -- the kerb strips beside every road -- which make Autoware's
 `map_based_prediction` abort as soon as a pedestrian is near one
@@ -158,7 +160,10 @@ tagged `straight`, `left` or `right` from its heading change); and road lanelets
 at fresh nodes exactly where their predecessor ends, which Lanelet2 does not treat as a
 successor, so routing stops there (one join in Town03, between the roundabout and its south
 exit); and `right_of_way` elements that name no lanelet with right of way (one each in Town05
-and Town10), over which scenario_simulator_v2 refuses to load the map. One more repair needs CARLA holding the town and something ticking it (swb during a
+and Town10), over which scenario_simulator_v2 refuses to load the map; and road lanelets with
+no `speed_limit`, which Autoware drives at lanelet2's urban default of 50 km/h whatever the road
+(each gets its OpenDRIVE road's speed record: Town05's ring highway 104.6 km/h, Town01's roads
+40.2). One more repair needs CARLA holding the town and something ticking it (swb during a
 scenario): `scripts/repair_lanelet_signal_links.py <Town>` links every signalised approach
 lanelet to the regulatory element of the light CARLA controls it by (from each light's stop
 waypoints and the signal table) and gives that element a stop line at the stop waypoints. On

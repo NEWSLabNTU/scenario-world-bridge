@@ -5,7 +5,7 @@ swb: Autoware drives the laps at 100 km/h, and at each turn's waypoint a drift c
 takes the car into a drift, holds it through the bend, recovers and hands back. The
 question is whether the drift repeats, turn after turn, lap after lap.
 
-**Status**: in progress, 2026-10-27: the car is in every repository (pins 6225c1a) and drifts on Isaac's proving ground; Town05 and Autoware to come.
+**Status**: in progress, 2026-10-28: a full Town05 ring lap with Autoware and one drift, no contact (lap 32, server-241); option 3 designed.
 
 **Source**: user direction 2026-10-27: "see if we can make a drift on a very speedy car ...
 a CARLA town with a long and closed road with turns and without traffic signals ...
@@ -116,3 +116,28 @@ wheelspin, beyond any published work) and C (wet drift zones).
 Goh, Goel & Gerdes 2019 (JDSMC); Voser, Hindiyeh & Gerdes 2010; Werner et al. (TUM) 2026
 (arXiv 2606.27914); Velenis et al. 2011 (CEP) and the trail-braking paper (SAE 2008); Cai et
 al. 2020 (arXiv 2001.01377, drifting in CARLA); PhysX 5.4 vehicle docs.
+
+## Progress on the ring (2026-10-27/28, server-241 by csb 241 physics, laps 1-32)
+
+Through swb on Isaac with Autoware 1.5 (option 1 of autoware-drift's
+docs/autoware-in-a-drift.md: Autoware made to tolerate a drift, drift_controller between its
+gate and the car). What each stretch of laps found, and where it was fixed:
+
+| laps | found | fixed in |
+|---|---|---|
+| 1-4 | the drift car's roof lidar saw its own hood: an obstacle inside the footprint, no trajectory | the sensor kit's self crop box (autoware_sim_vehicle 6dfd674) |
+| 5-9 | the route's start and goal on one lanelet; the map's local coordinates not Autoware's (118 and 241 maps predated 7633670) | the scenario; repair_lanelet_local_coords on both hosts |
+| 10-13 | 50 km/h: no speed limits in the maps; NDT's exe-time WARN as MRMs; walkways under the raised ring as stops | repair_lanelet_speed_limits.py, repair_lanelet_walkways_under_roads.py (033f7a2, 4b8fed7, 98c26b5); drift.yaml warn-to-ok |
+| 11-24 | Autoware's speed shaping: 1 m/s^2, the gate's 25 m/s, a 200/180 m smoother horizon ending in a stop, curvature over 2 m | the profile's planning_common_param_base, vehicle_cmd_gate_param_path (b048411, 85496c1); autoware-drift's smoother, common and gate files |
+| 14-26 | localization under load: NDT starved, then issue 017 (the CUDA matcher's step oscillation, the issue 002 fix ported); lidar scans 0.13 s late (issue 015) | cuda_ndt_matcher + lockstep (8526223), issue 015's stamp (ef7f841) |
+| 17-28 | the drift law: snap at exit, spin in rejoin, a hold with no path feedback circling 70 m in a 104 m bend, state from late NDT differences | autoware-drift: exit on drive, gentle rejoin, the vehicle report as state, a yaw-rate path term, drift points at the arc start, entry >= 27 m/s |
+| 25, 31 | the planner's lateral-acceleration check as MRM; Autoware's emergency stop holding the wheel straight in a bend | drift.yaml; drift_controller steers an emergency stop along the plan (lap 31: through the NW bend within 1.2 m of the lane) |
+| 29-30 | spawn over SSv2's 90 s under load (issue 018) | SIMULATOR_SPAWN_TIMEOUT (7c76c20) |
+
+**Lap 32: the first full lap with a drift and no contact** (load ~50). The NE bend drifted from
+its arc start at 28.2 m/s: sideslip up to 14.4 deg at turn-in, held 5-8 deg on a 105-130 m line
+(the arc is 106 m), at most 4.0 m off the lane, recovered and rejoined. NW (27.0 m/s), SW (23.7)
+and SE (23.9) were below the 27 m/s entry and skipped. Open: the sideslip held is a third of the
+model's; SW and SE follow slower stretches Autoware does not leave at 27 m/s; localization fails
+above a host load of ~120. Option 3 (autoware-drift docs/race-stack-design.md: its own planner,
+estimator and C++ controller in Autoware's seams) is designed, not built.

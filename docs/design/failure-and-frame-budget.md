@@ -124,8 +124,11 @@ arithmetic; roadmap 034 step 3):
 
 | Bound | Value | Why |
 |---|---|---|
-| SSv2 response (`SIMULATOR_RESPONSE_TIMEOUT`) | 90 s | every request but `Initialize` |
+| SSv2 response (`SIMULATOR_RESPONSE_TIMEOUT`) | 90 s | every request but `Initialize` and the spawns |
 | SSv2 `Initialize` (`SIMULATOR_INITIALIZE_TIMEOUT`) | 300 s | |
+| SSv2 spawn (`SIMULATOR_SPAWN_TIMEOUT`) | 150 s | above the bridge's world `Spawn` budget (issue 018) |
+| World request, the bridge's (`request_timeout_seconds`) | 10 s (CARLA's simulation side: 90) | a frame's `Apply` and `Step` |
+| World load, the bridge's (`load_timeout_seconds`) | 120 s (CARLA's simulation side: 300) | `Spawn` (an Isaac ego warms its sensors, a walker compiles its materials), `LoadWorld`, the weather |
 | CARLA client RPC | 30 s (120 s around the map listing and `load_world`) | |
 | LibCarla frame wait in `Tick` (`LIBCARLA_TICK_TIMEOUT`) | 10 s | 5x the worst tick measured (1.90 s); also each tick inside `apply_settings` |
 | Tick watchdog (`TICK_WATCHDOG`) | 45 s | above `tick_cue` 30 + frame 10, so LibCarla's own timeouts stay ordinary errors |

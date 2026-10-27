@@ -1,7 +1,7 @@
 # 018: the bridge gives a Spawn 120 s, SSv2 waits 90 s for it
 
 **Severity**: low (a loaded host only; the run fails before the ego moves, with a misleading
-message). **Status**: open. **Found**: 2026-10-28, roadmap 057, Town05 lap 29 on Isaac.
+message). **Status**: fixed 2026-10-28 (scenario_simulator_v2 fork: `SIMULATOR_SPAWN_TIMEOUT`). **Found**: 2026-10-28, roadmap 057, Town05 lap 29 on Isaac.
 
 ## What is wrong
 
@@ -35,3 +35,14 @@ SSv2's. The first keeps the walker and Isaac-ego cases working. Raising
 so a per-request bound in the SSv2 fork (Spawn and LoadWorld long, frames short) is the
 cleaner option. The table in `failure-and-frame-budget.md` should gain the world-protocol rows
 either way.
+
+## Fixed (2026-10-28)
+
+The per-request bound, in the scenario_simulator_v2 fork (`zmq_multi_client.cpp`): the three spawn
+requests (vehicle, pedestrian, misc object) wait `SIMULATOR_SPAWN_TIMEOUT`, default 150 s, above
+the bridge's 120 s `load_timeout_seconds` and its overhead; frames keep
+`SIMULATOR_RESPONSE_TIMEOUT`'s 90 s, so a hung frame is reported as soon as before, and the error
+names the timeout that ran out. `failure-and-frame-budget.md`'s table has the world-protocol
+rows. CARLA's simulation side gives `LoadWorld` 300 s (`world_load_timeout_seconds`), which
+happens inside `Initialize` (300 s): equal, not nested; left as it was (a town load takes 44 s).
+

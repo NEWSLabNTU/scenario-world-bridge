@@ -165,7 +165,7 @@ no `speed_limit`, which Autoware drives at lanelet2's urban default of 50 km/h w
 (each gets its OpenDRIVE road's speed record: Town05's ring highway 104.6 km/h, Town01's roads
 40.2); and walkways and crosswalks that pass under a raised road, which the flat map lays across
 the road's lanes, so Autoware's walkway module stops on the bridge (each gets
-`subtype=unknown`: Town05's ring 10, Town03 6). One more repair needs CARLA holding the town and something ticking it (swb during a
+`subtype=unknown`: Town05's ring 12, Town03 13). One more repair needs CARLA holding the town and something ticking it (swb during a
 scenario): `scripts/repair_lanelet_signal_links.py <Town>` links every signalised approach
 lanelet to the regulatory element of the light CARLA controls it by (from each light's stop
 waypoints and the signal table) and gives that element a stop line at the stop waypoints. On

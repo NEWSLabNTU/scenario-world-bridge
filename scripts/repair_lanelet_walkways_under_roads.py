@@ -9,8 +9,10 @@ on its west side (OpenDRIVE road 37), and 13 walkway lanelets under it gave a st
 
 A `walkway` or `crosswalk` lanelet is retagged when its centre line passes inside a road
 lanelet at a point where an OpenDRIVE reference line within NEAR m stands more than LEVEL m
-above the walkway's own road (the reference line nearest the walkway's point): one level over
-the other. It gets `subtype=unknown` -- kept in the map, ignored by Autoware's walkway and
+above the walkway's own level: one level over the other. The walkway's level is the lowest of
+the reference lines nearest each point of its centre line -- not the one nearest the crossing
+point, which for a walkway right under a bridge is the bridge's own (Town05's 100619 and
+103211, which span the ring's raised west side: server-241's lap 20 stopped dead for them). It gets `subtype=unknown` -- kept in the map, ignored by Autoware's walkway and
 crosswalk modules and by its prediction, as repair_lanelet_subtypes.py does for strips with no
 subtype -- and `swb:walkway_under_road=<its old subtype>`. A crossing at one level (an ordinary
 crosswalk) is not touched. The geometry is OpenDRIVE's line and arc and its cubic elevation
@@ -169,6 +171,14 @@ def under_roads(path, xodr):
     ref = grid(samples(xodr), lambda s: (s[0], s[1]))
     out = {}
     for rid, (sub, pts) in walks.items():
+        level = None  # the walkway's own: the lowest of the reference lines nearest its points
+        for x, y in pts:
+            near = [(math.hypot(s[0] - x, s[1] - y), s[2]) for s in around(ref, x, y)]
+            if near:
+                z = min(near)[1]
+                level = z if level is None else min(level, z)
+        if level is None:
+            continue
         for x, y in pts:
             cell = road_grid.get((int(x // CELL), int(y // CELL)), ())
             if not any(b[0] <= x <= b[2] and b[1] <= y <= b[3] and inside(p, x, y) for p, b in cell):
@@ -177,8 +187,7 @@ def under_roads(path, xodr):
             near = [n for n in near if n[0] <= NEAR]
             if not near:
                 continue
-            own = min(near)[1]  # the walkway's own road: the nearest reference line
-            if max(z for _, z in near) - own > LEVEL:
+            if max(z for _, z in near) - level > LEVEL:
                 out[rid] = sub
                 break
     return out

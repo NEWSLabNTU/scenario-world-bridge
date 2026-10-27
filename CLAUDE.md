@@ -86,6 +86,9 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 │                               #   background-AV launches, run_suite, gap oracle
 ├── src/swb_examples/           # Starter scenarios (basic/, multi_av/, awf/); vehicles from the catalog
 ├── scenarios/                  # Benchmark scenarios (bench/), goal-pose files
+├── third_party/cuda_ndt_matcher/  # submodule: NEWSLabNTU's GPU NDT, built on its own (`just
+│                               #   build-cuda-ndt`; CUDA 12.x or 13.x, CUDA_PATH picks one), sourced
+│                               #   by the ego recipes; the profile's ndt:=cuda runs it
 ├── scripts/carla_up.sh, isaac_up.sh  # per-simulator bring-up (`just scenario ... sim:=`)
 ├── scripts/check_pins.py       # every component's deps/ pin is this workspace's pin
 ├── docs/design/, docs/roadmap/

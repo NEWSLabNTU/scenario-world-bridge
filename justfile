@@ -50,6 +50,10 @@ autoware_setup := env_var_or_default('AUTOWARE_SETUP', '/opt/autoware/1.5.0/setu
 # Autoware packages carried with fixes 1.5.0 lacks (roadmap 042), built by
 # `just build-autoware-overlay` from the commit pinned in scripts/autoware_overlay.bash.
 autoware_overlay_dir := justfile_directory() + '/third_party/autoware_overlay'
+# NEWSLabNTU's cuda_ndt_matcher (a submodule), built in its own workspace by `just
+# build-cuda-ndt`; the ego recipes source its install when it is there, and the profile's
+# ndt:=cuda runs it (roadmap 057).
+cuda_ndt_dir := justfile_directory() + '/third_party/cuda_ndt_matcher'
 # The TensorRT runtime Autoware 1.5.0 was compiled against (10.8.0), put first on the
 # Autoware stacks' LD_LIBRARY_PATH so their cached engines validate (scripts/
 # autoware_tensorrt.bash). A host setting: AUTOWARE_TENSORRT_LIB, empty for the host's own.
@@ -178,6 +182,29 @@ build-autoware-overlay:
     PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/\.venv/bin$' | paste -sd:)
     source "{{project}}/scripts/autoware_overlay.bash"
     swb_autoware_overlay_build "{{autoware_overlay_dir}}" "{{autoware_setup}}"
+
+# Build cuda_ndt_matcher (third_party/cuda_ndt_matcher, a submodule) in its own workspace
+# against Autoware 1.5.0, from a clean environment: Rust (colcon-cargo-ros2) and CUDA. Host
+# settings passed through: CUDA_PATH (the toolkit; its build script needs CUB at include/cub,
+# so CUDA 12.x, not 13, which moved it under include/cccl) and CUDA_ARCH(S). The ego
+# recipes source its install when present; `ndt:=cuda` on an ego recipe uses it (roadmap 057).
+# Stop the ego stack first if it runs with ndt:=cuda.
+build-cuda-ndt:
+    #!/usr/bin/env bash
+    set -e
+    [ -f "{{cuda_ndt_dir}}/justfile" ] || { echo "build-cuda-ndt: no {{cuda_ndt_dir}} (git submodule update --init --recursive third_party/cuda_ndt_matcher)" >&2; exit 2; }
+    cd "{{cuda_ndt_dir}}"
+    pass=()
+    for v in CUDA_PATH CUDA_HOME CUDA_ARCH CUDA_ARCHS; do
+        [ -n "${!v:-}" ] && pass+=("$v=${!v}")
+    done
+    env -i HOME="$HOME" USER="$USER" TERM=dumb "${pass[@]}" \
+        PATH="$HOME/.cargo/bin:$HOME/.local/bin:${CUDA_PATH:-/usr/local/cuda}/bin:/usr/local/bin:/usr/bin:/bin" \
+        bash -c 'just build'
+    # The toolkit it was built with is the one its runtime must load: cudarc dlopens libnvrtc.so
+    # by name, and Autoware's environment has /usr/local/cuda on the library path (13.x here,
+    # whose nvrtc lacks a symbol cudarc wants); the ego recipes put this one's lib64 first.
+    echo "${CUDA_PATH:-/usr/local/cuda}" > install/.swb_cuda_path
 
 # Download TensorRT 10.8.0 (NVIDIA's tensorrt-cu12-libs wheel, 3.1 GB; 2.6 GB extracted) into
 # AUTOWARE_TENSORRT_LIB (default third_party/tensorrt/lib), the runtime `just ego-av`,
@@ -1003,6 +1030,9 @@ _require-ego-stack:
     source "{{autoware_setup}}"
     source "{{project}}/scripts/autoware_overlay.bash"
     swb_autoware_overlay_source "{{autoware_overlay_dir}}" true
+    if [ -f "{{cuda_ndt_dir}}/install/setup.bash" ]; then source "{{cuda_ndt_dir}}/install/setup.bash"
+        # its CUDA libraries first: cudarc dlopens libnvrtc.so by name (build-cuda-ndt)
+        [ -s "{{cuda_ndt_dir}}/install/.swb_cuda_path" ] && export LD_LIBRARY_PATH="$(cat "{{cuda_ndt_dir}}/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"; fi
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
@@ -1079,6 +1109,9 @@ ego-av *args: _require-carla
     source "{{autoware_setup}}"
     source "{{project}}/scripts/autoware_overlay.bash"
     swb_autoware_overlay_source "{{autoware_overlay_dir}}" "$autoware_overlay"
+    if [ -f "{{cuda_ndt_dir}}/install/setup.bash" ]; then source "{{cuda_ndt_dir}}/install/setup.bash"
+        # its CUDA libraries first: cudarc dlopens libnvrtc.so by name (build-cuda-ndt)
+        [ -s "{{cuda_ndt_dir}}/install/.swb_cuda_path" ] && export LD_LIBRARY_PATH="$(cat "{{cuda_ndt_dir}}/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"; fi
     if [ -n "$overlay" ]; then source "$overlay"; fi
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
@@ -1174,6 +1207,9 @@ ego-isaac *args:
     source "{{autoware_setup}}"
     source "{{project}}/scripts/autoware_overlay.bash"
     swb_autoware_overlay_source "{{autoware_overlay_dir}}" "$autoware_overlay"
+    if [ -f "{{cuda_ndt_dir}}/install/setup.bash" ]; then source "{{cuda_ndt_dir}}/install/setup.bash"
+        # its CUDA libraries first: cudarc dlopens libnvrtc.so by name (build-cuda-ndt)
+        [ -s "{{cuda_ndt_dir}}/install/.swb_cuda_path" ] && export LD_LIBRARY_PATH="$(cat "{{cuda_ndt_dir}}/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"; fi
     if [ -n "$overlay" ]; then source "$overlay"; fi
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
@@ -1230,6 +1266,9 @@ bg-av *args: _require-carla
     # The same Autoware fix overlay as the ego's (roadmap 042)
     source "{{project}}/scripts/autoware_overlay.bash"
     swb_autoware_overlay_source "{{autoware_overlay_dir}}" "$autoware_overlay"
+    if [ -f "{{cuda_ndt_dir}}/install/setup.bash" ]; then source "{{cuda_ndt_dir}}/install/setup.bash"
+        # its CUDA libraries first: cudarc dlopens libnvrtc.so by name (build-cuda-ndt)
+        [ -s "{{cuda_ndt_dir}}/install/.swb_cuda_path" ] && export LD_LIBRARY_PATH="$(cat "{{cuda_ndt_dir}}/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"; fi
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
     source "{{project}}/scripts/autoware_tensorrt.bash"

@@ -37,3 +37,7 @@
 	path = src/sim_vehicle_ecu
 	url = https://github.com/NEWSLabNTU/sim_vehicle_ecu.git
 	branch = main
+[submodule "third_party/cuda_ndt_matcher"]
+	path = third_party/cuda_ndt_matcher
+	url = https://github.com/NEWSLabNTU/cuda_ndt_matcher.git
+	branch = main

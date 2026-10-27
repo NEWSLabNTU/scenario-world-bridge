@@ -1306,7 +1306,9 @@ _clear-stale-scenario:
 # budget for Autoware from start to engage (default 120 s; on a loaded host NDT's first align
 # alone has taken 75 s, roadmap 054 step 8). frame_rate:=<hz>: SSv2's frames per simulated
 # second (default 20, a 50 ms step; 100 for 10 ms). vehicle_model:=<car>: the ego's car (default
-# tesla_model3; its description and sensor kit packages).
+# tesla_model3; its description and sensor kit packages). real_time_factor:=<r>: SSv2's pace,
+# simulated seconds per wall-clock second (default 1.0); below 1 on a loaded host gives Autoware
+# more wall time per simulated second (roadmap 057: NDT starved at 1.0 under a load of 60-90).
 #
 # Usage: just scenario <xosc> [sim:=carla|isaac] [worlds:=Town01,..] [output_directory:=<dir>]
 [positional-arguments]
@@ -1325,7 +1327,8 @@ scenario scenario_file *args:
             global_timeout:=?*) timeout_args+=("global_timeout:=${a#*:=}") ;;
             initialize_duration:=?*) timeout_args+=("initialize_duration:=${a#*:=}") ;;
             frame_rate:=?*|vehicle_model:=?*) timeout_args+=("$a") ;;
-            *) echo "scenario: unknown argument '$a' (sim:=carla|isaac, worlds:=, output_directory:=, global_timeout:=, initialize_duration:=, frame_rate:=, vehicle_model:=)" >&2; exit 2 ;;
+            real_time_factor:=?*) timeout_args+=("global_real_time_factor:=${a#*:=}") ;;
+            *) echo "scenario: unknown argument '$a' (sim:=carla|isaac, worlds:=, output_directory:=, global_timeout:=, initialize_duration:=, frame_rate:=, vehicle_model:=, real_time_factor:=)" >&2; exit 2 ;;
         esac
     done
     up="{{project}}/scripts/${sim}_up.sh"

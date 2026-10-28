@@ -5,8 +5,23 @@ of a real Japanese mountain pass (touge) with its hairpins, its terrain and its 
 It gives the drift campaign (057) the turns real drift events use, hairpins taken at 10-15 m/s,
 in a world that costs a fraction of a CARLA town's GPU memory and RAM.
 
-**Status**: in progress, 2026-10-29: data fetched for the Haruna section; the generator
-started.
+**Status**: in progress, 2026-10-29: C1-C8 done offline for the Haruna section
+(swb_isaac_world `swb_isaac_world/course/`, `python3 -m swb_isaac_world.course
+swb_isaac_world/courses/haruna.yaml data/courses/haruna`, the USD step in Isaac's venv); C9
+waits for a GPU.
+
+Progress:
+
+- C1-C2: a 1.53 km downhill section of road 33 (about 900 m to 810 m), eight hairpins of
+  136-186 deg at radii 9-20 m (H1-H8, `course/centreline.json`).
+- C3-C7: terrain from dem5a at 2 m, the aerial photo at z18 as its texture, the road ribbon
+  and its lines, guardrails and trees, `isaac/world.usdc` (9 MB); a Lanelet2 map of 16
+  lanelets each way and a point cloud of 15.8 M points.
+- C8 (swb_isaac_world 92430eb): `scenarios/haruna_down.xosc` (s 20 m to 30 m before the end, in
+  the left lane), `surfaces.yaml` (asphalt road, grass terrain) and `course/drift_points.yaml`
+  (eight points, on the lane at each arc's start, signed radii 8.1-18.6 m). Checked offline:
+  the start, the goal and every drift point lie in lanelets along the section, and Lanelet2
+  routes start to goal over 15. The run up the pass is not written yet.
 
 **Source**: user direction 2026-10-29: "work on a smaller map on our host ... make a drift
 along the hairpin turn, like the real drift race ... build a smaller map in Isaac Sim. We dont

@@ -22,6 +22,13 @@ Progress:
   (eight points, on the lane at each arc's start, signed radii 8.1-18.6 m). Checked offline:
   the start, the goal and every drift point lie in lanelets along the section, and Lanelet2
   routes start to goal over 15. The run up the pass is not written yet.
+- C9a (swb_isaac_world 900457c, 243, 2026-10-29): the world loads and renders in about 10 s;
+  Isaac takes ~4 GB of GPU memory. `spikes/course_probe.py` drove drift_mustang without
+  Autoware, by pure pursuit on the scenario's lane at 8 m/s (5 m/s within 30 m of an apex),
+  580 m from the start through H1-H4 in 85 s: at most 0.55 m off the lane, on the road ribbon
+  (0.07 m under its centreline height), no contact. The props were missing at first: the
+  world named 241's $CARLA_USD (issue 020, fixed by a `carla-usd` link beside the world).
+  The course camera shows the forest, the guardrails and the hairpins.
 
 **Source**: user direction 2026-10-29: "work on a smaller map on our host ... make a drift
 along the hairpin turn, like the real drift race ... build a smaller map in Isaac Sim. We dont

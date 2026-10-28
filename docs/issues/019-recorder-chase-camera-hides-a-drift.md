@@ -1,7 +1,8 @@
 # 019: the recorder's chase camera turns with the car, so a drift does not show in it
 
-**Severity**: low (recording only; the runs are unaffected). **Status**: fixed, not yet run on a GPU (swb_isaac_world 24bb78e:
-a `course` camera that follows the car's velocity). **Found**: 2026-10-29, roadmap 057, Town05
+**Severity**: low (recording only; the runs are unaffected). **Status**: fixed (swb_isaac_world 24bb78e:
+a `course` camera that follows the car's velocity); first run on a GPU 2026-10-29 on 243 (the
+materials demo, Haruna C9a), where it works as designed. **Found**: 2026-10-29, roadmap 057, Town05
 lap 32's proof video.
 
 ## What is wrong

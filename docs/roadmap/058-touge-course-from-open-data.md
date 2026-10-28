@@ -29,6 +29,16 @@ Progress:
   (0.07 m under its centreline height), no contact. The props were missing at first: the
   world named 241's $CARLA_USD (issue 020, fixed by a `carla-usd` link beside the world).
   The course camera shows the forest, the guardrails and the hairpins.
+- The first hairpin drift, without Autoware (243, 2026-10-29): H1 (R 10.8 m right, 178 deg,
+  8 % downhill) by `spikes/course_probe.py DRIFT=H1 ENTRY=12` with autoware-drift's
+  drift_controller law (739e069, `turn_from_point`). A 2.85 s hold at 14.8 deg mean sideslip
+  (21.6 peak), yaw rate -0.9 rad/s with the front wheels countersteered to 0-3 deg, at most
+  2.1 m off the lane on the 8 m road, no guardrail contact, handed back; three runs alike.
+  Getting there: the road faced down and the wheels drove on grass (issue 021); the law,
+  tuned for Town05's 100 m bends, pushed into the guardrails, oscillated at full lock, and,
+  counting the hairpin's turn from the hold's start, turned ~195 deg and left the road (fixed
+  by `turn_from_point`). The settings are in autoware-drift 739e069's message. Next: the same
+  hairpin with Autoware driving the rest (C9b NDT, C9c the run down, the drift node).
 
 **Source**: user direction 2026-10-29: "work on a smaller map on our host ... make a drift
 along the hairpin turn, like the real drift race ... build a smaller map in Isaac Sim. We dont

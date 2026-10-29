@@ -2,7 +2,7 @@
 
 **Severity**: medium (every aib car in Isaac: under braking, acceleration and cornering its wheel
 loads move about a third as much as a real car's, so it keeps more grip at the limit, pitches and
-rolls less, and an oversteer or a drift starts later than it would). **Status**: open.
+rolls less, and an oversteer or a drift starts later than it would). **Status**: fixed (aib abaf103).
 **Found**: 2026-10-29, autoware-drift's race_planner model check against Isaac's manoeuvre suite
 (`play_log/model_check/dry2/` on 243, drift_mustang with issue 022's fix).
 
@@ -35,10 +35,21 @@ deg more sideslip than Isaac at 0.94 g, 0.6 at 0.68 g. With the arm h - R
 (`race_planner.car.Car.in_isaac()`) it is within 0.7 deg to 0.94 g and the steering within
 0.1 deg.
 
-## Fix (not done)
+## Fix
 
-Put the tyre force's application point at the contact patch (the wheel's bottom, R below its
-centre: z = -frame_z in the suspension frame), keeping the suspension force where it is, and check the car stays
-stable over the manoeuvre suite (a low application point lets the tyre's force roll the body
-more: about 2.7 deg at 1 g on drift_mustang's 2 Hz springs, no anti-roll bars). Every Isaac run's
-numbers move with it, the drift law's included.
+aib abaf103: the tyre's force acts at the contact patch (z = -frame_z in the suspension frame,
+the ground under the wheel at rest); the suspension's stays at the wheel's centre.
+
+Measured on 243 with the same suite (`play_log/model_check/dry3/`, aib abaf103 in
+swb_isaac_world's deps):
+
+| | before (dry2) | after (dry3) | m h / t / 2 per axle, 2 m h / L |
+|---|---|---|---|
+| sideways, per axle, N per m/s^2 | 71.5 | 221 | 219.4 |
+| front to rear, N per m/s^2 | 171 | 513 | 482.3 |
+
+Every manoeuvre completes. The 40 m circle holds 7.36 m/s^2 (7.8 before), understeer 0.28
+deg/g (0.23); the 5 deg step at 40 km/h 17.53 deg/s (17.56); the full-brake sweep 9.75 m/s^2
+(9.95); power_over still spins (peak yaw rate 182 deg/s, 190). race_planner's model no longer
+needs `Car.in_isaac()`'s shortened arm. Every Isaac run's numbers before abaf103 were on the
+lighter transfer, the drift law's H1 settings (roadmap 058) included.

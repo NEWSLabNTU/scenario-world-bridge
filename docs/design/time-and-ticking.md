@@ -92,6 +92,12 @@ follower whose round takes longer than a frame skips frames. A follower that joi
 most `tick_gate_timeout_ms` (1 s), after which the tick goes ahead and the miss is counted.
 A follower silent for 5 s has left. The wait is in swb's request path before
 `world.tick()`, never inside a callback, and is bounded well inside SSv2's reply timeout.
+Several followers can join: the gate knows each by the address its datagrams come from, a
+tick waits for every one, and misses are counted per follower. ns-3 emulating the network in
+lockstep with the world is one (2026-coop-perception phase 024): it acknowledges a frame once
+it has run the network up to the next frame's time, so the world never runs ahead of the
+network. A follower outside swb's network namespace needs the gate bound on an address it
+can reach (`SWB_TICK_GATE=0.0.0.0:7410`).
 
 ## Tick granularity
 

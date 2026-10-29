@@ -39,6 +39,20 @@ Progress:
   counting the hairpin's turn from the hold's start, turned ~195 deg and left the road (fixed
   by `turn_from_point`). The settings are in autoware-drift 739e069's message. Next: the same
   hairpin with Autoware driving the rest (C9b NDT, C9c the run down, the drift node).
+- The user's redirect (2026-10-29): no per-hairpin tuning; a track-agnostic minimum-lap-time
+  planner, drifting only where it is faster. Its work is phase [060](060-live-race-planner.md);
+  Haruna is its first track. What it found in this world and in Isaac's car, all fixed:
+  the "locked" rear axle was nearly open (issue 022, sim_vehicle_ecu d68637a); the tyre
+  forces acted at the wheel centre, a third of a real car's load transfer (issue 023, aib
+  abaf103); and C4's road, one 8 m quad across per half metre, folded 2-3.4 deg in the
+  climbing hairpins, so the wheels' loads chattered by 2 kN per frame (issue 024; the road is
+  now 0.5 m strips across, swb_isaac_world a038333, Haruna rebuilt with its centreline,
+  terrain, lines and props unchanged). The H1 drift settings above were found before these
+  fixes and are stale.
+- The planner's plan tracked in Isaac (course_probe `PLAN=`): s 60-620 at 5.2 % over the plan
+  (31.9 against 30.3 s), no contact; the full section (s 60-1520, plan 74.8 s, up to 134 km/h)
+  failed at s 935 (a braking slide, no re-plan, a rear lock). Next in 060: a live planner and
+  tracker.
 
 **Source**: user direction 2026-10-29: "work on a smaller map on our host ... make a drift
 along the hairpin turn, like the real drift race ... build a smaller map in Isaac Sim. We dont
@@ -95,7 +109,9 @@ shoulders the terrain is cut or filled to the road's profile, blending back to t
 8 m. UVs map the aerial-photo mosaic onto it, so the forest, the road's own scar and the
 buildings by the lake show as in the photo.
 
-**C4. The road.** A ribbon mesh along the centreline at the lane widths, asphalt-coloured,
+**C4. The road.** A ribbon mesh along the centreline at the lane widths, in strips of at most
+0.5 m across (a section is level across, so a wider quad on a climbing bend folds between its
+triangles: issue 024), asphalt-coloured,
 with its centre line (Japan: a yellow line, no passing) and edge lines as thin meshes on top.
 It is labelled as SimReady labels CARLA's road and markings (`semantics:labels:wikidata_qcode`),
 so the world server's ground paths and surface classes pick it up without a special case.

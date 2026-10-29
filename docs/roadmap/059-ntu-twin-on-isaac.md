@@ -6,8 +6,22 @@ camera-driven stacks such as Autoware Foundation's Vision Pilot or a VLM agent. 
 image is what those stacks consume, so realism of the rendering is the requirement, not only
 geometry. The first version starts from the vendor's coloured MLS point cloud alone.
 
-**Status**: started 2026-10-29. NAS data is being copied to `/mnt/toshiba/aeon/ntu-map/` (the
-full LAZ first); a tool venv is there (`.venv`: laspy + lazrs, open3d, pyproj, scipy).
+**Status**: in progress, 2026-10-29. Local copy in `/mnt/toshiba/aeon/ntu-map/` (tool venv
+`.venv`: laspy + lazrs, open3d, pyproj, scipy, matplotlib).
+
+Progress:
+
+- N1 done: the full LAZ re-tiled by `scripts/ntu_twin/retile_laz.py` into 167 tiles of 50 m
+  (`tiles_50m_mgrs/`, 175 GB), 5 523 612 787 points (the true count, as in 019), 70 min with
+  8 workers on the spinning disk.
+- N3, first pass (`scripts/ntu_twin/ground_ortho.py`, `ground/`): a site-wide zmin grid at
+  0.25 m (23 min), an SMRF-like ground filter (windows 1-16 m: 2.29 M of 3.11 M occupied
+  cells are ground) and a DTM; RGB and intensity orthophotos at 2 cm per tile with a
+  pyramid fill and a coverage mask (167 tiles, 23 min, 270 MB). Lane lines, arrows, curbs,
+  paving and manholes are sharp. Parked scooters and cars are baked into the ground where
+  they stood; holes under trees and hedges are filled from coarser levels.
+- N4, prototype: Poisson on the vendor's building class (6) of one tile (0.08 m voxels,
+  depth 11, decimated to 300 k triangles, 23 s): facades with windows, patchy roofs.
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

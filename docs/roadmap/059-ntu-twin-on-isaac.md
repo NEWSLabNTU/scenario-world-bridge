@@ -20,8 +20,24 @@ Progress:
   pyramid fill and a coverage mask (167 tiles, 23 min, 270 MB). Lane lines, arrows, curbs,
   paving and manholes are sharp. Parked scooters and cars are baked into the ground where
   they stood; holes under trees and hedges are filled from coarser levels.
-- N4, prototype: Poisson on the vendor's building class (6) of one tile (0.08 m voxels,
-  depth 11, decimated to 300 k triangles, 23 s): facades with windows, patchy roofs.
+- N4, N5 (first version), N6: `scripts/ntu_twin/build_meshes.py` meshed all 167 tiles
+  (`meshes/`, 2.5 GB): the DTM grid per tile as the ground, UVs into its orthophoto;
+  screened Poisson (0.08 m voxels, depth 11, at most 400 k triangles per layer) on the
+  building class and on everything else above the ground, trees as blobs. Two workers, about
+  3 h in all. A tile is read in 10 M-point chunks and thinned to one point per voxel as it
+  is read: reading the densest tiles (~180 M points) whole took ~35 GB per worker and, with
+  other work on the host, ran it out of memory twice; chunked, the densest peaks at 10.8 GB.
+  A rerun skips tiles with a `stats_<ix>_<iy>.json`. `scripts/ntu_twin/world_usd.py` (Isaac's
+  Python) wrote `map/isaac/`: one payload per tile, 358 meshes, 70.5 M triangles, 1.3 GB, the
+  world frame the map frame less `map_origin` (52 500, 67 700, 0), bounds about 1.1 km x
+  0.65 km. Not yet opened in Isaac (no free GPU).
+- N7, first version: `scripts/ntu_twin/export_map.py` wrote `map/`: r01 and r02's Lanelet2
+  merged (r01's ids offset by 1 000 000; 285 lanelets load), r02's projector info (MGRS
+  51RUH), and the divided point-cloud map, 167 PCD tiles of 50 m (0.2 m voxel means, shift
+  applied, 39.1 M points, 597 MB) with `pointcloud_map_metadata.yaml`. Lanelet nodes over
+  ground cells sit a median 0.16 m above the ground mesh (5th-95th percentile -0.12 to
+  +0.87 m): the routes' own PCDs drift against the scan (019); re-registering the lanelets is
+  still open.
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

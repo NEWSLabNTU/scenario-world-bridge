@@ -18,6 +18,9 @@ coordinates). The meshes stay in that frame; the USD stage places them.
 
 Usage:
   build_meshes.py TILES_DIR GROUND_DIR OUT_DIR [--workers 3] [--tiles ix_iy,...]
+
+A rerun skips the tiles that have their `stats_<ix>_<iy>.json` (written when a tile is
+complete), so a stopped build resumes.
 """
 import argparse
 import glob
@@ -38,6 +41,13 @@ DEPTH = 11              # Poisson octree depth over a 50 m tile: ~2.5 cm cells
 DENSITY_CUT = 0.08      # drop the Poisson vertices of lowest support (this quantile)
 MAX_TRIS = {"building": 400_000, "other": 400_000}
 MIN_POINTS = 2000       # a layer with fewer points is skipped
+CHUNK = 10_000_000      # points read at a time
+
+
+def voxel_keys(P, ix, iy):
+    """One int64 per VOXEL cube, unique within the tile (map frame, z from -1000 m)."""
+    q = np.floor((P - np.array([ix * TILE - 10.0, iy * TILE - 10.0, -1000.0])) / VOXEL).astype(np.int64)
+    return (q[:, 0] * 1_000_000 + q[:, 1]) * 1_000_000 + q[:, 2]
 
 
 def tile_index(path):
@@ -114,28 +124,50 @@ def _tile(args):
                         faces=F.astype(np.int32), uv=UV.astype(np.float32))
     stats["ground_tris"] = len(F)
 
-    las = laspy.read(path)
-    x, y, z = np.asarray(las.x), np.asarray(las.y), np.asarray(las.z)
-    ci = ((x - meta["x0"]) / meta["cell"]).astype(np.int64).clip(0, meta["width"] - 1)
-    cj = ((y - meta["y0"]) / meta["cell"]).astype(np.int64).clip(0, meta["height"] - 1)
-    above = (z - np.asarray(dtm[cj, ci])) >= GROUND_BAND
-    cls = np.asarray(las.classification)
-    rgb = np.stack([las.red, las.green, las.blue], 1).astype(np.float64)
-    rgb /= 65535.0 if rgb.max() > 255 else 255.0
-    for name, sel in (("building", above & (cls == 6)), ("other", above & (cls != 6))):
-        if sel.sum() < MIN_POINTS:
+    # read in chunks and keep one point per VOXEL cube per layer as we go: a dense tile is
+    # ~180 M points, and holding it whole (laspy's record plus float64 copies) took ~35 GB
+    keep = {"building": [], "other": []}
+    counts = {"building": 0, "other": 0}
+    with laspy.open(path) as reader:
+        for las in reader.chunk_iterator(CHUNK):
+            x, y, z = np.asarray(las.x), np.asarray(las.y), np.asarray(las.z)
+            ci = ((x - meta["x0"]) / meta["cell"]).astype(np.int64).clip(0, meta["width"] - 1)
+            cj = ((y - meta["y0"]) / meta["cell"]).astype(np.int64).clip(0, meta["height"] - 1)
+            above = (z - np.asarray(dtm[cj, ci])) >= GROUND_BAND
+            cls = np.asarray(las.classification)
+            rgb = np.stack([las.red, las.green, las.blue], 1)
+            for name, sel in (("building", above & (cls == 6)), ("other", above & (cls != 6))):
+                if not sel.any():
+                    continue
+                counts[name] += int(sel.sum())
+                P = np.stack([x[sel], y[sel], z[sel]], 1) - SHIFT
+                key = voxel_keys(P, ix, iy)
+                k, first = np.unique(key, return_index=True)
+                keep[name].append((k, P[first], rgb[sel][first]))
+    for name in ("building", "other"):
+        parts = keep.pop(name)
+        if counts[name] < MIN_POINTS or not parts:
             continue
-        P = np.stack([x[sel], y[sel], z[sel]], 1) - SHIFT
-        res = poisson(P, rgb[sel])
+        # chunks overlap in voxels: one point per voxel over the whole tile
+        k = np.concatenate([q[0] for q in parts])
+        _, first = np.unique(k, return_index=True)
+        P = np.concatenate([q[1] for q in parts])[first]
+        C = np.concatenate([q[2] for q in parts])[first].astype(np.float64)
+        del parts, k
+        C /= 65535.0 if C.max() > 255 else 255.0
+        res = poisson(P, C)
         if res is None:
             continue
         mesh, n_in = res
         if len(mesh.triangles) > MAX_TRIS[name]:
             mesh = mesh.simplify_quadric_decimation(MAX_TRIS[name])
         o3d.io.write_triangle_mesh(os.path.join(out, f"{name}_{ix}_{iy}.ply"), mesh)
-        stats[f"{name}_points"] = int(sel.sum())
+        stats[f"{name}_points"] = counts[name]
         stats[f"{name}_tris"] = len(mesh.triangles)
     stats["seconds"] = round(time.time() - t0, 1)
+    # written last: a tile with its stats file is complete, and a rerun skips it
+    with open(os.path.join(out, f"stats_{ix}_{iy}.json"), "w") as f:
+        json.dump(stats, f)
     return stats
 
 
@@ -145,7 +177,7 @@ def main():
     ap.add_argument("ground_dir")
     ap.add_argument("out")
     ap.add_argument("--workers", type=int, default=3,
-                    help="each holds one tile (up to ~180 M points, ~12 GB)")
+                    help="each holds one tile (up to ~180 M points, ~19 GB at peak)")
     ap.add_argument("--tiles", default="")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -154,6 +186,13 @@ def main():
         want = set(a.tiles.split(","))
         tiles = [t for t in tiles if "%d_%d" % tile_index(t) in want]
     done = {}
+    for t in list(tiles):
+        p = os.path.join(a.out, "stats_%d_%d.json" % tile_index(t))
+        if os.path.exists(p):
+            st = json.load(open(p))
+            done[st["tile"]] = st
+            tiles.remove(t)
+    print(f"meshes: {len(done)} tiles done before, {len(tiles)} to build", flush=True)
     t0 = time.time()
     with Pool(a.workers, maxtasksperchild=1) as pool:
         for k, st in enumerate(pool.imap_unordered(_tile, [(t, a.ground_dir, a.out) for t in tiles])):

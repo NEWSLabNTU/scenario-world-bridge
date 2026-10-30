@@ -130,6 +130,31 @@ Progress:
     last scan) does not change this. It keeps the stack in sync, but NDT skips scans: about
     24 of every ~150 frames waited out the 1 s timeout, a mean of 150-210 ms a frame, so the
     world ran about 4x slower than the wall clock.
+  - r01's stop at (52676, 67886), taken apart over five more drives (2026-10-30 evening):
+    1. Standing "other" geometry beside the 2.17 m lanelet (AEB). Fixed:
+       `world_usd.py --clear-road` drops other triangles within 0.5 m of a lanelet and below
+       2.5 m (40 k triangles).
+    2. A drain pit at the road edge, ground-classified 2 m below the road (the scan saw
+       through the grate). Fixed: `smooth_dtm.py` closes narrow pits, harder on and within
+       3 m of the lanes (`--lanes`). Lane cells more than 0.1 m below their surroundings went
+       from 4328 to 305.
+    3. control_validator's 0.01 s latency bound, which a 50 ms /clock step can never meet. It
+       fired first in one run. Fixed: autoware_sim_vehicle e488ab0, `nominal_latency` 0.1 s in
+       the profile.
+    4. A process leak of mine: `auto_drive` runs as `auto_drive` under `ros2`, so cleanup
+       that matched `python3` left every pilot running. Three pilots re-initialized from GNSS
+       in one drive (a 7.7 m jump, "Duplicated nodes detected [/auto_drive]"), and r01j's
+       stall at initialization was probably the same. The N8 runs now stop through a helper
+       that matches a process's own argv only.
+    5. Still open: `obstacle_stop` stops the car for a perception object (UNKNOWN, existence
+       0.999) at (52668.71, 67885.47), z 13.28, 1.4 m above the lane centre, where the world
+       has only ground within 1.5 m. A phantom: RTX lidar without motion BVH ("incorrect
+       point cloud without motion effects", Isaac warns), or canopy returns misplaced. While
+       driving, NDT holds across-track error at 0.05-0.08 m up to the stop.
+    6. Still open: stopped and braked, the car slides sideways, 2.2 m in about 2 minutes on a
+       ~4 % cross slope (`/vehicle/status/velocity_status` lateral -0.015 m/s). Then the EKF
+       rejects NDT ("mahalanobis distance of pose topic is large") and the MRM follows. That
+       is aib's tyre at rest: a braked car should not slide on 4 %.
   - Open:
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do

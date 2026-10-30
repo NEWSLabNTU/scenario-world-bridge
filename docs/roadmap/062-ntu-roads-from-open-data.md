@@ -8,7 +8,7 @@ The map is used in simulation first and moves to a real car later. Every attribu
 where it came from. An audit compares the map with ground truth: 059's survey now, and the
 car's own drives later.
 
-**Status**: in progress, 2026-10-30: O1 and O2 done; O3's first version runs (newslab-118-server, offline).
+**Status**: in progress, 2026-10-31: O1-O3 done (first version); O4's geometry audit run, its paint and junction audits open (newslab-118-server, offline).
 
 Progress:
 
@@ -153,6 +153,57 @@ Progress:
   **Open:**
   - Whether the bans and the arrows' lanes are right is O4's question: the audit against 059.
   - 2 m pieces where alleys are cut very short still give some tiny lanelets.
+- **O4, the audit, first part** (2026-10-31).
+
+  **The data.** 059's handover was copied from the NAS to
+  `/mnt/renegade/aeon/ntu-map-audit/` (`ground/ortho/`: 167 tiles at 2 cm in RGB, intensity
+  and mask; the DTM; `map/`: the vendor's merged Lanelet2). Its frames:
+  - **The orthos** are in the vendor's frame V (EPSG:3826 to EPSG:32651, modulo 100 km).
+  - **059's map frame** is M = V - (-0.54, +0.20, +17.30).
+
+  The generated map (true MGRS from WGS84) is taken as V. The audit agrees: against the
+  vendor's lanelets the generated lanes sit 0.16 m to the right on average, within the vendor's
+  own 0.3 m drift.
+
+  The tools: `overlay.py` (a map over the ortho), `audit_vendor.py` (lane centres against the
+  vendor's lanelets), `audit_sections.py` and `audit_lines.py` (lane lines against the paint).
+
+  **Against the vendor's lanelets (5.7 km of campus routes):**
+
+  | | generated (B) | baseline (A, recomputed in the MGRS frame) |
+  |---|---|---|
+  | vendor route with a lane within 5 m, same heading | 68.5 % | 26.8 % |
+  | lateral offset of lane centres: median, 90th percentile | 0.97 m, 2.44 m | 0.53 m, 3.02 m |
+  | within 0.5 m / 1.0 m | 32 % / 52 % | 45 % / 81 % |
+
+  **What the offsets measure.** The vendor's lanelets are corridors as wide as the road
+  (median 4.0 m, 90th percentile 7.1 m). The generated lanes follow OSM's lane counts and
+  widths (median 3.0 m). On 椰林大道 (15.5 m, two lanes) the vendor has one 7 m corridor each
+  way and the generated map one 4.5 m lane each way along the centre line: about 1.4 m between
+  centres, with both on the road. In the overlays the generated lanes lie on the real roads
+  across the campus.
+
+  **What it misses.** The 31 % of the vendor's routes with no generated lane are mostly the
+  parking aisles and driveways that the generator leaves out (`service=parking_aisle`,
+  `driveway`). The vendor's car drives them.
+
+  **Against the paint** (新生南路 northbound, the one arterial stretch inside the survey with
+  its paint observed):
+  - The four lanes are 3.5 m wide from the class default; the paint puts them at about 3.2 m.
+  - So the outer lines drift about 1 m from the paint across the carriageway, while the median
+    side holds.
+  - Public data has no lane widths here. OSM `width` is on two ways in the box. NLSC's 0.27 m
+    orthophoto shows the lane lines and could set them (route C).
+
+  **The automated paint audits are not conclusive yet:**
+  - The paint barely shows in 059's intensity (it falls with range from the scanner).
+  - In RGB, a peak detector finds paint on the arterials, but also leaves and brick joints on
+    the campus roads, which have little paint.
+  - The survey covers the arterials only along the campus side.
+
+  **Not audited yet:** the junction paths and the 16 sign bans against the painted arrows and
+  the signs. This needs arrow detection in the orthos, or a check by eye at each signalised
+  junction inside the survey.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

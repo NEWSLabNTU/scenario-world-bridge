@@ -19,6 +19,10 @@ solution method based on our findings and online studies ... see if GPU can help
 **Depends on**: [060](060-live-race-planner.md) (the live planner and tracker, sim.Plant,
 course_probe LIVE=1).
 
+**Design**: autoware-drift `docs/superpowers/specs/2026-10-29-live-race-planner-design.md`,
+revision 3, section 4.4a (L1's starts chosen from what lies ahead; the re-plan step by step).
+This phase builds and measures it.
+
 **Evidence it starts from** (autoware-drift):
 - `docs/drift-optimality.md` (5b54a11 and after): a drift is optimal only in tight hairpins on
   asphalt (at most 0.4 % on swb's asphalt, a rotation at turn-in, not more speed) and on low
@@ -35,7 +39,8 @@ course_probe LIVE=1).
 
 | | requirement | from |
 |---|---|---|
-| R1 | L1 starts each re-plan in more than one valley (grip, rear out; optionally a flick) and keeps the fastest feasible plan | the study's undecided cases |
+| R1 | where a drift or a fallback can pay, L1 starts the re-plan in more than one valley (grip, held grip, rear out; rarely a flick) and keeps a feasible plan; on dry open asphalt one grip start, as 060 | the study's undecided cases; M3's robustness |
+| R7 | the starts are chosen from the window ahead: the map's surface class with a confidence, corners, grade; the car's estimate only lowers friction and holds through a slide | `preconditions.md`: nothing on the car sees 200-260 m ahead |
 | R2 | the mode changes only when the other is faster by more than the noise, on consecutive re-plans; grip is the default | asphalt's gain (0.4 %) is the size of the noise |
 | R3 | the re-plan still lands within its 1 s budget; a seed not feasible by then is dropped | 060's adoption timing |
 | R4 | the planner's tyre peaks at each surface's own slip angle, as swb's surface layer does | snow peaks at 3 deg in the planner, 6 in swb |
@@ -72,15 +77,17 @@ strategy ... we don't pursue drift start for most dry asphalt roads ... addition
 when on wet roads or snowy roads, or on sharp turns on narrow roads"). Before each re-plan a
 scheduler reads the window ahead (its corners: turn, least radius, distance ahead; each node's
 surface class from M2: friction and fall-off; grade; width) and picks the seeds; the thresholds
-come from the drift-optimality map (after M2), not from a track:
+come from the drift-optimality map (after M2), keyed on the class (its fall-off decides, not its
+friction), not from a track. H is grip held at the rear tyre's peak (`rear_alpha_max`):
 
 | the window ahead holds | seeds | from |
 |---|---|---|
 | dry asphalt, no corner past ~120 deg tighter than R 25 m | G only (060) | drift gains 0.0-0.1 %, none on 90 deg corners |
-| a dry asphalt hairpin (>= 150 deg, R <= 25 m) | G + D | 0.1-0.4 % |
+| a dry asphalt hairpin (>= 150 deg, R <= 25 m) | G + H + D | 0.1-0.4 % |
 | the same at R <= 9 m on a surface without fall-off | + F | the flick wins it by 0.05 s |
-| a wet hairpin (mu ~0.6-0.8, R <= 25 m) | G + D | 0.2-0.9 % |
-| low friction (mu <= 0.45), any corner | G + D (+ F into hairpins) | 1-2 %, and the fallback when G fails (18 % of re-plans at mu 0.3) |
+| a hairpin (R <= 25 m) on loose ground falling off past the peak (gravel, dirt, grass) or packed snow | G + H + D | M2: 0.3-0.6 % (packed snow 0.34 %) |
+| any corner on loose ground without fall-off (mud, sand, loose snow) above p_add | G + H + D (+ F into hairpins) | M2: about 1.2 % in every corner, and the fallback when G fails (18 % of re-plans at mu 0.3) |
+| ice | G + H | M2: no drift pays; H the fallback |
 | a steep downhill (> 5 %) on low friction | + D | the 8 % arm: more slide |
 | the drift corner under ~25 m ahead | no new D | its trail braking is already cut |
 
@@ -97,14 +104,19 @@ the map after a pass. Seeds are added loosely (any class above a small probabili
 committed strictly (M3's gate, scored at a lower friction quantile). M4 adds an arm with a
 deliberately wrong map (0/10/30 % zones misdeclared) and perception on or off.
 
-**M4. Model in the loop (E2).** `sim.Plant` with the ECU: three arms, single start (060),
-multi-start always ({G, D}, F into hairpins), and seeds by precondition (M3b); E0's oracle plan
-as the ceiling; mu 1.03, 0.45, 0.3; corners R 9/15/25 at 90 and 180 deg, then Haruna. Scored
+**M4. Model in the loop (E2).** `sim.Plant` with the ECU: four arms, single start (060),
+multi-start always ({G, H, D}, F into hairpins), seeds by precondition (M3b) on a true map, and
+seeds by precondition on a wrong map (0/10/30 % of zones misdeclared, perception on or off);
+E0's oracle plan as the ceiling; asphalt and swb's classes (mud_wet, snow_loose, gravel,
+snow_packed, ice) rather than abstract mu, low-friction stretches given a class (M2's ruling);
+corners R 9/15/25 at 90 and 180 deg, then Haruna. Scored
 per corner as well as per lap: in each corner M1 (after M2) calls drift-optimal, the share of
 the oracle's gain the loop keeps. Beside the free G, a held grip seed (the tyre's peak as a
 bound) so a grip plan always exists to weigh; a band around the 3 deg drift line so slides at
 it do not flip the label; multi-start on cores of its own. Gate: as reframed after M3
-(robustness first), and the scheduled arm at least as good as always-on with fewer solves.
+(robustness first); the scheduled arm at least as good as always-on with fewer solves; with
+10 % of zones wrong, the scheduled arm stops no more often than always-on. Rebuild the corner
+library on M2's tyre if D's iterations say so.
 
 **M5. GPU mode probe (E3), only if M1 shows fixed seeds miss valleys.** Batched rollouts of
 L1's model (CusADi or JAX) over a corner-local 3-5 s horizon, 10^3-10^4 candidates by

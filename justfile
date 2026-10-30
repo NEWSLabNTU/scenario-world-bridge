@@ -96,7 +96,10 @@ setup:
     # System dependencies, exactly as a user installs them
     source /opt/ros/humble/setup.bash
     source "{{autoware_setup}}"
-    rosdep install --from-paths src --ignore-src -y
+    # The packages colcon builds, not `--from-paths src`: rosdep's crawl walks into the
+    # components' deps/ copies (COLCON_IGNORE does not stop it) and fails on their templates
+    # ("@KIT@_description does not follow naming conventions").
+    rosdep install --from-paths $(colcon list --base-paths src -p) --ignore-src -y
 
     # Developer extras
     rustup toolchain list | grep -q nightly || rustup toolchain install nightly

@@ -204,6 +204,41 @@ shows every lane line, arrow and kerb (`/mnt/toshiba/aeon/ntu-map/` on 241). Mea
   goal, the generated PCD against 059's real MLS: does the open-data map localize a scan of the
   real place?
 
+## Where in Taipei: OSM's lane tags, measured (2026-10-30)
+
+User direction: start in simulation in a place in Taipei where the lane information is complete,
+and move to a real car later, with a refinement and audit process during real-car deployment.
+
+Method: Overpass, every road way inside Taipei City (14,102 ways, 4,657 traffic-signal nodes,
+OSM base 2026-10-30), scored in 500 m and 800 m cells. Lane and speed-limit coverage is the
+share of trunk-to-tertiary length that carries the tag. Turn-lane coverage is the share of
+approaches to a signal (a way ending within 40-50 m of one) that carry `turn:lanes`. The
+scripts and the data are in the session scratchpad; they belong in `scripts/` when route B is
+built.
+
+- **City-wide:**
+  - `lanes` is on 68 % of major-road length and `maxspeed` on 29 %.
+  - `turn:lanes` is on 2 % of signal approaches: 141 ways in the whole city, 54 of them on 敦化北路.
+  - No signalised junction has every approach tagged with lanes, turn lanes and a speed limit.
+  - **No place in Taipei has complete lane information in OSM.** Turn lanes have to come from
+    somewhere else in any area chosen.
+- **Best tagged: 敦化北路 × 民權東路, by Songshan airport (25.0613, 121.5521, one 500 m cell).**
+  - lanes 97 %, maxspeed 89 %, turn lanes on 68 % of signal approaches;
+  - `change:lanes` and `bus:lanes` mapped too;
+  - but this is one junction, with partly tagged neighbours: 民生東路 × 敦化北路 has 2-4 of 16
+    approaches tagged, and 光復北路 none.
+  - It is Taipei's busiest kind of boulevard, which makes it a poor first site for a real car.
+- **Second: around NTU (新生南路三段 / 辛亥路 / 羅斯福路四段, 25.016, 121.532).**
+  - lanes 95 %, maxspeed 55 %, turn lanes on 28 % of approaches;
+  - 15 of the city's turn-lane ways are here;
+  - complications: 羅斯福路's centre bus lanes, slow lanes for scooters, the 基隆路 viaduct and
+    the 辛亥路 ramps.
+  - It lies inside 059's coloured MLS survey and its 2 cm orthophoto, where every arrow and stop
+    line is visible. The missing turn lanes and speed limits can therefore be read off ground
+    truth and audited there. It is also where a real NTU car would drive.
+- **Taiwan's government HD maps** (NLSC's format, about 120 km built by 2021) cover test fields
+  in 淡海, 嘉義 and 台61, not Taipei. No open download was found.
+
 ## Open questions
 
 - **Region:** the NTU area (it has ground truth), Haruna (it already exists), or somewhere

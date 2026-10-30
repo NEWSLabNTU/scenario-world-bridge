@@ -6,10 +6,14 @@ Autoware vector maps of its roads. SVL's asset store shut down in 2022. This pha
 map into our three stacks: its lanes to Autoware and CARLA, its 3D model to Isaac and CARLA,
 all in one frame.
 
-**Status**: in progress, 2026-10-30. The conversion is done on 241. Not yet tried:
-- loading the world in Isaac (241 has no free GPU);
-- CARLA's `make import` (it needs the UE 4.26 editor build on newslab-server139);
-- an Autoware run on it.
+**Status**: in progress, 2026-10-30. Done on 241:
+- the conversion;
+- CARLA: imported, packaged and driven.
+
+Not yet done:
+- the Isaac world rendered: 241's GPUs are held by another user's vLLM, and the RTX
+  renderer cannot allocate buffers in the 1.3 GB left;
+- an Autoware run.
 
 **Source**: user direction 2026-10-30: "the discontinued LGSVL provided online map assets.
 One of them is in Taiwan. Let's see if we can get that map", then "how we can import the
@@ -146,6 +150,36 @@ The 95th percentile is 3.4 m: lanes in the OpenDRIVE that have no lanelet (to ch
 | `carla/` | `Shalun.json`, plus `Shalun/Shalun.xodr`, `Shalun.fbx` and its textures, for CARLA's `Import/` |
 | `topdown.png` | the scene by class with the lanelets over it, the frame check |
 
+## CARLA, done on 241
+
+241's own CARLA 0.9.16 editor build (`/mnt/toshiba/aeon/carla-src`, roadmap 043) took the
+package:
+- **Import:** `Util/BuildTools/Import.sh --package Shalun` (the four commandlets) wrote
+  `Content/Shalun/` with 0 errors. The editor could not re-save CARLA's own `BaseMap`, which
+  does not touch this map.
+- **Package:** `Package.sh --packages=Shalun` cooked it in 305 s, giving
+  `Dist/Shalun_294096e-dirty.tar.gz` (251 MB).
+- **Install:** `ImportAssets.sh` put it into the 0.9.16 binary
+  (`~/Downloads/CARLA_0.9.16`).
+
+A server with `-nullrhi` on port 2400 loaded `Shalun`:
+- 79 spawn points;
+- 28 traffic lights;
+- 22 of the 23 stop signs (one is to find);
+- a Tesla Model 3 at the first spawn point settled onto the road surface (z 0.00) and drove
+  up the lane at 0.4 throttle, within 0.4-1.3 m of the lane's waypoints.
+
+So the FBX's collision lies on the OpenDRIVE's roads. Not yet looked at: the picture, since
+there is no rendering on 241's GPUs now, and whether the FBX is mirrored against the roads,
+which needs a camera image or a top-down view.
+
+## Isaac on 241
+
+`scripts/svl_import/isaac_probe.py` renders a world headless to PNGs.
+- On GPU1 (1.3 GB free beside the vLLM), Isaac boots and loads the stage.
+- The RTX renderer then fails: `[omni.rtx] Unable to allocate buffer ... Rendering failed`.
+- The world server needs a GPU with several GB free: 133's, or 241's once the vLLM is gone.
+
 ## Next
 
 1. **Isaac:** on a host with a free RTX GPU, `just isaac-world world:=<map dir>`. Check:
@@ -153,11 +187,10 @@ The 95th percentile is 3.4 m: lanes in the OpenDRIVE that have no lanelet (to ch
    - colliders under the wheels;
    - the RTX lidar's returns;
    - the Q-code ground paths.
-2. **CARLA:** on newslab-server139, copy `carla/` into CARLA_SRC's `Import/` and run
-   `make import`, then `make package`. Check:
-   - that the FBX lands on the OpenDRIVE roads (the y mirror);
-   - CARLA's traffic lights at the 28 signals;
-   - spawn points.
+2. **CARLA:** look at it once a GPU is free:
+   - a camera image, to confirm the FBX is not mirrored against the roads;
+   - the 23rd stop sign;
+   - our bridge's `load_world` and a scenario on it.
 3. **Autoware:** `map_path:=<map dir>`. Check:
    - NDT on the sampled PCD against the RTX lidar in Isaac;
    - routing across the junctions;

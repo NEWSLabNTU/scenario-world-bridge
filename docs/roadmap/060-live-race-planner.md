@@ -237,7 +237,26 @@ Rulings:
   the open axle did not converge in M0, and the live loop's windows were not tried on them.
   Left for the race stack's phase.
 
+**After the phase: when a drift is the optimum** (autoware-drift 5b54a11,
+`docs/drift-optimality.md`). L1 on synthetic corners (90 and 180 deg, R 9-60 m, mu 0.3-1.12,
+fall-off past the peak 1.0/0.8/0.6), each solved free and with the rear axle held to its tyre's
+peak slip angle (a new optional bound, off in the live build). A drift is optimal in tight
+hairpins on every surface but gains only 0.1-0.9 % (0.4 % at R 9 m on swb's asphalt, nothing
+past R 25 m or in any 90 deg corner), and on low friction (mu 0.3-0.45) in nearly every corner,
+up to 1.8 % with trail braking into a 33 deg slide. What decides it is the tyre's fall-off past
+its peak and the yaw the corner needs. In a 170 deg hairpin on asphalt the drift does not keep
+the speed up (its minimum is 0.1-0.2 m/s lower, its exit the same, its tyres dissipate 2-15 %
+more); it buys earlier rotation, so later braking (8-60 ms). On snow it exits faster, because
+the grip-only line ploughs at full lock. The stable-branch rows do not exclude a drift (removing
+them changes nothing). Body sideslip is not a drift test for this car: the PhysX tyre peaks at
+10-15 deg on asphalt, so grip driving already has 6-12 deg. Both layers optimise by derivatives
+(IPOPT on the exact, compiled NLP; RTI on HPIPM); a GPU would not speed them up (a small,
+banded problem), but would serve the choice between the grip and drift optima (multi-start, or
+MPPI sampling), which the derivative solver cannot make (8 of 20 mu 0.45 cases undecided).
+
 **Open, for the next phase** (the race stack's port, autoware-drift `race-stack-design.md`):
+the planner's tyre on each surface's own peak slip angle (snow: 3 deg in the planner, 6 in
+swb's surface layer), and a mode choice between grip and drift on low friction;
 the surface known ahead (M6); low grip (snow) and the open axle; the off-plan re-plan never
 fires while L1 is busy on its 1 s timer (a pre-emptive re-plan would need a second solver or
 an abortable one); Isaac runs wait for each L1 solve (a solver on its own core in real time is

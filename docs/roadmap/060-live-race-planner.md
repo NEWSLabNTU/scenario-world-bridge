@@ -256,7 +256,10 @@ MPPI sampling), which the derivative solver cannot make (8 of 20 mu 0.45 cases u
 
 **Open, for the next phase** (the race stack's port, autoware-drift `race-stack-design.md`):
 the planner's tyre on each surface's own peak slip angle (snow: 3 deg in the planner, 6 in
-swb's surface layer), and a mode choice between grip and drift on low friction;
+swb's surface layer), and a mode choice between grip and drift on low friction: a derivative
+solver stays in its start's valley of a non-convex problem, so the first fix to try is seeded
+multi-start (the window solved in parallel from a grip seed and a rear-out seed, the fastest
+feasible plan kept), then a GPU sampler choosing the mode;
 the surface known ahead (M6); low grip (snow) and the open axle; the off-plan re-plan never
 fires while L1 is busy on its 1 s timer (a pre-emptive re-plan would need a second solver or
 an abortable one); Isaac runs wait for each L1 solve (a solver on its own core in real time is

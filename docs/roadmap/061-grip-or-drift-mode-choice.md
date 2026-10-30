@@ -105,4 +105,46 @@ Gate: M4's gain with at most 2 solves per re-plan.
 
 ## Progress
 
-(none yet)
+**M1 (done, 2026-10-30; gate failed).** Built: the `multistart` grids in
+`studies/drift_optimality.py` (autoware-drift 06c7b80; write-up `docs/mode-choice-m1.md`,
+results `play_log/race_planner/mode_choice/m1/`). 70 cases (all 30 mu 0.45, all 30 mu 0.3, the
+10 asphalt hairpins), 8 starts each: C cold, G grip (the held plan, bound removed), Ds rear
+out synthetic, Dc fall-off continuation, F flick, P1-P3 perturbed; study settings and live
+(ds 4, 260 m, tol 1e-3, 1 s budget). Results:
+- coverage of the drift-optimal cases (oracle within the noise floor's p75): study {G, Dc}
+  90 %, {G, Ds} 72 %, {G, Ds, Dc} 92 %, {G, Dc, F} 100 %; live, one budgeted solve a start
+  (the Driver's warm options), {G, Dc} 73 %, {G, Ds} 47 %, {G, Ds, Dc} 87 %. Every start is
+  the oracle somewhere (Ds 20, Dc 17, F 15 of 70); the flick wins the 9 m asphalt hairpin with
+  no fall-off by 0.05 s over all others;
+- undecided mu 0.45: 9/30 at p75, 5/30 at p50, not 2. Of the study's 8, two are now drift
+  (0.11, 0.23 s); the rest are ties: drift and grip within 0.01-0.03 s, inside the noise.
+  The held plan has valleys too (the held solve from the oracle beats the cold one by up to
+  1.1 %);
+- a drift seed from scratch: 110-130 iterations at the median, 230-280 at p95 (0.9-1.1 s at
+  window.py's 4 ms an iteration; 7-10 ms on this run's shared host, load 17-128, so 2.1-3.1 s
+  measured). G warm: 18 iterations at the median;
+- noise floor (G and perturbed starts in G's valley): mu 0.45 p50/p75/p90 0.13/0.25/0.43 %
+  (study), 0.10/0.30/0.49 % (live); mu 0.3 0.03/0.17/0.46 %; asphalt 0 (2 ms) study, p75
+  0.04 % live;
+- E0b: HSL (MA27/57/97) is not in this CasADi build (no libhsl.so; not downloaded, licensed).
+  SPRAL is: same iterations, 4.4x the cost each; not adopted, MUMPS stays.
+Rulings:
+- The gate's "20 mu 0.45 cases" are the grid's 30; all ran, the study's 8 undecided tracked
+  by name. Why: the grid has 30. Cost if wrong: none, every case is in the data.
+- G is the held->free start (no previous plan offline); C cold is the eighth. Why: the grip
+  valley's own plan. Cost if wrong: the cold held plan is a poor optimum on low mu, so {G} is
+  pessimistic.
+- Live window from the section's start, timed at most at 220 m (R 40 and 60 x 180 deg do not
+  fit 260 m). Why: the window holding the corner's entry decides the mode. Cost if wrong: those
+  two cases miss part of the exit.
+- Live Dc is the case's own study-setting continuation plan, resampled (a chain is 2-5 solves,
+  p50 9.4 s: offline). Why: a corner library's best case. Cost if wrong: Dc's live numbers are
+  an upper bound.
+- Grip 1.0 at both settings (the study's), so labels compare. Cost if wrong: live's 0.92 moves
+  cases down the mu axis, nothing else.
+- For M3: seeds G (warm), Dc from a stored archetype, Ds where none fits; F only for tight
+  hairpins; switch threshold 0.3 % of the window's time, grip on a tie. Each seed keeps its
+  own plan from re-plan to re-plan (convergence over re-plans, which E0 does not measure);
+  timing gates measured by iterations or on a quiet core. Why: the coverage and cost above.
+  Cost if wrong: a seed that does not converge across re-plans either leaves 10-15 % of drift
+  cases to the grip plan or needs E3's probe.

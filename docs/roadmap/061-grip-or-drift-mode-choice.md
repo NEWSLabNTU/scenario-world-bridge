@@ -67,10 +67,35 @@ chain without a plant along the study sections and Haruna (mu 1.03, patches at 0
 Gate: at most one mode change per corner, no grip-drift flip-flop on asphalt, budget overruns
 at most 1 % of re-plans.
 
-**M4. Model in the loop (E2).** `sim.Plant` with the ECU: single start (060) against {G, D}
-and {G, D, F}, E0's oracle plan as the ceiling; mu 1.03, 0.45, 0.3; corners R 9/15/25 at 90
-and 180 deg, then Haruna. Gate: on low friction at least half the oracle's gain with no added
-stops or off-road; on asphalt no regression beyond 0.1 %; p99 adoption latency at most 1.0 s.
+**M3b. Seeds by precondition** (user, 2026-10-30: "check preconditions and adjust solving
+strategy ... we don't pursue drift start for most dry asphalt roads ... additional init starts
+when on wet roads or snowy roads, or on sharp turns on narrow roads"). Before each re-plan a
+scheduler reads the window ahead (its corners: turn, least radius, distance ahead; each node's
+surface class from M2: friction and fall-off; grade; width) and picks the seeds; the thresholds
+come from the drift-optimality map (after M2), not from a track:
+
+| the window ahead holds | seeds | from |
+|---|---|---|
+| dry asphalt, no corner past ~120 deg tighter than R 25 m | G only (060) | drift gains 0.0-0.1 %, none on 90 deg corners |
+| a dry asphalt hairpin (>= 150 deg, R <= 25 m) | G + D | 0.1-0.4 % |
+| the same at R <= 9 m on a surface without fall-off | + F | the flick wins it by 0.05 s |
+| a wet hairpin (mu ~0.6-0.8, R <= 25 m) | G + D | 0.2-0.9 % |
+| low friction (mu <= 0.45), any corner | G + D (+ F into hairpins) | 1-2 %, and the fallback when G fails (18 % of re-plans at mu 0.3) |
+| a steep downhill (> 5 %) on low friction | + D | the 8 % arm: more slide |
+| the drift corner under ~25 m ahead | no new D | its trail braking is already cut |
+
+Narrow roads: the study ran one width; a width arm (6, 8, 10, 15 m) comes first, and a width
+rule only from its result. The surface ahead is the map's; an unseen patch (060 M6) stays
+outside. M7's learned chooser, if built, replaces this table with the same inputs.
+
+**M4. Model in the loop (E2).** `sim.Plant` with the ECU: three arms, single start (060),
+multi-start always ({G, D}, F into hairpins), and seeds by precondition (M3b); E0's oracle plan
+as the ceiling; mu 1.03, 0.45, 0.3; corners R 9/15/25 at 90 and 180 deg, then Haruna. Scored
+per corner as well as per lap: in each corner M1 (after M2) calls drift-optimal, the share of
+the oracle's gain the loop keeps. Beside the free G, a held grip seed (the tyre's peak as a
+bound) so a grip plan always exists to weigh; a band around the 3 deg drift line so slides at
+it do not flip the label; multi-start on cores of its own. Gate: as reframed after M3
+(robustness first), and the scheduled arm at least as good as always-on with fewer solves.
 
 **M5. GPU mode probe (E3), only if M1 shows fixed seeds miss valleys.** Batched rollouts of
 L1's model (CusADi or JAX) over a corner-local 3-5 s horizon, 10^3-10^4 candidates by

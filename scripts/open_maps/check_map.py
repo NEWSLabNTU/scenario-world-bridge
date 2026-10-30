@@ -8,7 +8,7 @@ Plain XML, no ROS. Reports:
 - size: nodes, ways, lanelets, nodes per way (crdesigner's maps are known to hang Autoware on
   node count, Autoware discussion #6019);
 - connectivity: successors by shared bound endpoints, dead ends, lanelets with no
-  predecessor, branch points (a lanelet with two or more successors starts a junction path);
+  predecessor, stranded lanes (none from a way into the map, or none to a way out), branch points (a lanelet with two or more successors starts a junction path);
 - junction paths (the successors of a branch point): how many carry `turn_direction`;
 - road lanelets with `speed_limit`;
 - traffic-light regulatory elements: how many have a stop line (`ref_line`), how many lanelets
@@ -68,6 +68,57 @@ def check(path):
                     if any(typ == "relation" and rl == "regulatory_element" and ref in tl_ids
                            for typ, rl, ref in m))
     stop_lines = sum(1 for t in way_tags.values() if t.get("type") == "stop_line")
+    # stranded lanes: a box cuts every road that crosses its edge, so a lane that leads out of
+    # it, or comes in from outside, is fine; what is not is a lane no car can reach from any
+    # way into the map, or one from which no car can get out of it (the strongly connected
+    # part is no measure here: it counts every lane the box cut off from coming back)
+    xy = {}
+    for nd in nodes:
+        t = {x.get("k"): x.get("v") for x in nd.findall("tag")}
+        if "local_x" in t:
+            xy[nd.get("id")] = (float(t["local_x"]), float(t["local_y"]))
+    if xy:
+        xs = [p[0] for p in xy.values()]
+        ys = [p[1] for p in xy.values()]
+        box = (min(xs) + 60, min(ys) + 60, max(xs) - 60, max(ys) - 60)
+
+        def edge(nid):
+            x, y = xy[nid]
+            return not (box[0] < x < box[2] and box[1] < y < box[3])
+        entries = [k for k in start if pred[k] == 0 and edge(start[k][0])]
+        exits = [k for k in end if not succ[k] and edge(end[k][0])]
+        # Autoware's routing also changes lanes across a dashed line: neighbours share that
+        # bound way, one as its right bound, the other as its left
+        role_of = defaultdict(list)
+        for k, (t, m) in road.items():
+            for typ, rl, ref in m:
+                if typ == "way" and rl in ("left", "right") and way_tags.get(ref, {}).get("subtype") == "dashed":
+                    role_of[ref].append((k, rl))
+        move = {k: list(v) for k, v in succ.items()}
+        for ref, lst in role_of.items():
+            for a, ra in lst:
+                for b, rb in lst:
+                    if a != b and ra != rb and a in move:
+                        move[a].append(b)
+        back = defaultdict(list)
+        for k, v in move.items():
+            for x in v:
+                back[x].append(k)
+
+        def reach(seeds, g):
+            seen, todo = set(seeds), list(seeds)
+            while todo:
+                v = todo.pop()
+                for w in g.get(v, []):
+                    if w not in seen:
+                        seen.add(w)
+                        todo.append(w)
+            return seen
+        enterable, leavable = reach(entries, move), reach(exits, back)
+        stranded = {"not reachable from an entry": sum(1 for k in start if k not in enterable),
+                    "cannot reach an exit": sum(1 for k in start if k not in leavable)}
+    else:
+        stranded = {}
     per = [len(v) for v in ways.values()] or [0]
     local = sum(1 for n in nodes if any(t.get("k") == "local_x" for t in n.findall("tag")))
     rep = {
@@ -77,6 +128,7 @@ def check(path):
         "dead_ends": sum(1 for v in succ.values() if not v),
         "no_predecessor": sum(1 for k in start if pred[k] == 0),
         "branch_points": len(branch), "junction_paths": len(paths),
+        "stranded": stranded,
         "junction_paths_turn_direction": dict(turn),
         "speed_limit": sum(1 for t, _ in road.values() if "speed_limit" in t),
         "regulatory_elements": dict(regs_by_sub),

@@ -69,6 +69,10 @@ ARROWS = {
     "marking--discrete--arrow--split-left-or-right": {"left", "right"},
     "marking--discrete--arrow--split-left-or-right-or-straight": {"left", "right", "straight"},
 }
+DEBUG_AT = tuple(map(float, __import__('os').environ['SWB_DEBUG_AT'].split(','))) \
+    if __import__('os').environ.get('SWB_DEBUG_AT') else None
+STATS = Counter()   # counts from the network build, merged into report.json
+BAN_LOG = []   # every sign ban, for review (report.json's bans)
 NO_TURN = {"regulatory--no-left-turn--g1": "left", "regulatory--no-right-turn--g1": "right"}
 TURN_TOKENS = {"left": "left", "sharp_left": "left", "slight_left": "left",
                "right": "right", "sharp_right": "right", "slight_right": "right",
@@ -246,6 +250,12 @@ def car_road(t):
     for k in ("motor_vehicle", "motorcar", "vehicle", "access"):
         if t.get(k) == "no":
             return False
+    # a bus-only way: bus or psv designated, and nothing letting cars on (羅斯福路大客車專用道
+    # is a primary with bus=designated alone in 12 of its ways)
+    if "designated" in (t.get("bus"), t.get("psv")) and not any(
+            t.get(k) in ("yes", "designated", "destination", "permissive")
+            for k in ("motor_vehicle", "motorcar", "vehicle", "access")):
+        return False
     if num(t.get("layer"), 0) < 0 or t.get("tunnel") in ("yes", "building_passage"):
         return False        # underpasses (辛亥路車行地下道) lie under the roads they cross
     return True
@@ -326,23 +336,40 @@ def build(site, out):
     raw = out / "raw"
     frame = Frame(site["frame"])
     nodes, ways, rels, inside, xy = load_osm(raw, site["bbox"], frame)
-    roads = []
+    roads, raised = [], set()
     for w in ways:
         t = w.get("tags", {})
         if not car_road(t):
             continue
         pts = [xy[i] for i in w["nodes"] if i in xy]
         if len(pts) >= 2 and elevated(t, LineString(pts).length):
+            raised.update(w["nodes"])
             continue
         roads.append(w)
+    # the ramps of a viaduct left out go with it (辛亥路出口匝道 led down from nothing), and so
+    # does a ramp that only led to such a ramp
+    while True:
+        ramps = [w for w in roads if w["tags"].get("highway", "").endswith("_link")
+                 and raised & set(w["nodes"])]
+        if not ramps:
+            break
+        for w in ramps:
+            raised.update(w["nodes"])
+        roads = [w for w in roads if w not in ramps]
+        STATS["viaduct_ramps_dropped"] += len(ramps)
     # keep each way's run of nodes inside the box (relations pulled in ways from far away)
     pieces = []
+    clipped = set()     # run ends where the box cut the way: dead ends that are not real
     for w in roads:
         run = []
-        for nid in w["nodes"]:
+        for i, nid in enumerate(w["nodes"]):
             if nid in inside:
+                if not run and i > 0:
+                    clipped.add(nid)
                 run.append(nid)
             else:
+                if run:
+                    clipped.add(run[-1])
                 if len(run) >= 2:
                     pieces.append((w, run))
                 run = []
@@ -362,11 +389,25 @@ def build(site, out):
             pts = [xy[i] for i in ids]
             if LineString(pts).length > 0.5:
                 chains.append(Chain(w, ids, pts))
+    # stubs: a short chain from a junction to nowhere (新生南路's 5-lane piece that ends where
+    # only the bus lanes go on, at the main gate) would be an exit into a dead end; drop it,
+    # and again for what that leaves
+    while True:
+        ends = defaultdict(list)
+        for c in chains:
+            ends[c.nids[0]].append((c, 0))
+            ends[c.nids[-1]].append((c, -1))
+        stubs = set()
+        for c in chains:
+            for a, b in ((c.nids[0], c.nids[-1]), (c.nids[-1], c.nids[0])):
+                if (len(ends[a]) == 1 and a not in clipped and len(ends[b]) >= 3
+                        and LineString(c.pts).length < 40.0):
+                    stubs.add(id(c))
+        if not stubs:
+            break
+        chains = [c for c in chains if id(c) not in stubs]
+        STATS["stub_chains_dropped"] += len(stubs)
     # junctions: nodes where three or more chain ends meet
-    ends = defaultdict(list)
-    for c in chains:
-        ends[c.nids[0]].append((c, 0))
-        ends[c.nids[-1]].append((c, -1))
     jnodes = {n for n, v in ends.items() if len(v) >= 3}
     signals = [xy[i] for i in inside
                if nodes[i].get("tags", {}).get("highway") == "traffic_signals"]
@@ -528,9 +569,23 @@ def travel_frame(chain, direction):
     return LineString(list(chain.line.coords)[::-1]), 0.0
 
 
+def approach_frame(chain, direction):
+    """(the whole road along travel, the lanes' left edge offset, where the lanes end on it).
+    Signs and arrows are placed against the whole road, not the cut lanes: a point beyond a
+    line's end projects onto the end, and read as 0 m from it (a sign 570 m away once banned a
+    turn at the main gate)."""
+    full = chain.full if direction > 0 else LineString(list(chain.full.coords)[::-1])
+    line, left = travel_frame(chain, direction)
+    end = line.coords[-1]
+    return full, left, full.project(Point(end))
+
+
 def lateral(line, p):
-    """(distance along, signed offset: + left) of point p from line."""
+    """(distance along, signed offset: + left) of point p from line, or None when p lies beyond
+    either end (its projection clamps there)."""
     s = line.project(Point(p))
+    if s <= 1e-6 or s >= line.length - 1e-6:
+        return None
     a = line.interpolate(max(0.0, s - 0.5))
     b = line.interpolate(min(line.length, s + 0.5))
     h = heading((a.x, a.y), (b.x, b.y))
@@ -572,12 +627,15 @@ def generate(site, out):
             return v, "osm"
         if c.way["id"] in ov:
             return ov[c.way["id"]], "overture"
-        line, left = travel_frame(c, d)
+        line, left, _ = approach_frame(c, d)
         n = c.nf if d > 0 else c.nb
         best = None
         for f in signs:
-            s, off = lateral(line, f["xy"])
-            if 0 < s < line.length and left - n * c.w - 10 < off < left and faces(f, line, s):
+            sl = lateral(line, f["xy"])
+            if sl is None:
+                continue
+            s, off = sl
+            if left - n * c.w - 10 < off < left and faces(f, line, s):
                 v = float(re.match(r"regulatory--maximum-speed-limit-(\d+)--", f["object_value"]).group(1))
                 best = v if best is None else min(best, v)
         if best:
@@ -651,12 +709,13 @@ def generate(site, out):
                     if s:
                         allowed[i], src[i] = s, "osm"
             if any(a is None for a in allowed):
-                line, left = travel_frame(c, d)
-                full = LineString(list(c.full.coords) if d > 0 else list(c.full.coords)[::-1])
-                L_end = line.length
+                line, left, L_end = approach_frame(c, d)
                 votes = defaultdict(Counter)
                 for f in arrows:
-                    s, off = lateral(line, f["xy"])
+                    sl = lateral(line, f["xy"])
+                    if sl is None:
+                        continue
+                    s, off = sl
                     if L_end - 60 < s <= L_end + 3:
                         k = int((left - off) // c.w)
                         if 0 <= k < n:
@@ -690,13 +749,21 @@ def generate(site, out):
                                     banned.add((k, id(e[0]), e[1]))
                                 elif kind.startswith("only_"):
                                     only = (k, id(e[0]), e[1])
-            line, left = travel_frame(c, d)
+            line, left, L_end = approach_frame(c, d)
             signed = set()
             for f in noturn:
-                s, off = lateral(line, f["xy"])
-                if (line.length - 50 < s <= line.length + 5 and left - n * c.w - 10 < off < left
+                sl = lateral(line, f["xy"])
+                if sl is None:
+                    continue
+                s, off = sl
+                if (L_end - 50 < s <= L_end + 5 and left - n * c.w - 10 < off < left
                         and faces(f, line, s)):
                     signed.add(NO_TURN[f["object_value"]])
+                    BAN_LOG.append({"road": c.name, "way": c.way["id"], "dir": d, "kind": NO_TURN[f["object_value"]],
+                                    "sign": f["id"], "sign_xy": [round(v, 1) for v in f["xy"]],
+                                    "before_stop_m": round(L_end - s, 1), "offset_m": round(off - left, 1),
+                                    "lanes": n, "junction": j["id"], "junction_xy": [round(v) for v in j["c"]],
+                                    "exits": {k: [e[0].name for e in es] for k, es in moves.items()}})
             for kind in signed:
                 if kind in moves:
                     for e in moves[kind]:
@@ -731,6 +798,10 @@ def generate(site, out):
                 stats[f"movements_added:{kind}"] += 1
             for k in range(n):
                 stats[f"lane_turns:{src[k]}"] += 1
+            if DEBUG_AT and math.dist(j["c"], DEBUG_AT) < 40:
+                print(f"J{j['id']} approach {c.name or c.way['id']} ({c.way['id']}, dir {d}, {n} lanes): "
+                      f"exits {{{', '.join(f'{k}: ' + '/'.join(e[0].name or str(e[0].way['id']) for e in es) for k, es in moves.items())}}} "
+                      f"banned {sorted(b[0] for b in banned)} lanes {[sorted(a) for a in allowed]} from {src}")
             for kind, es in moves.items():
                 ins = [k for k in range(n) if kind in allowed[k]]
                 if not ins:
@@ -851,8 +922,10 @@ def write_out(osm, site, out, report, stats):
     (g / "map_projector_info.yaml").write_text(
         f"projector_type: MGRS\nvertical_datum: WGS84\nmgrs_grid: {f['mgrs_grid']}\n")
     rep = {"nodes": len(osm.nodes), "ways": len(osm.ways), "relations": len(osm.rels)}
+    (g / "bans.json").write_text(json.dumps(BAN_LOG, indent=1, ensure_ascii=False))
     rep.update(report)
     rep.update(stats)
+    rep.update(STATS)
     (g / "report.json").write_text(json.dumps(rep, indent=1, sort_keys=True))
     for k in sorted(rep):
         print(f"{k:34s} {rep[k]}")

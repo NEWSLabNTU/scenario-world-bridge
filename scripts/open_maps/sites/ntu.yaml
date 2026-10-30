@@ -4,3 +4,14 @@ bbox: [25.012, 121.530, 25.024, 121.548]   # south, west, north, east (WGS84)
 # The map frame is 059's and the vendor maps' (019): MGRS 51RUH local, that is UTM 51N less
 # the 100 km square's corner. The Isaac world is the map frame less map_origin (059).
 frame: {utm_epsg: 32651, mgrs_grid: 51RUH, mgrs_offset: [300000, 2700000], map_origin: [52500, 67700, 0]}
+# Places a route must join (route_matrix.py checks every pair both ways): a road's lanelets, by
+# name, within 80 m of a point (map frame, m), both directions.
+landmarks:
+  椰林大道: {road: 椰林大道, near: [52200, 67650]}
+  舟山路: {road: 舟山路, near: [52640, 67540]}
+  新生南路: {road: 新生南路三段, near: [52130, 67900]}
+  辛亥路: {road: 辛亥路二段, near: [52350, 68200]}
+  基隆路: {road: 基隆路四段, near: [52870, 67445]}
+  羅斯福路: {road: 羅斯福路四段, near: [52215, 67251]}
+  復興南路: {road: 復興南路二段, near: [53030, 68300]}
+  汀州路: {road: 汀州路三段, near: [51900, 67380]}

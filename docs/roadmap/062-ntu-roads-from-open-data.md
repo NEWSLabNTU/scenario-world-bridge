@@ -91,46 +91,68 @@ Progress:
   - **Bridges.** Short ones over the canals stay (舟山路 had been cut in two). Underpasses, and
     major roads raised for more than 60 m, are left out.
 
+  **Arterial connectivity** (same day, user direction "Fix the arterial connectivity"). The
+  arterials looked cut off from the campus. Three causes, and one wrong measure:
+
+  - **Projection.** A sign or arrow beyond the end of an approach projected onto its end and
+    read as 0 m before the stop line. A sign 570 m away banned a turn at the main gate, and
+    arrows from far away voted lanes. Both are now placed against the whole uncut road, and a
+    point beyond either end is rejected. Approaches losing a turn to a sign went from 237 to
+    16, and lanes assigned by arrows from 837 to 170 (`bans.json` lists each ban with its sign
+    and distance).
+  - **Stubs.** Short chains from a junction to nowhere were kept as 2 m pieces inside the
+    junction, and became exits into dead ends. For example, 新生南路's five-lane piece at the
+    main gate ends where only the bus lanes go on. 64 were dropped, repeatedly, until none were
+    left.
+  - **Bus-only ways and ramps.** 羅斯福路大客車專用道 carries `bus=designated` alone on 12 of
+    its ways, so it read as a car road. A bus or psv `designated` with nothing letting cars on
+    is now left out. The ramps of the viaducts already left out go too: 27 of them, which had
+    led from nothing.
+  - **The measure.** The largest strongly connected part counts every lane the box cut off
+    from coming back: a lane upstream of where campus traffic joins 羅斯福路 is reachable only
+    by a loop around blocks, and that loop leaves the box. `check_map.py` now reports
+    *stranded* lanes instead: lanes no car can reach from any way into the map, or that lead
+    to no way out. Like Autoware's routing, it counts lane changes across dashed lines.
+    `route_matrix.py` routes between landmarks with Lanelet2 itself; the landmarks are in the
+    site file.
+
   **The result,** against the baseline:
 
   | measure | baseline (A) | generated (B) |
   |---|---|---|
-  | road lanelets / crosswalks | 1,297 / 0 | 3,829 / 67 |
-  | nodes, per way (mean, max) | 310,952 (107, 2,125), 97 MB | 65,338 (10, 132), 13.5 MB |
-  | junction paths with `turn_direction` | 0 of 600 | all 1,633 (left 488, right 509, straight 636) |
+  | road lanelets / crosswalks | 1,297 / 0 | 3,674 / 67 |
+  | nodes, per way (mean, max) | 310,952 (107, 2,125), 97 MB | 60,360 (10, 132) |
+  | junction paths with `turn_direction` | 0 of 600 | all 1,618 (left 494, right 514, straight 610) |
   | `speed_limit` | 0 | all |
-  | traffic lights (stop line, lanelets referring) | 382 (382, 382) | 158 (158, 275) |
-  | random lanelet pairs routable (Lanelet2) | 40 % | 42 % |
-  | largest strongly connected part | 36 % | 24 % |
+  | traffic lights (stop line, lanelets referring) | 382 (382, 382) | 145 (145, 257) |
+  | lanes not reachable from a way in / with no way out | 329 / 156 | 320 / 332 (9 %) |
+  | landmark pairs routable (Lanelet2, 8 landmarks) | 0 of 56 (wrong frame then) | 56 of 56 |
 
+  - **Stranded lanes on the arterials:** 羅斯福路 3 of 148, 辛亥路 8 of 194, 新生南路 0, and
+    汀州路, 椰林大道, 和平東路 and 復興南路 0-1. Those counted under 基隆路 are its 巷 alleys.
+  - **The rest** are mostly OSM's own: two-way roads that dead-end (east 舟山路 ends at its
+    pedestrian zone, and the map builds no U-turns), alleys cut into short pieces, and
+    two-way service roads meeting a one-way road that leads in.
   - **Loading.** The map loads in Autoware's Lanelet2 extension with the MGRS projector, with
-    no errors. Every point lands on its `local_x`/`local_y`, and the 158 traffic lights load as
+    no errors. Every point lands on its `local_x`/`local_y`, and the traffic lights load as
     `AutowareTrafficLight`.
-  - **Junctions:** 388, of which 50 are signalised (34 from OSM's signal nodes, 16 from
+  - **Junctions:** 341, of which 50 are signalised (35 from OSM's signal nodes, 15 from
     Mapillary's lights).
   - **Where each approach lane's movements came from:**
-    - Mapillary's arrows: 837 lanes;
-    - the rule: 437;
-    - OSM `turn:lanes`: 43;
-    - 364 movements were added where nothing held them.
-  - **Signs:** 120 approaches lost their left turn and 117 their right turn to a Mapillary
-    no-turn sign.
+    - the rule: about 1,110 lanes;
+    - Mapillary's arrows: 176;
+    - OSM `turn:lanes`: 39;
+    - movements nothing held were added (`+gap`).
+  - **Signs:** 16 approaches lost a turn to a Mapillary no-turn sign.
   - **Speed limits, by lane:**
-    - the rule (50 km/h, 30 on service roads): 1,145;
-    - OSM: 364;
-    - Mapillary signs: 40;
-    - Overture: 27.
-
-    Public data leaves most limits to the rule.
+    - the rule: 1,018;
+    - OSM: 371;
+    - Mapillary signs: 42;
+    - Overture: 25.
 
   **Open:**
-  - The arterials (羅斯福路, 新生南路, 辛亥路, 基隆路) reach the campus but are mostly outside
-    the largest strongly connected part. The sign bans and the dual-carriageway clusters are
-    the suspects.
-  - 187 dead ends lie inside the box. Most are OSM's own: cul-de-sacs, and a two-way service
-    road meeting a one-way road that leads in, such as the campus's 1321854357. Some are
-    tiny lanelets inside a junction.
-  - Whether the sign bans are right is O4's question: the audit against 059.
+  - Whether the bans and the arrows' lanes are right is O4's question: the audit against 059.
+  - 2 m pieces where alleys are cut very short still give some tiny lanelets.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

@@ -3,9 +3,10 @@
 with every traffic light of the map green from the start.
 
     scripts/open_maps/scenario.py <lanelet2_map.osm> <out.xosc> --name <n> --map <LogicFile path>
-        --start x,y,heading --goal x,y,heading [--timeout 600] [--description "..."]
+        --start x,y,heading[,z] --goal x,y,heading[,z] [--timeout 600] [--description "..."]
 
-Positions are in the map frame (m, rad). The lights: SSv2 names a signal by its traffic_light
+Positions are in the map frame (m, rad); z defaults to 0.3 (start) and 0.0 (goal), the
+generated maps' ground, and is needed on a map whose ground is not at 0 (059's NTU twin, ~12 m). The lights: SSv2 names a signal by its traffic_light
 way's id. Nothing else gives them a state, and Autoware stops for a light it has no state for
 ("the traffic signal data associated with regulatory element id ... is not received": the first
 NTU run stopped at the main gate), so each gets a TrafficSignalStateAction in Init. The ids
@@ -50,7 +51,7 @@ TEMPLATE = """<?xml version="1.0"?>
 					<PrivateAction>
 						<TeleportAction>
 							<Position>
-								<WorldPosition x="{sx}" y="{sy}" z="0.3" h="{sh}" p="0" r="0" />
+								<WorldPosition x="{sx}" y="{sy}" z="{sz}" h="{sh}" p="0" r="0" />
 							</Position>
 						</TeleportAction>
 					</PrivateAction>
@@ -58,7 +59,7 @@ TEMPLATE = """<?xml version="1.0"?>
 						<RoutingAction>
 							<AcquirePositionAction>
 								<Position>
-									<WorldPosition x="{gx}" y="{gy}" z="0.0" h="{gh}" p="0" r="0" />
+									<WorldPosition x="{gx}" y="{gy}" z="{gz}" h="{gh}" p="0" r="0" />
 								</Position>
 							</AcquirePositionAction>
 						</RoutingAction>
@@ -89,7 +90,7 @@ TEMPLATE = """<?xml version="1.0"?>
 											<EntityCondition>
 												<ReachPositionCondition tolerance="5.0">
 													<Position>
-														<WorldPosition x="{gx}" y="{gy}" z="0.0" h="0" p="0" r="0" />
+														<WorldPosition x="{gx}" y="{gy}" z="{gz}" h="0" p="0" r="0" />
 													</Position>
 												</ReachPositionCondition>
 											</EntityCondition>
@@ -151,11 +152,11 @@ def main():
         f'\t\t\t\t<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction '
         f'name="{i}" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>\n'
         for i in lights)
-    sx, sy, sh = a.start.split(",")
-    gx, gy, gh = a.goal.split(",")
+    sx, sy, sh, sz = (a.start.split(",") + ["0.3"])[:4]
+    gx, gy, gh, gz = (a.goal.split(",") + ["0.0"])[:4]
     with open(a.out, "w") as f:
         f.write(TEMPLATE.format(description=a.description, map=a.map_path, lights=block, sx=sx, sy=sy,
-                                sh=sh, gx=gx, gy=gy, gh=gh, name=a.name, timeout=a.timeout))
+                                sh=sh, sz=sz, gx=gx, gy=gy, gh=gh, gz=gz, name=a.name, timeout=a.timeout))
     print(f"{a.out}: {len(lights)} traffic lights green")
 
 

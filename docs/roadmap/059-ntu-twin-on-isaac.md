@@ -175,6 +175,17 @@ Progress:
   - r01 end to end (2026-10-30, all of the above, auto_drive): "ARRIVED at goal after
     99.6s", 349 m. NDT error while moving p50 0.22 m, across-track p95 0.08 m; NVTL never below
     2.89; no AEB, no MRM.
+  - Both routes again on the rebuilt world, with lateral sticky tyre damping 200 (2026-10-31,
+    `/mnt/p5plus/aeon/ntu-twin/n8/drive.sh`, auto_drive from GNSS):
+    - r01: arrived after 96.3 s, 349 m. NDT error while moving p50 0.23 m, p95 0.42 m;
+      across-track p95 0.08 m; NVTL never below 2.87; no AEB, no MRM.
+    - r02 (lanelet 7 to 49, world (-282.58, -45.02), yaw 0.0035): arrived after 126.6 s,
+      347 m. NDT error p50 0.17 m, p95 0.29 m; across-track p95 0.10 m; NVTL never below
+      3.08; no AEB (four before the road clearing), no MRM.
+  - SSv2 on the twin: `scenarios/ntu_twin/ntu_twin_r01.xosc` (r01, no NPCs; the map as
+    `$(env SWB_NTU_TWIN)/map`, a host setting), written by 062's `scripts/open_maps/scenario.py`,
+    which now takes a start's and goal's z (the twin's ground is ~12 m up; the arrival check
+    at z 0 would never have fired). Not run yet: 133 has no swb or SSv2 build.
   - Open (docs/issues 025-027):
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do

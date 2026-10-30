@@ -82,9 +82,9 @@ wheel speed fixes the scale; what is left is heading drift, which turns into lat
 ## Steps
 
 1. [x] **Docs.** This plan (2026-10-30).
-2. [ ] **Rig spec**: pose output, the seed, raw images (rig_localization `docs/superpowers/specs/`).
+2. [x] **Rig spec**: pose output, the seed, raw images (rig_localization `docs/superpowers/specs/2026-10-30-pose-output-design.md`, landed `a080019`, off by default). Replay on a golf-cart drive: at the anchor 0.0 mm / 0.04 deg; 0.48 m / -3.0 deg at +10 s, 1.30 m / -3.6 deg at +60 s; the early yaw step (anchor taken on init-window estimates up to ~2 s old) is for step 5.
 3. [ ] **Camera on**: the Mustang's camera on Isaac at the chosen rate; rendering cost measured.
-4. [ ] **Recordings**: one Isaac run per speed with cuda_ndt driving, ground truth recorded.
+4. [ ] **Recordings**: one Isaac run per speed driven on the ground-truth pose, ground truth recorded.
 5. [ ] **Open-loop ladder**: rig on the recordings, scored.
 6. [ ] **Rate and compute**: profile, cut, re-score.
 7. [ ] **Closed-loop ladder**.

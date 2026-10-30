@@ -204,6 +204,28 @@ Progress:
   **Not audited yet:** the junction paths and the 16 sign bans against the painted arrows and
   the signs. This needs arrow detection in the orthos, or a check by eye at each signalised
   junction inside the survey.
+- **Route C, tried** (2026-10-31, user direction "Try it"; `scripts/open_maps/imagery.py`, off
+  unless `SWB_IMAGERY=1`).
+
+  **The method.** On the major roads, the brightness across the road in NLSC's open 0.27 m
+  photo is averaged in 40 m windows, less its 1.5 m running median. The lane model (width
+  2.7-3.8 m, shift +-1.5 m off the OSM line) is fitted to the narrow bright bands.
+
+  **Why it is weak.** At 0.27 m a 15 cm line covers half a pixel and stands 5-10 grey levels
+  over the asphalt. Without the detrending, 10 of 188 road pieces fitted; with it, 98 (median
+  width 3.10 m).
+
+  **Why it is not trusted.** Neighbouring pieces of one road disagree: 新生南路's way 222745574
+  gives widths 2.7-3.8 m and shifts -1.3 to +1.4 m. On 新生南路 northbound, where 059's paint
+  puts the median-side line on OSM's line (shift 0), the fit says +0.9 to +1.1 m. 059's survey
+  shows arterial paint in only 4 windows of 20 m, the same with the fit as without, too few to
+  validate it.
+
+  **So it stays off.** What could make it work:
+  - a lane-marking segmentation model on the photo instead of a band detector (SkyScapes /
+    Aerial LaneNet; the survey's references);
+  - NLSC's fee-based orthophotos at a finer pixel;
+  - Mapillary's street-level images, which see the lines from 2 m up.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

@@ -71,6 +71,7 @@ ARROWS = {
 }
 DEBUG_AT = tuple(map(float, __import__('os').environ['SWB_DEBUG_AT'].split(','))) \
     if __import__('os').environ.get('SWB_DEBUG_AT') else None
+IMAGERY = __import__('os').environ.get('SWB_IMAGERY', '0') == '1'   # route C, off: see imagery.py
 STATS = Counter()   # counts from the network build, merged into report.json
 BAN_LOG = []   # every sign ban, for review (report.json's bans)
 NO_TURN = {"regulatory--no-left-turn--g1": "left", "regulatory--no-right-turn--g1": "right"}
@@ -330,6 +331,7 @@ class Chain:
         wd = WIDTH_DEFAULT.get(self.cls.replace("_link", ""), 3.0)
         self.w = min(4.5, max(2.6, width / (self.nf + self.nb))) if width else wd
         self.width_source = "osm" if width else "rule"
+        self.d = 0.0        # the lanes' shift left of the OSM line (imagery.py)
 
 
 def build(site, out):
@@ -516,9 +518,9 @@ def lanes_of(osm, chain, report):
     edge = {"type": "line_thin", "subtype": "solid"}
     dash = {"type": "line_thin", "subtype": "dashed"}
     if chain.oneway:
-        offs = [(chain.nf / 2 - k) * w for k in range(chain.nf + 1)]
+        offs = [(chain.nf / 2 - k) * w + chain.d for k in range(chain.nf + 1)]
     else:
-        offs = [-k * w for k in range(chain.nf + 1)]
+        offs = [-k * w + chain.d for k in range(chain.nf + 1)]
     node_ids = {}
 
     def line_nodes(d):
@@ -541,7 +543,7 @@ def lanes_of(osm, chain, report):
     if not chain.oneway:
         bw = []
         for k in range(chain.nb):
-            dl, dr = k * w, (k + 1) * w     # left of the way; travel reversed
+            dl, dr = chain.d + k * w, chain.d + (k + 1) * w     # left of the way; travel reversed
             ln = Lane(chain, -1, k, chain.nb)
             tl = edge if k == 0 else dash
             tr = edge if k == chain.nb - 1 else dash
@@ -565,8 +567,8 @@ def lanes_of(osm, chain, report):
 def travel_frame(chain, direction):
     """(line along travel, the lanes' left edge offset in the travel frame)."""
     if direction > 0:
-        return chain.line, (chain.nf / 2 * chain.w if chain.oneway else 0.0)
-    return LineString(list(chain.line.coords)[::-1]), 0.0
+        return chain.line, (chain.nf / 2 * chain.w if chain.oneway else 0.0) + chain.d
+    return LineString(list(chain.line.coords)[::-1]), -chain.d
 
 
 def approach_frame(chain, direction):
@@ -609,6 +611,18 @@ def faces(f, line, s):
 
 def generate(site, out):
     frame, nodes, rels, chains, J, junction_of, feats = build(site, out)
+    if IMAGERY and (out / "raw" / "nlsc_PHOTO2_z19.png").exists():
+        import imagery
+        photo = imagery.Photo(out / "raw", frame)
+        for c in chains:
+            if c.cls not in MAJOR or c.full.length < 20:
+                continue
+            f = imagery.fit(c, photo)
+            STATS["imagery_chains_tried"] += 1
+            if f:
+                c.w, c.d = f[0], f[1]
+                c.width_source = "imagery"
+                STATS["imagery_chains_fitted"] += 1
     raw = out / "raw"
     ov = overture_speeds(raw)
     osm = Osm(frame)
@@ -651,6 +665,9 @@ def generate(site, out):
                 tags = {"type": "lanelet", "subtype": "road", "location": "urban", "one_way": "yes",
                         "speed_limit": f"{v:g}", "swb:source": "osm", "swb:speed_source": src,
                         "swb:width_source": c.width_source, "swb:osm_way": c.way["id"]}
+                if c.width_source == "imagery":
+                    tags["swb:lane_width"] = f"{c.w:.2f}"
+                    tags["swb:lateral_shift"] = f"{c.d:.2f}"
                 if c.name:
                     tags["name"] = c.name
                 ln.speed = v

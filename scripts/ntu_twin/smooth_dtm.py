@@ -16,7 +16,13 @@ at 64 m with any ground at all. Capped, not replaced: replacing every non-ground
 road rougher (single noisy ground cells stood out against smooth neighbours; |z - 3x3 median|
 p99 on the roads 0.083 m against the raw 0.058), while the cap only takes out what stands above
 the ground (the bumps, and the fill's roof heights inside building footprints, up to 26 m off).
-Then narrow pits close: a cell more than PIT_DEPTH below its PIT_WINDOW x PIT_WINDOW median
+On and beside the lanes (--lanes), where the scan has returns, the surface is the scan's
+lowest return (zmin, GROUND_DIR/zmin.npy) taken as a ZMIN_MEDIAN x ZMIN_MEDIAN median, unless
+that stands more than CANOPY above the window's lower quarter (a cell whose lowest return is
+a crown). Along r01's last lanelet the road runs above a drop: SMRF's 16 m opening took the
+raised road for an object, no cell there was ground, and the fill put the road 6 m down
+(zmin was 11.84-11.89 in every cell, the raw DTM 5.8-7.3); the car braked for its own road,
+slid towards the drop and NDT lost it (N8). Then narrow pits close: a cell more than PIT_DEPTH below its PIT_WINDOW x PIT_WINDOW median
 is raised to that median less PIT_DEPTH. Through a drain grate at r01's road edge the scanner
 saw the pit under it, ground-classified 2 m below the road; the right wheels dropped in, the
 car slid sideways, and the EKF, rejecting NDT's poses, ended the drive in an MRM (N8). That
@@ -43,6 +49,8 @@ PIT_WINDOW = 9  # cells (2.25 m)
 PIT_DEPTH = 0.15  # m
 LANE_WINDOWS = (9, 17, 33)  # cells
 LANE_MARGIN = 3.0  # m
+ZMIN_MEDIAN = 5  # cells
+CANOPY = 0.3  # m above the window's 25th percentile of zmin
 MEDIAN = 5     # cells (1.25 m)
 SIGMA_CELLS = 1.0
 
@@ -86,6 +94,15 @@ def main():
                             LANE_MARGIN)
     est, left = smooth(dtm, ground, cell)  # cells still left keep the raw fill
     out = np.where(ground, dtm, np.minimum(dtm, est + CAP))
+    if lanes is not None:
+        zmin = np.load(os.path.join(d, "zmin.npy"))
+        seen = np.isfinite(zmin)
+        zf = np.where(seen, zmin, 1e6).astype(np.float64)
+        zm = ndimage.median_filter(zf, ZMIN_MEDIAN)
+        low = ndimage.percentile_filter(zf, 25, size=PIT_WINDOW)
+        use = lanes & seen & (zm < 1e5) & (zm <= low + CANOPY)
+        out = np.where(use, zm, out)
+        print(f"lanes: {int(use.sum()):,} of {int(lanes.sum()):,} cells from the scan's lowest return")
     out = np.maximum(out, ndimage.median_filter(out, PIT_WINDOW) - PIT_DEPTH)
     if lanes is not None:
         for w in LANE_WINDOWS:

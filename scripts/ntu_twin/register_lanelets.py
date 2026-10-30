@@ -2,7 +2,7 @@
 """Re-register the merged Lanelet2 map to the scan (roadmap 059 N7).
 
     register_lanelets.py ROUTES_DIR MAP_DIR GROUND_DIR [--keep MESH_DIR/ground_keep.npy]
-        [--report report.json]
+        [--min-width 2.8] [--report report.json]
 
 The lanelets of r01 and r02 were drawn on each route's own point cloud
 (ROUTES_DIR/<route>/pointcloud_map.pcd*), which drifts up to 0.3 m against the vendor scan
@@ -18,6 +18,13 @@ frame (export_map.py), so the route clouds are registered to it, and the lanelet
   4. a node's height becomes the ground's (GROUND_DIR/dtm.npy, bilinear) where the ground is
      meshed (--keep, build_meshes.py's ground_keep.npy; without it, where the DTM is ground
      within a cell of the node); elsewhere it keeps the ICP's z.
+
+  5. a road lanelet narrower than --min-width at a boundary vertex has that vertex pushed
+     outward to the width (at most MAX_PUSH), when the boundary is the lanelet's alone (an
+     outer edge, not shared with a neighbour) and the new place is on the scan's ground (a
+     ground cell within a cell of it). The vendor's maps pinch to 1.97 m on roads the scan
+     shows 10 m wide; Autoware's footprint of the car is 2.163 m, so path_optimizer stopped
+     r01 at lanelet 1004849's 2.16 m vertex, "outside drivable area" (roadmap 059 N8).
 
 lat/lon move with local_x/local_y (UTM 51N), so the MGRS projector and the local tags agree.
 The original is kept as lanelet2_map.orig.osm (the first run's input on reruns).
@@ -45,6 +52,7 @@ ID_OFFSET = 1_000_000  # export_map.py's: r01's ids
 ANCHOR = 25.0
 RADIUS = 30.0
 SIGMA = 30.0
+MAX_PUSH = 1.5  # m a boundary vertex may move outward to reach --min-width
 
 
 def voxel(p, s):
@@ -238,12 +246,78 @@ def paint_check(root, coords, ground):
             "on_top_decile": round(float((v[ok] >= p90[ok]).mean()), 3)}
 
 
+def _dist_to(p, poly):
+    """Distance from p to a polyline, and the unit vector from its nearest point to p."""
+    best, away = 1e18, np.zeros(2)
+    for a, b in zip(poly[:-1], poly[1:]):
+        d = b - a
+        t = np.clip(np.dot(p - a, d) / max(np.dot(d, d), 1e-12), 0.0, 1.0)
+        q = a + t * d
+        r = np.linalg.norm(p - q)
+        if r < best:
+            best, away = r, (p - q) / max(r, 1e-12)
+    return best, away
+
+
+def widen(root, pos, ground, min_width):
+    """Push narrow road lanelets' outer boundary vertices out to `min_width` (step 5). `pos`:
+    {node id: map xyz (array, edited in place)}. Returns the report."""
+    ways = {int(w.get("id")): [int(nd.get("ref")) for nd in w.findall("nd")] for w in root.findall("way")}
+    lanelets, uses = [], {}
+    for rel in root.findall("relation"):
+        tags = {t.get("k"): t.get("v") for t in rel.findall("tag")}
+        if tags.get("type") != "lanelet" or tags.get("subtype") != "road":
+            continue
+        m = {x.get("role"): int(x.get("ref")) for x in rel.findall("member")}
+        lanelets.append((int(rel.get("id")), m["left"], m["right"]))
+        for w in (m["left"], m["right"]):
+            uses[w] = uses.get(w, 0) + 1
+    moved, blocked, shared, narrow = {}, 0, 0, set()
+    for lid, lw, rw in lanelets:
+        for own, other in ((lw, rw), (rw, lw)):
+            opp = np.array([pos[i][:2] for i in ways[other]])
+            for nid in ways[own]:
+                w, away = _dist_to(pos[nid][:2], opp)
+                if w >= min_width:
+                    continue
+                narrow.add(lid)
+                if uses[own] > 1:
+                    shared += 1
+                    continue
+                push = min(min_width - w, MAX_PUSH)
+                target = pos[nid][:2] + away * push
+                m, c = ground.meta, ground.meta["cell"]
+                v = target + SHIFT[:2]
+                i = int((v[0] - m["x0"]) / c)
+                j = int((v[1] - m["y0"]) / c)
+                if not ground.ground[max(j - 1, 0):j + 2, max(i - 1, 0):i + 2].any():
+                    blocked += 1
+                    continue
+                pos[nid][:2] = target
+                moved[nid] = round(float(push), 3)
+    after = []
+    for lid, lw, rw in lanelets:
+        lb = np.array([pos[i][:2] for i in ways[lw]])
+        rb = np.array([pos[i][:2] for i in ways[rw]])
+        after.append(min(min(_dist_to(p, rb)[0] for p in lb), min(_dist_to(p, lb)[0] for p in rb)))
+    after = np.array(after)
+    return {"min_width": min_width, "lanelets_narrower_before": len(narrow),
+            "vertices_moved": len(moved), "push_m_p50_max": [round(float(np.median(list(moved.values()))), 3),
+                                                             round(float(max(moved.values())), 3)] if moved else None,
+            "vertices_shared_skipped": shared, "vertices_off_ground_skipped": blocked,
+            "lanelets_narrower_after": int((after < min_width).sum()),
+            "narrowest_after_m": round(float(after.min()), 2),
+            "narrower_than_car_after": int((after < 2.163).sum())}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("routes_dir")
     ap.add_argument("map_dir")
     ap.add_argument("ground_dir")
     ap.add_argument("--keep", default="", help="build_meshes.py's ground_keep.npy")
+    ap.add_argument("--min-width", type=float, default=2.8,
+                    help="widen road lanelets to this, m (0: leave them)")
     ap.add_argument("--report", default="")
     a = ap.parse_args(argv)
 
@@ -279,6 +353,10 @@ def main(argv=None):
         report["routes"][r] = rep
         print(r, json.dumps(rep), flush=True)
 
+    if a.min_width > 0:
+        pos = {int(i): new[k] for k, i in enumerate(ids)}  # views into `new`
+        report["widen"] = widen(root, pos, ground, a.min_width)
+        print("widen", json.dumps(report["widen"]), flush=True)
     gz, gok = ground.z(new[:, :2])
     new[gok, 2] = gz[gok]
     report["nodes"] = int(len(ids))

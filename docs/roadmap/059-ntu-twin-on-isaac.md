@@ -146,15 +146,35 @@ Progress:
        in one drive (a 7.7 m jump, "Duplicated nodes detected [/auto_drive]"), and r01j's
        stall at initialization was probably the same. The N8 runs now stop through a helper
        that matches a process's own argv only.
-    5. Still open: `obstacle_stop` stops the car for a perception object (UNKNOWN, existence
-       0.999) at (52668.71, 67885.47), z 13.28, 1.4 m above the lane centre, where the world
-       has only ground within 1.5 m. A phantom: RTX lidar without motion BVH ("incorrect
-       point cloud without motion effects", Isaac warns), or canopy returns misplaced. While
-       driving, NDT holds across-track error at 0.05-0.08 m up to the stop.
-    6. Still open: stopped and braked, the car slides sideways, 2.2 m in about 2 minutes on a
-       ~4 % cross slope (`/vehicle/status/velocity_status` lateral -0.015 m/s). Then the EKF
-       rejects NDT ("mahalanobis distance of pose topic is large") and the MRM follows. That
-       is aib's tyre at rest: a braked car should not slide on 4 %.
+    5. `obstacle_stop` stopped the car for a perception object (UNKNOWN, existence 0.999) at
+       (52668.71, 67885.47), z 13.28, 1.4 m above the lane centre. Not the lidar: the survey.
+       Split by GPS time, the scan's points around it come from passes minutes apart, and the
+       objects were there in some and gone in others. In pass 3 a box beside the lane held
+       only ground for 240 s, then 1864 points at body height within 40 s (people or parked
+       scooters that came and went); a second spot in the lane was a 1 s burst. The world's
+       meshes keep every pass, so the transients stand beside the car's path. Worked around:
+       `world_usd.py --clear-road --clear-margin 2.5` (the default) until N2 removes
+       transients by GPS-time consistency; it takes real roadside shrubs too.
+    6. Then the car stopped at the same place with nothing around it: path_optimizer
+       "outside drivable area". Lanelet 1004849 is 2.16-2.17 m wide and the footprint 2.163 m
+       (mirrors and margin). `register_lanelets.py` now widens (`--min-width 2.8`): an
+       outer, unshared boundary vertex moves out, at most 1.5 m, where the DTM has ground
+       beside it. On r01+r02, 67 lanelets were narrower than 2.8 m; 320 vertices moved (p50
+       0.13 m, max 0.80 m), 183 shared ones stayed, and the narrowest is now 2.63 m.
+    7. Along r01's last lanelet the road runs above a drop. SMRF's 16 m opening took the
+       raised road for an object, no cell there was ground, and the fill put the road 6 m
+       down (the scan's lowest return 11.84-11.89 m, the raw DTM 5.8-7.3 m): the car braked for
+       its own road and slid towards the drop. `smooth_dtm.py --lanes` now takes the lanes'
+       surface from the lowest return (5x5 median, unless a crown: more than 0.3 m above the
+       window's lower quarter): 548 k of 586 k lane cells; lane dips went from 4382 to 122.
+    8. Stopped and braked, the car slid sideways, 2.2 m in about 2 minutes on a ~4 % cross
+       slope, until the EKF rejected NDT ("mahalanobis distance of pose topic is large") and
+       the MRM followed. PhysX's sticky tyre: parked at r01's stop, 60 s, lateral damping 20
+       crept 89.6 cm (1.50 cm/s), 200 crept 0.1 cm. Fixed in the spec (sim_vehicle_spec
+       3773783, lateral as longitudinal, 200), regenerated in autoware_sim_vehicle and aib.
+  - r01 end to end (2026-10-30, all of the above, auto_drive): "ARRIVED at goal after
+    99.6s", 349 m. NDT error while moving p50 0.22 m, across-track p95 0.08 m; NVTL never below
+    2.89; no AEB, no MRM.
   - Open:
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do

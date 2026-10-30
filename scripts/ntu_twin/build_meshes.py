@@ -137,6 +137,8 @@ def _tile(args):
     ix, iy = tile_index(path)
     stats = {"tile": f"{ix}_{iy}"}
     stats["ground_tris"] = write_ground(ix, iy, ground_dir, out)
+    meta = json.load(open(os.path.join(ground_dir, "dtm.json")))
+    dtm = np.load(os.path.join(ground_dir, "dtm.npy"), mmap_mode="r")
 
     # read in chunks and keep one point per VOXEL cube per layer as we go: a dense tile is
     # ~180 M points, and holding it whole (laspy's record plus float64 copies) took ~35 GB

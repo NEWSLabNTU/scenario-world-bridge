@@ -4,7 +4,7 @@
 Run by Isaac's Python (it has `pxr`):
 
     $ISAAC_ROOT/venv/bin/python scripts/ntu_twin/world_usd.py MESH_DIR ORTHO_DIR MAP_DIR
-        [--clear-road GROUND_DIR]
+        [--clear-road GROUND_DIR [--clear-margin 2.5]]
 
 Writes `MAP_DIR/isaac/`: one `tiles/tile_<ix>_<iy>.usdc` per tile (its ground with the tile's
 2 cm orthophoto, its buildings and its other objects with their scan colours), a
@@ -22,10 +22,14 @@ leaves, parked cars baked in) are seen by camera and lidar but have no collider:
 the road stopped an Autoware drive on r02 (roadmap 059 N8).
 
 `--clear-road GROUND_DIR` drops the other objects' triangles that stand on the road: within
-CLEAR_MARGIN of a lanelet (MAP_DIR/lanelet2_map.osm) and less than CLEAR_HEIGHT above the
+`--clear-margin` (CLEAR_MARGIN) of a lanelet (MAP_DIR/lanelet2_map.osm) and less than CLEAR_HEIGHT above the
 ground (GROUND_DIR's DTM). On the lanes, what stands that low is a vehicle, a person or
 Poisson's skirt; canopy above it stays, and so does everything off the lanes. Without it,
-such pieces 0.15 m outside a 2.17 m lanelet set off Autoware's AEB on r01 (N8).
+such pieces 0.15 m outside a 2.17 m lanelet set off Autoware's AEB on r01 (N8). The margin is
+2.5 m until N2 removes the survey's transients: beside r01's lanes the scan caught people or
+parked scooters that came and went (ground seen for 240 s, then 1864 points at body height in
+40 s), and at 0.5 or 1.5 m their meshes still stood beside the car's path. It takes real
+roadside shrubs down too.
 """
 import argparse
 import glob
@@ -39,7 +43,7 @@ import numpy as np
 
 MAP_ORIGIN = (52500.0, 67700.0, 0.0)
 SHIFT = np.array([-0.54, 0.20, 17.30])  # vendor (the DTM's frame) = map + SHIFT
-CLEAR_MARGIN = 0.5   # m around the lanelets
+CLEAR_MARGIN = 2.5   # m around the lanelets (default of --clear-margin)
 CLEAR_HEIGHT = 2.5   # m above the ground
 QCODE = "semantics:labels:wikidata_qcode"
 LABELS = {"Ground": "Q34442", "Building": "Q41176"}
@@ -212,10 +216,10 @@ class RoadClear:
     """Which map-frame points stand on a lane, below CLEAR_HEIGHT: the lanelets rasterized on
     the DTM's grid and grown by CLEAR_MARGIN."""
 
-    def __init__(self, osm, ground_dir):
+    def __init__(self, osm, ground_dir, margin=CLEAR_MARGIN):
         self.meta = json.load(open(os.path.join(ground_dir, "dtm.json")))
         self.dtm = np.load(os.path.join(ground_dir, "dtm.npy"))
-        self.lane = lane_raster(osm, self.meta, self.dtm.shape, CLEAR_MARGIN)
+        self.lane = lane_raster(osm, self.meta, self.dtm.shape, margin)
 
     def on_road(self, P):
         """Points (n, 3, map frame) that stand on a lane below CLEAR_HEIGHT."""
@@ -267,8 +271,10 @@ def main(argv=None):
     ap.add_argument("map_dir")
     ap.add_argument("--clear-road", default="", metavar="GROUND_DIR",
                     help="drop other objects standing on the lanes (the DTM's dir)")
+    ap.add_argument("--clear-margin", type=float, default=CLEAR_MARGIN,
+                    help="m around the lanelets that --clear-road clears")
     a = ap.parse_args(argv)
-    clear = RoadClear(os.path.join(a.map_dir, "lanelet2_map.osm"), a.clear_road) \
+    clear = RoadClear(os.path.join(a.map_dir, "lanelet2_map.osm"), a.clear_road, a.clear_margin) \
         if a.clear_road else None
     from pxr import Sdf, Usd, UsdGeom
 

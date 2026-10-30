@@ -6,7 +6,7 @@ CommonRoad Scenario Designer -> Lanelet2.
 
 Writes <out>/baseline/: `roads.osm` (Overpass, drivable ways and turn restrictions, XML),
 `netconvert.xodr` and its log, `lanelet2_map.osm` (crdesigner, Autoware option on). The frame
-is the site's: UTM, less the MGRS square and the map origin, so the maps share 059's frame.
+is the site's: MGRS-local (UTM less the 100 km square's corner), 059's and the vendor maps'.
 Run with the tool venv (`data/maps/.venv`: eclipse-sumo, commonroad-scenario-designer).
 """
 import argparse
@@ -35,8 +35,7 @@ def fetch_roads(bbox, dest):
 
 def netconvert(osm, xodr, frame, log):
     utm_zone = frame["utm_epsg"] - 32600
-    ox = frame["mgrs_offset"][0] + frame["map_origin"][0]
-    oy = frame["mgrs_offset"][1] + frame["map_origin"][1]
+    ox, oy = frame["mgrs_offset"]  # the map frame: MGRS-local (map_origin is Isaac's)
     venv_bin = Path(sys.executable).parent
     cmd = [str(venv_bin / "netconvert"), "--osm-files", str(osm),
            "--proj", f"+proj=utm +zone={utm_zone} +datum=WGS84 +units=m +no_defs",
@@ -83,8 +82,7 @@ def local_georeference(xodr, frame):
     crdesigner ignores (its nodes landed at 24.8 S, 114.6 E). Fold the shift into a
     transverse Mercator's false easting and northing instead, and zero the offset."""
     import re
-    ox = frame["mgrs_offset"][0] + frame["map_origin"][0]
-    oy = frame["mgrs_offset"][1] + frame["map_origin"][1]
+    ox, oy = frame["mgrs_offset"]
     lon0 = (frame["utm_epsg"] - 32600) * 6 - 183
     proj = (f"+proj=tmerc +lat_0=0 +lon_0={lon0} +k=0.9996 +x_0={500000 - ox} +y_0={-oy} "
             f"+datum=WGS84 +units=m +no_defs")

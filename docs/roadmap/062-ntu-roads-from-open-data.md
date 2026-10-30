@@ -8,7 +8,7 @@ The map is used in simulation first and moves to a real car later. Every attribu
 where it came from. An audit compares the map with ground truth: 059's survey now, and the
 car's own drives later.
 
-**Status**: in progress, 2026-10-30: O1 and O2 done (newslab-118-server, offline).
+**Status**: in progress, 2026-10-30: O1 and O2 done; O3's first version runs (newslab-118-server, offline).
 
 Progress:
 
@@ -65,6 +65,72 @@ Progress:
   - Bus and cycle lanes are discarded as "unknown compound" types.
   - Everything Autoware needs beyond the geometry would still have to come from the repair
     scripts. That is the bar O3 has to clear.
+- **O3, first version** (`scripts/open_maps/generate.py`; `plot_map.py` draws a map for review).
+
+  **Where it lives.** It is in `scripts/open_maps/`, not in 058's `course/`: lanelet generation
+  has nothing simulator-specific, and keeping it beside the fetch and the checks saves a
+  submodule round-trip.
+
+  **The frame.** It is MGRS 51RUH local, 059's and the vendor maps' (019). `map_origin` is the
+  Isaac world's alone, and the baseline now uses the same frame.
+
+  **What changed on the way:**
+  - **Joints.** OSM splits ways at every tag change. Two chains meeting end to end needed short
+    connectors (no `turn_direction`); without them almost nothing routed.
+  - **Cut-back.** Measuring it from a dual-carriageway cluster's centre gave the main gate a
+    55 m circle that swallowed its approaches. Each approach is now cut from its own node in
+    the junction.
+  - **Mapillary's `aligned_direction`** is the bearing a sign faces. Signs beside this site's
+    one-way roads peak at 150-210 deg from the direction of travel. A sign now governs an
+    approach only if it faces it, is on its right side, and is within the last 50 m.
+  - **Painted arrows assign movements to lanes but never remove one.** A lane voted
+    "straight" by a few arrows had lost its left turn, and the largest strongly connected part
+    of the lane graph shrank to 5 %. Only OSM restrictions and no-turn signs ban a movement. A
+    movement the junction offers that no lane holds goes to the leftmost or rightmost lane
+    (`+gap`).
+  - **Bridges.** Short ones over the canals stay (舟山路 had been cut in two). Underpasses, and
+    major roads raised for more than 60 m, are left out.
+
+  **The result,** against the baseline:
+
+  | measure | baseline (A) | generated (B) |
+  |---|---|---|
+  | road lanelets / crosswalks | 1,297 / 0 | 3,829 / 67 |
+  | nodes, per way (mean, max) | 310,952 (107, 2,125), 97 MB | 65,338 (10, 132), 13.5 MB |
+  | junction paths with `turn_direction` | 0 of 600 | all 1,633 (left 488, right 509, straight 636) |
+  | `speed_limit` | 0 | all |
+  | traffic lights (stop line, lanelets referring) | 382 (382, 382) | 158 (158, 275) |
+  | random lanelet pairs routable (Lanelet2) | 40 % | 42 % |
+  | largest strongly connected part | 36 % | 24 % |
+
+  - **Loading.** The map loads in Autoware's Lanelet2 extension with the MGRS projector, with
+    no errors. Every point lands on its `local_x`/`local_y`, and the 158 traffic lights load as
+    `AutowareTrafficLight`.
+  - **Junctions:** 388, of which 50 are signalised (34 from OSM's signal nodes, 16 from
+    Mapillary's lights).
+  - **Where each approach lane's movements came from:**
+    - Mapillary's arrows: 837 lanes;
+    - the rule: 437;
+    - OSM `turn:lanes`: 43;
+    - 364 movements were added where nothing held them.
+  - **Signs:** 120 approaches lost their left turn and 117 their right turn to a Mapillary
+    no-turn sign.
+  - **Speed limits, by lane:**
+    - the rule (50 km/h, 30 on service roads): 1,145;
+    - OSM: 364;
+    - Mapillary signs: 40;
+    - Overture: 27.
+
+    Public data leaves most limits to the rule.
+
+  **Open:**
+  - The arterials (羅斯福路, 新生南路, 辛亥路, 基隆路) reach the campus but are mostly outside
+    the largest strongly connected part. The sign bans and the dual-carriageway clusters are
+    the suspects.
+  - 187 dead ends lie inside the box. Most are OSM's own: cul-de-sacs, and a two-way service
+    road meeting a one-way road that leads in, such as the campus's 1321854357. Some are
+    tiny lanelets inside a junction.
+  - Whether the sign bans are right is O4's question: the audit against 059.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

@@ -148,3 +148,10 @@ Rulings:
   timing gates measured by iterations or on a quiet core. Why: the coverage and cost above.
   Cost if wrong: a seed that does not converge across re-plans either leaves 10-15 % of drift
   cases to the grip plan or needs E3's probe.
+- The "undecided mu 0.45 to at most 2/20" criterion was set wrong: six of the eight are ties
+  inside the noise, which the grip-on-tie gate makes free. Ruling (2026-10-30): a tie counts as
+  decided (grip); only a case where a mode beats the other by more than the threshold and the
+  chooser misses it counts against coverage. Cost if wrong: none for lap time.
+- HSL (user, 2026-10-30): skipped, not licensed. If the linear solve turns out to limit the
+  budget, the free alternatives come first: Fatrop (in this CasADi build, LGPL, a Riccati-based
+  interior point for staged problems), CasADi's SQP on HPIPM, MUMPS tuning; HSL only after them.

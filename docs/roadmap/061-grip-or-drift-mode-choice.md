@@ -83,9 +83,9 @@ friction), not from a track. H is grip held at the rear tyre's peak (`rear_alpha
 | the window ahead holds | seeds | from |
 |---|---|---|
 | dry asphalt, no corner past ~120 deg tighter than R 25 m | G only (060) | drift gains 0.0-0.1 %, none on 90 deg corners |
-| a dry asphalt hairpin (>= 150 deg, R <= 25 m) | G + H + D | 0.1-0.4 % |
+| a dry asphalt hairpin whose gain in the drift map clears the switch threshold, 0.3 % (R <= ~11 m; tightened in M4, was every hairpin R <= 25 m) | G + H + D | 0.1-0.4 %: only R 9 clears 0.3 % |
 | the same at R <= 9 m on a surface without fall-off | + F | the flick wins it by 0.05 s |
-| a hairpin (R <= 25 m) on loose ground falling off past the peak (gravel, dirt, grass) or packed snow | G + H + D | M2: 0.3-0.6 % (packed snow 0.34 %) |
+| a hairpin on loose ground falling off past the peak (gravel, dirt, grass) or packed snow, its gain >= 0.3 % (tightened in M4) | G + H + D | M2: 0.3-0.6 % (packed snow 0.34 %) |
 | any corner on loose ground without fall-off (mud, sand, loose snow) above p_add | G + H + D (+ F into hairpins) | M2: about 1.2 % in every corner, and the fallback when G fails (18 % of re-plans at mu 0.3) |
 | ice | G + H | M2: no drift pays; H the fallback |
 | a steep downhill (> 5 %) on low friction | + D | the 8 % arm: more slide |
@@ -362,3 +362,57 @@ Rulings:
 - R6 on Tsukuba (+0.138 % against 0.1 %) is reported, not ruled away: one run, the course time on
   a 0.05 s step (0.07 %); M4 repeats it with the plant.
 - Design 4.4a updated (width row and rule, H as fallback; section 10).
+
+**M4 (done, 2026-10-31; gate not passed).** Part A (autoware-drift 8ad42d4): on a class that
+falls off past its peak, D (and H) only where the drift map's gain for the corner clears the
+switch threshold, 0.3 % (user, 2026-10-30: "we don't pursue drift start for most dry asphalt
+roads"); chain check, three repeats: Haruna G alone on 51-59 % of re-plans, 1.73-1.81 solves a
+re-plan, -0.065 % x3; Tsukuba G alone throughout. Part B built: `studies/mode_choice_m4.py`
+(the loop on `sim.Plant` behind the ECU, L2 tracking; arms single/always/sched, wrong maps,
+perception, estimator; the per-corner oracle; `aggregate`), `studies/m4_batch.py`,
+`live.Driver(beta_max=...)` (L1's sideslip bound, seeds included; default off); write-up
+autoware-drift `docs/mode-choice-m4.md`, issue `docs/issues/001-no-first-plan-in-tight-low-friction-hairpins.md` (autoware-drift 017d888, caf45d9, 3587304); results
+`play_log/race_planner/mode_choice/m4/` (`aggregate.md`; dry R6 idle-host re-run in `quiet/`,
+the bound in `beta45/`). Corners ran at load 2.6-15 (p10-p90), the dry R6 re-run at 1.5-2.7.
+Results:
+- 72 corners x 3 arms x 2 repeats: asphalt, loose snow and gravel finish in every arm; mud: the
+  extra starts save the R 9 x 180 hairpin at 6 m (single 4 stops of 22, always and sched 2);
+  ice: 9 of 22 started runs stop in every arm, sched's failed re-plans double (116 against 64);
+  low friction overall: stops sched 15, always 17, single 17 (116 runs each); failed re-plans
+  without ice sched 11, always 10, single 14 (of ~1400);
+- what the extra starts add over the single start, in units of the oracle's drift gain
+  (drift-optimal corners): sched asphalt 0.69, mud 0.38, loose snow 0.22, gravel 2.22 (above 1:
+  the single start's plant loss recovered), packed snow -0.25; time against single sched -0.14
+  (asphalt), -0.19, -0.55, -0.68, +0.29 % (packed snow); repeats nearly bit-identical;
+- solves per re-plan sched 1.04 (asphalt), 1.07 (gravel), 2.0-2.16 (low friction) against
+  always's 2.15-2.26;
+- dry, idle host, three repeats: Haruna single 76.28 x3, sched 76.37 x3 (+0.118 %, G alone 66 %,
+  1.59 solves a re-plan), always +0.26 % (3.26); Tsukuba sched is G alone (-0.16 %), every arm's
+  first repeat off road at s ~1815 after four solves cut at the budget (060's);
+- class-zone chain: every arm on every map stops at the mud R 9 hairpin (s 242-262; plans 52-65
+  deg of sideslip, the car spins at 78-80), before any 10 % map's wrong zone; the estimate never
+  lowered;
+- deep slides (plans past 50 deg) are not followed (the car 16-23 deg off them); a 45 deg L1
+  bound does not fix the hairpin or the chain, starts `mud_wet:9:180:15`, costs sched +2.15 % on
+  the deep corners, gains single 1.39 %: kept as an option, not adopted;
+- `no first plan` on `mud_wet:9:180:15` and `ice:9:180:6` in every arm: G alone from IPOPT's
+  start, 400 iterations (issue 001, open);
+- full suite: 113 passed (111 + 2 for the bound).
+Gate: robustness met except ice; low-friction time met except packed snow (+0.29 %, within the
+spread); sched as good as always at a third to a half of its solves; R6 missed on Haruna by
+0.018 %; the 10 % wrong-map criterion met only vacuously. Not passed.
+Rulings:
+- Stops counted on runs that started; "no first plan" its own category (same in every arm).
+  Cost if wrong: 4 runs a class an arm out of the counts, equally.
+- Kept = an arm's time over the single start in units of the oracle's gain, not the loop
+  against the oracle (the plant is not L1's model). Cost if wrong: values above 1 misread.
+- R6 judged on the idle-host re-run (the loaded single start spread 0.9 % on Haruna). Cost if
+  wrong: none for the verdict.
+- Tsukuba's first-repeat off road is 060's budget, not the scheduler's (G alone in sched).
+- The sideslip bound not adopted; design 4.4a unchanged. Cost if wrong: the single start's
+  1.4 % on deep corners unused.
+- The 10 % wrong-map criterion recorded met, vacuously; the sweep (p_add, gain_min, sd) not run
+  (every chain run stops at s 250). Cost if wrong: thresholds stay at M3b's starting points.
+Left (M4b): Haruna R6 (no D into R 10-11 m asphalt hairpins: the map read without the 1.25 x R
+stretch on fall-off classes); the mud R 9 hairpin (the planner's mud tyre against the plant's, a
+bound in L2); issue 001; ice; then the chain's wrong-map and estimator arms.

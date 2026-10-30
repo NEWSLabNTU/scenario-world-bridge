@@ -55,10 +55,20 @@ def tile_index(path):
     return int(m.group(1)), int(m.group(2))
 
 
-def ground_grid(ix, iy, meta, dtm, ground):
-    """Vertices (n, 3), triangles (m, 3) and UVs (n, 2) of the tile's DTM patch."""
+def ground_keep(ground, cell):
+    """The DTM cells to mesh, site-wide: those within GROUND_REACH of a ground cell, and every
+    hole that leaves enclosed. Without the fill, a patch where something stood during the scan
+    (parked cars, a stopped vehicle, scooters) more than GROUND_REACH from ground was a hole in
+    the road, and a car spawned over one on r01 fell through the world (roadmap 059 N8). All
+    2142 such holes on the site are enclosed (the largest under 2000 m2)."""
     from scipy import ndimage
 
+    keep = ndimage.binary_dilation(np.asarray(ground), iterations=int(GROUND_REACH / cell))
+    return ndimage.binary_fill_holes(keep)
+
+
+def ground_grid(ix, iy, meta, dtm, keep_site):
+    """Vertices (n, 3), triangles (m, 3) and UVs (n, 2) of the tile's DTM patch."""
     c = meta["cell"]
     i0 = int(round((ix * TILE - meta["x0"]) / c))
     j0 = int(round((iy * TILE - meta["y0"]) / c))
@@ -69,9 +79,8 @@ def ground_grid(ix, iy, meta, dtm, ground):
     z = np.pad(z, pad, mode="edge")
     z = np.pad(z, ((0, n + 2 - z.shape[0]), (0, n + 2 - z.shape[1])), mode="edge")
     zc = 0.25 * (z[:-1, :-1] + z[1:, :-1] + z[:-1, 1:] + z[1:, 1:])  # (n + 1, n + 1) corners
-    g = np.asarray(ground[j0:j0 + n, i0:i0 + n])
-    g = np.pad(g, ((0, n - g.shape[0]), (0, n - g.shape[1])))
-    keep = ndimage.binary_dilation(g, iterations=int(GROUND_REACH / c))
+    keep = np.asarray(keep_site[j0:j0 + n, i0:i0 + n])
+    keep = np.pad(keep, ((0, n - keep.shape[0]), (0, n - keep.shape[1])))
     jj, ii = np.mgrid[0:n + 1, 0:n + 1]
     V = np.stack([ix * TILE + ii * c, iy * TILE + jj * c, zc], axis=-1).reshape(-1, 3)
     UV = np.stack([ii / n, jj / n], axis=-1).reshape(-1, 2)  # v up: row 0 of the image is north
@@ -108,6 +117,17 @@ def poisson(P, C):
     return mesh, len(pc.points)
 
 
+def write_ground(ix, iy, ground_dir, out):
+    """The tile's ground mesh, ground_<ix>_<iy>.npz; its triangle count."""
+    meta = json.load(open(os.path.join(ground_dir, "dtm.json")))
+    dtm = np.load(os.path.join(ground_dir, "dtm.npy"), mmap_mode="r")
+    keep = np.load(os.path.join(out, "ground_keep.npy"), mmap_mode="r")
+    V, F, UV = ground_grid(ix, iy, meta, dtm, keep)
+    np.savez_compressed(os.path.join(out, f"ground_{ix}_{iy}.npz"), points=V.astype(np.float32),
+                        faces=F.astype(np.int32), uv=UV.astype(np.float32))
+    return len(F)
+
+
 def _tile(args):
     path, ground_dir, out = args
     import laspy
@@ -115,14 +135,8 @@ def _tile(args):
 
     t0 = time.time()
     ix, iy = tile_index(path)
-    meta = json.load(open(os.path.join(ground_dir, "dtm.json")))
-    dtm = np.load(os.path.join(ground_dir, "dtm.npy"), mmap_mode="r")
-    gcells = np.load(os.path.join(ground_dir, "ground_cells.npy"), mmap_mode="r")
     stats = {"tile": f"{ix}_{iy}"}
-    V, F, UV = ground_grid(ix, iy, meta, dtm, gcells)
-    np.savez_compressed(os.path.join(out, f"ground_{ix}_{iy}.npz"), points=V.astype(np.float32),
-                        faces=F.astype(np.int32), uv=UV.astype(np.float32))
-    stats["ground_tris"] = len(F)
+    stats["ground_tris"] = write_ground(ix, iy, ground_dir, out)
 
     # read in chunks and keep one point per VOXEL cube per layer as we go: a dense tile is
     # ~180 M points, and holding it whole (laspy's record plus float64 copies) took ~35 GB
@@ -179,8 +193,31 @@ def main():
     ap.add_argument("--workers", type=int, default=3,
                     help="each holds one tile (up to ~180 M points, ~19 GB at peak)")
     ap.add_argument("--tiles", default="")
+    ap.add_argument("--ground-only", action="store_true",
+                    help="rewrite only the ground meshes of the tiles already in OUT (no LAZ read)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
+    meta = json.load(open(os.path.join(a.ground_dir, "dtm.json")))
+    np.save(os.path.join(a.out, "ground_keep.npy"),
+            ground_keep(np.load(os.path.join(a.ground_dir, "ground_cells.npy")), meta["cell"]))
+    if a.ground_only:
+        names = sorted(glob.glob(os.path.join(a.out, "ground_*_*.npz")))
+        tiles = [tuple(int(v) for v in re.findall(r"(-?\d+)_(-?\d+)\.npz$", p)[0]) for p in names]
+        if a.tiles:
+            tiles = [t for t in tiles if "%d_%d" % t in set(a.tiles.split(","))]
+        mj = os.path.join(a.out, "meshes.json")
+        index = json.load(open(mj)) if os.path.exists(mj) else {"tiles": {}}
+        for k, (ix, iy) in enumerate(tiles):
+            n = write_ground(ix, iy, a.ground_dir, a.out)
+            index["tiles"].setdefault(f"{ix}_{iy}", {})["ground_tris"] = n
+            sp = os.path.join(a.out, f"stats_{ix}_{iy}.json")
+            if os.path.exists(sp):
+                st = json.load(open(sp))
+                st["ground_tris"] = n
+                json.dump(st, open(sp, "w"))
+        json.dump(index, open(mj, "w"), indent=1)
+        print(f"ground: {len(tiles)} tiles rewritten")
+        return
     tiles = sorted(glob.glob(os.path.join(a.tiles_dir, "tile_*.laz")))
     if a.tiles:
         want = set(a.tiles.split(","))

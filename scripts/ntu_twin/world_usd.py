@@ -16,7 +16,9 @@ Frame: the world frame is the map frame (MGRS 51RUH local, the Autoware maps') l
 
 Labels (SimReady Q-codes, as the world server's ground paths and surfaces read them): the
 ground Road (Q34442) for now, buildings Building (Q41176). Colliders: triangle meshes on the
-ground, the buildings and the other objects.
+ground and the buildings only. The other objects (trees as Poisson blobs, the shards Poisson
+leaves, parked cars baked in) are seen by camera and lidar but have no collider: a shard over
+the road stopped an Autoware drive on r02 (roadmap 059 N8).
 """
 import argparse
 import glob
@@ -184,7 +186,8 @@ def tile_stage(path, ix, iy, mesh_dir, texture):
         if not len(F):
             continue
         vc = vc or _vertex_colour_material(stage, looks + "/ScanColour")
-        _mesh(stage, f"/Tile/{name.capitalize()}", V, F, colours=C, label=label, material=vc)
+        _mesh(stage, f"/Tile/{name.capitalize()}", V, F, colours=C, label=label, material=vc,
+              collider=name == "building")
         tris += len(F)
     stage.GetRootLayer().Save()
     return tris

@@ -57,6 +57,66 @@ Progress:
   edge points take sky pixels), Poisson shards float over the road, parked cars are meshed
   (N2), the ortho's baked shadows double RTX's own, and lidar intensity is flat (no
   non-visual materials).
+- N7 lanelets re-registered (133, 2026-10-30; `scripts/ntu_twin/register_lanelets.py`, 3.5 min).
+  Each route's own point cloud is registered to the scan (the divided PCD map) by point-to-plane
+  ICP, globally and then per anchor on a 25 m grid, and the lanelet nodes follow a
+  Gaussian-weighted field of the anchors' displacements.
+  - r02: 137 anchors (37 dropped), rmse 0.10 m; anchor xy corrections p50 0.15 m, max 0.72 m.
+  - r01: 193 anchors (64 dropped), rmse 0.11 m; anchor xy corrections p50 0.12 m, max 0.43 m.
+  - Nodes moved 0.13 m (r02) and 0.12 m (r01) at p50, 0.35 m at most.
+  - Heights: 2717 of 2733 nodes now sit on the meshed ground; they were a median 0.16 m
+    above it (p95 0.87 m).
+  - lat/lon move with local_x/local_y. The original is kept as `lanelet2_map.orig.osm`.
+  - The lane-paint check (intensity ortho under the line strings) does not confirm the xy
+    correction: 3.0 % of samples on the brightest decile before, 2.2 % after. Both are below
+    chance, so these boundaries are mostly road edges, not paint, and the check does not fit
+    these maps. The xy evidence is the ICP residual alone.
+  - Traffic lights, stop lines and crosswalks are still to add.
+- N8, Autoware on the Isaac ego (133, 2026-10-30): aib's `just isaac-ego` on the world and
+  `just autoware map_path:=<map> pointcloud_map_file:=pointcloud_map`, both on ROS domain 41
+  with Cyclone on localhost. The pose is initialized and the route set through the AD API
+  (`/api/localization/initialize` with a map pose, `set_route_points`, `change_to_autonomous`).
+  Truth comes from aib's GNSS, inverted (`scripts/ntu_twin/ndt_track.py`). Its along-track
+  error includes the fix's 10 Hz sampling, about 0.15 m at 3 m/s.
+  - r02, lanelet 7 to lanelet 49: 348 m, arrived. NDT error while moving p50 0.16 m, p95
+    0.29 m, max 0.39 m; across-track p95 0.11 m. NVTL never below 3.08. AEB braked four or
+    five times on the way (on the raw lidar: Poisson shards and low crowns), and each time
+    the drive went on.
+  - r01, from 10 m into lanelet 1004948 towards 1004936: 204 m driven. NDT error while
+    moving p50 0.08 m, p95 0.25 m; NVTL never below 2.87. The drive stopped at (52675.3,
+    67886.2) on an MRM, `control_validator: control_validation_latency`. The host was at
+    load 41-47 on 32 cores with another GPU job (6.5 GB) beside Isaac, and the GPU was at
+    98 %. Rerun it on a quiet host.
+  - At standstill there the car crept sideways about 1.5 cm/s. A 1 m pit lies 1-3 m to its
+    north-east (10.95 m against 11.9 m), a drain or an artefact; not looked at yet.
+  - The world needed four fixes on the way, each found by a drive:
+    1. The "other" meshes (Poisson shards, tree blobs, parked cars) had triangle colliders.
+       A shard over the road held the car on r02 with acceleration commanded. Now only the
+       ground and the buildings collide (`world_usd.py`).
+    2. The ground mesh had holes wherever a non-ground patch lay more than 2 m from ground:
+       2142 enclosed holes, the largest under 2000 m2. `build_meshes.py` now fills every
+       enclosed hole (`ground_keep`), and `--ground-only` rewrites only the ground without
+       the LAZ tiles.
+    3. The DTM's fill took heights from non-ground points (parked scooters, planters), and
+       only 17.8 % of the site's cells are ground. On r01, 0.2-0.3 m bumps in cells with no
+       points at all held the car at creep torque. `scripts/ntu_twin/smooth_dtm.py` caps
+       each non-ground cell at the ground-only estimate (multi-scale normalized Gaussian)
+       plus 5 cm, then takes a 5x5 median and a 1-cell Gaussian over the whole grid. Road
+       roughness (|z - 3x3 median|, p99 within 3 m of lanelet nodes) went from 0.058 m to
+       0.010 m. The raw DTM is kept as `dtm_raw.npy`. The ortho was made with the raw DTM,
+       which changes nothing on the ground cells.
+    4. Autoware 1.5's PCD loader reads the metadata's tile corners as integers, so
+       `export_map.py` writes them floored (yaml-cpp "bad conversion" otherwise).
+  - Open:
+    - aib's GNSS projects about (0, 0) (`aib.frames.lat_lon`), not the map's MGRS
+      projector. `autoware_sim_pilot`'s `auto_drive` always re-initializes from GNSS, so it
+      put the ego at (33696, 99955) and cannot drive this map until aib's GNSS follows the
+      map's projector and `map_origin`.
+    - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
+      car through the world within a second. The same place with yaw 0 or pi holds, as do
+      3 m south, 10 m north, and r02's spot at yaw pi/2, and a box dropped there rests.
+      There are only ground triangles within the car. Not explained.
+    - The ego spawned at r02's lanelet centre came to rest 0.8 m south of it. Not explained.
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

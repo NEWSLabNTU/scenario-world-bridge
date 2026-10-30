@@ -85,9 +85,10 @@ def pointcloud(tiles, out, voxel, workers):
     t0 = time.time()
     with Pool(workers, maxtasksperchild=1) as pool:
         for k, (name, ix, iy, n, n_in) in enumerate(pool.imap_unordered(_pcd, [(t, out, voxel) for t in tiles])):
-            # the tile's lower corner in the map frame (the shift moves the grid; Autoware
-            # uses these for loading only, and the tiles are cut on the vendor grid)
-            meta.append(f"{name}: [{ix * TILE - SHIFT[0]:.2f}, {iy * TILE - SHIFT[1]:.2f}]")
+            # the tile's lower corner in the map frame, floored: Autoware 1.5 reads the corners
+            # as integers ("yaml-cpp: bad conversion" otherwise) and uses them for loading only;
+            # the tiles are cut on the vendor grid, so the shift moves them under a metre
+            meta.append(f"{name}: [{int(np.floor(ix * TILE - SHIFT[0]))}, {int(np.floor(iy * TILE - SHIFT[1]))}]")
             total += n
             print(f"pcd {k + 1}/{len(tiles)} {name}: {n:,} of {n_in:,} points, {time.time() - t0:.0f}s",
                   flush=True)

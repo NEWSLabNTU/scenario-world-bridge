@@ -1,0 +1,5 @@
+# Roadmap 062: the NTU campus and the arterials around it.
+name: ntu
+bbox: [25.012, 121.530, 25.024, 121.548]   # south, west, north, east (WGS84)
+# 059's map frame: MGRS 51RUH local (UTM 51N, easting and northing mod 100 000), less map_origin
+frame: {utm_epsg: 32651, mgrs_offset: [300000, 2700000], map_origin: [52500, 67700, 0]}

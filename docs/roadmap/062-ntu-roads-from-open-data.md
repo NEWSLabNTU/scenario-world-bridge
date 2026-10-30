@@ -8,7 +8,63 @@ The map is used in simulation first and moves to a real car later. Every attribu
 where it came from. An audit compares the map with ground truth: 059's survey now, and the
 car's own drives later.
 
-**Status**: planned, 2026-10-30.
+**Status**: in progress, 2026-10-30: O1 and O2 done (newslab-118-server, offline).
+
+Progress:
+
+- **O1, fetched** (`scripts/open_maps/fetch.py scripts/open_maps/sites/ntu.yaml data/maps/ntu`;
+  the tool venv is `data/maps/.venv` (uv): duckdb, eclipse-sumo, commonroad-scenario-designer,
+  pyproj, shapely, requests, pyyaml, pillow).
+  - **OSM:** 17,413 ways, 119,346 nodes, 510 relations (base 2026-10-30).
+  - **Overture 2026-10-21.0:** 3,147 segments, 5,421 connectors, 1,812 buildings.
+  - **Mapillary:** 17,196 map features and 40,791 images in 792 sequences, 1,064 of them
+    panoramas, 7,099 from 2025-26. Among the features:
+    - painted arrows: 580 straight, 116 left, 49 right, 77 split right/straight, 52 split
+      left/straight;
+    - 246 stop lines, 457 zebra crossings;
+    - about 650 traffic lights (vehicle heads);
+    - 132 no-left-turn and 65 no-right-turn signs, 23 no-U-turn signs;
+    - 46 speed-limit-50, 37 speed-limit-40, and a few 20/30/60 signs.
+
+    The API's `layers` parameter does not filter: both layers returned the same set, now
+    deduplicated. The images endpoint rejects a large box, so it is fetched in tiles split at
+    the 2,000 cap.
+  - **NLSC orthophoto (WMTS `PHOTO2`):** real down to z19, 0.27 m per pixel (z20 is z19
+    upsampled), one 7,168 x 5,120 mosaic with an "NLSC 2024" watermark. Lane lines and arrows
+    are visible where trees do not shade them, so route C is possible from public data here.
+  - Not fetched yet: MOI's 20 m DTM, NLSC's 3D buildings.
+- **O2, the baseline** (`scripts/open_maps/baseline.py`, scored by
+  `scripts/open_maps/check_map.py`). Three fixes were needed to get any output at all:
+  1. crdesigner 0.8.5's CLI does not start (a click error), so the script calls its Python
+     API.
+  2. It parses signal ids as integers, and netconvert names them `joinedS_...` even with
+     `--numerical-ids`, so they are renumbered.
+  3. It ignores OpenDRIVE's header `<offset>`, so the first map landed at 24.8 S, 114.6 E. The
+     shift now goes into the georeference, a transverse Mercator with the false easting and
+     northing of 059's frame.
+
+  The result (`data/maps/ntu/baseline/`):
+
+  | measure | baseline |
+  |---|---|
+  | road lanelets | 1,297 |
+  | nodes / per way | 310,952 / 107 mean, 2,125 max (97 MB: Autoware discussion #6019's problem) |
+  | branch points / junction paths | 221 / 600 |
+  | `turn_direction` on junction paths | 0 of 600 |
+  | `speed_limit` | 0 of 1,297 |
+  | traffic-light elements | 382, each with a stop line |
+  | stop-line ways, crosswalks | 0, 0 |
+  | dead ends / no predecessor | 71 / 52 |
+  | random lanelet pairs routable (Lanelet2) | 80 of 200 |
+  | `local_x`/`local_y` | crdesigner's are pseudo-Mercator, not the map frame |
+
+  - It loads in Lanelet2 with no errors and routes.
+  - netconvert applied OSM's turn lanes where they agree with its lane counts, and logged
+    where they do not: "Ignoring turn sign information for 4 lanes on edge ... with 3 driving
+    lanes". It dropped five turn restrictions whose direction it could not determine.
+  - Bus and cycle lanes are discarded as "unknown compound" types.
+  - Everything Autoware needs beyond the geometry would still have to come from the repair
+    scripts. That is the bar O3 has to clear.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

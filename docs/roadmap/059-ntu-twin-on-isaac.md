@@ -175,12 +175,13 @@ Progress:
   - r01 end to end (2026-10-30, all of the above, auto_drive): "ARRIVED at goal after
     99.6s", 349 m. NDT error while moving p50 0.22 m, across-track p95 0.08 m; NVTL never below
     2.89; no AEB, no MRM.
-  - Open:
+  - Open (docs/issues 025-027):
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do
       3 m south, 10 m north, and r02's spot at yaw pi/2, and a box dropped there rests.
       There are only ground triangles within the car. Not explained.
     - The ego spawned at r02's lanelet centre came to rest 0.8 m south of it. Not explained.
+    - pose_instability_detector died once at start ("cannot store a negative time point").
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

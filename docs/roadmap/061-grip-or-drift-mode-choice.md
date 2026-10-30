@@ -88,6 +88,15 @@ Narrow roads: the study ran one width; a width arm (6, 8, 10, 15 m) comes first,
 rule only from its result. The surface ahead is the map's; an unseen patch (060 M6) stays
 outside. M7's learned chooser, if built, replaces this table with the same inputs.
 
+Where the preconditions come from (autoware-drift `docs/preconditions.md`): no onboard sensor
+sees friction 200-260 m ahead (cameras to ~30 m, slip estimators 0 m), and no method senses the
+fall-off, so over the window the surface class is the map's, carried with a confidence; a
+simulated perception sensor (misclassification growing with distance) confirms or vetoes in the
+last 30-60 m; the car's estimate only lowers friction, holds low through a slide, and corrects
+the map after a pass. Seeds are added loosely (any class above a small probability), a drift is
+committed strictly (M3's gate, scored at a lower friction quantile). M4 adds an arm with a
+deliberately wrong map (0/10/30 % zones misdeclared) and perception on or off.
+
 **M4. Model in the loop (E2).** `sim.Plant` with the ECU: three arms, single start (060),
 multi-start always ({G, D}, F into hairpins), and seeds by precondition (M3b); E0's oracle plan
 as the ceiling; mu 1.03, 0.45, 0.3; corners R 9/15/25 at 90 and 180 deg, then Haruna. Scored

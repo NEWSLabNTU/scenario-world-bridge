@@ -465,7 +465,24 @@ def build(site, out):
     chains = keep
     for j in J:
         if j["joint"]:
-            j["R"], j["signal"] = 2.0, None
+            # a joint's connectors carry the lanes across a tag change: 2 m each side when the
+            # lanes run on, longer where they cannot. 椰林大道's two lanes merging into one at
+            # 40 deg in 4.8 m gave connectors whose bounds crossed, and Autoware's path ended
+            # there (062, the NTU run stopped short of the main gate).
+            cs = [c for c in chains if junction_of.get(c.nids[0]) is j or junction_of.get(c.nids[-1]) is j]
+            R = 2.0
+            if len(cs) == 2:
+                a, b = cs
+                same = (a.nf, a.nb) in ((b.nf, b.nb), (b.nb, b.nf)) and abs(a.w - b.w) < 0.3
+                ha = [heading(a.pts[-2], a.pts[-1]) if junction_of.get(a.nids[-1]) is j else heading(a.pts[1], a.pts[0])]
+                hb = [heading(b.pts[-2], b.pts[-1]) if junction_of.get(b.nids[-1]) is j else heading(b.pts[1], b.pts[0])]
+                bend = math.degrees(abs(wrap(ha[0] - hb[0] - math.pi)))
+                if not same:
+                    R = 10.0
+                elif bend > 20.0:
+                    R = 6.0
+                STATS[f"joints_R{int(R)}"] += 1
+            j["R"], j["signal"] = R, None
             continue
         hw = [(c.nf + c.nb) * c.w / 2 for c in chains
               if junction_of.get(c.nids[0]) is j or junction_of.get(c.nids[-1]) is j]

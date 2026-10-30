@@ -8,7 +8,7 @@ The map is used in simulation first and moves to a real car later. Every attribu
 where it came from. An audit compares the map with ground truth: 059's survey now, and the
 car's own drives later.
 
-**Status**: in progress, 2026-10-31: O1-O3 done (first version); O4's geometry audit run, its paint and junction audits open (newslab-118-server, offline).
+**Status**: in progress, 2026-10-30: O1-O3 done (first version); O4's geometry audit run, its paint and junction audits open; O5 built; O6's first drive passed on Isaac (newslab-118-server).
 
 Progress:
 
@@ -226,6 +226,44 @@ Progress:
     Aerial LaneNet; the survey's references);
   - NLSC's fee-based orthophotos at a finer pixel;
   - Mapillary's street-level images, which see the lines from 2 m up.
+- **O5, the world and the PCD** (`scripts/open_maps/world.py <site> <out> meshes|pcd`, and
+  `world_usd.py` under Isaac's Python between the two; the map directory is
+  `data/maps/ntu/map/`, named in the scenario as `$(env SWB_OPEN_MAPS)/ntu/map`).
+  - **The world:** NLSC's photo on a flat ground; road lanelets as colliders, with their
+    paint, stop lines and zebras; 1,813 Overture buildings, extruded.
+  - **The props:** 814 OSM trees (CARLA's), 135 signal poles and 1,281 Mapillary street
+    lamps.
+  - **Kept off the road:** every prop stays 1 m clear of every road lanelet, a junction's
+    turning paths included. A pole goes up to 8 m beyond its stop line to find room; 10
+    stop lines have none, so they get no pole. Without this the first drive past the merge
+    fix stopped for a pole 4.6 m right of its lane, standing in the right turn onto
+    新生南路. Of Mapillary's 2,251 lamps, 970 stood on the carriageway (its positions are
+    estimates) and were dropped.
+  - **The PCD:** 38.7 M points at 0.2 m, in 50 m tiles with
+    `pointcloud_map_metadata.yaml`. As one file, compare_map's voxel grid overflowed. The
+    tile corners must be integers, or the loader's yaml conversion fails.
+  - **The signal table:** `traffic_lights.yaml` in the map directory, its ids the
+    traffic_light way ids. Without it the Isaac world server publishes no signal states, and
+    Autoware stops at the first light ("the traffic signal data associated with regulatory
+    element id ... is not received").
+- **O6, first drive passed** (2026-10-30, newslab-118-server; Isaac on GPU 0, since GPU 1
+  is another user's: `ISAAC_KIT_ARGS` in `.env`).
+  - **The scenario:** `scenarios/ntu/ntu_gate_xinsheng.xosc`, written by
+    `scripts/open_maps/scenario.py` from the map. It sets every light green in Init (the
+    light ids change with each generation), then drives 椰林大道 west from the campus, right
+    at the main gate onto 新生南路, and north to 68040, about 650 m.
+  - **The result:** run 9 passed, from engage to the goal in 3 min at about 4.2 m/s.
+  - **What failed before it:**
+    - runs 1-5: the GPU pin, the missing signal table, the one-file PCD and its corner
+      types;
+    - runs 6-7: the trajectory ended on 椰林大道. Its two lanes merge into one at an OSM
+      joint (a 40 deg bend), and the 4.8 m connectors' bounds crossed, so the path ended
+      there. Joints now cut 10 m when the lane counts or widths differ, and 6 m when they
+      bend by more than 20 deg; otherwise 2 m (`generate.py`; 25, 50 and 72 joints);
+    - run 8: the signal pole above.
+  - **Still open:** the rest of O6's acceptance. That needs a loop through every junction
+    type, NVTL measured along it, the turn signals and the intersection module checked,
+    and red lights. 19 connectors with crossing bounds remain, all at junction corners.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

@@ -1406,7 +1406,8 @@ scenario scenario_file *args:
         port:={{ssv2_port}} "${timeout_args[@]}"
 
 
-# The map directory a scenario names (its LogicFile, $(env CARLA_MAPS) expanded); the
+# The map directory a scenario names (its LogicFile, $(env CARLA_MAPS) and any other $(env VAR)
+# expanded); the
 # default map when it names none.
 _scenario-map scenario_file:
     #!/usr/bin/env bash
@@ -1414,6 +1415,12 @@ _scenario-map scenario_file:
     f=$(grep -oE 'LogicFile filepath="[^"]*"|filepath: *.*' "{{scenario_file}}" | head -1 \
         | sed -E 's/^LogicFile filepath="//; s/"$//; s/^filepath: *//')
     f="${f//\$(env CARLA_MAPS)/$maps}"
+    # any other $(env VAR), as SSv2 expands it (062's open-data maps: $(env SWB_OPEN_MAPS))
+    while [[ $f =~ \$\(env\ ([A-Za-z_][A-Za-z0-9_]*)\) ]]; do
+        v="${BASH_REMATCH[1]}"
+        [ -n "${!v:-}" ] || { echo "_scenario-map: the scenario's map names \$(env $v), which is not set" >&2; exit 2; }
+        f="${f//\$(env $v)/${!v}}"
+    done
     echo "${f:-$maps/{{default_map}}}"
 
 # 1 when the scenario has an ego (SSv2's test: a Controller named Autoware or with the property

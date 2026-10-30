@@ -4,6 +4,7 @@
 Run by Isaac's Python (it has `pxr`):
 
     $ISAAC_ROOT/venv/bin/python scripts/ntu_twin/world_usd.py MESH_DIR ORTHO_DIR MAP_DIR
+        [--clear-road GROUND_DIR]
 
 Writes `MAP_DIR/isaac/`: one `tiles/tile_<ix>_<iy>.usdc` per tile (its ground with the tile's
 2 cm orthophoto, its buildings and its other objects with their scan colours), a
@@ -19,6 +20,12 @@ ground Road (Q34442) for now, buildings Building (Q41176). Colliders: triangle m
 ground and the buildings only. The other objects (trees as Poisson blobs, the shards Poisson
 leaves, parked cars baked in) are seen by camera and lidar but have no collider: a shard over
 the road stopped an Autoware drive on r02 (roadmap 059 N8).
+
+`--clear-road GROUND_DIR` drops the other objects' triangles that stand on the road: within
+CLEAR_MARGIN of a lanelet (MAP_DIR/lanelet2_map.osm) and less than CLEAR_HEIGHT above the
+ground (GROUND_DIR's DTM). On the lanes, what stands that low is a vehicle, a person or
+Poisson's skirt; canopy above it stays, and so does everything off the lanes. Without it,
+such pieces 0.15 m outside a 2.17 m lanelet set off Autoware's AEB on r01 (N8).
 """
 import argparse
 import glob
@@ -31,6 +38,9 @@ import sys
 import numpy as np
 
 MAP_ORIGIN = (52500.0, 67700.0, 0.0)
+SHIFT = np.array([-0.54, 0.20, 17.30])  # vendor (the DTM's frame) = map + SHIFT
+CLEAR_MARGIN = 0.5   # m around the lanelets
+CLEAR_HEIGHT = 2.5   # m above the ground
 QCODE = "semantics:labels:wikidata_qcode"
 LABELS = {"Ground": "Q34442", "Building": "Q41176"}
 ROOT = "/NTU"
@@ -161,7 +171,62 @@ def _mesh(stage, path, V, F, uv=None, colours=None, label=None, material=None, c
     return prim
 
 
-def tile_stage(path, ix, iy, mesh_dir, texture):
+def lane_raster(osm, meta, shape, margin):
+    """The lanelets of a Lanelet2 file (map frame) on the DTM's grid (GROUND_DIR/dtm.json's
+    `meta`, cells of the vendor frame), grown by `margin` m."""
+    import xml.etree.ElementTree as ET
+
+    from scipy import ndimage
+
+    c = meta["cell"]
+    lane = np.zeros(shape, bool)
+    root = ET.parse(osm).getroot()
+
+    def xy(n):
+        return [float(n.find(f"tag[@k='{k}']").get("v")) for k in ("local_x", "local_y")]
+
+    nodes = {n.get("id"): xy(n) for n in root.findall("node")}
+    ways = {w.get("id"): [nodes[nd.get("ref")] for nd in w.findall("nd")]
+            for w in root.findall("way")}
+    for rel in root.findall("relation"):
+        tags = {t.get("k"): t.get("v") for t in rel.findall("tag")}
+        if tags.get("type") != "lanelet":
+            continue
+        m = {x.get("role"): x.get("ref") for x in rel.findall("member")}
+        poly = np.array(ways[m["left"]] + ways[m["right"]][::-1]) + SHIFT[:2]
+        i0, j0 = np.floor((poly.min(0) - (meta["x0"], meta["y0"])) / c).astype(int)
+        i1, j1 = np.ceil((poly.max(0) - (meta["x0"], meta["y0"])) / c).astype(int)
+        jj, ii = np.mgrid[max(j0, 0):min(j1, shape[0] - 1) + 1, max(i0, 0):min(i1, shape[1] - 1) + 1]
+        px = meta["x0"] + (ii + 0.5) * c
+        py = meta["y0"] + (jj + 0.5) * c
+        inside = np.zeros(px.shape, bool)
+        for (ax, ay), (bx, by) in zip(poly, np.roll(poly, -1, axis=0)):  # even-odd rule
+            cross = (ay > py) != (by > py)
+            xs = ax + (py - ay) * (bx - ax) / np.where(by == ay, 1e-12, by - ay)
+            inside ^= cross & (px < xs)
+        lane[jj[inside], ii[inside]] = True
+    return ndimage.binary_dilation(lane, iterations=int(round(margin / c)))
+
+
+class RoadClear:
+    """Which map-frame points stand on a lane, below CLEAR_HEIGHT: the lanelets rasterized on
+    the DTM's grid and grown by CLEAR_MARGIN."""
+
+    def __init__(self, osm, ground_dir):
+        self.meta = json.load(open(os.path.join(ground_dir, "dtm.json")))
+        self.dtm = np.load(os.path.join(ground_dir, "dtm.npy"))
+        self.lane = lane_raster(osm, self.meta, self.dtm.shape, CLEAR_MARGIN)
+
+    def on_road(self, P):
+        """Points (n, 3, map frame) that stand on a lane below CLEAR_HEIGHT."""
+        c, m = self.meta["cell"], self.meta
+        v = P + SHIFT
+        i = np.clip(((v[:, 0] - m["x0"]) / c).astype(int), 0, m["width"] - 1)
+        j = np.clip(((v[:, 1] - m["y0"]) / c).astype(int), 0, m["height"] - 1)
+        return self.lane[j, i] & (v[:, 2] - self.dtm[j, i] < CLEAR_HEIGHT)
+
+
+def tile_stage(path, ix, iy, mesh_dir, texture, clear=None):
     from pxr import Usd, UsdGeom
 
     stage = Usd.Stage.CreateNew(path)
@@ -183,6 +248,8 @@ def tile_stage(path, ix, iy, mesh_dir, texture):
         if not os.path.exists(p):
             continue
         V, F, C = read_ply(p)
+        if clear is not None and name == "other" and len(F):
+            F = F[~clear.on_road(V[F].mean(axis=1))]
         if not len(F):
             continue
         vc = vc or _vertex_colour_material(stage, looks + "/ScanColour")
@@ -198,7 +265,11 @@ def main(argv=None):
     ap.add_argument("mesh_dir")
     ap.add_argument("ortho_dir")
     ap.add_argument("map_dir")
+    ap.add_argument("--clear-road", default="", metavar="GROUND_DIR",
+                    help="drop other objects standing on the lanes (the DTM's dir)")
     a = ap.parse_args(argv)
+    clear = RoadClear(os.path.join(a.map_dir, "lanelet2_map.osm"), a.clear_road) \
+        if a.clear_road else None
     from pxr import Sdf, Usd, UsdGeom
 
     out = os.path.join(a.map_dir, "isaac")
@@ -217,7 +288,7 @@ def main(argv=None):
         src = os.path.join(a.ortho_dir, f"rgb_{ix}_{iy}.jpg")
         shutil.copyfile(src, os.path.join(out, "ortho", f"rgb_{ix}_{iy}.jpg"))
         tp = os.path.join(out, "tiles", f"tile_{ix}_{iy}.usdc")
-        n = tile_stage(tp, ix, iy, a.mesh_dir, f"../ortho/rgb_{ix}_{iy}.jpg")
+        n = tile_stage(tp, ix, iy, a.mesh_dir, f"../ortho/rgb_{ix}_{iy}.jpg", clear)
         total += n
         prim = stage.DefinePrim(f"{ROOT}/Tiles/t_{ix}_{iy}".replace("-", "m"), "Xform")
         prim.GetPayloads().AddPayload(Sdf.Payload(f"./tiles/tile_{ix}_{iy}.usdc"))

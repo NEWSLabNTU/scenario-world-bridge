@@ -208,3 +208,13 @@ Rulings:
   (plans differ beyond noise); worth trying for fresh seeds.
 - For M4: multi-start for robustness, threshold 0.3 %; a held grip seed beside G and a
   classification band (drift at 3 deg, grip below 1.5) to make the choice real.
+
+**After M3: the phase reframed** (user, 2026-10-30: "Go" on continuing M2 then M4). M1 and M3
+show the grip-or-drift choice is worth little for lap time (the gate decided 3 times in 18
+runs; G slides into low-friction corners by itself), while the extra seeds keep the car going
+when G fails. Ruling: M4 is judged on robustness first: on low friction and mixed surfaces,
+fewer stops and failed re-plans than the single start, lap time no worse than 0.1 % on asphalt
+and no worse than the single start's on low friction; threshold 0.3 %. Multi-start needs cores
+of its own (its budget held at ~5 ms an iteration, not at 7). M2 before M4, since low friction
+is the only place the seeds matter. Cost if wrong: a lap-time gain M4 would have chased is not
+looked for; M1's oracle still bounds it.

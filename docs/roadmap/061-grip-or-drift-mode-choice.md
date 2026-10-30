@@ -155,3 +155,56 @@ Rulings:
 - HSL (user, 2026-10-30): skipped, not licensed. If the linear solve turns out to limit the
   budget, the free alternatives come first: Fatrop (in this CasADi build, LGPL, a Riccati-based
   interior point for staged problems), CasADi's SQP on HPIPM, MUMPS tuning; HSL only after them.
+
+**M3 (done, 2026-10-30; gate fails as written, passes at 0.3 % under the counting ruling).**
+Built: `live.Driver(multistart=...)` (default `None`: 060's one start, unchanged; the warm start
+moved to `live.warm_from`), `race_planner/multistart.py` (a process per seed, each its own
+compiled `Window` and 0.9 s budget; G, D from the corner library or synthetic, F into hairpins;
+a plan's mode decided in the corner ahead, kept with no corner ahead; the hysteresis gate),
+`race_planner/modes.py` (seeds, corners, `corner_library.npz`, 120 kB, 60 archetypes from M1's
+Dc plans), `sim.PlanFollower`, serve.py's `multistart` init option, `studies/mode_choice_e1.py`
+and `studies/solver_cost.py` (autoware-drift 0a9e126; write-up `docs/mode-choice-m3.md`, results
+`play_log/race_planner/mode_choice/m3/`: v3 at the top, v2 under `corner_mode/`, v1 under
+`window_mode/`). E1: chains of the study's ten corners at mu 1.03/0.45/0.3 and Haruna (asphalt,
+patches 0.45 and 0.3), car on the adopted plan (no plant), thresholds 0.1/0.3/0.5 %. Results:
+- one mode change per corner, as written: v3 10 of 18 runs (v2 14). The rest are the previous
+  corner's slide ending booked on the next corner, changes forced by the budget (the current
+  mode's plans cut at 0.9 s: v3 51, v2 20) and changes forced at the 3 deg drift line. Counted
+  as ruled below: v2 18/18, v3 17/18, the exception at 0.1 % (a 0.11 % gate gain into a flick,
+  forced back next re-plan); 0.3 % and 0.5 % pass in both;
+- no flip-flop on asphalt: 0 of 6 runs in v3 (adopted plans and the chooser); v2's two
+  chooser flips at Haruna's first hairpin (3.0-3.1 deg past the peak) gone with the
+  keep-the-mode rule; single start 3 on Haruna;
+- overruns > 1.0 s: v2 0 of 1,969 (p95 0.92 s); v3 25 of 1,680 (1.5 %, max 1.18 s) and three
+  runs stopped "solves failed" with 78-87 % of seed solves cut, on cores shared with others'
+  work (load 38-60; 6.7 ms an iteration against v2's 4.9). Re-run at load ~15
+  (`m3/v3_rerun_stopped/`: two of the stopped runs, two repeats): all finished, 0 overruns;
+- the gate decided 3 times in 18 v3 runs (v2 2), all at 0.1 %; G and D agree in the corner
+  ahead in 71-87 % of re-plans (v2); course time vs single -0.59..+0.88 % (v2 -0.81..+0.61),
+  no order by threshold. The gain is robustness: Haruna with mu 0.3 patches finished by every
+  multi-start run where one start stopped at 10 s, while iterations cost ~5 ms;
+- D warm across re-plans: low mu no (p50 96-106 iterations, a fresh Dc 114-146), asphalt yes
+  (46). IPOPT 5.9 ms an iteration: linear solver 57 %, functions 34 %, IPOPT 9 %. Fatrop 3.3 ms,
+  p95 -35..-44 %, but 17 % of plans differ by > 0.3 %, 12 windows IPOPT solves fail, no
+  multiplier warm start.
+Rulings:
+- A plan's mode is its slide in the corner ahead (turn-in 10 m or more ahead; 30 m before it to
+  the exit), not over the window. Why: over the window both modes almost never had a plan (v1).
+  Cost if wrong: only the label is per corner; the window time still decides.
+- With no corner ahead every plan keeps the current mode. Why: v2's window classification
+  there forced changes mid-corner and on straights (136 changes against v3's 83). Cost if
+  wrong: a slide that ends badly is labelled drift to its corner's end; the fastest plan is
+  still adopted.
+- Counting against "one change per corner": the previous slide's end is the previous corner's;
+  a change forced by budget cuts counts against the budget criterion; line-forced and gate
+  changes count. Why: the criterion is about flipping between valleys, and the first two are
+  booking and load. Cost if wrong: changes a slow host makes are hidden here, but there the
+  budget criterion fails anyway.
+- The budget criterion is judged on v2's quiet cores, v3's timing reported. Why: M1's ruling
+  (timing by iterations or on a quiet core). Cost if wrong: 1 % holds only at about 5 ms an
+  iteration; M4 must measure it on the target's load.
+- Forced changes follow the plans at once (the alternative is no plan); G stays free (no held
+  grip seed); F runs into hairpins; the library is M1's Dc plans. Fatrop not adopted for live
+  (plans differ beyond noise); worth trying for fresh seeds.
+- For M4: multi-start for robustness, threshold 0.3 %; a held grip seed beside G and a
+  classification band (drift at 3 deg, grip below 1.5) to make the choice real.

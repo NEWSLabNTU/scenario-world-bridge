@@ -309,3 +309,56 @@ and no worse than the single start's on low friction; threshold 0.3 %. Multi-sta
 of its own (its budget held at ~5 ms an iteration, not at 7). M2 before M4, since low friction
 is the only place the seeds matter. Cost if wrong: a lap-time gain M4 would have chased is not
 looked for; M1's oracle still bounds it.
+
+**M3b (done, 2026-10-30; built, R6 held on Haruna, missed by 0.04 % on Tsukuba in one run).**
+Built: `race_planner/schedule.py` (the window scan: corners ahead with turn, least radius,
+distance, class probabilities, grade, width; `DriftMap`, the table's thresholds as data in
+`drift_map.json`, from the drift study after M2 and the width arm; `Scheduler`, design 4.4a's
+table on the corner the seeds go into, loose in at p_add 0.15, no new D/F under 25 m),
+`race_planner/surface.py` (`SurfaceMap`: zones with a declared class, confidence and true class,
+the planned friction at the mixture's mean - 1 sigma, the planner's and the plant's Tracks;
+`Perception`: confusion falling from 95 % at 30 m to chance at 100 m, seeded, veto and
+lower-only; `FrictionEstimate`: only lowers, holds through a slide, released at 0.05/s, writes
+the map after a pass), `multistart`'s scheduled mode (`schedule=...`: G in the driver's process
+as 060 solves it, H held at the rear tyre's peak in its own process, one compiled window per
+whole-degree bound, D, F), `live.Driver(estimator=...)` (default off); the width arm
+(`drift_optimality.py m3b-width`, `drift-map`), `studies/mode_choice_m3b.py`,
+`test/test_schedule.py` (autoware-drift c4e08cd, c7a22b1; write-up `docs/mode-choice-m3b.md`, results
+`play_log/race_planner/drift_study/m3b-width.*`, `play_log/race_planner/mode_choice/m3b/`).
+Results:
+- width arm (R 9/15/25, 90/180 deg, asphalt, mud_wet, snow_loose, gravel, 6/8/10/15 m, 96
+  cases): width moves the optimum only in 90 deg corners on loose ground without fall-off: a
+  drift pays 0.6-1.3 % at 6-8 m, 0.05-0.2 % at 10 m, nothing at 15 m (the slide 8-11 deg past the
+  peak narrow, 3 deg wide). Hairpins pay at every width on every class (asphalt 0.08-0.48 %,
+  mud and loose snow 0.3-1.4 %, as deep); asphalt and gravel 90s never. Rule: the drift map is
+  keyed on width (the widest measured width no wider than the road; unknown: the narrowest);
+- receding chain, no plant (one run each): Haruna dry G alone on 43 % of re-plans (the table's
+  asphalt hairpin row fires at all seven hairpins), 2.13 solves a re-plan, -0.065 % against
+  single; Tsukuba 75 %, 1.51, +0.138 %. Every G-only re-plan is 060's bit for bit (tested); the
+  difference is the hairpins' D plans. Class-zone chain (mud_wet, snow_loose, gravel, ice,
+  snow_packed hairpins and 90s, one uncertain asphalt/mud zone): single start stopped at s 191
+  (solves cut at the budget into the mud hairpin), scheduled and always-on finished; the starts
+  fired where the table says at each of the ten corners; 2.30 solves a re-plan against
+  always-on's 2.92 (-21 %), course time -1.1 %; overruns past 1.0 s 18 of 140 (always-on 19 of
+  142, max 1.03 s) on low friction;
+- full suite: 111 passed (was 92 before M3b, all passing).
+Rulings:
+- H is the fallback (adopted only when no free start has a plan), not a gate competitor
+  (`h_competes=True` restores it). Why: as a competitor it held grip on H's slower plan wherever
+  G slid by itself: Tsukuba +0.55 %. Cost if wrong: on low friction the slide is never weighed
+  against a held grip plan; M4 can measure that arm.
+- G in the driver's process. Why: a G-only re-plan is then 060's exactly (R6 by construction
+  there). Cost if wrong: one more busy core per re-plan.
+- The table is applied to the corner the seeds go into (the first 10 m or more ahead), H also on
+  low friction anywhere in the window. Cost if wrong: a second paying corner in the window is
+  seeded only when it becomes first (still 25 m+ ahead).
+- Planned friction: mean - 1 sigma over the class mixture, floored at the lowest class at 0.15 or
+  more, within-class spread 0 by default (a certain map plans as 060). Cost if wrong: the 0.1
+  within-class spread is not planned in; `sd` is there for M4 to sweep.
+- p_add 0.15, gain 0.05 %, R x 1.25, turn - 30 deg: starting points, not measured optima. Cost if
+  wrong: M4 sweeps them.
+- The chain check's spin stop raised to 89 deg (the car is its plan; on mud M2's tyre plans the
+  R 9 hairpin past 60 deg). Cost if wrong: those plans may not be drivable; M4's plant decides.
+- R6 on Tsukuba (+0.138 % against 0.1 %) is reported, not ruled away: one run, the course time on
+  a 0.05 s step (0.07 %); M4 repeats it with the plant.
+- Design 4.4a updated (width row and rule, H as fallback; section 10).

@@ -243,6 +243,51 @@ Rulings:
 - For M4: multi-start for robustness, threshold 0.3 %; a held grip seed beside G and a
   classification band (drift at 3 deg, grip below 1.5) to make the choice real.
 
+**M2 (done, 2026-10-30).** Built: the planner's tyre on each surface's own peak, swb's rule
+(`surfaces.WheelSurfaces.update`: each wheel's stiffness times rig peak x friction written /
+class peak, rho over the class's peaks): `model.tyre(surface=(stiff_long, stiff_lat,
+peak_long, peak_lat))`, `track.SurfaceTable.tyre` from swb's `surface_classes.yaml`, four
+`Track` fields carried by axle, L1's window (stage parameters 4 -> 8), L0, L2 (10), sim.Plant,
+modes and multistart; `test/test_surfaces.py` against swb's code imported from this checkout;
+the study's grids `m2-lowmu`, `m2-classes`, `m2-classes-old`, `m2-report` (autoware-drift
+4c5fe3d; write-up `docs/mode-choice-m2.md`, results `play_log/race_planner/drift_study/m2-*`,
+`m2_report.md`). Results:
+- swb per class (drift_mustang; stiffness lon/lat, shares of the rig's): asphalt 1/1 (rig
+  peak 0.256, 8.55 deg), concrete 0.94/0.94, gravel 0.46/0.38 (12 deg), dirt 0.78/0.52 (10),
+  grass 0.84/0.47 (9), sand 0.50/0.14 (14), mud_wet 0.33/0.18 (12), snow_packed 0.30/0.26
+  (6), snow_loose 0.19/0.16 (12), ice 1.21/0.68 (3). Planner equals it to 1e-12; its force
+  curve within 0.6 % of PhysX's brush under swb's stiffness and friction, peak within 2 %;
+- the rear tyre's peak (outer rear at the limit) moves from 2-3 deg to swb's: snow_packed 2.1
+  -> 6.4, ice 2.9 -> 3.1, mud_wet 3.1 -> 16.4, sand 2.9 -> 17.8, snow_loose 2.6 -> 16.1, gravel
+  7.0 -> 15.9; asphalt 12.1 unchanged;
+- asphalt unchanged: the tyre, the axle car and L0 bit for bit; L1's stage functions differ in
+  the last bit (31 of 7,800 constraint values, 1e-14 relative: symbols where constants were
+  folded); tightly solved (tol 1e-8) Haruna and Tsukuba windows reach the same optimum (times
+  equal to 1e-13, states 2.6e-10); at tol 1e-3 a warm chain wanders up to 0.08 %, as the old code
+  does under a 1e-9 m/s change of its start (0.14 %);
+- the low-friction arms re-run (220 cases, 4 jobs, none failed): drift-optimal abstract mu 0.45
+  and 0.3 43 of 60 -> 18, classes 53 of 80 -> 32. Still optimal, gains: mud_wet 1.21 %, sand
+  1.32 %, snow_loose 1.11 %, abstract sliding 1.0 1.20-1.31 % (were 1.5-2.5 %); hairpins R 9-25
+  on loose ground 0.3-0.6 %; snow_packed only hairpins, 0.34 % (was 1.95 %); ice none (was
+  1.56 %); falling-off arms (0.8, 0.6) at most 0.38 %. Every low-friction section 1-4 % slower
+  (the grip comes at 6-16 deg). The old tyre was full grip flat from 3 to 8.5 deg on low mu.
+Rulings:
+- swb's rule from its code, not Isaac's sweeps per class. Why: no Isaac beside another user's
+  CARLA on this host; swb's code is what Isaac runs. Cost if wrong: PhysX's real curve past the
+  knee per class; sweeps per class deferred to M6.
+- A friction with no class (hand-built tracks, the study's abstract mu) keeps the rig's tyre;
+  grip share, mu_scale and the plant's patches lower friction alone. Why: asphalt and every
+  existing Track unchanged, and the grip share is a margin. Cost if wrong: a low-mu patch is
+  planned on a peak too early (3.5 deg for 8.6 at 0.45); M4 should give a known patch a class.
+- Asphalt's live windows are ruled equivalent, not bit-identical (above). Why: same optimum,
+  differences inside IPOPT's tolerance. Cost if wrong: none found; below R6's 0.1 %.
+- Stribeck and relaxation stay out (a steady tyre); the corner library and M1/M3's seeds stay
+  as built on the old tyre. Why: seeds are starts. Cost if wrong: Dc seeds on snow start 2-8
+  deg too deep; rebuild the library on the classes if M4's iterations say so.
+- For M4 and M6, the targets: low friction is chosen by class, not by mu; drift worth ~1.2 % on
+  mud, sand and loose snow (all corners), 0.3-0.6 % in loose-ground hairpins, nothing on ice or
+  packed snow outside hairpins. Mixed Haruna patches should be classes (snow_packed, mud_wet).
+
 **After M3: the phase reframed** (user, 2026-10-30: "Go" on continuing M2 then M4). M1 and M3
 show the grip-or-drift choice is worth little for lap time (the gate decided 3 times in 18
 runs; G slides into low-friction corners by itself), while the extra seeds keep the car going

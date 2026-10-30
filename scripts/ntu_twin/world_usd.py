@@ -111,12 +111,31 @@ def _texture_material(stage, path, texture):
     return mat
 
 
+def srgb_to_linear(c):
+    """The scan's colours are sRGB; a displayColor primvar is linear (RTX reads it as such)."""
+    c = np.clip(c, 0.0, 1.0)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def vertex_normals(V, F):
+    """Area-weighted smooth normals, so Poisson meshes do not render faceted."""
+    fn = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    n = np.zeros_like(V)
+    for k in range(3):
+        np.add.at(n, F[:, k], fn)
+    ln = np.linalg.norm(n, axis=1, keepdims=True)
+    return np.where(ln > 0, n / np.maximum(ln, 1e-12), [0.0, 0.0, 1.0])
+
+
 def _mesh(stage, path, V, F, uv=None, colours=None, label=None, material=None, collider=True):
     from pxr import Sdf, UsdGeom, UsdPhysics, UsdShade, Vt
 
     V = (V - np.asarray(MAP_ORIGIN)).astype(np.float32)
     mesh = UsdGeom.Mesh.Define(stage, path)
     mesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(V))
+    mesh.CreateNormalsAttr(Vt.Vec3fArray.FromNumpy(
+        vertex_normals(V.astype(np.float64), F).astype(np.float32)))
+    mesh.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
     mesh.CreateFaceVertexCountsAttr(Vt.IntArray.FromNumpy(np.full(len(F), F.shape[1], np.int32)))
     mesh.CreateFaceVertexIndicesAttr(Vt.IntArray.FromNumpy(F.astype(np.int32).ravel()))
     mesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
@@ -128,7 +147,7 @@ def _mesh(stage, path, V, F, uv=None, colours=None, label=None, material=None, c
             Vt.Vec2fArray.FromNumpy(uv.astype(np.float32)))
     if colours is not None:
         mesh.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex).Set(
-            Vt.Vec3fArray.FromNumpy(colours.clip(0, 1).astype(np.float32)))
+            Vt.Vec3fArray.FromNumpy(srgb_to_linear(colours).astype(np.float32)))
     prim = mesh.GetPrim()
     if collider:
         UsdPhysics.CollisionAPI.Apply(prim)

@@ -6,8 +6,12 @@ camera-driven stacks such as Autoware Foundation's Vision Pilot or a VLM agent. 
 image is what those stacks consume, so realism of the rendering is the requirement, not only
 geometry. The first version starts from the vendor's coloured MLS point cloud alone.
 
-**Status**: in progress, 2026-10-29. Local copy in `/mnt/toshiba/aeon/ntu-map/` (tool venv
-`.venv`: laspy + lazrs, open3d, pyproj, scipy, matplotlib).
+**Status**: in progress. Moved from newslab-241 to newslab-server133 on 2026-10-30 (241's GPUs
+are held by another user's vLLM; the handover is `HANDOVER.md` in the NAS's
+`autoveh/dataset/2026-10-30 NTU twin map/`). On 133 the work lives on NVMe in
+`/mnt/p5plus/aeon/ntu-twin/` (tool venv `.venv`: laspy + lazrs, open3d 0.20, pyproj, scipy,
+matplotlib), Isaac Sim 6.1 in `/mnt/p5plus/aeon/isaac-sim/`. 241's copy was
+`/mnt/toshiba/aeon/ntu-map/`.
 
 Progress:
 
@@ -38,6 +42,21 @@ Progress:
   ground cells sit a median 0.16 m above the ground mesh (5th-95th percentile -0.12 to
   +0.87 m): the routes' own PCDs drift against the scan (019); re-registering the lanelets is
   still open.
+- N6 checked in Isaac (133, 2026-10-30; `scripts/ntu_twin/world_probe.py`, headless, RTX 5090,
+  spawned on r02's lanelet 7 at world (-282.58, -45.02), ground 11.8 m). Isaac boots in 11-13 s,
+  and all 358 meshes (70.5 M triangles) are on the stage within 5 s. The first frame takes
+  4.5 s cold and 85 ms warm. VRAM is 13.1 GB with three 1280x720 cameras and an OS1 lidar.
+  Frames take 13.7 ms median (17.2 ms p95) with camera and lidar.
+  The orthophotos show; nothing renders black. The lidar hits the meshes: 111 k points per
+  frame, range 3.3 / 12.1 / 51.4 m (p5 / p50 / p95), 59 % of returns more than 0.3 m above the
+  ground. The first USD wrote the scan's sRGB colours into displayColor, which RTX reads as
+  linear, so trees and trunks rendered near-white. The meshes also had no normals and rendered
+  faceted. `world_usd.py` now converts the colours to linear and writes area-weighted vertex
+  normals; the rebuild takes 22 s.
+  Still visible: crown tops are pale and blue (the MLS scan colours the canopy from below, so
+  edge points take sky pixels), Poisson shards float over the road, parked cars are meshed
+  (N2), the ortho's baked shadows double RTX's own, and lidar intensity is flat (no
+  non-visual materials).
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs
@@ -135,7 +154,9 @@ real footage, if we can record some.
 - Trees look fake to a VLM; baked shadows in the scan's colour double RTX's own.
 - Texture budget (~1.8 G texels at 2 cm) needs tiles and streaming.
 - RTX lidar has crashed on multi-GPU setups: pin Isaac to one GPU.
-- GPU: both RTX 5090s on 241 are held by another user's vLLM as of 2026-10-29; offline
-  steps N1-N5 and N7 do not need them.
-- Disk: the copy is on a spinning disk (`/mnt/toshiba`); the NVMe volumes have no directory
-  we can write to.
+- GPU: both RTX 5090s on 241 are held by another user's vLLM as of 2026-10-29, so the work
+  moved to 133. On 133 another user runs a CUDA MPS daemon (`/tmp/nvidia-mps`), and our CUDA
+  fails with 805 (MPS_CONNECTION_FAILED) unless `CUDA_MPS_PIPE_DIRECTORY` points at an empty
+  private directory. That bypasses MPS; it is set in 133's `.env`.
+- Disk on 133: `/home` is a full spinning disk; everything lives on `/mnt/p5plus` (NVMe).
+- RAM on 133 is 60 GB: run build_meshes with at most 2 workers (10.8 GB peak each).

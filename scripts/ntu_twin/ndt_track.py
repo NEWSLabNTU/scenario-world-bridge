@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Autoware's pose against the Isaac ego's true pose, for roadmap 059 N8 (aib's runner).
 
-    ndt_track.py OUT.csv [--map-origin 52500,67700,0] [--duration 0]
+    ndt_track.py OUT.csv [--map-origin 52500,67700,0] [--mgrs 51RUH] [--duration 0]
 
-aib's runner publishes no ground truth, but its GNSS fix is the GNSS link's world x/y turned
-into degrees about (0, 0) (aib.frames.lat_lon), so it inverts exactly; base_link is the link
+aib's runner publishes no ground truth, but its GNSS fix is the GNSS link's position, exact.
+With `--mgrs` (aib's runner given a map's world.yaml) the fix is MGRS-projected and the map
+x/y come back through UTM (pyproj) less the square's corner; without it, aib's old fix about
+(0, 0) (aib.frames.lat_lon) is inverted and map_origin added. base_link is the link
 less its mount (tesla_model3 rig: 0.797, 0.004 m) turned by the heading. Map = world +
 map_origin. Each row, at the kinematic state's rate: sim time, truth and estimate (map x, y,
 yaw), the error along and across the true heading, and the latest NVTL. Prints a summary line
@@ -31,9 +33,18 @@ def yaw_of(q):
 
 
 class Track(Node):
-    def __init__(self, out, origin):
+    def __init__(self, out, origin, mgrs=""):
         super().__init__("ndt_track")
         self.origin = origin
+        self.utm = None
+        if mgrs:
+            from pyproj import Transformer
+
+            zone = int(mgrs[:-3])
+            self.utm = Transformer.from_crs("EPSG:4326", f"EPSG:{32600 + zone}", always_xy=True)
+            cols = ("ABCDEFGH", "JKLMNPQR", "STUVWXYZ")[(zone - 1) % 3]
+            self.e0 = (cols.index(mgrs[-2]) + 1) * 100_000.0
+            self.row = "ABCDEFGHJKLMNPQRSTUV".index(mgrs[-1]) - (5 if zone % 2 == 0 else 0)
         self.fix = None
         self.nvtl = float("nan")
         self.rows = []
@@ -50,6 +61,11 @@ class Track(Node):
         self.create_timer(10.0, self.summary)
 
     def on_fix(self, m):
+        if self.utm is not None:  # map frame directly: no origin to add later
+            e, n = self.utm.transform(m.longitude, m.latitude)
+            self.fix = (e - self.e0 - self.origin[0],
+                        n % 2_000_000.0 - (self.row % 20) * 100_000.0 - self.origin[1])
+            return
         lat = math.radians(m.latitude)
         y = lat * EARTH_RADIUS
         x = math.radians(m.longitude) * EARTH_RADIUS * math.cos(lat)
@@ -91,10 +107,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--map-origin", default="52500,67700,0")
+    ap.add_argument("--mgrs", default="", help="the map's MGRS grid, e.g. 51RUH")
     ap.add_argument("--duration", type=float, default=0.0)
     a = ap.parse_args()
     rclpy.init()
-    n = Track(a.out, [float(v) for v in a.map_origin.split(",")])
+    n = Track(a.out, [float(v) for v in a.map_origin.split(",")], a.mgrs)
     if a.duration:
         n.create_timer(a.duration, lambda: (_ for _ in ()).throw(KeyboardInterrupt()))
     try:

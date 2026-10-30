@@ -107,11 +107,30 @@ Progress:
        which changes nothing on the ground cells.
     4. Autoware 1.5's PCD loader reads the metadata's tile corners as integers, so
        `export_map.py` writes them floored (yaml-cpp "bad conversion" otherwise).
+  - GNSS (aib 8cf6a9a): aib's fix was projected about (0, 0), and `auto_drive`, which always
+    re-initializes from GNSS, put the ego at (33696, 99955). Now `just isaac-ego
+    world:=<map>/isaac/world.yaml` projects the fix as the map does: MGRS 51RUH about
+    `map_origin`, pure Python, within 0.4 mm of the Lanelet2 maps' own lat/lon. Autoware's
+    `gnss_poser` lands 1.2 m from the spawn (the antenna lever arm, turned without a
+    heading). `auto_drive`, unmodified, re-initialized at (52814.23, 67815.23), 4 cm from the
+    spawn, set the route and drove.
+  - r01 again (auto_drive, with lockstep): 203 m, NDT error while moving p50 0.10 m, p95
+    0.28 m; NVTL never below 2.89. It stopped at (52675.9, 67885.9), the place the first r01
+    drive stopped. Recording the diagnostics showed the order: AEB's emergency brake first,
+    then the MRM, then a single 0.050 s `control_validation_latency` sample. The latency
+    error is the MRM's own stop command arriving a sim tick late (`nominal_latency` is
+    0.01 s; /clock steps 50 ms). It is a consequence, not the cause; in 106 samples while
+    driving the latency was exactly 0.
+  - The cause is the world. The r01 lanelet there (1004849) is 2.17 m wide for a 1.9 m car,
+    while the paved ground is 10 m wide. Pieces of the "other" mesh (vegetation, Poisson
+    geometry reaching to 5 cm above the road) stand 0.15 m beyond its north boundary, and
+    AEB brakes on them. N2/N5 (objects and trees) and a wider lanelet, if the road has one,
+    are the fixes.
+  - Lockstep (aib's `lockstep` in the ego config: each frame waits for NDT's pose of the
+    last scan) does not change this. It keeps the stack in sync, but NDT skips scans: about
+    24 of every ~150 frames waited out the 1 s timeout, a mean of 150-210 ms a frame, so the
+    world ran about 4x slower than the wall clock.
   - Open:
-    - aib's GNSS projects about (0, 0) (`aib.frames.lat_lon`), not the map's MGRS
-      projector. `autoware_sim_pilot`'s `auto_drive` always re-initializes from GNSS, so it
-      put the ego at (33696, 99955) and cannot drive this map until aib's GNSS follows the
-      map's projector and `map_origin`.
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do
       3 m south, 10 m north, and r02's spot at yaw pi/2, and a box dropped there rests.

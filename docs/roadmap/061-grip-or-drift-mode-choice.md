@@ -16,6 +16,9 @@ differentiation ... diff works for continuous space, not discrete space"; "Explo
 solution method based on our findings and online studies ... see if GPU can help"; then
 "create a phase for the solver experiments and revision work. Start it".
 
+**Next**: [065](065-drift-style-layer.md) puts a driving style (fastest, drift when cheap,
+drift everywhere) above this phase's seeds and gate; its M2 on waits for this phase's gate.
+
 **Depends on**: [060](060-live-race-planner.md) (the live planner and tracker, sim.Plant,
 course_probe LIVE=1).
 

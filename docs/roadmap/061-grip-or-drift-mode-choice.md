@@ -8,7 +8,7 @@ valley, revises the planner where the study showed it wrong, and runs the choose
 in the loop first, Isaac second. The code lives in autoware-drift (`src/planning/race_planner`);
 swb supplies the worlds and `spikes/course_probe.py`.
 
-**Status**: in progress, started 2026-10-30.
+**Status**: in progress, started 2026-10-30 (M4b done 2026-10-31, gate not passed).
 
 **Source**: user, 2026-10-30: "Find the conditions that our planner would make a drift turn as
 the optimal solution"; "I wonder if it can choose between optimal drift and non drift by
@@ -416,3 +416,54 @@ Rulings:
 Left (M4b): Haruna R6 (no D into R 10-11 m asphalt hairpins: the map read without the 1.25 x R
 stretch on fall-off classes); the mud R 9 hairpin (the planner's mud tyre against the plant's, a
 bound in L2); issue 001; ice; then the chain's wrong-map and estimator arms.
+
+**M4b (done, 2026-10-31; gate not passed).** Built (autoware-drift 248a9fd, e70f79d, d6c5402,
+fabd6c7): the drift map read without the 1.25 x R stretch on classes that fall off
+(`RULES["r_tol_falloff"]` 1.05); the first plan rescued when G fails (3000 iterations, H and G
+from H, D, F, last G with the slip bounds off; issue 001 closed); L1's slip bounds (front axle
+within its peak, rear within 3 x, on surfaces without fall-off: `window.slip_rows`, `live.Driver`
+defaults; issue 002); the held and slip rows off the live windows' first 3 stages, and ice's rear
+held at its peak (issue 003); `live.run` "stalled"; `studies/m4b_aggregate.py`. Write-up
+autoware-drift `docs/mode-choice-m4b.md`; results `play_log/race_planner/mode_choice/m4b/`
+(`aggregate.md`; dry R6 in `quiet/`). Load 30-78 until 07:30 (another user's build; batches
+waited for < 10, timing < 6), 1.2-4 from 07:45 to 10:30.
+Results:
+- R6, idle host (load 1.3-4.9), three repeats: Haruna single 76.28 x3, **sched 76.28 x3 (0.000 %,
+  G alone on every re-plan, 1.00 solves)**, always 76.88/76.88/76.38; Tsukuba single 74.50,
+  74.42, off road @1820; sched off road @1820 x3: 060's four cut solves near s 1815 in both arms
+  (G alone in sched), not measurable as time;
+- issue 001: both corners start in every arm; `mud_wet:9:180:15` then stalled on the free
+  planner, finishes in every arm with the slip bound (16.91-18.27 s, the oracle 16.22/17.05);
+- mud hairpin, root cause: not the model (L1's car and the plant's agree on the slide to 0.01);
+  the free plan plowed the front at 9-21 x its peak (mud keeps its force past the peak), every
+  tyre saturated, a slide no controller holds (fixed-plan following: on it to s 232, 77 deg
+  against 53 at s 254, stopped sideways). Bound chosen on the chain (mud-hairpin stops of 6):
+  free 6, front 2 x 1-2, front 1.5 + rear 3 1, **front 1 + rear 3 0**; mud corners finished 12/12
+  sched and always (M4 10), time +0.6 %; loose snow's R 9 x 180 F drift lost (+9-11 %);
+- ice, root cause: plans on the rear's falling branch (4-5 deg against a 2.95 peak; a degree's
+  lag runs away), H infeasible once the car is past its bound (node 0 is the car), solves at
+  the 1 s budget. First stages free + rear held at its peak: ice corners finished 13 -> 23 of 36
+  (single 9, sched 8, always 6 of 12), +2-4 % time; on packed snow it cost 4 runs, so ice only;
+- chain, M4b defaults: no mud-hairpin stop on the true and 10 % maps but one (the estimate's);
+  true map 2 of 8 finish (154.2-154.3 s), the rest stop on ice (s 767-854) or the packed-snow
+  hairpin (s 1238-1249); 10 % maps: sched 3 of 3 stop, always 2, single 2 (sched further on
+  average, 1167 against 1011 m); 30 %: every arm early; perception changes little; the estimate
+  now lowers (0.39, 0.55) and once caused the stop (mud hairpin, s 265); solves a re-plan sched
+  2.2-2.7, always 2.9-3.5;
+- the sweep not run (load > 10 again from 10:30; the chain's stops are not the thresholds');
+- suite: all pass (the M3 chooser tests run with the slips free: their abstract tyre has no
+  fall-off).
+Gate: R6 met on Haruna; robustness met but ice; sched as good as always with fewer solves; the
+10 % wrong-map criterion, testable now, missed by one run of three. Not passed.
+Rulings:
+- R6 met on Haruna at 0.000 %; Tsukuba recorded not measurable (060's budget at s 1815, both
+  arms), not missed. Cost if wrong: a timing effect hidden in 060's noise.
+- The slip bound applies only where the tyre does not fall off; front 1 x, rear 3 x. Cost if
+  wrong: loose snow's deep R 9 hairpin drift (+9-11 %) given up.
+- Ice's rear held at its peak, ice only (sliding <= 0.75), on one repeat. Cost if wrong: ice's
+  outcomes flip between repeats; the bound needed a last free G in the first-plan rescue.
+- The first 3 stages of the live windows free of the held and slip rows. Cost if wrong: a plan
+  may start 12 m past its bound.
+- Ice's remaining loss is an R3 solver matter (a third of its re-plans cut at 1 s, every arm).
+Left (M4c): the 10 % maps with more seeds; ice's solve time; the packed-snow R 25 hairpin
+(the chain's other stop); the estimate lowering into a mud slide; the sweep.

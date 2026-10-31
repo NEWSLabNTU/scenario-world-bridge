@@ -539,3 +539,47 @@ asphalt, where L2 is the same function). For 065: heavier beta and r alone (x7, 
 R 15 x 90 with the line at 0.2 m; a style that holds a big slide needs the line to give way where
 the tyres cannot move the car across in the horizon. Left: the chain's packed-snow hairpin with
 the fix; xi's scale on low friction (unchanged).
+
+**M4d (done, 2026-10-31; gate not passed).** Ice's windows and the solve budget. Built
+(autoware-drift 144727e, 9771e96, 6cf5108): the slip-ratio rows in the surface's own peak
+where it peaks under half the rig's slip (issue 008: ice's 0.05 put KAPPA_MAX twelve of its
+peaks out, on the flat where the slope rows have no gradient; ice and sand only, every other
+surface bit for bit); `RP_ITERCAP` (repeatable `RP_DET` runs with the budget as iterations).
+Write-up autoware-drift `docs/mode-choice-m4d.md`; results `play_log/race_planner/mode_choice/
+m4d/` (`rec/` recorded runs, `det/` repeatable runs). Load 3-8 until 16:40, then 15-87 (another
+user's CARLA, another session's builds): the closed-loop comparisons are repeatable runs.
+All runs on L2 before issue 007's fix (14a79e7).
+Results:
+- root cause: 413 recorded ice window solves (12 corners x 2, single), replayed to the
+  iteration: of the 119 not plans within 170 iterations, 56 locally infeasible at any budget
+  (issue 008); the rest start from the car off its plan (warm start's first stages 1.3 m/s^2
+  off in the acceleration rows where solves fail, 0.3 where they succeed), stage Hessians
+  indefinite to -1e8, half the iterations in restoration; stage 0's slope rows can be
+  infeasible from the car's own slip angle;
+- candidates, offline (plans within 170 iterations of 413): M4c 294, issue 008 313 (unbudgeted
+  58 -> 83 of the 119 converge), + free stages' slope rows 325 (112 of 119); no multipliers 294,
+  consistent acceleration rows 291, mu_init 1e-2 291; IPOPT options, L-BFGS, rollout, wheel
+  scaling, slips as controls: none better on 13 hard solves; Fatrop 6.9 ms an iteration against
+  IPOPT's 6.7 here, within 1 s 75 % against 72 %, no multipliers; SQP: qrqp 3 s an iteration,
+  HPIPM refuses the structure (the request's rate penalty couples stages);
+- closed loop, repeatable, ice single at 150-200 and 400 iterations: M4c's code 6-9 of 12 at
+  every budget (40 of 60), failed re-plans 28 %; issue 008 32 of 60 (another compiled form of
+  the same rows 28 of 36), 27 % (17 %); more iterations do not finish more corners; sched 8 -> 7,
+  always 6 -> 6 (170); free slope rows 15 of 36 and Tsukuba 74.50 against 74.33 s (rejected); a
+  same-node re-plan from the plan, not the cold guess: 13 of 32 against 25 of 33 (rejected);
+- R6: Haruna and Tsukuba, single and sched, the same plan and plant digests as M4c's code;
+  packed snow and mud the same runs; suite 154 pass.
+Gate: ice corners not improved (single 32-40 of 60 either code; sched 7, always 6 of 12); R6
+unchanged. Not passed: the budget is not what ice loses to.
+Rulings:
+- Issue 008's fix shipped though ice's finishes do not move (a bug; halves the locally
+  infeasible windows offline; no other measured surface changes). Cost if wrong: 32 against 40
+  of 60 a real loss, not chaos.
+- Repeatable iteration-budgeted runs stand in for wall-clock timing runs at load 15-87. Cost if
+  wrong: iterations are not the clock (5.5-6.9 ms an iteration seen), the latency fixed.
+- Ice's corners read as chaotic (one flips with the last bit of compiled code): compared
+  pooled over budgets.
+- Fatrop, SQP, MUMPS not pursued: the iterations (200-900) are the gap, and more of them do not
+  finish more corners.
+Left: ice's tracking (L2; corners lost with 2-3 failed re-plans, 8-10 m off the plan); windows
+infeasible from the car's own slide at stage 0; an HPIPM-shaped window if an SQP is wanted.

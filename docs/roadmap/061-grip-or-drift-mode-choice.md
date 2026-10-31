@@ -517,3 +517,25 @@ Rulings:
   S1 is specified unchanged; not re-verified bit for bit.
 Left: ice's solve time (the R3 solver levers: Fatrop, SQP on HPIPM, MUMPS); issue 007 (L2);
 loose snow R 9 x 90 at 15 m sched's H adoption; the sweep.
+
+**Issue 007 (fixed, 2026-10-31).** Packed snow's R 15 x 90 and R 25 x 90 at 15 m, lost in every
+arm since M4. Cause L2's cost, not its model or convergence (traced every tick under `RP_DET`:
+one-stage sideslip predicted within 0.5 deg up to 56 deg; five SQP iterations a tick the same
+runaway): the line's scale, 0.2 m, set on asphalt, made a few tenths of a metre of predicted line
+error worth more than the slide (n term 540-690 against vy's 34-84 at s 55), and on mu 0.2 L2's
+fastest handle on n is rotation; steering in and rear braking took the slide past the rear's
+peak, the car slowed, its path tightened, and so on to a stall or a spin. Fix (autoware-drift
+14a79e7): the line's scale 0.2 m x max(1, 1 / mu) per stage, the weight a parameter of a second
+QP function used only below mu 1, so asphalt is L2 bit for bit (Haruna, Tsukuba `RP_DET` digests
+equal to before). Results (`play_log/race_planner/mode_choice/i007/`): both corners finish in
+every arm and run (car 5.9-8.1 deg against the plans' 6.1-6.4); packed snow single 12/12 (two
+runs; a third 11/12, R 9 x 180 at 15 m lost to L1's budget at load 8, finishing under `RP_DET`),
+sched 12/12, always 12/12; loose snow 36/36; ice single 11 and 10 of 12 (M4c 8; one repeat
+each); 154 tests. Rulings: the multi-start packed-snow arms counted from the fix's first form
+(the weight a symbolic expression: the same weights, other last bits), the final form's batch
+stopped at 3 of 12 an arm, all finished, when another session's build took the load to 25-133;
+Haruna and Tsukuba R6 judged by bit-identical digests, not re-timed (cost if wrong: none on
+asphalt, where L2 is the same function). For 065: heavier beta and r alone (x7, x4) did not hold
+R 15 x 90 with the line at 0.2 m; a style that holds a big slide needs the line to give way where
+the tyres cannot move the car across in the horizon. Left: the chain's packed-snow hairpin with
+the fix; xi's scale on low friction (unchanged).

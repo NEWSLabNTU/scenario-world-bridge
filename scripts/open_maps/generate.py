@@ -62,11 +62,13 @@ SPEED_RULE = {"service": 30}                                          # else 50 
 STEP = 4.0          # m between bound nodes on straight-ish roads
 TURN_DEG = 30.0     # |heading change| below this is straight
 UTURN_DEG = 150.0
+BEND_DEG = 60.0     # a road bending less than this at a junction goes straight on through it
 CORNER_DEG = 25.0   # a bend this sharp within a junction's R + CORNER_REACH m of its node moves
 CORNER_REACH = 6.0  # the cut past it
 MIN_TURN_R = 6.0    # m, the radius a right turn from the outer lane is cut for
+MIN_LINK = 6.0      # m, the least road kept between two junctions; closer, they are one junction
 TIGHT_R = 4.5       # m, a turn path tighter than this enlarges its junction's cut (main)
-BUMP_STEP, PASSES = 3.0, 4
+BUMP_STEP, PASSES = 3.0, 6
 ZONE_EDGE = 5.0     # m, a speed zone's boundary is pulled in this far: roads on its edge are not in it
 FILLET_R = 8.0      # m, a chain's corners sharper than FILLET_DEG are rounded to this radius
 FILLET_DEG = 20.0   # (less where the segments beside a corner are short)
@@ -84,12 +86,16 @@ DEBUG_AT = tuple(map(float, __import__('os').environ['SWB_DEBUG_AT'].split(','))
 IMAGERY = __import__('os').environ.get('SWB_IMAGERY', '0') == '1'   # route C, off: see imagery.py
 STATS = Counter()   # counts from the network build, merged into report.json
 BAN_LOG = []   # every sign ban, for review (report.json's bans)
-BUMP = Counter()   # junction id -> metres added to its cut, from the passes before (main)
-TIGHT = set()   # junctions with a turn path tighter than TIGHT_R, found by this pass
-NO_TURN = {"regulatory--no-left-turn--g1": "left", "regulatory--no-right-turn--g1": "right"}
+BUMP = Counter()   # (way id, end node id) -> metres added to that chain end's cut, from the passes before (main)
+AUDIT = []   # the site's audit file's approaches (main; sites/<site>_audit.yaml)
+AUDIT_LOG = []   # audited approaches whose lane count differs, and suspect approaches (audit_applied.json)
+TIGHT = set()   # chain ends that left a turn path tighter than TIGHT_R, found by this pass
+NO_TURN = {"regulatory--no-left-turn--g1": "left", "regulatory--no-right-turn--g1": "right",
+           "regulatory--no-u-turn--g1": "uturn"}
 TURN_TOKENS = {"left": "left", "sharp_left": "left", "slight_left": "left",
                "right": "right", "sharp_right": "right", "slight_right": "right",
-               "through": "straight", "merge_to_left": "straight", "merge_to_right": "straight"}
+               "through": "straight", "merge_to_left": "straight", "merge_to_right": "straight",
+               "reverse": "uturn"}
 
 
 class Frame:
@@ -227,6 +233,72 @@ def cubic(p0, h0, p3, h3, n):
         out.append((u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t ** 3 * p3[0],
                     u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t ** 3 * p3[1]))
     return out
+
+
+def legs(p0, h0, p3, h3):
+    """(d0, d1, turn): how far p0 runs along h0, and p3 back along h3, to where the two
+    tangents meet; None when they do not meet ahead of p0 and behind p3 (by 0.5 m), or the turn
+    is under 15 or over 165 deg."""
+    th = wrap(h3 - h0)
+    if not math.radians(15.0) < abs(th) < math.radians(165.0):
+        return None
+    u0, u1 = (math.cos(h0), math.sin(h0)), (math.cos(h3), math.sin(h3))
+    det = u0[0] * u1[1] - u0[1] * u1[0]
+    dx, dy = p3[0] - p0[0], p3[1] - p0[1]
+    d0 = (dx * u1[1] - dy * u1[0]) / det
+    d1 = (u0[0] * dy - u0[1] * dx) / det
+    if d0 < 0.5 or d1 < 0.5:
+        return None
+    return d0, d1, th
+
+
+def arc_turn(p0, h0, p3, h3, step=1.0):
+    """A turn from p0 (heading h0) to p3 (heading h3) as a straight, the widest arc the two
+    tangents allow, and a straight: the arc's tangent length is the shorter of the two legs to
+    where the tangents meet, the straight takes up the rest of the longer leg. A cubic with equal
+    handles puts the bend at whichever end is nearer that point, and where the two ends are 4 m
+    and 15 m from it the path hooked to 2.5 m (062: 105 turn paths under 4 m). None when the
+    tangents do not meet ahead of p0 and behind p3, or the turn is nearly straight or a U."""
+    lg = legs(p0, h0, p3, h3)
+    if lg is None:
+        return None
+    d0, d1, th = lg
+    u0 = (math.cos(h0), math.sin(h0))
+    t = min(d0, d1)
+    r = t / math.tan(abs(th) / 2)
+    sg = 1.0 if th > 0 else -1.0
+    a = (p0[0] + (d0 - t) * u0[0], p0[1] + (d0 - t) * u0[1])
+    c = (a[0] - sg * r * u0[1], a[1] + sg * r * u0[0])
+    pts = [p0]
+    m = max(2, int(math.degrees(abs(th)) / 5.0))
+    for k in range(m + 1):
+        h = h0 + th * k / m
+        pts.append((c[0] + sg * r * math.sin(h), c[1] - sg * r * math.cos(h)))
+    pts.append(p3)
+    return resample(LineString(pts), step)
+
+
+def u_turn(p0, h0, p3, h3, step=1.0):
+    """A U-turn to the left from p0 (heading h0) to p3 (heading about h0 + 180 deg): a half
+    circle as wide as the two ends are apart across, with a straight before it where p3 lies
+    ahead of p0, or after it where p3 lies behind. None unless p3 is to the left, heading back
+    within 30 deg, and the circle's radius is at least TIGHT_R."""
+    if abs(wrap(h3 - h0 - math.pi)) > math.radians(30.0):
+        return None
+    u, n = (math.cos(h0), math.sin(h0)), (-math.sin(h0), math.cos(h0))
+    dx, dy = p3[0] - p0[0], p3[1] - p0[1]
+    f, lat = dx * u[0] + dy * u[1], dx * n[0] + dy * n[1]
+    r = lat / 2
+    if r < TIGHT_R:
+        return None
+    a = (p0[0] + max(f, 0.0) * u[0], p0[1] + max(f, 0.0) * u[1])
+    c = (a[0] + r * n[0], a[1] + r * n[1])
+    pts = [p0]
+    for k in range(37):
+        h = h0 + math.pi * k / 36
+        pts.append((c[0] + r * math.sin(h), c[1] - r * math.cos(h)))
+    pts.append(p3)
+    return resample(LineString(pts), step)
 
 
 # ---------------------------------------------------------------------------- the writer
@@ -522,6 +594,35 @@ def build(site, out):
             L = LineString(c.pts).length
             if L < 40 and ((c.oneway and c.cls in MAJOR) or (near_signal(xy[a]) and near_signal(xy[b]))):
                 parent[find(a)] = find(b)
+    # and when the two cuts would leave under MIN_LINK m of road between them: the piece left
+    # was a 2 m stub, which a turn path into or out of it reached with no room to bend (辛亥路
+    # and 復興南路's turns hooked to under 4 m, 062), and cutting further cannot help it
+    at = defaultdict(list)
+    for c in chains:
+        at[c.nids[0]].append(c)
+        at[c.nids[-1]].append(c)
+
+    def cut_estimate(n):    # the junction cut below, for one node
+        wide = max((c.nf + c.nb) * c.w / 2 for c in at[n])
+        return max(5.0, wide + 2.0, MIN_TURN_R + wide - min(c.w for c in at[n]) / 2)
+    for c in chains:
+        a, b = c.nids[0], c.nids[-1]
+        if a in jnodes and b in jnodes and a != b and find(a) != find(b):
+            if LineString(c.pts).length < cut_estimate(a) + cut_estimate(b) + MIN_LINK:
+                parent[find(a)] = find(b)
+                STATS["junctions_joined_by_a_short_link"] += 1
+    # likewise a joint (a way split at a tag change) that close to a junction: it becomes one of
+    # the junction's nodes, and the road beyond it its approach
+    for c in chains:
+        for j_end, o_end in ((c.nids[0], c.nids[-1]), (c.nids[-1], c.nids[0])):
+            if (j_end in jnodes and o_end not in jnodes and len(ends[o_end]) == 2
+                    and LineString(c.pts).length < cut_estimate(j_end) + 2.0 + MIN_LINK):
+                if o_end in parent:     # between two junctions: it joins them
+                    parent[find(o_end)] = find(j_end)
+                else:
+                    jnodes.add(o_end)
+                    parent[o_end] = find(j_end)
+                STATS["joints_joined_to_a_junction"] += 1
     clusters = defaultdict(list)
     for n in jnodes:
         clusters[find(n)].append(n)
@@ -581,11 +682,14 @@ def build(site, out):
         wide = max(hw) if hw else 3.0
         lane = min((c.w for c in chains if junction_of.get(c.nids[0]) is j or junction_of.get(c.nids[-1]) is j),
                    default=3.0)
-        j["R"] = max(5.0, wide + 2.0, MIN_TURN_R + wide - lane / 2) + BUMP[j["id"]]
-        j["signal"] = "osm" if any(math.dist(j["c"], s) < j["R"] + 20 for s in signals) else None
+        j["R"] = max(5.0, wide + 2.0, MIN_TURN_R + wide - lane / 2)
+        # a signal near any of its nodes, not its centre: a cluster's centre moves when a joint
+        # joins it (and the cut, which once grew with the passes, no longer sets the reach)
+        near = lambda q, r: any(math.dist(xy[n], q) < r for n in j["nodes"])
+        j["signal"] = "osm" if any(near(s, j["R"] + 20) for s in signals) else None
         if j["signal"] is None:
             lights = [f for f in feats if f["object_value"].startswith("object--traffic-light--general")
-                      and math.dist(j["c"], f["xy"]) < j["R"] + 15]
+                      and near(f["xy"], j["R"] + 15)]
             if len(lights) >= 2:
                 j["signal"] = "mapillary"
     # cut each chain back at its junctions
@@ -594,14 +698,18 @@ def build(site, out):
         L = line.length
         s0, s1 = 0.0, L
         ja, jb = junction_of.get(c.nids[0]), junction_of.get(c.nids[-1])
+        # each end's cut: its junction's, plus what earlier passes added where a turn path from
+        # or into this end came out too tight (main)
+        ra = ja["R"] + BUMP[(c.way["id"], c.nids[0])] if ja else 0.0
+        rb = jb["R"] + BUMP[(c.way["id"], c.nids[-1])] if jb else 0.0
         if ja:
             a = xy[c.nids[0]]
             s0 = next((s for s in [k * 0.5 for k in range(int(L / 0.5) + 1)]
-                       if math.dist(a, (line.interpolate(s).x, line.interpolate(s).y)) >= ja["R"]), L)
+                       if math.dist(a, (line.interpolate(s).x, line.interpolate(s).y)) >= ra), L)
         if jb:
             b = xy[c.nids[-1]]
             s1 = next((L - s for s in [k * 0.5 for k in range(int(L / 0.5) + 1)]
-                       if math.dist(b, (line.interpolate(L - s).x, line.interpolate(L - s).y)) >= jb["R"]), 0.0)
+                       if math.dist(b, (line.interpolate(L - s).x, line.interpolate(L - s).y)) >= rb), 0.0)
         # a corner just past a cut goes to the connector, whose curve a car can follow: a drive
         # leaving 辛亥路 east and turning south 2 m later kept that 3 m-radius corner in its own
         # lanelet, and Autoware's path stopped at it (062, the NTU loop)
@@ -611,13 +719,13 @@ def build(site, out):
             turn[k] = abs(math.degrees(wrap(heading(c.pts[k], c.pts[k + 1]) - heading(c.pts[k - 1], c.pts[k]))))
         if ja and not ja["joint"]:
             late = [s for k, (s, p) in enumerate(verts, 1) if s > s0 and turn[k] > CORNER_DEG
-                    and math.dist(p, a) <= ja["R"] + CORNER_REACH]
+                    and math.dist(p, a) <= ra + CORNER_REACH]
             if late:
                 s0 = min(max(late) + 1.0, s1 - 2.0)
                 STATS["cuts_past_a_corner"] += 1
         if jb and not jb["joint"]:
             early = [s for k, (s, p) in enumerate(verts, 1) if s < s1 and turn[k] > CORNER_DEG
-                     and math.dist(p, b) <= jb["R"] + CORNER_REACH]
+                     and math.dist(p, b) <= rb + CORNER_REACH]
             if early:
                 s1 = max(min(early) - 1.0, s0 + 2.0)
                 STATS["cuts_past_a_corner"] += 1
@@ -844,21 +952,41 @@ def generate(site, out):
         for (c, d, lst, p_in, h_in) in app:
             # movements available from this approach
             moves = defaultdict(list)   # class -> [exit]
+            # the road itself, where it bends at the junction: the exit of the same name that
+            # bends least, under BEND_DEG, goes straight on (新生南路 bends 45 deg at NTU's main
+            # gate; as a turn, the signs banning the real turns there cut it in both directions)
+            same = [e for e in ext if c.name and e[0].name == c.name and not (e[0] is c and e[1] == -d)]
+            ahead = min(same, key=lambda e: abs(wrap(e[4] - h_in)), default=None)
+            if ahead is not None and abs(math.degrees(wrap(ahead[4] - h_in))) >= BEND_DEG:
+                ahead = None
             for e in ext:
-                if e[0] is c and e[1] == -d:
-                    continue        # back the way it came
                 dh = math.degrees(wrap(e[4] - h_in))
-                if abs(dh) > UTURN_DEG:
+                if (e[0] is c and e[1] == -d) or abs(dh) > UTURN_DEG:
+                    # back the way it came, or onto the other carriageway: a U-turn, which
+                    # Taiwan allows at a junction unless a sign or a marking bans it
+                    if is_junction:
+                        moves["uturn"].append(e)
                     continue
-                k = "straight" if abs(dh) < TURN_DEG else ("left" if dh > 0 else "right")
+                k = "straight" if abs(dh) < TURN_DEG or e is ahead else ("left" if dh > 0 else "right")
                 moves[k].append(e)
             if not moves:
                 continue
             n = len(lst)
             allowed = [None] * n
             src = [None] * n
+            # an audited approach: the movements painted on each lane, read by a person off a
+            # photo (audit_junctions.py), over every other source
+            audited = next((p for p in AUDIT if is_junction and math.dist(p["at"], p_in) < 30.0
+                            and abs(wrap(math.radians(p["heading"]) - h_in)) < math.radians(35.0)), None)
+            if audited and len(audited["lanes"]) != n:
+                STATS["audit_lane_count_differs"] += 1
+                AUDIT_LOG.append({"lane_count_differs": audited["at"], "map_lanes": n, "painted_lanes": len(audited["lanes"])})
+            elif audited:
+                for i, part in enumerate(audited["lanes"]):
+                    allowed[i], src[i] = set(part), "audit"
+                STATS["approaches_audited"] += 1
             tl = c.t.get("turn:lanes" if c.oneway else ("turn:lanes:forward" if d > 0 else "turn:lanes:backward"))
-            if tl and len(tl.split("|")) == n:
+            if tl and len(tl.split("|")) == n and not any(x == "audit" for x in src):
                 for i, part in enumerate(tl.split("|")):
                     s = {TURN_TOKENS[x] for x in part.split(";") if x in TURN_TOKENS}
                     if s:
@@ -920,7 +1048,7 @@ def generate(site, out):
                                     "lanes": n, "junction": j["id"], "junction_xy": [round(v) for v in j["c"]],
                                     "exits": {k: [e[0].name for e in es] for k, es in moves.items()}})
             for kind in signed:
-                if kind in moves:
+                if kind in moves and "audit" not in src:
                     for e in moves[kind]:
                         banned.add((kind, id(e[0]), e[1]))
                     stats[f"approach_no_{kind}_by_mapillary_sign"] += 1
@@ -936,11 +1064,21 @@ def generate(site, out):
                 if not allowed[k]:
                     allowed[k] = {"straight"} if "straight" in open_moves else {sorted(open_moves)[0]}
                     src[k] = (src[k] or "rule") + "+fallback"
+            if any(x and x.endswith("+fallback") for x in src):
+                # a lane left with nothing it may do: a ban took its movement away; a likely
+                # mistake (a sign placed on the wrong approach), for the audit to look at
+                AUDIT_LOG.append({"suspect": "lanes_fallback", "junction_xy": [round(v) for v in j["c"]],
+                                  "approach_end": [round(v, 1) for v in p_in], "heading": round(math.degrees(h_in)),
+                                  "road": c.name, "way": c.way["id"], "lanes": [sorted(x) for x in allowed],
+                                  "source": src, "banned": sorted({b[0] for b in banned}),
+                                  "exits": {k: [e[0].name for e in es] for k, es in moves.items()}})
             # a missing arrow is no evidence of a ban: a movement the junction offers and nothing
             # bans goes to the lane that would take it (left: the leftmost, right: the rightmost,
             # straight: every lane that has no other movement)
             for kind in open_moves - set().union(*allowed):
-                if kind == "left":
+                if "audit" in src and kind != "uturn":
+                    continue    # the paint says which lanes; a U-turn is rarely painted
+                if kind in ("left", "uturn"):
                     targets = [0]
                 elif kind == "right":
                     targets = [n - 1]
@@ -966,6 +1104,14 @@ def generate(site, out):
                         continue
                     outs = e[2]
                     m = len(outs)
+                    if kind == "uturn":
+                        # from the leftmost lane that may, into the first exit lane from the
+                        # left that leaves the half circle TIGHT_R or more; none: no U-turn
+                        if any(connector(osm, lst[ins[0]], b, kind, src[ins[0]], j, lanelet_of) for b in outs):
+                            stats["paths:uturn"] += 1
+                        else:
+                            stats["uturns_without_room"] += 1
+                        continue
                     pairs = []
                     if kind == "left":
                         for q, k in enumerate(ins):
@@ -1012,8 +1158,17 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
         c0, c1 = mid(P[la[-1]], P[ra[-1]]), mid(P[lb[0]], P[rb[0]])
         h0 = mean_heading(heading(P[la[-2]], P[la[-1]]), heading(P[ra[-2]], P[ra[-1]]))
         h1 = mean_heading(heading(P[lb[0]], P[lb[1]]), heading(P[rb[0]], P[rb[1]]))
-        k = max(3, int(math.dist(c0, c1) / 2.0))
-        c = cubic(c0, h0, c1, h1, k)
+        if turn == "uturn":
+            c = u_turn(c0, h0, c1, h1)
+            if c is None:
+                return None
+        else:
+            c = arc_turn(c0, h0, c1, h1) if turn else None
+        if c and len(c) >= 4:
+            STATS["connectors_arc"] += 1
+        else:
+            c = cubic(c0, h0, c1, h1, max(3, int(math.dist(c0, c1) / 2.0)))
+        k = len(c) - 1
         w0, w1 = math.dist(P[la[-1]], P[ra[-1]]), math.dist(P[lb[0]], P[rb[0]])
         sides = {}
         for side, s, n0, n1 in (("l", 1, la[-1], lb[0]), ("r", -1, ra[-1], rb[0])):
@@ -1027,8 +1182,13 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
             e1 = (P[n1][0] - raw[-1][0], P[n1][1] - raw[-1][1])
             sides[side] = [(p[0] + (1 - i / k) * e0[0] + i / k * e1[0],
                             p[1] + (1 - i / k) * e0[1] + i / k * e1[1]) for i, p in enumerate(raw)]
-        return sides["l"], sides["r"]
-    pl, pr = paired()
+        return sides["l"], sides["r"], (c0, h0, c1, h1)
+    got = paired()
+    if got is None:     # a U-turn with no room for it
+        return False
+    pl, pr, ends = got
+    if turn == "uturn" and LineString(pl).crosses(LineString(pr)):
+        return False
     if not LineString(pl).crosses(LineString(pr)):
         left = [la[-1]] + [osm.node(p) for p in pl[1:-1]] + [lb[0]]
         right = [ra[-1]] + [osm.node(p) for p in pr[1:-1]] + [rb[0]]
@@ -1038,17 +1198,26 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
         right = bound(ra[-1], rb[0], ra[-2], rb[1])
         STATS["connectors_own_cubics"] += 1
     if turn and min_radius([osm_xy(osm, n) for n in left], [osm_xy(osm, n) for n in right]) < TIGHT_R:
-        TIGHT.add(j["id"])
+        # the end nearer the corner is what leaves no room for the arc: cut that chain end
+        # further (both when the tangents do not meet)
+        end_a = (a.chain.way["id"], a.chain.nids[-1] if a.dir > 0 else a.chain.nids[0])
+        end_b = (b.chain.way["id"], b.chain.nids[0] if b.dir > 0 else b.chain.nids[-1])
+        lg = legs(*ends)
+        TIGHT.update([end_a] if lg and lg[0] < lg[1] else [end_b] if lg else [end_a, end_b])
     wl = osm.way(left, {"type": "virtual"})
     wr = osm.way(right, {"type": "virtual"})
     v = min(a.speed, b.speed)
     tags = {"type": "lanelet", "subtype": "road", "location": "urban", "one_way": "yes",
             "speed_limit": f"{v:g}", "swb:source": "osm", "swb:speed_source": "connector"}
     if turn:
-        tags["turn_direction"] = turn
+        # Lanelet2's turn_direction has no U-turn: Autoware signals left for it
+        tags["turn_direction"] = "left" if turn == "uturn" else turn
         tags["swb:turn_source"] = src
+        if turn == "uturn":
+            tags["swb:uturn"] = "yes"
     lid = osm.rel([("way", wl, "left"), ("way", wr, "right")], tags)
     lanelet_of[lid] = (None, tags)
+    return True
 
 
 def min_radius(left, right, gap=1.5):
@@ -1137,6 +1306,7 @@ def write_out(osm, site, out, report, stats):
         f"projector_type: MGRS\nvertical_datum: WGS84\nmgrs_grid: {f['mgrs_grid']}\n")
     rep = {"nodes": len(osm.nodes), "ways": len(osm.ways), "relations": len(osm.rels)}
     (g / "bans.json").write_text(json.dumps(BAN_LOG, indent=1, ensure_ascii=False))
+    (g / "audit_applied.json").write_text(json.dumps(AUDIT_LOG, indent=1, ensure_ascii=False))
     rep.update(report)
     rep.update(stats)
     rep.update(STATS)
@@ -1151,21 +1321,26 @@ def main():
     ap.add_argument("out", type=Path)
     a = ap.parse_args()
     site = yaml.safe_load(a.site.read_text())
-    # A junction whose turn paths come out tighter than a car can drive is cut further back
-    # and the map generated again: one cut radius cannot fit every junction (the main gate's
-    # right turn is between two carriageways cut from different nodes, 2.8 m at first).
+    audit = a.site.with_name(f"{site['name']}_audit.yaml")
+    if audit.exists():
+        AUDIT.extend(yaml.safe_load(audit.read_text()).get("approaches", []))
+    # A chain end that leaves a turn path tighter than a car can drive is cut further back and
+    # the map generated again: one cut radius cannot fit every approach (the main gate's right
+    # turn is between two carriageways cut from different nodes, 2.8 m at first). Only the end
+    # nearer the corner is cut: cutting the whole junction kept the far leg long and the hook.
     for k in range(PASSES):
         STATS.clear()
         BAN_LOG.clear()
+        AUDIT_LOG.clear()
         TIGHT.clear()
         _xy_cache.clear()
-        STATS["junctions_cut_further"] = len(BUMP)
+        STATS["chain_ends_cut_further"] = len(BUMP)
         generate(site, a.out)
-        print(f"pass {k + 1}: {len(TIGHT)} junctions with a turn path under {TIGHT_R} m", file=sys.stderr)
+        print(f"pass {k + 1}: {len(TIGHT)} chain ends with a turn path under {TIGHT_R} m", file=sys.stderr)
         if not TIGHT or k == PASSES - 1:
             break
-        for jid in TIGHT:
-            BUMP[jid] += BUMP_STEP
+        for end in TIGHT:
+            BUMP[end] += BUMP_STEP
 
 
 if __name__ == "__main__":

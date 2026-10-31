@@ -1,0 +1,38 @@
+# Roadmap 062 O4: the NTU map's audit, read by eye off photos with audit_junctions.py.
+#
+# approaches: corrections generate.py applies. Each is an approach to a junction: `at`, a point
+# within 30 m of where its lanes end (map frame, m); `heading`, its direction of travel (deg,
+# counter-clockwise from east, within 35); `lanes`, from the left, the movements painted on
+# each: left, straight, right, uturn. They replace OSM's turn:lanes, Mapillary's arrows and
+# signs and the rules for that approach (a U-turn is still added to the leftmost lane unless a
+# sign bans it: it is rarely painted), and its junction paths carry swb:turn_source=audit. An
+# entry whose lane count the map does not have is not applied and is listed in
+# generated/audit_applied.json, with the approaches the audit should look at next.
+#
+# checked: what was looked at and found right (or not decided), so the next audit does not
+# redo it. Not read by the generator.
+approaches: []
+
+checked:
+  - junction: NTU main gate, 新生南路三段 x 椰林大道 (52016, 67631)
+    photo: NLSC PHOTO2 z19 (0.27 m), fetched 2026-11-01
+    approach: 新生南路三段 southbound (heading -102)
+    verdict: >-
+      Lanes 2-4 from the left carry straight arrows; lane 1 is in a tree's shadow. The map had
+      sent all four lanes left into 椰林大道 (新生南路 bends 45 deg here, so going on was a
+      "right", which a Mapillary no-right-turn sign then banned). Fixed in the generator, not
+      by a patch: a road that bends under 60 deg at a junction goes straight on (BEND_DEG). The
+      map now has straight on all four, left from lane 1.
+  - junction: NTU main gate (52016, 67631)
+    approach: 新生南路三段 northbound (heading 43)
+    verdict: >-
+      Same cause: all four lanes had been sent right into 椰林大道 by a no-left-turn sign. Now
+      straight on all four, right from lane 4. Arrows not read (vehicles over them).
+  - junctions: campus, inside 059's 2 cm survey (j78-j148 of audit_junctions.py --all)
+    photo: 059's orthophoto (2 cm)
+    verdict: >-
+      Lanes lie on the roads, one each way on 椰林大道 either side of its centre line; no
+      approach is missing or extra at the junctions looked at (around 52140, 67669). Campus
+      roads carry almost no arrows, so their movements are the rule's and cannot be checked
+      against paint. The arterials' approaches are at the survey's edge, blurred or not
+      observed.

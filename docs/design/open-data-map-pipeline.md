@@ -112,8 +112,11 @@ generator's docstring describes what it builds:
 
 This step has no person in it. When a check below finds a problem, the fix goes into the
 generator as a rule, and the map is generated again; nothing is edited by hand in the output.
-The audit's corrections (step 7) will be the exception: patches with `swb:source=audit`,
-kept apart from the generated map.
+The audit's corrections (step 7) are the exception: the movements a person reads off the paint,
+per approach, in `sites/<site>_audit.yaml`, which the generator applies over every other source
+(`swb:turn_source=audit`). It also writes `generated/audit_applied.json`: corrections it could
+not apply, and approaches a ban left with a lane that has nowhere to go, for the audit to look
+at.
 
 Rules added so far, and the step that found each:
 
@@ -127,7 +130,13 @@ Rules added so far, and the step that found each:
 | a driveway leaving 辛亥路 east and turning south 2 m later kept a 3 m-radius corner in its own lanelet; Autoware stopped at it | step 12 (loop run 10) | a corner within the junction's radius + 6 m of its node moves the cut past it, so the connector takes the turn |
 | the same driveway turns 90 deg again in the middle of its way: a lanelet with a sharp corner has no path a car can follow | step 12 (loop run 11) | each chain's corners over 20 deg are rounded, radius 8 m or what the segments beside them allow (142 on NTU) |
 | that corner rounded to 2 m only, because OSM has a node 3.9 m past it | step 12 (the loop at 15 km/h) | nodes in a straight run dropped before rounding; a fillet may use a whole segment unless the next vertex is a corner too |
-| the main gate's right turn at a 2.8 m radius, two carriageways cut from different nodes; the path optimiser stopped the ego in it | step 12 (the same run) | the cut leaves the outer lane's right turn 6 m; then the map is generated again, up to 4 passes, with every junction that has a turn path under 4.5 m cut 3 m further (256, 97, 84, 72 such junctions); `check_map.py` reports the turn-path radii |
+| the main gate's right turn at a 2.8 m radius, two carriageways cut from different nodes; the path optimiser stopped the ego in it | step 12 (the same run) | the cut leaves the outer lane's right turn 6 m; then the map is generated again, up to 6 passes; `check_map.py` reports the turn-path radii |
+| 105 turn paths still under 4 m: a cubic with equal handles bends at whichever end is nearer the corner, so where one end was 2 m from it and the other 15 m the path hooked | step 5's radius count, plotted in step 6 | a turn is a straight, the widest arc its two tangents allow, and a straight; only the chain end nearer the corner is cut further in the next pass (cutting the whole junction kept the hook) |
+| the rest: the near end was a 2 m stub, a short road between two junctions (or a junction and a joint) cut from both ends, which no further cut can lengthen; also the "2 m pieces" | the same | two junctions whose cuts would leave under 6 m of road between them are one junction, and so is a joint that close to a junction (31 and 40 on NTU); 26 under 4 m remain, mostly alley to alley |
+| signal detection reached from the cluster's centre by its cut, which grew with the passes: lights came and went with them | step 5 (the light count) | a signal within the cut + 20 m of any of the junction's nodes |
+| no U-turns | the campaign's list | a U-turn from the leftmost lane wherever its half circle has a 4.5 m radius into some exit lane, unless OSM or a Mapillary sign bans it (63 on NTU) |
+| 新生南路 bends 45 deg at the main gate: going on was a turn, and two no-turn signs there then sent all four lanes of both directions into 椰林大道 | step 7, the junction audit | a road that bends under 60 deg at a junction, onto the exit of its own name, goes straight on |
+| no loop through 公館: the box stopped 40 m short of 基隆路 x 羅斯福路 | the campaign's list | the box goes south to 25.0095 |
 
 Route C, lane widths fitted to NLSC's photo (`imagery.py`), is off. Its fits disagreed between
 neighbouring pieces of one road, and the survey had too little paint on the arterials to
@@ -196,11 +205,18 @@ lanelets. They are on the NAS, so the ssh master must be open. They are never an
 map. Results so far: the vendor's lanes are 68.5 % covered, at a median lateral offset of
 0.97 m.
 
-**Open, and manual:** the junction audit. The turn paths at each signalised junction, and the
-sign bans, are to be checked against the painted arrows in the orthophoto. No detector exists
-for arrows at 2 cm yet, so for now it is a person, junction by junction. The audit's
-corrections will be patches (`swb:source=audit`), and O6 is to run twice, with and without
-them.
+**The junction audit (manual, with a tool):**
+
+    scripts/open_maps/audit_junctions.py <map> <ortho dir> <out> [--all] [--nlsc <site.yaml> <raw dir>]
+
+It draws each signalised junction (`--all`: every junction) with each approach lane's
+movements written at its end (L, S, R, U) over 059's 2 cm photo, or over NLSC's 0.27 m one
+with `--nlsc`. 059's survey covers two signalised junctions only, and their arterial
+approaches are at its edge, blurred; the campus roads it covers well carry almost no arrows.
+NLSC's photo covers all 44, and an arrow shows on it as a white mark, but at 0.27 m a person
+can tell a straight arrow from a turn only where it is clear of trees, shadows and vehicles.
+A person writes what the paint says in `sites/<site>_audit.yaml`; what was looked at goes in
+its `checked:` list. `generated/audit_applied.json` lists the approaches to look at first.
 
 ## 8. The map directory and the world (auto)
 
@@ -209,6 +225,9 @@ them.
     data/maps/.venv/bin/python scripts/open_maps/world.py <site.yaml> <out> pcd
 
 The three must run in this order, because the PCD step samples the trees the USD step places.
+Run them with the host settings loaded (`set -a; source .env; set +a`): `world_usd.py` finds
+CARLA's trees through `CARLA_USD`, and without it the world comes out with no trees, the PCD
+with none of their points, and no `isaac/world.yaml`, with no error (2026-11-01).
 They write `<out>/map/`, which is everything `just ego-isaac map_path:=` and `just isaac-world
 world:=` need:
 

@@ -317,15 +317,57 @@ Progress:
     - **An emergency stop:** compare_map refused the map ("Given map voxel grid is not
       feasible"): one voxel grid over the whole map overflowed int32 with 114 m buildings.
       The PCD now stops at 30 m.
+- **Map defects and the junction audit** (2026-11-01, user direction "Fix map defects and do
+  O4 audits"). The pipeline document's rule table has each fix; in short:
+  - **Turn paths under 4 m: 105 to 26** (on the larger box; 17 on the old one).
+    - A turn is now a straight, the widest arc its tangents allow, and a straight. A cubic
+      with equal handles had put the bend at the end nearer the corner.
+    - The passes cut only the chain end nearer the corner, up to 6 passes.
+    - Two junctions closer than their cuts plus 6 m are one junction, and so is a joint that
+      close to one (31 and 40). Those 2 m stubs were what no cut could lengthen.
+    - Of the 26 left, most are alley to alley.
+  - **Signals** are found from the junction's nodes, not its centre by a cut that grew with
+    the passes: lights no longer come and go with the passes.
+  - **U-turns:** 63, from the leftmost lane wherever a 4.5 m half circle fits, unless OSM or a
+    Mapillary sign bans one (4 signs).
+  - **公館:** the box stopped 40 m short of 基隆路 x 羅斯福路; it now goes south to 25.0095,
+    and 羅斯福路 to 基隆路 routes through 公館. The viaducts stay out (a 2-D map).
+  - **The junction audit:**
+    - `audit_junctions.py` draws every signalised junction with each approach lane's
+      movements, over 059's 2 cm photo or NLSC's 0.27 m one (`--nlsc`).
+    - 059's survey reaches only two signalised junctions, with their arterial approaches
+      blurred at its edge. Its campus junctions match the roads, but campus roads have
+      almost no arrows to check movements against.
+    - On NLSC's photo, arrows show where trees and vehicles leave them clear. Telling a
+      straight arrow from a turn at 0.27 m is a person's call.
+    - It found one real defect, at the main gate. 新生南路 bends 45 deg there, so going on
+      was a turn, and two Mapillary no-turn signs then sent all four lanes of both
+      directions into 椰林大道. The paint southbound is straight arrows.
+    - The rule now: a road bending under 60 deg onto its own name goes straight on.
+    - Corrections go in `sites/ntu_audit.yaml`, which the generator applies over every source
+      (`swb:turn_source=audit`; none yet). `generated/audit_applied.json` lists the approaches
+      where a ban left a lane with nowhere to go, to look at first.
+  - **Scores:**
+    - road lanelets 3,920 and junction paths 1,868, on the larger box;
+    - traffic lights 197;
+    - crossing bounds 0;
+    - routes 56/56.
+  - **Drives, Isaac, the new world and PCD, all passed:**
+    - **`ntu_left_turns`:** turn signals 10/10, NVTL min 3.20, 13.9 m/s on 羅斯福路.
+    - **`ntu_campus_loop`:** both reds stopped for, turn signals 15/15, NVTL min 3.19 after
+      the start pose.
+    - **`ntu_gate_xinsheng`:** 7/7.
+      - Its first run stopped short of 新生南路 x 86巷 with the left signal on for 10 min.
+      - The goal had snapped to the middle lane, which needs a lane change in the last
+        10 m before the junction, and the lane change never happened.
+      - It now ends in the right lane. Why the lane change never happened is open.
   - **Still open:**
-    - 105 turn paths under 4 m remain (`check_map.py`'s `turn_paths_radius`). Most are hooks
-      at clustered junctions, where an exit lane starts behind its approach (the big
-      新生南路/羅斯福路 junction), and a longer cut does not fix them;
-    - no U-turn paths: the generator makes none;
-    - no loop through 公館: 羅斯福路 and 基隆路 are grade-separated there, and the ramps are
-      left out;
-    - lights that cycle on their own (these are released by the ego's stop);
-    - the second run, with the audit's patches.
+    - the arrow audit by a person, junction by junction, on NLSC's photo;
+    - lane widths: still the class defaults (the paint on 新生南路 says 3.2 m, not 3.5);
+    - lane changes in a drive;
+    - lights that cycle on their own;
+    - parking aisles and driveways (left out; 31 % of the vendor's routes);
+    - the second run, with the audit's patches, once there are some.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

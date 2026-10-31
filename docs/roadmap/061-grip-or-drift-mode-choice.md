@@ -583,3 +583,43 @@ Rulings:
   finish more corners.
 Left: ice's tracking (L2; corners lost with 2-3 failed re-plans, 8-10 m off the plan); windows
 infeasible from the car's own slide at stage 0; an HPIPM-shaped window if an SQP is wanted.
+
+**M4e (done, 2026-11-01).** Ice with both fixes: issue 007's (L2's line weight, 14a79e7) and
+issue 008's (L1's slip rows in the surface's peak, 9771e96/6cf5108), 2 x 2 on ice's 12 corners.
+Write-up autoware-drift `docs/mode-choice-m4e.md` (95b902e, with `--jit` in
+`studies/mode_choice_m4.py`); results `play_log/race_planner/mode_choice/m4e/` (`det/`, `wall/`,
+`digest/`). Repeatable runs (`RP_DET` + `RP_ITERCAP` 150-200, as M4d) times draws by a last-bit
+start (start speed x (1 + k 1e-9): every plant digest differs, 18 % of outcomes flip); the fixes
+off by a study-only patch (`LINE_MU` 0, `kappa_by_peak` False), checked equal to M4d's runs of
+the old code and to main's digests. Load 4-38 (another session's builds), so wall clock only at
+the end. Every run's configuration checked in its result JSON before it was counted.
+Results (finished of 12 a replicate, mean (sd); single 15-20 replicates a cell, sched 5-10):
+- single: neither 6.87 (1.19), 007 only 9.70 (1.26), 008 only 6.27 (1.28), both 9.55 (0.69);
+  sched: 7.60 (1.52), 10.40 (0.97), 6.40 (0.55), 9.80 (0.92); always (both, 5 budgets) 9.80;
+  M4c 8, 6, 6. Failed re-plans single 28, 22, 24, 19 %;
+- issue 007's fix: +2.8 to +3.4 of 12 in every cell and arm (7-9 se); issue 008's with 007 on:
+  -0.15 (se 0.32) single, -0.60 (se 0.42) sched; without 007 -0.60 (0.45), -1.20 (0.72): M4d's
+  32 against 40 of 60 was the draw;
+- one corner is not chaos: R 9 x 180 at 6 m, 0 of 30 with 008's rows against 21 of 30 without
+  (with 007); replayed, its windows need 260-1200 iterations with either rows: L1's budget;
+  008's rows win back as much on R 9 x 90 and R 9 x 180 at 15 m;
+- lost corners (single; L1: 4+ failed re-plans, L2: 3 or fewer), a run of 12: neither 2.80 L1
+  + 2.33 L2; both 1.60 L1 (1.0 the hairpin above) + 0.85 L2, 44 of 49 losses on the 6 m roads
+  (15 m roads 115 of 120 finished); 007's fix won back 2.8, more than the L2 count, since a car
+  on its plan also hands L1 solvable windows (failed re-plans 28 -> 19-22 %);
+- wall clock (single, started under load 6, 4.3-7.3 during): both 10 and 11 of 12, 007 only 12
+  and 9 (M4c 8, M4d 15 of 24);
+- R6: planner unchanged; Haruna, Tsukuba `RP_DET` 76.28, 74.33 s, digests equal.
+Decisions: (a) issue 008's fix stays (not worse beyond noise with 007's on); (b) L2's tracking
+was 55-65 % of ice's gap before 007's fix, directly or through the windows it handed L1.
+Rulings:
+- Draws by a last-bit start stand in for repeats of repeatable runs. Cost if wrong: standard
+  errors a little optimistic (the same 12 corners); no difference called is near 2 se.
+- Fixes toggled by a study-only patch, not shipped (both stay). Cost if wrong: none measured
+  (equal to the old commits' runs).
+- 008 kept although sched's -0.60 is 1.4 se. Cost if wrong: up to ~1 corner of 12 on ice's
+  multi-start arms, 0.9 of it R 9 x 180 at 6 m.
+- No L2 follow-up tried: the L2 losses left are the car 0.4-3.8 m off its plan on 6 m roads, no
+  runaway slides; nothing clearly points at xi's scale. No issue written.
+Left: R 9 x 180 at 6 m (L1: windows of 260-1200 iterations from the car's state); the 6 m
+roads' L2 losses (the edge's margin against ice's looser line weight, not measured).

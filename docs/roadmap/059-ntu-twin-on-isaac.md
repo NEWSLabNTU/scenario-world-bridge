@@ -190,8 +190,8 @@ Progress:
     stand-alone drive. SSv2 refuses a map dir without a `*.pcd` ("The map_path must contain
     at least one *.pcd file"), so `export_map.py` now writes `pointcloud_map.pcd`, a link to
     the tile directory, as 062's maps have; Autoware's default file name then loads the tiles.
-    The world server's GNSS on the map's projector (swb_isaac_world c0ca899) worked: the ego
-    localized from it.
+    Not checked: whether the world server's GNSS (on the map's projector since
+    swb_isaac_world c0ca899) is right; the agent initializes from the scenario's pose.
   - Open (docs/issues 025-027):
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do

@@ -8,7 +8,7 @@ valley, revises the planner where the study showed it wrong, and runs the choose
 in the loop first, Isaac second. The code lives in autoware-drift (`src/planning/race_planner`);
 swb supplies the worlds and `spikes/course_probe.py`.
 
-**Status**: in progress, started 2026-10-30 (M4b done 2026-10-31, gate not passed).
+**Status**: in progress, started 2026-10-30 (M4c done 2026-10-31, gate not passed).
 
 **Source**: user, 2026-10-30: "Find the conditions that our planner would make a drift turn as
 the optimal solution"; "I wonder if it can choose between optimal drift and non drift by
@@ -470,3 +470,50 @@ Rulings:
 - Ice's remaining loss is an R3 solver matter (a third of its re-plans cut at 1 s, every arm).
 Left (M4c): the 10 % maps with more seeds; ice's solve time; the packed-snow R 25 hairpin
 (the chain's other stop); the estimate lowering into a mud slide; the sweep.
+
+**M4c (done, 2026-10-31; gate not passed).** Built (autoware-drift 879b193, 918bffc, 99b8252,
+4463406, 4587d61, 51ffca4, 21949b9): no friction reading where the plan slides >= 5 deg (issue
+004); a cut G solve within 0.2 of feasible warms the next G solve, never adopted, not on tracks
+with ice (issue 005); `Window._result` leaves the free stages' slip rows out of the plan check
+(issue 006); issue 007 (packed snow's runaway slide) written, open. Write-up autoware-drift
+`docs/mode-choice-m4c.md`; results `play_log/race_planner/mode_choice/m4c/` (`quiet/` dry,
+`abl/` the ice ablation). Load 1-7, 17-39 from 12:15 to 13:05 (another user; batches waited:
+timing < 6, robustness < 10).
+Results:
+- estimate: in a planned slide the car's reached acceleration (0.10-0.17 g on mud's 0.29) is not
+  the road's friction; M4b's 0.394 was such a reading. Fixed; mud hairpin 1 stop in 52 chain runs
+  where mapped right (no estimate);
+- Tsukuba s 1815: a cut solve was discarded and the next restarted from the stale plan with a
+  longer cold tail, four cuts in a row; IPOPT's iterate not monotone in feasibility, the clock
+  decides; from the cut iterate the next converged in 48-151 iterations. Tsukuba 12 of 12 laps
+  (M4b 2 of 6): single 74.19 ± 0.22, sched 74.32 ± 0.16 s (+0.18 %, se 0.15 %); Haruna 0.000 %;
+- ice: the plan check counted the car's own slip at the free stages (replay: 1 -> 4 of 10 re-plans
+  plans); the cut warm start harmful on ice (ablation, single: 10 of 12 without, 6 with). Ice
+  corners: single 8, sched 6, always 6 of 12 (M4b 9, 8, 6); windows need 200-930 iterations,
+  no IPOPT option cut them: solver speed (R3 levers);
+- packed snow: the chain's R 25 hairpin 0 stops (M4b 2 of 8; issue 006 covers M4b's stop);
+  corners 10/10/9 of 12, the two lost in every arm since M4 are issue 007 (L2);
+- chain, true map: sched 2/2, always 2/2 finish (153.7, 154.1 s; M4b 1 of 6); single 0/2 (load
+  8-10); sched + estimate 0/2 (ice, estimate 0.44 on an unplanned ice slide);
+- 10 % maps, 8 seeds: any stop sched 8, always 7, single 8, sched+perc 7, +est 8 of 8; most at ice
+  on seeds whose wrong zone lies beyond it; stops in the wrong zone 3 of 3 sched, 3 of 4 always,
+  3 of 3 single; perception and estimate no measurable change; 30 %: every arm early;
+- loose snow: 36 of 36 corners finish; sched +2.7 % vs single, all from R 9 x 90 at 15 m (+32 %,
+  reproduces M4b's: one H adoption, the car to 45 deg against 23); always +0.3 %;
+- the sweep not run (the chain's stops are ice's and the wrong zones', no threshold reaches them).
+Gate: R6 Haruna met, Tsukuba within one standard error; sched as good as always with fewer
+solves (2.2-2.6 against 2.9-3.1); wrong-map criterion met on the wrong zone's stops (ruling);
+ice robustness not met (multi-start 6 against single 8 of 12). Not passed.
+Rulings:
+- Tsukuba's R6 met within noise (+0.18 %, 1.2 se; sched is G alone, the same planner). Cost if
+  wrong: a scheduler overhead hidden in the clock's noise.
+- The wrong-map criterion judged on the stops in the wrong zone, not ice's own on seeds whose
+  wrong zone lies beyond it. Cost if wrong: missed by one run (8 against 7), as in M4b.
+- The cut warm start off on tracks with ice, on one repeat. Cost if wrong: a chaotic class read
+  once; the chain runs without it.
+- Single-start chain runs at load 7.7-9.7 counted for robustness, not set against the multi-start
+  arms as an arm effect.
+- Runs after 13:42 ran on 065's style plumbing (another session, the shared tree), whose default
+  S1 is specified unchanged; not re-verified bit for bit.
+Left: ice's solve time (the R3 solver levers: Fatrop, SQP on HPIPM, MUMPS); issue 007 (L2);
+loose snow R 9 x 90 at 15 m sched's H adoption; the sweep.

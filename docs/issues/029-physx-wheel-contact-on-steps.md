@@ -1,7 +1,7 @@
 # 029: PhysX's wheel query misses short obstacles (raycast) or throws the car off them (sweep)
 
 **Severity**: high for roadmap 066 (no PhysX setting gives a real car's response to a rock or a
-step at the live rate); none today, since no world has such obstacles yet. **Status**: open.
+step at the live rate); none today, since no world has such obstacles yet. **Status**: fix in progress (roadmap 066 R5, `swb_isaac_world.road_contact`).
 **Found**: 2026-10-31 on newslab-server-241, 066 R0 (`swb_isaac_world/spikes/road_fixtures.py`,
 `spikes/fixture_course.py`), aib's Model 3 rig (sim_vehicle_spec 3773783), Isaac Sim 6.1.
 
@@ -63,3 +63,12 @@ throws the car now and then. None of the variants has wheel hop.
 query sees the smooth base road. The tire model (envelope, tire spring, bump stop) acts on the
 one height function at the vehicle substep rate, and its contact forces go to the body and to
 the rock. Measure it on the same fixtures before any further PhysX tuning.
+
+## Fix in progress
+
+066 R5's first slice (2026-10-31): `swb_isaac_world.road_contact` on the same fixtures, with
+PhysX's query on the flat base road. At 60 Hz the front-left peak loads are within 4 % of a
+4 kHz quarter car on the same effective road. The 10 cm cleat at 20 m/s gives 22.6-23.0 kN and
+4.9 cm of corner rise in all five offsets: none missed, none thrown. Its cost is 0.83 ms per
+PhysX step for one car. Open: the kicker's landing (PhysX's rigid travel limit, R2), the loose
+rock (R4), and the model in the world server.

@@ -11,6 +11,9 @@ respond to that shape. It comes before the rally stage (planned as 067), which n
 a raycast barely feels a 10 cm step, a sweep is thrown off it by the rigid travel limit, and a
 rock under a wheel is not pushed ([issue 029](../issues/029-physx-wheel-contact-on-steps.md)).
 The plan now takes the vertical tire contact over from PhysX ("Where R0 leaves the plan").
+R5's first slice works on the fixtures: our contact model at 60 Hz matches the 4 kHz
+reference's peaks within 4 %, the same in all five start offsets, with no throw, at
+0.83 ms per PhysX step for one car.
 
 **Source**: user, 2026-10-31: "Let's see if we can build realistic off road or rally env to
 evaluate autopilot"; "I'd to have realistic road physics"; "I would finish missing parts before
@@ -210,6 +213,64 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   radius, rim-strike flag. Feeds the corner (R2, R6) and question 1's sampling. Measured: cleat
   force shape, no braking kick at a step, edge strike tens of kN at 40 km/h. Risk: the cams'
   known weakness on Belgian block and corrugation; R6's washboard test checks it.
+
+  **First slice done** (2026-10-31, newslab-server-241; swb_isaac_world
+  `swb_isaac_world/road_contact.py` (0a73ce0), `spikes/road_fixtures.py` with `ROAD_TIRE=ours`,
+  `spikes/contact_offline.py`). PhysX's query sees the base road: every lane flat but the
+  kicker, which is large-scale and stays PhysX's. Each PhysX step, `road_contact.TireContact`
+  takes the body's pose and does the following for each wheel:
+  - **The envelope:** 5 x 6 cams over the patch on the true profile, along the wheel's path
+    over the coming step. Each cam is a rigid disc of the tire's radius, 1 cm samples. The
+    effective height is the cams' mean, the slope the front cams less the rear.
+  - **The corner:** a 42 kg wheel on a 230 kN/m tire spring that lifts off, under the rig's
+    spring and damper, a progressive bump stop over the last 3 cm and a rebound stop.
+    Integrated 8 times per step (480 Hz), with the attachment moving at its velocity from the
+    step's start.
+  - **The force on the body,** at the wheel's centre, for the next step: our suspension force
+    less what PhysX's spring and damper give on the base road. PhysX's jounce is geometric
+    (travel + wheel centre z - attachment z), so it is known from the pose and the base road
+    alone. In the linear range the difference does not depend on the body's motion at all, so
+    the 60 Hz coupling stays stable.
+  - **The effective plane's push back** along the heading, at the contact.
+  - **The tire's load** as each wheel's friction (load over PhysX's own plus the wheel's
+    weight), since PhysX's tire saturates at mu times its own load.
+
+  On flat road the body sits within 1.3 mm of PhysX alone, and the predicted PhysX load is
+  within 0.3 % of the one PhysX reports. Isaac at 60 Hz against the 4 kHz quarter car on the
+  same effective road (`reference_cam`), front-left:
+
+  | | peak load | wheel airborne | corner rise |
+  |---|---|---|---|
+  | 5 cm cleat, 10 m/s | 12.7 kN / 12.7 | 0.033 s / 0.038 | 2.4 cm / 2.5 |
+  | 10 cm cleat, 10 m/s | 19.5 kN / 19.5 | 0.10 s / 0.12 | 6.6 cm / 7.6 |
+  | 15 cm cleat, 10 m/s | 25.8 kN / 25.8 | 0.15 s / 0.29 | 11.5 cm / 19.5 |
+  | 10 cm cleat, 20 m/s, 5 offsets | 22.6-23.0 kN / 23.5 | 0.083-0.10 s / 0.088 | 4.9 cm / 5.0, every offset |
+  | pothole, 10 m/s | 10.1 kN / 10.3 | 0.017 s / 0.024 | 0.1 cm / 0.3 |
+  | washboard, 10 m/s | 7.2 kN / 7.2 (min 1.8 / 1.4) | 0 / 0 | 1.6 cm / 1.6 |
+  | washboard, 20 m/s | 7.7 kN / 8.1 (min 2.2 / 1.6) | 0 / 0 | 1.1 cm / 1.6 |
+  | boulder, 10 m/s | 25.8 kN / 26.6 | 0.13 s / 0.34 | 9.2 cm / 23.3 |
+
+  - **Peak loads** are within 4 %. Offline, the same model under a stand-in for PhysX's body
+    (`contact_offline.py`) is within 3 % on every fixture, wheel airborne time included.
+  - **The 15 cm cleat and the boulder** rise less and fly shorter in the whole car than in the
+    quarter car. The other three corners and the body's pitch and roll carry part of the
+    impulse; the quarter car has none of them. The boulder is also under the left wheels only.
+  - **The kicker's landing** is still PhysX's rigid travel limit: 207 m/s^2 at the body (589
+    with PhysX alone). That is R2's.
+  - **The 20 m/s cases** are still accelerating at the fixture (17.7 m/s), so their static
+    front load is 4.0 kN, not 4.45.
+  - **Cost:** 0.83 ms p50 (0.91 p95) per PhysX step, PhysX's own step being 0.53. That is
+    2.5 ms per 50 ms frame for one ego, inside the 5 ms budget. The envelope takes 0.2 ms; the
+    rest is numpy's per-call overhead in the 8 inner steps, the same for 4 wheels as for 32.
+    So more egos should go in one call, and a compiled inner loop is the next lever.
+
+  Left for R5:
+  - steering and braking at a step (the braking kick);
+  - the effective rolling radius (wheel speed for ABS);
+  - the rim-strike flag;
+  - the model in the world server (the surface layer's per-step hook, after the soil's
+    friction, on the map's height function).
+
 - [ ] **R6. Wheel hop** (2-3 weeks). A virtual unsprung mass per corner on a tire spring at the
   vehicle substep rate, between R5's effective road and the sprung body; PhysX's spring
   nulled and its tire load taken from ours. Measured: a 10-15 Hz peak in the chassis and wheel

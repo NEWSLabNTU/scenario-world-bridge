@@ -100,3 +100,65 @@ or learned policy; drifting on ice.
 
 - 2026-10-31: design, research report and live planner revision 4 committed (autoware-drift
   611c775). M1 (style record and plumbing, E1) started.
+- 2026-10-31: **M1 done** (autoware-drift 3667c87, 26cb0be, b96a77a on main: the record, the
+  plumbing, the E1 harness options). R1's plumbing and R2 met on the plant.
+  - `race_planner/style.py`: `Style`, design 4.5's fields (no `ecu_mode`), `fastest` by default,
+    from a dict (`{"style": {...}}` or the inner one) or YAML. Refused by name (a `ValueError`
+    whose message starts with the field): unknown fields; invariants given as fields (a named
+    list: `grip`, the slip caps, `free_stages`, margins, quantile, estimator, stop, ...);
+    `eps_window` nonzero outside [0.003, 0.03]; ice in `classes`; a field the style does not
+    read set off its default; S3's slip floor past the rear cap where the peaks are known.
+  - `live.Driver(style=...)`, `MultiStart(style=...)` (the driver's by default),
+    `serve.py`'s init `style` (refused before the track loads, so before `ready`) and a runtime
+    line `{"style": {...}}`, answered `{"style", "pending"}` or `{"style_error"}` (the style
+    kept, the car not stopped). `Driver.set_style` validates at once; `style_due`, at the top
+    of every re-plan, applies it unless the car is within `AHEAD` (25 m) before a committed
+    drift or in it (deferred, retried each re-plan; `style_log` records requested / deferred /
+    applied). No Window variant compiled (call 1's S3 window comes at M5).
+  - Tests: `test/test_style.py`, 35 (23 refusal cases, each matching `^'<field>'`; default =
+    fastest; S2/S3 refused by Driver and MultiStart; slip-floor rule; serve refuses a bad init
+    record before `ready`; the switch deferred near a committed drift, applied past it, applied
+    at once on a grip plan; a refused runtime style keeps the current one; S1 with
+    `Style()` plans bit for bit as without, on a short road through four or more re-plans).
+    Full suite: 153 passed (14 min, load 6-8).
+  - **E1** (`studies/mode_choice_m4.py run <course> --arm sched --digest [--style ...]`; sha256
+    of every plan's X, U, s, t and of every plant state). The closed loop is not repeatable
+    bit for bit with the clock in it (IPOPT's `max_wall_time`, adoption at max(latency, solve
+    time), L2's fallback on its budget): the first pair of timed runs on Tsukuba parted at
+    plan 57 of 73, one solve cut differently (failed 2 against 1). So the bit-for-bit arms ran
+    with `RP_DET=1` (no clock: solves uncut, timed 0 s, adopted at the fixed 1 s latency),
+    against the commit before M1 (611c775, `RP_ROOT`), on the same host:
+
+    | course | 611c775, no record | M1, no record | M1, `fastest` record | lap (det) | timed lap, none / S1 |
+    |---|---|---|---|---|---|
+    | Haruna | `9524862c` / `9160b94d` | same | same | 76.28 s | 76.28 / 76.28 s (bit-identical too) |
+    | Tsukuba | `d7ca9f95` / `82bd3c28` | same | same | 74.33 s | 74.37 / 74.30 s (parted at plan 57) |
+    | zone chain (seeds on) | `ac0fd2f1` / `8207698c` | — | same | off road at s 1236, both | — |
+
+    (plans / trajectory digest, first 8 hex.) Every det arm: 76 and 73 plans, 1.00 solves a
+    re-plan (G only on dry asphalt), no failed solve. Haruna's lap loss S1 vs no record:
+    0.000 %. The zone chain was added because the dry courses never send a seed: with G, H, D, F
+    live (2.48 solves a re-plan, 10 mode changes) the record changes nothing either. (Its
+    off-road at s 1236 is 061's, in both arms, unclocked.) Timed runs at load 5.7-6.9 (32
+    cores), one repeat: lap times are indicative only; the three-repeat idle-host timing of E1's
+    table is not done, and bit identity does not need it.
+  - **Rulings** (builder's, M1):
+    1. S2 and S3 validate, and the planner refuses to run them: `NotImplementedError` where a
+       style is accepted (Driver, MultiStart, `set_style`, serve's init), never mid-re-plan;
+       a runtime request is answered `style_error` and the current style kept. Not "run as S1
+       with a warning": that is a silent clamp.
+    2. Call 9 extended: a field set off its default under any style that does not read it is
+       refused (S3's under S2, S2's under S3, both under S1). `drift_past_deg` is read by S2
+       and S3. `eps_lap_s` and `eps_window` may both be set under S2 (call 3 uses both).
+    3. S3's default classes in swb's names: mud = `mud_wet`, `mud_soft`; sand = `sand`,
+       `sand_loose`; plus `snow_loose`, `gravel`, `dirt`, `grass`, `snow_packed`. Checked
+       against a `SurfaceTable` when one is given.
+    4. The slip-floor rule: peak + `slip_floor_past_deg` <= `rear_slip_max` x peak (3) on every
+       surface without fall-off; the Driver computes the peaks from its track (S3 only).
+    5. "Committed drift" for the 25 m rule: the adopted plan slides (`slides_in`, now a module
+       function of multistart) in a corner whose zone (`CORNER_FROM` before turn-in to exit)
+       the car is within `AHEAD` before, or inside. A one-start plan, never classified, is read
+       at the map's friction.
+    6. E1's bit identity is measured unclocked (`RP_DET=1`); the timed arms give lap times.
+  - Left for M2 on: everything S2/S3 does (signed map, knapsack, lex-ε gate, zone plan, elastic
+    rows, M seeds, L2 weights); E1's three-repeat timing on an idle host; DP0 (M4c).

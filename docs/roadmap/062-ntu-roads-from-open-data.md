@@ -292,10 +292,39 @@ Progress:
     ego drove 垂葉榕道 at 46 km/h on the urban rule.
   - **The pipeline, with what is automatic and what needs a person:**
     [`open-data-map-pipeline.md`](../design/open-data-map-pipeline.md).
+- **O6, at 15 km/h on campus, both ways round** (2026-10-31, after a submodule update and a
+  rebuild of both workspaces).
+  - **`ntu_campus_loop` passed:** the right turns, both red lights stopped for, NVTL min
+    3.16. Turn signals: 16 of the 17 junction paths driven match the map's
+    `turn_direction`. The one that doesn't is a straight path on 辛亥路 with the right signal
+    already on, 75 m before the right turn into the campus drive.
+  - **`ntu_left_turns.xosc` passed** (new): left at the main gate onto 新生南路 south, left
+    onto 羅斯福路, then to 公館.
+    - Both left turns start red, and the ego stopped at both.
+    - Turn signals: 12 of 12 match.
+    - NVTL while driving: min 3.21.
+    - Speed: 13.9 m/s on 羅斯福路.
+  - **What the runs found:**
+    - **A 2 m fillet:** the drive's corner was rounded to only 2 m, because OSM has a node
+      3.9 m past it. Nodes in a straight run now go before rounding.
+    - **The gate's right turn at 2.8 m:** the path optimiser stopped the ego in it.
+      - Junction cuts now leave the outer lane a 6 m turn.
+      - The generator then runs again, up to 4 passes, cutting every junction with a turn
+        path under 4.5 m 3 m further back. The counts went 256, 97, 84, 72; the gate's
+        turn is now 8.7 m.
+      - The cost: junction paths 1,617 to 1,592, stranded lanes +11/+7. Routes are
+        still 56/56.
+    - **An emergency stop:** compare_map refused the map ("Given map voxel grid is not
+      feasible"): one voxel grid over the whole map overflowed int32 with 114 m buildings.
+      The PCD now stops at 30 m.
   - **Still open:**
-    - signalised left turns, U-turns and the 羅斯福路/基隆路 side are not driven yet;
-    - lights that cycle on their own (the loop's are released by the ego's stop);
-    - turn signals are not checked;
+    - 105 turn paths under 4 m remain (`check_map.py`'s `turn_paths_radius`). Most are hooks
+      at clustered junctions, where an exit lane starts behind its approach (the big
+      新生南路/羅斯福路 junction), and a longer cut does not fix them;
+    - no U-turn paths: the generator makes none;
+    - no loop through 公館: 羅斯福路 and 基隆路 are grade-separated there, and the ramps are
+      left out;
+    - lights that cycle on their own (these are released by the ego's stop);
     - the second run, with the audit's patches.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information

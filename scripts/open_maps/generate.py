@@ -43,6 +43,7 @@ import argparse
 import json
 import math
 import re
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -63,6 +64,9 @@ TURN_DEG = 30.0     # |heading change| below this is straight
 UTURN_DEG = 150.0
 CORNER_DEG = 25.0   # a bend this sharp within a junction's R + CORNER_REACH m of its node moves
 CORNER_REACH = 6.0  # the cut past it
+MIN_TURN_R = 6.0    # m, the radius a right turn from the outer lane is cut for
+TIGHT_R = 4.5       # m, a turn path tighter than this enlarges its junction's cut (main)
+BUMP_STEP, PASSES = 3.0, 4
 ZONE_EDGE = 5.0     # m, a speed zone's boundary is pulled in this far: roads on its edge are not in it
 FILLET_R = 8.0      # m, a chain's corners sharper than FILLET_DEG are rounded to this radius
 FILLET_DEG = 20.0   # (less where the segments beside a corner are short)
@@ -80,6 +84,8 @@ DEBUG_AT = tuple(map(float, __import__('os').environ['SWB_DEBUG_AT'].split(','))
 IMAGERY = __import__('os').environ.get('SWB_IMAGERY', '0') == '1'   # route C, off: see imagery.py
 STATS = Counter()   # counts from the network build, merged into report.json
 BAN_LOG = []   # every sign ban, for review (report.json's bans)
+BUMP = Counter()   # junction id -> metres added to its cut, from the passes before (main)
+TIGHT = set()   # junctions with a turn path tighter than TIGHT_R, found by this pass
 NO_TURN = {"regulatory--no-left-turn--g1": "left", "regulatory--no-right-turn--g1": "right"}
 TURN_TOKENS = {"left": "left", "sharp_left": "left", "slight_left": "left",
                "right": "right", "sharp_right": "right", "slight_right": "right",
@@ -134,23 +140,27 @@ def wrap(a):
 
 def fillet(line):
     """The line with each corner sharper than FILLET_DEG rounded: an arc of FILLET_R, or of the
-    radius whose tangents fit half of each segment beside it (all of an end segment, less 0.5 m).
-    OSM draws a driveway's turn as a corner; a lanelet with one has no path a car can follow
-    (062: the NTU loop stopped where a campus drive turns 90 deg in the middle of its way)."""
-    p = list(line.coords)
+    radius whose tangents fit the segments beside it (half a segment shared with another
+    corner, else all of it less 0.5 m). OSM draws a driveway's turn as a corner; a lanelet with
+    one has no path a car can follow (062: the NTU loop stopped where a campus drive turns 90
+    deg in the middle of its way). Nodes in a straight run go first, so a node 3.9 m past the
+    corner does not shrink its arc to 2 m (the same drive, the next run)."""
+    p = list(line.simplify(0.2).coords)
     if len(p) < 3:
         return line
+    sharp = [False] + [abs(wrap(heading(p[i], p[i + 1]) - heading(p[i - 1], p[i]))) >= math.radians(FILLET_DEG)
+                       for i in range(1, len(p) - 1)] + [False]
     out = [p[0]]
     for i in range(1, len(p) - 1):
         h0, h1 = heading(p[i - 1], p[i]), heading(p[i], p[i + 1])
         turn = wrap(h1 - h0)
         th = abs(turn)
-        if th < math.radians(FILLET_DEG) or th > math.radians(170.0):
+        if not sharp[i] or th > math.radians(170.0):
             out.append(p[i])
             continue
         l0, l1 = math.dist(p[i - 1], p[i]), math.dist(p[i], p[i + 1])
-        lim0 = l0 - 0.5 if i == 1 else l0 / 2
-        lim1 = l1 - 0.5 if i == len(p) - 2 else l1 / 2
+        lim0 = l0 / 2 if sharp[i - 1] else l0 - 0.5
+        lim1 = l1 / 2 if sharp[i + 1] else l1 - 0.5
         t = min(FILLET_R * math.tan(th / 2), lim0, lim1)
         if t <= 0.05:
             out.append(p[i])
@@ -164,6 +174,7 @@ def fillet(line):
             h = h0 + sg * th * k / m
             out.append((c[0] + sg * r * math.sin(h), c[1] - sg * r * math.cos(h)))
         STATS["corners_rounded"] += 1
+        STATS["corners_rounded_below_6m"] += r < 6.0
     out.append(p[-1])
     return LineString(out)
 
@@ -563,8 +574,14 @@ def build(site, out):
         hw = [(c.nf + c.nb) * c.w / 2 for c in chains
               if junction_of.get(c.nids[0]) is j or junction_of.get(c.nids[-1]) is j]
         # each approach is cut this far from its own node in the junction, which clears the
-        # widest road it crosses (a cluster's other carriageway is crossed by the connector)
-        j["R"] = max(5.0, (max(hw) if hw else 3.0) + 2.0)
+        # widest road it crosses (a cluster's other carriageway is crossed by the connector),
+        # and leaves a right turn from the outer lane a radius a car can drive: about the cut
+        # less that lane's offset (the main gate's was 2.8 m, and Autoware's path optimiser
+        # stopped the ego in it, 062)
+        wide = max(hw) if hw else 3.0
+        lane = min((c.w for c in chains if junction_of.get(c.nids[0]) is j or junction_of.get(c.nids[-1]) is j),
+                   default=3.0)
+        j["R"] = max(5.0, wide + 2.0, MIN_TURN_R + wide - lane / 2) + BUMP[j["id"]]
         j["signal"] = "osm" if any(math.dist(j["c"], s) < j["R"] + 20 for s in signals) else None
         if j["signal"] is None:
             lights = [f for f in feats if f["object_value"].startswith("object--traffic-light--general")
@@ -607,6 +624,8 @@ def build(site, out):
         if s1 - s0 < 2.0:   # too short to keep a lane: keep its middle 2 m
             m = (s0 + s1) / 2 if s1 > s0 else L / 2
             s0, s1 = max(0.0, m - 1.0), min(L, m + 1.0)
+        if not 0.0 <= s0 < s1 <= L:   # cut back from both ends past each other: keep it whole
+            s0, s1 = 0.0, L
         from shapely.ops import substring
         c.line = LineString(resample(fillet(substring(line, s0, s1))))
         c.full = line
@@ -1018,6 +1037,8 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
         left = bound(la[-1], lb[0], la[-2], lb[1])
         right = bound(ra[-1], rb[0], ra[-2], rb[1])
         STATS["connectors_own_cubics"] += 1
+    if turn and min_radius([osm_xy(osm, n) for n in left], [osm_xy(osm, n) for n in right]) < TIGHT_R:
+        TIGHT.add(j["id"])
     wl = osm.way(left, {"type": "virtual"})
     wr = osm.way(right, {"type": "virtual"})
     v = min(a.speed, b.speed)
@@ -1028,6 +1049,25 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
         tags["swb:turn_source"] = src
     lid = osm.rel([("way", wl, "left"), ("way", wr, "right")], tags)
     lanelet_of[lid] = (None, tags)
+
+
+def min_radius(left, right, gap=1.5):
+    """A lanelet's tightest radius along its centre line (the bounds' midpoints, by fraction of
+    length), from circles through points `gap` m apart: a path a car must drive."""
+    lp, rp = LineString(left), LineString(right)
+    n = max(3, int(max(lp.length, rp.length)))
+    c = []
+    for i in range(n + 1):
+        a, b = lp.interpolate(i / n, normalized=True), rp.interpolate(i / n, normalized=True)
+        c.append(((a.x + b.x) / 2, (a.y + b.y) / 2))
+    step = max(1, int(round(gap * n / max(LineString(c).length, 1e-6))))
+    best = float("inf")
+    for i in range(step, len(c) - step):
+        p, q, r = c[i - step], c[i], c[i + step]
+        area2 = abs((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]))
+        if area2 > 1e-9:
+            best = min(best, math.dist(q, r) * math.dist(p, r) * math.dist(p, q) / (2 * area2))
+    return best
 
 
 _xy_cache = {}
@@ -1111,7 +1151,21 @@ def main():
     ap.add_argument("out", type=Path)
     a = ap.parse_args()
     site = yaml.safe_load(a.site.read_text())
-    generate(site, a.out)
+    # A junction whose turn paths come out tighter than a car can drive is cut further back
+    # and the map generated again: one cut radius cannot fit every junction (the main gate's
+    # right turn is between two carriageways cut from different nodes, 2.8 m at first).
+    for k in range(PASSES):
+        STATS.clear()
+        BAN_LOG.clear()
+        TIGHT.clear()
+        _xy_cache.clear()
+        STATS["junctions_cut_further"] = len(BUMP)
+        generate(site, a.out)
+        print(f"pass {k + 1}: {len(TIGHT)} junctions with a turn path under {TIGHT_R} m", file=sys.stderr)
+        if not TIGHT or k == PASSES - 1:
+            break
+        for jid in TIGHT:
+            BUMP[jid] += BUMP_STEP
 
 
 if __name__ == "__main__":

@@ -126,6 +126,8 @@ Rules added so far, and the step that found each:
 | a lane jogging sideways across a junction: the connector pinched to 1.5 m and its bounds crossed (19 connectors) | step 5's crossing count, after run 7 | both bounds are offset from one centre curve; separate curves only where the offset would loop |
 | a driveway leaving 辛亥路 east and turning south 2 m later kept a 3 m-radius corner in its own lanelet; Autoware stopped at it | step 12 (loop run 10) | a corner within the junction's radius + 6 m of its node moves the cut past it, so the connector takes the turn |
 | the same driveway turns 90 deg again in the middle of its way: a lanelet with a sharp corner has no path a car can follow | step 12 (loop run 11) | each chain's corners over 20 deg are rounded, radius 8 m or what the segments beside them allow (142 on NTU) |
+| that corner rounded to 2 m only, because OSM has a node 3.9 m past it | step 12 (the loop at 15 km/h) | nodes in a straight run dropped before rounding; a fillet may use a whole segment unless the next vertex is a corner too |
+| the main gate's right turn at a 2.8 m radius, two carriageways cut from different nodes; the path optimiser stopped the ego in it | step 12 (the same run) | the cut leaves the outer lane's right turn 6 m; then the map is generated again, up to 4 passes, with every junction that has a turn path under 4.5 m cut 3 m further (256, 97, 84, 72 such junctions); `check_map.py` reports the turn-path radii |
 
 Route C, lane widths fitted to NLSC's photo (`imagery.py`), is off. Its fits disagreed between
 neighbouring pieces of one road, and the survey had too little paint on the arterials to
@@ -217,6 +219,8 @@ world:=` need:
 - `pointcloud_map/` in 50 m tiles with `pointcloud_map_metadata.yaml`: as one file,
   compare_map's voxel grid overflowed, and the tile corners must be integers or the loader
   fails;
+- the PCD is cut at 30 m height: compare_map builds one voxel grid over the whole map,
+  and with 114 m buildings it overflowed int32 and stopped the car;
 - `isaac/world.usdc` and `isaac/world.yaml`.
 
 The world itself:
@@ -268,7 +272,11 @@ junction beyond the line while it is still red is a failure.
 The two scenarios so far:
 
 - `ntu_gate_xinsheng.xosc`: one way, about 650 m, all lights green; passed.
-- `ntu_campus_loop.xosc`: about 2.2 km, with two lights that start red.
+- `ntu_campus_loop.xosc`: about 2.2 km of right turns, with two lights that start red;
+  passed.
+- `ntu_left_turns.xosc`: two signalised left turns, both starting red, then 羅斯福路 to
+  公館; passed. No loop closes through 公館: 羅斯福路 and 基隆路 are grade-separated
+  there, and their ramps are left out.
 
 ## 11. Drive it in simulation (auto, with a check)
 
@@ -280,7 +288,9 @@ The two scenarios so far:
 `max_velocity` is the profile's cap, upstream's 15 km/h by default. At 16.7 m/s the map's
 speed limits govern: the ego reached 12.2 m/s on 新生南路, which is tagged 50 km/h.
 
-**The check:** pass or fail in `result.junit.xml`. While the run goes, watch:
+**The check:** pass or fail in `result.junit.xml`, and the turn signals: every junction path
+the ego drove, its `turn_direction` against the indicator it showed there. While the run goes,
+watch:
 
 - the ego's pose and speed;
 - the stop reason (the planning factors);
@@ -307,6 +317,10 @@ Every drive failure so far, and its fix:
 | 9 | passed | | |
 | loop 10 | turning off 辛亥路 into campus | a 3 m-radius corner left inside the driveway's lanelet | cut past corners (step 4) |
 | loop 11 | at the driveway's next bend | a 90 deg corner mid-way, no fillet | corners rounded (step 4) |
+| loop at 15 km/h, 1 | the driveway's bend again | a 2 m fillet (an OSM node next to the corner) | simplify, then fillet (step 4) |
+| loop at 15 km/h, 2 | in the main gate's right turn | a 2.8 m turn path | junction cuts for a 6 m turn, regenerated per junction (step 4) |
+| loop at 15 km/h, 3 | on 椰林大道, emergency stop | compare_map: "Given map voxel grid is not feasible", the whole PCD's extent over int32 at its voxel | the PCD stops at 30 m height (step 8) |
+| loop at 15 km/h, 4; left turns | passed | | |
 
 This step needs a person and is where most of the time goes. The tools are temporary
 scripts: an ego watcher, an NVTL logger and a route probe. Making them a standing tool, a

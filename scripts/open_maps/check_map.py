@@ -16,7 +16,9 @@ Plain XML, no ROS. Reports:
 - crosswalks, stop lines, right_of_way elements;
 - `swb:source` on lanelets, where the generator wrote it;
 - `local_x`/`local_y` on every node;
-- road lanelets whose left and right bounds cross: Autoware's path ends in one (062, run 7).
+- road lanelets whose left and right bounds cross: Autoware's path ends in one (062, run 7);
+- junction paths by their tightest radius (under 4, 5 and 6 m): a car cannot drive one under
+  about 5 m, and Autoware's path optimiser stops in it (062, the main gate).
 """
 import argparse
 import json
@@ -129,10 +131,16 @@ def check(path):
         if "local_x" in t:
             xy[n.get("id")] = (float(t["local_x"]), float(t["local_y"]))
     crossed = 0
+    from generate import min_radius
+    tight = Counter()
     for t, m in road.values():
         lb, rb = bound(m, "left"), bound(m, "right")
         if len(lb) >= 2 and len(rb) >= 2 and all(i in xy for i in lb + rb):
             crossed += LineString([xy[i] for i in lb]).crosses(LineString([xy[i] for i in rb]))
+            if "turn_direction" in t:
+                r = min_radius([xy[i] for i in lb], [xy[i] for i in rb])
+                for lim in (4, 5, 6):
+                    tight[f"under_{lim}m"] += r < lim
     rep = {
         "nodes": len(nodes), "ways": len(ways), "lanelets": len(lanelets), "road_lanelets": len(road),
         "nodes_per_way_mean": round(sum(per) / len(per), 1), "nodes_per_way_max": max(per),
@@ -150,6 +158,7 @@ def check(path):
         "swb_source": dict(Counter(t.get("swb:source", "-") for t, _ in road.values())),
         "nodes_with_local_xy": local,
         "bounds_crossing": crossed,
+        "turn_paths_radius": dict(tight),
     }
     return rep
 

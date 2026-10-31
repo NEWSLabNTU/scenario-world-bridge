@@ -59,6 +59,7 @@ STOP_HALF = 0.2
 ZEBRA, ZEBRA_GAP = 0.45, 0.45
 FLOOR_M, DEFAULT_HEIGHT = 3.2, 12.0
 VOXEL = 0.2
+PCD_TOP = 30.0      # m, the point cloud's ceiling
 PROP_CLEAR = 1.0    # m, a pole, lamp or tree from the nearest road lanelet
 POLE_REACH = 8.0    # m, how far beyond its stop line a signal pole may go
 TILE = 50.0         # m, the divided point cloud's tiles (059's size)
@@ -403,6 +404,10 @@ def pcd(site, out):
     if extra.exists():
         parts.append(np.load(extra))
     pts = np.concatenate(parts)
+    # nothing above PCD_TOP: a 114 m tower adds nothing a car's lidar uses, and the whole map's
+    # extent at compare_map's voxel size came within 10 % of int32 and then over it (062: "Given
+    # map voxel grid is not feasible", an emergency stop on 椰林大道)
+    pts = pts[(pts[:, 2] <= PCD_TOP) & (pts[:, 2] >= -1.0)]
     key = np.floor(pts / VOXEL).astype(np.int64)
     _, first = np.unique(key, axis=0, return_index=True)
     pts = pts[np.sort(first)]

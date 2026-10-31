@@ -112,9 +112,16 @@ each unit-tested; whatever needs Isaac or cuVSLAM (rendering cost, recordings, r
   live estimate (stamp no older than `pose.anchor_max_age_s` against the newest image), not on
   the batch the initial alignment emits, and after `pose.anchor_settle_s` of tracking (default
   0: as today). Unit tests; the replay check waits for the GPU.
-- **d. Autoware's localization checks at the lane** (the `autoware-drift` project): the EKF's
-  covariance-ellipse diagnostics and the localization error monitor at 1.75 m, the pose from
-  rig, NDT and the lidar off, in a preset the closed loop selects; checked by a dry launch dump.
+- **d. Autoware's localization checks at the lane**: the EKF's covariance-ellipse diagnostics
+  and the localization error monitor at 1.75 m, the pose from rig, NDT and the lidar off, in a
+  preset the closed loop selects; checked by a dry launch dump. The switch is not autoware-drift's:
+  NDT is chosen by csb's profile (`autoware_sim_profile`, `ndt:=autoware|cuda`, in
+  autoware_sim_vehicle). So the profile gains `ndt:=none` (no scan matcher; the EKF, the pose
+  initializer and the error monitor as with the others, the EKF's pose input on NDT's topic, fed
+  by whoever publishes there) and a lane-wide error-monitor parameter file a run can select;
+  autoware-drift's README gets the closed-loop command. How rig itself joins the ego stack
+  (built in the golf cart's workspace, sourced as a second overlay, or built into autoware-drift)
+  is left to step 7.
 
 ## Decisions taken here (not the user's)
 

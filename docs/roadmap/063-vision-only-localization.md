@@ -123,6 +123,16 @@ each unit-tested; whatever needs Isaac or cuVSLAM (rendering cost, recordings, r
   (built in the golf cart's workspace, sourced as a second overlay, or built into autoware-drift)
   is left to step 7.
 
+Status (2026-11-01): b and c on rig_localization main (`506a873`, `4bd4a31`; golf cart's pin
+`6932895`); `pose_check`'s yaw at the anchor reads 0.000 deg now (the 0.042 was roll and pitch).
+a (sim_vehicle_spec `e182c73`, aib `d86c6c6`, autoware_sim_vehicle `1789549`; spec_hash
+65f1ba86) and d (autoware_sim_vehicle `4506488`: `ndt:=none`, `pose_source:=none`, the pose
+initializer with `ndt_enabled:=false`, a graph without NDT's unit, lane files for the error
+monitor and the EKF; autoware-drift `c91c27d`) are committed, not yet pushed. Open for step 7:
+a no-NDT copy of autoware-drift's `drift.yaml`; the error-monitor file under `ndt:=cuda`
+(cuda_ndt_matcher hard-codes it); both checks judge the EKF's covariance, not the error, so the
+ground-truth lane departure stays the measure; perception still uses the lidar.
+
 ## Decisions taken here (not the user's)
 
 - The Autoware project is `autoware-drift` (057's laps: its planning holds 25-30 m/s), with

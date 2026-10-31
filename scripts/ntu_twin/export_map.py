@@ -6,7 +6,10 @@
 Writes into MAP_DIR:
 
 - `pointcloud_map/tile_<ix>_<iy>.pcd` and `pointcloud_map_metadata.yaml`: Autoware's divided
-  point-cloud map (dynamic loading), one 50 m tile per file, x y z intensity (float32),
+  point-cloud map (`pointcloud_map.pcd` a link to the directory: SSv2 refuses a map dir with no
+  `*.pcd`, "The map_path must contain at least one *.pcd file", and Autoware's default file
+  name then loads the tiles),
+  one 50 m tile per file (dynamic loading), x y z intensity (float32),
   thinned to one point per `--voxel` cube (the mean of its points, as PCL's VoxelGrid), from the
   full scan in the map frame: the vendor's MGRS-local coordinates less the vendor-to-map
   shift (019), the same frame and shift as build_meshes.py, so NDT's map and the world the
@@ -94,6 +97,10 @@ def pointcloud(tiles, out, voxel, workers):
                   flush=True)
     with open(os.path.join(out, "pointcloud_map_metadata.yaml"), "w") as f:
         f.write("\n".join(meta) + "\n")
+    link = os.path.join(out, "pointcloud_map.pcd")
+    if os.path.lexists(link):
+        os.unlink(link)
+    os.symlink("pointcloud_map", link)
     print(f"pcd: {total:,} points in {len(tiles)} tiles")
 
 

@@ -7,7 +7,10 @@ underbody. 047 and 054 gave the ground its friction, soil and sideways forces; t
 it shape below the terrain data's resolution, and gives the car the parts of a real corner that
 respond to that shape. It comes before the rally stage (planned as 067), which needs it.
 
-**Status**: planned, 2026-10-31.
+**Status**: in progress, 2026-10-31. R0 done: PhysX queries the ground once per 60 Hz step,
+a raycast barely feels a 10 cm step, a sweep is thrown off it by the rigid travel limit, and a
+rock under a wheel is not pushed ([issue 029](../issues/029-physx-wheel-contact-on-steps.md)).
+The plan now takes the vertical tire contact over from PhysX ("Where R0 leaves the plan").
 
 **Source**: user, 2026-10-31: "Let's see if we can build realistic off road or rally env to
 evaluate autopilot"; "I'd to have realistic road physics"; "I would finish missing parts before
@@ -110,13 +113,70 @@ Two more follow from the same rule:
 Each stage is measured on R0's fixture course before the next starts, with its frame-time cost
 against the budget.
 
-- [ ] **R0. Instrument and fixtures** (2-3 days, no runtime cost). Log per wheel and step:
-  jounce, suspension force, ground plane, ground actor, hit position. A fixture course: 5, 10
-  and 15 cm cleats, a 0.5 m pothole 8 cm deep, 30 m of washboard (0.5-1 m pitch, 20 mm), a
-  0.5 m crest, a 20 cm boulder. A numpy reference: quarter-car and pitch-plane car with the
-  spec's values plus a 40-45 kg wheel on a tire spring (236.7 kN/m class), the golden car for
-  IRI. Answers: query rate (question 1), reaction to a dynamic actor (question 2). Baseline
-  traces of today's car.
+- [x] **R0. Instrument and fixtures** (done 2026-10-31, newslab-server-241; swb_isaac_world
+  `spikes/fixture_course.py`, `spikes/road_fixtures.py`, rig from sim_vehicle_spec 3773783).
+  Nine lanes: 5, 10 and 15 cm cleats 0.2 m long with vertical edges, an 8 cm pothole 0.5 m long
+  under the left wheels, 30 m of washboard (0.7 m pitch, 20 mm peak to peak), a 0.5 m kicker, a
+  20 cm boulder and a loose 10 kg rock. Every wheel is logged each PhysX step: on ground, load,
+  hit point, plane, jounce. The reference is a quarter car with a 42 kg wheel on a 230 kN/m
+  tire spring that lifts off, the tire's geometric envelope and a progressive bump stop, driven
+  over the same profile at 4 kHz. Five variants: raycast and sweep at 60 Hz, sweep with
+  `limitSuspensionExpansionVelocity`, raycast and sweep at 240 Hz (2 vehicle substeps, so the
+  vehicle still integrates at 480 Hz); plus sweep with 0.3 m of travel. Logs and traces in
+  `play_log/road_fixtures/`.
+
+  | front-left wheel | reference | raycast 60 | sweep 60 | sweep 240 |
+  |---|---|---|---|---|
+  | 10 cm cleat, 10 m/s: peak load, body rise | 20.2 kN, 7.8 cm | 4.4 kN, 1.6 cm | 18.4 kN, 27 cm, pitch 23 deg | 26.0 kN, 4.1 cm |
+  | 10 cm cleat, 20 m/s, 5 start offsets: missed / thrown | 0 / 0 | 2 / 0 | 0 / 2-3 (to 3.9 m, 90 deg) | 0 / 1 (0.41 m) |
+  | 15 cm cleat, 10 m/s | 26.6 kN, 20 cm | 8.4 kN, 3.8 cm | 12.6 kN, 70 cm | 31.5 kN, 61 cm |
+  | 20 cm boulder, 10 m/s | 29.9 kN, 34 cm | 5.8 kN, 1.1 m * | 14.1 kN, 35 cm | 30.6 kN, 25 cm |
+  | washboard, 20 m/s: load min-max | 1.4-8.2 kN | 0.0-10.5 kN | 0.0-11.6 kN | 0.0-11.5 kN |
+  | where the load first rises, from the cleat's face | -0.24 m | +2.8 m | -0.06 m | -0.18 m |
+
+  \* the rear wheels' launch, not the front's.
+
+  - **Question 1:** once per PhysX step. Raycast missed the 0.2 m cleat at 20 m/s in 2 of 5
+    offsets at 60 Hz and in none at 240 Hz.
+  - **Question 2:** no. The rock was the wheel's reported ground and moved 2 mm.
+  - **Question 5:** the sweep cost the same as the raycast, 0.42-0.45 ms per PhysX step with one
+    car. It meets a vertical face ahead of the wheel, reports a plane tilted 40-50 deg and a
+    jounce at full travel, and the rigid limit lifts the body at 10-11 m/s in one step. More
+    travel did not stop it, and the outcome depends on what ran before.
+  - **The expansion limit** let wheels unload as the reference does, but diverged on the
+    boulder.
+  - **240 Hz** is four times the PhysX steps per frame for the whole scene, the soil layer
+    included.
+
+  Issue 029.
+
+### Where R0 leaves the plan
+
+The real-world rule cannot be met inside PhysX's suspension query at 60 Hz:
+- the raycast misses short obstacles and barely answers the ones it finds;
+- the sweep answers violently;
+- 240 Hz with the sweep comes close, but it quadruples the physics of the whole scene, still
+  throws the car now and then, and has no wheel hop.
+
+So the vertical contact moves to our side, which is how BeamNG, rFactor 2 and Assetto Corsa
+get rocks right:
+- **PhysX's query sees the smooth base road:** the road before R3's small-scale detail, and no
+  rocks. PhysX keeps the tire's friction and slip and the body's integration.
+- **The tire model acts on the one height function (R5's tandem cam) at the vehicle substep
+  rate,** about 0.12 ms for 32 wheels. The real road is still the only road the car feels,
+  whatever PhysX queries, so question 4 stands. Under each wheel it computes:
+  - the envelope against the detail and the rocks;
+  - the tire's spring and lift-off;
+  - the bump stop (R2);
+  - later, the wheel's mass (R6).
+- **The resulting contact forces go to the body at the contact** and, with the opposite sign,
+  to a dynamic rock (question 2). The load each wheel carries reaches PhysX's tire forces
+  through its per-wheel friction, as T1 already does.
+
+R1 shrinks to checks: the expansion limit stays off, and the raycast stays. On the base road a
+raycast and a sweep are the same and the raycast is cheaper. R5 moves up to follow R0, and R2
+and R6 build on it. R5 must show on the same fixtures that the reference's shape comes back at
+60 Hz, within the 5 ms budget.
 - [ ] **R1. PhysX settings** (1-2 days). `sweep`; `limitSuspensionExpansionVelocity` on; the
   travel and sag reviewed against the real car; chassis collider at real clearance. Measured:
   the cleat force rises ahead of the hub; the pothole unloads the wheel; sweep cost with 1, 2

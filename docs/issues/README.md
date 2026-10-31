@@ -33,3 +33,4 @@ what is still open.
 | [026](026-ntu-r02-spawn-rests-off-centre.md) | The Isaac ego spawned at r02's lanelet centre comes to rest 0.8 m back along its heading | low | open |
 | [027](027-pose-instability-detector-negative-time.md) | Autoware's pose_instability_detector died once at start ("cannot store a negative time point in rclcpp::Time"), probably a start-up race before its first /clock | low | open |
 | [028](028-shalun-velocity-planner-runaway.md) | Autoware's behavior planning container runs away on SVL's Shalun map: behavior_velocity_planner never publishes, one thread at 100 % and RSS growing ~75 MB/s to 60 GB (OOM-killed once) | high | open |
+| [029](029-physx-wheel-contact-on-steps.md) | PhysX's wheel query is once per 60 Hz step: raycast misses or barely feels a 10 cm step (4.4 kN against 20 kN), sweep meets its face and the rigid travel limit throws the car (to 90 deg pitch); a rock under a wheel is not pushed | high | open |

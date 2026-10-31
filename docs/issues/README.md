@@ -32,3 +32,4 @@ what is still open.
 | [025](025-ntu-r01-spawn-falls-through.md) | The Isaac ego spawned at r01's start facing north (yaw 1.5773) falls through the NTU twin within a second; the same spot at yaw 0 or pi, 3 m south, 10 m north, and a dropped box all hold | low | open |
 | [026](026-ntu-r02-spawn-rests-off-centre.md) | The Isaac ego spawned at r02's lanelet centre comes to rest 0.8 m back along its heading | low | open |
 | [027](027-pose-instability-detector-negative-time.md) | Autoware's pose_instability_detector died once at start ("cannot store a negative time point in rclcpp::Time"), probably a start-up race before its first /clock | low | open |
+| [028](028-shalun-velocity-planner-runaway.md) | Autoware's behavior planning container runs away on SVL's Shalun map: behavior_velocity_planner never publishes, one thread at 100 % and RSS growing ~75 MB/s to 60 GB (OOM-killed once) | high | open |

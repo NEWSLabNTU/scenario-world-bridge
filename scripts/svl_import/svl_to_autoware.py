@@ -100,6 +100,10 @@ def main():
         if "ele" not in tags:
             ET.SubElement(node, "tag", {"k": "ele", "v": "0"})
         n_nodes += 1
+    # Autoware's map loader reads the format version from a MetaInfo element (it warns
+    # without one); SVL's tags follow Autoware's Lanelet2 format 1.2.
+    if root.find("MetaInfo") is None:
+        root.insert(0, ET.Element("MetaInfo", {"format_version": "1.2.0", "map_version": "svl-1"}))
     for way in root.iter("way"):
         for t in way.findall("tag"):
             if t.get("k") == "subtype" and t.get("v") == "usR1-1":

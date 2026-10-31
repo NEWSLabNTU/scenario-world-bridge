@@ -173,6 +173,35 @@ So the FBX's collision lies on the OpenDRIVE's roads. Not yet looked at: the pic
 there is no rendering on 241's GPUs now, and whether the FBX is mirrored against the roads,
 which needs a camera image or a top-down view.
 
+## CARLA's FBX is not mirrored (ray cast)
+
+With no rendering on 241, the check was done in physics. `world.cast_ray` from 60 m down, on
+a 4 m grid over the map in a `-nullrhi` server, was compared with our meshes rasterized on
+the same grid:
+
+| | footprint IoU | |dz| median / p95 | points above 2 m that agree |
+|---|---|---|---|
+| as imported | 0.94 | 0.000 / 0.000 m | 65 of our 67 |
+| ours mirrored in y | 0.54 | 0.000 / 5.6 m | 0 of 67 |
+
+CARLA hits 1224 points against our 1308; the difference is surfaces without a collider.
+
+## Autoware's planning simulator (issue 028)
+
+Autoware 1.5.0's planning simulator on the map dir (sample vehicle, domain 42):
+- **Map and routing work:**
+  - localization initialises;
+  - the mission planner accepts a route of 252 m through 7 junction lanelets.
+- **A goal too near a lanelet's end** is refused ("Goal's footprint exceeds lane!"). Put
+  goals mid-lanelet.
+- **The map loader** wanted a `format_version`. `svl_to_autoware.py` now writes a `MetaInfo`
+  element (1.2.0).
+- **No trajectory:** behavior_path_planner publishes its path, but behavior_velocity_planner
+  never does. Its container's RSS grows about 75 MB/s with one thread at 100 % CPU, until the
+  OOM killer stops it (60.8 GB when I stopped it by hand). See
+  [issue 028](../issues/028-shalun-velocity-planner-runaway.md). Autoware does not drive
+  Shalun yet.
+
 ## Isaac on 241
 
 `scripts/svl_import/isaac_probe.py` renders a world headless to PNGs.
@@ -191,7 +220,8 @@ which needs a camera image or a top-down view.
    - a camera image, to confirm the FBX is not mirrored against the roads;
    - the 23rd stop sign;
    - our bridge's `load_world` and a scenario on it.
-3. **Autoware:** `map_path:=<map dir>`. Check:
+3. **Autoware:** fix issue 028 first (one behavior_velocity module at a time, under a memory
+   cap). Then `map_path:=<map dir>` and check:
    - NDT on the sampled PCD against the RTX lidar in Isaac;
    - routing across the junctions;
    - the stop-sign and traffic-light modules on the converted regulatory elements.

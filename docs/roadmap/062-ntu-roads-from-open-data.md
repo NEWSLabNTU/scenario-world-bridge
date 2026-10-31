@@ -284,11 +284,15 @@ Progress:
 
     None of the three changed the scores: 3,673 road lanelets, 1,616 junction paths and
     56/56 routes. Two T-junctions changed their turn labels.
+  - **Campus speed, 15 km/h** (user, 2026-10-31: "15 km/h everywhere in the school"). It is
+    a site zone (`zones:` in `sites/ntu.yaml`): OSM's two campus relations, 國立臺灣大學 and
+    臺大水源校區, pulled in 5 m so the arterials on the edge stay out. Every road mostly inside
+    takes 15 km/h, above any tag, with `swb:speed_source=site` (384 lanelets: 椰林大道, 舟山路,
+    垂葉榕道 and the rest). 新生南路, 辛亥路, 羅斯福路 and 基隆路 keep theirs. Before it, the
+    ego drove 垂葉榕道 at 46 km/h on the urban rule.
   - **The pipeline, with what is automatic and what needs a person:**
     [`open-data-map-pipeline.md`](../design/open-data-map-pipeline.md).
   - **Still open:**
-    - campus roads get the urban 50 km/h by rule (垂葉榕道 has no `maxspeed`, and the ego
-      drove it at 46 km/h); a site rule for the campus is needed, with a source;
     - signalised left turns, U-turns and the 羅斯福路/基隆路 side are not driven yet;
     - lights that cycle on their own (the loop's are released by the ego's stop);
     - turn signals are not checked;

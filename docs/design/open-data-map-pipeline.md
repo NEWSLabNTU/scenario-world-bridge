@@ -53,7 +53,7 @@ not from a number in step 5.
 
 ## 1. The site file (manual)
 
-`scripts/open_maps/sites/<site>.yaml` holds four things:
+`scripts/open_maps/sites/<site>.yaml` holds five things:
 
 - **The box,** south, west, north and east in WGS84.
 - **The frame:** the UTM zone, the MGRS grid square and its offset, which is the map frame
@@ -61,6 +61,9 @@ not from a number in step 5.
   with a survey, use the survey's frame. NTU's is 059's.
 - **Landmarks:** a road name and a point near it, 8 for NTU. `route_matrix.py` checks that
   every landmark routes to every other.
+- **Speed zones:** an OSM area and a limit that holds everywhere inside it. Such a rule is
+  local knowledge that no tag carries. NTU's campus is 15 km/h ("everywhere in the school",
+  from the user). Name the source.
 
 How to choose the box is a judgement. A box too small cuts roads at its edge, and every cut
 lane is a dead end or has no entry. The survey's measurement and roadmap 062 explain why NTU

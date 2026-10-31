@@ -26,7 +26,8 @@ What it builds:
 
   Then OSM turn restrictions, and Mapillary's no-left and no-right signs on the approach's
   right side, remove movements.
-- **Speed limits**, per direction: OSM `maxspeed`, else Overture's `speed_limits` for the same
+- **Speed limits**, per direction: a site zone's limit for a road mostly inside it (the site
+  file's `zones`: NTU's campus, 15 km/h; `swb:speed_source=site`), else OSM `maxspeed`, else Overture's `speed_limits` for the same
   OSM way, else a Mapillary speed-limit sign on the road's right side, else the rule (50 km/h
   on public roads, Taiwan's default; 30 on service roads).
 - **Signals.** A junction with an OSM signal, or two or more of Mapillary's vehicle traffic
@@ -62,6 +63,7 @@ TURN_DEG = 30.0     # |heading change| below this is straight
 UTURN_DEG = 150.0
 CORNER_DEG = 25.0   # a bend this sharp within a junction's R + CORNER_REACH m of its node moves
 CORNER_REACH = 6.0  # the cut past it
+ZONE_EDGE = 5.0     # m, a speed zone's boundary is pulled in this far: roads on its edge are not in it
 FILLET_R = 8.0      # m, a chain's corners sharper than FILLET_DEG are rounded to this radius
 FILLET_DEG = 20.0   # (less where the segments beside a corner are short)
 ARROWS = {
@@ -280,6 +282,40 @@ def load_osm(raw, bbox, frame, margin=0.0005):
               if s - margin <= x["lat"] <= n + margin and w - margin <= x["lon"] <= e + margin}
     xy = {i: frame.xy(nodes[i]["lat"], nodes[i]["lon"]) for i in inside}
     return nodes, ways, rels, inside, xy
+
+
+def speed_zones(site, raw, frame):
+    """The site's speed zones (`zones:` in the site file): each OSM area relation's outer rings
+    less its inner ones, as one polygon, with the zone's limit and its source. A rule a person
+    states (NTU: 15 km/h everywhere in the school) and no tag carries."""
+    out = []
+    if not site.get("zones"):
+        return out
+    from shapely.ops import linemerge, polygonize, unary_union
+    d = json.loads((raw / "osm.json").read_text())
+    nodes = {e["id"]: e for e in d["elements"] if e["type"] == "node"}
+    ways = {e["id"]: e for e in d["elements"] if e["type"] == "way"}
+    rels = {e["id"]: e for e in d["elements"] if e["type"] == "relation"}
+
+    def rings(r, roles):
+        lines = []
+        for m in r["members"]:
+            if m["type"] == "way" and m["role"] in roles and m["ref"] in ways:
+                pts = [frame.xy(nodes[i]["lat"], nodes[i]["lon"]) for i in ways[m["ref"]]["nodes"] if i in nodes]
+                if len(pts) >= 2:
+                    lines.append(LineString(pts))
+        return unary_union(list(polygonize(linemerge(lines)))) if lines else None
+    for z in site["zones"]:
+        parts = []
+        for rid in z["osm_relations"]:
+            outer, inner = rings(rels[rid], ("outer", "")), rings(rels[rid], ("inner",))
+            if outer is not None:
+                parts.append(outer.difference(inner) if inner is not None else outer)
+        # the roads on a zone's edge (the arterials around a campus) are outside it
+        area = unary_union(parts).buffer(-ZONE_EDGE)
+        STATS[f"zone_m2:{z['name']}"] = round(area.area)
+        out.append((area, float(z["speed_limit"]), z["source"]))
+    return out
 
 
 def car_road(t):
@@ -710,7 +746,14 @@ def generate(site, out):
     # speeds per (chain, direction)
     signs = [f for f in feats if re.match(r"regulatory--maximum-speed-limit-(\d+)--", f["object_value"])]
 
+    zones = speed_zones(site, raw, frame)
+
     def speed(c, d):
+        # a site's zone over everything inside it: a road mostly within it takes its limit
+        line = LineString(c.pts)
+        for area, v, src in zones:
+            if line.length > 0 and line.intersection(area).length >= 0.5 * line.length:
+                return v, "site"
         t = c.t
         v = speed_kmh(t.get("maxspeed:forward" if d > 0 else "maxspeed:backward") or t.get("maxspeed"))
         if v:

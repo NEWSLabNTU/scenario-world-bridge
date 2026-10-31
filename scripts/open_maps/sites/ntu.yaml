@@ -15,3 +15,10 @@ landmarks:
   羅斯福路: {road: 羅斯福路四段, near: [52215, 67251]}
   復興南路: {road: 復興南路二段, near: [53030, 68300]}
   汀州路: {road: 汀州路三段, near: [51900, 67380]}
+# Speed zones: a limit over every road mostly inside an OSM area (its relations' outer rings,
+# pulled in 5 m so the arterials on its edge stay out), above any tag.
+zones:
+  - name: ntu_campus
+    osm_relations: [4007738, 5281309]   # 國立臺灣大學, 臺大水源校區
+    speed_limit: 15
+    source: "user, 2026-10-31: 15 km/h everywhere in the school"

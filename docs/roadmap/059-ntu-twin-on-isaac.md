@@ -202,6 +202,38 @@ Progress:
     the tile directory, as 062's maps have; Autoware's default file name then loads the tiles.
     Not checked: whether the world server's GNSS (on the map's projector since
     swb_isaac_world c0ca899) is right; the agent initializes from the scenario's pose.
+  - N2, the survey's moving objects (133, 2026-10-31; `scripts/ntu_twin/transients.py`, free-space
+    carving along the vendor's trajectory, method in its docstring). 167 tiles in 2.1 h of
+    worker time: of 5.47 M slab voxels (0.2 m, 0.2-3 m above the DTM) 1.16 M were crossed by
+    rays in more windows than they were hit, and 578 k (10.6 %) were dropped, those whose
+    column holds no static voxel. 45 tiles cast no ray (no trajectory sample within 40 m or
+    0.6 s); nothing is dropped there. Tile 1053_1357: 0.39 % of the points dropped, r01's
+    object among them (16644 of its 19689 points), its walls and shrubs kept.
+    - Timing: the `.traj` files are Unix time; the sessions written as seconds of the GPS week
+      fit the scan at UTC, not GPS time (98 % of 0.1 s windows with a return within 3 m of
+      the scanner, against 49 % 18 s off). In the tiles checked, the scan holds no points
+      from the May-4 sessions.
+    - `export_map.py --dynamic` and `build_meshes.py --dynamic` leave the dropped voxels'
+      points out: the PCD map went from 39.1 M to 38.6 M points (the old one kept as
+      `map/pointcloud_map.pre_n2`), the meshes were rebuilt into `meshes_n2/` (3.4 h, two
+      workers), and the world from them into `n2w05/` and `n2w25/` (road cleared 0.5 and
+      2.5 m).
+  - N5, trees, first step (133, 2026-10-31; `scripts/ntu_twin/trees.py`, method in its
+    docstring). The scan has no vegetation class, so trees are found from shape: vegetation
+    is what scatters in 3-D (neither planar nor linear), and a tree is a trunk (a small blob
+    0.8-2.5 m above the ground spanning that height) with canopy over it, or a treetop where
+    canopy has no trunk. Crowns are split over the whole site, so a tree on a tile's edge is
+    one tree. 2907 trees, 2210 on a trunk, 697 on a top only; height p10/p50/p90 9.4 / 15.9 /
+    21.0 m, crown base 3.6 / 6.3 / 11.4 m, crown radius 1.3 / 2.6 / 4.0 m (55 min, two
+    workers). Checked by eye on one row by r01 (tile 1053_1357): 9 of about 12 trunks found,
+    one lamp post taken for a trunk; thick or merged trunks are missed.
+    - `world_usd.py --trees` splits the other objects' mesh into /Tile/Tree (labelled tree,
+      Q10884) and /Tile/Other, and gives every trunk an invisible cylinder collider from the
+      ground to its crown's base; none on a lane. Site-wide: 33.5 M of 51.8 M other triangles
+      are Tree, 2178 trunk colliders (32 trunks on lanes left out). World: `n5w05/` (meshes_n2,
+      road cleared 0.5 m).
+    - Not yet: the camera's view of it (Isaac is waiting for the GPU), and replacing crowns by
+      tree assets at the trunks.
   - Open (docs/issues 025-027):
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do

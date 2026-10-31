@@ -4,7 +4,7 @@
 Run by Isaac's Python (it has `pxr`):
 
     $ISAAC_ROOT/venv/bin/python scripts/ntu_twin/world_usd.py MESH_DIR ORTHO_DIR MAP_DIR
-        [--clear-road GROUND_DIR [--clear-margin 2.5]]
+        [--clear-road GROUND_DIR [--clear-margin 2.5] [--trees TREES_DIR]]
 
 Writes `MAP_DIR/isaac/`: one `tiles/tile_<ix>_<iy>.usdc` per tile (its ground with the tile's
 2 cm orthophoto, its buildings and its other objects with their scan colours), a
@@ -17,9 +17,15 @@ Frame: the world frame is the map frame (MGRS 51RUH local, the Autoware maps') l
 
 Labels (SimReady Q-codes, as the world server's ground paths and surfaces read them): the
 ground Road (Q34442) for now, buildings Building (Q41176). Colliders: triangle meshes on the
-ground and the buildings only. The other objects (trees as Poisson blobs, the shards Poisson
-leaves, parked cars baked in) are seen by camera and lidar but have no collider: a shard over
-the road stopped an Autoware drive on r02 (roadmap 059 N8).
+ground and the buildings only (with `--trees`, the trunks too). The other objects (trees as
+Poisson blobs, the shards Poisson leaves, parked cars baked in) are seen by camera and lidar
+but have no collider: a shard over the road stopped an Autoware drive on r02 (roadmap 059 N8).
+
+`--trees TREES_DIR` (trees.py's output, N5; needs `--clear-road`): the other objects'
+triangles on a crown and over TREE_ABOVE, or within TRUNK_REACH of a trunk below its crown,
+become /Tile/Tree, labelled tree (Q10884), so they can be told apart and later replaced; and
+every tree found on a trunk gets an invisible cylinder collider from the ground to its crown's
+base, labelled the same. A trunk standing on a lane (--clear-road's raster) gets none.
 
 `--clear-road GROUND_DIR` drops the other objects' triangles that stand on the road: within
 `--clear-margin` (CLEAR_MARGIN) of a lanelet (MAP_DIR/lanelet2_map.osm) and less than CLEAR_HEIGHT above the
@@ -45,8 +51,11 @@ MAP_ORIGIN = (52500.0, 67700.0, 0.0)
 SHIFT = np.array([-0.54, 0.20, 17.30])  # vendor (the DTM's frame) = map + SHIFT
 CLEAR_MARGIN = 2.5   # m around the lanelets (default of --clear-margin)
 CLEAR_HEIGHT = 2.5   # m above the ground
+TREE_ABOVE = 2.5     # m: the other objects' triangles on a crown and above this are the tree's
+TRUNK_REACH = 0.4    # m beyond a trunk's radius: its triangles are the tree's too
+TRUNK_RADIUS = (0.1, 0.6)  # m, the colliders' bounds
 QCODE = "semantics:labels:wikidata_qcode"
-LABELS = {"Ground": "Q34442", "Building": "Q41176"}
+LABELS = {"Ground": "Q34442", "Building": "Q41176", "Tree": "Q10884"}
 ROOT = "/NTU"
 
 
@@ -230,7 +239,67 @@ class RoadClear:
         return self.lane[j, i] & (v[:, 2] - self.dtm[j, i] < CLEAR_HEIGHT)
 
 
-def tile_stage(path, ix, iy, mesh_dir, texture, clear=None):
+class Trees:
+    """trees.py's output: which map-frame points are a tree's (on a crown above TREE_ABOVE, or
+    around a trunk below its crown), and the trunks in a tile."""
+
+    def __init__(self, trees_dir, ground_dir):
+        d = np.load(os.path.join(trees_dir, "crowns.npz"))
+        self.crowns, self.cell, self.origin = d["crowns"], float(d["cell"]), d["origin"]
+        self.trees = json.load(open(os.path.join(trees_dir, "trees.json")))["trees"]
+        self.meta = json.load(open(os.path.join(ground_dir, "dtm.json")))
+        self.dtm = np.load(os.path.join(ground_dir, "dtm.npy"), mmap_mode="r")
+        t = [q for q in self.trees if q["kind"] == "trunk"]
+        self.trunks = np.array([[q["x"], q["y"], q["z"], q["trunk_radius"], q["crown_base"]]
+                                for q in t]).reshape(-1, 5)
+
+    def in_tile(self, ix, iy):
+        """The trunks (x, y, ground z, radius, crown base; map frame) whose foot is in the tile."""
+        v = self.trunks[:, :2] + SHIFT[:2]
+        return self.trunks[(np.floor(v[:, 0] / 50.0) == ix) & (np.floor(v[:, 1] / 50.0) == iy)]
+
+    def is_tree(self, P):
+        m = self.meta
+        v = P + SHIFT
+        i = np.clip(((v[:, 0] - m["x0"]) / m["cell"]).astype(int), 0, m["width"] - 1)
+        j = np.clip(((v[:, 1] - m["y0"]) / m["cell"]).astype(int), 0, m["height"] - 1)
+        h = v[:, 2] - np.asarray(self.dtm[j, i])
+        H, W = self.crowns.shape
+        ci = ((P[:, 0] - self.origin[0]) / self.cell).astype(int)
+        cj = ((P[:, 1] - self.origin[1]) / self.cell).astype(int)
+        ok = (ci >= 0) & (ci < W) & (cj >= 0) & (cj < H)
+        crown = np.zeros(len(P), bool)
+        crown[ok] = self.crowns[cj[ok], ci[ok]] > 0
+        tree = crown & (h > TREE_ABOVE)
+        if len(self.trunks):
+            from scipy.spatial import cKDTree
+
+            d, k = cKDTree(self.trunks[:, :2]).query(P[:, :2])
+            tree |= (d < self.trunks[k, 3] + TRUNK_REACH) & (h <= self.trunks[k, 4] + 0.5)
+        return tree
+
+
+def trunk_colliders(stage, trunks):
+    """An invisible cylinder per trunk, from the ground to its crown's base: the car hits it,
+    the sensors see the scan's mesh."""
+    from pxr import Gf, Sdf, UsdGeom, UsdPhysics
+
+    UsdGeom.Scope.Define(stage, "/Tile/Trunks")
+    for k, (x, y, z, r, base) in enumerate(trunks):
+        h = max(base, 2.0)
+        cyl = UsdGeom.Cylinder.Define(stage, f"/Tile/Trunks/t{k}")
+        cyl.CreateRadiusAttr(float(np.clip(r, *TRUNK_RADIUS)))
+        cyl.CreateHeightAttr(float(h))
+        cyl.CreateAxisAttr(UsdGeom.Tokens.z)
+        o = np.array([x, y, z + h / 2]) - np.asarray(MAP_ORIGIN)
+        cyl.AddTranslateOp().Set(Gf.Vec3d(*o.tolist()))
+        cyl.CreateVisibilityAttr(UsdGeom.Tokens.invisible)
+        UsdPhysics.CollisionAPI.Apply(cyl.GetPrim())
+        cyl.GetPrim().CreateAttribute(QCODE, Sdf.ValueTypeNames.TokenArray).Set([LABELS["Tree"]])
+    return len(trunks)
+
+
+def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None):
     from pxr import Usd, UsdGeom
 
     stage = Usd.Stage.CreateNew(path)
@@ -254,12 +323,24 @@ def tile_stage(path, ix, iy, mesh_dir, texture, clear=None):
         V, F, C = read_ply(p)
         if clear is not None and name == "other" and len(F):
             F = F[~clear.on_road(V[F].mean(axis=1))]
-        if not len(F):
-            continue
-        vc = vc or _vertex_colour_material(stage, looks + "/ScanColour")
-        _mesh(stage, f"/Tile/{name.capitalize()}", V, F, colours=C, label=label, material=vc,
-              collider=name == "building")
-        tris += len(F)
+        parts = [(name.capitalize(), F, label)]
+        if trees is not None and name == "other" and len(F):
+            t = trees.is_tree(V[F].mean(axis=1))
+            parts = [("Tree", F[t], LABELS["Tree"]), ("Other", F[~t], None)]
+        for part, Fp, lab in parts:
+            if not len(Fp):
+                continue
+            vc = vc or _vertex_colour_material(stage, looks + "/ScanColour")
+            _mesh(stage, f"/Tile/{part}", V, Fp, colours=C, label=lab, material=vc,
+                  collider=name == "building")
+            tris += len(Fp)
+    if trees is not None:
+        trunks = trees.in_tile(ix, iy)
+        if clear is not None and len(trunks):
+            # a trunk on a lane is a misread (a post, a person N2 missed): no collider there
+            trunks = trunks[~clear.on_road(trunks[:, :3] + [0.0, 0.0, 1.0])]
+        if len(trunks):
+            trunk_colliders(stage, trunks)
     stage.GetRootLayer().Save()
     return tris
 
@@ -273,9 +354,12 @@ def main(argv=None):
                     help="drop other objects standing on the lanes (the DTM's dir)")
     ap.add_argument("--clear-margin", type=float, default=CLEAR_MARGIN,
                     help="m around the lanelets that --clear-road clears")
+    ap.add_argument("--trees", default="", metavar="TREES_DIR",
+                    help="trees.py's output: a Tree layer and trunk colliders (needs --clear-road's GROUND_DIR)")
     a = ap.parse_args(argv)
     clear = RoadClear(os.path.join(a.map_dir, "lanelet2_map.osm"), a.clear_road, a.clear_margin) \
         if a.clear_road else None
+    trees = Trees(a.trees, a.clear_road) if a.trees else None
     from pxr import Sdf, Usd, UsdGeom
 
     out = os.path.join(a.map_dir, "isaac")
@@ -294,7 +378,7 @@ def main(argv=None):
         src = os.path.join(a.ortho_dir, f"rgb_{ix}_{iy}.jpg")
         shutil.copyfile(src, os.path.join(out, "ortho", f"rgb_{ix}_{iy}.jpg"))
         tp = os.path.join(out, "tiles", f"tile_{ix}_{iy}.usdc")
-        n = tile_stage(tp, ix, iy, a.mesh_dir, f"../ortho/rgb_{ix}_{iy}.jpg", clear)
+        n = tile_stage(tp, ix, iy, a.mesh_dir, f"../ortho/rgb_{ix}_{iy}.jpg", clear, trees)
         total += n
         prim = stage.DefinePrim(f"{ROOT}/Tiles/t_{ix}_{iy}".replace("-", "m"), "Xform")
         prim.GetPayloads().AddPayload(Sdf.Payload(f"./tiles/tile_{ix}_{iy}.usdc"))

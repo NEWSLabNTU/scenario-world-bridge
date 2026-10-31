@@ -395,6 +395,11 @@ def main(argv=None):
         json.dump({"tiles": [f"{ix}_{iy}" for ix, iy in tiles], "triangles": total,
                    "map_origin": MAP_ORIGIN}, f)
     print(f"world: {len(tiles)} tiles, {total:,} triangles")
+    if not os.path.exists(os.path.join(a.map_dir, "map_projector_info.yaml")):
+        # aib's GNSS projects through the map dir's projector; without it GNSS fell back to a
+        # projection about (0, 0), 34 km off, and NDT found no map to initialize on (N8)
+        print(f"warning: no map_projector_info.yaml in {a.map_dir}: the ego's GNSS will be wrong",
+              file=sys.stderr)
     return 0
 
 

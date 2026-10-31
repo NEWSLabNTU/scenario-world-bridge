@@ -264,12 +264,65 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     rest is numpy's per-call overhead in the 8 inner steps, the same for 4 wheels as for 32.
     So more egos should go in one call, and a compiled inner loop is the next lever.
 
+  **Second slice** (2026-10-31; swb_isaac_world 59ce660):
+  - **The rim strike.** Past 80 mm of tire deflection (three quarters of a 235/45 R18's
+    106 mm section), the rim meets the road through the tire, and the rim's stiffness adds,
+    10 times the tire's. Each step reports how far past (`rim_strike`, m). It engages on the
+    10 cm cleat at 10 m/s and harder ones; the reference has the same law.
+  - **Inner steps vectorised.** Everything not depending on our wheel is computed for all 8
+    inner steps at once. Offline, 0.31 ms per step for 4 wheels and 0.86 ms for 32; in Isaac,
+    0.73 ms p50 per step with the host's calls, or 2.2 ms per frame for one ego.
+  - **Steering:** a front wheel's cams follow its steer angle.
+  - **Braking from 3 m before the fixture** at -6 m/s^2 through aib's onboard computers.
+
+  Isaac at 60 Hz, front-left, against the quarter car with the rim (`reference_cam`):
+
+  | | peak load | wheel airborne | corner rise |
+  |---|---|---|---|
+  | 10 cm cleat, 10 m/s | 27.9 kN / 30.9 | 0.10 s / 0.12 | 6.7 cm / 7.9 |
+  | 10 cm cleat, 20 m/s, 5 offsets | 53-56 kN / 63 | 0.10-0.12 s / 0.13 | 5.9-6.1 cm / 8.0 |
+  | 15 cm cleat, 10 m/s | 69.8 kN / 67.5 | 0.18 s / 0.36 | 13.4 cm / 26.2 |
+  | boulder, 10 m/s | 60.1 kN / 66.3 | 0.15 s / 0.42 | 11.2 cm / 31.5 |
+
+  - **Rim-strike peaks** are brief, and 480 Hz samples them 10-15 % low. Offline the same
+    model is within 3-10 % of the reference's peaks and 10-15 % of its rise; 16 inner steps
+    gain only 1-5 %, so 8 stay.
+  - **The cleat at 20 m/s** reaches tens of kN and strikes the rim, as R5's acceptance asks.
+    The R0 survey's figures put such strikes in the same range: 37.7 kN for a Golf hitting a
+    block at 64 km/h, and wheel force transducers ranged to 40-50 kN.
+  - **The whole car again rises less and flies shorter** on the tall fixtures than the quarter
+    car does (the R5 first slice's reason).
+
+  Braking, while faster than 1 m/s, PhysX alone against ours:
+
+  | | stop | deceleration min / max | largest step-to-step change |
+  |---|---|---|---|
+  | flat, from 15 m/s | 19.9 m / 19.9 | -6.0 / +0.2 and -6.1 / +0.1 | 0.9 / 0.9 m/s^2 |
+  | 10 cm cleat, from 10 m/s | 9.3 m / 10.5 | -15.7 / **+4.2** and -15.5 / 0.0 | 16.9 / 8.9 |
+  | pothole, from 10 m/s | 9.5 m / 9.5 | -9.2 / 0.0 and -11.8 / 0.0 | 3.8 / 4.9 |
+  | washboard, from 15 m/s | 18.8 m / 19.6 | -11.6 / +0.2 and -6.9 / +0.1 | 7.9 / 1.8 |
+
+  - **PhysX alone kicks the car forward** at +4.2 m/s^2 while braking over the cleat, when the
+    raycast pops the wheel onto it. Ours has no forward kick: the cleat only pushes back, at
+    1.6 g with the brakes.
+  - **Over the cleat, ours stops 1.1 m longer.** The front-left wheel is off the road for
+    0.067 s, and with no load the brake locks it (slip -0.68) until it lands, as a real wheel
+    would.
+  - **On washboard, PhysX's raycast** throws the deceleration about (-11.6 m/s^2 peaks). Ours
+    stays smooth.
+  - **Not reproduced: washboard's loss of grip.** Our load stays above 1.5 kN on this 20 mm
+    corrugation. The friction follows the load linearly, so the mean grip is the flat road's,
+    and the stop is the same. A real tire's friction falls with load, so a swinging load grips
+    less on average. That load sensitivity and deeper corrugation are R6's washboard test.
+
   Left for R5:
-  - steering and braking at a step (the braking kick);
-  - the effective rolling radius (wheel speed for ABS);
-  - the rim-strike flag;
-  - the model in the world server (the surface layer's per-step hook, after the soil's
-    friction, on the map's height function).
+  - **The effective rolling radius.** PhysX's wheel radius is fixed, and the ABS reads PhysX's
+    wheel speed, so this needs a channel PhysX does not have. It is deferred until a run shows
+    the ECU needs it.
+  - **The model in the world server.** It needs a height function for the detail, which is
+    R3's road tiles. It goes in with R3, in the surface layer's per-step hook after the soil's
+    friction. With no detail, the model would still change the smooth-road corner (wheel mass,
+    tire spring), so 055's suite must be rerun when it is switched on.
 
 - [ ] **R6. Wheel hop** (2-3 weeks). A virtual unsprung mass per corner on a tire spring at the
   vehicle substep rate, between R5's effective road and the sprung body; PhysX's spring

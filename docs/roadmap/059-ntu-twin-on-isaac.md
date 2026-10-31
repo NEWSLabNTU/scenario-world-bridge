@@ -147,14 +147,24 @@ Progress:
        stall at initialization was probably the same. The N8 runs now stop through a helper
        that matches a process's own argv only.
     5. `obstacle_stop` stopped the car for a perception object (UNKNOWN, existence 0.999) at
-       (52668.71, 67885.47), z 13.28, 1.4 m above the lane centre. Not the lidar: the survey.
-       Split by GPS time, the scan's points around it come from passes minutes apart, and the
-       objects were there in some and gone in others. In pass 3 a box beside the lane held
-       only ground for 240 s, then 1864 points at body height within 40 s (people or parked
-       scooters that came and went); a second spot in the lane was a 1 s burst. The world's
-       meshes keep every pass, so the transients stand beside the car's path. Worked around:
-       `world_usd.py --clear-road --clear-margin 2.5` (the default) until N2 removes
-       transients by GPS-time consistency; it takes real roadside shrubs too.
+       (52668.71, 67885.47), z 13.28, 1.3 m above the ground. The world had an object there: the
+       scan (tile 1053_1357, 2026-10-31) holds 6960 points at 0.3-1.72 m above the ground,
+       centred 2.5 m north of the detection, about 1.4 x 0.8 m, and the "other" mesh follows
+       them; nothing between 0.3 and 6 m within 1.5 m of the detection itself (canopy above).
+       Whether it is a transient is not settled. It is in both survey days (165 points on
+       2026-05-05, 6795 two days later); in the long second pass the ground within 3 m returned
+       7900 points from +120 to +240 s with 7 of the object's, then 6348 of the object's at
+       +320 s. A two-wheeler parked on both days, or occlusion early in the pass, fit better
+       than a passer-by. (An earlier note here called it people or scooters that came and went;
+       that was the same evidence read too far.) Worked around:
+       `world_usd.py --clear-road --clear-margin 2.5` (the default), which drops it and any such
+       object within 2.5 m of a lanelet, real roadside shrubs too.
+       For N2: the survey's two days are of unequal density here (0.5 M against 24.8 M points
+       in 40 x 40 m), so cross-day consistency has little to compare, and within a pass a voxel's
+       share of 10 s windows does not separate static from moving (static 0.25 m voxels are hit
+       in a minority of windows too). Telling occlusion from absence needs rays: the scanner's
+       trajectory (the vendor's, or estimated from the scan lines' gps_time), then free-space
+       carving.
     6. Then the car stopped at the same place with nothing around it: path_optimizer
        "outside drivable area". Lanelet 1004849 is 2.16-2.17 m wide and the footprint 2.163 m
        (mirrors and margin). `register_lanelets.py` now widens (`--min-width 2.8`): an

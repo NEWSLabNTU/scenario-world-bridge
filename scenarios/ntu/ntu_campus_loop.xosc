@@ -1,0 +1,284 @@
+<?xml version="1.0"?>
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-10-30T00:00:00+00:00" description="Roadmap 062 O6: a loop on the roads around NTU from public data, on Isaac. 椰林大道 west, right at the main gate onto 新生南路 north, right onto 辛亥路 east, back through the campus to 椰林大道 east, about 2.2 km. The light on 新生南路 at the second junction and the one for the right turn onto 辛亥路 start red and turn green once the ego has stopped for them; running either fails. Written by scripts/open_maps/scenario.py." revMajor="1" revMinor="2" />
+	<ParameterDeclarations>
+		<ParameterDeclaration name="red_0" parameterType="integer" value="1" />
+		<ParameterDeclaration name="red_1" parameterType="integer" value="1" />
+	</ParameterDeclarations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork>
+		<LogicFile filepath="$(env SWB_OPEN_MAPS)/ntu/map" />
+	</RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController>
+				<Controller name="Autoware">
+					<Properties>
+						<Property name="maxJerk" value="1.5" />
+						<Property name="minJerk" value="-1.5" />
+					</Properties>
+				</Controller>
+			</ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init>
+			<Actions>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="41936" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="42097" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="42736" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="42975" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="43208" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="43424" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="43685" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="44568" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="44646" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="44722" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="44880" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="44909" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45102" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45216" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45326" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45637" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45893" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45929" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46401" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46453" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46548" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46620" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46678" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46763" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46996" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47502" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47573" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47620" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47712" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48290" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48328" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48342" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48371" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49075" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49166" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49280" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49296" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49924" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50223" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50275" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50369" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50662" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51292" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51356" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51457" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51532" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51615" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51683" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51762" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51787" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51934" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52157" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52471" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52579" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52800" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53219" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53466" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53518" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="54067" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="54112" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="54303" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="54317" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="54338" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="54398" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="55369" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="55439" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="55529" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="55639" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56067" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56143" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56224" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56295" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56443" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56526" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56590" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57115" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57253" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57468" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57646" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57826" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57862" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57898" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57932" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58015" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58121" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58225" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58300" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58466" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58480" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58561" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58598" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58753" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58876" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59013" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59079" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59256" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59677" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59729" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59782" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59848" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59888" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59989" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="60007" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="60136" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="60197" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="61128" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="61254" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="61292" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62273" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62309" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62345" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62379" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62720" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62749" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62774" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63331" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63345" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63444" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63542" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63636" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63721" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63839" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63977" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64448" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64561" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64741" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="65044" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="65133" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="65660" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="65744" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="65796" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66131" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66152" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66175" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66213" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66273" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66316" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67171" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67196" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67399" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67594" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67628" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67662" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67698" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="67734" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<Private entityRef="ego">
+					<PrivateAction>
+						<TeleportAction>
+							<Position>
+								<WorldPosition x="52247.129" y="67661.308" z="0.3" h="-3.138" p="0" r="0" />
+							</Position>
+						</TeleportAction>
+					</PrivateAction>
+					<PrivateAction>
+						<RoutingAction>
+							<AssignRouteAction>
+								<Route name="route" closed="false">
+									<Waypoint routeStrategy="shortest"><Position><WorldPosition x="52174.62" y="68207.153" z="0.0" h="-0.009" p="0" r="0" /></Position></Waypoint>
+									<Waypoint routeStrategy="shortest"><Position><WorldPosition x="52265.341" y="67883.96" z="0.0" h="-1.561" p="0" r="0" /></Position></Waypoint>
+									<Waypoint routeStrategy="shortest"><Position><WorldPosition x="52359.619" y="67657.274" z="0.0" h="0.004" p="0" r="0" /></Position></Waypoint>
+								</Route>
+							</AssignRouteAction>
+						</RoutingAction>
+					</PrivateAction>
+				</Private>
+			</Actions>
+		</Init>
+		<Story name="ntu_loop">
+			<Act name="drive_act">
+				<ManeuverGroup maximumExecutionCount="1" name="ego_maneuvers">
+					<Actors selectTriggeringEntities="false">
+						<EntityRef entityRef="ego" />
+					</Actors>
+					<Maneuver name="end_conditions">
+						<Event name="success" priority="parallel">
+							<Action name="exit_success">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitSuccess" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="reach_goal" delay="0" conditionEdge="none">
+										<ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="5.0"><Position><WorldPosition x="52359.619" y="67657.274" z="0.0" h="0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="timeout" priority="parallel">
+							<Action name="exit_failure">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="timeout_condition" delay="0" conditionEdge="none">
+										<ByValueCondition>
+											<SimulationTimeCondition value="900.0" rule="greaterThan" />
+										</ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="red_0_released" priority="parallel" maximumExecutionCount="1">
+							<Action name="green_0"><GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56526" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction></Action>
+							<Action name="clear_0"><GlobalAction><ParameterAction parameterRef="red_0"><SetAction value="0" /></ParameterAction></GlobalAction></Action>
+							<StartTrigger><ConditionGroup>
+								<Condition name="before_0" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="13.0"><Position><WorldPosition x="52050.208" y="67803.301" z="0.0" h="0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition></Condition>
+								<Condition name="stopped_0" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><StandStillCondition duration="3" /></EntityCondition></ByEntityCondition></Condition>
+							</ConditionGroup></StartTrigger>
+						</Event>
+						<Event name="red_0_run" priority="parallel" maximumExecutionCount="1">
+							<Action name="ran_red_0"><UserDefinedAction><CustomCommandAction type="exitFailure" /></UserDefinedAction></Action>
+							<StartTrigger><ConditionGroup>
+								<Condition name="beyond_0" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="8.0"><Position><WorldPosition x="52052.983" y="67817.023" z="0.0" h="0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition></Condition>
+								<Condition name="still_red_0" delay="0" conditionEdge="none"><ByValueCondition><ParameterCondition parameterRef="red_0" value="1" rule="equalTo" /></ByValueCondition></Condition>
+							</ConditionGroup></StartTrigger>
+						</Event>
+						<Event name="red_1_released" priority="parallel" maximumExecutionCount="1">
+							<Action name="green_1"><GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51457" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction></Action>
+							<Action name="clear_1"><GlobalAction><ParameterAction parameterRef="red_1"><SetAction value="0" /></ParameterAction></GlobalAction></Action>
+							<StartTrigger><ConditionGroup>
+								<Condition name="before_1" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="13.0"><Position><WorldPosition x="52127.800" y="68194.130" z="0.0" h="0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition></Condition>
+								<Condition name="stopped_1" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><StandStillCondition duration="3" /></EntityCondition></ByEntityCondition></Condition>
+							</ConditionGroup></StartTrigger>
+						</Event>
+						<Event name="red_1_run" priority="parallel" maximumExecutionCount="1">
+							<Action name="ran_red_1"><UserDefinedAction><CustomCommandAction type="exitFailure" /></UserDefinedAction></Action>
+							<StartTrigger><ConditionGroup>
+								<Condition name="beyond_1" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="8.0"><Position><WorldPosition x="52130.519" y="68207.863" z="0.0" h="0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition></Condition>
+								<Condition name="still_red_1" delay="0" conditionEdge="none"><ByValueCondition><ParameterCondition parameterRef="red_1" value="1" rule="equalTo" /></ByValueCondition></Condition>
+							</ConditionGroup></StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<StartTrigger>
+					<ConditionGroup>
+						<Condition name="start" delay="0" conditionEdge="none">
+							<ByValueCondition>
+								<SimulationTimeCondition value="0" rule="greaterThan" />
+							</ByValueCondition>
+						</Condition>
+					</ConditionGroup>
+				</StartTrigger>
+			</Act>
+		</Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

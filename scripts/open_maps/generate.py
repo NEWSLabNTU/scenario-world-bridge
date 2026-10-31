@@ -60,6 +60,10 @@ SPEED_RULE = {"service": 30}                                          # else 50 
 STEP = 4.0          # m between bound nodes on straight-ish roads
 TURN_DEG = 30.0     # |heading change| below this is straight
 UTURN_DEG = 150.0
+CORNER_DEG = 25.0   # a bend this sharp within a junction's R + CORNER_REACH m of its node moves
+CORNER_REACH = 6.0  # the cut past it
+FILLET_R = 8.0      # m, a chain's corners sharper than FILLET_DEG are rounded to this radius
+FILLET_DEG = 20.0   # (less where the segments beside a corner are short)
 ARROWS = {
     "marking--discrete--arrow--straight": {"straight"},
     "marking--discrete--arrow--left": {"left"},
@@ -124,6 +128,42 @@ def wrap(a):
     while a > math.pi:
         a -= 2 * math.pi
     return a
+
+
+def fillet(line):
+    """The line with each corner sharper than FILLET_DEG rounded: an arc of FILLET_R, or of the
+    radius whose tangents fit half of each segment beside it (all of an end segment, less 0.5 m).
+    OSM draws a driveway's turn as a corner; a lanelet with one has no path a car can follow
+    (062: the NTU loop stopped where a campus drive turns 90 deg in the middle of its way)."""
+    p = list(line.coords)
+    if len(p) < 3:
+        return line
+    out = [p[0]]
+    for i in range(1, len(p) - 1):
+        h0, h1 = heading(p[i - 1], p[i]), heading(p[i], p[i + 1])
+        turn = wrap(h1 - h0)
+        th = abs(turn)
+        if th < math.radians(FILLET_DEG) or th > math.radians(170.0):
+            out.append(p[i])
+            continue
+        l0, l1 = math.dist(p[i - 1], p[i]), math.dist(p[i], p[i + 1])
+        lim0 = l0 - 0.5 if i == 1 else l0 / 2
+        lim1 = l1 - 0.5 if i == len(p) - 2 else l1 / 2
+        t = min(FILLET_R * math.tan(th / 2), lim0, lim1)
+        if t <= 0.05:
+            out.append(p[i])
+            continue
+        r = t / math.tan(th / 2)
+        sg = 1.0 if turn > 0 else -1.0
+        a = (p[i][0] - t * math.cos(h0), p[i][1] - t * math.sin(h0))
+        c = (a[0] - sg * r * math.sin(h0), a[1] + sg * r * math.cos(h0))
+        m = max(2, int(math.degrees(th) / 5.0))
+        for k in range(m + 1):
+            h = h0 + sg * th * k / m
+            out.append((c[0] + sg * r * math.sin(h), c[1] - sg * r * math.cos(h)))
+        STATS["corners_rounded"] += 1
+    out.append(p[-1])
+    return LineString(out)
 
 
 def resample(line, step=STEP):
@@ -509,11 +549,30 @@ def build(site, out):
             b = xy[c.nids[-1]]
             s1 = next((L - s for s in [k * 0.5 for k in range(int(L / 0.5) + 1)]
                        if math.dist(b, (line.interpolate(L - s).x, line.interpolate(L - s).y)) >= jb["R"]), 0.0)
+        # a corner just past a cut goes to the connector, whose curve a car can follow: a drive
+        # leaving 辛亥路 east and turning south 2 m later kept that 3 m-radius corner in its own
+        # lanelet, and Autoware's path stopped at it (062, the NTU loop)
+        verts = [(line.project(Point(p)), p) for p in c.pts[1:-1]]
+        turn = {}
+        for k in range(1, len(c.pts) - 1):
+            turn[k] = abs(math.degrees(wrap(heading(c.pts[k], c.pts[k + 1]) - heading(c.pts[k - 1], c.pts[k]))))
+        if ja and not ja["joint"]:
+            late = [s for k, (s, p) in enumerate(verts, 1) if s > s0 and turn[k] > CORNER_DEG
+                    and math.dist(p, a) <= ja["R"] + CORNER_REACH]
+            if late:
+                s0 = min(max(late) + 1.0, s1 - 2.0)
+                STATS["cuts_past_a_corner"] += 1
+        if jb and not jb["joint"]:
+            early = [s for k, (s, p) in enumerate(verts, 1) if s < s1 and turn[k] > CORNER_DEG
+                     and math.dist(p, b) <= jb["R"] + CORNER_REACH]
+            if early:
+                s1 = max(min(early) - 1.0, s0 + 2.0)
+                STATS["cuts_past_a_corner"] += 1
         if s1 - s0 < 2.0:   # too short to keep a lane: keep its middle 2 m
             m = (s0 + s1) / 2 if s1 > s0 else L / 2
             s0, s1 = max(0.0, m - 1.0), min(L, m + 1.0)
         from shapely.ops import substring
-        c.line = LineString(resample(substring(line, s0, s1)))
+        c.line = LineString(resample(fillet(substring(line, s0, s1))))
         c.full = line
         c.ja, c.jb = ja, jb
     return frame, nodes, rels, chains, J, junction_of, feats
@@ -876,8 +935,46 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
         k = max(3, int(math.dist(p0, p1) / 2.0))
         mid = cubic(p0, h0, p1, h1, k)[1:-1]
         return [n0] + [osm.node(p) for p in mid] + [n1]
-    left = bound(la[-1], lb[0], la[-2], lb[1])
-    right = bound(ra[-1], rb[0], ra[-2], rb[1])
+    def paired():
+        # both bounds offset from one centreline, at a width going from a's to b's, so they
+        # stay apart where the lane jogs sideways across the junction (two cubics of their own
+        # pinched to 1.5 m there and crossed: 19 connectors, 062 O6); each bound's error at
+        # its two real end nodes is spread linearly along it
+        P = {n: osm_xy(osm, n) for n in (la[-2], la[-1], ra[-2], ra[-1], lb[0], lb[1], rb[0], rb[1])}
+
+        def mid(p, q):
+            return ((p[0] + q[0]) / 2, (p[1] + q[1]) / 2)
+
+        def mean_heading(h, g):
+            return math.atan2(math.sin(h) + math.sin(g), math.cos(h) + math.cos(g))
+        c0, c1 = mid(P[la[-1]], P[ra[-1]]), mid(P[lb[0]], P[rb[0]])
+        h0 = mean_heading(heading(P[la[-2]], P[la[-1]]), heading(P[ra[-2]], P[ra[-1]]))
+        h1 = mean_heading(heading(P[lb[0]], P[lb[1]]), heading(P[rb[0]], P[rb[1]]))
+        k = max(3, int(math.dist(c0, c1) / 2.0))
+        c = cubic(c0, h0, c1, h1, k)
+        w0, w1 = math.dist(P[la[-1]], P[ra[-1]]), math.dist(P[lb[0]], P[rb[0]])
+        sides = {}
+        for side, s, n0, n1 in (("l", 1, la[-1], lb[0]), ("r", -1, ra[-1], rb[0])):
+            raw = []
+            for i, p in enumerate(c):
+                t = i / k
+                h = h0 if i == 0 else h1 if i == k else heading(c[i - 1], c[i + 1])
+                d = s * ((1 - t) * w0 + t * w1) / 2
+                raw.append((p[0] - d * math.sin(h), p[1] + d * math.cos(h)))
+            e0 = (P[n0][0] - raw[0][0], P[n0][1] - raw[0][1])
+            e1 = (P[n1][0] - raw[-1][0], P[n1][1] - raw[-1][1])
+            sides[side] = [(p[0] + (1 - i / k) * e0[0] + i / k * e1[0],
+                            p[1] + (1 - i / k) * e0[1] + i / k * e1[1]) for i, p in enumerate(raw)]
+        return sides["l"], sides["r"]
+    pl, pr = paired()
+    if not LineString(pl).crosses(LineString(pr)):
+        left = [la[-1]] + [osm.node(p) for p in pl[1:-1]] + [lb[0]]
+        right = [ra[-1]] + [osm.node(p) for p in pr[1:-1]] + [rb[0]]
+        STATS["connectors_paired"] += 1
+    else:   # a corner tighter than half the lane: the offset loops, the inner bound's own cubic does not
+        left = bound(la[-1], lb[0], la[-2], lb[1])
+        right = bound(ra[-1], rb[0], ra[-2], rb[1])
+        STATS["connectors_own_cubics"] += 1
     wl = osm.way(left, {"type": "virtual"})
     wr = osm.way(right, {"type": "virtual"})
     v = min(a.speed, b.speed)

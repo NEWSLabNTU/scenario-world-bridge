@@ -8,7 +8,7 @@ The map is used in simulation first and moves to a real car later. Every attribu
 where it came from. An audit compares the map with ground truth: 059's survey now, and the
 car's own drives later.
 
-**Status**: in progress, 2026-10-30: O1-O3 done (first version); O4's geometry audit run, its paint and junction audits open; O5 built; O6's first drive passed on Isaac (newslab-118-server).
+**Status**: in progress, 2026-10-30: O1-O3 done (first version); O4's geometry audit run, its paint and junction audits open; O5 built; O6's one-way drive and a 2.2 km loop with red lights passed on Isaac (newslab-118-server).
 
 Progress:
 
@@ -261,9 +261,38 @@ Progress:
       there. Joints now cut 10 m when the lane counts or widths differ, and 6 m when they
       bend by more than 20 deg; otherwise 2 m (`generate.py`; 25, 50 and 72 joints);
     - run 8: the signal pole above.
-  - **Still open:** the rest of O6's acceptance. That needs a loop through every junction
-    type, NVTL measured along it, the turn signals and the intersection module checked,
-    and red lights. 19 connectors with crossing bounds remain, all at junction corners.
+- **O6, the loop passed** (2026-10-31; `scenarios/ntu/ntu_campus_loop.xosc`, about 2.2 km).
+  - **The route:** 椰林大道 west, right at the main gate onto 新生南路, right onto 辛亥路, into
+    the campus by a service drive, and back along 垂葉榕道 to 椰林大道 east.
+  - **Two red lights:** two lights start red: 新生南路's second junction (straight) and the
+    right turn onto 辛亥路. Each turns green once the ego has stood 3 s before it, and
+    running one fails. The ego stopped 4.6 m before the first stop line.
+  - **Speed:** `max_velocity:=16.7`, so the map's limits govern; the profile's default is
+    upstream's 15 km/h. Top speed was 13.9 m/s on 新生南路 (50 km/h).
+  - **Localization:** NVTL along the whole loop had a minimum of 3.21 and a median of 3.37,
+    never under 2.5.
+  - **What the runs found, each now a generator rule:**
+    - **Crossing bounds:** 19 connectors had bounds that crossed where a lane jogs sideways
+      through a junction. Both bounds are now offset from one centre curve (0 left;
+      `check_map.py` counts `bounds_crossing`).
+    - **A corner at a junction:** a service drive leaves 辛亥路 and turns south 2 m later.
+      Its corner sat in its own lanelet and stopped the ego (loop run 10). A corner within
+      the junction's radius + 6 m of its node now moves the cut past it (13 cuts).
+    - **A corner mid-way:** the same drive turns 90 deg again in the middle of its way
+      (loop run 11). Every chain corner over 20 deg is now rounded, at a radius of 8 m or what
+      its segments allow (142 corners).
+
+    None of the three changed the scores: 3,673 road lanelets, 1,616 junction paths and
+    56/56 routes. Two T-junctions changed their turn labels.
+  - **The pipeline, with what is automatic and what needs a person:**
+    [`open-data-map-pipeline.md`](../design/open-data-map-pipeline.md).
+  - **Still open:**
+    - campus roads get the urban 50 km/h by rule (垂葉榕道 has no `maxspeed`, and the ego
+      drove it at 46 km/h); a site rule for the campus is needed, with a source;
+    - signalised left turns, U-turns and the 羅斯福路/基隆路 side are not driven yet;
+    - lights that cycle on their own (the loop's are released by the ego's stop);
+    - turn signals are not checked;
+    - the second run, with the audit's patches.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

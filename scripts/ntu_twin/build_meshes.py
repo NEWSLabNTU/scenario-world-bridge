@@ -18,6 +18,10 @@ coordinates). The meshes stay in that frame; the USD stage places them.
 
 Usage:
   build_meshes.py TILES_DIR GROUND_DIR OUT_DIR [--workers 3] [--tiles ix_iy,...]
+                  [--dynamic DYNAMIC_DIR]
+
+`--dynamic`: transients.py's output; the points of objects that moved during the survey
+(people, scooters and cars that left) are left out of the meshes (N2).
 
 A rerun skips the tiles that have their `stats_<ix>_<iy>.json` (written when a tile is
 complete), so a stopped build resumes.
@@ -129,7 +133,9 @@ def write_ground(ix, iy, ground_dir, out):
 
 
 def _tile(args):
-    path, ground_dir, out = args
+    from transients import keep_mask
+
+    path, ground_dir, out, dynamic = args
     import laspy
     import open3d as o3d
 
@@ -147,9 +153,10 @@ def _tile(args):
     with laspy.open(path) as reader:
         for las in reader.chunk_iterator(CHUNK):
             x, y, z = np.asarray(las.x), np.asarray(las.y), np.asarray(las.z)
+            moved = ~keep_mask(x, y, z, dynamic, ix, iy)
             ci = ((x - meta["x0"]) / meta["cell"]).astype(np.int64).clip(0, meta["width"] - 1)
             cj = ((y - meta["y0"]) / meta["cell"]).astype(np.int64).clip(0, meta["height"] - 1)
-            above = (z - np.asarray(dtm[cj, ci])) >= GROUND_BAND
+            above = ((z - np.asarray(dtm[cj, ci])) >= GROUND_BAND) & ~moved
             cls = np.asarray(las.classification)
             rgb = np.stack([las.red, las.green, las.blue], 1)
             for name, sel in (("building", above & (cls == 6)), ("other", above & (cls != 6))):
@@ -195,6 +202,8 @@ def main():
     ap.add_argument("--workers", type=int, default=3,
                     help="each holds one tile (up to ~180 M points, ~19 GB at peak)")
     ap.add_argument("--tiles", default="")
+    ap.add_argument("--dynamic", default="", metavar="DIR",
+                    help="transients.py's output: leave out the points of moved objects")
     ap.add_argument("--ground-only", action="store_true",
                     help="rewrite only the ground meshes of the tiles already in OUT (no LAZ read)")
     a = ap.parse_args()
@@ -234,7 +243,7 @@ def main():
     print(f"meshes: {len(done)} tiles done before, {len(tiles)} to build", flush=True)
     t0 = time.time()
     with Pool(a.workers, maxtasksperchild=1) as pool:
-        for k, st in enumerate(pool.imap_unordered(_tile, [(t, a.ground_dir, a.out) for t in tiles])):
+        for k, st in enumerate(pool.imap_unordered(_tile, [(t, a.ground_dir, a.out, a.dynamic) for t in tiles])):
             done[st["tile"]] = st
             print(f"meshes {k + 1}/{len(tiles)} {st}, {time.time() - t0:.0f}s", flush=True)
     with open(os.path.join(a.out, "meshes.json"), "w") as f:

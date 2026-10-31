@@ -2,6 +2,11 @@
 """The NTU twin's Autoware map dir (roadmap 059 N7, first version).
 
     export_map.py TILES_DIR ROUTES_DIR MAP_DIR [--voxel 0.2] [--workers 4]
+                  [--pcd-only] [--dynamic DYNAMIC_DIR]
+
+`--pcd-only` rewrites the point-cloud map and leaves the lanelets (register_lanelets.py moves
+them after the first export); `--dynamic` leaves out the points of objects that moved during
+the survey (transients.py, N2), so NDT's map has no ghosts either.
 
 Writes into MAP_DIR:
 
@@ -51,7 +56,9 @@ def _sums(k, V):
 
 
 def _pcd(args):
-    path, out, voxel = args
+    from transients import keep_mask
+
+    path, out, voxel, dynamic = args
     import laspy
 
     ix, iy = tile_index(path)
@@ -61,12 +68,14 @@ def _pcd(args):
     n_in = 0
     with laspy.open(path) as reader:
         for las in reader.chunk_iterator(CHUNK):
-            P = np.stack([np.asarray(las.x), np.asarray(las.y), np.asarray(las.z)], 1) - SHIFT
+            x, y, z = np.asarray(las.x), np.asarray(las.y), np.asarray(las.z)
+            keep = keep_mask(x, y, z, dynamic, ix, iy)
+            P = np.stack([x[keep], y[keep], z[keep]], 1) - SHIFT
             n_in += len(P)
             q = np.floor((P - np.array([ix * TILE - 10.0, iy * TILE - 10.0, -1000.0])) / voxel)
             k = (q[:, 0].astype(np.int64) * 1_000_000 + q[:, 1].astype(np.int64)) * 1_000_000 \
                 + q[:, 2].astype(np.int64)
-            parts.append(_sums(k, np.c_[P, np.asarray(las.intensity, np.float64), np.ones(len(P))]))
+            parts.append(_sums(k, np.c_[P, np.asarray(las.intensity, np.float64)[keep], np.ones(len(P))]))
     k, S = _sums(np.concatenate([p[0] for p in parts]), np.concatenate([p[1] for p in parts]))
     M = S[:, :4] / S[:, 4:5]
     rec = np.zeros(len(M), dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("intensity", "<f4")])
@@ -81,13 +90,13 @@ def _pcd(args):
     return name, ix, iy, len(rec), n_in
 
 
-def pointcloud(tiles, out, voxel, workers):
+def pointcloud(tiles, out, voxel, workers, dynamic=""):
     os.makedirs(os.path.join(out, "pointcloud_map"), exist_ok=True)
     meta = [f"x_resolution: {TILE}", f"y_resolution: {TILE}"]
     total = 0
     t0 = time.time()
     with Pool(workers, maxtasksperchild=1) as pool:
-        for k, (name, ix, iy, n, n_in) in enumerate(pool.imap_unordered(_pcd, [(t, out, voxel) for t in tiles])):
+        for k, (name, ix, iy, n, n_in) in enumerate(pool.imap_unordered(_pcd, [(t, out, voxel, dynamic) for t in tiles])):
             # the tile's lower corner in the map frame, floored: Autoware 1.5 reads the corners
             # as integers ("yaml-cpp: bad conversion" otherwise) and uses them for loading only;
             # the tiles are cut on the vendor grid, so the shift moves them under a metre
@@ -136,14 +145,19 @@ def main():
     ap.add_argument("--voxel", type=float, default=0.2)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--skip-pcd", action="store_true")
+    ap.add_argument("--pcd-only", action="store_true",
+                    help="rewrite the point-cloud map only (keeps a registered lanelet2_map.osm)")
+    ap.add_argument("--dynamic", default="", metavar="DIR",
+                    help="transients.py's output: leave out the points of moved objects")
     a = ap.parse_args()
     os.makedirs(a.map_dir, exist_ok=True)
-    lanelets(a.routes_dir, a.map_dir)
-    shutil.copyfile(os.path.join(a.routes_dir, "r02", "map_projector_info.yaml"),
-                    os.path.join(a.map_dir, "map_projector_info.yaml"))
+    if not a.pcd_only:
+        lanelets(a.routes_dir, a.map_dir)
+        shutil.copyfile(os.path.join(a.routes_dir, "r02", "map_projector_info.yaml"),
+                        os.path.join(a.map_dir, "map_projector_info.yaml"))
     if not a.skip_pcd:
         pointcloud(sorted(glob.glob(os.path.join(a.tiles_dir, "tile_*.laz"))), a.map_dir, a.voxel,
-                   a.workers)
+                   a.workers, a.dynamic)
 
 
 if __name__ == "__main__":

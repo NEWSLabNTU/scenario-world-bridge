@@ -90,6 +90,32 @@ wheel speed fixes the scale; what is left is heading drift, which turns into lat
 7. [ ] **Closed-loop ladder**.
 8. [ ] **Write-up**.
 
+### Work before the GPU (2026-11-01)
+
+The user's direction: start what needs no GPU while 139's is taken. Four pieces, one at a time,
+each unit-tested; whatever needs Isaac or cuVSLAM (rendering cost, recordings, replays) waits.
+
+- **a. The camera in the spec** (sim_vehicle_spec, aib's generated rig): a `zed_left` sensor
+  on `drift_mustang`, Isaac on, CARLA off. 960 x 600 (the ZED X's HD1200 published at the
+  wrapper's downscale 2, a quarter of the full mode's pixels to render), horizontal FOV 110 deg
+  (about 84 deg vertical at that aspect, near the lens's 80), 30 Hz, `rgb8` on
+  `/sensing/camera/zed/image_raw` with its `camera_info`; mounted behind the windshield's top,
+  on the centre line, level. Isaac's camera renders a whole frame at once: global shutter, as
+  the ZED X. aib's `Camera` already publishes `Image`; nothing new in aib but the regenerated rig.
+- **b. The ladder's scorer** (rig_localization `scripts/`): rig's map pose against a ground-truth
+  track, per stretch of the ladder: lateral and along-track error against distance, yaw error,
+  the distance at which the lateral error first passes 1.75 m, the stretch's speed. Inputs as
+  CSV (t, x, y, z, qw, qx, qy, qz), adapters for a bag and for Isaac's recorder. The yaw error is
+  the heading difference alone (`pose_check.py` today mixes roll and pitch into it; fixed in the
+  same piece).
+- **c. The anchor waits for a settled estimate** (rig_localization): the anchor is taken on a
+  live estimate (stamp no older than `pose.anchor_max_age_s` against the newest image), not on
+  the batch the initial alignment emits, and after `pose.anchor_settle_s` of tracking (default
+  0: as today). Unit tests; the replay check waits for the GPU.
+- **d. Autoware's localization checks at the lane** (the `autoware-drift` project): the EKF's
+  covariance-ellipse diagnostics and the localization error monitor at 1.75 m, the pose from
+  rig, NDT and the lidar off, in a preset the closed loop selects; checked by a dry launch dump.
+
 ## Decisions taken here (not the user's)
 
 - The Autoware project is `autoware-drift` (057's laps: its planning holds 25-30 m/s), with

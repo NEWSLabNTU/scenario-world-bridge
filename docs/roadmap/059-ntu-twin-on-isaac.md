@@ -151,8 +151,8 @@ Progress:
        scan (tile 1053_1357, 2026-10-31) holds 6960 points at 0.3-1.72 m above the ground,
        centred 2.5 m north of the detection, about 1.4 x 0.8 m, and the "other" mesh follows
        them; nothing between 0.3 and 6 m within 1.5 m of the detection itself (canopy above).
-       Whether it is a transient is not settled. It is in both survey days (165 points on
-       2026-05-05, 6795 two days later); in the long second pass the ground within 3 m returned
+       Whether it is a transient is not settled. It is in both survey days (165 points on the first
+       day, 6795 about 50 h later); in the long second pass the ground within 3 m returned
        7900 points from +120 to +240 s with 7 of the object's, then 6348 of the object's at
        +320 s. A two-wheeler parked on both days, or occlusion early in the pass, fit better
        than a passer-by. (An earlier note here called it people or scooters that came and went;

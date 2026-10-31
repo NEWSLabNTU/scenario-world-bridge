@@ -186,12 +186,74 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   and 4 vehicles; a 120/180 Hz PhysX rate's cost, for question 1. Risk: sweep initial-overlap
   and fall-through artefacts; the expansion limit unsettling ABS, TC and ESC (re-run 055's
   manoeuvre suite).
-- [ ] **R2. The corner's forces** (1-1.5 weeks, a few vector operations per wheel). A
+- [x] **R2. The corner's forces** (1-1.5 weeks, a few vector operations per wheel). A
   progressive bump stop, a digressive damper with separate bump and rebound, anti-roll bars,
   applied as forces from the jounce each substep; PhysX's rigid travel set beyond the bump
   stop so it is never reached on the fixtures. Measured: crest landing peak spread over 10-30 ms
   (3-4 g at 0.5 m drop), no rigid-limit hits, the roll gradient. Risk: PhysX's tire load does
   not see our forces; fold them into the per-wheel friction as T1 does.
+
+  **Done in `road_contact`** (2026-11-01, newslab-server-241; swb_isaac_world, Isaac at 60 Hz,
+  `ROAD_TIRE=ours ROAD_TRAVEL=0.30`, logs `play_log/road_fixtures/r2_{ours,physx}`). The R5
+  corner already had the bump stop, so R2 adds the rest:
+  - **The damper**: digressive, with more rebound than bump. At low speed the two average
+    the rig's c, at 3 : 1 rebound to bump. Above a 0.13 m/s knee the slope falls to 0.4 of
+    the low-speed slope (the valve's blow-off). Tesla publishes no curves; a passenger car's
+    rebound is 2-3 times its bump. `rebound_ratio`, `damper_knee` and `damper_high` on
+    `Corner` are all assumed.
+  - **Anti-roll bars**: one per axle, as a force on each wheel from the jounce difference.
+    They give half the suspension's roll stiffness, 60 % of it at the front (assumed: Tesla
+    publishes no rates). The car has both bars, since aftermarket kits replace both.
+    `anti_roll_bars()` turns these shares into rates: 26.7 kN/m front, 17.8 kN/m rear.
+  - **PhysX's travel at 0.30 m.** Its frame is raised 0.1 m, so the droop is the real one and
+    its rigid limit lies 0.1 m beyond our bump stop. The corner keeps the real 0.2 m (the
+    jounce is counted from full droop either way). `px_limit` reports any inner step where
+    PhysX's predicted jounce reaches its limit.
+
+  | | PhysX alone (0.2 m) | ours |
+  |---|---|---|
+  | kicker, 15 m/s: steps at the rigid limit | 2 | **0** |
+  | kicker: body acceleration, 60 Hz | 93 m/s^2 (485 at 240 Hz, where the limit's impulse shows) | 111 m/s^2 |
+  | kicker: the four suspension forces' peak, half width | -- | 10.7 g, 8.3 ms |
+  | kicker: wheel airborne, body rise | 0.28 s, 0.59 m | 0.48 s, 0.66 m |
+  | steady circle, 8-13 m/s: roll gradient | 3.80 deg/g | **2.60 deg/g** |
+
+  | front-left peak load, ours / 4 kHz reference with the same damper | |
+  |---|---|
+  | 10 cm cleat, 10 m/s | 18.5 / 21.8 kN |
+  | 10 cm cleat, 20 m/s, 5 offsets | 51-53 / 60.5 kN |
+  | 15 cm cleat, 10 m/s | 64.5 / 61.1 kN |
+  | boulder, 10 m/s | 66.4 / 58.8 kN |
+
+  Cost: 0.77 ms p50 (0.82 p95) per PhysX step, bars included.
+
+  - **The rigid limit is gone** from every fixture, the kicker included. The landing is
+    carried by the bump stop and the tires.
+  - **The landing is harder and shorter than the 3-4 g sizing target.** That target assumed
+    0.15 m of stroke. The rig has 0.10 m from its sag to full bump, from the spec's 0.2 m
+    travel and 1.6 Hz, both assumed. The car also leaves the 0.5 m kicker 0.16 m higher
+    still, so it bottoms:
+    - the front and then the rear land in peaks of 7-11 g, each 8 ms wide at half height;
+    - the whole landing takes about 50 ms;
+    - the same corner as a 4 kHz quarter car peaks at 18 g, so the whole car's peak is not
+      the model's artefact.
+
+    A real road car bottoms its bump stops as hard on this jump. So what remains is the car's
+    travel, not the model: the spec's travel and frequency need real Model 3 values before
+    the rally stage.
+  - **The roll gradient** is 2.6 deg/g with the bars and 3.8 without. That is the estimate
+    from the rates (2.55 and 3.68, the tires adding 0.7). It sits at the firm end of a
+    passenger car's range; no measured Model 3 figure was found.
+  - **The digressive damper** lets the wheel follow the road more freely in bump:
+    - the 10 cm cleat at 10 m/s lifts the corner 5.1 cm instead of 6.7;
+    - on washboard the wheel load's minimum falls from 1.5 kN to about 0.5 kN (offline),
+      nearer to the grip loss R6 is about;
+    - offline (`contact_offline.py`, PhysX's travel 0.30), every fixture is within 3 % of the
+      reference's peak with the same damper. The exception is the 10 cm cleat at 10 m/s,
+      18 % low on the rim strike's brief peak.
+  - **Braking over the cleat** now gives +1.5 m/s^2; PhysX alone gives +4.2. It is the tire
+    rolling down the cleat's far edge, whose slope pushes forward, as a real one does. The
+    stop is 10.2 m (PhysX alone 9.3). The flat, washboard and pothole stops are unchanged.
 - [ ] **R3. One road, small scale** (1.5-2 weeks). A seeded height function per road tile:
   ISO 8608 2D roughness shaped like measured gravel (classes C-E, the corrugation break near
   2 cycles/m), crown or level section, shoulders, ditches, ruts with a centre windrow,
@@ -255,8 +317,8 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - **The 15 cm cleat and the boulder** rise less and fly shorter in the whole car than in the
     quarter car. The other three corners and the body's pitch and roll carry part of the
     impulse; the quarter car has none of them. The boulder is also under the left wheels only.
-  - **The kicker's landing** is still PhysX's rigid travel limit: 207 m/s^2 at the body (589
-    with PhysX alone). That is R2's.
+  - **The kicker's landing** is still PhysX's rigid travel limit: 207 m/s^2 at the body (93
+    with PhysX alone, whose 60 Hz trace hides the limit's impulse; 485 at 240 Hz). That is R2's.
   - **The 20 m/s cases** are still accelerating at the fixture (17.7 m/s), so their static
     front load is 4.0 kN, not 4.45.
   - **Cost:** 0.83 ms p50 (0.91 p95) per PhysX step, PhysX's own step being 0.53. That is

@@ -20,7 +20,7 @@ review on 2026-11-01 walked that path and found four frictions:
    `agent-interface.md`, and it works on CARLA only. The map pack every run needs has no
    public download (README, Prerequisites).
 
-**Status**: phase doc, 2026-11-02. No code yet.
+**Status**: phase doc, 2026-11-02; the three decisions taken the same day. No code yet.
 
 **Source**: user, 2026-11-02: "Check the user experience using our swb stack. ... prepare
 prebuilt binary ... turn [the CARLA version] to a runtime choice but still uses
@@ -148,18 +148,15 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
 - Every command in the guides runs in CI's smoke test or in the acceptance run. Nothing
   untested goes in.
 
-## Decisions for the user
+## Decisions (user, 2026-11-02)
 
-1. **The starter map.** Every run needs Lanelet2 + point cloud per town, and the TUM pack
-   has no public download. Options:
-   - (a) publish our Town01 map dir as a release asset (publishing needs your word);
-   - (b) document generating one from CARLA with acb's map tools (`carla_pcd_gen` + the
-     OpenDRIVE converter), slower and untested by users;
-   - (c) both, (a) first.
-2. **Which CARLA versions the default build compiles.** All supported (slower first build,
-   any server works) or 0.9.16 only, with the others opt-in.
-3. **`simple_pilot`** as described, or `carla_basic` only on CARLA with no simple
-   autopilot on Isaac.
+1. **The starter map: both, publishing first.** Our Town01 map directory (Lanelet2 + point
+   cloud) becomes a release asset. The upload itself waits for the user's word on the day.
+   The guides also show how to generate one from CARLA with acb's map tools
+   (`carla_pcd_gen` + the OpenDRIVE converter). The TUM pack still has no public download.
+2. **The default build compiles every supported CARLA version** (0.9.14-0.9.16 today), so
+   any server works with no rebuild. `--packages-skip` drops some.
+3. **`simple_pilot` is added** as described in D, on both simulators.
 
 ## Steps
 

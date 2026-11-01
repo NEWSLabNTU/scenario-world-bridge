@@ -8,8 +8,9 @@ does not add a solver or change L1's minimum-time objective. It picks which form
 existing piece runs: the offline data, the seed schedule, L1's rows, the gate and L2's weights.
 The code lives in autoware-drift (`src/planning/race_planner`).
 
-**Status**: in progress, started 2026-10-31 (user: "starter phases"). M1 runs beside 061 M4c,
-as the roadmap allows (S1 must change nothing); M2 on waits for DP0.
+**Status**: in progress, started 2026-10-31 (user: "starter phases"). M1 done; DP0 passed for
+S2's classes (user, 2026-11-01); M2 done (S2 built through M3's gate; E2, a first E3); M3's
+pricing and plant work next.
 
 **Source**: user, 2026-10-31: "We pursue for laps with shortest time. Later, we may request for
 strong performance like D1 GP ... The D1 would require drift on every turn and the car has to
@@ -162,3 +163,49 @@ or learned policy; drifting on ice.
     6. E1's bit identity is measured unclocked (`RP_DET=1`); the timed arms give lap times.
   - Left for M2 on: everything S2/S3 does (signed map, knapsack, lex-ε gate, zone plan, elastic
     rows, M seeds, L2 weights); E1's three-repeat timing on an idle host; DP0 (M4c).
+- 2026-11-01: **DP0 passed for S2's surface classes** (user: M2 starts after 061 M4e; ice still
+  open on 6 m roads, and S2 never prices or buys ice; asphalt held per the design).
+- 2026-11-01: **M2 done**, and S2's live half (M3's gate, account, schedule) built with it
+  (autoware-drift 0a624f2 on main; write-up `docs/drift-style-m2.md`; results under
+  `play_log/race_planner/style/m2/`).
+  - Built (`race_planner`): `budget.py` (the signed map `drift_losses.json` with a conservative
+    bracketed price per corner, an exact knapsack over `eps_lap_s`, the account debited once a
+    corner by the price and never credited, per run or per lap); `forced.py` (a drift held 3 deg
+    past the rear's peak from turn-in to the corner's middle, by the window's held-slip rows with
+    a negative bound: no new rows, nothing loosened); `MultiStart._choose_s2` (a bought corner's
+    drift within price + 0.3 %, left past + `exit_hyst`; the lex-eps gate on classes without
+    fall-off; else S1's gate, moved unchanged) and slot B (the forced drift into a bought corner).
+    S2 needs the scheduled starts (refused by name); S3 still refused. Tests: 26 new; suite 181
+    passed.
+  - **S1 bit for bit** (`RP_DET`, sched, no record and `fastest`, before and after the rebase):
+    Haruna `9524862c`/`9160b94d` 76.28 s, Tsukuba `d7ca9f95`/`82bd3c28` 74.33 s.
+  - **E2**: 152 cells (8 classes, R 9-60, 90/180 deg, 6-15 m). Every drift the free window found
+    was a gain (-0.08 to -0.97 %); where a drift does not pay it has **no valley**: every drift
+    seed slides back to grip. Forced (49 cells), a drift costs asphalt +0.02-0.05 s a corner
+    (+0.27-0.69 %), gravel/grass/dirt up to 0.11 s, packed snow up to 0.23 s. Predicted curve:
+    Haruna 0 / 0.1 / 0.2 / 0.5 s buys 1.6 / 6.1 / 8.6 / 9.8 % of the lap in drift for 0 / 0.08
+    / 0.17 / 0.23 s; every course's whole lap of drifts costs <= 0.37 s, so eps >= 0.3 % buys
+    everything (`pareto.md`).
+  - **E3** (first, one run each, `RP_DET`): every S2 run that finished stayed within budget +
+    0.3 % of S1 (Haruna +0.05 to +0.39 s at 0.05-0.5 s; Tsukuba -0.05 to +0.19 s); no added stop,
+    spin or off-road. But the plant's drift does **not** grow with the budget (Haruna 17 / 0 / 0
+    / 28 m): the live window prices forced asphalt drifts 2-4x the map (0.05-0.10 s against
+    0.026-0.029), so most bought corners are never entered, and the car slides little on the ones
+    that are (rear <= 5.2 deg past its peak). On gravel, grass, dirt and packed-snow corners S2 is
+    0.04-0.08 s **faster** than S1: it takes the near-free drifts S1's 0.3 % switch refuses. Mud and
+    loose snow: S2 = S1 (S1 drifts already). Haruna-geometry mud and loose snow leave the road at
+    s 269 in every arm (061's limit).
+  - **DP1** (builder's ruling, for the user): S2 everywhere, offline budget, with the forced drift
+    (B) live; drift is cheap on every class the floor holds, but costly drifts exist only forced.
+  - **DP2** (M3's, preliminary): tune: price the map at the live settings (grip 0.92, ds 4, the
+    live window) and look at L2 on a planned asphalt slide, before adopting.
+  - **Rulings** (builder's): forced drift by hard floor rows (a floor that cannot hold leaves
+    grip); price = worst bracketing cell, none outside 1.25x the measured radii; allowance
+    max(price, 0) + 0.3 %; debit at entry; budget per run (per lap when told the lap); a runtime
+    switch to S2 gets a fresh account and no B; gain corners bought free and entered at a tie.
+  - Video-ready (S1 vs S2, each with `--traj`'s `.traj.json` for `tools/arm_video.py`; RP_DET,
+    repeat bit for bit): `play_log/race_planner/style/m2/video/` Haruna s1 / s2b0.5, gravel
+    R 15x90 s1 / s2b0.05, packed snow R 15x90 s1 / s2b0.05, Tsukuba s2b0.1.
+  - Left for M3: the map at live settings; L2 on planned asphalt slides; E3 x3 and timed on an
+    idle host (p99 adoption unmeasured: det runs have no clock); the lex gate in closed loop (no
+    flat-class corner is a loss in today's map); the zone chain (061's off-road at s 1236).

@@ -214,8 +214,8 @@ Progress:
       the scanner, against 49 % 18 s off). In the tiles checked, the scan holds no points
       from the May-4 sessions.
     - `export_map.py --dynamic` and `build_meshes.py --dynamic` leave the dropped voxels'
-      points out: the PCD map went from 39.1 M to 38.6 M points (the old one kept as
-      `map/pointcloud_map.pre_n2`), the meshes were rebuilt into `meshes_n2/` (3.4 h, two
+      points out: the PCD map went from 39.1 M to 38.6 M points (the old one, kept as
+      `map/pointcloud_map.pre_n2`, deleted on 133 2026-11-02), the meshes were rebuilt into `meshes_n2/` (3.4 h, two
       workers), and the world from them into `n2w05/` and `n2w25/` (road cleared 0.5 and
       2.5 m).
   - N5, trees, first step (133, 2026-10-31; `scripts/ntu_twin/trees.py`, method in its

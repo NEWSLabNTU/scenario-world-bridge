@@ -197,6 +197,7 @@ or learned policy; drifting on ice.
     s 269 in every arm (061's limit).
   - **DP1** (builder's ruling, for the user): S2 everywhere, offline budget, with the forced drift
     (B) live; drift is cheap on every class the floor holds, but costly drifts exist only forced.
+    **Confirmed by the user 2026-11-01** ("Confirm DP1 and start M3").
   - **DP2** (M3's, preliminary): tune: price the map at the live settings (grip 0.92, ds 4, the
     live window) and look at L2 on a planned asphalt slide, before adopting.
   - **Rulings** (builder's): forced drift by hard floor rows (a floor that cannot hold leaves
@@ -209,3 +210,4 @@ or learned policy; drifting on ice.
   - Left for M3: the map at live settings; L2 on planned asphalt slides; E3 x3 and timed on an
     idle host (p99 adoption unmeasured: det runs have no clock); the lex gate in closed loop (no
     flat-class corner is a loss in today's map); the zone chain (061's off-road at s 1236).
+- 2026-11-01: **DP1 confirmed** (S2 everywhere, offline budget, forced drift live); **M3 started**.

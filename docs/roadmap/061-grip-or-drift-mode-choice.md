@@ -841,3 +841,23 @@ final runs (same code; three draws repeated to the bit); 012's half share from a
 tuned constant; the principled form, the line scaled by the road's room and the tyre's
 fall-off in the horizon, untried).
 Left: issue 013; then the chain and the wrong maps again; wall clock when the host allows.
+
+**Issue 013 (fixed in the planner, 2026-11-02).** The chain's ice zone, root caused on repeatable
+traced runs (the plant's ECU each step, L2 each tick): L1 plans the transition and the car
+arrives on it (19.5-20 m/s, on the plan); onto ice the ECU brakes with the last road's grip
+(regen cap 2139 N or the motor's 2812 against the ice rear's 1730 peak), the rear slips, and the
+regen slip control cuts regen only to the rear's own brake share, which at the plan's -2.4 m/s^2
+(1500 N) is past what ice's tyre carries sliding (1210): no ABS, so the rear stays locked, the
+car yaws, L2 lifts off at the edge. The corner suite passes because its ECU is primed (no
+probe). Fix autoware-drift `window.recover_gains` (82f0b69): on a held road's first 50 m after
+another road, the rear's braking within 1.1 of its sliding force at the planned grip (the plant's
+slip then comes back in 0.3 s). True-map chain, 10 draws an arm: stopped in the ice zone **15 of
+19** runs reaching it -> **3 of 19** (4.9 se); finished 0 -> 2 of 30. Ice corners (180 runs),
+one corner each of wet mud, loose snow, gravel, packed snow, Haruna / Tsukuba `RP_DET` digests:
+bit for bit. Planner suite passed. Next stoppers on the fix (30 runs): loose snow R 9 x 90
+(zone 5) 11, zone 0 on the multi-start arms 10 of 20, the packed hairpin 3, ice 3 (the probe's
+yaw near the 8 m road's edge, L2), the mud hairpin 1. Results
+`play_log/race_planner/mode_choice/i013/`. Rulings: fixed in the planner, not the car (the car
+cannot know the road changed until it slips; the plan decides whether a slipped rear can come
+back); the bound only after a road change (on every held node it cost the ice corners 4-16 of
+60); `RECOVER` 1.1 and `PROBE` 50 m chosen from the plant's latch test and the chain, tuned.

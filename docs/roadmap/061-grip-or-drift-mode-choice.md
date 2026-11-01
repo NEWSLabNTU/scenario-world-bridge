@@ -713,3 +713,46 @@ the planner does not read the car's found grip).
 Left: R 9 x 180 at 15 m (the hairpin's windows from a hotter entry); the planner reading the
 car's found grip (aib to report it); the hold on snow and mud (plans braking with the fronts in
 a drift); R 9 x 180 at 6 m (8 of 20 single, 0 of 10 sched).
+
+**M4h (done, 2026-11-01; gate re-scored, not passed).** The whole gate on autoware-drift 95b902e
+(issues 007 and 008 in, before M4g's car), from a pinned worktree with swb's inputs frozen
+(sim_vehicle_ecu d68637a). Write-up autoware-drift `docs/mode-choice-m4h.md` (bbae781), issue
+`docs/issues/012-line-weight-costs-the-chain-and-a-mud-hairpin.md` (open); results
+`play_log/race_planner/mode_choice/m4h/` (`r6/`, `digest/`, `det/`, `corners/`, `chain/`,
+`chaindet/`, `traj_runs/` one `--traj` run an arm per course and class for `tools/arm_video.py`).
+Named M4h: M5 is the GPU probe, M4f/M4g ice's. Load 4-11 in the morning (R6), 15-140 most of the
+afternoon: corners and chain judged on repeatable runs (`RP_DET` + `RP_ITERCAP`, last-bit draws,
+Welch se), wall clock where the load allowed. Configuration checked in every result JSON.
+Results (single / sched / always):
+- R6, wall clock, 6 laps an arm, started under load 6: Haruna 76.28 / 76.33 (+0.063 %, se 0.033)
+  / 76.42; Tsukuba 74.24 / 74.24 (-0.001 %, 5 of 6: one off road at s 1820, issue 005's place,
+  load 6.2) / 74.24 (5 of 6); `RP_DET` sched = single bit for bit on both;
+- ice, pooled with M4e's both-fixes runs: 9.52 (25) / 9.58 (12) / 9.14 (7) of 12, failed re-plans
+  19 / 15 / 15 % (M4c 8 / 6 / 6); wall clock 9 / 9 / 11;
+- mud 11 / 11 / 11 (`mud_wet:15:180:6` spins in every arm and draw, M4c 12/12); gravel and loose
+  snow 12 / 12 / 12; packed snow single 12 (multi-start 12 / 12 from issue 007's batch);
+- time vs single: mud -0.42 %, gravel -0.32 %, ice +0.05 %, loose snow sched +1.43 % (one corner,
+  R 15 x 180 at 6 m, +15.6 %; median 0.0);
+- solves a re-plan sched / always: ice 2.00 / 2.35, gravel 1.07 / 2.24, chain 2.4-2.5 / 3.1,
+  Haruna 1.00 / 3.27;
+- true-map chain **0 of 20** (wall clock 8, repeatable 12; M4c multi-start 4 of 4): stops at loose
+  snow R 9 x 90 (s 1075), packed snow R 25 x 180 (s 1205), ice, mud; with issue 007's line weight
+  off (study patch) the same 12 draws finish 4, and 0 of 4 reaching s 1050 stop there (with it
+  9 of 9); `mud_wet:15:180:6` finishes 3 of 3 with it off: issue 012;
+- 10 % maps, 8 seeds: every run of every arm stops; at the wrong zone sched 3 of 3 reached,
+  always 2 of 2; perception and estimate no change;
+- mud hairpin mapped right: repeatable 0 of 36, wall clock 10 of 56 (M4c 1 in 52; load 6-10).
+Gate: R6 met; ice met within noise; sched as good as always with fewer solves; low-friction
+time met but loose snow's one corner; the true-map chain and a mud corner lost (issue 012);
+wrong-map criterion not testable. Not passed.
+Rulings:
+- Corners and chain on repeatable runs. Cost if wrong: a latency effect hidden (the mud hairpin's
+  wall-clock stops are one).
+- Ice pooled with M4e's `c78` (same planner). Cost if wrong: none found.
+- Packed snow's multi-start arms cited from issue 007's batch, asphalt corners not re-run (bit for
+  bit since M4c). Cost if wrong: a packed-snow multi-start loss unseen.
+- Issue 012's cause suspected, not proven (line against rotation, or M4f's front past its peak).
+Blockers, ranked: (1) issue 012, L2's low-friction line weight (chain, mud corner); (2) ice's
+absolute losses, 2.5 of 12 in every arm on the old car (M4g's car changes them: re-score on it);
+(3) the wrong-map criterion, waiting on 1; (4) Tsukuba s 1820 under load, 1 of 6 sched laps.
+Left: issue 012; then the gate again on main (M4g's car, issue 011's mud corners).

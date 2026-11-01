@@ -6,6 +6,9 @@ building them: no Rust toolchain, no colcon, no SSv2 build. Today setup means th
 compiles LibCarla), the Rust bridge, acb -- after installing rustup and colcon's cargo
 plugin.
 
+**Status**: folded into [070](070-user-experience.md) on 2026-11-02: only step 1 was done; 070
+brings the design up to the post-051 names and owns steps 2-8.
+
 **Source**: user direction 2026-10-13 ("prebuilt binaries for users other than docker";
 "tarball of the built workspace is preferred"; release strategy across ROS distros and
 CARLA versions agreed the same day).

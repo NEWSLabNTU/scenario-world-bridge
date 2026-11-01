@@ -111,6 +111,8 @@ built from the same survey) needs only an offset, not a regenerated map.
 
 ### 6. First run on one page
 
+Moved to [070](070-user-experience.md) (D, the getting-started guides) on 2026-11-02.
+
 - [ ] Time a first run from a fresh clone on a clean user account, step by step; the README's
       quickstart becomes the shortest path that passes `town01_ego_drive`, with tutorial 1 for
       the details. Target: one page, one `source` file, three commands after the build.

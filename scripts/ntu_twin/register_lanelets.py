@@ -2,7 +2,7 @@
 """Re-register the merged Lanelet2 map to the scan (roadmap 059 N7).
 
     register_lanelets.py ROUTES_DIR MAP_DIR GROUND_DIR [--keep MESH_DIR/ground_keep.npy]
-        [--min-width 2.8] [--report report.json]
+        [--min-width 2.8] [--widen-only] [--report report.json]
 
 The lanelets of r01 and r02 were drawn on each route's own point cloud
 (ROUTES_DIR/<route>/pointcloud_map.pcd*), which drifts up to 0.3 m against the vendor scan
@@ -20,11 +20,31 @@ frame (export_map.py), so the route clouds are registered to it, and the lanelet
      within a cell of the node); elsewhere it keeps the ICP's z.
 
   5. a road lanelet narrower than --min-width at a boundary vertex has that vertex pushed
-     outward to the width (at most MAX_PUSH), when the boundary is the lanelet's alone (an
-     outer edge, not shared with a neighbour) and the new place is on the scan's ground (a
-     ground cell within a cell of it). The vendor's maps pinch to 1.97 m on roads the scan
-     shows 10 m wide; Autoware's footprint of the car is 2.163 m, so path_optimizer stopped
-     r01 at lanelet 1004849's 2.16 m vertex, "outside drivable area" (roadmap 059 N8).
+     outward to the width (at most MAX_PUSH, less where the surface ends first), when the
+     boundary is the lanelet's alone (an outer edge, not shared with a neighbour), the vertex
+     is on no other lanelet's boundary unless that one is the same road edge running on (an
+     outer edge pushed the same way; any other shared end stays, or it would narrow that
+     lanelet), and the new place is on the world's surface (a meshed cell, --keep, within a
+     cell of it; else a ground cell: a road where cars stood all through the scan has no
+     ground return). The vendor's maps pinch to 1.97 m on roads the scan shows 10 m wide;
+     Autoware's footprint of the car is 2.163 m, so path_optimizer stopped r01 at lanelet
+     1004849's 2.16 m vertex, "outside drivable area" (roadmap 059 N8).
+     On a curve the outer edge needs more: the car's outer front corner sweeps outside its
+     rear axle's path by sqrt((R + CAR_HALF)^2 + CAR_FRONT^2) - (R + CAR_HALF), R the
+     lanelet centre's radius, so an outer vertex is pushed to --min-width plus that and
+     CURVE_MARGIN (the car runs wider than the geometry; a corner left outside stops the car
+     for good, as path_optimizer then puts the stop at the car). r01's left turn (lanelet
+     1007361, R about 10 m, 2.80 m) left the corner 0.0-0.2 m from the edge: path_optimizer
+     cut the trajectory there in 7 of 9 drives, a 1 s stop (059 N5); at its second turn a
+     drive stopped with the corner 0.3 m out and stayed there 8 minutes.
+     The car is still swinging out just after the curve, on the next lanelet: an outer vertex
+     within CAR_REACH of a curve's outer vertex, facing the same way, takes its offtracking,
+     tapering to 0 at CAR_REACH; and outer segments get a vertex every metre for DENSE_END
+     at each end (1004849's first segment, just after r01's turn, ran 139 m).
+
+`--widen-only` skips steps 1-4: it widens MAP_DIR/lanelet2_map.osm as it stands (kept as
+lanelet2_map.before_curves.osm, which a rerun starts from) and sets only the moved nodes'
+heights from the ground.
 
 lat/lon move with local_x/local_y (UTM 51N), so the MGRS projector and the local tags agree.
 The original is kept as lanelet2_map.orig.osm (the first run's input on reruns).
@@ -53,6 +73,14 @@ ANCHOR = 25.0
 RADIUS = 30.0
 SIGMA = 30.0
 MAX_PUSH = 1.5  # m a boundary vertex may move outward to reach --min-width
+CAR_FRONT = 3.812  # m, rear axle to front bumper (tesla_model3: wheel base 3.005 + overhang 0.807)
+CAR_HALF = 1.0815  # m, half the car's width (tread 1.667 / 2 + side overhang 0.248)
+CURVE_MARGIN = 0.3 # m more on a curve's outer edge: the car runs wider than the geometry (r01's
+                   # second turn: the corner 0.2-0.44 m out where the offtracking alone was met)
+CAR_REACH = 12.0   # m after a curve's outer vertex its offtracking still holds (tapering): the
+                   # car is still yawing out of r01's turn 6.5 m past its end (N5 drives)
+DENSE_END = 12.0   # m at each end of a long outer segment that get a vertex every metre, so
+                   # the edge just after a curve has vertices to push
 
 
 def voxel(p, s):
@@ -259,9 +287,87 @@ def _dist_to(p, poly):
     return best, away
 
 
+def _centre(a, b, c):
+    """The centre of the circle through three points, or None on a straight line."""
+    d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]))
+    if abs(d) < 1e-6:
+        return None
+    sa, sb, sc = a @ a, b @ b, c @ c
+    return np.array([sa * (b[1] - c[1]) + sb * (c[1] - a[1]) + sc * (a[1] - b[1]),
+                     sa * (c[0] - b[0]) + sb * (a[0] - c[0]) + sc * (b[0] - a[0])]) / d
+
+
+def offtracking(own, k, away, w):
+    """How far the car's outer front corner sweeps outside its path at vertex k of boundary
+    `own`, when that boundary is a curve's outer edge (`away` points from the opposite
+    boundary to it, `w` the lanelet's width there); 0 on the inner edge or a straight."""
+    if len(own) < 3:
+        return 0.0
+    k = min(max(k, 1), len(own) - 2)
+    c = _centre(own[k - 1], own[k], own[k + 1])
+    if c is None:
+        return 0.0
+    r_own = np.linalg.norm(own[k] - c)
+    if np.dot(away, own[k] - c) <= 0 or r_own > 200.0:  # inner edge, or nearly straight
+        return 0.0
+    r = max(r_own - w / 2, CAR_HALF)  # the centre's radius
+    return float(np.hypot(r + CAR_HALF, CAR_FRONT) - (r + CAR_HALF)) + CURVE_MARGIN
+
+
+def densify(root):
+    """Add a vertex every metre to the first and last DENSE_END of every outer (unshared)
+    road boundary segment longer than 2 m. Returns the number of nodes added."""
+    nodes = {n.get("id"): n for n in root.findall("node")}
+    uses = {}
+    for rel in root.findall("relation"):
+        tags = {t.get("k"): t.get("v") for t in rel.findall("tag")}
+        if tags.get("type") == "lanelet" and tags.get("subtype") == "road":
+            for x in rel.findall("member"):
+                if x.get("role") in ("left", "right"):
+                    uses[x.get("ref")] = uses.get(x.get("ref"), 0) + 1
+    keys = ("local_x", "local_y", "ele", "lat", "lon")
+
+    def val(n, k):
+        if k in ("lat", "lon"):
+            return float(n.get(k))
+        return float(next(t for t in n.findall("tag") if t.get("k") == k).get("v"))
+
+    next_id = max(int(i) for i in nodes) + 1
+    added = 0
+    for w in root.findall("way"):
+        if uses.get(w.get("id")) != 1:
+            continue
+        nds = w.findall("nd")
+        for a_nd, b_nd in zip(nds[:-1], nds[1:]):
+            a, b = nodes[a_nd.get("ref")], nodes[b_nd.get("ref")]
+            va = np.array([val(a, k) for k in keys])
+            vb = np.array([val(b, k) for k in keys])
+            length = float(np.hypot(*(vb[:2] - va[:2])))
+            if length <= 2.0:
+                continue
+            at = sorted({d for d in np.arange(1.0, min(DENSE_END, length / 2) + 1e-9)}
+                        | {length - d for d in np.arange(1.0, min(DENSE_END, length / 2) + 1e-9)})
+            pos = list(w).index(b_nd)
+            for d in at:
+                if not 0.5 < d < length - 0.5:
+                    continue
+                v = va + (vb - va) * d / length
+                n = ET.Element("node", {"id": str(next_id), "lat": f"{v[3]:.11f}",
+                                        "lon": f"{v[4]:.11f}"})
+                for k, x in zip(keys[:3], v[:3]):
+                    ET.SubElement(n, "tag", {"k": k, "v": f"{x:.4f}"})
+                root.insert(list(root).index(a) + 1, n)
+                w.insert(pos, ET.Element("nd", {"ref": str(next_id)}))
+                pos += 1
+                next_id += 1
+                added += 1
+    return added
+
+
 def widen(root, pos, ground, min_width):
-    """Push narrow road lanelets' outer boundary vertices out to `min_width` (step 5). `pos`:
-    {node id: map xyz (array, edited in place)}. Returns the report."""
+    """Push narrow road lanelets' outer boundary vertices out to `min_width`, plus the car's
+    offtracking on a curve's outer edge (step 5). `pos`: {node id: map xyz (array, edited in
+    place)}. Returns the report."""
     ways = {int(w.get("id")): [int(nd.get("ref")) for nd in w.findall("nd")] for w in root.findall("way")}
     lanelets, uses = [], {}
     for rel in root.findall("relation"):
@@ -272,29 +378,65 @@ def widen(root, pos, ground, min_width):
         lanelets.append((int(rel.get("id")), m["left"], m["right"]))
         for w in (m["left"], m["right"]):
             uses[w] = uses.get(w, 0) + 1
-    moved, blocked, shared, narrow = {}, 0, 0, set()
+    in_ways = {}  # node -> the bound ways it is on: a node on two moves both
+    for lid, lw, rw in lanelets:
+        for w in (lw, rw):
+            for nid in ways[w]:
+                in_ways.setdefault(nid, set()).add(w)
+    plan = []  # (lanelet, own way, node, width, away, curve's offtracking)
     for lid, lw, rw in lanelets:
         for own, other in ((lw, rw), (rw, lw)):
             opp = np.array([pos[i][:2] for i in ways[other]])
-            for nid in ways[own]:
+            mine = np.array([pos[i][:2] for i in ways[own]])
+            for k, nid in enumerate(ways[own]):
                 w, away = _dist_to(pos[nid][:2], opp)
-                if w >= min_width:
-                    continue
-                narrow.add(lid)
-                if uses[own] > 1:
-                    shared += 1
-                    continue
-                push = min(min_width - w, MAX_PUSH)
-                target = pos[nid][:2] + away * push
-                m, c = ground.meta, ground.meta["cell"]
-                v = target + SHIFT[:2]
-                i = int((v[0] - m["x0"]) / c)
-                j = int((v[1] - m["y0"]) / c)
-                if not ground.ground[max(j - 1, 0):j + 2, max(i - 1, 0):i + 2].any():
-                    blocked += 1
-                    continue
-                pos[nid][:2] = target
-                moved[nid] = round(float(push), 3)
+                plan.append((lid, own, nid, w, away, offtracking(mine, k, away, w)))
+    curves = [(pos[nid][:2].copy(), away, x) for _, own, nid, _, away, x in plan
+              if x > 0 and uses[own] == 1]
+    aways = {}  # node -> its outward directions, one per boundary it is on
+    for _, own, nid, _, away, _ in plan:
+        aways.setdefault(nid, []).append(away)
+
+    def one_edge(nid):
+        """A node on several boundaries moves only when each is an outer edge and all push the
+        same way: one road edge running on from lanelet to lanelet, not a neighbour's."""
+        a = np.array(aways[nid])
+        return all(uses[w] == 1 for w in in_ways[nid]) and (a @ a.T).min() > 0.9
+    cxy = np.array([c[0] for c in curves]).reshape(-1, 2)
+    moved, blocked, shared, narrow, curved = {}, 0, 0, set(), set()
+    for lid, own, nid, w, away, extra in plan:
+        if len(cxy) and uses[own] == 1:  # the swing just after a curve, facing the same way
+            d = np.hypot(*(cxy - pos[nid][:2]).T)
+            for k in np.flatnonzero(d < CAR_REACH):
+                if np.dot(curves[k][1], away) > 0.7:
+                    extra = max(extra, curves[k][2] * (1 - d[k] / CAR_REACH))
+        if w >= min_width + extra:
+            continue
+        narrow.add(lid)
+        if extra > 0:
+            curved.add(lid)
+        if uses[own] > 1 or (len(in_ways[nid]) > 1 and not one_edge(nid)):
+            shared += 1
+            continue
+        if nid in moved:  # already pushed from the other boundary it ends
+            continue
+        want = min(min_width + extra - w, MAX_PUSH)
+        m, c = ground.meta, ground.meta["cell"]
+        # the world's surface: the meshed cells (--keep) where given, else the ground seen; a
+        # road where cars stood all through the scan has no ground return (r01's second turn)
+        surface = ground.keep if ground.keep is not None else ground.ground
+        for push in (want, 0.75 * want, 0.5 * want, 0.25 * want):  # as far as the ground goes
+            target = pos[nid][:2] + away * push
+            v = target + SHIFT[:2]
+            i = int((v[0] - m["x0"]) / c)
+            j = int((v[1] - m["y0"]) / c)
+            if surface[max(j - 1, 0):j + 2, max(i - 1, 0):i + 2].any():
+                break
+        else:
+            blocked += 1
+            continue
+        pos[nid][:2] = target
+        moved[nid] = round(float(push), 3)
     after = []
     for lid, lw, rw in lanelets:
         lb = np.array([pos[i][:2] for i in ways[lw]])
@@ -302,6 +444,7 @@ def widen(root, pos, ground, min_width):
         after.append(min(min(_dist_to(p, rb)[0] for p in lb), min(_dist_to(p, lb)[0] for p in rb)))
     after = np.array(after)
     return {"min_width": min_width, "lanelets_narrower_before": len(narrow),
+            "of_them_on_curves": len(curved),
             "vertices_moved": len(moved), "push_m_p50_max": [round(float(np.median(list(moved.values()))), 3),
                                                              round(float(max(moved.values())), 3)] if moved else None,
             "vertices_shared_skipped": shared, "vertices_off_ground_skipped": blocked,
@@ -318,15 +461,20 @@ def main(argv=None):
     ap.add_argument("--keep", default="", help="build_meshes.py's ground_keep.npy")
     ap.add_argument("--min-width", type=float, default=2.8,
                     help="widen road lanelets to this, m (0: leave them)")
+    ap.add_argument("--widen-only", action="store_true",
+                    help="only widen the map as it stands (no registration)")
     ap.add_argument("--report", default="")
     a = ap.parse_args(argv)
 
     osm = os.path.join(a.map_dir, "lanelet2_map.osm")
     orig = os.path.join(a.map_dir, "lanelet2_map.orig.osm")
+    if a.widen_only:  # a rerun starts from the same map
+        orig = os.path.join(a.map_dir, "lanelet2_map.before_curves.osm")
     if not os.path.exists(orig):
         shutil.copyfile(osm, orig)
     tree = ET.parse(orig)
     root = tree.getroot()
+    dense = densify(root) if a.min_width > 0 else 0
     nodes = {int(n.get("id")): n for n in root.findall("node")}
 
     def tag(n, k):
@@ -343,7 +491,7 @@ def main(argv=None):
     report["paint_before"] = paint_check(root, dict(zip(ids.tolist(), xyz)), ground)
 
     new = xyz.copy()
-    for r, is_r in (("r02", ids < ID_OFFSET), ("r01", ids >= ID_OFFSET)):
+    for r, is_r in () if a.widen_only else (("r02", ids < ID_OFFSET), ("r01", ids >= ID_OFFSET)):
         d = os.path.join(a.routes_dir, r)
         pcd_path = next(os.path.join(d, f) for f in sorted(os.listdir(d)) if ".pcd" in f)
         anchors, disp, T, rep = displacement_field(read_pcd(pcd_path), a.map_dir)
@@ -356,8 +504,11 @@ def main(argv=None):
     if a.min_width > 0:
         pos = {int(i): new[k] for k, i in enumerate(ids)}  # views into `new`
         report["widen"] = widen(root, pos, ground, a.min_width)
+        report["widen"]["nodes_added"] = dense
         print("widen", json.dumps(report["widen"]), flush=True)
     gz, gok = ground.z(new[:, :2])
+    if a.widen_only:  # the rest keep their heights
+        gok &= np.any(new[:, :2] != xyz[:, :2], axis=1)
     new[gok, 2] = gz[gok]
     report["nodes"] = int(len(ids))
     report["nodes_on_ground"] = int(gok.sum())

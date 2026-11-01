@@ -18,7 +18,12 @@ coordinates). The meshes stay in that frame; the USD stage places them.
 
 Usage:
   build_meshes.py TILES_DIR GROUND_DIR OUT_DIR [--workers 3] [--tiles ix_iy,...]
-                  [--dynamic DYNAMIC_DIR]
+                  [--dynamic DYNAMIC_DIR] [--lanes LANELET2_OSM] [--ground-only]
+
+`--lanes`: the cells under every lanelet, grown by LANE_KEEP, are meshed whatever the ground
+classes say. A road where cars stood throughout the scan has no ground return; such a hole that
+runs on into others is not enclosed, so the fill leaves it, and r01's first lanelet had one
+under half the car, which fell through the world (docs/issues/025).
 
 `--dynamic`: transients.py's output; the points of objects that moved during the survey
 (people, scooters and cars that left) are left out of the meshes (N2).
@@ -40,6 +45,7 @@ SHIFT = np.array([-0.54, 0.20, 17.30])  # vendor (MGRS local) minus map frame
 TILE = 50.0
 GROUND_BAND = 0.12      # m, as ground_ortho.py
 GROUND_REACH = 2.0      # m: a DTM cell is meshed within this of a ground cell
+LANE_KEEP = 1.0         # m around a lanelet (--lanes) where every DTM cell is meshed
 VOXEL = 0.08            # m, points per Poisson input voxel
 DEPTH = 11              # Poisson octree depth over a 50 m tile: ~2.5 cm cells
 DENSITY_CUT = 0.08      # drop the Poisson vertices of lowest support (this quantile)
@@ -59,7 +65,7 @@ def tile_index(path):
     return int(m.group(1)), int(m.group(2))
 
 
-def ground_keep(ground, cell):
+def ground_keep(ground, cell, lanes=None):
     """The DTM cells to mesh, site-wide: those within GROUND_REACH of a ground cell, and every
     hole that leaves enclosed. Without the fill, a patch where something stood during the scan
     (parked cars, a stopped vehicle, scooters) more than GROUND_REACH from ground was a hole in
@@ -68,6 +74,8 @@ def ground_keep(ground, cell):
     from scipy import ndimage
 
     keep = ndimage.binary_dilation(np.asarray(ground), iterations=int(GROUND_REACH / cell))
+    if lanes is not None:  # the road's surface, seen or not (see --lanes)
+        keep |= lanes
     return ndimage.binary_fill_holes(keep)
 
 
@@ -204,13 +212,20 @@ def main():
     ap.add_argument("--tiles", default="")
     ap.add_argument("--dynamic", default="", metavar="DIR",
                     help="transients.py's output: leave out the points of moved objects")
+    ap.add_argument("--lanes", default="", metavar="OSM",
+                    help="a Lanelet2 map (map frame): mesh every DTM cell under its lanelets")
     ap.add_argument("--ground-only", action="store_true",
                     help="rewrite only the ground meshes of the tiles already in OUT (no LAZ read)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     meta = json.load(open(os.path.join(a.ground_dir, "dtm.json")))
-    np.save(os.path.join(a.out, "ground_keep.npy"),
-            ground_keep(np.load(os.path.join(a.ground_dir, "ground_cells.npy")), meta["cell"]))
+    cells = np.load(os.path.join(a.ground_dir, "ground_cells.npy"))
+    lanes = None
+    if a.lanes:
+        from world_usd import lane_raster
+
+        lanes = lane_raster(a.lanes, meta, cells.shape, LANE_KEEP)
+    np.save(os.path.join(a.out, "ground_keep.npy"), ground_keep(cells, meta["cell"], lanes))
     if a.ground_only:
         names = sorted(glob.glob(os.path.join(a.out, "ground_*_*.npz")))
         tiles = [tuple(int(v) for v in re.findall(r"(-?\d+)_(-?\d+)\.npz$", p)[0]) for p in names]

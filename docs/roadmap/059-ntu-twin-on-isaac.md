@@ -285,20 +285,41 @@ Progress:
       transverse Mercator at (0, 0), auto_drive's initial pose is 34 km off, and NDT never
       converges ("No InputTarget"); the first two 0.5 m drives failed so. `world_usd.py` now
       warns when the map directory has none.
-  - Open (docs/issues 025-027):
-    - r01 stops for about 1 s at the entry of its left turn ((52806, 67885)) in 7 of 9 drives
-      on the N2 worlds; r01r, before N2, did not, nor did vw01 and n5v2r01. A stop point
-      appears 0.2 m ahead of the car for one cycle in the motion velocity planner's output
-      (control_validator: "overrun the front stop point"); the path stages before it have
-      none, no planning factor is published, no object is within 25 m, and obstacle_stop's
-      pointcloud check is off. The path optimizer's first output always ends in a stop at
-      the same corner. Not explained.
-    - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
-      car through the world within a second. The same place with yaw 0 or pi holds, as do
-      3 m south, 10 m north, and r02's spot at yaw pi/2, and a box dropped there rests.
-      There are only ground triangles within the car. Not explained.
-    - The ego spawned at r02's lanelet centre came to rest 0.8 m south of it. Not explained.
-    - pose_instability_detector died once at start ("cannot store a negative time point").
+  - The 1 s stop, and docs/issues 025-027 (133, 2026-11-02):
+    - r01's stop at its left turn ((52806, 67885), 7 of 9 drives on the N2 worlds) was
+      path_optimizer's `enable_outside_drivable_area_stop`: the turn lanelet 1007361 (R about
+      10 m) was 2.80 m wide, and on that radius the car's footprint sweeps about 2.8 m. In every
+      drive that stopped, the front-right corner came to rest exactly on the edge; in those that
+      did not, it crossed it by 0.14-0.18 m just after the turn. No planning factor names it.
+      `register_lanelets.py --widen-only` now widens a curve's outer edge by the car's
+      offtracking plus CURVE_MARGIN (0.3 m), carries it CAR_REACH (12 m) past the curve,
+      densifies long outer segments so there are vertices to push, moves a node shared along
+      one road edge, and checks the new place against the meshed surface (a road where cars
+      stood all through the scan has no ground return; r01's second turn had none). A first
+      version left that second turn as it was: one drive stopped there with the corner 0.3 m
+      out and stayed 8 minutes, path_optimizer putting the stop at the car every cycle.
+      Final map: 2379 vertices moved (p50 0.54 m, max 1.5 m), 4764 added, none narrower than
+      2.80 m; on every recorded track both turns' corners stay inside. The map before is
+      `lanelet2_map.before_curves.osm`.
+    - 025 (falls through at r01's first lanelet): a hole in the ground mesh under the car,
+      vehicles having stood there all through the scan; `ground_keep` fills enclosed holes
+      only. `build_meshes.py --lanes` meshes every cell under a lanelet (plus 1 m): the car
+      now rests 0.03 m from the spawn there. World `n5v3/` (meshes_n3, the widened lanelets).
+    - 026 (0.8 m off at r02's spawn): not reproduced; 0.000 m on flat ground, 0.003 m along at
+      r02 after the sticky tyre's damping fix.
+    - 027 (pose_instability_detector's negative time): an empty twist range read when a twist
+      is stamped at the previous odometry's time; fixed in the Autoware overlay. The NTU
+      drives run on the overlay with `AUTOWARE_SETUP=<overlay>/install/setup.bash` for aib's
+      `just autoware` (stock otherwise: neither NDT's step fix nor blind_spot's).
+    - Drives on the final n5v3 with the overlay: r01 6 of 6 (w01a-c, a1-a3) and r02 (w02)
+      arrived, none stopping before the goal; so did o01 and o02 on the first widening.
+  - Open:
+    - On the final n5v3, AEB fired once in 6 r01 drives (w01c), 0.3 s just past the first turn:
+      a static object 7.25 m ahead against an RSS distance of 7.28 m, the car not slowing. Its
+      debug markers show roadside objects at the lane's north edge ((52793-52797, 67887-67888),
+      0.3 and 1.1-1.2 m over base_link) inside the MPC path's polygon during the turn on every
+      drive; the widening moved the car's exit about 0.2 m towards them (y 67886.6 against
+      67886.4). The ground there is flat (11.9-12.0 m); what the points are is not settled.
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

@@ -623,3 +623,47 @@ Rulings:
   runaway slides; nothing clearly points at xi's scale. No issue written.
 Left: R 9 x 180 at 6 m (L1: windows of 260-1200 iterations from the car's state); the 6 m
 roads' L2 losses (the edge's margin against ice's looser line weight, not measured).
+
+**M4f (done, 2026-11-01; root caused, not fixed: needs a ruling).** Ice's two losses left by
+M4e. Write-up autoware-drift `docs/mode-choice-m4f.md`, issue 009 (7e18db7; docs only, the
+planner unchanged from 95b902e); results `play_log/race_planner/mode_choice/m4f/` (`rec/`,
+`trace/`, `ecu/`, `offroad/`, `front_low/`, `regen_l1_only/`; `tools/` with the experiments'
+patch). All runs repeatable (`RP_DET` + `RP_ITERCAP`); load 4-236 from other users. Results:
+- **One cause (issue 009): the drift car brakes on ice through its rear only.** Its ECU
+  regenerates first up to 2812 N on the rear, whose grip on ice is ~1630 N; ABS is off and regen
+  is not cut on a locked rear (the plant's rear wheels turn backwards at -2.4 m/s^2). L1 models
+  that, so it plans 1.1-1.3 m/s^2 (0.46 mu g) where `v_start` assumes 0.6 mu g, and brakes
+  with the front tyres instead: slip angles 30-58 deg (10-19 x ice's peak), left and right in
+  turn. Issue 002's front rows skip ice (it falls off), so nothing bounds it;
+- R 9 x 180 at 6 m (L1): past the car from its start speed: the first plan's rescue ends 8-15 m
+  off the road in 5 of 5 starts; IPOPT lands in a far (8-12 m) or near (0.3-0.5 m) off-road
+  compromise by the last bits, the loop adopts the far one (Solve_Succeeded), every window
+  warm-starts 8.6 m past the edge rows: 250-1230 iterations (M4e's 260-1200);
+- the 6 m L2 losses: 15 of M4e's 17 traced bit for bit; in each the plan's front at 11-58 deg in
+  the last 3 s; L2 has no lateral authority on a front that far past its peak (its prediction
+  0.6-3.0 m past its edge rows, weighted 1e4/m^2). Not the edge margin (L2 0.1 m, L1 0.3 m
+  inside the edge, the run ends 0.5 m past it) nor LINE_MU's weight; plans at the 1.75 m bound
+  in 3, past it in 3, n error 0.4-3.3 m (7 inside, 8 outside);
+- the car with regen within its rear's grip (plant ECU capped at 1100 N, L1 told; experiment,
+  4 replicates against M4e's `78` on the same ones): ice 10.50 against 9.50 of 12 (+1.0, se
+  0.71); the 6 m roads 22 against 14 of 24, R 9 / R 15 x 180 at 6 m 3 / 4 of 4 against 0; plans'
+  front 4-18 deg; the 15 m roads 20 against 24 (the fixed cap's cost, unexplained);
+- not the fix: the front's slip rows on ice (1 of 8; no brake left, re-plans fail 7 of 7); L1
+  told of a regen cap the car does not have (1 of 8: the rear locks); rejecting plans whose car
+  leaves the road (19 of 24 as M4e, the target corner 0 of 2).
+Gate: not met (nothing shipped; Haruna, Tsukuba, other surfaces unchanged with the planner).
+Rulings:
+- No planner change shipped: every planner-side candidate equal or worse. Cost if wrong: an L1
+  that keeps a brake and still bounds the front is untried.
+- The off-road plan check not shipped although right in principle (no gain; it makes the
+  study's 10 % slower restart the outcome there). Cost if wrong: an off-road plan adopted
+  elsewhere (none seen).
+- The ECU cap is evidence of the size, not a design (fixed, tuned to ice); one draw a budget
+  (4 replicates): the 6 m roads' 22 against 14 is far past the spread, the overall +1.0 is not.
+Needs a ruling (user): (1) the car: regen limited on low friction in sim_vehicle_ecu (by its
+estimate, or ABS on the motor; and the drift spec's `abs_enabled`), `axle.brakes` following
+(roadmap 055's repository; Isaac's car runs the same ECU); or (2) the study: ice start speeds
+from the car's own braking (changes every ice comparison since M4); or (3) accept 6 m ice at
+these speeds as beyond this car.
+Left: ice re-measured after (1) or (2), and the 15 m R 9 / R 15 x 180 the crude cap lost; the
+hairpin's windows from the car at its rear peak (177-1549 iterations even started slower).

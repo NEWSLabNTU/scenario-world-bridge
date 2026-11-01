@@ -10,7 +10,8 @@ The code lives in autoware-drift (`src/planning/race_planner`).
 
 **Status**: in progress, started 2026-10-31 (user: "starter phases"). M1 done; DP0 passed for
 S2's classes (user, 2026-11-01); M2 done (S2 built through M3's gate; E2, a first E3); M3 run
-(R3 met on the plant, R6 unmeasured; DP2: tune, then adopt).
+(R3 met on the plant; DP2 confirmed by the user: tune, then adopt); M3 closed (timed E3: R6 met
+at 0.1 s, missed at 0.5 s; S2 not adopted yet); M4 done (E4; DP3: no change).
 
 **Source**: user, 2026-10-31: "We pursue for laps with shortest time. Later, we may request for
 strong performance like D1 GP ... The D1 would require drift on every turn and the car has to
@@ -259,3 +260,57 @@ or learned policy; drifting on ice.
   - Left: timed E3 (R6, adoption p99); B's iteration budget; lex gate on a finishing flat corner
     (mud vs 0c61d28, for issue 009's owner); packed snow unpriced; course prices for Tsukuba and the
     zone chain.
+- 2026-11-01: **DP2 confirmed by the user**: tune, then adopt. Keep the live gate with course
+  prices; adopt S2 once a timed E3 on an idle host shows L1 p95 <= 0.9 s; else give the forced
+  drift (slot B) its own iteration budget.
+- 2026-11-02: **M3 closed, M4 done** (autoware-drift 1ea727f, 8ecd218 on main; write-ups `docs/drift-style-m3.md`
+  section 7 and `docs/drift-style-m4.md`; results under `play_log/race_planner/style/m3t/` and
+  `style/m4/`). S1 bit for bit on autoware-drift 82f0b69: Haruna `9524862c`/`9160b94d` 76.28 s,
+  Tsukuba `d7ca9f95`/`82bd3c28` 74.33 s, no record and `fastest`.
+  - **Timed E3** (the clock in; three draws a run, one run at a time, each started at 1-minute load
+    < 6 on the six idlest physical cores, and dropped if the load ended > 8 or > 10 % of its
+    re-plans ran slower than 8.5 ms an IPOPT iteration; two dropped and run again):
+
+    | course | arm | vs S1 s, mean | L1 p95 s | L1 p99 s | adoption p99 s | plant drift m |
+    |---|---|---|---|---|---|---|
+    | Haruna | S1 (76.44 s) | | 0.610 | 0.929 | 1.000 | 0 |
+    | | S2 0.1 s | +0.29 (one draw of 3 over) | 0.756 | 0.914 | 1.000 | 22-64 |
+    | | S2 0.5 s | +0.15 | **0.914** | 1.003 | 1.003 | 9-42 |
+    | | S2 0.5 s, B capped at 110 iterations | +0.30 | 0.793 | 0.914 | 1.000 | 8-58 |
+    | asphalt R 25 x 90 | S1 / S2 0.2 s / capped | -0.06 / -0.08 | 0.615 / **0.916** / 0.916 | | 1.000 | 0 |
+    | dirt R 25 x 90 | S1 / S2 0.1 s / capped | -0.18 / -0.21 | **1.003** / 1.002 / 1.003 | | 1.005 | 0 |
+
+    The tail is any start reaching its budget (0.9 s a seed, 1.0 s for G) plus 10-20 ms of
+    messaging: B and D on Haruna at 0.5 s, D on asphalt, G alone on dirt, **S1 included**
+    (1.00 s). Adoption is never more than 5 ms late: a cut solve costs plan quality, not latency.
+  - **B's own iteration budget** built (`MultiStart(b_max_iter=)`, `--b-iter`; S2 only, S1 never
+    builds B): a B iteration costs 7 ms (floor rows) against G's 4-5.5. Capped at 110 it meets R6 on
+    Haruna (0.79 s) by failing B: cut 45 of 138 solves (10 of 96 uncapped), adopted 5 times against
+    8, never on the asphalt corner; no effect on the corners. **Not the default.**
+  - **Leftovers**: course prices for Tsukuba (S2 0.1 s 0.56 s faster than S1, 0 m past the car's
+    peak; 0.5 s +0.30 s) and the zone chain (S1 and S2 leave the road in every draw, s 820-1076);
+    packed snow priced (a corner priced from two of three approach positions,
+    `CoursePrices.MIN_PRICED`; S2 0.42 s faster, 22 m of drift against 20); the lex gate on mud
+    (S1 finishes again after sim_vehicle_ecu 760cd78 and issue 012): it enters and debits the
+    corner and drives S1's lap to the last digit (S1 already drifts there).
+  - **DP2 ruling** (builder's, with the numbers): **S2 not adopted yet.** R6 is met at 0.1 s and
+    missed at 0.5 s; B's cap meets it only by removing B's plans. R6 as written is a limit of the
+    budgets, not of S2 (S1 misses it on dirt). Next, for the user: seed and G budgets that end
+    inside 0.9 s with the messaging (e.g. 0.85 s; changes S1's timed runs, not its digests), or B
+    warm started from its last plan. S2 stays selectable by its record.
+  - **E4** (sim.Plant, ECU sim_vehicle_ecu 760cd78, RP_DET x3; mud and gravel R 15 x 180 hairpins,
+    D forced and S2 forced, ECU profiles over the drift car's spec): the drift car's spec already
+    has ABS, TC and ESC off; its regen slip control never acted in a planned slide (0 events; off,
+    the same to the last digit). Over it: TC cuts the motor 1.5 s of a 2.5 s gravel slide (drift
+    26 -> 7 m, +0.6 s; nothing on mud); ESC brakes against every slide (mud 25 -> 0 m, +3.4 s;
+    gravel 26 -> 15 m, +4.9 s); ABS + TC + ESC (the Model 3's set) no slide, gravel off road 1 of
+    3. Harness: `--ecu`, `--ecu-obs`, `--force-drift` (`sim.Plant(ecu_overrides=)`).
+  - **DP3** (builder's ruling): **no change.** The spec is the race profile; a race profile in
+    sim_vehicle_ecu would duplicate its switches, and "ESC off in S3 zones" switches off what is not
+    on. Rule: a drift style needs the car's TC and ESC off (not enforced: the planner does not see
+    the ECU). sim_vehicle_ecu unchanged, no pin moved.
+  - Video-ready (`--traj`, RP_DET, reproduce E4 bit for bit): `play_log/race_planner/style/m4/video/`
+    gravel hairpin D stock / tc / esc (24 / 4.5 / 14.5 m of drift), mud hairpin D stock / esc
+    (25 / 0 m).
+  - Left: R6's budgets (user); B warm start; a flat corner where S1 refuses a drift, for the lex
+    gate; the zone chain's off-road (061); M5 (S3 corners) next.

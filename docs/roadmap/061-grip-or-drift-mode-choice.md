@@ -787,3 +787,57 @@ alone as ABS; neither test until the wheels have been out of a drive slip 0.1 s
 Ruling: car-side (the car cut and held regen on an axle that had not lost its grip; the
 planner's no-hold-on-mud model was right). Left: in a deep mud drift the grip found is the
 friction circle's remainder (0.14-0.17), held for the drive as the road's (outcomes unchanged).
+
+**Issue 012 (fixed, 2026-11-01; the planner).** Root cause, traced every tick on main 1f0725e and
+the car at 760cd78 (`RP_DET`): issue 007's loosened line (0.2 m / mu) on a road whose tyre keeps
+its force sliding (wet mud, loose snow: sliding 1.0) lets the car drift from the plan until the
+edge rows take over and force the rotation at the edge (`mud_wet:15:180:6`: 1.0-1.1 m outside the
+plan from the turn-in, at its 6 m road's edge by s 72, L2 cannot countersteer, the slide 23 to
+55 deg; the chain's mud hairpin: the car under-rotates and crosses its 8 m road); the 0.2 m
+line drives the front past its peak in a tight mud hairpin (`mud_wet:9:180:15` lost in every arm
+with the loosening off: 007's loop on mud). Not M4f's mechanism there; the chain's packed-snow
+hairpin is M4f's (the plan steers 41-43 deg, its front at 7-11 peaks; the line weight there
+unchanged), and it and the chain's loose-snow R 9 x 90 finish alone at 8 m in every draw. Fix,
+autoware-drift `96d781b`: `tracker.LINE_SLIDING` (0.8, 1.2), the share of 007's loosening kept
+from 1 at sliding 0.8 (packed snow, ice: to the bit) to 0.5 at 1.0 (swept 0 / 0.25 / 0.5 /
+0.67 / 1 on mud's and loose snow's 24 corners: only 0.5 finished all). Wet mud 36 / 12 / 12
+(main 33 / 11 / 11), loose snow and gravel 36 / 12 / 12 as main, times +1.4 % / -0.2 to -2.0 % /
+0 to +0.2 % (medians within 0.4 %); Haruna / Tsukuba digests equal; the chain's zones 1-3 stop 0
+of 11 runs reaching them (main 8 of 11). Planner suite 206 passed. Write-up
+`docs/issues/012-line-weight-costs-the-chain-and-a-mud-hairpin.md`; results
+`play_log/race_planner/mode_choice/i012/` (`q/` the fix, `base/` main, `trace/`). New: issue 013,
+the chain's ice zone.
+
+**M4i (done, 2026-11-01; gate re-scored, not passed).** The gate on autoware-drift 96d781b
+(issue 012's fix) and the car at sim_vehicle_ecu 760cd78, repeatable runs only (`RP_DET` +
+`RP_ITERCAP` 150-200, `--jit` draws, Welch se; load 12-80 all session, so no wall clock: R6 rests
+on M4h's laps, the plans and plant being M4h's to the bit). Write-up autoware-drift
+`docs/mode-choice-m4i.md` (9619095); results `play_log/race_planner/mode_choice/m4i/` (`digest/`,
+`ice/`, `packed/`, `chain/`, `wrong/`, `traj_runs/`) and `i012/q/`. Results (single / sched /
+always):
+- R6 `RP_DET`: Haruna 76.28 / 76.28 (bit for bit, 1.00 solves) / 77.07; Tsukuba 74.33 / 74.33 /
+  73.98; digests M4h's;
+- ice (5 draws x 12 corners an arm): **11.60 / 11.80 / 12.00** (M4h 9.52 / 9.58 / 9.14), failed
+  re-plans 15.3 / 10.4 / 10.2 %; sched - single +0.20 (0.6 se); time +0.40 / +0.80 %;
+- wet mud 36 of 36 / 12 / 12; loose snow, gravel 36 / 12 / 12; packed snow 35 of 36 / 12 / 12;
+  times within 1.5 % but loose snow R 9 x 180 at 6 m (+16.8 %, two F adoptions);
+- solves a re-plan sched / always: ice 2.00 / 2.22, mud 2.16 / 2.24, gravel 1.07 / 2.24, chain
+  2.72 / 3.26, Haruna 1.00 / 3.28;
+- the true-map chain **0 of 15**: zone 0 (asphalt declared uncertain) 4 (the multi-start arms'
+  d185 and d200 draws, on every code since 95b902e), ice 7 of the 11 runs reaching it (issue 013),
+  loose snow R 9 x 90 3 of 4, packed hairpin 1 of 1;
+- 10 % wrong maps, 8 seeds: 24 of 24 stop; at the wrong zone (the ice zone, seeds 1 and 6)
+  2 / 2 / 2; 16 of the 17 others reaching the ice zone stop there.
+Verdict: 061 does not close. The corner criteria are met with margin; the chain (robustness,
+first in the reframed gate) is not, and the wrong-map criterion cannot be judged. Blockers,
+ranked: (1) issue 013, the chain's ice zone entered braking from asphalt (the rear at 4.5-7.4
+peaks at the ice's edge, the car yaws, L2 steers 16-30 deg and lifts off the brake, 1-2 m/s
+fast; the ECU at f3f5dcf the same, at d68637a worse, a primed ECU the same; not root caused);
+(2) zone 0 on the multi-start arms, a drift plan on the uncertain zone's lowered friction over
+true asphalt (not filed); (3) the chain past the ice (loose snow R 9 x 90, the packed hairpin:
+both finish alone); (4) the wrong-map criterion, waiting on 1; (5) wall clock not re-measured.
+Rulings: no wall clock (load); mud, loose snow, gravel and the true-map chain from issue 012's
+final runs (same code; three draws repeated to the bit); 012's half share from a sweep (cost: a
+tuned constant; the principled form, the line scaled by the road's room and the tyre's
+fall-off in the horizon, untried).
+Left: issue 013; then the chain and the wrong maps again; wall clock when the host allows.

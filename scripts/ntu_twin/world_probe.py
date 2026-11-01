@@ -2,7 +2,7 @@
 
     ISAAC_ROOT=... src/swb_isaac_world/spikes/run_spike.sh fastrtps <log> \\
         $PWD/scripts/ntu_twin/world_probe.py <map/isaac/world.yaml> <out dir> [x,y,z,yaw_deg]
-    # prints one PROBE-RESULT json; writes cam_*.jpg and lidar.npy into <out dir>
+    # prints one PROBE-RESULT json; writes cam_*.jpg, sem_*.png and lidar.npy into <out dir>
 
 The world is referenced at /World/env, as swb_isaac_world does. The pose is in the Isaac world
 frame (map less map_origin), the ground height under the car; the camera sits 1.5 m above it
@@ -74,6 +74,14 @@ for p in Usd.PrimRange(env):
         c = UsdGeom.Mesh(p).GetFaceVertexCountsAttr().Get()
         tris += 0 if c is None else int(sum(n - 2 for n in c))
 out["meshes"], out["triangles"] = meshes, tris
+# worlds built before world_usd.py applied LabelsAPI carry the bare attribute, which the
+# semantic annotator does not read: apply the schema over them in this stage
+from pxr import UsdSemantics  # noqa: E402
+
+for p in Usd.PrimRange(env):
+    q = p.GetAttribute("semantics:labels:wikidata_qcode")
+    if q and q.Get() and not p.HasAPI(UsdSemantics.LabelsAPI, "wikidata_qcode"):
+        UsdSemantics.LabelsAPI.Apply(p, "wikidata_qcode")
 out["count_s"] = round(time.perf_counter() - t0, 1)
 
 x, y, gz, yaw = pose
@@ -85,6 +93,7 @@ cams = {
     "down": ((x + 15.0, y, gz + 60.0), (0.0, 0.0, yaw - 90.0)),
 }
 annots = {}
+sems = {}
 for name, (pos, rot) in cams.items():
     cam = UsdGeom.Camera.Define(stage, f"/World/cam_{name}")
     cam.CreateFocalLengthAttr(18.0)
@@ -96,6 +105,11 @@ for name, (pos, rot) in cams.items():
     a = rep.AnnotatorRegistry.get_annotator("rgb")
     a.attach([rp.path])
     annots[name] = a
+    # the labels world_usd.py writes (semantics:labels:wikidata_qcode)
+    sa = rep.AnnotatorRegistry.get_annotator(
+        "semantic_segmentation", init_params={"colorize": True, "semanticTypes": ["wikidata_qcode"]})
+    sa.attach([rp.path])
+    sems[name] = sa
 
 from isaacsim.sensors.experimental.rtx import Lidar as RtxLidar  # noqa: E402
 
@@ -140,6 +154,20 @@ for name, a in annots.items():
         out[f"cam_{name}_mean_rgb"] = [round(float(v), 1) for v in rgb.reshape(-1, 3).mean(0)]
     else:
         out[f"cam_{name}_mean_rgb"] = None
+
+for name, a in sems.items():
+    d = a.get_data()
+    img = np.asarray(d.get("data", []) if isinstance(d, dict) else d)
+    if img.ndim == 3 and img.size:
+        Image.fromarray(img[..., :3].astype(np.uint8)).save(os.path.join(out_dir, f"sem_{name}.png"))
+        # share of the image per label, from the colours idToLabels names
+        ids = d.get("info", {}).get("idToLabels", {})
+        flat = img[..., :4].reshape(-1, 4)
+        share = {}
+        for rgba, lab in ids.items():
+            col = np.array([int(v) for v in rgba.strip("()").split(",")])
+            share[str(lab.get("wikidata_qcode", lab))] = round(float((flat == col).all(1).mean()), 3)
+        out[f"sem_{name}"] = share
 
 if scans:
     c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))

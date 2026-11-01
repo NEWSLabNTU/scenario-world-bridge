@@ -4,7 +4,7 @@
 Run by Isaac's Python (it has `pxr`):
 
     $ISAAC_ROOT/venv/bin/python scripts/ntu_twin/world_usd.py MESH_DIR ORTHO_DIR MAP_DIR
-        [--clear-road GROUND_DIR [--clear-margin 2.5] [--trees TREES_DIR]]
+        [--clear-road GROUND_DIR [--clear-margin 2.5] [--trees TREES_DIR [--tree-assets TOWN_DIR]]]
 
 Writes `MAP_DIR/isaac/`: one `tiles/tile_<ix>_<iy>.usdc` per tile (its ground with the tile's
 2 cm orthophoto, its buildings and its other objects with their scan colours), a
@@ -26,6 +26,14 @@ triangles on a crown and over TREE_ABOVE, or within TRUNK_REACH of a trunk below
 become /Tile/Tree, labelled tree (Q10884), so they can be told apart and later replaced; and
 every tree found on a trunk gets an invisible cylinder collider from the ground to its crown's
 base, labelled the same. A trunk standing on a lane (--clear-road's raster) gets none.
+
+`--tree-assets TOWN_DIR` (a town of the CARLA asset export, its Props/ and Materials/; needs
+`--trees`): every tree gets one of TREE_ASSETS instead of the scan's /Tile/Tree mesh, an
+instanced reference under /Tile/TreeAssets scaled to its height and crown radius: a palm where
+the crown is high and narrow (PALM_BASE, PALM_RADIUS), otherwise the broadleaf whose radius to
+height is nearest. None stands on a lane. The scan's other pieces over TREE_ABOVE within
+ASSET_CLEAR of a crown go with the Tree mesh (they were the canopy's fringe). The assets, their MDL and textures are copied into
+`isaac/trees/`, so the world does not need the export at run time.
 
 `--clear-road GROUND_DIR` drops the other objects' triangles that stand on the road: within
 `--clear-margin` (CLEAR_MARGIN) of a lanelet (MAP_DIR/lanelet2_map.osm) and less than CLEAR_HEIGHT above the
@@ -54,7 +62,19 @@ CLEAR_HEIGHT = 2.5   # m above the ground
 TREE_ABOVE = 2.5     # m: the other objects' triangles on a crown and above this are the tree's
 TRUNK_REACH = 0.4    # m beyond a trunk's radius: its triangles are the tree's too
 TRUNK_RADIUS = (0.1, 0.6)  # m, the colliders' bounds
-QCODE = "semantics:labels:wikidata_qcode"
+TREE_ASSETS = ["SM_Acer_02", "SM_Sassafras_01", "SM_Sassafras_02", "SM_Japanese_Maple_03", "SM_Beech"]
+PALM_ASSET = "SM_CoconutPalm_02"
+PALM_BASE = 0.6      # crown base over height at least this, and
+PALM_RADIUS = 3.0    # crown radius at most this (m): a palm
+ASSET_SPREAD = (0.6, 1.6)  # an asset's horizontal scale within these times its vertical one
+ASSET_CLEAR = 2.0    # m beyond a tree's crown radius: with assets, the scan's pieces over TREE_ABOVE go too
+
+
+def set_label(prim, qcode):
+    """The SimReady label, under its schema (LabelsAPI) so Replicator's annotators see it too."""
+    from pxr import UsdSemantics
+
+    UsdSemantics.LabelsAPI.Apply(prim, "wikidata_qcode").CreateLabelsAttr().Set([qcode])
 LABELS = {"Ground": "Q34442", "Building": "Q41176", "Tree": "Q10884"}
 ROOT = "/NTU"
 
@@ -178,7 +198,7 @@ def _mesh(stage, path, V, F, uv=None, colours=None, label=None, material=None, c
         UsdPhysics.CollisionAPI.Apply(prim)
         UsdPhysics.MeshCollisionAPI.Apply(prim).CreateApproximationAttr("none")
     if label:
-        prim.CreateAttribute(QCODE, Sdf.ValueTypeNames.TokenArray).Set([label])
+        set_label(prim, label)
     if material is not None:
         UsdShade.MaterialBindingAPI.Apply(prim).Bind(material)
     return prim
@@ -258,12 +278,29 @@ class Trees:
         v = self.trunks[:, :2] + SHIFT[:2]
         return self.trunks[(np.floor(v[:, 0] / 50.0) == ix) & (np.floor(v[:, 1] / 50.0) == iy)]
 
-    def is_tree(self, P):
+    def all_in_tile(self, ix, iy):
+        """Every tree (trees.json's records, trunk or top) whose foot is in the tile."""
+        return [t for t in self.trees if np.floor((t["x"] + SHIFT[0]) / 50.0) == ix
+                and np.floor((t["y"] + SHIFT[1]) / 50.0) == iy]
+
+    def height(self, P):
+        """Map-frame points' height over the DTM."""
         m = self.meta
         v = P + SHIFT
         i = np.clip(((v[:, 0] - m["x0"]) / m["cell"]).astype(int), 0, m["width"] - 1)
         j = np.clip(((v[:, 1] - m["y0"]) / m["cell"]).astype(int), 0, m["height"] - 1)
-        h = v[:, 2] - np.asarray(self.dtm[j, i])
+        return v[:, 2] - np.asarray(self.dtm[j, i])
+
+    def in_canopy(self, P):
+        """Points over TREE_ABOVE within ASSET_CLEAR of a tree's crown: what an asset replaces."""
+        from scipy.spatial import cKDTree
+
+        xy = np.array([[t["x"], t["y"]] for t in self.trees]); r = np.array([t["radius"] for t in self.trees])
+        d, k = cKDTree(xy).query(P[:, :2])
+        return (d < r[k] + ASSET_CLEAR) & (self.height(P) > TREE_ABOVE)
+
+    def is_tree(self, P):
+        h = self.height(P)
         H, W = self.crowns.shape
         ci = ((P[:, 0] - self.origin[0]) / self.cell).astype(int)
         cj = ((P[:, 1] - self.origin[1]) / self.cell).astype(int)
@@ -282,7 +319,7 @@ class Trees:
 def trunk_colliders(stage, trunks):
     """An invisible cylinder per trunk, from the ground to its crown's base: the car hits it,
     the sensors see the scan's mesh."""
-    from pxr import Gf, Sdf, UsdGeom, UsdPhysics
+    from pxr import Gf, UsdGeom, UsdPhysics
 
     UsdGeom.Scope.Define(stage, "/Tile/Trunks")
     for k, (x, y, z, r, base) in enumerate(trunks):
@@ -295,11 +332,81 @@ def trunk_colliders(stage, trunks):
         cyl.AddTranslateOp().Set(Gf.Vec3d(*o.tolist()))
         cyl.CreateVisibilityAttr(UsdGeom.Tokens.invisible)
         UsdPhysics.CollisionAPI.Apply(cyl.GetPrim())
-        cyl.GetPrim().CreateAttribute(QCODE, Sdf.ValueTypeNames.TokenArray).Set([LABELS["Tree"]])
+        set_label(cyl.GetPrim(), LABELS["Tree"])
     return len(trunks)
 
 
-def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None):
+def _mdl_deps(path, seen):
+    """An MDL module's files: itself, the modules it uses (`using .::M import`) and its textures."""
+    if path in seen or not os.path.exists(path):
+        return
+    seen.add(path)
+    d = os.path.dirname(path)
+    text = open(path, errors="replace").read()
+    for m in re.findall(r"using \.::(\w+) import", text):
+        _mdl_deps(os.path.join(d, m + ".mdl"), seen)
+    for t in re.findall(r'texture_2d\("(\./[^"]+)"', text):
+        seen.add(os.path.normpath(os.path.join(d, t)))
+
+
+def copy_tree_assets(town_dir, out):
+    """Copy TREE_ASSETS and PALM_ASSET with their materials from a CARLA town export into `out`
+    (its layout kept); returns {name: (height, crown radius)} from their bounds."""
+    from pxr import Usd, UsdGeom, UsdUtils
+
+    sizes, files = {}, set()
+    for name in TREE_ASSETS + [PALM_ASSET]:
+        src = os.path.join(town_dir, "Props", name + ".usd")
+        layers, assets, _ = UsdUtils.ComputeAllDependencies(src)
+        files.update(layer.realPath for layer in layers)
+        for f in assets:
+            (_mdl_deps(f, files) if f.endswith(".mdl") else files.add(f))
+        st = Usd.Stage.Open(src)
+        b = UsdGeom.BBoxCache(Usd.TimeCode.Default(), ["default", "render"]).ComputeWorldBound(
+            st.GetPseudoRoot()).ComputeAlignedRange()
+        lo, hi = b.GetMin(), b.GetMax()
+        sizes[name] = (float(hi[2]), float(hi[0] - lo[0] + hi[1] - lo[1]) / 4)
+    town = os.path.realpath(town_dir)
+    for f in files:
+        rel = os.path.relpath(os.path.realpath(f), town)
+        os.makedirs(os.path.dirname(os.path.join(out, rel)), exist_ok=True)
+        shutil.copyfile(f, os.path.join(out, rel))
+    return sizes
+
+
+def pick_asset(t, sizes, k):
+    """The asset for tree record `t` (the k-th of its tile): a palm, or the broadleaf whose radius
+    to height is nearest, the nearer two alternating."""
+    if t["crown_base"] >= PALM_BASE * t["height"] and t["radius"] <= PALM_RADIUS:
+        return PALM_ASSET
+    ratio = t["radius"] / t["height"]
+    near = sorted(TREE_ASSETS, key=lambda n: abs(sizes[n][1] / sizes[n][0] - ratio))
+    return near[k % 2]
+
+
+def tree_assets(stage, records, sizes, rel_dir):
+    """One instanced reference per tree under /Tile/TreeAssets, scaled to its height and crown."""
+    from pxr import Gf, UsdGeom
+
+    UsdGeom.Scope.Define(stage, "/Tile/TreeAssets")
+    for k, t in enumerate(records):
+        name = pick_asset(t, sizes, k)
+        h, r = sizes[name]
+        sz = t["height"] / h
+        sxy = float(np.clip(t["radius"] / r, ASSET_SPREAD[0] * sz, ASSET_SPREAD[1] * sz))
+        x = UsdGeom.Xform.Define(stage, f"/Tile/TreeAssets/a{k}")
+        o = np.array([t["x"], t["y"], t["z"]]) - np.asarray(MAP_ORIGIN)
+        x.AddTranslateOp().Set(Gf.Vec3d(*o.tolist()))
+        x.AddRotateZOp().Set((k * 137.5) % 360.0)
+        x.AddScaleOp().Set(Gf.Vec3f(sxy, sxy, sz))
+        p = x.GetPrim()
+        p.GetReferences().AddReference(f"{rel_dir}/Props/{name}.usd")
+        p.SetInstanceable(True)
+        set_label(p, LABELS["Tree"])
+    return len(records)
+
+
+def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None, assets=None):
     from pxr import Usd, UsdGeom
 
     stage = Usd.Stage.CreateNew(path)
@@ -325,10 +432,13 @@ def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None):
             F = F[~clear.on_road(V[F].mean(axis=1))]
         parts = [(name.capitalize(), F, label)]
         if trees is not None and name == "other" and len(F):
-            t = trees.is_tree(V[F].mean(axis=1))
+            c = V[F].mean(axis=1)
+            t = trees.is_tree(c)
+            if assets is not None:
+                t |= trees.in_canopy(c)
             parts = [("Tree", F[t], LABELS["Tree"]), ("Other", F[~t], None)]
         for part, Fp, lab in parts:
-            if not len(Fp):
+            if not len(Fp) or (part == "Tree" and assets is not None):
                 continue
             vc = vc or _vertex_colour_material(stage, looks + "/ScanColour")
             _mesh(stage, f"/Tile/{part}", V, Fp, colours=C, label=lab, material=vc,
@@ -341,6 +451,13 @@ def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None):
             trunks = trunks[~clear.on_road(trunks[:, :3] + [0.0, 0.0, 1.0])]
         if len(trunks):
             trunk_colliders(stage, trunks)
+    if assets is not None:
+        recs = trees.all_in_tile(ix, iy)
+        if clear is not None and recs:
+            foot = np.array([[t["x"], t["y"], t["z"] + 1.0] for t in recs])
+            recs = [t for t, lane in zip(recs, clear.on_road(foot)) if not lane]
+        if recs:
+            tree_assets(stage, recs, assets, "../trees")
     stage.GetRootLayer().Save()
     return tris
 
@@ -356,7 +473,11 @@ def main(argv=None):
                     help="m around the lanelets that --clear-road clears")
     ap.add_argument("--trees", default="", metavar="TREES_DIR",
                     help="trees.py's output: a Tree layer and trunk colliders (needs --clear-road's GROUND_DIR)")
+    ap.add_argument("--tree-assets", default="", metavar="TOWN_DIR",
+                    help="a CARLA asset export's town: its tree assets in place of the Tree layer (needs --trees)")
     a = ap.parse_args(argv)
+    if a.tree_assets and not a.trees:
+        ap.error("--tree-assets needs --trees")
     clear = RoadClear(os.path.join(a.map_dir, "lanelet2_map.osm"), a.clear_road, a.clear_margin) \
         if a.clear_road else None
     trees = Trees(a.trees, a.clear_road) if a.trees else None
@@ -365,6 +486,7 @@ def main(argv=None):
     out = os.path.join(a.map_dir, "isaac")
     os.makedirs(os.path.join(out, "tiles"), exist_ok=True)
     os.makedirs(os.path.join(out, "ortho"), exist_ok=True)
+    assets = copy_tree_assets(a.tree_assets, os.path.join(out, "trees")) if a.tree_assets else None
     tiles = sorted({tuple(map(int, re.findall(r"-?\d+", os.path.basename(p))))
                     for p in glob.glob(os.path.join(a.mesh_dir, "ground_*.npz"))})
     stage = Usd.Stage.CreateNew(os.path.join(out, "world.usdc"))
@@ -378,7 +500,7 @@ def main(argv=None):
         src = os.path.join(a.ortho_dir, f"rgb_{ix}_{iy}.jpg")
         shutil.copyfile(src, os.path.join(out, "ortho", f"rgb_{ix}_{iy}.jpg"))
         tp = os.path.join(out, "tiles", f"tile_{ix}_{iy}.usdc")
-        n = tile_stage(tp, ix, iy, a.mesh_dir, f"../ortho/rgb_{ix}_{iy}.jpg", clear, trees)
+        n = tile_stage(tp, ix, iy, a.mesh_dir, f"../ortho/rgb_{ix}_{iy}.jpg", clear, trees, assets)
         total += n
         prim = stage.DefinePrim(f"{ROOT}/Tiles/t_{ix}_{iy}".replace("-", "m"), "Xform")
         prim.GetPayloads().AddPayload(Sdf.Payload(f"./tiles/tile_{ix}_{iy}.usdc"))

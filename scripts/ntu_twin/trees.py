@@ -58,9 +58,12 @@ CELL = 0.5             # m, the canopy grid
 CROWN_MIN = 2.5        # m: vegetation above this is crown
 TRUNK_CELL = 0.25      # m
 TRUNK_LO, TRUNK_HI = 0.8, 2.5  # m over the DTM
-TRUNK_AREA = (0.05, 1.0)       # m2 of a trunk's blob
+TRUNK_AREA = (0.05, 4.0)       # m2 of a trunk's blob
+TRUNK_THICK = 1.0      # m2: a larger blob (a thick trunk, or two merged) must also be round and bare:
+TRUNK_ELONG = 2.0      #   its long axis at most this many times its short one (a wall's end is long),
 TRUNK_SPAN = 1.2       # m of height a trunk's blob spans
 TRUNK_HITS = 3         # points in a trunk cell
+TRUNK_VEG = 0.5        #   at most this share of it scattering (bark is a surface, a bush is not)
 CANOPY_MIN = 2.5       # m
 CANOPY_VEG = 0.5       # share of a canopy cell's points that are vegetation
 TRUNK_REACH = 2.0      # m from a trunk to its canopy
@@ -149,15 +152,22 @@ def _tile(args):
         occ = np.zeros((m, m), np.int32); np.add.at(occ, (tj, ti), 1)
         lo = np.full((m, m), np.inf); hi = np.zeros((m, m))
         np.minimum.at(lo, (tj, ti), H[band]); np.maximum.at(hi, (tj, ti), H[band])
-        lab, _ = ndimage.label(occ >= TRUNK_HITS)
+        lab, nlab = ndimage.label(occ >= TRUNK_HITS)
+        bl = lab[tj, ti]
+        vshare = (np.bincount(bl, veg[band], nlab + 1) / np.maximum(np.bincount(bl, minlength=nlab + 1), 1))
         found = []
         for k, sl in enumerate(ndimage.find_objects(lab), 1):
             blob = lab[sl] == k
             area = blob.sum() * TRUNK_CELL ** 2
-            if TRUNK_AREA[0] <= area <= TRUNK_AREA[1] and hi[sl][blob].max() - lo[sl][blob].min() > TRUNK_SPAN:
-                j, i = ndimage.center_of_mass(blob)
-                found.append((x0 + (sl[1].start + i + .5) * TRUNK_CELL,
-                              y0 + (sl[0].start + j + .5) * TRUNK_CELL, np.sqrt(area / np.pi)))
+            if not (TRUNK_AREA[0] <= area <= TRUNK_AREA[1] and hi[sl][blob].max() - lo[sl][blob].min() > TRUNK_SPAN):
+                continue
+            if area > TRUNK_THICK:
+                ev = np.linalg.eigvalsh(np.cov(np.argwhere(blob).T.astype(float)) + 0.25 * np.eye(2))
+                if vshare[k] > TRUNK_VEG or np.sqrt(ev[1] / ev[0]) > TRUNK_ELONG:
+                    continue
+            j, i = ndimage.center_of_mass(blob)
+            found.append((x0 + (sl[1].start + i + .5) * TRUNK_CELL,
+                          y0 + (sl[0].start + j + .5) * TRUNK_CELL, np.sqrt(area / np.pi)))
         trunks = np.array(found).reshape(-1, 3)
     np.savez_compressed(os.path.join(out, f"tile_{ix}_{iy}.npz"), chm=chm, base=base,
                         nveg=nveg, nall=nall, trunks=trunks)

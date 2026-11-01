@@ -9,7 +9,8 @@ their real-world projection, and a one-page first run. Writing the comparison up
 gaps of our own (steps 7-9): CARLA refuses a scenario's road zones, CARLA 0.10 works only on
 branches, and we need our SSv2 fork even for a plain run.
 
-**Status**: phase doc, 2026-11-01; steps 7-9 added the same day. No code yet.
+**Status**: phase doc, 2026-11-01; steps 7-9 added the same day. Step 2 in code
+(swb_carla_world 0f77cd6, 2026-11-02), its live acceptance not run yet.
 
 **Source**: user, 2026-11-01: "Document things we can learn ... as a phase doc."
 
@@ -42,19 +43,28 @@ tour's camera), [029](029-prebuilt-releases.md) (first-run time).
 
 The world server moves CARLA's spectator, since it is the only process that owns the world.
 
-- [ ] `spectator: follow | once | off` and `spectator_height` (m above the target, default
+- [x] `spectator: follow | once | off` and `spectator_height` (m above the target, default
       50) in `swb_carla_world.yaml`; default `off`, so a headless run does nothing new.
-- [ ] Target: the entity whose motion is the ego's; with no ego, the first spawned vehicle,
+- [x] Target: the entity whose motion is the ego's; with no ego, the first spawned vehicle,
       then the first entity. A despawned target moves the camera to the next.
-- [ ] `follow` places it top-down over the target after every step; `once` places it on the
+- [x] `follow` places it top-down over the target after every step; `once` places it on the
       first step after the target spawns.
-- [ ] Hand-over: before each placement, compare the spectator's pose with the one the world
+- [x] Hand-over: before each placement, compare the spectator's pose with the one the world
       server last set; a difference over 0.1 m or 1 deg means a person moved it, and the
       world server stops moving it until the next `LoadWorld`. Logged once.
 - [ ] Cost: one `get_transform` and one `set_transform` per step; recorded in the frame
       stats. Acceptance: `town01_ego_drive` with `follow`, the frame-time median unchanged
       within noise; grabbing the camera mid-run leaves it where it was put.
 - [ ] Isaac: the viewport camera, the same keys, later, in `swb_isaac_world`.
+
+Done in swb_carla_world 0f77cd6 (`spectator.rs`, 13 unit tests): the pure logic is a
+`Spectator` the world server feeds spawns, despawns and steps; the backend reads the
+spectator's transform and the target's from the post-tick snapshot (no RPC) and sets it (one
+RPC). Rotations are compared as rotations, not angle by angle, because straight down is UE's
+gimbal lock and CARLA may read the yaw back as roll. The cost goes into the step's processing
+time in the bridge's frame stats, and each world's placement count and mean/max cost are
+logged at the next `LoadWorld`. Open: the acceptance run on CARLA (`town01_ego_drive`,
+`follow`, the camera grabbed mid-run).
 
 ### 3. Walker feet, per blueprint
 

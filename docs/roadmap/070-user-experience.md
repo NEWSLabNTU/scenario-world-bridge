@@ -192,8 +192,13 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 | 5 | Quick start, terminal 3 (`ros2 launch swb_launch ego_av.launch.xml`) | Died 13 s in: `Failed to convert '<?xml version="1.0" ?> ...' using yaml rules`. Humble's `ros2 launch` tries a parameter value as YAML first, and the generated sensor kit's comments (`<!-- top: lidar, ... -->`) broke the parse. No ego, so the scenario ended `errors="1"` after 17 min. Our runs use play_launch, which never tries YAML, so nothing of ours had seen it. | **Fixed**: autoware_sim_vehicle e77c39e (comments without `: `, a test refusing them). Under plain `ros2 launch` the ego stack then starts all 81 processes. The same commit stops the generator copying c037376's `CATKIN_IGNORE` into each car. |
 | 6 | Quick start, terminals 1-2 | CARLA served RPC and the bridge logged `ZMQ server ready` as the README says. | -- |
 
-Still to log: the quick start's four terminals against a live CARLA (under the gate), and
-the Isaac path.
+| 7 | Quick start, "wait for `ego: agent up`" | The relay prints it when the agent registers, while Autoware is still starting: a scenario started then got no answer to `change_to_stop` 30 times (`errors="1"`). Waiting for IDLE is wrong too (IDLE needs the ego spawned, which the scenario does). The cue that works is ours, `scripts/ego_stack_health.py` (ADAPI up, planning publishing), which colcon does not install. | Install the check as `ros2 run swb_launch ego_ready`, name it in the README; `run.launch.xml` waits on it (C). |
+| 8 | Quick start, terminal 3 without `CYCLONEDDS_URI` | Autoware never got the lidar (`No InputSource`, `only 0 fresh scan(s) in 10 s`), so align failed and no route came. The README calls the localhost config optional ("only if discovery fails"); on this host it is required, and nothing says so when it is missing. | The vehicle-side launch sets the DDS config itself (an argument, default the workspace's localhost file) (C). |
+| 9 | Quick start, terminal 3 under plain `ros2 launch`, 7 and 8 applied | Localization aligned, but Autoware stayed in PLANNING: `mission_planner: waiting odometry`, control commands in 10-15 s gaps. The same terminal under `play_launch launch`, nothing else changed, reached READY and DRIVING. | Find what `ros2 launch` starts differently (step 2, next). |
+| 10 | Quick start under play_launch, 7 and 8 applied | Drove, but `failures="1"` at the 180 s timeout: Autoware's control commands still came and went (gaps of 2-4 s) and the ego did not arrive. Our tested path also sources the Autoware overlay (the NDT step fix), the TensorRT 10.8 runtime and the GPU NDT, none of which the README mentions. | A/B against the tested path's extras, one at a time (step 2, next). |
+
+The README path is not the tested path: 7-10 are the gap. Seven live runs on 2026-11-02,
+each under the quiet-host gate; logs in `/var/tmp/aeon/070/`.
 
 ## Acceptance
 

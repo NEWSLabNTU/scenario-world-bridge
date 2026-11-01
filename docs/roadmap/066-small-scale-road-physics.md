@@ -529,6 +529,36 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   Left for R4: the cost (separate the tiles' share from the bodies'; fewer or coarser tiles
   under the car only; GPU contact), the rig's real underbody, and a quiet host to measure on.
 
+  **The cost, taken apart** (2026-11-02; 800 m of the same corridor, frame p50 ms at 40 / 80
+  km/h, host load 40-75):
+
+  | variant | 40 | 80 |
+  |---|---|---|
+  | no rocks, no tiles | 6.85 | 7.30 |
+  | collision tiles only | 8.24 | 8.58 |
+  | rocks, every one static (merged per tile) | 9.41 | (stuck at 36 m) |
+  | rocks, 10 cm tiles, 48 m (the third slice) | 11.87 | 20.26 |
+  | the same with 20 cm tiles | 12.78 | 20.60 |
+  | the same with 24 m of tiles | 11.29 | 17.02 |
+  | awake only in the car's path (below), 32 m | 11.65 | 18.13 |
+  | and the rocks from 32 prototype shapes | 12.23 | 17.14 |
+
+  - **What costs what, at 40 km/h** (about 5 ms over the road without rocks):
+    - the collision tiles, 1.4 ms, whatever their spacing;
+    - the static rocks and the contact's reading of them, 2.1 ms;
+    - the loose rocks' own prims, 2.3 ms.
+  - **It is not the awake bodies.** Waking a rock only in a car's path (within 1.5 m of its
+    line, 0.6 s of travel ahead and at least 8 m) took the awake count from about 31 to 7-9.
+    The frame hardly moved.
+  - **It is not cooking.** 32 prototype shapes, each prim a prototype's points with its size
+    as the prim's scale and its heading as its orientation, saved about 1.4 ms of the
+    80 km/h step.
+  - **What is left** grows with speed: the prims made a second, each a USD change the stage
+    takes in. The next lever is a pool of reused rock prims rather than new ones.
+  - **Where it stands:** about 5 ms over the road without rocks at 40 km/h, at the budget,
+    and about 10 ms at 80, over it. The host was loaded throughout: the contact's own cost
+    wandered from 2.1 to 4.2 ms with the rocks' reads.
+
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling
   radius, rim-strike flag. Feeds the corner (R2, R6) and question 1's sampling. Measured: cleat

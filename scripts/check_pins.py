@@ -44,6 +44,14 @@ def main():
         component = ROOT / path
         if not (component / ".git").exists():
             continue
+        known = subprocess.run(["git", "-C", str(component), "cat-file", "-e", f"{commit}^{{commit}}"],
+                               capture_output=True).returncode == 0
+        if not known:
+            # Without the commit its deps/ pins cannot be read; skipping it silently once
+            # reported "0 checked, 0 mismatches" over three real mismatches (roadmap 070).
+            bad.append(f"{path}: pinned commit {commit[:10]} is not in its checkout: "
+                       f"`git -C {path} fetch origin`, then run this again")
+            continue
         for dep_url, (dep_path, dep_commit) in submodules(component, commit).items():
             if not dep_path.startswith("deps/"):
                 continue

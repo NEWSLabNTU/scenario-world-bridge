@@ -655,6 +655,24 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   `scan_ground_filter` on the fixtures (false obstacles over washboard and ruts, rocks passed
   as ground); NDT on rough tiles. Measured: false-stop rate, rock and pothole detection range,
   NDT iterations.
+- [ ] **R8. The road's section and its edges** (planned 2026-11-02, with
+  [069](069-road-tilt-load-and-edges.md); 1-1.5 weeks after 069 E0 and R5). Entering and
+  leaving the road as a real car meets it, from the one record 069 E0 writes
+  (`course/section.npz`: bank, crown, vertical curvature, per side the shoulder, the edge lip's
+  height and face angle, foreslope, ditch, run-off, barrier, hazard class).
+  - `geometry.ribbon` tilts each section by the record's bank and crown (today it is level
+    across); `road_detail` reads its section per station and side from the record instead of
+    one constant `Section`; the section gains the lip between carriageway and shoulder.
+  - The guardrails come from the record's `barrier` rows, so a car that leaves the road meets
+    what the planner was told was there.
+  - A lateral edge force in R5's corner-force layer only if the lip test shows PhysX's contact
+    and the tandem cam do not scrub at a lip (inferred, unmeasured).
+  - Measured: parity, Isaac's road height and cross slope against the record within 5 mm and
+    0.1 deg; forced excursions per class in Isaac (run-off deceleration within 0.3-0.9 g,
+    1V:3H ditch entries ending stuck, as R3's 80 km/h run did at 794 m); lip re-entry at 5, 10
+    and 15 cm with 90, 45 and 30 deg faces: scrub, then a yaw spike above the critical heights
+    (Zimmer and Ivey, TTI 1982: a vertical 11 cm edge unsafe at 35 mph). Survey:
+    `reports/Road tilt load and edge transitions.md`.
 
 ## Acceptance
 

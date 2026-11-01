@@ -161,7 +161,7 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
 ## Steps
 
 1. [ ] **Docs.** This doc; 029 marked folded in; 068 step 6 pointed here; the index.
-2. [ ] **Friction log.** A fresh clone on this host in a clean shell (no `.env`, no
+2. [~] **Friction log.** Build half done, below. A fresh clone on this host in a clean shell (no `.env`, no
    `just`), following only the README. Every stumble written down with its fix owner.
    This sets C's list.
 3. [ ] **A, spike.** Two per-version world-server packages in one colcon build; the
@@ -176,6 +176,21 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
    guard and `install-deps.sh`, `swb_setup`, CI dry-run on a pre-release tag.
 8. [ ] **D, docs.** The two guides, the README's entry point moved to them.
 9. [ ] **Acceptance.**
+
+### Friction log (step 2, 2026-11-02)
+
+A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no `.env`, no
+`just`), following only the README's Setup, on newslab-server139.
+
+| # | Where | What happened | Fix |
+|---|---|---|---|
+| 1 | `rosdep install --from-paths src` | Aborted: `Package name "@CAR@_launch" does not follow naming conventions` (autoware_sim_vehicle's templates). rosdep's crawl honours `CATKIN_IGNORE` only, so it also walked every component's `deps/` copy. Every user's README setup failed here. | **Fixed**: `CATKIN_IGNORE` beside each `COLCON_IGNORE` in acb 776f8d6, aib 0f83aff, autoware_sim_vehicle c037376, swb_carla_world 8417221, swb_isaac_world ef7e6dc. rosdep then lists one missing key, `python3-pygame` (as the README says). |
+| 2 | `colcon build` (README's flags) | **Passed**: 66 packages in 7 min 37 s (cargo registry and carla-sys prebuilt already cached on this host; a first build downloads them). 20 SSv2 packages print compiler warnings only. | -- |
+| 3 | `colcon build` from the root | Also builds `third_party/cuda_ndt_matcher`, which needs CUDA. It built here; on a host without CUDA it is unchecked. | Check on a CUDA-less host; if it fails, `COLCON_IGNORE` it and keep `just build-cuda-ndt`. |
+| 4 | `ros2 launch swb_launch carla_simulation.launch.xml --show-args` | Works. Several arguments say `no description given`. | Describe them (C). |
+
+Still to log: the quick start's four terminals against a live CARLA (under the gate), and
+the Isaac path.
 
 ## Acceptance
 

@@ -123,12 +123,48 @@ is a scenario's per-zone properties.
 
 ### 9. A plain run on upstream SSv2
 
-- [ ] Sort the fork's 26 commits: needed by every run (the time base, bounded waits), needed by
+- [x] Sort the fork's 26 commits: needed by every run (the time base, bounded waits), needed by
       a feature (agents, autopilot, environment actions, unmanaged ego), or fixes of general use.
+      *Done 2026-11-01, below ("The fork, sorted").*
 - [ ] Find the smallest set a scenario without an ego needs, and what the bridge does with an
       upstream SSv2 (fields it lacks, e.g. `simulation_time_ns`): degrade with a warning where
       the run stays correct, refuse with the reason where it would not.
 - [ ] The general fixes as upstream pull requests -- each one confirmed with the user first.
+
+#### The fork, sorted (2026-11-01)
+
+Branch `managed-ego-unforked` at 355575c1b, merge base 3370c817e (2026-07-17, tag 25.0.22).
+Upstream `master` has moved 58 commits since (d5f674cad, 2026-10-27): lane-change and
+yielding fixes, a map package, `awf/universe/20250130` accepted by every launch file. None of
+ours has landed there.
+
+| group | commits | what csb loses on upstream |
+|---|---|---|
+| **Time base** | 357b3be15 simulation_time in replies; bd6197f42 `clock_source`; f0e480452 `simulation_time_ns` int64; a65f563f5 `/clock` continues across scenarios | SSv2 runs on its own clock; harmless with no ego (the scenario domain only), wrong with one (Autoware's time is the simulator's, 015) |
+| **Failure bounds** | b0f1a75f3 bounded simulator wait; b87e83ae9 end on a failed frame; 7d5c92c59 waits bounded to what they cover | a dead bridge or CARLA hangs SSv2 instead of failing it (016 gaps 8, 9) |
+| **Unmanaged ego, relay** | 4bb48c980, a04fcbce0, 59738aec4, 9ca1e7cdb, 463c02946 (`managed_ego`, inert FieldOperatorApplication); 2cddfac4d signals to Autoware; 7908d82d0 wait for localization; 7bfe6a159 reused Autoware left in STOP; 9a0e03cc1, 6e14cbb1f Autoware's time base; efe7f87f8, e27f65a9e concealer waits and retries | any scenario with an ego |
+| **Features** | 4657051be `simulator_autopilot`; d990ab920 `agent` controller; a337a6064 vehicle subtype; 42f3815a9 `RoadCondition`; 355575c1b `Weather`, `TimeOfDay` | the scenarios that use them; an upstream SSv2 never sends the environment, and sends no subtype |
+| **General tooling** | ac4c9e983 `$(env NAME)` and no rewrite of the user's file; a0f8f3f65 the preprocessor's refusal reason | nothing at run time |
+
+Smallest set for a scenario without an ego: none is strictly needed. On upstream the protocol
+stays compatible both ways (proto3: SSv2 ignores the reply fields it lacks, never sends the
+requests it lacks), so such a scenario should run, on SSv2's own clock and without the failure
+bounds. Not yet checked: that upstream's `scenario_test_runner` accepts the `clock_source` and
+`managed_ego` arguments `swb_launch/launch/scenario.launch.xml` passes it (an unknown included
+argument), and what the bridge does with subtype 0. Both need an upstream SSv2 build and one
+NPC-only run.
+
+Upstream candidates, in the order they stand alone (each PR only on the user's word):
+1. a0f8f3f65, ac4c9e983 (tooling, no behaviour change);
+2. b0f1a75f3, b87e83ae9, 7d5c92c59 (failure bounds: any external simulator gains);
+3. 42f3815a9, 355575c1b (OpenSCENARIO `EnvironmentAction` forwarded to the simulator);
+4. 357b3be15, f0e480452, bd6197f42, a65f563f5 (simulator as the time source; AWSIM-style
+   simulators gain);
+5. 4657051be (`simulator_autopilot`);
+6. the unmanaged-ego group last: it is the largest and the most csb-shaped.
+
+Before any of it: rebase the branch on upstream `master` (58 commits), rebuild, rerun the
+starter suite.
 
 ## Acceptance
 

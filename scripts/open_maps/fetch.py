@@ -14,10 +14,16 @@ Sources, each cached (a rerun skips what is there unless --force):
   CC-BY-SA). Needs MAPILLARY_TOKEN, a host setting in `.env`.
 - nlsc: NLSC's orthophoto (WMTS layer PHOTO2) at z19 as one mosaic with its bounds
   (`nlsc_PHOTO2_z19.png` and `.json`); NLSC's terms, attribution 國土測繪中心.
+- taipei: Taipei City's open data (data.taipei; 政府資料開放授權條款 v1): the road pavement
+  blocks curb to curb (`taipei_pavement.geojson`, 新工處), the curb parking spaces
+  (`taipei_parking.geojson`, 停管處), the 34 arterials' traffic signs (`taipei_signs.json`,
+  交工處), and the signals' timing plans and day schedules (`taipei_signals.json`, 交通局) with
+  each signal's 三合一報表 (`taipei_phases/<device>.pdf`: its phase diagrams, as of 2024-03).
+  Only for a box in Taipei City.
 
 The site file names the box: `bbox: [south, west, north, east]` (degrees, WGS84).
 
-Run with the tool venv (`data/maps/.venv`: duckdb, requests, pyyaml, pillow).
+Run with the tool venv (`data/maps/.venv`: duckdb, requests, pyyaml, pillow, pyproj, pyshp).
 """
 import argparse
 import json
@@ -177,11 +183,106 @@ def fetch_nlsc(bbox, out, layer="PHOTO2", z=19):
     return f"{layer} z{z}: {img.size[0]} x {img.size[1]} px, {(x1 - x0 + 1) * (y1 - y0 + 1)} tiles"
 
 
+TAIPEI = "https://data.taipei/api/dataset/{}/resource/{}/download"
+TAIPEI_SETS = {     # data.taipei (dataset, resource); each is on data.gov.tw too
+    "pavement": ("98b1b6a8-a092-423c-aab0-7dcb981d2a58", "1eb0cd43-3088-4d91-bbf3-f120469a955e"),   # 臺北市道路銑鋪區塊圖資, 新工處
+    "parking": ("5a911ea5-1694-4301-808e-e1780d971611", "7e2f32a0-9201-4666-a0ed-11034e6c2b66"),    # 臺北市路邊停車格位, 停管處
+    "signs": ("45fde530-6bd0-425b-98bc-de82c635f7ad", "c2cce902-c2bc-4301-baf5-52e538035d8b"),      # 臺北市標誌資料 (34 條主次要幹道), 交工處
+    "signals": ("0d639f73-cbcc-42c3-aa53-20efac199701", "9522d9e8-131e-4890-9379-f17c523238a0"),    # 臺北市路口號誌時制計畫: the devices
+}
+TAIPEI_PLANS = "https://tcgbusfs.blob.core.windows.net/dotapp/timing_plan.json"           # the plans
+TAIPEI_TABLE = "https://tcgbusfs.blob.core.windows.net/dotapp/timing_plan_table.json"     # the day's schedule
+TAIPEI_PHASES = "https://www.ttcx.dot.gov.taipei/cpt/api/TimingPlan/pdf/{}"               # 三合一報表
+
+
+def fetch_taipei(bbox, out, margin=0.001):
+    """Taipei City's open data for the box (政府資料開放授權條款 v1; attribution to each agency):
+    the road pavement blocks (curb to curb, per direction), the curb parking spaces, the arterials'
+    traffic signs, and the signals' timing plans with each one's 三合一報表 (its phase diagrams)."""
+    import csv
+    import io
+    import tempfile
+    import zipfile
+    import shapefile
+    from pyproj import Transformer
+    s, w, n, e = bbox
+    s, w, n, e = s - margin, w - margin, n + margin, e + margin
+    to97 = Transformer.from_crs(4326, 3826, always_xy=True)
+    to84 = Transformer.from_crs(3826, 4326, always_xy=True)
+    x0, y0 = to97.transform(w, s)
+    x1, y1 = to97.transform(e, n)
+
+    def get(url, timeout=600):
+        r = requests.get(url, headers=UA, timeout=timeout)
+        r.raise_for_status()
+        return r.content
+
+    def shapes(key, keep):
+        """The data set's shapes touching the box, as GeoJSON in WGS84 with the fields named."""
+        with tempfile.TemporaryDirectory() as tmp:
+            zipfile.ZipFile(io.BytesIO(get(TAIPEI.format(*TAIPEI_SETS[key])))).extractall(tmp)
+            shp = next(Path(tmp).rglob("*.shp"))
+            feats = []
+            with shapefile.Reader(str(shp), encoding="utf-8") as r:
+                for sr in r.iterShapeRecords(bbox=(x0, y0, x1, y1)):
+                    pts = sr.shape.points
+                    if not pts:
+                        continue
+                    parts = list(sr.shape.parts) + [len(pts)]
+                    rings = [[list(to84.transform(*p)) for p in pts[a:b]] for a, b in zip(parts, parts[1:])]
+                    rec = sr.record.as_dict()
+                    feats.append({"type": "Feature", "geometry": {"type": "Polygon", "coordinates": rings},
+                                  "properties": {k: rec.get(k) for k in keep}})
+        (out / f"taipei_{key}.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats},
+                                                              ensure_ascii=False))
+        return len(feats)
+
+    def rows(key):
+        return list(csv.DictReader(io.StringIO(get(TAIPEI.format(*TAIPEI_SETS[key])).decode("utf-8-sig"))))
+
+    def inside(lat, lon):
+        try:
+            return s <= float(lat) <= n and w <= float(lon) <= e
+        except ValueError:
+            return False
+    counts = {"pavement": shapes("pavement", ["ROAD", "STA_ROAD", "END_ROAD", "WIDTH", "MAP_AREA", "NFCL_CODE"]),
+              "parking": shapes("parking", ["pktype", "pktype1", "pkkind", "width", "len", "roadname", "pktime", "pknos"])}
+    signs = [r for r in rows("signs") if inside(r["緯度座標Y-WGS84"], r["經度座標X-WGS84"])]
+    (out / "taipei_signs.json").write_text(json.dumps(signs, ensure_ascii=False, indent=0))
+    counts["signs"] = len(signs)
+    devices = {r["設備編號"]: {"icid": r["icid"], "device": r["設備編號"], "name": " ".join(r["路口名稱"].split()),
+                               "lat": float(r["緯度"]), "lon": float(r["經度"]), "plans": {}, "schedule": {}}
+               for r in rows("signals") if inside(r["緯度"], r["經度"])}
+    for p in json.loads(get(TAIPEI_PLANS)):
+        if p["deviceid"] in devices:
+            devices[p["deviceid"]]["plans"][str(int(p["planid（SeqNo）"]))] = {
+                "phase_order": p["phaseorder"], "cycle": p["cycletime"], "offset": p["offset"],
+                "phases": [{k: x[k] for k in ("green", "yellow", "allred", "mingreen", "maxgreen", "pedgreenflash", "pedred")}
+                           for x in p["subplan"]],
+                "info_time": p.get("InfoTime")}
+    for t in json.loads(get(TAIPEI_TABLE)):
+        if t["deviceid"] in devices:   # segmenttype: 1-7 Monday to Sunday (the 三合一報表's 一..日)
+            devices[t["deviceid"]]["schedule"][str(t["segmenttype"])] = [
+                [x["time"], str(int(x["planid（SeqNo）"]))] for x in t["subsegment"]]
+    (out / "taipei_phases").mkdir(exist_ok=True)
+    for d in devices:
+        pdf = out / "taipei_phases" / f"{d}.pdf"
+        if not pdf.exists():
+            try:
+                pdf.write_bytes(get(TAIPEI_PHASES.format(d), timeout=60))
+            except requests.RequestException as ex:
+                print(f"taipei: {d}'s 三合一報表: {ex}", file=sys.stderr)
+    (out / "taipei_signals.json").write_text(json.dumps(list(devices.values()), ensure_ascii=False, indent=0))
+    counts["signals"] = len(devices)
+    return ", ".join(f"{v} {k}" for k, v in counts.items())
+
+
 SOURCES = {
     "osm": (fetch_osm, "osm.json"),
     "overture": (fetch_overture, "overture_segment.parquet"),
     "mapillary": (fetch_mapillary, "mapillary_images.json"),
     "nlsc": (fetch_nlsc, "nlsc_PHOTO2_z19.png"),
+    "taipei": (fetch_taipei, "taipei_signals.json"),
 }
 
 

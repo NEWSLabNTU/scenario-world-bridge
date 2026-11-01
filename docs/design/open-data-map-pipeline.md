@@ -39,8 +39,8 @@ not from a number in step 5.
 ## 0. Tools and host settings (manual, once)
 
 - **The tool venv:** `uv venv data/maps/.venv`, then install duckdb, eclipse-sumo,
-  commonroad-scenario-designer, pyproj, shapely, requests, pyyaml, pillow, scipy and
-  matplotlib into it. Every script runs with `data/maps/.venv/bin/python`, except two:
+  commonroad-scenario-designer, pyproj, shapely, requests, pyyaml, pillow, scipy,
+  matplotlib and pyshp into it. Every script runs with `data/maps/.venv/bin/python`, except two:
   `route_matrix.py` and `route_plan.py` need Autoware's Lanelet2 (`source
   /opt/autoware/1.5.0/setup.bash`, system Python), and `world_usd.py` needs Isaac's Python.
 - **Host settings, in `.env`:**
@@ -73,9 +73,25 @@ was chosen.
 
     data/maps/.venv/bin/python scripts/open_maps/fetch.py scripts/open_maps/sites/ntu.yaml data/maps/ntu
 
-The four sources go into `<out>/raw/`, each cached: OSM by Overpass, Overture by DuckDB from
-its S3 release, Mapillary's map features and image metadata, and NLSC's 0.27 m orthophoto at
-z19. Use `--force` to fetch again.
+The five sources go into `<out>/raw/`, each cached: OSM by Overpass, Overture by DuckDB from
+its S3 release, Mapillary's map features and image metadata, NLSC's 0.27 m orthophoto at
+z19, and Taipei City's open data (only for a box in Taipei). Use `--force` to fetch again.
+
+Taipei's (data.taipei, 政府資料開放授權條款 v1, free with attribution), each cut to the box:
+
+| file | data set (agency) | used for |
+|---|---|---|
+| `taipei_pavement.geojson` | 臺北市道路銑鋪區塊圖資 (新工處): the road surface curb to curb, per direction, with `WIDTH` | lane widths and their place across the road |
+| `taipei_parking.geojson` | 臺北市路邊停車格位 (停管處): each curb parking space | taken off the road before the lanes are fitted |
+| `taipei_signs.json` | 臺北市標誌資料 (交工處): the signs of 34 arterials | turn bans |
+| `taipei_signals.json` | 臺北市路口號誌時制計畫 (交通局): each signal's plans (phase green, yellow, all-red; cycle; offset) and its day schedules, updated daily | `signal_plans.json` |
+| `taipei_phases/<device>.pdf` | the same signal's 三合一報表: its phase diagrams, as printed 2024-03 | the signal audit (step 7) |
+
+What Taipei's data does not have: lane lines and per-lane arrows (its marking data set holds
+crosswalks and yellow boxes only, and the 1/1000 topographic map, which has no markings either,
+is sold), viaducts in 3D (the Ministry of the Interior's 3D road model is sold), and anything
+inside the campus. The sign register's road names and its direction field (every sign says
+往北) are not the signs'; only their positions are used.
 
 Problems seen: Mapillary's `layers` parameter does not filter, so both layers came back the
 same and are now deduplicated. Its images endpoint refuses a large box, so the box is fetched
@@ -98,12 +114,14 @@ Making it run at all took workarounds:
     data/maps/.venv/bin/python scripts/open_maps/generate.py scripts/open_maps/sites/ntu.yaml data/maps/ntu
 
 This writes `<out>/generated/`: `lanelet2_map.osm`, `map_projector_info.yaml`, `report.json`
-(the build's counts) and `bans.json` (each turn banned by a sign, with its evidence). The
-generator's docstring describes what it builds:
+(the build's counts), `bans.json` (each turn banned by a sign, with its evidence and source)
+and `signal_plans.json` (Taipei's timing plans on the map's lights). The generator's docstring
+describes what it builds:
 
-- lanes from OSM's lane tags or the road class's defaults;
-- junction paths with `turn_direction`, filtered by `turn:lanes`, Mapillary's arrows and its
-  no-turn signs;
+- lanes from OSM's lane tags or the road class's defaults, as wide as Taipei's pavement less
+  its parking spaces allows (`pavement.py`);
+- junction paths with `turn_direction`, filtered by `turn:lanes`, Mapillary's arrows and the
+  no-turn signs (Taipei's register where it has one on the approach, else Mapillary's);
 - speed limits from OSM, Overture or Mapillary's signs, else by rule;
 - traffic lights with stop lines;
 - crosswalks;
@@ -137,6 +155,13 @@ Rules added so far, and the step that found each:
 | no U-turns | the campaign's list | a U-turn from the leftmost lane wherever its half circle has a 4.5 m radius into some exit lane, unless OSM or a Mapillary sign bans it (63 on NTU) |
 | 新生南路 bends 45 deg at the main gate: going on was a turn, and two no-turn signs there then sent all four lanes of both directions into 椰林大道 | step 7, the junction audit | a road that bends under 60 deg at a junction, onto the exit of its own name, goes straight on |
 | no loop through 公館: the box stopped 40 m short of 基隆路 x 羅斯福路 | the campaign's list | the box goes south to 25.0095 |
+| every lane 3.0-3.5 m wide by class, on OSM's centre line: 新生南路's paint says 3.2 m, and OSM's line need not be the road's middle | the campaign's list | Taipei's pavement blocks less its curb parking spaces give each road piece its edges; its lanes fill them, 2.6-4.0 m each, centred (425 of 825 pieces on NTU; 238 capped at 4 m, the rest of the road left at the edges for scooters; 114 whose cuts disagree by over 2 m keep the default) |
+| crossings at a junction's mouth came and went with the cuts, which follow the roads' widths (62 to 56 when the widths changed) | step 5's crosswalk count | a crossing is kept when it crosses a road anywhere over its full width and length, junctions included (81 on NTU) |
+| a city signal matched only to the nearest map junction: a dual carriageway's other half, a map junction of its own, had no light in the plan, and the diagrams drew movements with no light to give them to | the signal audit | a device controls every signalised map junction within 45 m of it |
+| a road passing a signal with no junction of its own got no light at all (新生南路's northbound half at the T of 56巷; the city's mid-block crossings, 公館國小, 民族國中) | the signal audit | a road within 30 m of a city signal (12 m for a minor one), more than 15 m from its ends and not leaving a junction within 35 m of the signal, is split there, and the joint gets a stop line 8 m before it and a light (12 on NTU); a map junction within 25 m of a city signal is signalised (9 more) |
+| each road piece now has its own sideways shift, and a joint's 4 m connector carried the lanes 2.4 m sideways: the ego stopped there on 辛亥路 | step 12 (the loop on the new widths) | a joint whose lanes jog sideways is cut 3.5 m along per metre across, up to 15 m (43 on NTU) |
+| a scenario's waypoint, picked on one generation, fell off the road on the next once the lanes moved; SSv2 refused it | step 11 | `scenario.py` snaps every position to the nearest lane centre in its direction |
+| turn bans only from Mapillary's detections, which once sat on the wrong approach (the main gate) | the campaign's list | Taipei's sign register where it has a sign on the approach, else Mapillary; where they disagree, `audit_applied.json` lists it (`signs_disagree`, 5 on NTU) |
 
 Route C, lane widths fitted to NLSC's photo (`imagery.py`), is off. Its fits disagreed between
 neighbouring pieces of one road, and the survey had too little paint on the arterials to
@@ -218,6 +243,26 @@ can tell a straight arrow from a turn only where it is clear of trees, shadows a
 A person writes what the paint says in `sites/<site>_audit.yaml`; what was looked at goes in
 its `checked:` list. `generated/audit_applied.json` lists the approaches to look at first.
 
+**The signal audit (manual, with a tool):**
+
+    scripts/open_maps/audit_signals.py <site.yaml> <out> <sheet dir>
+
+Taipei publishes each signal's timing (`signal_plans.json` has it on the map's junctions) but
+not which approaches move in which phase: that is only drawn, in each signal's 三合一報表.
+The sheet puts each junction on NLSC's photo, its approaches labelled by heading and road,
+beside the report's phase diagrams. A person writes per device which approaches move in each
+phase (`signals:` in the audit file, for the phase order code the diagram is drawn for), and
+`scenario.py --signal-plans` cycles those junctions' lights as the city does. The reports
+were printed 2024-03 and a third of today's plans use a phase order they do not draw
+(`sheet.json`: `orders_now` against `orders_drawn`); a plan whose order was not read keeps a
+fixed light. On NTU (2026-11-01): 46 of the box's devices are on the map's lights; the
+diagrams of 30 were read (47 device and code pairs, `signals:` in `ntu_audit.yaml`); at
+Monday 10:00, 24 devices cycle; 9 more have readings but keep a fixed light then, because
+that hour's plan uses a code their report does not draw; 13 have no reading: six whose reports draw
+none of today's codes (the main gate, 羅斯福路 x 新生南路, is one), 公館's ring (stop lines
+inside it the map lacks), one that draws only flashing, and signals matched after the reading
+(mid-block crossings) or with no report.
+
 ## 8. The map directory and the world (auto)
 
     data/maps/.venv/bin/python scripts/open_maps/world.py <site.yaml> <out> meshes
@@ -282,20 +327,28 @@ The choices:
     data/maps/.venv/bin/python scripts/open_maps/scenario.py data/maps/ntu/map/lanelet2_map.osm scenarios/ntu/<name>.xosc \
         --name <story> --map-path '$(env SWB_OPEN_MAPS)/ntu/map' \
         --start x,y,h [--via x,y,h ...] --goal x,y,h [--red x,y ...] [--timeout 900]
+        [--signal-plans data/maps/ntu/generated/signal_plans.json [--at "Mon 08:30"]]
 
 The light ids change with every generation, so the scenario is always written again from the
 map, never edited by hand. Every light gets a state in Init, green unless `--red` names it. A
 red light turns green once the ego has stood still for 3 s before its stop line. Reaching the
 junction beyond the line while it is still red is a failure.
 
-The two scenarios so far:
+With `--signal-plans`, the junctions whose phases the signal audit read cycle on Taipei's plan
+for that weekday and time: each phase's green, yellow and all-red, started where the plan's
+offset puts the cycle then, so a green wave along an arterial is kept (SSv2's
+TrafficSignalController). A protected left is red with a left arrow. Lights elsewhere keep
+their fixed state, and so does a junction with a `--red` light.
+
+The scenarios so far:
 
 - `ntu_gate_xinsheng.xosc`: one way, about 650 m, all lights green; passed.
 - `ntu_campus_loop.xosc`: about 2.2 km of right turns, with two lights that start red;
   passed.
 - `ntu_left_turns.xosc`: two signalised left turns, both starting red, then 羅斯福路 to
-  公館; passed. No loop closes through 公館: 羅斯福路 and 基隆路 are grade-separated
-  there, and their ramps are left out.
+  公館; passed.
+- `ntu_campus_loop_signals.xosc`: the loop with the lights cycling on Taipei's plans for
+  Monday 10:00 and none held red.
 
 ## 11. Drive it in simulation (auto, with a check)
 

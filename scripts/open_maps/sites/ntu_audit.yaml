@@ -36,3 +36,61 @@ checked:
       roads carry almost no arrows, so their movements are the rule's and cannot be checked
       against paint. The arterials' approaches are at the survey's edge, blurred or not
       observed.
+
+# signals: which approaches move in each phase of a Taipei signal, read off its 三合一報表's
+# phase diagrams with audit_signals.py (2026-11-01; the reports printed 2024-03). Per device and
+# phase order code: each phase's moving approaches by heading (deg, counter-clockwise from
+# east, the travel direction into the junction), "<heading>:left" for a protected left only.
+# generate.py puts them in signal_plans.json, and scenario.py --signal-plans cycles the lights.
+# Read by a subagent and checked against the sheets where marked; "unsure" marks a reading
+# from an unclear diagram. Not read: SCPKT10 (公館, the ring's inner stop lines are not map
+# approaches), SEWMV10 (B0 draws no green: flashing only), and every code the 2024 reports do
+# not draw (SDTJW10, SDYJZ10, SEWM510, SCNKM10, SCQKT10, SCGKV10 today).
+signals:
+  - {device: SEHK710, phase_order: "08", phases: [[-101, 79], [], [-7]]}   # checked
+  - {device: SERK810, phase_order: "00", phases: [[-101, 79], [-7]]}       # 79: the split at 56巷
+  - {device: SCWLU10, phase_order: "00", phases: [[-144, 36], []]}         # checked; phase 2: the school gate and the crossing
+  - {device: SCQKY10, phase_order: "00", phases: [[-179, 1], []]}          # checked; phase 2: 民族國中's gate and the crossing
+  - {device: SESLS10, phase_order: "08", phases: [[-177], [], [93]]}       # checked
+  - {device: SESLS10, phase_order: "B0", phases: [[-177], [93]]}           # checked
+  - {device: SESLS10, phase_order: "A9", phases: [[-177], [], [93], [-177], [], [93]]}   # checked
+  - {device: SESLS10, phase_order: "23", phases: [[-177], [93], [-177], [93]]}           # checked
+  - {device: SEXLL10, phase_order: "00", phases: [[178, -2], [-92]]}
+  - {device: SEXLL10, phase_order: "08", phases: [[], [178, -2], [-92]]}
+  - {device: SDFKD10, phase_order: "00", phases: [[-48, 132], [44]]}
+  - {device: SEBIW10, phase_order: "00", phases: [[-48, 132], []]}
+  - {device: SCJNJ10, phase_order: "00", phases: [[43, -139], [136]]}
+  - {device: SCQLL10, phase_order: "00", phases: [[1, -144], [-54]]}
+  - {device: SCZKG10, phase_order: "00", phases: [[-60, 117], []]}
+  - {device: SCZLY10, phase_order: "00", phases: [[-136, 41], [-55, 125]]}
+  - {device: SCZLY10, phase_order: "08", phases: [[-136, 41], [], [-55, 125]]}
+  - {device: SD7LC10, phase_order: "12", phases: [[43], [43], [126]]}      # 基隆路's SW-bound half has no approach here
+  - {device: SDCKB10, phase_order: "08", phases: [[-38, 135], [], [45]]}
+  - {device: SDCLI10, phase_order: "00", phases: [[42, -136], ["-136:left", 135]]}   # unsure: phase 2's left
+  - {device: SDFJZ10, phase_order: "00", phases: [[-38, 142], [-135]]}
+  - {device: SDFJZ10, phase_order: "20", phases: [[-38, 142], [-38], [-135]]}
+  - {device: SDFMS10, phase_order: "00", phases: [[61, -122], [140]]}
+  - {device: SDKJT10, phase_order: "58", phases: [[], [-36, 141], ["141:left"], [44]]}
+  - {device: SDKJT10, phase_order: "59", phases: [[], [-36, 141], [141], ["141:left"], [44]]}
+  - {device: SDMMS10, phase_order: "81", phases: [[], [-120, 56], [], [-39, 129]]}
+  - {device: SDPJN10, phase_order: "00", phases: [[-37, 144], [-137, 51]]}
+  - {device: SDPJN10, phase_order: "81", phases: [[], [-37, 144], [], [-137, 51]]}
+  - {device: SDQLW10, phase_order: "00", phases: [[42, -139], [-55, 125]]}
+  - {device: SDXJC10, phase_order: "00", phases: [[-40, 142], []]}
+  - {device: SDZMB10, phase_order: "00", phases: [[-138, 42], [-38, 141]]}
+  - {device: SEBJI10, phase_order: "00", phases: [[-46, 132], [-138]]}
+  - {device: SEFMN10, phase_order: "F6", phases: [[], [-47, 133], [], [-138, 133], [], [39, -47], [42, -47]]}   # unsure: two nodes and U-turn roads
+  - {device: SEFMN10, phase_order: "F0", phases: [[], [-47, 133], [-138, 133], [39, -47], [42, -47]]}           # unsure: as F6
+  - {device: SEZM510, phase_order: "23", phases: [[-92, 88], [-2], [-92, 88], [-2]]}
+  - {device: SEZM510, phase_order: "B0", phases: [[-92, 88], [-2]]}
+  - {device: SF6JQ10, phase_order: "00", phases: [[42, -141], [-50, 129]]}
+  - {device: SF6JQ10, phase_order: "81", phases: [[], [42, -141], [], [-50, 129]]}
+  - {device: SF9JY10, phase_order: "00", phases: [[21, -18, -176], [-96, -71, 84]]}           # unsure: the unnamed -18 and -71
+  - {device: SF9JY10, phase_order: "81", phases: [[], [21, -18, -176], [], [-96, -71, 84]]}   # unsure: as 00
+  - {device: SF9KB10, phase_order: "08", phases: [[], [-96, 82], [0, -179]]}
+  - {device: SF9KB10, phase_order: "0A", phases: [[], [-96, 82], [], [0, -179]]}
+  - {device: SF9KW10, phase_order: "26", phases: [[-70, 115, 123], [19, 115, 123], ["19:left"]]}   # unsure: phase 2's turns
+  - {device: SFBM510, phase_order: "23", phases: [[-92], [], [-92], []]}
+  - {device: SFBM510, phase_order: "B0", phases: [[-92], []]}
+  - {device: SFCMQ10, phase_order: "00", phases: [[178], [107]]}
+  - {device: SGAN610, phase_order: "B0", phases: [[-91], [-3]]}

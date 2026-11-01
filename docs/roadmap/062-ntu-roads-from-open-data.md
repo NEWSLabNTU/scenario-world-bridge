@@ -8,7 +8,7 @@ The map is used in simulation first and moves to a real car later. Every attribu
 where it came from. An audit compares the map with ground truth: 059's survey now, and the
 car's own drives later.
 
-**Status**: in progress, 2026-10-30: O1-O3 done (first version); O4's geometry audit run, its paint and junction audits open; O5 built; O6's one-way drive and a 2.2 km loop with red lights passed on Isaac (newslab-118-server).
+**Status**: in progress, 2026-11-01: O1-O3 done, with Taipei City's open data for lane widths, turn bans and signal timing; O4's geometry and signal audits run, the paint (arrow) audit open; O5 built; O6's drives pass on Isaac (newslab-118-server), one with the lights cycling on the city's plans.
 
 Progress:
 
@@ -368,6 +368,66 @@ Progress:
     - lights that cycle on their own;
     - parking aisles and driveways (left out; 31 % of the vendor's routes);
     - the second run, with the audit's patches, once there are some.
+- **Taipei City's open data** (2026-11-01, user direction "Check Taiwan government resources"
+  and "Go as you recommended"). Four data sets fill gaps that OSM and Mapillary left; all on
+  data.taipei under 政府資料開放授權條款 v1. `fetch.py`'s `taipei` source takes them (the
+  pipeline document lists them):
+  - **Lane widths:** 新工處's pavement blocks, curb to curb, less 停管處's curb parking
+    spaces, give each road piece its edges (`pavement.py`). The lanes fill them, 2.6-4.0 m,
+    and sit where the road is, not on OSM's line: 425 of 825 road pieces. 238 are capped at
+    4 m (Taiwan's wide outer lanes; the rest is left at the edges), and 114 whose cuts
+    disagree keep the default. On 新生南路 and 辛亥路 the lanes now lie on the carriageway in
+    NLSC's photo (辛亥路 eastbound moved 2.4 m north onto it).
+  - **Turn bans:** 交工處's sign register for the 34 arterials, where it has a sign on the
+    approach, else Mapillary. Its road names and its direction field are not the signs';
+    only positions are used. They disagree on 5 approaches (`audit_applied.json`).
+  - **Signals:** 交通局's timing plans (every phase's green, yellow and all-red, the cycle and
+    the offset, by time of day; updated daily) go into `generated/signal_plans.json`, on the
+    map's lights. Which approaches move in which phase is only drawn, in each signal's
+    三合一報表 (printed 2024-03). `audit_signals.py` puts each junction beside its diagrams.
+    A subagent read them, 47 device and code pairs on 30 devices, and I checked six against
+    the sheets; the readings are `signals:` in `ntu_audit.yaml`. `scenario.py --signal-plans
+    --at "Mon 10:00"` cycles those junctions as the city runs them, offsets included (SSv2's
+    TrafficSignalController). Of the 46 devices on the map's lights, 24 cycle at Monday 10:00;
+    9 more keep a fixed light then (that hour's code is not drawn: the 2024 reports are a third
+    out of date), and 13 have no reading.
+  - **What the signal audit found in the map:**
+    - a city signal had been matched to one map junction only; a dual carriageway's other
+      half, a map junction of its own, had no light in the plan. A device now runs every
+      signalised map junction within 45 m;
+    - a road passing a signal with no junction of its own had no light at all: 新生南路
+      northbound at the T of 56巷, the mid-block crossings at 公館國小 and 民族國中. Such a
+      road is split at the signal, with a stop line 8 m before it (12 on NTU), and a map
+      junction within 25 m of a city signal is signalised (9 more). Lights: 197 to 218.
+  - **Crosswalks** at a junction's mouth came and went with the cuts: a crossing is now kept
+    when it crosses a road over its full width (62 to 81).
+  - **A jog at a joint:** with each road piece shifted on its own, a joint's 4 m connector
+    could carry the lanes 2.4 m sideways; the loop stopped at one on 辛亥路 for 12 min. A
+    joint that jogs is now cut 3.5 m along per metre across (43 joints).
+  - **Scenario positions** picked on one generation fell off the road on the next, once the
+    lanes moved (SSv2: "could not be approximated to the proper Lane"). `scenario.py` now
+    snaps each to the nearest lane centre in its direction.
+  - **Scores:** road lanelets 3,968, junction paths 1,868, lights 218, crossing bounds 0,
+    routes 56/56; turn paths under 4 m 26 to 22, under 5 m 95 to 82.
+  - **Drives on the final map, world and PCD (Isaac), all passed:**
+    - `ntu_gate_xinsheng`: 128 s, NVTL min 3.22;
+    - `ntu_left_turns`: 178 s, NVTL min 3.22, 13.9 m/s;
+    - `ntu_campus_loop`: 460 s, NVTL min 3.21, through the joint that had stopped it;
+    - `ntu_campus_loop_signals` (new): the loop with the lights on Taipei's Monday 10:00
+      plans, none held red. It met red at 新生南路 x 86巷 (50 s) and x 56巷 (24 s, the light
+      the split added) and went on green: 542 s, NVTL min 3.21.
+  - **Not in the open data:** lane lines and per-lane arrows (Taipei's marking data holds
+    crosswalks and yellow boxes; the 1/1000 topographic map has none and is sold), viaducts
+    in 3D (the ministry's 3D road model is sold), anything inside the campus.
+  - **Still open:**
+    - the arrow audit by a person;
+    - the signals whose diagrams do not draw today's plans (the main gate's among them), and
+      公館's ring;
+    - lane changes in a drive;
+    - parking aisles and driveways.
+  - **Lost runs:** four runs died of another checkout's `stop-scenario.sh` (crdt-tensor), whose
+    `pkill -f 'swb_launch scenario.launch.xml'` matched every scenario stack on the host. Its
+    session scoped it to its own stack's web port the same day.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

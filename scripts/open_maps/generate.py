@@ -4,28 +4,35 @@
     scripts/open_maps/generate.py <site.yaml> <out>
 
 Reads <out>/raw/ (fetch.py) and writes <out>/generated/: `lanelet2_map.osm`,
-`map_projector_info.yaml` and `report.json`. Run with the tool venv (`data/maps/.venv`).
+`map_projector_info.yaml`, `report.json`, `bans.json`, `audit_applied.json` and
+`signal_plans.json`. Run with the tool venv (`data/maps/.venv`).
 
 What it builds:
 
 - **Roads.** Every car road in the box (OSM `highway` trunk to service), at ground level:
   underpasses and major roads raised for more than 60 m are left out (short bridges stay). Ways are chained between junctions. Each direction gets its lanes as offsets from
   the OSM centre line: two-way roads put the forward lanes right of the line and the backward
-  lanes left; one-way roads are centred. Lane counts and widths come from `lanes`,
-  `lanes:forward/backward` and `width`, else the road class's default.
+  lanes left; one-way roads are centred. Lane counts come from `lanes` and
+  `lanes:forward/backward`. Widths and the lanes' place across the road come from Taipei's
+  pavement blocks less its curb parking spaces (fetch.py's `taipei`; pavement.py;
+  `swb:width_source=taipei`), else OSM's `width`, else the road class's default.
 - **Junctions.** Nodes where three or more road chains meet are clustered. Taipei's dual
   carriageways cross as four nodes 15-35 m apart, so nodes joined by a short one-way major
   segment, or both by a signal, become one junction. Each approach is cut back to a circle
   around the junction, and every allowed entry-to-exit lane pair gets a connecting lanelet
-  (cubic bounds) with `turn_direction` from its change of heading. U-turns are not built.
+  (a straight, the widest arc the two legs allow, a straight) with `turn_direction` from its
+  change of heading. A U-turn (`swb:uturn=yes`) goes from the leftmost lane where a half
+  circle of TIGHT_R fits and no sign bans it.
 - **Which lanes turn where**, per approach lane, first source that has it:
   1. OSM `turn:lanes`, when its lane count matches;
   2. Mapillary's painted arrows within 60 m of the stop line, voted per lane by their lateral
      place;
   3. the rule: the leftmost lane turns left, the rightmost right, all go straight.
 
-  Then OSM turn restrictions, and Mapillary's no-left and no-right signs on the approach's
-  right side, remove movements.
+  Then OSM turn restrictions and the no-left, no-right and no-U-turn signs remove movements:
+  Taipei's sign register (its 34 arterials) where it has a sign on the approach, else
+  Mapillary's signs on the approach's right side facing it. Where the two disagree,
+  `audit_applied.json` lists the approach (`signs_disagree`).
 - **Speed limits**, per direction: a site zone's limit for a road mostly inside it (the site
   file's `zones`: NTU's campus, 15 km/h; `swb:speed_source=site`), else OSM `maxspeed`, else Overture's `speed_limits` for the same
   OSM way, else a Mapillary speed-limit sign on the road's right side, else the rule (50 km/h
@@ -33,6 +40,8 @@ What it builds:
 - **Signals.** A junction with an OSM signal, or two or more of Mapillary's vehicle traffic
   lights, is signalised: each approach gets a stop line at its cut, a traffic-light linestring
   across the junction, and a `traffic_light` regulatory element referenced by its lanes.
+  `signal_plans.json` puts Taipei's timing plans on them (signal_plans(); scenario.py cycles
+  the lights by it).
 - **Crosswalks** from OSM `footway=crossing` ways that cross a road.
 
 Every lanelet records where its attributes came from: `swb:source` (geometry), `swb:speed_source`,
@@ -84,11 +93,19 @@ ARROWS = {
 DEBUG_AT = tuple(map(float, __import__('os').environ['SWB_DEBUG_AT'].split(','))) \
     if __import__('os').environ.get('SWB_DEBUG_AT') else None
 IMAGERY = __import__('os').environ.get('SWB_IMAGERY', '0') == '1'   # route C, off: see imagery.py
+PAVEMENT = __import__('os').environ.get('SWB_PAVEMENT', '1') == '1'  # Taipei's pavement blocks: see pavement.py
 STATS = Counter()   # counts from the network build, merged into report.json
 BAN_LOG = []   # every sign ban, for review (report.json's bans)
 BUMP = Counter()   # (way id, end node id) -> metres added to that chain end's cut, from the passes before (main)
 AUDIT = []   # the site's audit file's approaches (main; sites/<site>_audit.yaml)
 AUDIT_LOG = []   # audited approaches whose lane count differs, and suspect approaches (audit_applied.json)
+SIGNALS = []   # every approach's traffic light: junction, heading, ids (signal_plans.json)
+TAIPEI_SIGNAL_R = 25.0   # m, a junction with one of its nodes this near a Taipei signal device is signalised
+MIDBLOCK_R = 8.0    # m, a signal on a road passing it: the lanes stop this far before it
+PASS_REACH = 30.0   # m, a major road this near a Taipei signal device, with no junction there, gets a light
+SIGNAL_SPLITS = set()   # the nodes split_at_signals() made (negative ids)
+SIGNAL_REACH = 45.0   # m, a Taipei signal device controls the map's signalised junctions this near
+SIGNAL_AUDIT = []   # the site's audit file's signals: phases read off the 三合一報表 (main)
 TIGHT = set()   # chain ends that left a turn path tighter than TIGHT_R, found by this pass
 NO_TURN = {"regulatory--no-left-turn--g1": "left", "regulatory--no-right-turn--g1": "right",
            "regulatory--no-u-turn--g1": "uturn"}
@@ -493,6 +510,56 @@ class Chain:
         self.d = 0.0        # the lanes' shift left of the OSM line (imagery.py)
 
 
+def split_at_signals(chains, raw, frame, xy):
+    """Split every chain that passes a Taipei signal device (fetch.py's `taipei_signals.json`)
+    in its middle: within PASS_REACH m of its line (a major road; 12 m for a minor one), the
+    nearest point over 15 m from both its ends (a chain ends at every junction), and neither
+    end a junction within 35 m of the device. The new node is a joint in SIGNAL_SPLITS; a chain ending near the device is the junction's own
+    approach and is left alone."""
+    import copy
+    p = raw / "taipei_signals.json"
+    if not p.exists():
+        return chains
+    devs = [frame.xy(d["lat"], d["lon"]) for d in json.loads(p.read_text())]
+    n_ends = Counter([c.nids[0] for c in chains] + [c.nids[-1] for c in chains])
+    out = []
+    todo = list(chains)
+    while todo:
+        c = todo.pop()
+        line = LineString(c.pts)
+        cut = None
+        for d in devs:
+            reach = PASS_REACH if c.cls in MAJOR else 12.0
+            if line.distance(Point(d)) > reach:
+                continue
+            s = line.project(Point(d))
+            if s < 15.0 or s > line.length - 15.0:
+                continue
+            # the chain leaves a junction of the signal's own (a dual carriageway's nodes are
+            # 15-35 m from the device): it is that junction's road, not one passing it
+            if any(n_ends[n] >= 3 and math.dist(xy[n], d) < 35.0 for n in (c.nids[0], c.nids[-1])):
+                continue
+            cut = s
+            break
+        if cut is None:
+            out.append(c)
+            continue
+        nid = -(len(SIGNAL_SPLITS) + 1)
+        q = line.interpolate(cut)
+        xy[nid] = (q.x, q.y)
+        SIGNAL_SPLITS.add(nid)
+        acc, k = 0.0, 0
+        while k < len(c.pts) - 1 and acc + math.dist(c.pts[k], c.pts[k + 1]) < cut:
+            acc += math.dist(c.pts[k], c.pts[k + 1])
+            k += 1
+        a, b = copy.copy(c), copy.copy(c)
+        a.nids, a.pts = c.nids[:k + 1] + [nid], c.pts[:k + 1] + [(q.x, q.y)]
+        b.nids, b.pts = [nid] + c.nids[k + 1:], [(q.x, q.y)] + c.pts[k + 1:]
+        todo += [a, b]
+        STATS["chains_split_at_a_signal"] += 1
+    return out
+
+
 def build(site, out):
     raw = out / "raw"
     frame = Frame(site["frame"])
@@ -550,6 +617,12 @@ def build(site, out):
             pts = [xy[i] for i in ids]
             if LineString(pts).length > 0.5:
                 chains.append(Chain(w, ids, pts))
+    # a road passing a Taipei signal without a junction of its own there (新生南路's northbound
+    # half at the T of 56巷; a signal for a mid-block crossing) is split at the signal: the
+    # joint gets a stop line and a light (MIDBLOCK_R)
+    chains = split_at_signals(chains, raw, frame, xy)
+    taipei_devs = [frame.xy(d["lat"], d["lon"]) for d in json.loads((raw / "taipei_signals.json").read_text())] \
+        if (raw / "taipei_signals.json").exists() else []
     # stubs: a short chain from a junction to nowhere (新生南路's 5-lane piece that ends where
     # only the bus lanes go on, at the main gate) would be an exit into a dead end; drop it,
     # and again for what that leaves
@@ -568,6 +641,11 @@ def build(site, out):
             break
         chains = [c for c in chains if id(c) not in stubs]
         STATS["stub_chains_dropped"] += len(stubs)
+    # lane widths and positions from Taipei's pavement blocks, before the junctions' cuts,
+    # which follow the roads' widths
+    if PAVEMENT:
+        import pavement
+        pavement.fit_all(chains, raw, frame, STATS)
     # junctions: nodes where three or more chain ends meet
     jnodes = {n for n, v in ends.items() if len(v) >= 3}
     signals = [xy[i] for i in inside
@@ -640,7 +718,8 @@ def build(site, out):
     # are joined by short connectors, with no turn_direction
     for n, v in ends.items():
         if len(v) == 2 and n not in junction_of:
-            j = {"id": len(J), "nodes": [n], "c": xy[n], "spread": 0.0, "joint": True}
+            j = {"id": len(J), "nodes": [n], "c": xy[n], "spread": 0.0, "joint": True,
+                 "midblock": n in SIGNAL_SPLITS}
             junction_of[n] = j
             J.append(j)
     # chains inside one junction (the median crossings) are dropped
@@ -669,8 +748,23 @@ def build(site, out):
                     R = 10.0
                 elif bend > 20.0:
                     R = 6.0
+                # the lanes' sideways shift (pavement.py fits each chain's own): one chain
+                # running into the joint and the other out of it share their left; two that both
+                # end (or start) there are reversed to each other. A 2.4 m jog in a 4 m connector
+                # stopped the ego on 辛亥路 (062): the connector takes 3.5 m along per metre across
+                a_in = junction_of.get(a.nids[-1]) is j
+                b_in = junction_of.get(b.nids[-1]) is j
+                jog = abs(a.d - b.d) if a_in != b_in else abs(a.d + b.d)
+                if a.oneway != b.oneway:
+                    jog = 0.0   # a one-way and a two-way piece: the lane count differs, R is 10
+                if jog > 0.3:
+                    R = max(R, min(15.0, 3.5 * jog))
+                    STATS["joints_lengthened_for_a_jog"] += 1
                 STATS[f"joints_R{int(R)}"] += 1
             j["R"], j["signal"] = R, None
+            if j["midblock"]:
+                j["R"], j["signal"] = MIDBLOCK_R, "taipei"
+                STATS["signals_on_a_passing_road"] += 1
             continue
         hw = [(c.nf + c.nb) * c.w / 2 for c in chains
               if junction_of.get(c.nids[0]) is j or junction_of.get(c.nids[-1]) is j]
@@ -687,6 +781,9 @@ def build(site, out):
         # joins it (and the cut, which once grew with the passes, no longer sets the reach)
         near = lambda q, r: any(math.dist(xy[n], q) < r for n in j["nodes"])
         j["signal"] = "osm" if any(near(s, j["R"] + 20) for s in signals) else None
+        if j["signal"] is None and any(near(d, TAIPEI_SIGNAL_R) for d in taipei_devs):
+            j["signal"] = "taipei"
+            STATS["signalised_by_taipei_only"] += 1
         if j["signal"] is None:
             lights = [f for f in feats if f["object_value"].startswith("object--traffic-light--general")
                       and near(f["xy"], j["R"] + 15)]
@@ -848,13 +945,30 @@ def faces(f, line, s):
     return abs((ad - compass) % 360 - 180) < 45
 
 
+CITY_SIGNS = {"18": {"left"}, "17": {"right"}, "19": {"left", "right"}, "22": {"uturn"}}
+
+
+def taipei_signs(raw, frame):
+    """The turn bans in Taipei's sign register (fetch.py's `taipei_signs.json`, 交工處's
+    臺北市標誌資料): 18 no left, 17 no right, 19 no left or right, 22 no U-turn. Its road names
+    and directions are not the sign's (every one says 往北), its positions are."""
+    p = raw / "taipei_signs.json"
+    out = []
+    for k, r in enumerate(json.loads(p.read_text()) if p.exists() else []):
+        m = re.search(r"(\d\d)", r["標誌內容"])
+        if m and m.group(1) in CITY_SIGNS:
+            out.append({"id": f"taipei:{k}", "kinds": CITY_SIGNS[m.group(1)], "content": r["標誌內容"].strip("\ue001"),
+                        "xy": frame.xy(float(r["緯度座標Y-WGS84"]), float(r["經度座標X-WGS84"]))})
+    return out
+
+
 def generate(site, out):
     frame, nodes, rels, chains, J, junction_of, feats = build(site, out)
     if IMAGERY and (out / "raw" / "nlsc_PHOTO2_z19.png").exists():
         import imagery
         photo = imagery.Photo(out / "raw", frame)
         for c in chains:
-            if c.cls not in MAJOR or c.full.length < 20:
+            if c.cls not in MAJOR or c.full.length < 20 or c.width_source == "taipei":
                 continue
             f = imagery.fit(c, photo)
             STATS["imagery_chains_tried"] += 1
@@ -911,7 +1025,7 @@ def generate(site, out):
                 tags = {"type": "lanelet", "subtype": "road", "location": "urban", "one_way": "yes",
                         "speed_limit": f"{v:g}", "swb:source": "osm", "swb:speed_source": src,
                         "swb:width_source": c.width_source, "swb:osm_way": c.way["id"]}
-                if c.width_source == "imagery":
+                if c.width_source in ("imagery", "taipei"):
                     tags["swb:lane_width"] = f"{c.w:.2f}"
                     tags["swb:lateral_shift"] = f"{c.d:.2f}"
                 if c.name:
@@ -930,6 +1044,9 @@ def generate(site, out):
                 restrictions.append((m["from"]["ref"], m["via"]["ref"], m["to"]["ref"], t["restriction"]))
     arrows = [f for f in feats if f["object_value"] in ARROWS]
     noturn = [f for f in feats if f["object_value"] in NO_TURN]
+    for f in noturn:
+        f["kinds"] = {NO_TURN[f["object_value"]]}
+    city = taipei_signs(raw, frame)
     conn_n = 0
     stats = Counter()
     for j in J:
@@ -1033,16 +1150,30 @@ def generate(site, out):
                                 elif kind.startswith("only_"):
                                     only = (k, id(e[0]), e[1])
             line, left, L_end = approach_frame(c, d)
-            signed = set()
+            # the signs banning turns from this approach: the city's register (Taipei's 34
+            # arterials) where it has one here, else Mapillary's. The city's carry no facing
+            # and may stand over the lanes or on the median, so they are taken up to 3 m left
+            # of the lanes; Mapillary's must stand right of them and face this traffic.
+            found = {"taipei": [], "mapillary": []}
+            for f in city:
+                sl = lateral(line, f["xy"])
+                if sl and L_end - 50 < sl[0] <= L_end + 5 and left - n * c.w - 10 < sl[1] < left + 3:
+                    found["taipei"].append((f, sl))
             for f in noturn:
                 sl = lateral(line, f["xy"])
-                if sl is None:
-                    continue
-                s, off = sl
-                if (L_end - 50 < s <= L_end + 5 and left - n * c.w - 10 < off < left
-                        and faces(f, line, s)):
-                    signed.add(NO_TURN[f["object_value"]])
-                    BAN_LOG.append({"road": c.name, "way": c.way["id"], "dir": d, "kind": NO_TURN[f["object_value"]],
+                if (sl and L_end - 50 < sl[0] <= L_end + 5 and left - n * c.w - 10 < sl[1] < left
+                        and faces(f, line, sl[0])):
+                    found["mapillary"].append((f, sl))
+            by = {k: {m for f, _ in v for m in f["kinds"]} for k, v in found.items()}
+            ban_src = "taipei" if found["taipei"] else "mapillary"
+            signed = by[ban_src]
+            if found["taipei"] and by["taipei"] != by["mapillary"] and (by["taipei"] | by["mapillary"]) & set(moves):
+                AUDIT_LOG.append({"suspect": "signs_disagree", "junction_xy": [round(v) for v in j["c"]],
+                                  "approach_end": [round(v, 1) for v in p_in], "heading": round(math.degrees(h_in)),
+                                  "road": c.name, "taipei": sorted(by["taipei"]), "mapillary": sorted(by["mapillary"])})
+            for f, (s, off) in found[ban_src]:
+                for kind in f["kinds"]:
+                    BAN_LOG.append({"road": c.name, "way": c.way["id"], "dir": d, "kind": kind, "source": ban_src,
                                     "sign": f["id"], "sign_xy": [round(v, 1) for v in f["xy"]],
                                     "before_stop_m": round(L_end - s, 1), "offset_m": round(off - left, 1),
                                     "lanes": n, "junction": j["id"], "junction_xy": [round(v) for v in j["c"]],
@@ -1051,7 +1182,7 @@ def generate(site, out):
                 if kind in moves and "audit" not in src:
                     for e in moves[kind]:
                         banned.add((kind, id(e[0]), e[1]))
-                    stats[f"approach_no_{kind}_by_mapillary_sign"] += 1
+                    stats[f"approach_no_{kind}_by_{ban_src}_sign"] += 1
             open_moves = {k for k, es in moves.items()
                           if any((k, id(e[0]), e[1]) not in banned and
                                  (only is None or (k, id(e[0]), e[1]) == only) for e in es)}
@@ -1125,7 +1256,7 @@ def generate(site, out):
                         connector(osm, a, b, kind if is_junction else None,
                                   src[k], j, lanelet_of)
                         stats[f"paths:{kind}"] += 1
-            if j["signal"] and is_junction:
+            if j["signal"] and (is_junction or j.get("midblock")):
                 signal(osm, j, c, d, lst, p_in, h_in, lanelet_of)
     crosswalks(osm, nodes, rels, site, frame, chains, stats, out)
     write_out(osm, site, out, report, stats)
@@ -1262,6 +1393,10 @@ def signal(osm, j, c, d, lst, p_in, h_in, lanelet_of):
     reg = osm.rel([("way", light, "refers"), ("way", stop, "ref_line")],
                   {"type": "regulatory_element", "subtype": "traffic_light",
                    "swb:source": j["signal"]})
+    SIGNALS.append({"junction": j["id"], "junction_xy": [round(v, 1) for v in j["c"]], "road": c.name,
+                    "heading": round(math.degrees(h_in)), "light": light, "regulatory_element": reg,
+                    "lanelets": [ln.lid for ln in lst],
+                    "stop_line": [[round(v, 1) for v in left_end], [round(v, 1) for v in right_end]]})
     for ln in lst:
         for i, (lid, members, tags) in enumerate(osm.rels):
             if lid == ln.lid:
@@ -1273,7 +1408,9 @@ def crosswalks(osm, nodes, rels, site, frame, chains, stats, out):
     raw = out / "raw"
     d = json.loads((raw / "osm.json").read_text())
     s, w, n, e = site["bbox"]
-    roads = [c.line for c in chains]
+    # each road over its whole width and length, junctions included: a crossing at a junction's
+    # mouth lies where the lanes were cut back, and moved in and out of reach as the cuts did
+    roads = [c.full.buffer((c.nf + c.nb) * c.w / 2 + abs(c.d)) for c in chains]
     for el in d["elements"]:
         if el["type"] != "way":
             continue
@@ -1284,7 +1421,7 @@ def crosswalks(osm, nodes, rels, site, frame, chains, stats, out):
         if len(pts) < 2 or not all(s <= p["lat"] <= n and w <= p["lon"] <= e for p in pts):
             continue
         line = LineString([frame.xy(p["lat"], p["lon"]) for p in pts])
-        if not any(line.intersects(r.buffer(3.0)) for r in roads):
+        if not any(line.intersects(r) for r in roads):
             continue
         left = [osm.node(p) for p in offset(line, 1.5).coords]
         right = [osm.node(p) for p in offset(line, -1.5).coords]
@@ -1297,6 +1434,87 @@ def crosswalks(osm, nodes, rels, site, frame, chains, stats, out):
         stats["crosswalks"] += 1
 
 
+def frame_of(site):
+    return Frame(site["frame"])
+
+
+def signal_plans(out, frame, stats):
+    """`generated/signal_plans.json`: Taipei's timing plans (fetch.py's `taipei_signals.json`) on
+    the map's lights, for scenario.py to cycle them by. A signal device controls every
+    signalised junction of the map within SIGNAL_REACH of it: a dual carriageway crosses a
+    road as two or more map junctions, one per carriageway, and the city's one device runs them
+    all (新生南路 x 56巷: the southbound half alone was matched at first, and the diagram's
+    northbound movement had no light). A junction within reach of two devices goes to the
+    nearer. Which approaches move in which phase is not in the open data, only drawn in each
+    signal's 三合一報表; the site's audit file gives it per device (`signals:`), for the phase
+    order the diagram was read from, and a plan with another order has no phases to approaches."""
+    p = out / "raw" / "taipei_signals.json"
+    if not p.exists():
+        return
+    by_j = defaultdict(list)
+    for s in SIGNALS:
+        by_j[s["junction"]].append(s)
+    devs = json.loads(p.read_text())
+    dxy = {d["device"]: frame.xy(d["lat"], d["lon"]) for d in devs}
+    owner = {}
+    for jid, apps in by_j.items():
+        best = min(((math.dist(dxy[d["device"]], apps[0]["junction_xy"]), d["device"]) for d in devs), default=None)
+        if best and best[0] < SIGNAL_REACH:
+            owner[jid] = best[1]
+    audit = {}
+    for a in SIGNAL_AUDIT:
+        audit.setdefault(a["device"], []).append(a)
+    signals, unmatched = [], []
+    for dev in devs:
+        js = sorted(j for j, d in owner.items() if d == dev["device"])
+        if not js:
+            near = min((math.dist(dxy[dev["device"]], v[0]["junction_xy"]) for v in by_j.values()), default=None)
+            unmatched.append({"device": dev["device"], "name": dev["name"], "xy": [round(v, 1) for v in dxy[dev["device"]]],
+                              "nearest_junction_m": round(near, 1) if near else None})
+            continue
+        apps = [a for j in js for a in by_j[j]]
+        rec = {"device": dev["device"], "name": dev["name"], "xy": [round(v, 1) for v in dxy[dev["device"]]],
+               "junctions": js,
+               "approaches": [{k: a[k] for k in ("junction", "road", "heading", "light", "regulatory_element", "lanelets", "stop_line")}
+                              for a in apps],
+               "plans": dev["plans"], "schedule": dev["schedule"]}
+        if dev["device"] in audit:
+            rec["phase_maps"] = [phase_map(a, apps, stats) for a in audit[dev["device"]]]
+        signals.append(rec)
+        stats["taipei_devices_on_the_map"] += 1
+    stats["signalised_junctions_with_taipei_plans"] = len(owner)
+    stats["signalised_junctions_without_taipei_plans"] = len(by_j) - len(owner)
+    stats["taipei_devices_unmatched"] = len(unmatched)
+    (out / "generated" / "signal_plans.json").write_text(json.dumps(
+        {"source": "臺北市政府交通局 臺北市路口號誌時制計畫 (data.taipei), 政府資料開放授權條款 v1",
+         "signals": signals,
+         "junctions_without_plans": [{"junction": j, "xy": v[0]["junction_xy"], "lights": [a["light"] for a in v]}
+                                     for j, v in sorted(by_j.items()) if j not in owner],
+         "unmatched_devices": unmatched}, indent=1, ensure_ascii=False))
+
+
+def phase_map(a, apps, stats):
+    """The audit's phases for a device as light ids: {"phase_order", "phases": [{light: "green" |
+    "left"}]}. An entry is an approach's heading (deg, within 35), with ":left" when only its
+    left turn moves (a protected left: red with a left arrow). Every approach within 20 deg of
+    the heading takes it (a carriageway that crosses two of the device's map junctions has an
+    approach at each), else the nearest within 35."""
+    phases = []
+    for ph in a["phases"]:
+        on = {}
+        for e in ph:
+            h, _, move = str(e).partition(":")
+            off = lambda x: abs(math.degrees(wrap(math.radians(x["heading"] - float(h)))))
+            hit = [x for x in apps if off(x) <= 20] or [x for x in [min(apps, key=off)] if off(x) <= 35]
+            if not hit:
+                stats["signal_audit_heading_unmatched"] += 1
+            for x in hit:
+                on[str(x["light"])] = "left" if move == "left" else "green"
+        phases.append(on)
+    stats["signals_phases_audited"] += 1
+    return {"phase_order": a["phase_order"], "phases": phases}
+
+
 def write_out(osm, site, out, report, stats):
     g = out / "generated"
     g.mkdir(parents=True, exist_ok=True)
@@ -1307,6 +1525,7 @@ def write_out(osm, site, out, report, stats):
     rep = {"nodes": len(osm.nodes), "ways": len(osm.ways), "relations": len(osm.rels)}
     (g / "bans.json").write_text(json.dumps(BAN_LOG, indent=1, ensure_ascii=False))
     (g / "audit_applied.json").write_text(json.dumps(AUDIT_LOG, indent=1, ensure_ascii=False))
+    signal_plans(out, frame_of(site), stats)
     rep.update(report)
     rep.update(stats)
     rep.update(STATS)
@@ -1323,7 +1542,9 @@ def main():
     site = yaml.safe_load(a.site.read_text())
     audit = a.site.with_name(f"{site['name']}_audit.yaml")
     if audit.exists():
-        AUDIT.extend(yaml.safe_load(audit.read_text()).get("approaches", []))
+        doc = yaml.safe_load(audit.read_text())
+        AUDIT.extend(doc.get("approaches") or [])
+        SIGNAL_AUDIT.extend(doc.get("signals") or [])
     # A chain end that leaves a turn path tighter than a car can drive is cut further back and
     # the map generated again: one cut radius cannot fit every approach (the main gate's right
     # turn is between two carriageways cut from different nodes, 2.8 m at first). Only the end
@@ -1332,6 +1553,8 @@ def main():
         STATS.clear()
         BAN_LOG.clear()
         AUDIT_LOG.clear()
+        SIGNALS.clear()
+        SIGNAL_SPLITS.clear()
         TIGHT.clear()
         _xy_cache.clear()
         STATS["chain_ends_cut_further"] = len(BUMP)

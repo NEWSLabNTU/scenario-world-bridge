@@ -1,0 +1,1480 @@
+<?xml version="1.0"?>
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-10-30T00:00:00+00:00" description="Roadmap 062: the campus loop (椰林大道 west, 新生南路 north, 辛亥路 east, back through the campus) with the lights cycling on Taipei's timing plans for Monday 10:00 (臺北市路口號誌時制計畫), their phases read off the city's diagrams; no light is held red." revMajor="1" revMinor="2" />
+	<ParameterDeclarations>
+	</ParameterDeclarations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork>
+		<LogicFile filepath="$(env SWB_OPEN_MAPS)/ntu/map" />
+		<TrafficSignals>
+			<TrafficSignalController name="SCJNJ10">
+				<Phase name="p0" duration="15">
+					<TrafficSignalState trafficSignalId="85091" state="green" />
+					<TrafficSignalState trafficSignalId="85156" state="red" />
+					<TrafficSignalState trafficSignalId="85207" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="85091" state="yellow" />
+					<TrafficSignalState trafficSignalId="85156" state="red" />
+					<TrafficSignalState trafficSignalId="85207" state="red" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="85091" state="red" />
+					<TrafficSignalState trafficSignalId="85156" state="red" />
+					<TrafficSignalState trafficSignalId="85207" state="red" />
+				</Phase>
+				<Phase name="p3" duration="18">
+					<TrafficSignalState trafficSignalId="85091" state="red" />
+					<TrafficSignalState trafficSignalId="85156" state="green" />
+					<TrafficSignalState trafficSignalId="85207" state="green" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="85091" state="red" />
+					<TrafficSignalState trafficSignalId="85156" state="yellow" />
+					<TrafficSignalState trafficSignalId="85207" state="yellow" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="85091" state="red" />
+					<TrafficSignalState trafficSignalId="85156" state="red" />
+					<TrafficSignalState trafficSignalId="85207" state="red" />
+				</Phase>
+				<Phase name="p6" duration="2">
+					<TrafficSignalState trafficSignalId="85091" state="green" />
+					<TrafficSignalState trafficSignalId="85156" state="red" />
+					<TrafficSignalState trafficSignalId="85207" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SCWLU10">
+				<Phase name="p0" duration="40">
+					<TrafficSignalState trafficSignalId="125545" state="green" />
+					<TrafficSignalState trafficSignalId="125569" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="125545" state="yellow" />
+					<TrafficSignalState trafficSignalId="125569" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="32">
+					<TrafficSignalState trafficSignalId="125545" state="red" />
+					<TrafficSignalState trafficSignalId="125569" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SCZKG10">
+				<Phase name="p0" duration="2">
+					<TrafficSignalState trafficSignalId="118374" state="green" />
+					<TrafficSignalState trafficSignalId="118427" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="118374" state="yellow" />
+					<TrafficSignalState trafficSignalId="118427" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="35">
+					<TrafficSignalState trafficSignalId="118374" state="red" />
+					<TrafficSignalState trafficSignalId="118427" state="red" />
+				</Phase>
+				<Phase name="p3" duration="80">
+					<TrafficSignalState trafficSignalId="118374" state="green" />
+					<TrafficSignalState trafficSignalId="118427" state="green" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SCZLY10">
+				<Phase name="p0" duration="30">
+					<TrafficSignalState trafficSignalId="105770" state="green" />
+					<TrafficSignalState trafficSignalId="105854" state="green" />
+					<TrafficSignalState trafficSignalId="105942" state="red" />
+					<TrafficSignalState trafficSignalId="106026" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="105770" state="yellow" />
+					<TrafficSignalState trafficSignalId="105854" state="yellow" />
+					<TrafficSignalState trafficSignalId="105942" state="red" />
+					<TrafficSignalState trafficSignalId="106026" state="red" />
+				</Phase>
+				<Phase name="p2" duration="7">
+					<TrafficSignalState trafficSignalId="105770" state="red" />
+					<TrafficSignalState trafficSignalId="105854" state="red" />
+					<TrafficSignalState trafficSignalId="105942" state="red" />
+					<TrafficSignalState trafficSignalId="106026" state="red" />
+				</Phase>
+				<Phase name="p3" duration="20">
+					<TrafficSignalState trafficSignalId="105770" state="red" />
+					<TrafficSignalState trafficSignalId="105854" state="red" />
+					<TrafficSignalState trafficSignalId="105942" state="green" />
+					<TrafficSignalState trafficSignalId="106026" state="green" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="105770" state="red" />
+					<TrafficSignalState trafficSignalId="105854" state="red" />
+					<TrafficSignalState trafficSignalId="105942" state="yellow" />
+					<TrafficSignalState trafficSignalId="106026" state="yellow" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="105770" state="red" />
+					<TrafficSignalState trafficSignalId="105854" state="red" />
+					<TrafficSignalState trafficSignalId="105942" state="red" />
+					<TrafficSignalState trafficSignalId="106026" state="red" />
+				</Phase>
+				<Phase name="p6" duration="25">
+					<TrafficSignalState trafficSignalId="105770" state="green" />
+					<TrafficSignalState trafficSignalId="105854" state="green" />
+					<TrafficSignalState trafficSignalId="105942" state="red" />
+					<TrafficSignalState trafficSignalId="106026" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SDCKB10">
+				<Phase name="p0" duration="6">
+					<TrafficSignalState trafficSignalId="56612" state="red" />
+					<TrafficSignalState trafficSignalId="56867" state="red" />
+					<TrafficSignalState trafficSignalId="57027" state="red" />
+					<TrafficSignalState trafficSignalId="57234" state="red" />
+				</Phase>
+				<Phase name="p1" duration="29">
+					<TrafficSignalState trafficSignalId="56612" state="red" />
+					<TrafficSignalState trafficSignalId="56867" state="red" />
+					<TrafficSignalState trafficSignalId="57027" state="red" />
+					<TrafficSignalState trafficSignalId="57234" state="green" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="56612" state="red" />
+					<TrafficSignalState trafficSignalId="56867" state="red" />
+					<TrafficSignalState trafficSignalId="57027" state="red" />
+					<TrafficSignalState trafficSignalId="57234" state="yellow" />
+				</Phase>
+				<Phase name="p3" duration="2">
+					<TrafficSignalState trafficSignalId="56612" state="red" />
+					<TrafficSignalState trafficSignalId="56867" state="red" />
+					<TrafficSignalState trafficSignalId="57027" state="red" />
+					<TrafficSignalState trafficSignalId="57234" state="red" />
+				</Phase>
+				<Phase name="p4" duration="69">
+					<TrafficSignalState trafficSignalId="56612" state="green" />
+					<TrafficSignalState trafficSignalId="56867" state="green" />
+					<TrafficSignalState trafficSignalId="57027" state="green" />
+					<TrafficSignalState trafficSignalId="57234" state="red" />
+				</Phase>
+				<Phase name="p5" duration="3">
+					<TrafficSignalState trafficSignalId="56612" state="yellow" />
+					<TrafficSignalState trafficSignalId="56867" state="yellow" />
+					<TrafficSignalState trafficSignalId="57027" state="yellow" />
+					<TrafficSignalState trafficSignalId="57234" state="red" />
+				</Phase>
+				<Phase name="p6" duration="8">
+					<TrafficSignalState trafficSignalId="56612" state="red" />
+					<TrafficSignalState trafficSignalId="56867" state="red" />
+					<TrafficSignalState trafficSignalId="57027" state="red" />
+					<TrafficSignalState trafficSignalId="57234" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SDFJZ10">
+				<Phase name="p0" duration="3">
+					<TrafficSignalState trafficSignalId="99220" state="yellow" />
+					<TrafficSignalState trafficSignalId="99327" state="yellow" />
+					<TrafficSignalState trafficSignalId="99416" state="red" />
+					<TrafficSignalState trafficSignalId="99519" state="red" />
+					<TrafficSignalState trafficSignalId="107608" state="yellow" />
+					<TrafficSignalState trafficSignalId="107671" state="yellow" />
+					<TrafficSignalState trafficSignalId="107744" state="red" />
+				</Phase>
+				<Phase name="p1" duration="2">
+					<TrafficSignalState trafficSignalId="99220" state="red" />
+					<TrafficSignalState trafficSignalId="99327" state="red" />
+					<TrafficSignalState trafficSignalId="99416" state="red" />
+					<TrafficSignalState trafficSignalId="99519" state="red" />
+					<TrafficSignalState trafficSignalId="107608" state="red" />
+					<TrafficSignalState trafficSignalId="107671" state="red" />
+					<TrafficSignalState trafficSignalId="107744" state="red" />
+				</Phase>
+				<Phase name="p2" duration="30">
+					<TrafficSignalState trafficSignalId="99220" state="red" />
+					<TrafficSignalState trafficSignalId="99327" state="red" />
+					<TrafficSignalState trafficSignalId="99416" state="red" />
+					<TrafficSignalState trafficSignalId="99519" state="red" />
+					<TrafficSignalState trafficSignalId="107608" state="red" />
+					<TrafficSignalState trafficSignalId="107671" state="red" />
+					<TrafficSignalState trafficSignalId="107744" state="green" />
+				</Phase>
+				<Phase name="p3" duration="3">
+					<TrafficSignalState trafficSignalId="99220" state="red" />
+					<TrafficSignalState trafficSignalId="99327" state="red" />
+					<TrafficSignalState trafficSignalId="99416" state="red" />
+					<TrafficSignalState trafficSignalId="99519" state="red" />
+					<TrafficSignalState trafficSignalId="107608" state="red" />
+					<TrafficSignalState trafficSignalId="107671" state="red" />
+					<TrafficSignalState trafficSignalId="107744" state="yellow" />
+				</Phase>
+				<Phase name="p4" duration="2">
+					<TrafficSignalState trafficSignalId="99220" state="red" />
+					<TrafficSignalState trafficSignalId="99327" state="red" />
+					<TrafficSignalState trafficSignalId="99416" state="red" />
+					<TrafficSignalState trafficSignalId="99519" state="red" />
+					<TrafficSignalState trafficSignalId="107608" state="red" />
+					<TrafficSignalState trafficSignalId="107671" state="red" />
+					<TrafficSignalState trafficSignalId="107744" state="red" />
+				</Phase>
+				<Phase name="p5" duration="80">
+					<TrafficSignalState trafficSignalId="99220" state="green" />
+					<TrafficSignalState trafficSignalId="99327" state="green" />
+					<TrafficSignalState trafficSignalId="99416" state="red" />
+					<TrafficSignalState trafficSignalId="99519" state="red" />
+					<TrafficSignalState trafficSignalId="107608" state="green" />
+					<TrafficSignalState trafficSignalId="107671" state="green" />
+					<TrafficSignalState trafficSignalId="107744" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SDKJT10">
+				<Phase name="p0" duration="30">
+					<TrafficSignalState trafficSignalId="50342" state="green" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="50342" state="yellow" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p3" duration="7">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p4" duration="32">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="green" />
+					<TrafficSignalState trafficSignalId="50736" state="green" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p5" duration="3">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="yellow" />
+					<TrafficSignalState trafficSignalId="50736" state="yellow" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p6" duration="3">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p7" duration="26">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="left" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p8" duration="5">
+					<TrafficSignalState trafficSignalId="50342" state="red" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+				<Phase name="p9" duration="9">
+					<TrafficSignalState trafficSignalId="50342" state="green" />
+					<TrafficSignalState trafficSignalId="50538" state="red" />
+					<TrafficSignalState trafficSignalId="50736" state="red" />
+					<TrafficSignalState trafficSignalId="50891" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SDMMS10">
+				<Phase name="p0" duration="25">
+					<TrafficSignalState trafficSignalId="69509" state="green" />
+					<TrafficSignalState trafficSignalId="69586" state="green" />
+					<TrafficSignalState trafficSignalId="69692" state="red" />
+					<TrafficSignalState trafficSignalId="69850" state="red" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="green" />
+					<TrafficSignalState trafficSignalId="83886" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="69509" state="yellow" />
+					<TrafficSignalState trafficSignalId="69586" state="yellow" />
+					<TrafficSignalState trafficSignalId="69692" state="red" />
+					<TrafficSignalState trafficSignalId="69850" state="red" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="yellow" />
+					<TrafficSignalState trafficSignalId="83886" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="6">
+					<TrafficSignalState trafficSignalId="69509" state="red" />
+					<TrafficSignalState trafficSignalId="69586" state="red" />
+					<TrafficSignalState trafficSignalId="69692" state="red" />
+					<TrafficSignalState trafficSignalId="69850" state="red" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="red" />
+					<TrafficSignalState trafficSignalId="83886" state="red" />
+				</Phase>
+				<Phase name="p3" duration="21">
+					<TrafficSignalState trafficSignalId="69509" state="red" />
+					<TrafficSignalState trafficSignalId="69586" state="red" />
+					<TrafficSignalState trafficSignalId="69692" state="green" />
+					<TrafficSignalState trafficSignalId="69850" state="green" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="red" />
+					<TrafficSignalState trafficSignalId="83886" state="red" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="69509" state="red" />
+					<TrafficSignalState trafficSignalId="69586" state="red" />
+					<TrafficSignalState trafficSignalId="69692" state="yellow" />
+					<TrafficSignalState trafficSignalId="69850" state="yellow" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="red" />
+					<TrafficSignalState trafficSignalId="83886" state="red" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="69509" state="red" />
+					<TrafficSignalState trafficSignalId="69586" state="red" />
+					<TrafficSignalState trafficSignalId="69692" state="red" />
+					<TrafficSignalState trafficSignalId="69850" state="red" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="red" />
+					<TrafficSignalState trafficSignalId="83886" state="red" />
+				</Phase>
+				<Phase name="p6" duration="4">
+					<TrafficSignalState trafficSignalId="69509" state="red" />
+					<TrafficSignalState trafficSignalId="69586" state="red" />
+					<TrafficSignalState trafficSignalId="69692" state="red" />
+					<TrafficSignalState trafficSignalId="69850" state="red" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="red" />
+					<TrafficSignalState trafficSignalId="83886" state="red" />
+				</Phase>
+				<Phase name="p7" duration="26">
+					<TrafficSignalState trafficSignalId="69509" state="green" />
+					<TrafficSignalState trafficSignalId="69586" state="green" />
+					<TrafficSignalState trafficSignalId="69692" state="red" />
+					<TrafficSignalState trafficSignalId="69850" state="red" />
+					<TrafficSignalState trafficSignalId="83830" state="red" />
+					<TrafficSignalState trafficSignalId="83858" state="green" />
+					<TrafficSignalState trafficSignalId="83886" state="green" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SDPJN10">
+				<Phase name="p0" duration="3">
+					<TrafficSignalState trafficSignalId="119890" state="red" />
+					<TrafficSignalState trafficSignalId="119972" state="red" />
+					<TrafficSignalState trafficSignalId="120052" state="red" />
+					<TrafficSignalState trafficSignalId="120138" state="red" />
+				</Phase>
+				<Phase name="p1" duration="27">
+					<TrafficSignalState trafficSignalId="119890" state="red" />
+					<TrafficSignalState trafficSignalId="119972" state="red" />
+					<TrafficSignalState trafficSignalId="120052" state="green" />
+					<TrafficSignalState trafficSignalId="120138" state="green" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="119890" state="red" />
+					<TrafficSignalState trafficSignalId="119972" state="red" />
+					<TrafficSignalState trafficSignalId="120052" state="yellow" />
+					<TrafficSignalState trafficSignalId="120138" state="yellow" />
+				</Phase>
+				<Phase name="p3" duration="2">
+					<TrafficSignalState trafficSignalId="119890" state="red" />
+					<TrafficSignalState trafficSignalId="119972" state="red" />
+					<TrafficSignalState trafficSignalId="120052" state="red" />
+					<TrafficSignalState trafficSignalId="120138" state="red" />
+				</Phase>
+				<Phase name="p4" duration="5">
+					<TrafficSignalState trafficSignalId="119890" state="red" />
+					<TrafficSignalState trafficSignalId="119972" state="red" />
+					<TrafficSignalState trafficSignalId="120052" state="red" />
+					<TrafficSignalState trafficSignalId="120138" state="red" />
+				</Phase>
+				<Phase name="p5" duration="73">
+					<TrafficSignalState trafficSignalId="119890" state="green" />
+					<TrafficSignalState trafficSignalId="119972" state="green" />
+					<TrafficSignalState trafficSignalId="120052" state="red" />
+					<TrafficSignalState trafficSignalId="120138" state="red" />
+				</Phase>
+				<Phase name="p6" duration="3">
+					<TrafficSignalState trafficSignalId="119890" state="yellow" />
+					<TrafficSignalState trafficSignalId="119972" state="yellow" />
+					<TrafficSignalState trafficSignalId="120052" state="red" />
+					<TrafficSignalState trafficSignalId="120138" state="red" />
+				</Phase>
+				<Phase name="p7" duration="4">
+					<TrafficSignalState trafficSignalId="119890" state="red" />
+					<TrafficSignalState trafficSignalId="119972" state="red" />
+					<TrafficSignalState trafficSignalId="120052" state="red" />
+					<TrafficSignalState trafficSignalId="120138" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SDXJC10">
+				<Phase name="p0" duration="40">
+					<TrafficSignalState trafficSignalId="76931" state="red" />
+					<TrafficSignalState trafficSignalId="76986" state="red" />
+				</Phase>
+				<Phase name="p1" duration="70">
+					<TrafficSignalState trafficSignalId="76931" state="green" />
+					<TrafficSignalState trafficSignalId="76986" state="green" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="76931" state="yellow" />
+					<TrafficSignalState trafficSignalId="76986" state="yellow" />
+				</Phase>
+				<Phase name="p3" duration="7">
+					<TrafficSignalState trafficSignalId="76931" state="red" />
+					<TrafficSignalState trafficSignalId="76986" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SEBIW10">
+				<Phase name="p0" duration="3">
+					<TrafficSignalState trafficSignalId="119712" state="green" />
+					<TrafficSignalState trafficSignalId="124896" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="119712" state="yellow" />
+					<TrafficSignalState trafficSignalId="124896" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="54">
+					<TrafficSignalState trafficSignalId="119712" state="red" />
+					<TrafficSignalState trafficSignalId="124896" state="red" />
+				</Phase>
+				<Phase name="p3" duration="90">
+					<TrafficSignalState trafficSignalId="119712" state="green" />
+					<TrafficSignalState trafficSignalId="124896" state="green" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SEFMN10">
+				<Phase name="p0" duration="64">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="green" />
+					<TrafficSignalState trafficSignalId="70361" state="green" />
+					<TrafficSignalState trafficSignalId="110902" state="green" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="green" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="yellow" />
+					<TrafficSignalState trafficSignalId="70361" state="yellow" />
+					<TrafficSignalState trafficSignalId="110902" state="yellow" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="yellow" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="red" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="red" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p3" duration="5">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="red" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="red" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p4" duration="41">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="green" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="green" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="green" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p5" duration="4">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="yellow" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="yellow" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="yellow" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p6" duration="9">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="red" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="red" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p7" duration="55">
+					<TrafficSignalState trafficSignalId="70058" state="green" />
+					<TrafficSignalState trafficSignalId="70192" state="red" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="red" />
+					<TrafficSignalState trafficSignalId="111132" state="green" />
+					<TrafficSignalState trafficSignalId="111246" state="green" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="green" />
+					<TrafficSignalState trafficSignalId="112337" state="green" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p8" duration="3">
+					<TrafficSignalState trafficSignalId="70058" state="yellow" />
+					<TrafficSignalState trafficSignalId="70192" state="red" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="red" />
+					<TrafficSignalState trafficSignalId="111132" state="yellow" />
+					<TrafficSignalState trafficSignalId="111246" state="yellow" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="yellow" />
+					<TrafficSignalState trafficSignalId="112337" state="yellow" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p9" duration="10">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="red" />
+					<TrafficSignalState trafficSignalId="70361" state="red" />
+					<TrafficSignalState trafficSignalId="110902" state="red" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="red" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="red" />
+				</Phase>
+				<Phase name="p10" duration="3">
+					<TrafficSignalState trafficSignalId="70058" state="red" />
+					<TrafficSignalState trafficSignalId="70192" state="green" />
+					<TrafficSignalState trafficSignalId="70361" state="green" />
+					<TrafficSignalState trafficSignalId="110902" state="green" />
+					<TrafficSignalState trafficSignalId="111132" state="red" />
+					<TrafficSignalState trafficSignalId="111246" state="red" />
+					<TrafficSignalState trafficSignalId="111531" state="green" />
+					<TrafficSignalState trafficSignalId="112020" state="red" />
+					<TrafficSignalState trafficSignalId="112337" state="red" />
+					<TrafficSignalState trafficSignalId="112676" state="green" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SEHK710">
+				<Phase name="p0" duration="84">
+					<TrafficSignalState trafficSignalId="90027" state="green" />
+					<TrafficSignalState trafficSignalId="90161" state="green" />
+					<TrafficSignalState trafficSignalId="90290" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="90027" state="yellow" />
+					<TrafficSignalState trafficSignalId="90161" state="yellow" />
+					<TrafficSignalState trafficSignalId="90290" state="red" />
+				</Phase>
+				<Phase name="p2" duration="15">
+					<TrafficSignalState trafficSignalId="90027" state="red" />
+					<TrafficSignalState trafficSignalId="90161" state="red" />
+					<TrafficSignalState trafficSignalId="90290" state="red" />
+				</Phase>
+				<Phase name="p3" duration="36">
+					<TrafficSignalState trafficSignalId="90027" state="red" />
+					<TrafficSignalState trafficSignalId="90161" state="red" />
+					<TrafficSignalState trafficSignalId="90290" state="green" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="90027" state="red" />
+					<TrafficSignalState trafficSignalId="90161" state="red" />
+					<TrafficSignalState trafficSignalId="90290" state="yellow" />
+				</Phase>
+				<Phase name="p5" duration="4">
+					<TrafficSignalState trafficSignalId="90027" state="red" />
+					<TrafficSignalState trafficSignalId="90161" state="red" />
+					<TrafficSignalState trafficSignalId="90290" state="red" />
+				</Phase>
+				<Phase name="p6" duration="5">
+					<TrafficSignalState trafficSignalId="90027" state="green" />
+					<TrafficSignalState trafficSignalId="90161" state="green" />
+					<TrafficSignalState trafficSignalId="90290" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SERK810">
+				<Phase name="p0" duration="44">
+					<TrafficSignalState trafficSignalId="114960" state="red" />
+					<TrafficSignalState trafficSignalId="114994" state="green" />
+					<TrafficSignalState trafficSignalId="124632" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="114960" state="red" />
+					<TrafficSignalState trafficSignalId="114994" state="yellow" />
+					<TrafficSignalState trafficSignalId="124632" state="red" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="114960" state="red" />
+					<TrafficSignalState trafficSignalId="114994" state="red" />
+					<TrafficSignalState trafficSignalId="124632" state="red" />
+				</Phase>
+				<Phase name="p3" duration="95">
+					<TrafficSignalState trafficSignalId="114960" state="green" />
+					<TrafficSignalState trafficSignalId="114994" state="red" />
+					<TrafficSignalState trafficSignalId="124632" state="green" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="114960" state="yellow" />
+					<TrafficSignalState trafficSignalId="114994" state="red" />
+					<TrafficSignalState trafficSignalId="124632" state="yellow" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="114960" state="red" />
+					<TrafficSignalState trafficSignalId="114994" state="red" />
+					<TrafficSignalState trafficSignalId="124632" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SESLS10">
+				<Phase name="p0" duration="5">
+					<TrafficSignalState trafficSignalId="80480" state="red" />
+					<TrafficSignalState trafficSignalId="80571" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="80480" state="red" />
+					<TrafficSignalState trafficSignalId="80571" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="80480" state="red" />
+					<TrafficSignalState trafficSignalId="80571" state="red" />
+				</Phase>
+				<Phase name="p3" duration="50">
+					<TrafficSignalState trafficSignalId="80480" state="green" />
+					<TrafficSignalState trafficSignalId="80571" state="red" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="80480" state="yellow" />
+					<TrafficSignalState trafficSignalId="80571" state="red" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="80480" state="red" />
+					<TrafficSignalState trafficSignalId="80571" state="red" />
+				</Phase>
+				<Phase name="p6" duration="25">
+					<TrafficSignalState trafficSignalId="80480" state="red" />
+					<TrafficSignalState trafficSignalId="80571" state="green" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SEXLL10">
+				<Phase name="p0" duration="10">
+					<TrafficSignalState trafficSignalId="51531" state="red" />
+					<TrafficSignalState trafficSignalId="51561" state="green" />
+					<TrafficSignalState trafficSignalId="123729" state="red" />
+					<TrafficSignalState trafficSignalId="124986" state="red" />
+					<TrafficSignalState trafficSignalId="126422" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="51531" state="red" />
+					<TrafficSignalState trafficSignalId="51561" state="yellow" />
+					<TrafficSignalState trafficSignalId="123729" state="red" />
+					<TrafficSignalState trafficSignalId="124986" state="red" />
+					<TrafficSignalState trafficSignalId="126422" state="red" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="51531" state="red" />
+					<TrafficSignalState trafficSignalId="51561" state="red" />
+					<TrafficSignalState trafficSignalId="123729" state="red" />
+					<TrafficSignalState trafficSignalId="124986" state="red" />
+					<TrafficSignalState trafficSignalId="126422" state="red" />
+				</Phase>
+				<Phase name="p3" duration="5">
+					<TrafficSignalState trafficSignalId="51531" state="red" />
+					<TrafficSignalState trafficSignalId="51561" state="red" />
+					<TrafficSignalState trafficSignalId="123729" state="red" />
+					<TrafficSignalState trafficSignalId="124986" state="red" />
+					<TrafficSignalState trafficSignalId="126422" state="red" />
+				</Phase>
+				<Phase name="p4" duration="71">
+					<TrafficSignalState trafficSignalId="51531" state="green" />
+					<TrafficSignalState trafficSignalId="51561" state="red" />
+					<TrafficSignalState trafficSignalId="123729" state="green" />
+					<TrafficSignalState trafficSignalId="124986" state="green" />
+					<TrafficSignalState trafficSignalId="126422" state="green" />
+				</Phase>
+				<Phase name="p5" duration="3">
+					<TrafficSignalState trafficSignalId="51531" state="yellow" />
+					<TrafficSignalState trafficSignalId="51561" state="red" />
+					<TrafficSignalState trafficSignalId="123729" state="yellow" />
+					<TrafficSignalState trafficSignalId="124986" state="yellow" />
+					<TrafficSignalState trafficSignalId="126422" state="yellow" />
+				</Phase>
+				<Phase name="p6" duration="2">
+					<TrafficSignalState trafficSignalId="51531" state="red" />
+					<TrafficSignalState trafficSignalId="51561" state="red" />
+					<TrafficSignalState trafficSignalId="123729" state="red" />
+					<TrafficSignalState trafficSignalId="124986" state="red" />
+					<TrafficSignalState trafficSignalId="126422" state="red" />
+				</Phase>
+				<Phase name="p7" duration="54">
+					<TrafficSignalState trafficSignalId="51531" state="red" />
+					<TrafficSignalState trafficSignalId="51561" state="green" />
+					<TrafficSignalState trafficSignalId="123729" state="red" />
+					<TrafficSignalState trafficSignalId="124986" state="red" />
+					<TrafficSignalState trafficSignalId="126422" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SEZM510">
+				<Phase name="p0" duration="5">
+					<TrafficSignalState trafficSignalId="47837" state="red" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="red" />
+					<TrafficSignalState trafficSignalId="95501" state="green" />
+					<TrafficSignalState trafficSignalId="102437" state="red" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="47837" state="red" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="red" />
+					<TrafficSignalState trafficSignalId="95501" state="yellow" />
+					<TrafficSignalState trafficSignalId="102437" state="red" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="47837" state="red" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="red" />
+					<TrafficSignalState trafficSignalId="95501" state="red" />
+					<TrafficSignalState trafficSignalId="102437" state="red" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+				<Phase name="p3" duration="40">
+					<TrafficSignalState trafficSignalId="47837" state="green" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="green" />
+					<TrafficSignalState trafficSignalId="95501" state="red" />
+					<TrafficSignalState trafficSignalId="102437" state="green" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="47837" state="yellow" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="yellow" />
+					<TrafficSignalState trafficSignalId="95501" state="red" />
+					<TrafficSignalState trafficSignalId="102437" state="yellow" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="47837" state="red" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="red" />
+					<TrafficSignalState trafficSignalId="95501" state="red" />
+					<TrafficSignalState trafficSignalId="102437" state="red" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+				<Phase name="p6" duration="20">
+					<TrafficSignalState trafficSignalId="47837" state="red" />
+					<TrafficSignalState trafficSignalId="47867" state="red" />
+					<TrafficSignalState trafficSignalId="95465" state="red" />
+					<TrafficSignalState trafficSignalId="95501" state="green" />
+					<TrafficSignalState trafficSignalId="102437" state="red" />
+					<TrafficSignalState trafficSignalId="102469" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SF6JQ10">
+				<Phase name="p0" duration="5">
+					<TrafficSignalState trafficSignalId="82997" state="red" />
+					<TrafficSignalState trafficSignalId="83165" state="red" />
+					<TrafficSignalState trafficSignalId="95999" state="red" />
+					<TrafficSignalState trafficSignalId="96238" state="red" />
+					<TrafficSignalState trafficSignalId="96475" state="red" />
+					<TrafficSignalState trafficSignalId="96736" state="red" />
+					<TrafficSignalState trafficSignalId="96943" state="red" />
+				</Phase>
+				<Phase name="p1" duration="75">
+					<TrafficSignalState trafficSignalId="82997" state="green" />
+					<TrafficSignalState trafficSignalId="83165" state="red" />
+					<TrafficSignalState trafficSignalId="95999" state="green" />
+					<TrafficSignalState trafficSignalId="96238" state="green" />
+					<TrafficSignalState trafficSignalId="96475" state="green" />
+					<TrafficSignalState trafficSignalId="96736" state="red" />
+					<TrafficSignalState trafficSignalId="96943" state="red" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="82997" state="yellow" />
+					<TrafficSignalState trafficSignalId="83165" state="red" />
+					<TrafficSignalState trafficSignalId="95999" state="yellow" />
+					<TrafficSignalState trafficSignalId="96238" state="yellow" />
+					<TrafficSignalState trafficSignalId="96475" state="yellow" />
+					<TrafficSignalState trafficSignalId="96736" state="red" />
+					<TrafficSignalState trafficSignalId="96943" state="red" />
+				</Phase>
+				<Phase name="p3" duration="7">
+					<TrafficSignalState trafficSignalId="82997" state="red" />
+					<TrafficSignalState trafficSignalId="83165" state="red" />
+					<TrafficSignalState trafficSignalId="95999" state="red" />
+					<TrafficSignalState trafficSignalId="96238" state="red" />
+					<TrafficSignalState trafficSignalId="96475" state="red" />
+					<TrafficSignalState trafficSignalId="96736" state="red" />
+					<TrafficSignalState trafficSignalId="96943" state="red" />
+				</Phase>
+				<Phase name="p4" duration="55">
+					<TrafficSignalState trafficSignalId="82997" state="red" />
+					<TrafficSignalState trafficSignalId="83165" state="green" />
+					<TrafficSignalState trafficSignalId="95999" state="red" />
+					<TrafficSignalState trafficSignalId="96238" state="red" />
+					<TrafficSignalState trafficSignalId="96475" state="red" />
+					<TrafficSignalState trafficSignalId="96736" state="green" />
+					<TrafficSignalState trafficSignalId="96943" state="green" />
+				</Phase>
+				<Phase name="p5" duration="3">
+					<TrafficSignalState trafficSignalId="82997" state="red" />
+					<TrafficSignalState trafficSignalId="83165" state="yellow" />
+					<TrafficSignalState trafficSignalId="95999" state="red" />
+					<TrafficSignalState trafficSignalId="96238" state="red" />
+					<TrafficSignalState trafficSignalId="96475" state="red" />
+					<TrafficSignalState trafficSignalId="96736" state="yellow" />
+					<TrafficSignalState trafficSignalId="96943" state="yellow" />
+				</Phase>
+				<Phase name="p6" duration="2">
+					<TrafficSignalState trafficSignalId="82997" state="red" />
+					<TrafficSignalState trafficSignalId="83165" state="red" />
+					<TrafficSignalState trafficSignalId="95999" state="red" />
+					<TrafficSignalState trafficSignalId="96238" state="red" />
+					<TrafficSignalState trafficSignalId="96475" state="red" />
+					<TrafficSignalState trafficSignalId="96736" state="red" />
+					<TrafficSignalState trafficSignalId="96943" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SF9JY10">
+				<Phase name="p0" duration="5">
+					<TrafficSignalState trafficSignalId="46665" state="red" />
+					<TrafficSignalState trafficSignalId="46913" state="red" />
+					<TrafficSignalState trafficSignalId="47263" state="red" />
+					<TrafficSignalState trafficSignalId="47631" state="red" />
+					<TrafficSignalState trafficSignalId="72123" state="red" />
+					<TrafficSignalState trafficSignalId="73422" state="red" />
+					<TrafficSignalState trafficSignalId="73470" state="red" />
+					<TrafficSignalState trafficSignalId="73580" state="red" />
+					<TrafficSignalState trafficSignalId="74231" state="red" />
+					<TrafficSignalState trafficSignalId="74393" state="red" />
+				</Phase>
+				<Phase name="p1" duration="77">
+					<TrafficSignalState trafficSignalId="46665" state="red" />
+					<TrafficSignalState trafficSignalId="46913" state="red" />
+					<TrafficSignalState trafficSignalId="47263" state="red" />
+					<TrafficSignalState trafficSignalId="47631" state="green" />
+					<TrafficSignalState trafficSignalId="72123" state="green" />
+					<TrafficSignalState trafficSignalId="73422" state="green" />
+					<TrafficSignalState trafficSignalId="73470" state="red" />
+					<TrafficSignalState trafficSignalId="73580" state="red" />
+					<TrafficSignalState trafficSignalId="74231" state="green" />
+					<TrafficSignalState trafficSignalId="74393" state="red" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="46665" state="red" />
+					<TrafficSignalState trafficSignalId="46913" state="red" />
+					<TrafficSignalState trafficSignalId="47263" state="red" />
+					<TrafficSignalState trafficSignalId="47631" state="yellow" />
+					<TrafficSignalState trafficSignalId="72123" state="yellow" />
+					<TrafficSignalState trafficSignalId="73422" state="yellow" />
+					<TrafficSignalState trafficSignalId="73470" state="red" />
+					<TrafficSignalState trafficSignalId="73580" state="red" />
+					<TrafficSignalState trafficSignalId="74231" state="yellow" />
+					<TrafficSignalState trafficSignalId="74393" state="red" />
+				</Phase>
+				<Phase name="p3" duration="7">
+					<TrafficSignalState trafficSignalId="46665" state="red" />
+					<TrafficSignalState trafficSignalId="46913" state="red" />
+					<TrafficSignalState trafficSignalId="47263" state="red" />
+					<TrafficSignalState trafficSignalId="47631" state="red" />
+					<TrafficSignalState trafficSignalId="72123" state="red" />
+					<TrafficSignalState trafficSignalId="73422" state="red" />
+					<TrafficSignalState trafficSignalId="73470" state="red" />
+					<TrafficSignalState trafficSignalId="73580" state="red" />
+					<TrafficSignalState trafficSignalId="74231" state="red" />
+					<TrafficSignalState trafficSignalId="74393" state="red" />
+				</Phase>
+				<Phase name="p4" duration="53">
+					<TrafficSignalState trafficSignalId="46665" state="green" />
+					<TrafficSignalState trafficSignalId="46913" state="green" />
+					<TrafficSignalState trafficSignalId="47263" state="green" />
+					<TrafficSignalState trafficSignalId="47631" state="red" />
+					<TrafficSignalState trafficSignalId="72123" state="red" />
+					<TrafficSignalState trafficSignalId="73422" state="red" />
+					<TrafficSignalState trafficSignalId="73470" state="green" />
+					<TrafficSignalState trafficSignalId="73580" state="green" />
+					<TrafficSignalState trafficSignalId="74231" state="red" />
+					<TrafficSignalState trafficSignalId="74393" state="green" />
+				</Phase>
+				<Phase name="p5" duration="3">
+					<TrafficSignalState trafficSignalId="46665" state="yellow" />
+					<TrafficSignalState trafficSignalId="46913" state="yellow" />
+					<TrafficSignalState trafficSignalId="47263" state="yellow" />
+					<TrafficSignalState trafficSignalId="47631" state="red" />
+					<TrafficSignalState trafficSignalId="72123" state="red" />
+					<TrafficSignalState trafficSignalId="73422" state="red" />
+					<TrafficSignalState trafficSignalId="73470" state="yellow" />
+					<TrafficSignalState trafficSignalId="73580" state="yellow" />
+					<TrafficSignalState trafficSignalId="74231" state="red" />
+					<TrafficSignalState trafficSignalId="74393" state="yellow" />
+				</Phase>
+				<Phase name="p6" duration="2">
+					<TrafficSignalState trafficSignalId="46665" state="red" />
+					<TrafficSignalState trafficSignalId="46913" state="red" />
+					<TrafficSignalState trafficSignalId="47263" state="red" />
+					<TrafficSignalState trafficSignalId="47631" state="red" />
+					<TrafficSignalState trafficSignalId="72123" state="red" />
+					<TrafficSignalState trafficSignalId="73422" state="red" />
+					<TrafficSignalState trafficSignalId="73470" state="red" />
+					<TrafficSignalState trafficSignalId="73580" state="red" />
+					<TrafficSignalState trafficSignalId="74231" state="red" />
+					<TrafficSignalState trafficSignalId="74393" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SF9KB10">
+				<Phase name="p0" duration="54">
+					<TrafficSignalState trafficSignalId="76371" state="green" />
+					<TrafficSignalState trafficSignalId="76511" state="red" />
+					<TrafficSignalState trafficSignalId="76661" state="red" />
+					<TrafficSignalState trafficSignalId="77292" state="red" />
+					<TrafficSignalState trafficSignalId="77405" state="red" />
+					<TrafficSignalState trafficSignalId="77575" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="76371" state="yellow" />
+					<TrafficSignalState trafficSignalId="76511" state="red" />
+					<TrafficSignalState trafficSignalId="76661" state="red" />
+					<TrafficSignalState trafficSignalId="77292" state="red" />
+					<TrafficSignalState trafficSignalId="77405" state="red" />
+					<TrafficSignalState trafficSignalId="77575" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="76371" state="red" />
+					<TrafficSignalState trafficSignalId="76511" state="red" />
+					<TrafficSignalState trafficSignalId="76661" state="red" />
+					<TrafficSignalState trafficSignalId="77292" state="red" />
+					<TrafficSignalState trafficSignalId="77405" state="red" />
+					<TrafficSignalState trafficSignalId="77575" state="red" />
+				</Phase>
+				<Phase name="p3" duration="9">
+					<TrafficSignalState trafficSignalId="76371" state="red" />
+					<TrafficSignalState trafficSignalId="76511" state="red" />
+					<TrafficSignalState trafficSignalId="76661" state="red" />
+					<TrafficSignalState trafficSignalId="77292" state="red" />
+					<TrafficSignalState trafficSignalId="77405" state="red" />
+					<TrafficSignalState trafficSignalId="77575" state="red" />
+				</Phase>
+				<Phase name="p4" duration="60">
+					<TrafficSignalState trafficSignalId="76371" state="red" />
+					<TrafficSignalState trafficSignalId="76511" state="green" />
+					<TrafficSignalState trafficSignalId="76661" state="green" />
+					<TrafficSignalState trafficSignalId="77292" state="green" />
+					<TrafficSignalState trafficSignalId="77405" state="green" />
+					<TrafficSignalState trafficSignalId="77575" state="red" />
+				</Phase>
+				<Phase name="p5" duration="3">
+					<TrafficSignalState trafficSignalId="76371" state="red" />
+					<TrafficSignalState trafficSignalId="76511" state="yellow" />
+					<TrafficSignalState trafficSignalId="76661" state="yellow" />
+					<TrafficSignalState trafficSignalId="77292" state="yellow" />
+					<TrafficSignalState trafficSignalId="77405" state="yellow" />
+					<TrafficSignalState trafficSignalId="77575" state="red" />
+				</Phase>
+				<Phase name="p6" duration="8">
+					<TrafficSignalState trafficSignalId="76371" state="red" />
+					<TrafficSignalState trafficSignalId="76511" state="red" />
+					<TrafficSignalState trafficSignalId="76661" state="red" />
+					<TrafficSignalState trafficSignalId="77292" state="red" />
+					<TrafficSignalState trafficSignalId="77405" state="red" />
+					<TrafficSignalState trafficSignalId="77575" state="red" />
+				</Phase>
+				<Phase name="p7" duration="10">
+					<TrafficSignalState trafficSignalId="76371" state="green" />
+					<TrafficSignalState trafficSignalId="76511" state="red" />
+					<TrafficSignalState trafficSignalId="76661" state="red" />
+					<TrafficSignalState trafficSignalId="77292" state="red" />
+					<TrafficSignalState trafficSignalId="77405" state="red" />
+					<TrafficSignalState trafficSignalId="77575" state="green" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SF9KW10">
+				<Phase name="p0" duration="1">
+					<TrafficSignalState trafficSignalId="92059" state="yellow" />
+					<TrafficSignalState trafficSignalId="92493" state="green" />
+					<TrafficSignalState trafficSignalId="92829" state="green" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="99651" state="yellow" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="92059" state="red" />
+					<TrafficSignalState trafficSignalId="92493" state="green" />
+					<TrafficSignalState trafficSignalId="92829" state="green" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="99651" state="red" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p2" duration="36">
+					<TrafficSignalState trafficSignalId="92059" state="red" />
+					<TrafficSignalState trafficSignalId="92493" state="green" />
+					<TrafficSignalState trafficSignalId="92829" state="green" />
+					<TrafficSignalState trafficSignalId="93373" state="green" />
+					<TrafficSignalState trafficSignalId="99651" state="red" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p3" duration="3">
+					<TrafficSignalState trafficSignalId="92059" state="red" />
+					<TrafficSignalState trafficSignalId="92493" state="yellow" />
+					<TrafficSignalState trafficSignalId="92829" state="yellow" />
+					<TrafficSignalState trafficSignalId="93373" state="yellow" />
+					<TrafficSignalState trafficSignalId="99651" state="red" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p4" duration="4">
+					<TrafficSignalState trafficSignalId="92059" state="red" />
+					<TrafficSignalState trafficSignalId="92493" state="red" />
+					<TrafficSignalState trafficSignalId="92829" state="red" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="99651" state="red" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p5" duration="51">
+					<TrafficSignalState trafficSignalId="92059" state="red" />
+					<TrafficSignalState trafficSignalId="92493" state="red" />
+					<TrafficSignalState trafficSignalId="92829" state="red" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="93373" state="left" />
+					<TrafficSignalState trafficSignalId="99651" state="red" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p6" duration="7">
+					<TrafficSignalState trafficSignalId="92059" state="red" />
+					<TrafficSignalState trafficSignalId="92493" state="red" />
+					<TrafficSignalState trafficSignalId="92829" state="red" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="99651" state="red" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p7" duration="43">
+					<TrafficSignalState trafficSignalId="92059" state="green" />
+					<TrafficSignalState trafficSignalId="92493" state="green" />
+					<TrafficSignalState trafficSignalId="92829" state="green" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="99651" state="green" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+				<Phase name="p8" duration="2">
+					<TrafficSignalState trafficSignalId="92059" state="yellow" />
+					<TrafficSignalState trafficSignalId="92493" state="green" />
+					<TrafficSignalState trafficSignalId="92829" state="green" />
+					<TrafficSignalState trafficSignalId="93373" state="red" />
+					<TrafficSignalState trafficSignalId="99651" state="yellow" />
+					<TrafficSignalState trafficSignalId="99737" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SFBM510">
+				<Phase name="p0" duration="15">
+					<TrafficSignalState trafficSignalId="102101" state="red" />
+				</Phase>
+				<Phase name="p1" duration="37">
+					<TrafficSignalState trafficSignalId="102101" state="green" />
+				</Phase>
+				<Phase name="p2" duration="3">
+					<TrafficSignalState trafficSignalId="102101" state="yellow" />
+				</Phase>
+				<Phase name="p3" duration="20">
+					<TrafficSignalState trafficSignalId="102101" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SFCMQ10">
+				<Phase name="p0" duration="20">
+					<TrafficSignalState trafficSignalId="89272" state="red" />
+					<TrafficSignalState trafficSignalId="89502" state="red" />
+					<TrafficSignalState trafficSignalId="89743" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="89272" state="red" />
+					<TrafficSignalState trafficSignalId="89502" state="red" />
+					<TrafficSignalState trafficSignalId="89743" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="89272" state="red" />
+					<TrafficSignalState trafficSignalId="89502" state="red" />
+					<TrafficSignalState trafficSignalId="89743" state="red" />
+				</Phase>
+				<Phase name="p3" duration="15">
+					<TrafficSignalState trafficSignalId="89272" state="red" />
+					<TrafficSignalState trafficSignalId="89502" state="green" />
+					<TrafficSignalState trafficSignalId="89743" state="red" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="89272" state="red" />
+					<TrafficSignalState trafficSignalId="89502" state="yellow" />
+					<TrafficSignalState trafficSignalId="89743" state="red" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="89272" state="red" />
+					<TrafficSignalState trafficSignalId="89502" state="red" />
+					<TrafficSignalState trafficSignalId="89743" state="red" />
+				</Phase>
+			</TrafficSignalController>
+			<TrafficSignalController name="SGAN610">
+				<Phase name="p0" duration="115">
+					<TrafficSignalState trafficSignalId="95233" state="red" />
+					<TrafficSignalState trafficSignalId="95295" state="green" />
+				</Phase>
+				<Phase name="p1" duration="3">
+					<TrafficSignalState trafficSignalId="95233" state="red" />
+					<TrafficSignalState trafficSignalId="95295" state="yellow" />
+				</Phase>
+				<Phase name="p2" duration="2">
+					<TrafficSignalState trafficSignalId="95233" state="red" />
+					<TrafficSignalState trafficSignalId="95295" state="red" />
+				</Phase>
+				<Phase name="p3" duration="65">
+					<TrafficSignalState trafficSignalId="95233" state="green" />
+					<TrafficSignalState trafficSignalId="95295" state="red" />
+				</Phase>
+				<Phase name="p4" duration="3">
+					<TrafficSignalState trafficSignalId="95233" state="yellow" />
+					<TrafficSignalState trafficSignalId="95295" state="red" />
+				</Phase>
+				<Phase name="p5" duration="2">
+					<TrafficSignalState trafficSignalId="95233" state="red" />
+					<TrafficSignalState trafficSignalId="95295" state="red" />
+				</Phase>
+				<Phase name="p6" duration="10">
+					<TrafficSignalState trafficSignalId="95233" state="red" />
+					<TrafficSignalState trafficSignalId="95295" state="green" />
+				</Phase>
+			</TrafficSignalController>
+		</TrafficSignals>
+	</RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController>
+				<Controller name="Autoware">
+					<Properties>
+						<Property name="maxJerk" value="1.5" />
+						<Property name="minJerk" value="-1.5" />
+					</Properties>
+				</Controller>
+			</ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init>
+			<Actions>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="42924" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="43512" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="43952" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="44513" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="45863" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46275" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46665" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="46913" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47263" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47631" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47837" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="47867" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48275" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48433" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="48631" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49034" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="49048" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50342" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50538" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50736" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="50891" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51531" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51561" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="51781" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52110" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52357" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52600" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="52877" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53230" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53445" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53671" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="53931" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56381" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56421" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56612" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="56867" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57027" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57234" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57514" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57651" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="57849" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58014" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58388" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="58694" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59386" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="59766" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="60534" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="61206" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="61505" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="62022" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="63225" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64106" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64181" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64302" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="64425" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66044" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66108" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66136" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66177" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="66209" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="68961" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="69103" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="69395" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="69509" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="69586" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="69692" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="69850" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="70012" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="70058" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="70192" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="70361" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="72123" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="73422" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="73470" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="73580" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="74231" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="74393" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="76371" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="76511" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="76661" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="76931" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="76986" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="77292" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="77405" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="77575" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="78325" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="78698" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="79140" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="79404" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="79920" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="80480" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="80571" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="82263" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="82366" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="82997" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83165" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83387" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83474" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83557" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83585" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83651" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83830" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83858" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="83886" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="85091" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="85156" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="85207" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="86429" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="86748" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="86932" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="87092" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="87273" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="87345" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="87478" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="88408" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="88520" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="89272" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="89502" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="89743" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="90027" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="90161" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="90290" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="91310" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="91420" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="91546" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="91652" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="92059" state="yellow" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="92493" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="92829" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="93373" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="94287" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="94469" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="94643" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="94827" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="95233" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="95295" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="95465" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="95501" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="95999" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="96238" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="96475" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="96736" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="96943" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="98328" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="98535" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="98708" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="98902" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99061" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99220" state="yellow" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99327" state="yellow" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99416" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99519" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99651" state="yellow" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="99737" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="102101" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="102437" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="102469" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="105770" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="105854" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="105942" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="106026" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="107393" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="107466" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="107557" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="107608" state="yellow" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="107671" state="yellow" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="107744" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="108774" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="108891" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="109073" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="109137" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="109397" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="109583" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="109747" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="109985" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="110902" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="111132" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="111246" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="111531" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="112020" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="112337" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="112676" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="114960" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="114994" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="115431" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="115508" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="115593" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="115690" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="115861" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="115992" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="117240" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="118374" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="118427" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="118917" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="119598" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="119622" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="119644" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="119712" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="119890" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="119972" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="120052" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="120138" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="123729" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="124632" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="124896" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="124986" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125341" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125473" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125497" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125545" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125569" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125593" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="125617" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="126082" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="126263" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="126287" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="126364" state="green" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<GlobalAction><InfrastructureAction><TrafficSignalAction><TrafficSignalStateAction name="126422" state="red" /></TrafficSignalAction></InfrastructureAction></GlobalAction>
+				<Private entityRef="ego">
+					<PrivateAction>
+						<TeleportAction>
+							<Position>
+								<WorldPosition x="52246.629" y="67661.306" z="0.3" h="-3.138" p="0" r="0" />
+							</Position>
+						</TeleportAction>
+					</PrivateAction>
+					<PrivateAction>
+						<RoutingAction>
+							<AssignRouteAction>
+								<Route name="route" closed="false">
+									<Waypoint routeStrategy="shortest"><Position><WorldPosition x="52174.641" y="68209.931" z="0.0" h="-0.009" p="0" r="0" /></Position></Waypoint>
+									<Waypoint routeStrategy="shortest"><Position><WorldPosition x="52265.300" y="67887.960" z="0.0" h="-1.561" p="0" r="0" /></Position></Waypoint>
+									<Waypoint routeStrategy="shortest"><Position><WorldPosition x="52361.619" y="67657.283" z="0.0" h="0.004" p="0" r="0" /></Position></Waypoint>
+								</Route>
+							</AssignRouteAction>
+						</RoutingAction>
+					</PrivateAction>
+				</Private>
+			</Actions>
+		</Init>
+		<Story name="ntu_campus_loop_signals">
+			<Act name="drive_act">
+				<ManeuverGroup maximumExecutionCount="1" name="ego_maneuvers">
+					<Actors selectTriggeringEntities="false">
+						<EntityRef entityRef="ego" />
+					</Actors>
+					<Maneuver name="end_conditions">
+						<Event name="success" priority="parallel">
+							<Action name="exit_success">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitSuccess" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="reach_goal" delay="0" conditionEdge="none">
+										<ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="5.0"><Position><WorldPosition x="52361.619" y="67657.283" z="0.0" h="0" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="timeout" priority="parallel">
+							<Action name="exit_failure">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="timeout_condition" delay="0" conditionEdge="none">
+										<ByValueCondition>
+											<SimulationTimeCondition value="1200.0" rule="greaterThan" />
+										</ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<StartTrigger>
+					<ConditionGroup>
+						<Condition name="start" delay="0" conditionEdge="none">
+							<ByValueCondition>
+								<SimulationTimeCondition value="0" rule="greaterThan" />
+							</ByValueCondition>
+						</Condition>
+					</ConditionGroup>
+				</StartTrigger>
+			</Act>
+		</Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

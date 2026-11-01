@@ -9,8 +9,8 @@ existing piece runs: the offline data, the seed schedule, L1's rows, the gate an
 The code lives in autoware-drift (`src/planning/race_planner`).
 
 **Status**: in progress, started 2026-10-31 (user: "starter phases"). M1 done; DP0 passed for
-S2's classes (user, 2026-11-01); M2 done (S2 built through M3's gate; E2, a first E3); M3's
-pricing and plant work next.
+S2's classes (user, 2026-11-01); M2 done (S2 built through M3's gate; E2, a first E3); M3 run
+(R3 met on the plant, R6 unmeasured; DP2: tune, then adopt).
 
 **Source**: user, 2026-10-31: "We pursue for laps with shortest time. Later, we may request for
 strong performance like D1 GP ... The D1 would require drift on every turn and the car has to
@@ -211,3 +211,51 @@ or learned policy; drifting on ice.
     idle host (p99 adoption unmeasured: det runs have no clock); the lex gate in closed loop (no
     flat-class corner is a loss in today's map); the zone chain (061's off-road at s 1236).
 - 2026-11-01: **DP1 confirmed** (S2 everywhere, offline budget, forced drift live); **M3 started**.
+- 2026-11-01: **M3 run** (autoware-drift 8bef811, da6e230 on main; write-up
+  `docs/drift-style-m3.md`; results under `play_log/race_planner/style/m3/`; ECU sim_vehicle_ecu
+  d68637a). M3's gate is met except R6, which is not measured.
+  - **Price as the gate sees it** (item 1): `s2-live` prices a cell at the live settings
+    (live.Driver's window 200-312 m, its caps, `v_end`; from 45/75/105 m before the turn-in, the
+    largest loss). Flat asphalt R 25 x 90: 0.024 s (M2) -> 0.076 s. Haruna's own corners
+    (`course-prices`): its downhill hairpins **gain** (-0.003 to -0.058 s, M2 priced +0.029), s 1195
+    0.06-0.09 s, s 1411 0.11-0.15 s, the s 1071 kink 0.15-0.93 s. A cell map cannot carry grade
+    and corner runs, so **course prices** (`budget.CoursePrices`, `--prices`) come before the map;
+    the map (`drift_losses.json`, 208 cells incl. 45 deg) is rebuilt at the live settings and now
+    has losses on mud, loose snow and sand (+0.02 to +0.11 s).
+  - **Floor past the car's peak**: the forced floor was 3 deg past the planner's peak (grip 0.92),
+    1.9 deg past the car's real one on asphalt; now at the map's friction (16 deg on asphalt).
+  - **L2** (item 2): holds a sustained planned slide within ~1 deg (s 1195: -0.5 deg mean); lags
+    short spikes 1-5 deg (yaw transient); weight changes (slide x4, line 0.5 m) moved corners both
+    ways. M2's "5.2 deg at most" was the plans and the measure, not L2. **No L2 change.**
+  - **Issue 010** (filed, fixed): S2 carried a drift into the next bought corner without its
+    allowance check or debit (Haruna 0.5 s: 0.058 s booked against 0.146 driven).
+  - **E3 x3** (RP_DET, `--jit` 0/1e-9/2e-9; corner courses with a 160 m entry):
+
+    | course | budget s | vs S1 s, mean (spread) | within budget + 0.3 % | plant drift m, mean (range) |
+    |---|---|---|---|---|
+    | Haruna (S1 76.49, draws 76.28-76.67) | 0 / 0.1 / 0.2 / 0.5 / 1.0 | +0.13 (0.20) / +0.21 (0.24) / +0.21 / +0.45 (0.38) / +0.45 | means all; draws 2 of 3 at 0 and 0.1 | 5 (0-9) / 36 (18-54) / 36 / 40 (30-54) / 40; S1 0 |
+    | asphalt R 25 x 90 | 0-0.1 / 0.2 | 0 / -0.00 (0.20) | yes | 0 / 6 (0-16) |
+    | dirt R 25 x 90 | 0-0.05 / 0.1-0.2 | 0 / -0.07 (0.33) | yes | 0 / 28 (11-53) |
+    | grass R 15 x 90 | 0-0.1 / 0.2 | 0 / +0.16 (0.04) | yes | 0 / 15 |
+    | gravel R 15 x 90 | 0 / 0.05-0.2 | 0 / -0.18 (0.04) | yes | 0 / 0 (rear 1.5 deg past) |
+    | packed snow R 15 x 90 | 0-0.2 | 0 (corner unpriced) | yes | 20 = S1 |
+    | mud R 15/25 x 90 | lex eps 0.01, 0.1 s | off road in every arm, S1 too | | |
+
+    R3 met on means; drift grows with the budget. No added stop, spin or off-road. Mode changes <= 1
+    a corner. **Mud**: S1 left the road 3 of 3 only after the rebase onto 474a9bf (0c61d28; before:
+    3 of 3 finished on R 25 x 90 at 100 m entry); the other S1 runs are bit for bit the same, so the
+    lex gate entered and debited its corner but its finished-corner effect is unmeasured (item 4).
+  - **R6 not measured**: load 15-180 all session, no timed run. Unclocked proxy: re-plan IPOPT
+    iterations p95, Haruna S1 150-158, S2 158-229 (B the slowest, 400 cap hit once): ~0.9 vs
+    1.0-1.3 s at 5.8 ms an iteration.
+  - **S1 bit for bit** after the rebase: Haruna `9524862c`/`9160b94d` 76.28 s, Tsukuba
+    `d7ca9f95`/`82bd3c28` 74.33 s.
+  - **DP2** (builder's ruling, for the user): **tune, then adopt**: keep the live gate with course
+    prices; adopt after a timed E3 on an idle host shows R6 (else give B its own iteration budget).
+    Not "drop the live gate": the gate is what refuses corners whose live cost exceeds the price.
+  - Video-ready (`--traj`, RP_DET, reproduce E3 bit for bit): `play_log/race_planner/style/m3/video/`
+    Haruna s1_j0 76.28 / s2b0.5_j0 76.62 (36 m at s 1195); dirt R 25 x 90 s1_j0 / s2b0.1_j0 (53 m);
+    asphalt R 25 x 90 s1_j2 / s2b0.2_j2 (16 m).
+  - Left: timed E3 (R6, adoption p99); B's iteration budget; lex gate on a finishing flat corner
+    (mud vs 0c61d28, for issue 009's owner); packed snow unpriced; course prices for Tsukuba and the
+    zone chain.

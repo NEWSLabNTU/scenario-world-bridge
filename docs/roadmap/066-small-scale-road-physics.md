@@ -471,6 +471,64 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   from `road_detail.yaml`, the groups named per prim); and rocks the sensors see beyond the
   48 m window (R7).
 
+  Third slice (2026-11-01, newslab-server-241; swb_isaac_world `rock_layer.py`, `road_layer`
+  and `surface_layer` with rocks, `spikes/rock_world.py`): the rocks in the world server.
+  - **Configuration.** A corridor's `rocks:` in `road_detail.yaml` (rocks.Zones) turns them
+    on. The top-level `ground:` names the world's own road prims; without it the world's
+    ground paths are used.
+  - **The world server's path.** `RoadLayer` reads and pushes the rocks in the car's step.
+    `rock_layer.RockStream`, attached by `world._load_road`, streams the collision tiles and
+    the rock prims once a frame from the surface layer's `flush`. `rock_world.py` drives
+    exactly this code.
+  - **Loose rocks rest on the true surface.** They are filtered from the world's ground and
+    collide with the detail's collision tiles. The group is made after the simulation
+    started, as the world server's map load does, and it holds: the median gap is 0 mm;
+    95 % sit within 1-14 mm, and 28 mm in one run (rocks on rocks or on pothole edges).
+  - **Placement, as the runs taught it:**
+    - **Rocks up to 50 kg are loose whatever their embedding.** Gravel holds no 1 kg stone
+      against a 1.9 t underbody; held fast, one stopped the car by 10 kN s.
+    - **Heavier rocks are static and sunk.** On the carriageway a held rock stands at most
+      5 cm proud, and one lying on it is at most 30 cm across. The carriageway is graded;
+      a bigger fallen rock is a scenario's hazard. Both values are assumed.
+    - **No rock lies beyond a corridor's ends.** The nearest point there is the end, so the
+      zones wrapped round it.
+    - **A zone is matched by name, not by its cover.** Equal covers on the carriageway and the
+      shoulder let one's rocks pass for the other's.
+    - **A loose rock rests on the surface, not sunk.** Sunk into a tile, it was thrown out of
+      it when it woke; the depenetration velocity is now capped at 1 m/s.
+  - **Only loose rocks a car on the road reaches have bodies:** the carriageway, the shoulder
+    and 0.5 m beyond. Those in the ditches and on the slopes are part of the tile's static
+    collider, an approximation for a car that has left the road. The wake test is one array
+    pass.
+  - **The tire stands only on a rock that rests on the road.** One thrown or lifted holds
+    nothing up; this is `RockSet.seen`, and with it the launches off lifted rocks ended.
+  - **The skid plate rests 138 mm over the road,** measured from the body's rest pose (its
+    origin 1.5 mm from the road). At speed the wheels run in the ruts, 6 cm under the
+    crown's centre, so the cross-section's figures above stand.
+
+  The 2 km class C corridor, the carriageway's cover raised to 1 % (the forest road's 0.2 %
+  puts almost none in the car's path), 9679 rocks, 3711 of them loose:
+
+  | km/h | frame p50 / p95, ms | without rocks | the car |
+  |---|---|---|---|
+  | 40 | 12.6 / 41.9 | 6.7 / 11.5 | the whole 2 km |
+  | 60 | 14.8 / 37.9 | 7.9 / 14.5 | stuck at 1670 m, after the water bars |
+  | 80 | 22.4 / 55.4 | 8.5 / 16.2 | off the road at 1545 m, after a water bar |
+
+  - **Every large skid-plate hit is on the road's own collision tiles,** the washboard and
+    the water bars, none on a rock.
+    - The run without rocks has no collision tiles, so its plate touches nothing. It is the
+      cost's baseline, not the drive's: a real car scrapes there too.
+    - At most 54 rocks were awake and about 250 had prims. None was lost, the fastest went
+      13-31 m/s, and the contact's reads and shares double its cost (2.1 to 4.6 ms a frame).
+  - **Over the budget.** The rocks and the tiles add 5.9, 6.9 and 13.9 ms p50 at 40, 60 and
+    80 km/h, against 5 allowed. Most of it is in PhysX's steps (7 to 12-16 ms), which is the
+    collision tiles, the awake bodies and the plate's contacts; they are not separated yet.
+    The host was loaded throughout (another session's builds, load 40-450 on 24 cores).
+
+  Left for R4: the cost (separate the tiles' share from the bodies'; fewer or coarser tiles
+  under the car only; GPU contact), the rig's real underbody, and a quiet host to measure on.
+
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling
   radius, rim-strike flag. Feeds the corner (R2, R6) and question 1's sampling. Measured: cleat

@@ -756,3 +756,34 @@ Blockers, ranked: (1) issue 012, L2's low-friction line weight (chain, mud corne
 absolute losses, 2.5 of 12 in every arm on the old car (M4g's car changes them: re-score on it);
 (3) the wrong-map criterion, waiting on 1; (4) Tsukuba s 1820 under load, 1 of 6 sched laps.
 Left: issue 012; then the gate again on main (M4g's car, issue 011's mud corners).
+
+**Issue 011 (fixed, 2026-11-01; the car).** M4g's regen slip control left two wet-mud corners
+with an entry straight (`c:mud_wet:25:90:8:100`, `c:mud_wet:15:90:8:160`) that S1 finished on
+the old car. Root cause, traced: two parts fired on a grip never lost. (1) The 0.25 release on
+a slip alone: wet mud's tyre peaks at 0.20 and keeps its force past it; the plan's braking
+drift runs the rear at 0.30 slip carrying 0.92 of its 1600 N of regen; the release cut it and
+the event's grip (0.23, what the rear carried) held regen at 1096 N for the drive, the rest on
+the front. (2) The runaway test out of a power slide: the car's deceleration lags the tyre's
+reversal, the axle read 30-100 % short, the grip held at the floor (0.10-0.13; mud's 0.29), in
+7 of 12 M4g mud corners. Fix in the car, sim_vehicle_ecu `760cd78` (aib `f298a93`,
+swb_isaac_world `13ed8b6`): past the release slip a release starts only with the axle 30 %
+short or the wheel still slowing 1 g faster than the car (`regen_slip_growth`; a road keeping
+its force past the peak still locks a wheel asked for more than it carries), then the slip
+alone as ABS; neither test until the wheels have been out of a drive slip 0.1 s
+(`regen_spin_settle`). Calibration defaults, spec untouched. Write-up autoware-drift
+`docs/issues/011-new-ecu-leaves-mud-corners.md`; results `play_log/race_planner/mode_choice/i011/`
+(`agg.txt`). Three cars on planner 446b403, `RP_DET` (old d68637a / 009 f3f5dcf / fix):
+- 011's corners, S1, 5 budgets x 4 draws: 20 / 1 / **20** of 20 and 11 / 1 / **11** of 20; no
+  budget, 10 draws: 10 / 0 / **10** and 5 / 0 / **5** (the 160 m corner a coin flip on the old
+  car too; the fix's runs the same draws and times);
+- ice single 10.90 (009) against **10.95** (+0.05, 0.2 se), sched 10.30 against **10.30**; 334
+  of 360 runs bit for bit; the old car on today's planner finishes no ice corner (the planner
+  holds regen there, that car does not: not a baseline);
+- packed snow 36 / 36 / 36 (the fix bit for bit as the old car in 36 of 36), loose snow
+  36 / 36 / 36 (-0.40 / -0.46 s), wet mud 33 / 33 / 33 (fix 31 of 36 as the old car; the loss is
+  issue 012's `mud_wet:15:180:6`);
+- Haruna / Tsukuba `RP_DET` 76.28 / 74.33 s, digests 9524862c / 9160b94d, d7ca9f95 / 82bd3c28
+  (M4g's); sim_vehicle_ecu 100 passed (4 new), aib 60, planner suite: see the issue.
+Ruling: car-side (the car cut and held regen on an axle that had not lost its grip; the
+planner's no-hold-on-mud model was right). Left: in a deep mud drift the grip found is the
+friction circle's remainder (0.14-0.17), held for the drive as the road's (outcomes unchanged).

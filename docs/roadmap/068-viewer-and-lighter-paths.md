@@ -6,8 +6,8 @@ simpler, single-simulator layout and found five places where the simple layout d
 something we do not, or does it with less: a spectator that follows the ego, walker feet
 checked per model, sensors published from inside the simulator, a map whose lanelets keep
 their real-world projection, and a one-page first run. Writing the comparison up showed three
-gaps of our own (steps 7-9): CARLA ignores a scenario's road condition, CARLA 0.10 works only
-on branches, and we need our SSv2 fork even for a plain run.
+gaps of our own (steps 7-9): CARLA refuses a scenario's road zones, CARLA 0.10 works only on
+branches, and we need our SSv2 fork even for a plain run.
 
 **Status**: phase doc, 2026-11-01; steps 7-9 added the same day. No code yet.
 
@@ -28,7 +28,7 @@ tour's camera), [029](029-prebuilt-releases.md) (first-run time).
 | Sensors | every sensor is a client-side CARLA sensor whose data acb receives and publishes (Rust, carla-rust), at the spec's rates and frames, on the ego's `/clock` |
 | Maps | packs carry lanelets in the CARLA frame (projector origin zero); a lanelet map drawn in a real projection is regenerated, not offset |
 | First run | tutorial 1: about 20 minutes, three terminals' worth of setup lines, a converted map directory first |
-| Road condition | OpenSCENARIO `RoadCondition` reaches the bridge (`UpdateEnvironment`) and only world servers declaring `ROAD_CONDITION`; the Isaac world server does, the CARLA world server does not, so on CARLA a wet-road scenario runs dry |
+| Road condition | OpenSCENARIO `RoadCondition` reaches every world server declaring `ROAD_CONDITION`. Both do: on CARLA (047 S2, `swb_carla_world` `road_condition.rs`) it is a factor on every vehicle's tire friction (the scale times asphalt's wet factor) and the weather's wetness and puddles; the map's zones (`swb.zone.*`) are refused there, applied only by Isaac's surface layer |
 | CARLA 0.10 | baseline passed 2026-10-11 (019) on branches `carla-0100` (acb on origin, csb local); main builds 0.9.14-0.9.16 only; release tier "source only" (029) |
 | SSv2 | our fork, branch `managed-ego-unforked`: 26 commits, 44 files, +2038/-223 over its upstream merge base (2026-11-01) -- time base, unmanaged ego, agent and autopilot controllers, environment actions, bounded waits |
 
@@ -105,15 +105,14 @@ built from the same survey) needs only an offset, not a regenerated map.
       quickstart becomes the shortest path that passes `town01_ego_drive`, with tutorial 1 for
       the details. Target: one page, one `source` file, three commands after the build.
 
-### 7. Road condition on CARLA
+### 7. Road zones on CARLA
 
-- [ ] The CARLA world server declares `ROAD_CONDITION`: `friction_scale_factor` scales the
-      tire friction of every physics-driven vehicle (the ego's from its spec, autopilot NPCs,
-      agent vehicles) and restores it on `LoadWorld`/`Release`; `wetness` maps to CARLA's
-      wetness and puddle weather fields; `swb.zone.*` properties as CARLA friction-trigger
-      boxes where a map's `surfaces.yaml` has zones, else refused with the reason.
-- [ ] Acceptance: a braking scenario at friction 1.0 and 0.5 on Town01; the stopping distance
-      ratio within 15 % of the spec's prediction; the friction back to 1.0 after the scenario.
+The road condition itself already works on CARLA (see "Where it starts"); what CARLA refuses
+is a scenario's per-zone properties.
+
+- [ ] `swb.zone.<id>.mu_scale` (and only that field) as a CARLA friction-trigger box over the
+      zone, when the map's `surfaces.yaml` gives the zone a box; every other zone field still
+      refused with the reason. Only if a CARLA scenario needs zones; until then, leave it.
 
 ### 8. CARLA 0.10 on main
 
@@ -140,7 +139,7 @@ built from the same survey) needs only an offset, not a regenerated map.
   not.
 - Step 6: a first-run time on a clean account, and a quickstart that a new user follows
   without the tutorial.
-- Step 7: a wet-road scenario stops longer on CARLA, by the predicted ratio.
+- Step 7: done only if a CARLA scenario needs zones: a zone with `mu_scale` 0.5 stops a car longer inside it than outside.
 - Step 8: 0.10 builds from main and passes the baseline scenario.
 - Step 9: a sorted commit list; an NPC-only scenario's outcome on upstream SSv2, run or refused
   with the reason.

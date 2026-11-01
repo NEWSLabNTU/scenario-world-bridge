@@ -363,6 +363,55 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   with no damper spike; a kicked stone rolls away; high-centering on a ridge; frame time with
   10^4 static and 10^2-10^3 awake rocks. Risk: GPU buffers overflow silently (watch the
   simulation statistics).
+
+  First slice (2026-11-01, newslab-server-241; swb_isaac_world `rocks.py`,
+  `spikes/rock_fixtures.py`): single rocks under aib's Model 3 on a flat base, 60 Hz, our
+  contact (R5, R2).
+  - **One rock.** A rock is a seeded convex hull of at most 64 vertices, an ellipsoid of a
+    natural rock's axes (Zingg: 1 : 0.7 : 0.5, short axis up) with its points pushed in or
+    out by up to 10 %. PhysX collides with the hull. The tire reads the same hull's top: the
+    vertical line's intersection with its face planes, exact.
+  - **PhysX's wheel query does not see it.** Rocks are in a collision group the ground query
+    filters out (aib's `groundQuery`). The wheels feel a rock only through the contact.
+  - **The rock is pushed (question 2).** The tire is a bed of radial springs over its
+    footprint, and each sample's depth into the tire goes to whichever surface is highest.
+    - A rock takes its depth's share of the tire's load, down.
+    - It also takes the push its faces give it: a contact force is normal to the face, so
+      horizontal over vertical is the face's gradient, from the hull's planes.
+    - The car takes the lateral push reversed; the cam has none, and its slope force already
+      holds the push along.
+  - **A force held for a whole step must not throw a rock.** The first run applied the push
+    unlimited: an 11.6 kg rock flew 21 m and a 1.8 kg stone 81 m. One step's impulse now
+    takes a rock no faster, horizontally, than the surface pushing it (a rolling tire's
+    surface at height z over its contact moves at v z / r).
+  - **A skid plate at Tesla's 138 mm** ground clearance (Model 3 Long Range AWD) is the
+    spike's own. aib's chassis box sits about 0.42 m up, where no rock reaches it; the rig's
+    underbody is still to move (question 5's sequel).
+
+  | fixture (40 km/h; boulder 10) | rock | wheel rise | suspension peak | rim strike | the rock |
+  |---|---|---|---|---|---|
+  | embedded 16 cm, static | 12.3 kg | 0.111 m | 57.5 kN (front left) | 15.5 mm | stays |
+  | loose 15 cm | 11.6 kg | 0.088 m | 55.1 kN | 9.4 mm | moved 0.2-0.5 m on, 0.9-1.0 m aside, 3.0-3.6 m/s at most |
+  | loose 8.6 cm at the tire's outer edge | 1.8 kg | 0.025 m | 6.5 kN | 0 | moved 0.11 m aside, 1.5 m/s at most |
+  | boulder 37 cm between the tracks | 154 kg | | | | the skid plate hits it: the car stops (22 m/s^2 peak), stuck |
+
+  - **No rigid-limit step** in any fixture.
+  - **The embedded rock** bottoms the front left corner on its bump stop: 0.111 m against the
+    rig's 0.10 m of bump travel. The rim strikes through the tire, a pinch, as a real
+    passenger tire on a 16 cm rock at 40 km/h would risk. The peak is below R2's sharp 15 cm
+    cleat (64.5 kN at 36 km/h), as a rounded rock's should be.
+  - **The loose rock** is ridden over and shoved aside rather than climbed like the embedded
+    one: 23 mm less rise, 2.4 kN less peak. Where it ends up varies by tens of cm between
+    runs (PhysX's GPU contact order); its speed does not exceed the tire's.
+  - **The boulder** high-centres the car on the plate, as 0.37 m against 0.138 m of
+    clearance must.
+
+  Left for the second slice: placement by size distribution along the edges, ruts and ditches;
+  the activation radius and write-back; collision tiles of R3's detail, so that a rock rests
+  on the true surface rather than on the base (rocks and the skid plate collide with them,
+  the wheels' query does not); frame time with 10^4 static and 10^2-10^3 awake rocks; the
+  world server.
+
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling
   radius, rim-strike flag. Feeds the corner (R2, R6) and question 1's sampling. Measured: cleat

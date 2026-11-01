@@ -1,7 +1,9 @@
 # 029: PhysX's wheel query misses short obstacles (raycast) or throws the car off them (sweep)
 
 **Severity**: high for roadmap 066 (no PhysX setting gives a real car's response to a rock or a
-step at the live rate); none today, since no world has such obstacles yet. **Status**: fix in progress (roadmap 066 R5, `swb_isaac_world.road_contact`).
+step at the live rate); none today, since no world has such obstacles yet. **Status**: fixed for worlds with a `road_detail.yaml` (roadmap 066 R5 and R3:
+`swb_isaac_world.road_contact` in the world server through `road_layer`); 055's suite on such a
+world is still to run, and rocks (R4) are to come.
 **Found**: 2026-10-31 on newslab-server-241, 066 R0 (`swb_isaac_world/spikes/road_fixtures.py`,
 `spikes/fixture_course.py`), aib's Model 3 rig (sim_vehicle_spec 3773783), Isaac Sim 6.1.
 

@@ -254,14 +254,107 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - **Braking over the cleat** now gives +1.5 m/s^2; PhysX alone gives +4.2. It is the tire
     rolling down the cleat's far edge, whose slope pushes forward, as a real one does. The
     stop is 10.2 m (PhysX alone 9.3). The flat, washboard and pothole stops are unchanged.
-- [ ] **R3. One road, small scale** (1.5-2 weeks). A seeded height function per road tile:
-  ISO 8608 2D roughness shaped like measured gravel (classes C-E, the corrugation break near
-  2 cycles/m), crown or level section, shoulders, ditches, ruts with a centre windrow,
-  potholes weighted to sags, washboard in braking and acceleration zones, water bars by grade.
-  Collision tiles at 5 cm (about 32 MB/km for a 20 m corridor), the render mesh and the lidar
-  from the same samples (question 3), streamed with the vehicles. Measured: generated PSD and
-  golden-car IRI on target; ISO 2631 weighted RMS in plausible bands at 30-60 km/h; frame time
-  over 2 km of rough road.
+- [x] **R3. One road, small scale** (done 2026-11-01, newslab-server-241; swb_isaac_world
+  `road_detail.py`, `road_layer.py`, `spikes/rough_road.py`, `spikes/road_detail_offline.py`).
+  Planned: a seeded height function per road tile: ISO 8608 2D roughness shaped like measured
+  gravel (classes C-E, the corrugation break near 2 cycles/m), crown or level section,
+  shoulders, ditches, ruts with a centre windrow, potholes weighted to sags, washboard in
+  braking and acceleration zones, water bars by grade. Collision tiles at 5 cm, the render mesh
+  and the lidar from the same samples (question 3), streamed with the vehicles. Measured:
+  generated PSD and golden-car IRI on target; ISO 2631 weighted RMS in plausible bands at
+  30-60 km/h; frame time over 2 km of rough road.
+
+  What was built:
+  - **`road_detail`** (pure numpy). A corridor is a centreline with a seed; its detail is a
+    height above the base road, sampled into world-aligned tiles of 16 m at 5 cm (321 x 321).
+    - The roughness is an isotropic 2D FFT field with ISO 8608's spectrum and gravel's break
+      at 2 cycles/m (w = 1.5 above it, assumed). Four overlapping windows of two tiles blend
+      with sin^2 + cos^2 weights, so the variance is the field's everywhere and tiles have no
+      seams.
+    - The features are in road coordinates (u along, v across): the A-crown section with
+      shoulder, foreslope, ditch and backslope; ruts with a windrow; Poisson potholes weighted
+      to sags; washboard zones; oblique water bars spaced by grade.
+    - Every tile is drawn from the corridor's seed and its own index, so a tile made again,
+      in any order, is the same.
+    - The measures: golden-car IRI (exact discretisation), Welch PSD, ISO 2631-1 Wk.
+  - **`road_layer`** puts it in the world server. A `road_detail.yaml` beside a map's
+    `surfaces.yaml` (or alone) switches it on and is validated at load, every problem named.
+    - The egos get R5's tire contact on the detail, with PhysX's travel 0.10 m longer (R2).
+      The base road under each wheel is a plane through the four ground hits.
+    - The contact runs in the surface layer's per-step hook, after the soil's friction, and
+      scales that friction by the load.
+    - A render mesh (no collision) is streamed per tile within 40 m of a vehicle, from the
+      same samples, and removed behind it.
+    - Worlds without the file are unchanged.
+  - **Tiles are made in a child process**, `python -m swb_isaac_world.road_detail --worker`
+    on pipes. A worker thread was tried first: it competes for the GIL with the simulation
+    loop and fell behind the car. At 80 km/h the main loop then waited for 172 tiles, 7.2 s in
+    all, and the frame's p95 was 169 ms. In a child process the p95 is 16 ms.
+    `multiprocessing` is not used: spawn imports the caller's `__main__` again (a second
+    SimulationApp), and fork copies a process that holds CUDA.
+  - Tiles are asked for 4 s ahead of the vehicle, at least 48 m, so a busy host (load 20 on 24
+    cores in these runs) does not catch the car up.
+
+  Offline (`road_detail_offline.py`):
+
+  | class | IRI, m/km | rms, mm |
+  |---|---|---|
+  | B | 4.21 | 7.5 |
+  | C | 8.41 | 15.0 |
+  | D | 16.83 | 30.1 |
+  | E | 33.66 | 60.1 |
+
+  - **IRI** doubles per class, as ISO 8608's fourfold PSD steps make it. Class C's 8.4 agrees
+    with the analytic value from the spectrum (8.7).
+  - **The PSD** against the target, per band (cycles/m): 1.28 at 0.05-0.1, 0.83-0.99 from
+    0.1 to 2, 0.78 at 2-4, 0.58 at 4-7. The loss above 2 cycles/m is the bilinear read
+    between 5 cm samples. Washboard waves (0.3-1 m) are drawn as features, not by the field.
+  - **The test corridor** (class C, ruts, 49 potholes over 2 km, washboard at 620-720 m,
+    three water bars) has a left-track IRI of 9.07 m/km (8.66 without the features).
+  - **One road:** the render mesh is within 0.31 mm of the tire's height at p99, 1.84 mm at
+    worst (the 5 mm acceptance).
+  - **Cost:** a tile takes 72 ms p50 in the worker. A 20 m corridor holds 30.5 MB/km as
+    float32 (61 as float64, what is kept today); tiles are cached, 96 in the world server.
+
+  In Isaac (`rough_road.py`): aib's Model 3 held at speed over the 2 km class C corridor on a
+  flat base, PhysX at 60 Hz, three steps per 50 ms frame, our contact against PhysX alone on
+  the same base. The body's vertical acceleration is weighted with ISO 2631-1 Wk.
+
+  | km/h | Wk rms, m/s^2 | frame p50 / p95 / max, ms (ours) | p50 / p95, ms (PhysX alone) |
+  |---|---|---|---|
+  | 30 | 0.70 | 7.31 / 13.7 / 39.9 | 3.38 / 5.47 |
+  | 45 | 0.75 | 7.30 / 13.1 / 40.1 | 3.44 / 5.78 |
+  | 60 | 0.86 | 7.75 / 14.7 / 54.1 | 3.52 / 5.82 |
+  | 80 | 1.00 | 8.01 / 15.6 / 46.4 | 3.38 / 5.41 |
+
+  - **Ride:** ISO 2631-1's comfort scale puts 0.5-1.0 m/s^2 at "fairly uncomfortable" and
+    0.8-1.6 at "uncomfortable": a gravel road's, rising with speed as it should. Granlund's
+    Swedish measurements relate a seat's Wk rms to IRI as about 0.16 x IRI at 80 km/h: 1.45
+    m/s^2 for this road. Ours is 1.00, about 30 % lower. Two known reasons, neither tuned
+    away:
+    - we measure the body at its centre, not on a seat (a seat amplifies near 4-5 Hz);
+    - there is no wheel hop yet (R6), the 10-15 Hz part.
+  - **No rim strike and no rigid-limit hit** at any speed. Each wheel is off the ground
+    0.23-0.27 s per 2 km, over the water bars and potholes.
+  - **Cost:** 3.9-4.6 ms p50 per frame over PhysX alone, inside the 5 ms the budget allows.
+    - The contact takes 0.95 ms p50 per PhysX step, the friction writes to USD included.
+    - A render tile takes 2.0 ms to add (14 ms at worst).
+    - One frame of 11 970 measured took over 50 ms (54 ms).
+    - The process peaks at 7.6 GB, as PhysX alone does (7.5).
+  - **The rule held:** the base road under PhysX is flat and smooth and stays so. Everything
+    a wheel feels of the detail comes through the contact's forces.
+
+  Left for later:
+  - **Collision tiles** for the detail are not built. A wheel never needs them (the contact
+    reads the height function), only a body that can touch the road: rocks and the skid plate.
+    They move to R4, in a collision group the wheels' query filters out.
+  - **The lidar** sees the render mesh, built from the same samples; whether Isaac's RTX lidar
+    reads it within 5 mm is R7's check.
+  - **055's suite on a road-detail world.** The hook is in the world server, but the suite has
+    not been run on a world with `road_detail.yaml`; worlds without it run the same code as
+    before.
+  - **The friction writes** are aib's `set_wheel_friction`, four USD writes per step; they are
+    the largest part of the contact's cost in Isaac (0.95 ms against 0.46 offline).
 - [ ] **R4. Rocks** (1.5-2 weeks). Static boulders (drivable, chassis-colliding); dynamic
   1-50 kg rocks as convex hulls (64 vertices or fewer, GPU contact), speculative CCD, TGS, in
   an activation radius per vehicle with write-back; the reaction force (question 2); gravel
@@ -381,10 +474,10 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - **The effective rolling radius.** PhysX's wheel radius is fixed, and the ABS reads PhysX's
     wheel speed, so this needs a channel PhysX does not have. It is deferred until a run shows
     the ECU needs it.
-  - **The model in the world server.** It needs a height function for the detail, which is
-    R3's road tiles. It goes in with R3, in the surface layer's per-step hook after the soil's
-    friction. With no detail, the model would still change the smooth-road corner (wheel mass,
-    tire spring), so 055's suite must be rerun when it is switched on.
+  - **The model in the world server** went in with R3 (`road_layer`), in the surface layer's
+    per-step hook after the soil's friction, on worlds with a `road_detail.yaml` only. With no
+    detail the model would still change the smooth-road corner (wheel mass, tire spring), so
+    055's suite must be rerun on such a world.
 
 - [ ] **R6. Wheel hop** (2-3 weeks). A virtual unsprung mass per corner on a tire spring at the
   vehicle substep rate, between R5's effective road and the sprung body; PhysX's spring

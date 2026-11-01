@@ -189,6 +189,9 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 | 3 | `colcon build` from the root | Also builds `third_party/cuda_ndt_matcher`, which needs CUDA. It built here; on a host without CUDA it is unchecked. | Check on a CUDA-less host; if it fails, `COLCON_IGNORE` it and keep `just build-cuda-ndt`. |
 | 4 | `ros2 launch swb_launch carla_simulation.launch.xml --show-args` | Works. Several arguments say `no description given`. | Describe them (C). |
 
+| 5 | Quick start, terminal 3 (`ros2 launch swb_launch ego_av.launch.xml`) | Died 13 s in: `Failed to convert '<?xml version="1.0" ?> ...' using yaml rules`. Humble's `ros2 launch` tries a parameter value as YAML first, and the generated sensor kit's comments (`<!-- top: lidar, ... -->`) broke the parse. No ego, so the scenario ended `errors="1"` after 17 min. Our runs use play_launch, which never tries YAML, so nothing of ours had seen it. | **Fixed**: autoware_sim_vehicle e77c39e (comments without `: `, a test refusing them). Under plain `ros2 launch` the ego stack then starts all 81 processes. The same commit stops the generator copying c037376's `CATKIN_IGNORE` into each car. |
+| 6 | Quick start, terminals 1-2 | CARLA served RPC and the bridge logged `ZMQ server ready` as the README says. | -- |
+
 Still to log: the quick start's four terminals against a live CARLA (under the gate), and
 the Isaac path.
 

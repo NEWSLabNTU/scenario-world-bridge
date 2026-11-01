@@ -232,7 +232,38 @@ Progress:
       ground to its crown's base; none on a lane. Site-wide: 33.5 M of 51.8 M other triangles
       are Tree, 2178 trunk colliders (32 trunks on lanes left out). World: `n5w05/` (meshes_n2,
       road cleared 0.5 m).
-    - Not yet: the camera's view of it, and replacing crowns by tree assets at the trunks.
+    - Camera (133, 2026-11-01; `world_probe.py` at world (180, 185) on r01's tree row): the
+      dash camera sees 36 % tree, 36 % ground, 26 % unlabelled (hedges, low objects), the
+      label image matching the RGB. The semantic annotator read no label until world_usd.py
+      applied LabelsAPI over the bare `semantics:labels:wikidata_qcode`; the world server reads
+      the attribute either way. The trees of 35-43 m are real: those columns are dense to 10 m,
+      empty from 10 to 20 m and hold a canopy layer at 20-45 m (2.15 M points over 15 m in
+      30 x 20 m), and the high camera, 37 m up, is inside it.
+    - Thick trunks: trees.py takes trunk blobs up to 4 m2; one over 1 m2 (a thick trunk, or
+      two merged) must also be round (long axis at most 2x the short) and at most half
+      scattering, which keeps walls' ends and bushes out (the scatter test alone dropped 7 real
+      trunks wrapped in foliage). Tiles 1052/1053_1357: 31 -> 36 and 30 -> 32 trunks, none lost;
+      two thick trunks in 1053's row are still missed. Site: 2965 trees, 2348 on a trunk (2210
+      before), `trees_v2/`, world `n5v2/`.
+    - Tree assets: `world_usd.py --tree-assets TOWN_DIR` puts a CARLA tree (Acer, Sassafras,
+      Japanese maple, Beech; a coconut palm where the crown is high and narrow) at every tree,
+      scaled to its height and crown, in place of the scan's Tree mesh and its fringe, none on
+      a lane; the assets travel with the world (`isaac/trees/`). World `n5a/`, 32.3 M
+      triangles. On camera far better than the scan's blobs: leaves, a canopy, dappled shade.
+    - Drives (r01, r02; all arrived, no AEB, the MRM counted is the startup one):
+
+      | world | route | error p50/p95 | NVTL p50 | NVTL < 2.3 |
+      |---|---|---|---|---|
+      | n5v2 (scan trees) | r01 | 0.16 / 0.37 m | 3.13 | 0 s |
+      | n5v2 (scan trees) | r02 | 0.13 / 0.25 m | 3.16 | 0 s |
+      | n5a (assets) | r01 | 0.17 / 0.38 m | 2.47 | 11.7 of 93 s |
+      | n5a (assets) | r02 | 0.15 / 0.26 m | 2.36 | 28.5 of 123 s |
+
+      The assets are not the scan's trees, and NDT matches the lidar against the scan's PCD:
+      along the tree-lined stretches its score falls under 2.3, Autoware's convergence
+      threshold. Driving stays on the scan's trees until the lidar can see those while the
+      camera sees the assets, or the PCD is made from what the world holds.
+      n5v2r01 had no stop at r01's turn (7 of 9 drives on the N2 worlds stop there).
   - Drives on the N2 and N5 worlds (133, 2026-11-01; `n8/drive.sh` with `WORLD=`, Autoware on
     the N2 PCD map, one at a time). Every drive arrived, no AEB, no MRM while driving:
 
@@ -254,8 +285,8 @@ Progress:
       converges ("No InputTarget"); the first two 0.5 m drives failed so. `world_usd.py` now
       warns when the map directory has none.
   - Open (docs/issues 025-027):
-    - r01 stops for about 1 s at the entry of its left turn ((52806, 67885)) in 5 of 7 drives
-      on the N2 worlds; r01r, before N2, did not, nor did one of the seven. A stop point
+    - r01 stops for about 1 s at the entry of its left turn ((52806, 67885)) in 7 of 9 drives
+      on the N2 worlds; r01r, before N2, did not, nor did vw01 and n5v2r01. A stop point
       appears 0.2 m ahead of the car for one cycle in the motion velocity planner's output
       (control_validator: "overrun the front stop point"); the path stages before it have
       none, no planning factor is published, no object is within 25 m, and obstacle_stop's

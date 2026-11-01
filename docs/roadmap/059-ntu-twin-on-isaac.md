@@ -232,9 +232,35 @@ Progress:
       ground to its crown's base; none on a lane. Site-wide: 33.5 M of 51.8 M other triangles
       are Tree, 2178 trunk colliders (32 trunks on lanes left out). World: `n5w05/` (meshes_n2,
       road cleared 0.5 m).
-    - Not yet: the camera's view of it (Isaac is waiting for the GPU), and replacing crowns by
-      tree assets at the trunks.
+    - Not yet: the camera's view of it, and replacing crowns by tree assets at the trunks.
+  - Drives on the N2 and N5 worlds (133, 2026-11-01; `n8/drive.sh` with `WORLD=`, Autoware on
+    the N2 PCD map, one at a time). Every drive arrived, no AEB, no MRM while driving:
+
+    | world | route | time | error p50/p95 | across p95 | NVTL min |
+    |---|---|---|---|---|---|
+    | n2w25 (2.5 m) | r01 | 99.8 s | 0.22 / 0.42 m | 0.07 m | 2.88 |
+    | n2w05 (0.5 m) | r01 | 96.6 s | 0.22 / 0.42 m | 0.08 m | 2.88 |
+    | n5w05 (trees) | r01 | 96.7 s | 0.22 / 0.42 m | 0.08 m | 2.89 |
+    | n2w25 (2.5 m) | r02 | 126.6 s | 0.17 / 0.29 m | 0.10 m | 3.08 |
+    | n2w05 (0.5 m) | r02 | 126.8 s | 0.13 / 0.25 m | 0.10 m | 3.10 |
+    | n5w05 (trees) | r02 | 126.8 s | 0.13 / 0.25 m | 0.10 m | 3.10 |
+
+    With the moving objects gone, a 0.5 m road margin is enough; the trees and their trunk
+    colliders change nothing on these routes. The MRM counted on two runs is the startup one,
+    before localization.
+    - A world directory needs the map's `map_projector_info.yaml` next to its `lanelet2_map.osm`
+      (aib reads it two levels above `world.yaml`). Without it aib's GNSS falls back to a
+      transverse Mercator at (0, 0), auto_drive's initial pose is 34 km off, and NDT never
+      converges ("No InputTarget"); the first two 0.5 m drives failed so. `world_usd.py` now
+      warns when the map directory has none.
   - Open (docs/issues 025-027):
+    - r01 stops for about 1 s at the entry of its left turn ((52806, 67885)) in 5 of 7 drives
+      on the N2 worlds; r01r, before N2, did not, nor did one of the seven. A stop point
+      appears 0.2 m ahead of the car for one cycle in the motion velocity planner's output
+      (control_validator: "overrun the front stop point"); the path stages before it have
+      none, no planning factor is published, no object is within 25 m, and obstacle_stop's
+      pointcloud check is off. The path optimizer's first output always ends in a stop at
+      the same corner. Not explained.
     - Spawning on r01's first lanelet exactly (world (314.25, 105.19), yaw 1.5773) drops the
       car through the world within a second. The same place with yaw 0 or pi holds, as do
       3 m south, 10 m north, and r02's spot at yaw pi/2, and a box dropped there rests.

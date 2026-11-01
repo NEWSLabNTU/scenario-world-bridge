@@ -244,7 +244,8 @@ Progress:
       scattering, which keeps walls' ends and bushes out (the scatter test alone dropped 7 real
       trunks wrapped in foliage). Tiles 1052/1053_1357: 31 -> 36 and 30 -> 32 trunks, none lost;
       two thick trunks in 1053's row are still missed. Site: 2965 trees, 2348 on a trunk (2210
-      before), `trees_v2/`, world `n5v2/`.
+      before), `trees_v2/`, world `n5v2/`, the site's default `map/isaac/` since 2026-11-02
+      (the one before it is `map/isaac_n5w05/`, the first `map/isaac_n1/`).
     - Tree assets: `world_usd.py --tree-assets TOWN_DIR` puts a CARLA tree (Acer, Sassafras,
       Japanese maple, Beech; a coconut palm where the crown is high and narrow) at every tree,
       scaled to its height and crown, in place of the scan's Tree mesh and its fringe, none on

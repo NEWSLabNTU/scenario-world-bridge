@@ -206,6 +206,19 @@ without a world server restart.
 GitHub; then they go up in dependency order (sim_vehicle_ecu, aib, swb_isaac_world, this
 repository) and `scripts/check_pins.py` checks the pins.
 
+**Regen slip control, 2026-11-01** (sim_vehicle_ecu f3f5dcf; aib 24df2f6, swb_isaac_world
+8ce7228; for roadmap 061 M4g, autoware-drift issue 009). The drift car braked on ice through
+its rear alone: regen first (2812 N on a rear carrying ~1630 N), ABS off, nothing cut it, and
+the rear turned backwards. `ev` now blends regen as an EV's brake module does: the regen
+beyond the driven axle's share of the brakes is cut while a driven wheel slips (the ABS/TC
+modulator; past 0.25, or a runaway wheel: past 0.06, 3 g faster than the car, its axle 30 %
+short of what the brakes put on it), the friction brakes taking the rest; a slip event's axle
+grip, measured from the wheels' own balance, then holds that regen within 0.7 of it. From the
+module's own estimates; calibration defaults (a spec may set `powertrain.regen_slip_control`).
+On ice at -1.8 m/s^2 it finds 0.23-0.24 of 0.265 in 0.1 s and the rear rolls. Where regen never
+slips the driven axle it never acts: the drift car's Haruna and Tsukuba laps in autoware-drift's
+plant bit for bit; Isaac's gravel Haruna lap reached. Tests 96 passed (`test_regen_slip`).
+
 ## Open questions
 
 - Whether the ESC's friction estimate is good enough on the split-mu pad, where the two sides

@@ -667,3 +667,49 @@ from the car's own braking (changes every ice comparison since M4); or (3) accep
 these speeds as beyond this car.
 Left: ice re-measured after (1) or (2), and the 15 m R 9 / R 15 x 180 the crude cap lost; the
 hairpin's windows from the car at its rear peak (177-1549 iterations even started slower).
+
+**M4g (done, 2026-11-01; ruling (1): the car).** Issue 009 fixed in the car and the planner
+follows. Write-up autoware-drift `docs/mode-choice-m4g.md` (474a9bf; code 0c61d28), issue 009
+fixed; results `play_log/race_planner/mode_choice/m4g/` (`det/`, `det_noprox/`, `digest/`,
+`repro/`, `isaac/`, `tools/agg.py`). sim_vehicle_ecu f3f5dcf, aib 24df2f6, swb_isaac_world
+8ce7228. All runs `RP_DET` + `RP_ITERCAP`, configuration (ECU, hold, priming) checked in each
+JSON; load 4-49 from other users. Built:
+- the car (sim_vehicle_ecu `ev`, roadmap 055): regen beyond the driven axle's share of the
+  brakes is cut while a driven wheel slips (the ABS/TC modulator; release past 0.25, or a
+  runaway: past 0.06 slip, 3 g faster than the car, the axle 30 % short of what the brakes put
+  on it), the friction brakes taking the rest by the distribution; a slip event's axle grip,
+  from the wheels' own balance, then holds regen beyond that share within 0.7 of it. On ice it
+  finds 0.23-0.24 (peak 0.265) in 0.1 s and the rear rolls; ABS stays off (not needed);
+- the planner: `axle.dynamics` holds regen the same way (smooth) where the road is `held`
+  (below 0.42 and falling off past its peak: ice), elsewhere the old model expression for
+  expression; L2's front wheels' proximal term 0.3 m/s there; the study primes the car's ECU
+  on held roads (a car on ice has braked on it before the corner).
+Results (against M4e's `78`, same replicates): ice single **10.90 of 12 against 9.55 (+1.35,
+se 0.22: 6.1 se)**, the 6 m roads 108 against 76 of 120, L2's losses 17 to 0, R 9 x 180 at 6 m
+8 of 20 (0 before); sched 10.30 against 9.80 (+0.50, 1.5 se: noise); **one corner worse, R 9
+x 180 at 15 m** (single 10 of 20 against 17, sched 4 of 10 against 10; L1 at the hairpin's
+entry, now hotter). Haruna / Tsukuba `RP_DET` 76.28 / 74.33 s, digests equal (the control
+never acts on dry asphalt, traced). Packed / loose snow, wet mud: 36 / 36 / 33 finished of 36
+as on the old car, laps 0.02 / 0.40 / 0.02 s faster (the car's 0.25 release fires on loose
+snow's plans, near its 0.3 peak). Planner suite 172 passed, 3 wall-clock tests failed under
+load 30-49 (tracker p99 x2, Haruna re-solve share; the old code fails one of them under the
+same load); sim_vehicle_ecu 96 passed, aib 60.
+- the crude cap's 15 m losses (M4f): its model's hard min: HPIPM's minimum step every other tick
+  at the kink (33-340 LQR ticks in the four lost runs); smooth, all four finished;
+- on the way: fixed slip thresholds fired on Haruna/Tsukuba (76.53 / 74.57 s); the grip from the
+  car's deceleration lagged (once 0); the car not knowing the grip at the corner's start (4 of
+  12 at 150 iterations); L2's fronts at W_PROX 1.0 (15 m roads 46 of 59); the hold on snow and
+  mud too (packed snow 28, loose 24 of 36: braking drifts on the fronts off the 6 m roads; ABS on,
+  by a local spec override, the same).
+Isaac: Haruna on gravel, single start, the new car and planner: reached, 102.95 s live (the
+arm video's 100.5), 85 of 102 solves (96 of 101), 371 fallback frames (82) with the host at load
+~30 from other users and this session's suite; the control does not act on gravel (the rear's
+grip is past full regen). Ice not run on Isaac.
+Rulings: the control acts only on regen beyond the axle's share (below it, cutting only moves
+the braking to the same axle's friction brakes); ABS off kept (spec untouched); the planner's
+hold only on falling-off roads (ice); the study primes the ECU on held roads (cost: a course
+entering ice from asphalt has its first stop as the car's probe, which the plan does not know;
+the planner does not read the car's found grip).
+Left: R 9 x 180 at 15 m (the hairpin's windows from a hotter entry); the planner reading the
+car's found grip (aib to report it); the hold on snow and mud (plans braking with the fronts in
+a drift); R 9 x 180 at 6 m (8 of 20 single, 0 of 10 sched).

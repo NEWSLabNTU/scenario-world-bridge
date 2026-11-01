@@ -406,11 +406,70 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - **The boulder** high-centres the car on the plate, as 0.37 m against 0.138 m of
     clearance must.
 
-  Left for the second slice: placement by size distribution along the edges, ruts and ditches;
-  the activation radius and write-back; collision tiles of R3's detail, so that a rock rests
-  on the true surface rather than on the base (rocks and the skid plate collide with them,
-  the wheels' query does not); frame time with 10^4 static and 10^2-10^3 awake rocks; the
-  world server.
+  Second slice (2026-11-01, newslab-server-241; swb_isaac_world `rocks.place`, `rocks.merged`,
+  `road_detail.Detail(extras=...)`, `spikes/rock_field.py`): rocks at scale on R3's 2 km class
+  C corridor.
+  - **Placement.** Golombek and Rapp's cumulative fractional area, F(D) = k exp(-q D) with
+    q = 1.79 + 0.152 / k, drawn per tile and zone from the corridor's seed. The cover k is
+    assumed: 0.2 % on the carriageway, 1 % on the shoulder, 3 % in the ditch.
+    - Plan diameters run from 9 cm (about 1 kg; smaller is gravel, a surface class) to 1.5 m.
+    - A rock is sunk by 0-40 % of its height. One sunk more than 15 %, or over 50 kg, is
+      static.
+    - 2 km gets about 8000 rocks: 3000 loose, a median of 1.4 kg, the largest 1.1 t. Nearly all
+      are on the shoulders and in the ditches. The carriageway's low cover places almost none
+      of driveable size, so the spike puts a loose 15-30 cm rock in the left wheel track every
+      100 m (fallen from the cut slope).
+  - **Collision tiles** of R3's detail at 10 cm, within 48 m of the car, in a group the
+    rocks and the chassis collide with and the wheels' query filters out.
+    - The mesh is within 2.5 mm of the tire's height at p99 and 33 mm at worst, at pothole
+      edges (5 cm: 0.48 / 9.9 mm, four times the triangles).
+    - Rocks do not collide with the base road, so a loose rock rests in a rut rather than on
+      the base above it.
+  - **What a frame costs is the stage's prim count**, not the rocks' triangles.
+    - Every rock as its own prim (8531) took 23 ms p50 against 7.3 without rocks. About 60 %
+      of PhysX's step was Fabric repopulating its hierarchy after each USD change: the friction
+      writes, the rocks' sleep and wake, the tiles.
+    - Asleep loose rocks as kinematic bodies had their poses synced every step on top of
+      that (p95 68 ms). As static colliders (`rigidBodyEnabled` off) they are not.
+    - PhysX's USD write-back off saved 4 ms on 600 m. It stays on: the renderer and the
+      sensors may read it.
+    - Hence: the rocks have prims only for the tiles within 48 m of the car. A tile's static
+      rocks are one merged collider; its loose rocks are made at most four a frame, asleep.
+      A loose rock wakes only within 2.5 m of the car's track, from 30 m ahead to 5 m behind.
+      A tile leaving the window writes its loose rocks' poses back into the data.
+    - Placement runs in the tile worker (R3's child process), about 60 ms a tile.
+  - **A streamed collider must name the collision group itself** (issue 030). Prims made
+    after the simulation started were not in the rocks' group through their parent's path.
+    The wheels' query hit them and threw the car, up to 1 m on a 2.4 kg stone. Each prim is
+    now added by its own path.
+
+  The 2 km corridor, all rocks, contact reporting on:
+
+  | km/h | frame p50 / p95, ms | over 50 ms | rock prims (p50) | under the tires | the car |
+  |---|---|---|---|---|---|
+  | 40 | 9.4 / 48.9 | 173 of 3551 | 158 | 19 | the whole 2 km |
+  | 60 | 11.5 / 41.4 | 48 of 2452 | 172 | 21 | the whole 2 km |
+  | 80 | 13.6 / 43.4 | 13 of 842 | 168 | 17 | stuck in the ditch at 794 m |
+
+  - **No rock lost** (fallen through), none faster than 5.2 m/s, at most 33 awake.
+  - **The skid plate grounds.** At every speed it hits the three 6 cm water bars, and at
+    80 km/h the washboard (685-723 m), whose hits put the car in the ditch. The cause is the
+    cross-section, every part of it assumed:
+    - the centre between the ruts is 8.3 cm above the rut bottoms (a 3 cm rut, a 2 cm
+      windrow, the 4 % crown);
+    - a water bar on it makes 14.3 cm, against the plate's 13.8 cm clearance.
+
+    A real Model 3 would scrape there too; 067's road needs measured values for all four.
+  - **Against the budget** (7.0 ms without rocks, the same road and tiles; 5 ms allowed):
+    +2.4 ms at 40 km/h, +4.5 at 60, +6.6 at 80. The p50 is over the budget at 80 km/h.
+  - **The p95 is over** the 45 ms the acceptance allows at 40 km/h, and single frames reach
+    1.4 s. They are not explained yet. The rock prims a frame cost 6.8 ms p50 and 44 at worst;
+    contact reporting was on; the host is shared (load about 20 on 24 cores).
+
+  Left for R4: the frame spikes and the 80 km/h p50; the rig's real underbody (aib's chassis
+  box is at 0.42 m; the skid plate is the spikes' own); rocks in the world server (streamed
+  from `road_detail.yaml`, the groups named per prim); and rocks the sensors see beyond the
+  48 m window (R7).
 
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling

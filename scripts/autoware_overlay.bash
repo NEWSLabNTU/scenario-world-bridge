@@ -13,11 +13,15 @@
 
 # Each source: <name> <fork> <commit> <package dir>...
 SWB_AUTOWARE_OVERLAY_SOURCES=(
-    # Branch csb/blind-spot-right-turn-0.48.0: tag 0.48.0 (Autoware 1.5.0's package versions)
-    # plus the blind_spot right-turn fix, autoware_universe#13509.
+    # Branch csb/pose-instability-empty-clip-0.48.0: tag 0.48.0 (Autoware 1.5.0's package
+    # versions) plus the blind_spot right-turn fix (autoware_universe#13509, branch
+    # csb/blind-spot-right-turn-0.48.0) and pose_instability_detector's empty twist range, read
+    # when a twist is stamped exactly at the previous odometry's time, as a simulator's clock
+    # makes them; it once died with a negative rclcpp::Time (docs/issues/027).
     "autoware_universe https://github.com/NEWSLabNTU/autoware_universe.git
-        5c617b0a11df1854667563357fb04bd488bd8ce9
-        planning/behavior_velocity_planner/autoware_behavior_velocity_blind_spot_module"
+        f20260925ec34c530e8135f555ff4cfb28598703
+        planning/behavior_velocity_planner/autoware_behavior_velocity_blind_spot_module
+        localization/autoware_pose_instability_detector"
     # Branch csb/ndt-step-reversal-1.5.0: tag 1.5.0 plus NDT's step bound halved when the step
     # reverses, so a two-point cycle no longer runs to max_iterations and its WARN (an emergency
     # stop in Autoware 1.5's graph, docs/issues/002).

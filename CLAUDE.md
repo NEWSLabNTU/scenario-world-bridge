@@ -198,9 +198,12 @@ Autoware 1.5.0 is a binary install we do not rebuild. Fixes it lacks are carried
 builds them against `/opt/autoware/1.5.0` into `third_party/autoware_overlay/`
 (git-ignored), and `just ego-av` / `ego-isaac` / `bg-av` / the scenario precheck source it
 right after Autoware. On by default when built; `autoware_overlay:=false` runs stock. Today
-it holds two packages. `blind_spot` (fork `autoware_universe`, branch
-`csb/blind-spot-right-turn-0.48.0` = tag 0.48.0 + autoware_universe#13509) has the right-turn
-ego passage fix. `ndt_scan_matcher` (fork `autoware_core`, branch
+it holds three packages. `blind_spot` (fork `autoware_universe`, branch
+`csb/pose-instability-empty-clip-0.48.0` = tag 0.48.0 + autoware_universe#13509 + the next
+fix) has the right-turn ego passage fix. `pose_instability_detector` (same branch) no longer
+reads an empty twist range when a twist is stamped exactly at the previous odometry's time,
+which a simulator's clock makes happen; it once died on a negative `rclcpp::Time`
+(docs/issues/027). `ndt_scan_matcher` (fork `autoware_core`, branch
 `csb/ndt-step-reversal-1.5.0` = tag 1.5.0 + the fix) halves NDT's step bound when the step
 reverses, so a two-point cycle no longer runs to the iteration limit, whose WARN is an
 emergency stop (docs/issues/002). Since Autoware 1.5 the localization packages live in

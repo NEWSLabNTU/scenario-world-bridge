@@ -526,8 +526,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     collision tiles, the awake bodies and the plate's contacts; they are not separated yet.
     The host was loaded throughout (another session's builds, load 40-450 on 24 cores).
 
-  Left for R4: the cost (separate the tiles' share from the bodies'; fewer or coarser tiles
-  under the car only; GPU contact), the rig's real underbody, and a quiet host to measure on.
+  Left for R4: the rig's real underbody, and a quiet host to measure the cost on (below).
 
   **The cost, taken apart** (2026-11-02; 800 m of the same corridor, frame p50 ms at 40 / 80
   km/h, host load 40-75):
@@ -542,6 +541,8 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   | the same with 24 m of tiles | 11.29 | 17.02 |
   | awake only in the car's path (below), 32 m | 11.65 | 18.13 |
   | and the rocks from 32 prototype shapes | 12.23 | 17.14 |
+  | and a pool of reused prims | 12.23 | 14.37 |
+  | and the rocks indexed in a 4 m grid (load 127-143) | 10.19 | 11.82 |
 
   - **What costs what, at 40 km/h** (about 5 ms over the road without rocks):
     - the collision tiles, 1.4 ms, whatever their spacing;
@@ -553,11 +554,24 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - **It is not cooking.** 32 prototype shapes, each prim a prototype's points with its size
     as the prim's scale and its heading as its orientation, saved about 1.4 ms of the
     80 km/h step.
-  - **What is left** grows with speed: the prims made a second, each a USD change the stage
-    takes in. The next lever is a pool of reused rock prims rather than new ones.
-  - **Where it stands:** about 5 ms over the road without rocks at 40 km/h, at the budget,
-    and about 10 ms at 80, over it. The host was loaded throughout: the contact's own cost
-    wandered from 2.1 to 4.2 ms with the rocks' reads.
+  - **The prims made a second** were the part that grew with speed: each is a USD change the
+    stage takes in. A rock leaving the window now parks its prim 1 km under the road, body and
+    collision off and invisible, and the next rock to load takes it, rescaled and re-posed.
+    800 m made 276 prims and reused them 1240 times at 40 km/h, 2745 at 80, and the 80 km/h
+    frame fell by 2.8 ms (swb_isaac_world a28cf19). The frame cost follows the prims on the
+    stage and the changes to them, not the triangles.
+  - **The contact's search for rocks** scanned every rock loaded (up to about 9700), about ten
+    times a substep. A 4 m grid now gives it only the cells about its points (55c4b3b); a test
+    holds it to the full scan's answer. The contact fell from 4.3 to 3.7 ms at 40 km/h and from
+    4.9 to 4.0 at 80; the frame from 12.2 to 10.2 and from 14.4 to 11.8. The frame fell by more
+    than the contact, so some of the drop is the host, which was busier for this run (load
+    127-143 on 24 cores), not quieter.
+  - **Where it stands:** about 3.3 ms over the road without rocks at 40 km/h and 4.5 at 80,
+    inside the 5 ms budget at both, on a loaded host. None of the four runs since the third
+    slice lost a rock or stuck the car. The rest is PhysX's steps over the static rocks and
+    the tiles (about 2.4 ms over the run with every rock static, about 250 separate static
+    colliders) and the contact's shares, 1.6 ms over the road without rocks. Each needs a
+    quiet host to measure before it is worth more work.
 
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling

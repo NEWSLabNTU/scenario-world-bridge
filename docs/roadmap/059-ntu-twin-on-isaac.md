@@ -311,7 +311,9 @@ Progress:
     - 027 (pose_instability_detector's negative time): an empty twist range read when a twist
       is stamped at the previous odometry's time; fixed in the Autoware overlay. The NTU
       drives run on the overlay with `AUTOWARE_SETUP=<overlay>/install/setup.bash` for aib's
-      `just autoware` (stock otherwise: neither NDT's step fix nor blind_spot's).
+      `just autoware` (stock otherwise: neither NDT's step fix nor blind_spot's); since
+      2026-11-02 `n8_env.sh` sets it by default (`NTU_AUTOWARE_SETUP` names another setup,
+      `/opt/autoware/1.5.0/setup.bash` for stock).
     - Drives on the final n5v3 with the overlay: r01 6 of 6 (w01a-c, a1-a3) and r02 (w02)
       arrived, none stopping before the goal; so did o01 and o02 on the first widening.
   - Camera and lidar on a drive (133, 2026-11-02): r01 on n5v3 with the front camera on

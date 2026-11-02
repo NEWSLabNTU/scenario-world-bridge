@@ -601,7 +601,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     The loaded host's runs above made it look inside the budget at both speeds: their
     baseline without rocks was measured at another time, under another load. On a quiet host
     40 and 60 km/h are at the 5 ms budget and 80 is 1.5 ms over it. Most of the excess is
-    PhysX's steps (3.5-5.3 ms over the road without rocks), the static rocks and the tiles,
+    PhysX's steps (3.3-5.4 ms over the road without rocks), the static rocks and the tiles,
     and the contact's shares (1.7-2.3 ms). No run lost a rock or stuck the car.
 
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,

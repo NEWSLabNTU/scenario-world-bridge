@@ -526,7 +526,28 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     collision tiles, the awake bodies and the plate's contacts; they are not separated yet.
     The host was loaded throughout (another session's builds, load 40-450 on 24 cores).
 
-  Left for R4: the rig's real underbody, and a quiet host to measure the cost on (below).
+  Left for R4: a quiet host to measure the cost on (below), and issue 031.
+
+  **The rig's underbody** (2026-11-02). The spec gives the car's ground clearance
+  (`body.ground_clearance`, sim_vehicle_spec d54636d): the Model 3 at Tesla's 138 mm,
+  unladen. It sits in `body`, not `geometry`, so the pedal maps' physics fingerprint stays and
+  only `spec_hash` moves (autoware_sim_vehicle 8423bc6 regenerated). aib's rig carries it,
+  and its vehicle puts a skid plate there (autoware_isaac_bridge 645949e):
+  - between the axles, clear of the wheels and their steering, 2.27 by 1.33 m;
+  - its bottom at the clearance over base_link: at rest 136 mm over the road, the body
+    resting 1.5 mm low on its tires;
+  - in the chassis collision group, so the wheels' query does not see it; hidden from the
+    sensors, like the chassis box.
+
+  A car whose spec has no clearance gets no plate (the drift Mustang, for now). The rock spike
+  now drives on aib's plate (swb_isaac_world 57c8449). Over 800 m at 40, 60 and 80 km/h it
+  behaved as the spike's own did: no rock lost, the car stuck nowhere.
+
+  In one 60 km/h run of seven, a front tire's load from the tire contact jumped from 4.6 to
+  252 kN in one step, and the car was thrown and rolled (issue 031). PhysX saw no body or
+  plate contact then, so it is the tire contact's reading of a rock, not the plate. It has not
+  come back in six runs since. The spike records the rocks under a tire when it does
+  (`ROCK_DIAG=1`).
 
   **The cost, taken apart** (2026-11-02; 800 m of the same corridor, frame p50 ms at 40 / 80
   km/h, host load 40-75):

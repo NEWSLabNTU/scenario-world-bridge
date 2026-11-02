@@ -304,7 +304,8 @@ Progress:
     - 025 (falls through at r01's first lanelet): a hole in the ground mesh under the car,
       vehicles having stood there all through the scan; `ground_keep` fills enclosed holes
       only. `build_meshes.py --lanes` meshes every cell under a lanelet (plus 1 m): the car
-      now rests 0.03 m from the spawn there. World `n5v3/` (meshes_n3, the widened lanelets).
+      now rests 0.03 m from the spawn there. World `n5v3/` (meshes_n3, the widened lanelets),
+      the default `map/isaac/` since 2026-11-02 (the one before it is `map/isaac_n5v2/`).
     - 026 (0.8 m off at r02's spawn): not reproduced; 0.000 m on flat ground, 0.003 m along at
       r02 after the sticky tyre's damping fix.
     - 027 (pose_instability_detector's negative time): an empty twist range read when a twist

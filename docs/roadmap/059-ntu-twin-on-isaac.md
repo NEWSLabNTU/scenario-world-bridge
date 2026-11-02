@@ -346,6 +346,16 @@ Progress:
       m outside the lane again, the 1 s stop's condition; and the road is about 6 m between
       objects on both sides (0.0-0.5 m past the eastbound lane's south edge too), so the shared
       centre line cannot move south without taking the eastbound lane under 2.8 m.
+    - Every emergency stop while driving, over all 43 N8 drives (checked 2026-11-02): the MRM
+      at start-up on most of them is the topic monitors before the first messages (cleared
+      before localization, never engaged). Mid-drive: r01h-r01o (2026-10-30) are the r01 stop
+      taken apart above; r01p's AEB (2026-10-30 21:23, 0.3 s at turn 2's exit, (52577.5,
+      67871), not slowing) predates the road clearing's 2.5 m margin and the widening; r02r
+      (2026-10-31) was spawned facing north (yaw 1.5708) on an eastbound lane, so start_planner
+      chose a backward pull-out, reversed 2.8 m turning to 46 deg and stayed on a backward path
+      for 9 minutes; each of its 14 MRMs is planning_validator's "sudden shift in trajectory".
+      r02s and w02 spawn at yaw 0.0035 and arrive, no backward path. On n5v3 only w01c's AEB
+      remains.
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

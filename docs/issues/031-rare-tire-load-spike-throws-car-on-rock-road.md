@@ -1,8 +1,9 @@
-# 031: On the rock road, a tire's load once jumped to 252 kN in one step and threw the car
+# 031: A kicked rock frozen in mid-air: a tire stood on it at 252 kN and the car was thrown
 
 **Severity**: high for roadmap 066 R4: a car thrown off the road ends a run, and a scenario
-cannot tell it from a planner fault. It is rare. **Status**: open, not reproduced. The spike
-now records the rocks under a tire whenever its load passes 30 kN (`ROCK_DIAG=1`).
+cannot tell it from a planner fault. **Status**: fixed in swb_isaac_world 7957b5b
+(`rock_layer`). The spike records the rocks under a tire whenever its load passes 30 kN
+(`ROCK_DIAG=1`), which is how it was found.
 **Found**: 2026-11-02 on newslab-server-241, `swb_isaac_world/spikes/rock_world.py`
 (swb_isaac_world 55c4b3b, aib 645949e with its skid plate), Isaac Sim 6.1, host load near 290
 on 24 cores.
@@ -28,15 +29,15 @@ our tire contact, not from a PhysX collision.
 
 ## How often
 
-In seven runs of the same road, that was the only one. The other six had no tire over
-30 kN:
+It looked rare: one run in seven threw the car, and the other six had no tire over 30 kN:
 - the same code with the spike's own plate, at 60 km/h;
 - 200 m at 60 km/h with aib's plate;
 - 800 m at 60, 40, 80 and 60 km/h with aib's plate.
 
-The runs are not deterministic: the tile worker and the prim stream depend on timing, and the
-prim pool hands out prims in a different order each run. So the rocks the plate pushes differ
-from run to run.
+The runs are not fully deterministic: the tile worker and the prim stream depend on timing,
+and the prim pool hands out prims in a different order each run. But the failure came back on
+a quiet host with the same speeds (40, 60, 80 km/h): stopped at 61.56 m after 113 frames, the
+same to the centimetre. It needs the 40 km/h run before it.
 
 ## What it is not, so far
 
@@ -46,17 +47,36 @@ from run to run.
   rock raises it over several steps. A jump of 50x the static load in one step means the
   surface under the tire jumped by tens of centimetres in one step.
 
-## Suspects
+## Why
 
-- A rock's pose, as the tire contact reads it, jumping into the tire's footprint. Candidates:
-  a prim from the pool (a28cf19) reporting its previous rock's pose for one read after it
-  wakes; or a rock just woken overlapping the tire.
-- The grid index (55c4b3b) misfiling a rock that moved across a cell. The unit test covers a
-  move, not a rock read mid-substep.
-- A rock lifted by the plate and still marked as resting on the road (`seen`).
+With `ROCK_DIAG=1` the same run printed the rock under the tire:
 
-## Next
+```
+DIAG x=50.57 tire 1 load 251728 at (53.39, -0.80) road -0.065
+DIAG   rock 1 4.9 kg r 0.12 pos [53.989, -0.816, 0.73] bottom +0.715 top +0.884 seen True awake False
+```
 
-Run the spike with `ROCK_DIAG=1` until the spike recurs, and read which rock, where, how high
-and whether awake. Then fix it and add a guard: a rock top that rises faster than any real
-rock can, for example.
+A 4.9 kg loose rock was asleep, a static collider, 0.72 m over the road. The 40 km/h run had
+kicked it into the air. The rock stream wakes a rock only while it is in a car's path (from
+3 m behind the car to 0.6 s ahead) and put it back to sleep as soon as it left. It slept
+where PhysX had it at that moment, which was still in flight. A static collider does not
+fall, so it hung there.
+
+The tire contact asked whether a rock rests on the road (`seen`) only for awake rocks, so it
+took this one as ground. On the next pass the front tire met a surface 0.88 m up: 252 kN in
+one step.
+
+## Fix
+
+- A rock leaving the path sleeps only once it has come to rest: PhysX has it within 1 cm of
+  the previous frame's pose (0.2 m/s at 20 Hz). It stays awake while it flies or rolls, and
+  then sleeps where it lies (`RockStream._settled`, with a unit test).
+- The tire contact checks asleep rocks for resting on the road too, so a rock frozen off the
+  road for any other reason holds no tire up either.
+
+The failing run (40, 60, 80 km/h, 800 m) now drives clean, with no tire over 30 kN. One more
+rock is awake at the median (7 against 6 at 40 km/h).
+
+A rock 32 m behind the car leaves the window and is written back where PhysX has it, at rest
+or not. A rock kicked by a tire lands within a second, and the car needs about two seconds to
+put 32 m between them at 60 km/h, so that is left as it is.

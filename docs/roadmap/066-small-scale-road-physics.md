@@ -526,7 +526,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     collision tiles, the awake bodies and the plate's contacts; they are not separated yet.
     The host was loaded throughout (another session's builds, load 40-450 on 24 cores).
 
-  Left for R4: a quiet host to measure the cost on (below), and issue 031.
+  Left for R4: the 80 km/h cost, 1.5 ms over the budget on a quiet host (below).
 
   **The rig's underbody** (2026-11-02). The spec gives the car's ground clearance
   (`body.ground_clearance`, sim_vehicle_spec d54636d): the Model 3 at Tesla's 138 mm,
@@ -543,11 +543,13 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   now drives on aib's plate (swb_isaac_world 57c8449). Over 800 m at 40, 60 and 80 km/h it
   behaved as the spike's own did: no rock lost, the car stuck nowhere.
 
-  In one 60 km/h run of seven, a front tire's load from the tire contact jumped from 4.6 to
-  252 kN in one step, and the car was thrown and rolled (issue 031). PhysX saw no body or
-  plate contact then, so it is the tire contact's reading of a rock, not the plate. It has not
-  come back in six runs since. The spike records the rocks under a tire when it does
-  (`ROCK_DIAG=1`).
+  Running 60 km/h after 40 km/h, a front tire's load jumped from 4.6 to 252 kN in one step,
+  and the car was thrown and rolled (issue 031). The 40 km/h pass had kicked a 4.9 kg rock
+  into the air, and the stream put it to sleep, a static collider, while it was still flying.
+  It hung 0.72 m over the road, and the tire contact, which asked only awake rocks whether
+  they rest on the road, stood the tire on it. Now a rock sleeps only once PhysX has it at
+  rest, and asleep rocks are asked too (swb_isaac_world 7957b5b). The spike prints the rocks
+  under any tire loaded past 30 kN (`ROCK_DIAG=1`), which is how it was found.
 
   **The cost, taken apart** (2026-11-02; 800 m of the same corridor, frame p50 ms at 40 / 80
   km/h, host load 40-75):
@@ -587,12 +589,20 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     4.9 to 4.0 at 80; the frame from 12.2 to 10.2 and from 14.4 to 11.8. The frame fell by more
     than the contact, so some of the drop is the host, which was busier for this run (load
     127-143 on 24 cores), not quieter.
-  - **Where it stands:** about 3.3 ms over the road without rocks at 40 km/h and 4.5 at 80,
-    inside the 5 ms budget at both, on a loaded host. None of the four runs since the third
-    slice lost a rock or stuck the car. The rest is PhysX's steps over the static rocks and
-    the tiles (about 2.4 ms over the run with every rock static, about 250 separate static
-    colliders) and the contact's shares, 1.6 ms over the road without rocks. Each needs a
-    quiet host to measure before it is worth more work.
+  - **On a quiet host** (2026-11-02, load 8-12 on 24 cores; the skid plate aib's, rocks
+    sleeping only at rest), frame p50 ms:
+
+    | km/h | no rocks | rocks | over |
+    |---|---|---|---|
+    | 40 | 7.05 | 12.08 | 5.0 |
+    | 60 | 7.22 | 11.19 | 4.0 |
+    | 80 | 7.02 | 13.47 | 6.5 |
+
+    The loaded host's runs above made it look inside the budget at both speeds: their
+    baseline without rocks was measured at another time, under another load. On a quiet host
+    40 and 60 km/h are at the 5 ms budget and 80 is 1.5 ms over it. Most of the excess is
+    PhysX's steps (3.5-5.3 ms over the road without rocks), the static rocks and the tiles,
+    and the contact's shares (1.7-2.3 ms). No run lost a rock or stuck the car.
 
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling

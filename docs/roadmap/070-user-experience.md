@@ -194,8 +194,13 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
      TUM's zip unchanged into `data/tum-carla-autoware-maps/` and goes through the same link,
      projector and repair path; `SWB_MAP_URL` for a mirror. Checked against the real zip over
      local HTTP with the CARLA release's OpenDRIVE: all five towns linked and repaired.
-   - [ ] **The mirror published**: repository, release, asset. Then the guide followed
-     verbatim on CARLA (stages 1-5) before the team gets the link.
+   - [x] **The mirror published** (2026-11-02): [NEWSLabNTU/carla-autoware-maps](https://github.com/NEWSLabNTU/carla-autoware-maps),
+     release `tum-2024-06`, TUM's zip as its asset, README crediting TUM and their paper,
+     TUM's `LICENSE.md`. `scripts/download_maps.sh`, unmodified, fetched it from GitHub into a
+     fresh copy: checksum verified, five towns linked and repaired, byte-identical to the
+     local-HTTP check.
+   - [ ] **The guide followed verbatim on CARLA** (stages 2's signal table, 3 and 5 need
+     CARLA, so the live-run gate).
 2. [~] **Friction log.** Build half done, below. A fresh clone on this host in a clean shell (no `.env`, no
    `just`), following only the README. Every stumble written down with its fix owner.
    This sets C's list.

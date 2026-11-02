@@ -1084,7 +1084,7 @@ _require-carla:
 #   overlay:=<setup.bash>         a workspace sourced between Autoware and acb, so its
 #                                 packages shadow Autoware's but not acb's
 #   autoware_overlay:=false       stock Autoware, without `just build-autoware-overlay`'s fixes
-#   container_mode:=<mode>        play_launch's, default observable (isolated: see below)
+#   container_mode:=<mode>        play_launch's, default isolated
 #   play_launch_args:="<opts>"    further play_launch options, split on whitespace
 #
 # Usage: just ego-av [map_path:=<dir>] [rviz:=true] [name:=value ...]
@@ -1093,7 +1093,7 @@ ego-av *args: _require-carla
     #!/usr/bin/env bash
     set -e
     source "{{lib}}"; swb_reject_env; swb_reject_args "{{project}}" "$@"
-    overlay=""; autoware_overlay=true; container_mode=observable; play_launch_args=""
+    overlay=""; autoware_overlay=true; container_mode=isolated; play_launch_args=""
     given=()
     for a in "$@"; do
         case "$a" in
@@ -1169,11 +1169,6 @@ ego-av *args: _require-carla
         -- "${given[@]}"
     log_dir=$(swb_log_dir "{{project}}" ego)
     #
-    # container_mode defaults to observable since 2026-11-02 (roadmap 070, friction 13): under
-    # play_launch 0.18.3, isolated mode left Autoware's ADAPI unseen (no
-    # /api/operation_mode/state publisher in 120 s, 5 s in observable), so no scenario could
-    # start. Back to isolated once play_launch is fixed; until then container_mode:=isolated
-    # still selects it. Why isolated was the default:
     # --container-mode isolated --composable-respawn on-crash: Autoware 1.5.0's
     # behavior_path_planner aborts now and then on a new route (autoware_universe#12460, once
     # in 27 UC-ACC variants on 2026-10-10); its containers declare no respawn, so without a
@@ -1208,7 +1203,7 @@ ego-isaac *args:
     #!/usr/bin/env bash
     set -e
     source "{{lib}}"; swb_reject_env; swb_reject_args "{{project}}" "$@"
-    overlay=""; autoware_overlay=true; container_mode=observable; play_launch_args=""
+    overlay=""; autoware_overlay=true; container_mode=isolated; play_launch_args=""
     given=()
     for a in "$@"; do
         case "$a" in
@@ -1311,7 +1306,7 @@ bg-av *args: _require-carla
         -- "${given[@]}"
     log_dir=$(swb_log_dir "{{project}}" "bg-$entity")
     exec play_launch launch --web-addr 0.0.0.0:"$web_port" \
-        --container-mode observable --composable-respawn on-crash \
+        --container-mode isolated --composable-respawn on-crash \
         --load-node-timeout 120 \
         --load-total-budget 180 \
         --log-dir "$log_dir" \

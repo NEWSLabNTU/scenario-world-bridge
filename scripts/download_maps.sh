@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
-# Obtain pre-converted CARLA maps for Autoware (lanelet2 + PCD).
-# Source: TUMFTM carla-autoware-bridge map pack.
+# Obtain pre-converted CARLA maps for Autoware (lanelet2 + PCD) in data/carla-autoware-bridge/.
+# Source: the map pack of TUM's CARLA-Autoware-Bridge (Town01, 02, 03, 05, 10; LGPL-3.0).
 #
-# The upstream LRZ Sync+Share link is DEAD -- it returns HTTP 404 with an HTML error
-# page, so the download path below cannot work until someone supplies a live URL.
-# Set SWB_MAP_SOURCE to a directory holding the town folders (Town01, Town02, ...) and
-# they are linked or copied from there instead.
+# TUM's own LRZ Sync+Share links are dead (HTTP 404 since 2026-07). NEWSLabNTU keeps their
+# zip, byte for byte, as a GitHub release; the checksum below is the one TUM's download had.
+# The pack is unpacked into data/tum-carla-autoware-maps/ and left as it came; the towns in
+# data/carla-autoware-bridge/ are per-file links into it, repaired copies where a repair
+# changes a file.
+#
+# SWB_MAP_URL=<url> fetches the same zip from a mirror (the checksum still applies).
+# SWB_MAP_SOURCE=<dir holding Town01/, Town02/, ...> uses a copy you already have instead.
+# SWB_XODR_DIR=<CARLA>/CarlaUE4/Content/Carla/Maps/OpenDrive: the CARLA release's road data,
+# which the speed-limit and walkway repairs read.
 set -e
 
-# Optional local source, e.g. a NAS mount:
-#   SWB_MAP_SOURCE=~/nas/autoveh/dataset/CARLA-map-from-TUM just download-maps
 MAP_SOURCE="${SWB_MAP_SOURCE:-}"
 
-# Dead as of 2026-07-28. Kept so the intended origin stays documented.
-URL="https://syncandshare.lrz.de/dl/fiBgYSNkmsmRB28meoX3gZ/.dir"
+URL="${SWB_MAP_URL:-https://github.com/NEWSLabNTU/carla-autoware-maps/releases/download/tum-2024-06/carla-autoware-bridge.zip}"
 SHA256="6e582242198ae50aa1d1fd410b53609c8b7ecfc6b9696294c498646783ed4838"
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)/data"
-ZIP="$DIR/carla-autoware-bridge.zip"
+ZIP="$DIR/carla-autoware-bridge.zip}"
+PACK="$DIR/tum-carla-autoware-maps"
 OUT="$DIR/carla-autoware-bridge"
 
 # The map repairs, in order. Each is idempotent, so they also run on maps already present:
@@ -74,7 +78,37 @@ fi
 
 mkdir -p "$DIR"
 
-# --- Local source ---------------------------------------------------------------
+# --- Download -------------------------------------------------------------------
+# Fetch TUM's pack into $PACK, unchanged, unless a source was given or it is already there.
+download_pack() {
+    if [ -d "$PACK" ] && [ "$(ls -A "$PACK" 2>/dev/null)" ]; then
+        return
+    fi
+    echo "Downloading TUM's CARLA maps for Autoware from $URL"
+    if command -v aria2c &>/dev/null; then
+        aria2c -c -x4 -s4 --file-allocation=none --auto-file-renaming=false \
+            -d "$DIR" -o "$(basename "$ZIP")" "$URL"
+    else
+        wget -c -O "$ZIP" "$URL"
+    fi
+    if ! echo "$SHA256  $ZIP" | sha256sum -c --quiet 2>/dev/null; then
+        echo "ERROR: checksum mismatch on $ZIP (a cut-short or wrong download)." >&2
+        echo "       Delete it and run this again." >&2
+        exit 1
+    fi
+    echo "Checksum verified."
+    mkdir -p "$PACK"
+    unzip -q -o "$ZIP" -d "$PACK"
+    rm -f "$ZIP"
+    echo "TUM's pack unpacked to $PACK"
+}
+
+if [ -z "$MAP_SOURCE" ]; then
+    download_pack
+    MAP_SOURCE="$PACK"
+fi
+
+# --- Link the source's towns in, then repair ------------------------------------
 if [ -n "$MAP_SOURCE" ]; then
     if [ ! -d "$MAP_SOURCE" ]; then
         echo "ERROR: SWB_MAP_SOURCE='$MAP_SOURCE' is not a directory." >&2
@@ -138,34 +172,3 @@ YAML
     echo "Linked $found map(s) into $OUT"
     exit 0
 fi
-
-# --- Download -------------------------------------------------------------------
-echo "Downloading CARLA maps for Autoware..."
-echo
-echo "NOTE: the upstream URL is known to be dead (HTTP 404) as of 2026-07-28."
-echo "      If this fails, point SWB_MAP_SOURCE at a directory holding the town"
-echo "      folders, e.g.:"
-echo
-echo "        SWB_MAP_SOURCE=/path/to/CARLA-map-from-TUM $0"
-echo
-
-if command -v aria2c &>/dev/null; then
-    aria2c -c -x4 -s4 --file-allocation=none --auto-file-renaming=false \
-        -d "$DIR" -o "$(basename "$ZIP")" "$URL"
-else
-    wget -c -O "$ZIP" "$URL"
-fi
-
-# Verify checksum
-echo "$SHA256  $ZIP" | sha256sum -c --quiet
-echo "Checksum verified."
-
-# Extract
-unzip -q -o "$ZIP" -d "$OUT"
-echo "Maps extracted to $OUT"
-ls "$OUT"
-repair_maps "$OUT"
-
-# Clean up zip
-rm -f "$ZIP"
-echo "Done."

@@ -160,14 +160,18 @@ SSv2. The world servers need `sim_vehicle_spec` but not Autoware.
 
 ## Prerequisites
 
+**New here? [Getting started on CARLA](docs/getting-started/carla.md)** walks the same
+steps in five stages, from install to your own scenario driven by Autoware.
+
 - **Ubuntu 22.04, ROS 2 Humble** ([install](https://docs.ros.org/en/humble/Installation.html)).
 - **Autoware 1.5.0** ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/)),
   e.g. the binary packages under `/opt/autoware/1.5.0`.
 - **CARLA 0.9.16** ([quick start](https://carla.readthedocs.io/en/0.9.16/start_quickstart/)),
   the packaged release, and an NVIDIA GPU that runs it beside Autoware.
-- **Converted maps**: one Autoware map directory (Lanelet2 + point cloud) per CARLA town.
-  The TUM pack this project uses has no working public download at the moment -- see
-  [User Guide §2](docs/user-guide.md#2-prepare-a-map-directory). Nothing runs without them.
+- **Converted maps**: one Autoware map directory (Lanelet2 + point cloud) per CARLA town:
+  TUM's pack, which `scripts/download_maps.sh` downloads and repairs
+  ([Getting started on CARLA, stage 2](docs/getting-started/carla.md#2-a-map)). Nothing runs
+  without them.
 - **Rust** and colcon's Rust plugin, which rosdep cannot install, and CARLA's Python API
   (for `carla_poses` and `chase_view`; match your CARLA version):
 
@@ -251,11 +255,14 @@ ROS domains above 57 do not work with that profile.
 
 **Recommended: [play_launch](https://pypi.org/project/play-launch/) as a drop-in for
 `ros2 launch`.** Same packages, files and arguments -- `play_launch launch swb_launch
-simulation.launch.xml` -- plus a log directory per node and a web UI (`--web-addr
+carla_simulation.launch.xml` -- plus a log directory per node and a web UI (`--web-addr
 127.0.0.1:8084`) for the ~90 processes of an Autoware stack. `pip install
 'play_launch>=0.15.1'`; `run_suite` uses it when it is installed.
 
 ## Learn more
+
+**Getting started** -- [on CARLA](docs/getting-started/carla.md): install, a map, a first run
+with CARLA's simple autopilot, your own scenario, then Autoware.
 
 **Tutorials** -- from a map directory to a demo of your own scenario:
 

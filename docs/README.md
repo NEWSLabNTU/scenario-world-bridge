@@ -3,6 +3,7 @@
 ## Using scenario-world-bridge
 
 - [README](../README.md) -- what it is, prerequisites, setup, quick start
+- [Getting started on CARLA](getting-started/carla.md) -- start here: install, the TUM maps, a first run, your scenario, Autoware
 - Tutorials, in order:
   1. [First run](tutorials/01-first-run.md) -- both sides up, a starter scenario, its verdict
   2. [Prepare a scenario](tutorials/02-prepare-a-scenario.md) -- poses on the map, a `.xosc` of your own

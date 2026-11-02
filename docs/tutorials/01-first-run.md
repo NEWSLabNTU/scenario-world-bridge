@@ -5,7 +5,7 @@ scenarios, and read its verdict. About 20 minutes, most of it waiting for Autowa
 
 **Before you start**: the [README](../../README.md)'s prerequisites and setup are done (the
 workspace is built), and you have converted maps (a directory holding `Town01/`, `Town02/`,
-...; [User Guide §2](../user-guide.md#2-prepare-a-map-directory)).
+...; [Getting started on CARLA, stage 2](../getting-started/carla.md#2-a-map)).
 
 ## 0. Every terminal
 
@@ -19,9 +19,6 @@ export CARLA_MAPS=~/maps/carla                         # holds Town01/, Town02/,
 
 The launches below set their DDS themselves (Cyclone, swb_launch's localhost profile); a
 `ros2` command of your own needs the same exports, [README](../../README.md#quick-start).
-
-```bash
-```
 
 Check the map directory has what the scenario and Autoware read:
 
@@ -62,7 +59,7 @@ goals to the vehicle). Start it once and leave it running; scenarios come and go
 
 ```bash
 # Terminal 2
-ROS_DOMAIN_ID=9 ros2 launch swb_launch simulation.launch.xml
+ROS_DOMAIN_ID=9 ros2 launch swb_launch carla_simulation.launch.xml
 ```
 
 Ready when both of these lines have appeared:
@@ -170,8 +167,7 @@ an Autoware stack of ~90 processes:
 ```bash
 pip install 'play_launch>=0.15.1'
 ROS_DOMAIN_ID=1 play_launch launch --web-addr 127.0.0.1:8082 \
-    acb_launch carla_simulator.launch.xml map_path:=$CARLA_MAPS/Town01 vehicle_name:=hero \
-    relay:=tcp://localhost:5560
+    swb_launch ego_av.launch.xml map_path:=$CARLA_MAPS/Town01 relay:=tcp://localhost:5560
 # then open http://127.0.0.1:8082 ; logs in ./play_log/
 ```
 

@@ -87,10 +87,10 @@ Fresh-machine notes:
 ## 2. Prepare a map directory
 
 > **You need converted maps before anything runs.** This project uses the TUM
-> carla-autoware-bridge map pack (LGPL-3.0), and that pack's public download link is dead at
-> the moment; obtaining or generating maps is a separate effort (see "Where the maps come
-> from" below). If someone has given you the pack, point `CARLA_MAPS` at the directory that
-> holds `Town01/`, `Town02/`, ...
+> carla-autoware-bridge map pack (LGPL-3.0). TUM's own link is dead; NEWSLabNTU keeps the pack,
+> unchanged, as a release of [carla-autoware-maps](https://github.com/NEWSLabNTU/carla-autoware-maps/releases),
+> and `scripts/download_maps.sh` fetches and repairs it ("Where the maps come from" below; the
+> steps: [Getting started on CARLA, stage 2](getting-started/carla.md#2-a-map)).
 
 One directory per CARLA town, in Autoware's map layout plus one CARLA file:
 
@@ -137,12 +137,15 @@ pose hundreds of metres off.
 
 **Where the maps come from.** This project runs on the CARLA towns converted for Autoware by
 TUM's [carla-autoware-bridge](https://github.com/TUMFTM/Carla-Autoware-Bridge) (map pack
-copyright 2024 TUM, LGPL-3.0; its `LICENSE.md` ships in each town directory). The pack's
-download link (`scripts/download_maps.sh`) is dead at the time of writing, so there is no
-public download yet; providing the maps is a separate effort. With a copy of the pack,
-`SWB_MAP_SOURCE=<pack dir> scripts/download_maps.sh` installs it under
-`data/carla-autoware-bridge/<Town>/` with the projector fix SSv2 needs; then generate each
-town's `carla/traffic_lights.yaml` as above. The script also repairs eight defects of the
+copyright 2024 TUM, LGPL-3.0; its `LICENSE.md` ships in each town directory). TUM's own
+download link is dead (HTTP 404 since 2026-07); NEWSLabNTU keeps their zip, byte for byte
+(the same SHA-256), as the `tum-2024-06` release of
+[NEWSLabNTU/carla-autoware-maps](https://github.com/NEWSLabNTU/carla-autoware-maps/releases).
+`SWB_XODR_DIR=<CARLA>/CarlaUE4/Content/Carla/Maps/OpenDrive scripts/download_maps.sh` downloads
+it, checks the checksum, unpacks it unchanged into `data/tum-carla-autoware-maps/` and installs
+it under `data/carla-autoware-bridge/<Town>/` with the projector fix SSv2 needs
+(`SWB_MAP_URL` fetches the zip from a mirror; `SWB_MAP_SOURCE=<pack dir>` uses a copy you
+already have); then generate each town's `carla/traffic_lights.yaml` as above. The script also repairs eight defects of the
 pack, idempotently (`scripts/repair_lanelet_traffic_lights.py`, `scripts/repair_lanelet_subtypes.py`,
 `scripts/repair_lanelet_local_coords.py`, `scripts/repair_lanelet_turn_direction.py`,
 `scripts/repair_lanelet_joins.py`, `scripts/repair_lanelet_right_of_way.py`,

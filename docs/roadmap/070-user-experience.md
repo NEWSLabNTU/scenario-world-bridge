@@ -168,10 +168,14 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
 
 ## Decisions (user, 2026-11-02)
 
-1. **The starter map: both, publishing first.** Our Town01 map directory (Lanelet2 + point
-   cloud) becomes a release asset. The upload itself waits for the user's word on the day.
-   The guides also show how to generate one from CARLA with acb's map tools
-   (`carla_pcd_gen` + the OpenDRIVE converter). The TUM pack still has no public download.
+1. **The starter map: TUM's pack, mirrored** (user, 2026-11-02, replacing "our Town01 as a
+   release asset"; a team wants to start from it early). TUM's LRZ links are dead (both
+   `/dl/` and `/getlink/` 404 on 2026-11-02), and no public mirror was found. TUM's zip,
+   byte for byte (SHA-256 `6e582242...3ed4838`, the one `download_maps.sh` always checked;
+   313 MB, five towns, LGPL-3.0 with `LICENSE.md` in each town), becomes release `tum-2024-06`
+   of a new repository, `NEWSLabNTU/carla-autoware-maps`, with a README crediting TUM. Our
+   repairs stay in `download_maps.sh` and run after the download, so the published files are
+   TUM's own. Generating a map from CARLA with acb's tools stays a later guide section.
 2. **The default build compiles every supported CARLA version** (0.9.14-0.9.16 today), so
    any server works with no rebuild. `--packages-skip` drops some.
 3. **`simple_pilot` is added** as described in D, on both simulators.
@@ -179,6 +183,19 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
 ## Steps
 
 1. [ ] **Docs.** This doc; 029 marked folded in; 068 step 6 pointed here; the index.
+   - [x] **Early CARLA guide** (2026-11-02, for a team starting now; user: "docs first").
+     `docs/getting-started/carla.md` on today's commands: stage 3 drives with `carla_basic`
+     (CARLA's BasicAgent, no Autoware), stage 5 with `ego_av`; the README, the user guide §2,
+     tutorial 01 and the docs index point to it. Steps 5, 6 and 8 move it to `run.launch.xml`
+     and `simple_pilot`. Tutorial 01's stale `simulation.launch.xml`, empty code block and
+     `acb_launch` play_launch line fixed on the way.
+   - [x] **`download_maps.sh` downloads again.** The download branch had never rewritten the
+     projector (only the local-copy branch did) and named no checksum failure: it now unpacks
+     TUM's zip unchanged into `data/tum-carla-autoware-maps/` and goes through the same link,
+     projector and repair path; `SWB_MAP_URL` for a mirror. Checked against the real zip over
+     local HTTP with the CARLA release's OpenDRIVE: all five towns linked and repaired.
+   - [ ] **The mirror published**: repository, release, asset. Then the guide followed
+     verbatim on CARLA (stages 1-5) before the team gets the link.
 2. [~] **Friction log.** Build half done, below. A fresh clone on this host in a clean shell (no `.env`, no
    `just`), following only the README. Every stumble written down with its fix owner.
    This sets C's list.
@@ -222,6 +239,7 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 | 13 | The ego stack alone, no CARLA, `--container-mode isolated` (`just ego-av`'s default) against play_launch's default mode | First measured as a play_launch bug (isolated: no ADAPI in 120 s; default: 5 s). **It was not.** That test had no `RMW_IMPLEMENTATION`, so ~90 isolated processes ran Fast DDS (14). Rerun on Cyclone in domain 7: isolated, ADAPI in 5 s. | **No change**: isolated stays the default (a day's `observable` default reverted). 12 was 14. |
 | 14 | Our own path from a shell without direnv (first with `observable` containers, 13) | Bring-up ready, then `Service /api/operation_mode/change_to_stop is not ready after 119 seconds`. The scenario stack ran on Fast DDS (its dds_report: `CYCLONEDDS_URI ... NOT READ`), the relay on Cyclone: they never meet. Only the repo's `.envrc` set `RMW_IMPLEMENTATION`; `run` and `demo-tour` defaulted it, seven other recipes did not. | **Fixed**: every recipe that sets `CYCLONEDDS_URI` defaults `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` (a set value wins; `EGO_RMW_IMPLEMENTATION` still overrides the ego's). Then `just scenario town01_ego_drive` from the clean clone **passed** (`failures="0" errors="0"`), everything reaped after. |
 | 15 | 13's rerun in domain 77 | Every node died at once: `rmw_create_node: failed to create domain`, the launch shut down. The localhost Cyclone config sets `DomainGain 1000`, so domain 77's ports start at 84410, past 65535; the cause is in each node's `err` only (`resulting port numbers (84410, 84411) are out of range`). Domains above 57 cannot work with it, and nothing says so up front. | **Fixed in the recipes** (`swb_check_domains`, every recipe) and named in the profile's comment and the user guide. The launches cannot check it in XML; `run.launch.xml` will (C). |
+| 16 | `download_maps.sh` from the zip with the CARLA release's OpenDRIVE (`SWB_XODR_DIR`) | The towns differ from the ones every run on this host used: those have **no `speed_limit` tags** (Town01 110, Town02 78, Town03 428, Town05 426, Town10 145) and lack the walkway-under-road retags (Town03 13, Town05 12), so this host's runs drove at lanelet2's 50 km/h default. The speed-limit and walkway repairs came on 2026-10-27 (033f7a2, 4b8fed7), after this host's maps were installed (2026-10-21), and were never re-run here. A user gets the fully repaired maps. | The guide's acceptance runs on the downloaded maps. Re-run `download_maps.sh` on this host before comparing a run with the user's. |
 
 The README path is not the tested path: 7-10 are the gap. **And 8-10 ran on Fast DDS**:
 Humble's and Autoware's `setup.bash` leave `RMW_IMPLEMENTATION` unset, the quick start never

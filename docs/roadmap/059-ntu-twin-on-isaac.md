@@ -333,9 +333,9 @@ Progress:
     - `ros2 bag record -e REGEX TOPICS...` in Humble filters the listed topics by the regex
       rather than adding to them; give one regex naming everything.
   - Open:
-    - On the final n5v3, AEB fired once in 6 r01 drives (w01c), 0.3 s just past the first turn:
+    - On the first n5v3 map, AEB fired once in 6 r01 drives (w01c), 0.3 s just past the first turn:
       a static object 7.25 m ahead against an RSS distance of 7.28 m, the car not slowing. Kept
-      as it is (decided 2026-11-02). The object is a hedge or fence along the westbound lane's
+      at first (decided 2026-11-02), fixed the same day (below). The object is a hedge or fence along the westbound lane's
       north edge: the scan holds a band 1.0-1.7 m tall from x 52786 to 52800 at y 67887.9-67888.1,
       seen over 40 minutes, about 0.4 m past the lane's original edge, meshed as Other just
       outside the road's 0.5 m clearing. Coming out of the 10 m turn the car's front-right
@@ -346,6 +346,18 @@ Progress:
       m outside the lane again, the 1 s stop's condition; and the road is about 6 m between
       objects on both sides (0.0-0.5 m past the eastbound lane's south edge too), so the shared
       centre line cannot move south without taking the eastbound lane under 2.8 m.
+    - Fixed (2026-11-02): the widening had moved the path too. A widened lanelet's centreline is
+      the centre of its new bounds, so the exit lanelet's ran 0.3 m north (y 67886.35 against
+      67886.06) and the car with it. `register_lanelets.py` step 6 now gives each lanelet the
+      widening changed (154) a custom centerline, the centre of its bounds before widening
+      (Lanelet2's role "centerline"; Autoware's map loader, `use_waypoints: true`, makes it the
+      waypoints the planners follow). The bounds and so the drivable area stay as widened; the
+      world is unchanged. The car's front-right corner now peaks at y 67887.58 (was
+      67887.86-67887.88 in all six earlier drives), the mesh starting at 67887.75; AEB's MPC path
+      meets the fence at 7.3-9.1 m ahead at the closest (2.1-2.2 m before). r01 x3 (k1-k3) and
+      r02 (k4) arrived on n5v3 with the overlay, no AEB, no MRM while driving. On the way: 23
+      lanelets have a left bound drawn against the right one, which Lanelet2 inverts on load;
+      the centreline does the same, or it folds.
     - Every emergency stop while driving, over all 43 N8 drives (checked 2026-11-02): the MRM
       at start-up on most of them is the topic monitors before the first messages (cleared
       before localization, never engaged). Mid-drive: r01h-r01o (2026-10-30) are the r01 stop
@@ -355,7 +367,7 @@ Progress:
       chose a backward pull-out, reversed 2.8 m turning to 46 deg and stayed on a backward path
       for 9 minutes; each of its 14 MRMs is planning_validator's "sudden shift in trajectory".
       r02s and w02 spawn at yaw 0.0035 and arrive, no backward path. On n5v3 only w01c's AEB
-      remains.
+      remained, gone since widened lanelets keep their centrelines (above).
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

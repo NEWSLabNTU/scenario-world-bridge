@@ -2,7 +2,7 @@
 """Re-register the merged Lanelet2 map to the scan (roadmap 059 N7).
 
     register_lanelets.py ROUTES_DIR MAP_DIR GROUND_DIR [--keep MESH_DIR/ground_keep.npy]
-        [--min-width 2.8] [--widen-only] [--report report.json]
+        [--min-width 2.8] [--widen-only] [--no-keep-centre] [--report report.json]
 
 The lanelets of r01 and r02 were drawn on each route's own point cloud
 (ROUTES_DIR/<route>/pointcloud_map.pcd*), which drifts up to 0.3 m against the vendor scan
@@ -42,6 +42,12 @@ frame (export_map.py), so the route clouds are registered to it, and the lanelet
      tapering to 0 at CAR_REACH; and outer segments get a vertex every metre for DENSE_END
      at each end (1004849's first segment, just after r01's turn, ran 139 m).
 
+  6. each lanelet step 5 changed gets a custom centerline (Lanelet2's role "centerline";
+     Autoware's map loader makes it the waypoints the planners follow): the centre of its
+     bounds before widening. The room is for the car's swing, not a new path: with the path
+     moved out with the edge, r01's first turn exit ran 0.3 m nearer a roadside fence and
+     AEB braked for it (059). `--no-keep-centre` leaves the centrelines to Autoware.
+
 `--widen-only` skips steps 1-4: it widens MAP_DIR/lanelet2_map.osm as it stands (kept as
 lanelet2_map.before_curves.osm, which a rerun starts from) and sets only the moved nodes'
 heights from the ground.
@@ -79,6 +85,7 @@ CURVE_MARGIN = 0.3 # m more on a curve's outer edge: the car runs wider than the
                    # second turn: the corner 0.2-0.44 m out where the offtracking alone was met)
 CAR_REACH = 12.0   # m after a curve's outer vertex its offtracking still holds (tapering): the
                    # car is still yawing out of r01's turn 6.5 m past its end (N5 drives)
+CENTRE_STEP = 1.0  # m between a kept centreline's points
 DENSE_END = 12.0   # m at each end of a long outer segment that get a vertex every metre, so
                    # the edge just after a curve has vertices to push
 
@@ -443,7 +450,9 @@ def widen(root, pos, ground, min_width):
         rb = np.array([pos[i][:2] for i in ways[rw]])
         after.append(min(min(_dist_to(p, rb)[0] for p in lb), min(_dist_to(p, lb)[0] for p in rb)))
     after = np.array(after)
-    return {"min_width": min_width, "lanelets_narrower_before": len(narrow),
+    widened = [(lid, lw, rw) for lid, lw, rw in lanelets
+               if any(i in moved for w in (lw, rw) for i in ways[w])]
+    return widened, {"min_width": min_width, "lanelets_narrower_before": len(narrow),
             "of_them_on_curves": len(curved),
             "vertices_moved": len(moved), "push_m_p50_max": [round(float(np.median(list(moved.values()))), 3),
                                                              round(float(max(moved.values())), 3)] if moved else None,
@@ -451,6 +460,53 @@ def widen(root, pos, ground, min_width):
             "lanelets_narrower_after": int((after < min_width).sum()),
             "narrowest_after_m": round(float(after.min()), 2),
             "narrower_than_car_after": int((after < 2.163).sum())}
+
+
+def _resample(p, n):
+    """n points at equal arc-length fractions along polyline p (k, d)."""
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(p[:, :2], axis=0).T))])
+    t = np.linspace(0.0, s[-1], n)
+    return np.stack([np.interp(t, s, p[:, j]) for j in range(p.shape[1])], axis=1)
+
+
+def keep_centres(root, widened, before, pos, to_ll, utm_off):
+    """Give each widened lanelet a custom centerline (Lanelet2's role "centerline", which
+    Autoware's map loader turns into the waypoints its planners follow, use_waypoints): the
+    centre of its bounds before widening, every CENTRE_STEP. Widening makes room for the car's
+    swing and its corner; it must not move the path. Moving it took r01's first turn exit
+    0.3 m towards a fence, and AEB's predicted path swept it. xy from `before`, heights from
+    `pos` (the moved nodes' are the ground's). Returns the number of centrelines added."""
+    ways = {int(w.get("id")): [int(nd.get("ref")) for nd in w.findall("nd")] for w in root.findall("way")}
+    rels = {int(r.get("id")): r for r in root.findall("relation")}
+    next_id = max(int(e.get("id")) for e in root if e.get("id")) + 1
+    added = 0
+    for lid, lw, rw in widened:
+        rel = rels[lid]
+        if any(m.get("role") == "centerline" for m in rel.findall("member")):
+            continue
+        lb = np.array([[*before[i][:2], pos[i][2]] for i in ways[lw]])
+        rb = np.array([[*before[i][:2], pos[i][2]] for i in ways[rw]])
+        d = lambda p, q: float(np.hypot(*(p[:2] - q[:2])))  # noqa: E731
+        if d(lb[0], rb[0]) + d(lb[-1], rb[-1]) > d(lb[0], rb[-1]) + d(lb[-1], rb[0]):
+            lb = lb[::-1]  # a left bound drawn the other way: Lanelet2 inverts it to the right's
+        length = max(np.hypot(*np.diff(b[:, :2], axis=0).T).sum() for b in (lb, rb))
+        n = max(2, int(np.ceil(length / CENTRE_STEP)) + 1)
+        c = (_resample(lb, n) + _resample(rb, n)) / 2
+        lon, lat = to_ll(c[:, 0] + utm_off[0], c[:, 1] + utm_off[1])
+        way = ET.Element("way", {"id": str(next_id + n)})
+        for k, v in enumerate(c):
+            nd = ET.Element("node", {"id": str(next_id + k), "lat": f"{lat[k]:.11f}",
+                                     "lon": f"{lon[k]:.11f}"})
+            for key, x in zip(("local_x", "local_y", "ele"), v):
+                ET.SubElement(nd, "tag", {"k": key, "v": f"{x:.4f}"})
+            root.insert(0, nd)
+            ET.SubElement(way, "nd", {"ref": str(next_id + k)})
+        ET.SubElement(way, "tag", {"k": "type", "v": "centerline"})
+        root.insert(list(root).index(rel), way)
+        ET.SubElement(rel, "member", {"type": "way", "role": "centerline", "ref": str(next_id + n)})
+        next_id += n + 1
+        added += 1
+    return added
 
 
 def main(argv=None):
@@ -463,6 +519,8 @@ def main(argv=None):
                     help="widen road lanelets to this, m (0: leave them)")
     ap.add_argument("--widen-only", action="store_true",
                     help="only widen the map as it stands (no registration)")
+    ap.add_argument("--no-keep-centre", dest="keep_centre", action="store_false",
+                    help="let a widened lanelet's centreline (the car's path) move with its bounds")
     ap.add_argument("--report", default="")
     a = ap.parse_args(argv)
 
@@ -501,9 +559,11 @@ def main(argv=None):
         report["routes"][r] = rep
         print(r, json.dumps(rep), flush=True)
 
+    widened = []
     if a.min_width > 0:
         pos = {int(i): new[k] for k, i in enumerate(ids)}  # views into `new`
-        report["widen"] = widen(root, pos, ground, a.min_width)
+        before = {i: p.copy() for i, p in pos.items()}
+        widened, report["widen"] = widen(root, pos, ground, a.min_width)
         report["widen"]["nodes_added"] = dense
         print("widen", json.dumps(report["widen"]), flush=True)
     gz, gok = ground.z(new[:, :2])
@@ -529,6 +589,10 @@ def main(argv=None):
         tag(nd, "local_x").set("v", f"{new[k, 0]:.4f}")
         tag(nd, "local_y").set("v", f"{new[k, 1]:.4f}")
         tag(nd, "ele").set("v", f"{new[k, 2]:.4f}")
+    if widened and a.keep_centre:
+        off = (float(np.median(e - xyz[:, 0])), float(np.median(n - xyz[:, 1])))
+        report["widen"]["centrelines_kept"] = keep_centres(
+            root, widened, before, pos, lambda x, y: to_ll.transform(x, y), off)
     tree.write(osm, encoding="UTF-8", xml_declaration=True)
     print(json.dumps({k: v for k, v in report.items() if k != "routes"}))
     if a.report:

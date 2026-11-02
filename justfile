@@ -736,6 +736,9 @@ isaac-world *args:
     # The ego's ROS domain is the ego stack's (`just ego-isaac`), not aib's ego.yaml's.
     export ISAAC_ROOT={{isaac_root}} ISAAC_PORT={{isaac_port}} EGO_ROS_DOMAIN_ID={{ego_domain}}
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     # Built from this checkout's swb_isaac_world; a moved checkout points it here again.
     export SWB_ISAAC_DIR="{{project}}/src/swb_isaac_world"
     log_dir=$(swb_log_dir "{{project}}" isaac)
@@ -974,6 +977,9 @@ acceptance *args:
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     export ISAAC_PORT={{isaac_port}} WORLD_PORT={{world_port}} SSV2_PORT={{ssv2_port}} AGENT_PORT={{agent_port}}
     case "$sim" in
         carla)
@@ -1039,6 +1045,9 @@ _require-ego-stack:
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     # Look where the ego actually is: its own domain (roadmap 017), over its RMW.
     export ROS_DOMAIN_ID={{ego_domain}}
     if [ -n "${EGO_RMW_IMPLEMENTATION:-}" ]; then export RMW_IMPLEMENTATION="$EGO_RMW_IMPLEMENTATION"; fi
@@ -1075,7 +1084,7 @@ _require-carla:
 #   overlay:=<setup.bash>         a workspace sourced between Autoware and acb, so its
 #                                 packages shadow Autoware's but not acb's
 #   autoware_overlay:=false       stock Autoware, without `just build-autoware-overlay`'s fixes
-#   container_mode:=<mode>        play_launch's, default isolated
+#   container_mode:=<mode>        play_launch's, default observable (isolated: see below)
 #   play_launch_args:="<opts>"    further play_launch options, split on whitespace
 #
 # Usage: just ego-av [map_path:=<dir>] [rviz:=true] [name:=value ...]
@@ -1084,7 +1093,7 @@ ego-av *args: _require-carla
     #!/usr/bin/env bash
     set -e
     source "{{lib}}"; swb_reject_env; swb_reject_args "{{project}}" "$@"
-    overlay=""; autoware_overlay=true; container_mode=isolated; play_launch_args=""
+    overlay=""; autoware_overlay=true; container_mode=observable; play_launch_args=""
     given=()
     for a in "$@"; do
         case "$a" in
@@ -1126,6 +1135,9 @@ ego-av *args: _require-carla
     # discovery flakes at this participant count - each run randomly failed to match
     # a different ADAPI service. Every ROS process in the pipeline must share this.
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     # Any domain works since roadmap 017: the scenario reaches this ego through the agent
     # relay (TCP), not over ROS. Kept apart from the scenario domain on purpose.
     export ROS_DOMAIN_ID={{ego_domain}}
@@ -1157,6 +1169,11 @@ ego-av *args: _require-carla
         -- "${given[@]}"
     log_dir=$(swb_log_dir "{{project}}" ego)
     #
+    # container_mode defaults to observable since 2026-11-02 (roadmap 070, friction 13): under
+    # play_launch 0.18.3, isolated mode left Autoware's ADAPI unseen (no
+    # /api/operation_mode/state publisher in 120 s, 5 s in observable), so no scenario could
+    # start. Back to isolated once play_launch is fixed; until then container_mode:=isolated
+    # still selects it. Why isolated was the default:
     # --container-mode isolated --composable-respawn on-crash: Autoware 1.5.0's
     # behavior_path_planner aborts now and then on a new route (autoware_universe#12460, once
     # in 27 UC-ACC variants on 2026-10-10); its containers declare no respawn, so without a
@@ -1191,7 +1208,7 @@ ego-isaac *args:
     #!/usr/bin/env bash
     set -e
     source "{{lib}}"; swb_reject_env; swb_reject_args "{{project}}" "$@"
-    overlay=""; autoware_overlay=true; container_mode=isolated; play_launch_args=""
+    overlay=""; autoware_overlay=true; container_mode=observable; play_launch_args=""
     given=()
     for a in "$@"; do
         case "$a" in
@@ -1219,6 +1236,9 @@ ego-isaac *args:
     source "{{project}}/scripts/autoware_tensorrt.bash"
     swb_tensorrt_source "{{autoware_tensorrt_lib}}"
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     export ROS_DOMAIN_ID={{ego_domain}}
     # Defaults, each dropped when an argument names the same launch argument.
     swb_with_defaults launch_args \
@@ -1279,6 +1299,9 @@ bg-av *args: _require-carla
     # Same loopback-unicast DDS config as every other process in the pipeline. DomainGain
     # 1000 in it is what keeps domain 1's unicast ports out of domain 0's range.
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     export ROS_DOMAIN_ID="$domain"
     swb_with_defaults launch_args \
         entity:="$entity" relay:="tcp://localhost:{{agent_port}}" \
@@ -1288,7 +1311,7 @@ bg-av *args: _require-carla
         -- "${given[@]}"
     log_dir=$(swb_log_dir "{{project}}" "bg-$entity")
     exec play_launch launch --web-addr 0.0.0.0:"$web_port" \
-        --container-mode isolated --composable-respawn on-crash \
+        --container-mode observable --composable-respawn on-crash \
         --load-node-timeout 120 \
         --load-total-budget 180 \
         --log-dir "$log_dir" \
@@ -1395,6 +1418,9 @@ scenario scenario_file *args:
     # Loopback-unicast DDS: lo multicast is disabled on this host and NIC-multicast
     # discovery flakes at this participant count. Every ROS process must share this.
     export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
+    export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
     # SSv2 runs in the scenario domain with the agent relay (`just run`); the ego is
     # reached through the relay, wherever it runs (roadmap 017).
     export ROS_DOMAIN_ID={{scenario_domain}}

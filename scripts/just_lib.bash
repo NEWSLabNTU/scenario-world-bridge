@@ -79,6 +79,25 @@ swb_reject_env() {
              "variable(s) above, in this shell and in .env/.envrc, and pass the argument." >&2
         exit 2
     fi
+    swb_check_domains
+}
+
+# swb_check_domains -- refuse a ROS domain the localhost Cyclone profile cannot use (roadmap
+# 070, friction 15). Its DomainGain 1000 puts domain d's ports at 7400 + 1000 d up to
+# + 911 (MaxAutoParticipantIndex 450), so d above 57 runs past port 65535, and every node then
+# dies with only `failed to create domain` (the reason is in each node's err log).
+swb_check_domains() {
+    local var val
+    for var in ROS_DOMAIN_ID EGO_ROS_DOMAIN_ID SCENARIO_ROS_DOMAIN_ID BG_ROS_DOMAIN_ID; do
+        val="${!var:-}"
+        [ -z "$val" ] && continue
+        if ! [[ "$val" =~ ^[0-9]+$ ]] || [ "$val" -gt 57 ]; then
+            echo "[just] $var=$val: use 0-57. swb_launch's Cyclone profile" \
+                 "(src/swb_launch/config/cyclonedds-localhost.xml, DomainGain 1000) puts higher domains'" \
+                 "ports past 65535, and every node fails with 'failed to create domain'." >&2
+            exit 2
+        fi
+    done
 }
 
 # swb_reject_args PROJECT ARG... -- refuse the launch arguments roadmap 051 renamed

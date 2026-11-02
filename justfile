@@ -502,7 +502,7 @@ demo-tour *args: _require-carla
     source "{{autoware_setup}}"
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 
     stack_on_port() {
@@ -663,7 +663,7 @@ run *args:
     source "{{autoware_setup}}"
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # On CycloneDDS like every other process of the stack; an unset RMW is Fast DDS, whose
     # relay SSv2 cannot see.
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -735,7 +735,7 @@ isaac-world *args:
     source "{{project}}/install/setup.bash"
     # The ego's ROS domain is the ego stack's (`just ego-isaac`), not aib's ego.yaml's.
     export ISAAC_ROOT={{isaac_root}} ISAAC_PORT={{isaac_port}} EGO_ROS_DOMAIN_ID={{ego_domain}}
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -976,7 +976,7 @@ acceptance *args:
     source "{{autoware_setup}}"
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -1044,7 +1044,7 @@ _require-ego-stack:
         [ -s "{{cuda_ndt_dir}}/install/.swb_cuda_path" ] && export LD_LIBRARY_PATH="$(cat "{{cuda_ndt_dir}}/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"; fi
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -1055,7 +1055,7 @@ _require-ego-stack:
     # container, and behavior_path_planner does that about once in 60 route resets
     # (autoware_universe#12460, an rclcpp race with no upstream fix). Without it the stack
     # looks up, the ego spawns and never moves, and the run dies at the storyboard timeout.
-    if ! "{{project}}/scripts/ego_stack_health.py" --reload-failed; then
+    if ! "{{project}}/src/swb_launch/scripts/ego_ready" --reload-failed; then
         echo "[just] Refusing to start: run \`just ego-av\` first and wait for"
         echo "[just] 'Startup complete'. See phase 012, startup order."
         exit 1
@@ -1134,7 +1134,7 @@ ego-av *args: _require-carla
     # Loopback-unicast DDS: lo multicast is disabled on this host and NIC-multicast
     # discovery flakes at this participant count - each run randomly failed to match
     # a different ADAPI service. Every ROS process in the pipeline must share this.
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -1230,7 +1230,7 @@ ego-isaac *args:
     source "{{project}}/install/setup.bash"
     source "{{project}}/scripts/autoware_tensorrt.bash"
     swb_tensorrt_source "{{autoware_tensorrt_lib}}"
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -1293,7 +1293,7 @@ bg-av *args: _require-carla
     swb_tensorrt_source "{{autoware_tensorrt_lib}}"
     # Same loopback-unicast DDS config as every other process in the pipeline. DomainGain
     # 1000 in it is what keeps domain 1's unicast ports out of domain 0's range.
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
@@ -1412,7 +1412,7 @@ scenario scenario_file *args:
     source "{{project}}/install/setup.bash"
     # Loopback-unicast DDS: lo multicast is disabled on this host and NIC-multicast
     # discovery flakes at this participant count. Every ROS process must share this.
-    export CYCLONEDDS_URI="file://{{project}}/config/cyclonedds-localhost.xml"
+    export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"

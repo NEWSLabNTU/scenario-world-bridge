@@ -237,8 +237,17 @@ ROS_DOMAIN_ID=9 ros2 run swb_launch run_suite \
 ```
 
 Wait for each part before starting the next: CARLA serves port 2000; the bridge logs
-`ZMQ server ready`; the relay logs `ego: agent up`. The [first-run
+`ZMQ server ready`; the vehicle side is ready when `ROS_DOMAIN_ID=1 ros2 run swb_launch
+ego_ready --timeout 600` exits 0 (the relay's `ego: agent up` comes earlier, while Autoware
+is still starting, and a scenario started then fails). The [first-run
 tutorial](docs/tutorials/01-first-run.md) shows what each looks like.
+
+The launches put every process on Cyclone DDS with swb_launch's localhost profile, unless
+the environment already sets `RMW_IMPLEMENTATION` or `CYCLONEDDS_URI` (or `dds_config:=`
+names another profile). A `ros2 topic` in your own shell needs the same to see them:
+`export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+CYCLONEDDS_URI=file://$(ros2 pkg prefix swb_launch)/share/swb_launch/config/cyclonedds-localhost.xml`.
+ROS domains above 57 do not work with that profile.
 
 **Recommended: [play_launch](https://pypi.org/project/play-launch/) as a drop-in for
 `ros2 launch`.** Same packages, files and arguments -- `play_launch launch swb_launch

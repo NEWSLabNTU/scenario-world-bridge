@@ -580,12 +580,15 @@ different towns. Empty (the default) leaves CARLA's own.
 ## 6. When things go wrong
 
 - **Nothing ever connects** -- the relay never sees the vehicle's agent, `ros2 topic list`
-  is empty, a scenario waits for a simulator that is running: DDS discovery is failing. On
-  hosts where multicast is disabled on the loopback interface (common on shared servers),
-  use the unicast-on-loopback profile that ships with the workspace, in **every** terminal on
-  both sides:
-  `export CYCLONEDDS_URI=file://<workspace>/config/cyclonedds-localhost.xml`.
-  It keeps all participants on one host; across hosts, use your network's DDS setup.
+  is empty, a scenario waits for a simulator that is running: DDS discovery is failing.
+  swb_launch's launches run every process on Cyclone with the unicast-on-loopback profile
+  it installs (`share/swb_launch/config/cyclonedds-localhost.xml`; hosts with loopback
+  multicast off, common on shared servers, need it), unless the environment already sets
+  `RMW_IMPLEMENTATION` or `CYCLONEDDS_URI`: check no terminal exports different ones. A
+  `ros2` command in your own shell needs both, exported to the same values. The profile keeps
+  all participants on one host (across hosts, use your network's DDS setup) and cannot use
+  a `ROS_DOMAIN_ID` above 57: its ports would pass 65535, and every node fails with only
+  `failed to create domain`.
 - **The vehicle side never localizes; the pointcloud map never arrives**: the side runs on
   another RMW than CycloneDDS, or on CycloneDDS without the profile above. Under Humble's
   default RMW (Fast DDS) the pointcloud map, one large transient-local message, never

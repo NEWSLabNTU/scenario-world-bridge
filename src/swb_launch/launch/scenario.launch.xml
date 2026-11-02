@@ -21,6 +21,13 @@
   It names its map directory in RoadNetwork/LogicFile, e.g. "$(env CARLA_MAPS)/Town01".
 -->
 <launch>
+  <!-- One DDS transport for every process of a run (roadmap 070, frictions 8 and 14): Cyclone
+       with the workspace's localhost profile, unless the environment already names others.
+       Fast DDS (an unset RMW) ignores the profile and cannot see the Cyclone processes, and on
+       hosts without loopback multicast Cyclone's default discovery misses peers. -->
+  <arg name="dds_config" default="$(env CYCLONEDDS_URI file://$(find-pkg-share swb_launch)/config/cyclonedds-localhost.xml)" description="CYCLONEDDS_URI for every process this launch starts (default: the environment's, else swb_launch's localhost profile)"/>
+  <set_env name="CYCLONEDDS_URI" value="$(var dds_config)"/>
+  <set_env name="RMW_IMPLEMENTATION" value="$(env RMW_IMPLEMENTATION rmw_cyclonedds_cpp)"/>
 
   <!-- User-configurable arguments -->
   <arg name="scenario" description="Path to .xosc scenario file" />

@@ -48,7 +48,10 @@
            is 300 (ports up to ~8021). A second stack on domain 1 then occupies
            ports domain 0 still needs, and new domain-0 participants fail with
            "Failed to find a free participant index". 1000 keeps the ranges
-           disjoint up to ~489 participants per domain. -->
+           disjoint up to ~489 participants per domain. It also caps the domain: d's ports
+           run to 7400 + 1000 d + 911, so domains above 57 pass port 65535 and every node
+           fails with "failed to create domain" ("port numbers ... out of range" only in its
+           err log). The recipes refuse them (scripts/just_lib.bash, roadmap 070 friction 15). -->
       <Ports>
         <DomainGain>1000</DomainGain>
       </Ports>

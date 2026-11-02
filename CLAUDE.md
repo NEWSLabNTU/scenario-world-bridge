@@ -489,15 +489,20 @@ Shipping build): three of eight runs once died that way, 24-40 s in.
 
 ### Talking to the stack from outside a launch
 
-Every ROS tool that must see the ego stack -- `scripts/ego_stack_health.py`, `ros2 topic`,
-probes -- needs the same DDS transport the stack uses, or discovery silently finds nothing
-and the health check reports "nothing publishes /api/operation_mode/state" on a healthy
-stack:
+Every ROS tool that must see the ego stack -- `ros2 topic`, probes, a test script --
+needs the same DDS transport the stack uses, or discovery silently finds nothing. The
+launches set it themselves (Cyclone, `src/swb_launch/config/cyclonedds-localhost.xml`,
+installed to swb_launch's share; roadmap 070), and `ros2 run swb_launch ego_ready` (the
+ego-ready check, `src/swb_launch/scripts/ego_ready`) defaults to the same. Anything else
+needs both variables, **RMW too**: an unset RMW is Fast DDS, which ignores the profile and
+sees nothing (roadmap 070, friction 14). Keep `ROS_DOMAIN_ID` at 57 or below: the profile's
+DomainGain 1000 puts higher domains' ports past 65535 (friction 15).
 
 ```bash
 source /opt/autoware/1.5.0/setup.bash
-export CYCLONEDDS_URI="file://$PWD/config/cyclonedds-localhost.xml" ROS_DOMAIN_ID=1
-scripts/ego_stack_health.py
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=1 \
+    CYCLONEDDS_URI="file://$PWD/src/swb_launch/config/cyclonedds-localhost.xml"
+ros2 topic list
 ```
 
 `pgrep -x` matches `comm`, which the kernel truncates to 15 characters:

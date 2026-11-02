@@ -27,13 +27,20 @@ publisher on each planning output and asks play_launch's ledger for crashed comp
 With `--reload-failed` it asks play_launch to load a crashed composable again and waits for
 the publishers to come back, which is the containment for a race nothing upstream fixes.
 
-    ROS_DOMAIN_ID=1 scripts/ego_stack_health.py [--timeout 10]
-                                                [--web-port 8082] [--reload-failed]
+    ROS_DOMAIN_ID=1 ros2 run swb_launch ego_ready [--timeout 10]
+                                                  [--web-port 8082] [--reload-failed]
+
+Installed by swb_launch as `ego_ready` (roadmap 070, friction 7): the cue a user waits on
+before starting a scenario. The relay's `ego: agent up` comes too early (the agent registers
+while Autoware still starts), and the agent's IDLE too late (it needs the ego spawned, which
+the scenario does).
 """
 
 import argparse
 import json
+import os
 import sys
+from pathlib import Path
 import urllib.error
 import urllib.request
 
@@ -94,6 +101,27 @@ def reload_composable(port: int, name: str) -> bool:
         return False
 
 
+def use_the_stack_transport() -> None:
+    """Default this process's DDS to the stack's, as swb_launch's launches set it (roadmap
+    070, friction 8): Cyclone with swb_launch's localhost profile. Without it a user's shell
+    is on Fast DDS, which never sees the Cyclone stack, and this check reports a healthy stack
+    as down. Whatever the environment already names wins. Must run before rclpy loads."""
+    os.environ.setdefault("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+    if "CYCLONEDDS_URI" in os.environ:
+        return
+    profile = None
+    try:
+        from ament_index_python.packages import get_package_share_directory
+
+        profile = Path(get_package_share_directory("swb_launch")) / "config/cyclonedds-localhost.xml"
+    except Exception:
+        pass
+    if profile is None or not profile.is_file():
+        profile = Path(__file__).resolve().parents[1] / "config/cyclonedds-localhost.xml"
+    if profile.is_file():
+        os.environ["CYCLONEDDS_URI"] = f"file://{profile}"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -114,6 +142,7 @@ def main() -> int:
         help="ask play_launch to load a crashed composable again instead of refusing",
     )
     args = ap.parse_args()
+    use_the_stack_transport()
 
     try:
         import rclpy
@@ -127,7 +156,7 @@ def main() -> int:
     # of range, for one -- and a check that answers with a traceback is not a check.
     try:
         rclpy.init(args=[])
-        node = rclpy.create_node("ego_stack_health")
+        node = rclpy.create_node("ego_ready")
     except Exception as e:
         print(f"[ego-health] cannot join the ROS graph: {e}")
         return 1

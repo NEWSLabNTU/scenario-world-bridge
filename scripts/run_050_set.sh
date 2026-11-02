@@ -86,7 +86,7 @@ start_ego() {  # $1 log name, then ego-av arguments
 }
 
 weather() {
-    ROS_DOMAIN_ID=$SCENARIO_ROS_DOMAIN_ID CYCLONEDDS_URI="file://$PWD/config/cyclonedds-localhost.xml" \
+    ROS_DOMAIN_ID=$SCENARIO_ROS_DOMAIN_ID CYCLONEDDS_URI="file://$PWD/src/swb_launch/config/cyclonedds-localhost.xml" \
         bash -c "source /opt/autoware/1.5.0/setup.bash; source install/setup.bash; \
         timeout 30 ros2 service call /scenario_world_bridge/set_weather \
         swb_interfaces/srv/SetWeather '{preset: $1}'" 2>&1 | grep -o "success=[A-Za-z]*" \

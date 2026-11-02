@@ -15,8 +15,12 @@ Each terminal below starts with the same three lines. Put them in a file and `so
 source /opt/autoware/1.5.0/setup.bash                  # your Autoware
 source <your clone>/install/setup.bash                 # the workspace built in the README's Setup
 export CARLA_MAPS=~/maps/carla                         # holds Town01/, Town02/, ...
-# only if DDS discovery fails on this host (see "When it does not work"):
-# export CYCLONEDDS_URI=file://<your clone>/config/cyclonedds-localhost.xml
+```
+
+The launches below set their DDS themselves (Cyclone, swb_launch's localhost profile); a
+`ros2` command of your own needs the same exports, [README](../../README.md#quick-start).
+
+```bash
 ```
 
 Check the map directory has what the scenario and Autoware read:
@@ -78,16 +82,23 @@ talk only through CARLA and the relay.
 
 ```bash
 # Terminal 3
-ROS_DOMAIN_ID=1 ros2 launch acb_launch carla_simulator.launch.xml \
-    map_path:=$CARLA_MAPS/Town01 vehicle_name:=hero relay:=tcp://localhost:5560
+ROS_DOMAIN_ID=1 ros2 launch swb_launch ego_av.launch.xml \
+    map_path:=$CARLA_MAPS/Town01 relay:=tcp://localhost:5560 launch_rviz:=true
 ```
 
-This starts ~90 processes and opens RViz (add `rviz:=false` to skip it). Ready when Terminal
-2's relay reports the vehicle's agent:
+This starts ~90 processes and opens RViz (leave out `launch_rviz:=true` to skip it).
+Terminal 2's relay soon reports the vehicle's agent:
 
 ```
 [relay-2] [INFO] ... entity 'ego': agent acb_agent registered from 127.0.0.1:...
 [relay-2] [INFO] ... ego: agent up -- ADAPI services offered
+```
+
+That is not ready yet: Autoware is still starting. Wait for this, in any terminal:
+
+```bash
+ROS_DOMAIN_ID=1 ros2 run swb_launch ego_ready --timeout 600
+# [ego-health] ok: ...
 ```
 
 The first start on a machine builds Autoware's TensorRT engines and can take several
@@ -138,9 +149,9 @@ checks, is in [swb_examples' README](../../src/swb_examples/README.md).
 
 | Symptom | Look at |
 |---|---|
-| Terminal 4 waits and fails with `... waited for the Autoware state ...` | the vehicle side never registered or never localized: Terminal 2 must show `ego: agent up`; Terminal 3's `map_path` must be the scenario's town |
+| Terminal 4 waits and fails with `... waited for the Autoware state ...` | the vehicle side never registered or never localized: `ros2 run swb_launch ego_ready` must say ok before Terminal 4 starts; Terminal 3's `map_path` must be the scenario's town |
 | The bridge prints `CARLA version mismatch` and retries | CARLA and the build disagree on the version (README, *Other CARLA versions*) |
-| Nothing ever connects | DDS discovery fails on this host (multicast off on loopback): uncomment the `CYCLONEDDS_URI` line of step 0 in every terminal; [User Guide §6](../user-guide.md#6-when-things-go-wrong) |
+| Nothing ever connects | DDS: a terminal whose environment names another `RMW_IMPLEMENTATION` or `CYCLONEDDS_URI` than the others, or a `ROS_DOMAIN_ID` above 57; [User Guide §6](../user-guide.md#6-when-things-go-wrong) |
 
 ## Stopping
 

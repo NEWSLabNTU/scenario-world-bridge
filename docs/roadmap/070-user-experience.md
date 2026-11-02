@@ -66,10 +66,28 @@ the vehicle side), behind the world protocol, so the bridge needs no change at a
 - **Spike first:** colcon-cargo-ros2 must build each package in its own cargo invocation.
   Otherwise Cargo unifies features across the workspace and two version features fail the
   build. If it does not, the per-version packages live outside the shared Cargo workspace.
+  **Spike result (2026-11-02): it does.** colcon-cargo-ros2 0.5.3 runs `cargo build
+  --manifest-path <package>/Cargo.toml` per package, so features resolve per package. A
+  scratch copy of swb_carla_world split into the library (features `carla-0914/0915/0916`
+  forwarded to carla, none on by default) and three thin packages built in one `colcon
+  build`, in one Cargo workspace and one target dir: 5 min 46 s cold, debug, three cargo
+  builds in parallel. Each binary links its own `libcarla_client` (0.9.14, 0.9.15,
+  0.9.16 prebuilts; ~230-260 MB each, debug). Our code compiles for 0.9.14 and 0.9.15 as is.
+  Against a live 0.9.16 server, `swb_carla_world_0915` refuses (`CARLA version mismatch:
+  the server is 0.9.16 but this binary was built for CARLA 0.9.15`) and retries;
+  `_0916` accepts (`matches this build`). So the existing run-time check is the launcher's
+  backstop, unchanged.
 - **The launcher.** `swb_carla_world` (the name the launch files already use) becomes a
   small Python launcher. It asks the server its version with one msgpack-rpc `version`
   call on the RPC port (what LibCarla's `get_server_version` sends), then `exec`s the
   matching binary with the same arguments.
+  - The call carries LibCarla's metadata: `rpc::Client::call` prepends a `Metadata`
+    (`MSGPACK_DEFINE_ARRAY(_asynchronous_call)`), so the request is `[0, id, "version",
+    [[false]]]`. With empty params the server answers `rpclib: client error C0002: Function
+    'version' was called with an invalid number of arguments` (spike, 2026-11-02; the
+    `[[false]]` form is from LibCarla's `rpc/Client.h` and `Metadata.h`, its live check
+    pending). The
+    launcher packs this one request by hand (a dozen bytes), so it needs no msgpack module.
   - `carla_version:=` (launch argument) overrides the probe.
   - No server yet: wait as the world server does today, then probe.
   - No binary for that version: refuse, naming the server's version and the installed
@@ -164,8 +182,10 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
 2. [~] **Friction log.** Build half done, below. A fresh clone on this host in a clean shell (no `.env`, no
    `just`), following only the README. Every stumble written down with its fix owner.
    This sets C's list.
-3. [ ] **A, spike.** Two per-version world-server packages in one colcon build; the
-   msgpack `version` probe against a live CARLA 0.9.16 (`town01_ego_drive` gate host).
+3. [~] **A, spike** (2026-11-02, results in A). Three per-version world-server packages
+   in one colcon build: pass. The msgpack `version` probe against a live CARLA 0.9.16: the
+   first try sent empty params and was refused; the rerun with LibCarla's metadata waits
+   on a free GPU.
 4. [ ] **A.** Library split, per-version packages for swb_carla_world and acb, the
    launcher with its tests (probe, override, refusal, wait). README "Other CARLA versions"
    rewritten.
@@ -192,8 +212,8 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 | 5 | Quick start, terminal 3 (`ros2 launch swb_launch ego_av.launch.xml`) | Died 13 s in: `Failed to convert '<?xml version="1.0" ?> ...' using yaml rules`. Humble's `ros2 launch` tries a parameter value as YAML first, and the generated sensor kit's comments (`<!-- top: lidar, ... -->`) broke the parse. No ego, so the scenario ended `errors="1"` after 17 min. Our runs use play_launch, which never tries YAML, so nothing of ours had seen it. | **Fixed**: autoware_sim_vehicle e77c39e (comments without `: `, a test refusing them). Under plain `ros2 launch` the ego stack then starts all 81 processes. The same commit stops the generator copying c037376's `CATKIN_IGNORE` into each car. |
 | 6 | Quick start, terminals 1-2 | CARLA served RPC and the bridge logged `ZMQ server ready` as the README says. | -- |
 
-| 7 | Quick start, "wait for `ego: agent up`" | The relay prints it when the agent registers, while Autoware is still starting: a scenario started then got no answer to `change_to_stop` 30 times (`errors="1"`). Waiting for IDLE is wrong too (IDLE needs the ego spawned, which the scenario does). The cue that works is ours, `scripts/ego_stack_health.py` (ADAPI up, planning publishing), which colcon does not install. | Install the check as `ros2 run swb_launch ego_ready`, name it in the README; `run.launch.xml` waits on it (C). |
-| 8 | Quick start, terminal 3 without `CYCLONEDDS_URI` | Autoware never got the lidar (`No InputSource`, `only 0 fresh scan(s) in 10 s`), so align failed and no route came. The README calls the localhost config optional ("only if discovery fails"); on this host it is required, and nothing says so when it is missing. | The vehicle-side launch sets the DDS config itself (an argument, default the workspace's localhost file) (C). |
+| 7 | Quick start, "wait for `ego: agent up`" | The relay prints it when the agent registers, while Autoware is still starting: a scenario started then got no answer to `change_to_stop` 30 times (`errors="1"`). Waiting for IDLE is wrong too (IDLE needs the ego spawned, which the scenario does). The cue that works is ours, `scripts/ego_stack_health.py` (ADAPI up, planning publishing), which colcon does not install. | **Fixed**: `scripts/ego_stack_health.py` is now swb_launch's `ego_ready` (`ros2 run swb_launch ego_ready --timeout 600`), named in the README and the tutorial; it defaults its own DDS to the stack's. `run.launch.xml` will wait on it (C). |
+| 8 | Quick start, terminal 3 without `CYCLONEDDS_URI` | Autoware never got the lidar (`No InputSource`, `only 0 fresh scan(s) in 10 s`), so align failed and no route came. The README calls the localhost config optional ("only if discovery fails"); on this host it is required, and nothing says so when it is missing. | **Fixed**: the profile moved into swb_launch (`config/`, installed). Every launch a user starts (`carla_simulation`, `isaac_simulation`, `ego_av`, `scenario`, `background_av`, `vehicle_agent`) sets `CYCLONEDDS_URI` (`dds_config:=`, default the environment's, else the installed profile) and `RMW_IMPLEMENTATION` (the environment's, else Cyclone) before it starts anything. Checked from a shell with neither: the bridge gets both under `ros2 launch` and play_launch 0.21.0; a test pins it. |
 | 9 | Quick start, terminal 3 under plain `ros2 launch`, 7 and 8 applied | Localization aligned, but Autoware stayed in PLANNING: `mission_planner: waiting odometry`, control commands in 10-15 s gaps. The same terminal under `play_launch launch`, nothing else changed, reached READY and DRIVING. | Find what `ros2 launch` starts differently (step 2, next). |
 | 10 | Quick start under play_launch, 7 and 8 applied | Drove, but `failures="1"` at the 180 s timeout: Autoware's control commands still came and went (gaps of 2-4 s) and the ego did not arrive. Our tested path also sources the Autoware overlay (the NDT step fix), the TensorRT 10.8 runtime and the GPU NDT, none of which the README mentions. | A/B against the tested path's extras, one at a time (step 2, next). |
 
@@ -201,9 +221,12 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 | 12 | Our own path, CARLA started by hand, maps and a fresh overlay in place | **Fails**: `the ego's ADAPI or its agent is not ready after 300 s`, nothing publishes `/api/operation_mode/state`, the agent stays UNAVAILABLE. No CARLA scenario had run on main since 2026-10-24. | Root cause: 14 (13 first blamed play_launch, wrongly). |
 | 13 | The ego stack alone, no CARLA, `--container-mode isolated` (`just ego-av`'s default) against play_launch's default mode | First measured as a play_launch bug (isolated: no ADAPI in 120 s; default: 5 s). **It was not.** That test had no `RMW_IMPLEMENTATION`, so ~90 isolated processes ran Fast DDS (14). Rerun on Cyclone in domain 7: isolated, ADAPI in 5 s. | **No change**: isolated stays the default (a day's `observable` default reverted). 12 was 14. |
 | 14 | Our own path from a shell without direnv (first with `observable` containers, 13) | Bring-up ready, then `Service /api/operation_mode/change_to_stop is not ready after 119 seconds`. The scenario stack ran on Fast DDS (its dds_report: `CYCLONEDDS_URI ... NOT READ`), the relay on Cyclone: they never meet. Only the repo's `.envrc` set `RMW_IMPLEMENTATION`; `run` and `demo-tour` defaulted it, seven other recipes did not. | **Fixed**: every recipe that sets `CYCLONEDDS_URI` defaults `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` (a set value wins; `EGO_RMW_IMPLEMENTATION` still overrides the ego's). Then `just scenario town01_ego_drive` from the clean clone **passed** (`failures="0" errors="0"`), everything reaped after. |
-| 15 | 13's rerun in domain 77 | Every node died at once: `rmw_create_node: failed to create domain`, the launch shut down. The localhost Cyclone config sets `DomainGain 1000`, so domain 77's ports start at 84410, past 65535; the cause is in each node's `err` only (`resulting port numbers (84410, 84411) are out of range`). Domains above 57 cannot work with it, and nothing says so up front. | Recipes and the vehicle-side launch refuse a domain above 57 with the reason (C); the config's comment names the limit. |
+| 15 | 13's rerun in domain 77 | Every node died at once: `rmw_create_node: failed to create domain`, the launch shut down. The localhost Cyclone config sets `DomainGain 1000`, so domain 77's ports start at 84410, past 65535; the cause is in each node's `err` only (`resulting port numbers (84410, 84411) are out of range`). Domains above 57 cannot work with it, and nothing says so up front. | **Fixed in the recipes** (`swb_check_domains`, every recipe) and named in the profile's comment and the user guide. The launches cannot check it in XML; `run.launch.xml` will (C). |
 
-The README path is not the tested path: 7-10 are the gap. Seven live runs on 2026-11-02,
+The README path is not the tested path: 7-10 are the gap. **And 8-10 ran on Fast DDS**:
+Humble's and Autoware's `setup.bash` leave `RMW_IMPLEMENTATION` unset, the quick start never
+set it, so the `CYCLONEDDS_URI` those runs exported was never read (found with 14). 9 and 10
+are re-measured with the launches setting the transport themselves (8's fix). Seven live runs on 2026-11-02,
 each under the quiet-host gate; logs in `/var/tmp/aeon/070/`.
 
 ## Acceptance

@@ -4,7 +4,7 @@ project(swb_launch)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY launch data rviz
+  DIRECTORY launch data rviz config
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -13,9 +13,10 @@ install(
 # `ros2 run swb_launch carla_poses`: poses on CARLA's map as OpenSCENARIO WorldPositions.
 # `ros2 run swb_launch chase_view`: a chase camera window on the ego, for demos (027).
 # `ros2 run swb_launch gap_oracle`: SSv2-vs-CARLA disagreements in a gap trace (024).
+# `ros2 run swb_launch ego_ready`: exit 0 once the ego's Autoware can take a scenario (070).
 install(
   PROGRAMS scripts/run_suite scripts/physical_verdict scripts/carla_poses scripts/chase_view scripts/demo_captions
-    scripts/gap_oracle scripts/incident_judge
+    scripts/gap_oracle scripts/incident_judge scripts/ego_ready
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -35,6 +36,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_gap_trace test/test_gap_trace.py)
   ament_add_pytest_test(test_gap_oracle test/test_gap_oracle.py)
   ament_add_pytest_test(test_incident_judge test/test_incident_judge.py)
+  ament_add_pytest_test(test_ego_ready test/test_ego_ready.py)
 endif()
 
 ament_package()

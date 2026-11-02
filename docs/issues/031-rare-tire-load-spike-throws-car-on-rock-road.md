@@ -1,11 +1,11 @@
 # 031: A kicked rock frozen in mid-air: a tire stood on it at 252 kN and the car was thrown
 
 **Severity**: high for roadmap 066 R4: a car thrown off the road ends a run, and a scenario
-cannot tell it from a planner fault. **Status**: fixed in swb_isaac_world 7957b5b
+cannot tell it from a planner fault. **Status**: fixed in swb_isaac_world fac4e1a
 (`rock_layer`). The spike records the rocks under a tire whenever its load passes 30 kN
 (`ROCK_DIAG=1`), which is how it was found.
 **Found**: 2026-11-02 on newslab-server-241, `swb_isaac_world/spikes/rock_world.py`
-(swb_isaac_world 55c4b3b, aib 645949e with its skid plate), Isaac Sim 6.1, host load near 290
+(swb_isaac_world 55c4b3b, aib 8fe6dd9 with its skid plate), Isaac Sim 6.1, host load near 290
 on 24 cores.
 
 ## What happened

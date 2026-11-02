@@ -529,10 +529,10 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   Left for R4: the 80 km/h cost, 1.5 ms over the budget on a quiet host (below).
 
   **The rig's underbody** (2026-11-02). The spec gives the car's ground clearance
-  (`body.ground_clearance`, sim_vehicle_spec d54636d): the Model 3 at Tesla's 138 mm,
+  (`body.ground_clearance`, sim_vehicle_spec 50f7223): the Model 3 at Tesla's 138 mm,
   unladen. It sits in `body`, not `geometry`, so the pedal maps' physics fingerprint stays and
-  only `spec_hash` moves (autoware_sim_vehicle 8423bc6 regenerated). aib's rig carries it,
-  and its vehicle puts a skid plate there (autoware_isaac_bridge 645949e):
+  only `spec_hash` moves (autoware_sim_vehicle 465906e regenerated). aib's rig carries it,
+  and its vehicle puts a skid plate there (autoware_isaac_bridge 8fe6dd9):
   - between the axles, clear of the wheels and their steering, 2.27 by 1.33 m;
   - its bottom at the clearance over base_link: at rest 136 mm over the road, the body
     resting 1.5 mm low on its tires;
@@ -540,7 +540,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     sensors, like the chassis box.
 
   A car whose spec has no clearance gets no plate (the drift Mustang, for now). The rock spike
-  now drives on aib's plate (swb_isaac_world 57c8449). Over 800 m at 40, 60 and 80 km/h it
+  now drives on aib's plate (swb_isaac_world 773130d). Over 800 m at 40, 60 and 80 km/h it
   behaved as the spike's own did: no rock lost, the car stuck nowhere.
 
   Running 60 km/h after 40 km/h, a front tire's load jumped from 4.6 to 252 kN in one step,
@@ -548,7 +548,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   into the air, and the stream put it to sleep, a static collider, while it was still flying.
   It hung 0.72 m over the road, and the tire contact, which asked only awake rocks whether
   they rest on the road, stood the tire on it. Now a rock sleeps only once PhysX has it at
-  rest, and asleep rocks are asked too (swb_isaac_world 7957b5b). The spike prints the rocks
+  rest, and asleep rocks are asked too (swb_isaac_world fac4e1a). The spike prints the rocks
   under any tire loaded past 30 kN (`ROCK_DIAG=1`), which is how it was found.
 
   **The cost, taken apart** (2026-11-02; 800 m of the same corridor, frame p50 ms at 40 / 80

@@ -314,3 +314,12 @@ or learned policy; drifting on ice.
     (25 / 0 m).
   - Left: R6's budgets (user); B warm start; a flat corner where S1 refuses a drift, for the lex
     gate; the zone chain's off-road (061); M5 (S3 corners) next.
+- 2026-11-02: **R6's budgets** (user: "lowering every start's budget to about 0.85 s"): every
+  start, G included when scheduled, on 0.85 s (autoware-drift afd0cc5). Timed E3 again
+  (`docs/drift-style-m3.md` section 8, swb `play_log/race_planner/style/r6_085/`): **R6 met in
+  every row**, L1 p95 at most 0.870 s (Haruna S2 0.5 s 0.914 -> 0.862, dirt S1 1.003 -> 0.854), p99
+  at most 0.871, no re-plan past 1 s; lap times within the draws' spread; on the chain no
+  measurable cost (061). **DP2 met: S2 adopted** as a supported style on the default budgets; B's
+  cap stays optional; S1 the default.
+  - Left: B warm start (no longer needed for R6); a flat corner where S1 refuses a drift, for the
+    lex gate; M5 (S3 corners) next.

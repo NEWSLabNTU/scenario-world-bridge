@@ -880,3 +880,15 @@ G included when scheduled, on a 0.85 s budget) and after:
   that change nothing there. Results `budget_r6/`.
 Next stopper: the packed-snow hairpin (zone 7), 11 of 14 reaching it in 016's runs (L1 plans 40-43
 deg of steering, M4f's mechanism). R6 timed re-measure waits for a quiet host.
+
+**Issue 017 (fixed in the planner, 2026-11-02).** The chain's packed-snow hairpin (zone 6, s
+1206): the front's slip row (issue 002) bound only on roads that keep their grip sliding, so on
+packed snow (sliding 0.8) the plan braked by scrubbing the front on the 60 m approach (front slip
+angles 47-50 deg, steering 40-43 deg) after accelerating on the asphalt before it, and L2 reached
+the lock. Fix autoware-drift d859312: the row binds at one peak on low-friction roads that lose
+grip sliding (packed snow only; ice exempt, its front its only brake). Traced: the plan brakes on
+the asphalt, meets the snow at 13.5 m/s, front slip at most 21 deg. Chain, the same 30 draws as
+016's: packed stops 11 -> 1 of 14 (the one a rear slide at the exit); **finished 3 -> 10 of 30**
+(single 2, sched 5, always 3); ice 10, zone 0 2, loose snow 4 of 18 as before; mud R 15 x 90
+(zone 8) 3 of 13 reaching it, new, not analysed. Corners and digests bit for bit; suite 211
+passed. Results `i017/`. Next stoppers: the ice zone (10), loose snow (4), mud zone 8 (3).

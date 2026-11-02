@@ -363,7 +363,6 @@ Progress:
       - It now ends in the right lane. Why the lane change never happened is open.
   - **Still open:**
     - the arrow audit by a person, junction by junction, on NLSC's photo;
-    - lane widths: still the class defaults (the paint on 新生南路 says 3.2 m, not 3.5);
     - lane changes in a drive;
     - lights that cycle on their own;
     - parking aisles and driveways (left out; 31 % of the vendor's routes);
@@ -428,6 +427,35 @@ Progress:
   - **Lost runs:** four runs died of another checkout's `stop-scenario.sh` (crdt-tensor), whose
     `pkill -f 'swb_launch scenario.launch.xml'` matched every scenario stack on the host. Its
     session scoped it to its own stack's web port the same day.
+- **The arrow audit, from the street** (2026-11-02, user direction "find potential arrows on
+  BEVs and find associated street pictures"; `scripts/open_maps/audit_arrows.py`).
+  - **The sheet:** one per signalised approach (218). NLSC's photo along the approach with the
+    map's lanes and moves, bright paint on a lane's centre boxed, Mapillary's arrow detections,
+    and up to 6 Mapillary street images on the approach facing the stop line, cropped to the
+    road, with the lanes projected from each camera's pose.
+  - **From above:** at 0.27 m the boxes catch bus roofs and cars as often as arrows, so the
+    photo gives the lane layout, not the arrows.
+  - **From the street:** the arrows read where an image is 10-35 m before the stop line. But
+    Mapillary's GPS is often 1-2 lanes and up to 15 m off, so the projected lanes cannot say
+    which lane is which: a reader counts lanes from the left at the stop line. Images from the
+    viaducts above an approach were most of the picks at first; they are left out by camera
+    height (about 2 m on the road, 5-20 m on a viaduct; 1,810 left out).
+  - **Read by a model, two passes,** of the 136 approaches at a junction with images: 21 with
+    an arrow read at high or medium confidence; 9 agree with the map, 5 differ, 22 have another
+    lane count painted than the map has; 99 unread (images too far, past the stop line, facing
+    away, or none at road level).
+  - **What it points at,** for a person to confirm:
+    - the surface roads under the 基隆路 and 辛亥路 viaducts paint about 3 lanes where the map
+      has 2 (70193, 74232, 82998, 83652, 109398, 109986, 115862);
+    - 新生南路 southbound at the main gate (86430) paints L, S, S, SR; the map's lane 1 is ULS,
+      its lane 4 S;
+    - 辛亥路二段 (92830) paints U, L, S; the map L, L, S. 敦南街 (89273) paints S only, the map
+      ULS; 基隆路四段41巷 (64107) SR, the map LSR;
+    - 復興南路 at 95466: an overhead lane-use sign shows 3 lanes, the map has 2;
+    - no-left-turn signs on approaches where the map turns left (47264, 119891).
+  - **So:** Mapillary's images find suspects but settle few lanes; a model's readings are not
+    patches. The verdicts need a person, on the sheets or on site, and the 66 approaches with
+    no image need one anyway.
 
 **Source**: user direction 2026-10-30: "Find a place somewhere in Taipei where lane information
 is complete. Start from simulation and move to real later. We can have a refinement and audit

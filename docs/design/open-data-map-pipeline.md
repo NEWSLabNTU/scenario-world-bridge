@@ -243,6 +243,19 @@ can tell a straight arrow from a turn only where it is clear of trees, shadows a
 A person writes what the paint says in `sites/<site>_audit.yaml`; what was looked at goes in
 its `checked:` list. `generated/audit_applied.json` lists the approaches to look at first.
 
+**The arrow audit from the street (manual, with a tool):**
+
+    scripts/open_maps/audit_arrows.py <map> <site.yaml> <raw dir> <out> [--only <light ids>] [--images 6]
+
+One sheet per signalised approach: NLSC's photo along it with the map's lanes and moves, and
+up to 6 Mapillary images on the approach facing its stop line, cropped to the road, the lanes
+projected into each from the camera's pose (MAPILLARY_TOKEN; thumbnails cached in
+`<out>/mly/`). Images from a viaduct above the approach are left out by camera height. The
+projection rides on Mapillary's GPS, often 1-2 lanes off, so a reader counts lanes from the
+left at the stop line. On NTU (2026-11-02) 136 of 202 junction approaches had images; a
+model's reading settled an arrow on 21 and found the suspects listed in roadmap 062. What the
+paint says goes in `approaches:` of the audit file only once a person has confirmed it.
+
 **The signal audit (manual, with a tool):**
 
     scripts/open_maps/audit_signals.py <site.yaml> <out> <sheet dir>

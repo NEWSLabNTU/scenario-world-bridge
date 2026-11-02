@@ -67,7 +67,10 @@ class Nlsc:
 
     def render(self, box, res):
         x0, y0, x1, y1 = box
-        X, Y = np.meshgrid(np.arange(x0, x1, res), np.arange(y1, y0, -res))
+        return self.sample(*np.meshgrid(np.arange(x0, x1, res), np.arange(y1, y0, -res)))
+
+    def sample(self, X, Y):
+        """The photo at map points X, Y (arrays of one shape), bilinear."""
         lon, lat = self.frame.inv.transform(X + self.frame.ox, Y + self.frame.oy)
         m = self.meta
         merc = lambda la: np.log(np.tan(np.pi / 4 + np.radians(la) / 2))

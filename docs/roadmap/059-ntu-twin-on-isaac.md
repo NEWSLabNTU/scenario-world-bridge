@@ -316,11 +316,18 @@ Progress:
       arrived, none stopping before the goal; so did o01 and o02 on the first widening.
   - Open:
     - On the final n5v3, AEB fired once in 6 r01 drives (w01c), 0.3 s just past the first turn:
-      a static object 7.25 m ahead against an RSS distance of 7.28 m, the car not slowing. Its
-      debug markers show roadside objects at the lane's north edge ((52793-52797, 67887-67888),
-      0.3 and 1.1-1.2 m over base_link) inside the MPC path's polygon during the turn on every
-      drive; the widening moved the car's exit about 0.2 m towards them (y 67886.6 against
-      67886.4). The ground there is flat (11.9-12.0 m); what the points are is not settled.
+      a static object 7.25 m ahead against an RSS distance of 7.28 m, the car not slowing. Kept
+      as it is (decided 2026-11-02). The object is a hedge or fence along the westbound lane's
+      north edge: the scan holds a band 1.0-1.7 m tall from x 52786 to 52800 at y 67887.9-67888.1,
+      seen over 40 minutes, about 0.4 m past the lane's original edge, meshed as Other just
+      outside the road's 0.5 m clearing. Coming out of the 10 m turn the car's front-right
+      corner reaches y 67887.9, within 0-0.2 m of it, on the old map and the widened one alike;
+      the widening moved the exit 0.2 m north, and AEB's MPC path sweeps the hedge during the
+      turn on every drive (its debug markers), crossing the RSS distance once. Neither way out
+      fits: keeping widened edges 0.8 m from the scan's objects (tried) put the corner 0.34-0.41
+      m outside the lane again, the 1 s stop's condition; and the road is about 6 m between
+      objects on both sides (0.0-0.5 m past the eastbound lane's south edge too), so the shared
+      centre line cannot move south without taking the eastbound lane under 2.8 m.
 
 **Source**: user direction 2026-10-29: "load our colorful NTU map into Isaac Sim ... drive
 vehicles on the map and the camera and lidar sensors receive realistic data as though it runs

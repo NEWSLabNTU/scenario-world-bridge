@@ -207,9 +207,14 @@ Progress:
   - A proof video (2026-11-02): `render_video.py` (133's `ntu-twin/logs/`, not in the repo)
     renders a drive's bag as the front camera (brightened: no auto-exposure), the orthophoto
     with the track and Autoware's planned trajectory, and speed, steering and fail-safe state.
-    The first is r01 from 09:04 (`r01_autoware_ntu_twin.mp4`, 104 s). A chase-camera rig for a
-    third-person view is ready but did not fit on the GPU: two other users' jobs held 21.7 of its
-    32 GB, and Isaac ran out of device memory even with one camera.
+    The first is r01 from 09:04 (`r01_autoware_ntu_twin.mp4`, 104 s). The second
+    (`r01_autoware_ntu_twin_chase.mp4`, 14:06, the current map) adds a chase camera 7 m behind
+    and 3.4 m up (a local copy of the rig, `tesla_model3_chase.rig.yaml`), and the operation
+    mode: arrived after 96 s, no AEB. The car shows as its four wheels: the Isaac ego has no
+    visual body. Isaac with lidar and two cameras needs about 15 GB of the shared GPU, so the
+    run waited for other users' jobs (`video_when_free.sh`). A camera without `k` makes
+    CameraInfo's assertion stop the runner after one frame with no traceback: the runner's
+    `finally` closes the app before Python prints it.
   - N2, the survey's moving objects (133, 2026-10-31; `scripts/ntu_twin/transients.py`, free-space
     carving along the vendor's trajectory, method in its docstring). 167 tiles in 2.1 h of
     worker time: of 5.47 M slab voxels (0.2 m, 0.2-3 m above the DTM) 1.16 M were crossed by

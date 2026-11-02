@@ -861,3 +861,22 @@ yaw near the 8 m road's edge, L2), the mud hairpin 1. Results
 cannot know the road changed until it slips; the plan decides whether a slipped rear can come
 back); the bound only after a road change (on every held node it cost the ice corners 4-16 of
 60); `RECOVER` 1.1 and `PROBE` 50 m chosen from the plant's latch test and the chain, tuned.
+
+**Chain blockers after issue 013 (2026-11-02).** On autoware-drift afd0cc5 (065 R6: every start,
+G included when scheduled, on a 0.85 s budget) and after:
+- issue 016 (loose snow R 9 x 90, chain zone 5) fixed in the planner (145749d): the stage
+  arriving at snow or mud from a grippier road brakes the rear within the new road's grip (the
+  ECU's regen slip control otherwise holds regen the plan does not expect), and the cut warm
+  start withheld only when the window reaches ice. Zone 5 stops 10 of 15 reaching it -> 4 of 18;
+  corners and Haruna / Tsukuba digests bit for bit. Results `i016/`;
+- issue 015 (zone 0, a slide planned on the uncertain asphalt's lower friction, not reached on
+  the true asphalt) not reproduced on afd0cc5 (0 of 30); a gate dropping plans that slide over a
+  grippier-probable road was tried and not kept (on 82f0b69 every feasible start slides there,
+  so it changed nothing). Open. Results `i015/`;
+- the budget: the same 20 multi-start draws on main (b4854da) with every start at 0.85 s, at
+  0.9 s, and seeds 0.9 / G 1.0 (before afd0cc5): ice-zone stops 7 of 18, 5 of 18, 5 of 17;
+  finished 2, 2, 2 of 20. No measured cost (under 1 se); 0.85 s kept. Stops move between zones
+  with any change at this sample size: per-zone counts on 20 runs differ by 2-3 between codes
+  that change nothing there. Results `budget_r6/`.
+Next stopper: the packed-snow hairpin (zone 7), 11 of 14 reaching it in 016's runs (L1 plans 40-43
+deg of steering, M4f's mechanism). R6 timed re-measure waits for a quiet host.

@@ -202,6 +202,14 @@ Progress:
     the tile directory, as 062's maps have; Autoware's default file name then loads the tiles.
     Not checked: whether the world server's GNSS (on the map's projector since
     swb_isaac_world c0ca899) is right; the agent initializes from the scenario's pose.
+    Passed again on 2026-11-02 on the current world (n5v3) and the map whose widened lanelets
+    keep their centrelines, with the overlay: launch to "Passed" in 107 s, no AEB.
+  - A proof video (2026-11-02): `render_video.py` (133's `ntu-twin/logs/`, not in the repo)
+    renders a drive's bag as the front camera (brightened: no auto-exposure), the orthophoto
+    with the track and Autoware's planned trajectory, and speed, steering and fail-safe state.
+    The first is r01 from 09:04 (`r01_autoware_ntu_twin.mp4`, 104 s). A chase-camera rig for a
+    third-person view is ready but did not fit on the GPU: two other users' jobs held 21.7 of its
+    32 GB, and Isaac ran out of device memory even with one camera.
   - N2, the survey's moving objects (133, 2026-10-31; `scripts/ntu_twin/transients.py`, free-space
     carving along the vendor's trajectory, method in its docstring). 167 tiles in 2.1 h of
     worker time: of 5.47 M slab voxels (0.2 m, 0.2-3 m above the DTM) 1.16 M were crossed by

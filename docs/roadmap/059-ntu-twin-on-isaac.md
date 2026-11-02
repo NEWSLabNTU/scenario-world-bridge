@@ -314,6 +314,22 @@ Progress:
       `just autoware` (stock otherwise: neither NDT's step fix nor blind_spot's).
     - Drives on the final n5v3 with the overlay: r01 6 of 6 (w01a-c, a1-a3) and r02 (w02)
       arrived, none stopping before the goal; so did o01 and o02 on the first widening.
+  - Camera and lidar on a drive (133, 2026-11-02): r01 on n5v3 with the front camera on
+    (`camera6`, 1280x720 rgb8, 10 Hz; aib `sensors: {camera6: {enabled: true}}`) and a rosbag of
+    `/sensing/*`, TF, localization, perception, planning and control (mcap, zstd; 9.3 GB for
+    the 136 s drive, `bags/r01_cam_lit`). Every stamp-carrying topic is monotonic; by stamp the
+    raw lidar runs at 19.5 Hz (112 k points a scan, ranges 5-81 m), the merged cloud 18.5, IMU,
+    odometry and vehicle status 20, GNSS 10, the camera 9.6 (1305 images against 1349
+    camera_info: about 3 % of the 2.7 MB images lost on the way to the recorder). TF reaches
+    the camera's optical frame from base_link, and the merged cloud projected through it and
+    camera_info's K lies on the road and the palm trunks in the image.
+    - The first such drive's 1310 images were all zero: the NTU world holds no light, and aib's
+      stand-alone runner, unlike swb_isaac_world, added none. aib 38b3a94 adds the world
+      server's default sun and sky where a world brings no light.
+    - Under the dense canopy west of the first turn the picture is nearly black (93 % of pixels
+      under 20): no auto-exposure.
+    - `ros2 bag record -e REGEX TOPICS...` in Humble filters the listed topics by the regex
+      rather than adding to them; give one regex naming everything.
   - Open:
     - On the final n5v3, AEB fired once in 6 r01 drives (w01c), 0.3 s just past the first turn:
       a static object 7.25 m ahead against an RSS distance of 7.28 m, the car not slowing. Kept

@@ -114,6 +114,15 @@ installs and loads. Tools are in `scripts/ntu_carla/`; outputs are in
      - Turn 2's wall is in shade: CARLA's sun azimuth is not 059's convention.
      - Decimation leaves larger floating shards, with hard shadows on the road.
 
+9. **Proof run** (`carla_drive_video.py`, 2026-11-03): CARLA's own BasicAgent drove r01 on the
+   pilot package in the stock binary, planning on our OpenDRIVE. Autoware on CARLA is C11.
+   - It started at r01's start pose and arrived 3.2 m from the goal: 343 m in 64 s of sim
+     time at 20 km/h.
+   - The video (`ntu_carla_r01_agent.mp4`, 67 s) is a chase camera, the front camera and the
+     orthophoto with the track and the agent's route. It is on the NAS under
+     `autoveh/dataset/2026-10-30 NTU twin map/video/`.
+   - The pilot package itself is in the NAS's `home/carla-0.9.16-ntu-pilot/`, with a README.
+
 Next:
 - the sun's azimuth matched to Isaac's;
 - exposure compensation;

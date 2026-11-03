@@ -125,10 +125,13 @@ each unit-tested; whatever needs Isaac or cuVSLAM (rendering cost, recordings, r
 
 Status (2026-11-01): b and c on rig_localization main (`506a873`, `4bd4a31`; golf cart's pin
 `6932895`); `pose_check`'s yaw at the anchor reads 0.000 deg now (the 0.042 was roll and pitch).
-a (sim_vehicle_spec `e182c73`, aib `d86c6c6`, autoware_sim_vehicle `1789549`; spec_hash
-65f1ba86) and d (autoware_sim_vehicle `4506488`: `ndt:=none`, `pose_source:=none`, the pose
-initializer with `ndt_enabled:=false`, a graph without NDT's unit, lane files for the error
-monitor and the EKF; autoware-drift `c91c27d`) are committed, not yet pushed. Open for step 7:
+a and d are pushed and pinned (2026-11-03, rebased onto 066 R4's ground clearance; the
+Mustang's spec_hash stays 65f1ba86): a is sim_vehicle_spec `4183a56`, aib `d331d49` (deps
+`a87d1ea`), autoware_sim_vehicle `7f71cff`; d is autoware_sim_vehicle `24f5470` (`ndt:=none`,
+`pose_source:=none`, the pose initializer with `ndt_enabled:=false`, a graph without NDT's
+unit, lane files for the error monitor and the EKF) and autoware-drift `6c3103e` (the
+arguments, inside its README's first-approach section). acb, swb_carla_world and
+swb_isaac_world moved their `deps/` to the same pins; `check_pins` 0 mismatches. Open for step 7:
 a no-NDT copy of autoware-drift's `drift.yaml`; the error-monitor file under `ndt:=cuda`
 (cuda_ndt_matcher hard-codes it); both checks judge the EKF's covariance, not the error, so the
 ground-truth lane departure stays the measure; perception still uses the lidar.

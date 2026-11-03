@@ -526,7 +526,8 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     collision tiles, the awake bodies and the plate's contacts; they are not separated yet.
     The host was loaded throughout (another session's builds, load 40-450 on 24 cores).
 
-  Left for R4: the 80 km/h cost, 1.5 ms over the budget on a quiet host (below).
+  Left for R4: the 80 km/h cost, 1.5 ms over the budget on a quiet host, cut since and not
+  yet measured on a quiet host (below).
 
   **The rig's underbody** (2026-11-02). The spec gives the car's ground clearance
   (`body.ground_clearance`, sim_vehicle_spec 50f7223): the Model 3 at Tesla's 138 mm,
@@ -603,6 +604,39 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     40 and 60 km/h are at the 5 ms budget and 80 is 1.5 ms over it. Most of the excess is
     PhysX's steps (3.3-5.4 ms over the road without rocks), the static rocks and the tiles,
     and the contact's shares (1.7-2.3 ms). No run lost a rock or stuck the car.
+
+  **The 80 km/h excess, taken apart** (2026-11-03; 800 m, the spike timing PhysX's step on
+  its own, host load 50-190 on 24 cores, the CPU governor at powersave). Frame parts p50, ms:
+
+  | variant | PhysX | contact |
+  |---|---|---|
+  | no rocks | 2.3 | 2.5 |
+  | collision tiles only | 2.5-2.7 | 2.7 |
+  | rocks, none woken | 2.9-3.6 | 3.3-3.8 |
+  | rocks | 3.6-6.5 | 4.2-4.9 |
+
+  - **The awake rocks are most of PhysX's share;** the tiles and the static rocks are about
+    1 ms of it.
+  - **The contact's rest check** asked the road under each rock near the tires on its own.
+    One road call for all of them now, and each rock's lowest point kept until it moves: 0.3
+    ms less a frame at 80 km/h, in four interleaved pairs (swb_isaac_world 2d7be44).
+  - **A rock wakes only where the car will touch it** (91fe556): on a tire track (bent by the
+    car's present turn, its tolerance growing ahead), and between the tracks only when it
+    reaches within 10 cm of the ground clearance. With 5 cm, a 9 cm rock asleep between the
+    tracks took the skid plate at 615 m and stopped the car dead (35.7 kN s): at 80 km/h on
+    class C base_link dips 0.1 m. The awake median fell from 7, 8, 9 to 6, 6, 7 at 40, 60 and
+    80 km/h; no rock lost, the car stuck nowhere, in six drives each way.
+  - **Tried and dropped:** a window along the heading instead of around the car (143 prims to
+    122, PhysX the same, 0.8 ms more of our own bookkeeping); PhysX's own sleep instead of
+    switching a rock's body off through USD (PhysX slower); speculative CCD off, a 1 cm contact
+    offset, one solver iteration (within the noise).
+  - **Not resolved:** whether 80 km/h is now inside the budget. The same code's 80 km/h frame
+    ranged 11.5-40 ms on this host; it needs the quiet-host runs again.
+  - **The washboard at 80 km/h** throws the car off its line in a fresh run at that speed:
+    its wheels leave the ground on the 0.5 m corrugation and it wanders up to 5 m off before
+    the spike's lane keeping brings it back (2 m with the new waking). The runs at 40 and 60
+    km/h first had hidden it. Plausible for a real car at that speed; the spike's left-road
+    check (6 m) does not catch it.
 
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling

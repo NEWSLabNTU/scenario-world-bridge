@@ -9,7 +9,8 @@ Run by Isaac's Python (it has `pxr`):
 Writes `MAP_DIR/isaac/`: one `tiles/tile_<ix>_<iy>.usdc` per tile (its ground with the tile's
 2 cm orthophoto, its buildings and its other objects with their scan colours), a
 `world.usdc` that holds every tile as a payload under /NTU/Tiles, the orthophotos beside
-them, and `world.yaml`.
+them, and `world.yaml`, and the world's light: a sun and a sky dome (`sky.hdr`), see SUN_AZ_EL.
+`--lights-only` writes only the light into an existing world.
 
 Frame: the world frame is the map frame (MGRS 51RUH local, the Autoware maps') less
 `MAP_ORIGIN`, near the site's middle, so float32 vertices keep millimetres; `world.yaml`'s
@@ -76,6 +77,18 @@ def set_label(prim, qcode):
 
     UsdSemantics.LabelsAPI.Apply(prim, "wikidata_qcode").CreateLabelsAttr().Set([qcode])
 LABELS = {"Ground": "Q34442", "Building": "Q41176", "Tree": "Q10884"}
+# The world's own light (roadmap 059, rendering): a sun and a sky dome with a clear-sky texture
+# (sky.hdr, written beside world.usdc). Engineered, not measured: the sun at SUN_AZ_EL (deg,
+# azimuth clockwise from north) gives a mid-morning light over Taipei; its disc is the real
+# 0.53 deg (soft shadow edges); the dome's share is about a quarter of the light on the ground
+# under a clear sky (sun : sky ~ 2 : 1 on level ground, tuned by eye against render_probe.py's views),
+# and its colour paler than a real sky's, as a camera's white balance makes the shade look. A world with its own light
+# is lit as it is by aib's runner and swb_isaac_world (their defaults go only into a world with none).
+SUN_AZ_EL = (135.0, 55.0)
+SUN_INTENSITY = 3000.0
+SUN_ANGLE = 0.53
+SKY_INTENSITY = 1000.0
+SKY_SIZE = (1024, 512)  # the dome texture, latlong
 ROOT = "/NTU"
 
 
@@ -462,6 +475,60 @@ def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None, assets=N
     return tris
 
 
+def _write_hdr(path, rgb):
+    """A float RGB image as Radiance RGBE (.hdr), uncompressed scanlines."""
+    h, w, _ = rgb.shape
+    m = rgb.max(axis=2)
+    e = np.where(m > 1e-32, np.floor(np.log2(np.maximum(m, 1e-32))) + 1, 0)
+    scale = np.where(m > 1e-32, 256.0 / np.exp2(e), 0)
+    rgbe = np.zeros((h, w, 4), np.uint8)
+    rgbe[..., :3] = np.clip(rgb * scale[..., None], 0, 255).astype(np.uint8)
+    rgbe[..., 3] = np.where(m > 1e-32, e + 128, 0).astype(np.uint8)
+    with open(path, "wb") as f:
+        f.write(b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n" + f"-Y {h} +X {w}\n".encode())
+        f.write(rgbe.tobytes())
+
+
+def sky_texture(path, size=SKY_SIZE):
+    """A clear sky, latlong, linear: deep blue at the zenith to a pale horizon, a grey-brown
+    ground below it (seen only past the world's edge). Azimuth-symmetric, so the dome's
+    orientation about z does not matter; the sun is the distant light, not in the texture."""
+    w, h = size
+    el = (0.5 - (np.arange(h) + 0.5) / h) * np.pi  # +pi/2 at the top row
+    zen, hor, gnd = np.array([0.32, 0.45, 0.70]), np.array([0.78, 0.82, 0.86]), np.array([0.30, 0.28, 0.25])
+    t = np.clip(np.sin(np.maximum(el, 0.0)), 0, 1) ** 0.5
+    rows = np.where(el[:, None] >= 0, (1 - t)[:, None] * hor + t[:, None] * zen, gnd)
+    _write_hdr(path, np.repeat(rows[:, None, :], w, axis=1).astype(np.float32))
+
+
+def add_lights(stage, out):
+    """The world's sun and sky under ROOT/Lights (replaced if there), sky.hdr beside world.usdc."""
+    import math
+
+    from pxr import Gf, Sdf, UsdGeom, UsdLux
+
+    sky_texture(os.path.join(out, "sky.hdr"))
+    path = ROOT + "/Lights"
+    if stage.GetPrimAtPath(path):
+        stage.RemovePrim(path)
+    UsdGeom.Xform.Define(stage, path)
+    az, el = (math.radians(v) for v in SUN_AZ_EL)
+    to_sun = Gf.Vec3d(math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), math.sin(el))
+    # a distant light shines down its -z: its z axis points at the sun
+    x = Gf.Cross(Gf.Vec3d(0, 0, 1), to_sun).GetNormalized()
+    y = Gf.Cross(to_sun, x)
+    m = Gf.Matrix4d(x[0], x[1], x[2], 0, y[0], y[1], y[2], 0, to_sun[0], to_sun[1], to_sun[2], 0, 0, 0, 0, 1)
+    sun = UsdLux.DistantLight.Define(stage, path + "/sun")
+    sun.CreateIntensityAttr(SUN_INTENSITY)
+    sun.CreateAngleAttr(SUN_ANGLE)
+    sun.CreateColorAttr(Gf.Vec3f(1.0, 0.96, 0.90))
+    UsdGeom.Xformable(sun.GetPrim()).AddTransformOp().Set(m)
+    sky = UsdLux.DomeLight.Define(stage, path + "/sky")
+    sky.CreateIntensityAttr(SKY_INTENSITY)
+    sky.CreateTextureFileAttr(Sdf.AssetPath("./sky.hdr"))
+    sky.CreateTextureFormatAttr(UsdLux.Tokens.latlong)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("mesh_dir")
@@ -475,7 +542,18 @@ def main(argv=None):
                     help="trees.py's output: a Tree layer and trunk colliders (needs --clear-road's GROUND_DIR)")
     ap.add_argument("--tree-assets", default="", metavar="TOWN_DIR",
                     help="a CARLA asset export's town: its tree assets in place of the Tree layer (needs --trees)")
+    ap.add_argument("--lights-only", action="store_true",
+                    help="only (re)write the sun and sky into MAP_DIR/isaac/world.usdc (mesh_dir and ortho_dir unused)")
     a = ap.parse_args(argv)
+    if a.lights_only:
+        from pxr import Usd
+
+        out = os.path.join(a.map_dir, "isaac")
+        stage = Usd.Stage.Open(os.path.join(out, "world.usdc"))
+        add_lights(stage, out)
+        stage.GetRootLayer().Save()
+        print(f"lights: {out}/world.usdc, {out}/sky.hdr")
+        return 0
     if a.tree_assets and not a.trees:
         ap.error("--tree-assets needs --trees")
     clear = RoadClear(os.path.join(a.map_dir, "lanelet2_map.osm"), a.clear_road, a.clear_margin) \
@@ -505,6 +583,7 @@ def main(argv=None):
         prim = stage.DefinePrim(f"{ROOT}/Tiles/t_{ix}_{iy}".replace("-", "m"), "Xform")
         prim.GetPayloads().AddPayload(Sdf.Payload(f"./tiles/tile_{ix}_{iy}.usdc"))
         print(f"tile {ix}_{iy}: {n:,} triangles", flush=True)
+    add_lights(stage, out)
     stage.GetRootLayer().Save()
     with open(os.path.join(out, "world.yaml"), "w") as f:
         f.write("# Generated by scripts/ntu_twin/world_usd.py (roadmap 059): the NTU campus from the\n"

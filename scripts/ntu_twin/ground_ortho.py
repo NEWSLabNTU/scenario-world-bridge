@@ -10,7 +10,9 @@ Three passes over the tiles `retile_laz.py` wrote (MGRS 51RUH local, vendor Z da
      origin, cell). Objects narrower than `MAX_WINDOW` (parked cars, hedges, kiosks) drop out.
   3. Per tile, the points within `GROUND_BAND` of the DTM, averaged into `ORTHO` m pixels:
      RGB and intensity orthophotos, ortho/rgb_<ix>_<iy>.jpg and ortho/int_<ix>_<iy>.png, with
-     empty pixels filled from coarser levels (a pyramid fill) and a coverage mask.
+     empty pixels filled from coarser levels (a pyramid fill) and a coverage mask. The pyramid
+     fill renders as flat blocks where the scan is sparse; the world's texture is
+     `ortho_refill.py`'s refill of these files (roadmap 059, rendering).
 
 Usage:
   ground_ortho.py TILES_DIR OUT_DIR [--passes 1,2,3] [--workers 6] [--tiles ix_iy,...]

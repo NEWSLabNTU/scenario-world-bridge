@@ -215,6 +215,44 @@ Progress:
     run waited for other users' jobs (`video_when_free.sh`). A camera without `k` makes
     CameraInfo's assertion stop the runner after one frame with no traceback: the runner's
     `finally` closes the app before Python prints it.
+  - Rendering, first pass (N10; 133, 2026-11-03). The videos showed block paint on the ground,
+    no light through the trees, a white sky with black shade, doubled shadows, and the car as
+    four wheels. Causes and what changed:
+    - Block paint: the orthophoto is 2 cm, but the scan puts a point in only 9-57 % of a route
+      tile's pixels (9 % at r01's start); pass 3's pyramid fill turned the gaps into flat
+      squares 0.1-1 m wide. `scripts/ntu_twin/ortho_refill.py` refills every tile from its own
+      covered pixels (the coverage mask): a Gaussian-weighted mean (normalized convolution) at
+      the finest of nine scales (0.75-192 px) whose kernel holds about 4 points, blended between
+      scales, the eight neighbours padded in so tile edges match. 167 tiles in 223 s on 6
+      workers, into `ground/ortho_smooth/`; road markings stay sharp, sparse areas go smooth.
+      `map/isaac/ortho/` now holds them (the textures are files, the tiles unchanged); the world
+      before is `map/isaac_n5v3/`.
+    - Light: the world had none, so aib's runner and the world server added a sun and a plain
+      dome (white). `world_usd.py` now writes the world's own (`--lights-only` adds them to a
+      built world): a 0.53 deg sun at azimuth 135, elevation 55 (3000) and a dome with a
+      clear-sky texture (`sky.hdr`, pale blue to a pale horizon, 1000), tuned by eye with
+      `scripts/ntu_twin/render_probe.py` (fixed chase views along r01, before and after).
+      Both runners light a world with its own light as it is.
+    - Exposure: on Isaac 6.1 auto-exposure is the camera prim's
+      (`OmniRtxCameraAutoExposureAPI_1`); `--/rtx/post/histogram/enabled` is mapped to it but
+      not applied ("No setting was found"). aib b82ab1a: a camera's `auto_exposure: true` (rig
+      or ego config) applies it; off by default. swb_isaac_world 1efd88e: the recorder's cameras
+      follow the ego's camera6. aib also fills in a hand-written camera's missing `k` and logs
+      the loop's exception before closing Isaac.
+    - Mean picture brightness (0-255) in render_probe's four r01 views, before and after the
+      three: start 73 to 114, under the canopy 7 to 25, turn 2 35 to 98, the palms 63 to 116.
+      Under the canopy it is still dark: that is the trees (N10 3).
+    - The car: the world server dresses the ego in its CARLA body (`vehicle_assets`) when
+      `SWB_VEHICLE_USD` names the asset set; 133 had none, so every ego there was a box or four
+      wheels. The set's `vehicles/` (17 GB) is now in `/mnt/p5plus/aeon/carla-usd/vehicles`,
+      named in 133's `.env`. aib's stand-alone runner stays without a body (dressing is the
+      world server's). A recorded r01 (the world server's recorder: dash, wheel, chase, course
+      cameras) ran out of GPU memory beside another user's 16 GB job; it is queued for when the
+      GPU frees (`logs/wait_gpu.sh`, `logs/rec_scenario.sh`).
+    - On the way: the 14:06 video drive's Isaac ran on for 20 h holding 14.5 GB of the GPU:
+      `n8_stop.sh` matched `ego_ntu.yaml`, not `cam/ego_ntu_video.yaml`; it matches both now.
+      `render_probe.py` loads only the tiles within 200 m of its views: the whole world takes
+      about 16 GB of VRAM.
   - N2, the survey's moving objects (133, 2026-10-31; `scripts/ntu_twin/transients.py`, free-space
     carving along the vendor's trajectory, method in its docstring). 167 tiles in 2.1 h of
     worker time: of 5.47 M slab voxels (0.2 m, 0.2-3 m above the DTM) 1.16 M were crossed by
@@ -473,9 +511,28 @@ route driven; SSv2 scenarios with NPCs from the catalog.
 recorded drives, then closed loop. Record what they get wrong that they do not get wrong on
 real footage, if we can record some.
 
+**N10. Camera realism.** What stage A can do for the picture without photos, measured on fixed
+views (`render_probe.py`) before and after each step:
+1. The ground texture without blocks: a density-adaptive refill of the orthophoto
+   (`ortho_refill.py`). Done 2026-11-03.
+2. Light and exposure: the world's own sun and sky dome, the camera's auto-exposure. Done
+   2026-11-03.
+3. Trees: crowns with gaps (a cut-out pattern in their material) so the sun comes through in
+   patches, the loose shards gone; check NDT on r01 and r02, since the lidar may see through the
+   gaps too. Or CARLA tree assets seen by cameras only, the scan's crowns by the lidar only
+   (to check: whether Isaac can hide a prim from one sensor and not the other).
+4. The scan's baked light: even out its shadows in the colours (the survey's sun and shade
+   under RTX's own). Partial at best.
+5. The car in its body in recorded videos: the world server with the CARLA asset set
+   (`SWB_VEHICLE_USD`). Set up 2026-11-03; the recorded run waits for GPU memory.
+
+These make a clean simulation picture, not a photograph: one colour per scan point, leaves as
+blobs. Photo-like pictures are stage B's gaussian layer, which needs the vendor's 2231 photos.
+
 ## Risks
 
-- Trees look fake to a VLM; baked shadows in the scan's colour double RTX's own.
+- Trees look fake to a VLM; baked shadows in the scan's colour double RTX's own (seen in
+  the first videos, 2026-11-02; N10).
 - Texture budget (~1.8 G texels at 2 cm) needs tiles and streaming.
 - RTX lidar has crashed on multi-GPU setups: pin Isaac to one GPU.
 - GPU: both RTX 5090s on 241 are held by another user's vLLM as of 2026-10-29, so the work

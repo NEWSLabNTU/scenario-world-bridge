@@ -27,6 +27,7 @@ ap.add_argument("--view", action="append", required=True)
 ap.add_argument("--default-light", action="store_true")
 ap.add_argument("--exposure", action="store_true")
 ap.add_argument("--warmup", type=int, default=60, help="frames rendered before each capture")
+ap.add_argument("--reach", type=float, default=200.0, help="m: only the tiles this near a view are loaded")
 a = ap.parse_args()
 os.makedirs(a.out_dir, exist_ok=True)
 os.environ.pop("DISPLAY", None)
@@ -49,8 +50,8 @@ usd = cfg["usd"] if os.path.isabs(cfg["usd"]) else os.path.join(os.path.dirname(
 world = World(stage_units_in_meters=1.0)
 stage = omni.usd.get_context().get_stage()
 add_reference_to_stage(usd_path=usd, prim_path="/World/env")
-# Only the tiles within REACH of a view: the whole world takes ~16 GB of a shared GPU.
-REACH = 200.0
+# Only the tiles within --reach of a view: the whole world takes ~16 GB of a shared GPU.
+REACH = a.reach
 origin = cfg.get("map_origin", [0.0, 0.0, 0.0])
 views = [tuple(float(c) for c in v.split(",")[1:3]) for v in a.view]
 tiles = stage.GetPrimAtPath("/World/env/Tiles")

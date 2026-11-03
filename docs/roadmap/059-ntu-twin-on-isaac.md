@@ -249,6 +249,23 @@ Progress:
       world server's). A recorded r01 (the world server's recorder: dash, wheel, chase, course
       cameras) ran out of GPU memory beside another user's 16 GB job; it is queued for when the
       GPU frees (`logs/wait_gpu.sh`, `logs/rec_scenario.sh`).
+    - Trees and the scan's baked light (N10 3, 4): `world_usd.py`'s `retouch_tile` (run by each
+      tile build, `--retouch` on a built world, once per tile; 43 s for the 167). The ground
+      texture holds little of the survey's sun (it looks overcast; its dark blotches are sparse
+      points under trees), so the baked light is the meshes': a crown's vertex colours ran from
+      near black to near white (linear luminance p10-p90 0.03-0.55 in a tile on r01), the scanner
+      having seen its top sky-lit and its underside in shade. Each mesh's luminance is pulled
+      toward its median (L' = median (L / median) ^ gamma: 0.45 for trees, 0.6 for the rest),
+      its chroma kept. Crowns get a cut-out: 45 % of their vertices (by a hash of the position, so
+      a rebuild cuts the same) get opacity 0 and the material cuts where the interpolated
+      opacity is under 0.5. Tree components under 60 faces, and Other ones that small standing
+      2 m over the ground, are dropped (about 3 % of the tree faces). Lidar intensity did not
+      help with the ground: it varies with range and angle (road dark, pavement bright).
+      Under the canopy the road is dappled now, mean brightness 25 to 44; walls stay blotchy
+      and some larger shards stay. Tried on a copy (`ntu-twin/n10test/`); `map/isaac` gets it
+      once r01 and r02 have driven on the copy with NVTL at 2.3 or over and no AEB (the lidar
+      may see through the cut-outs too): queued behind the GPU with the recorded run
+      (`logs/n10_chain.sh`).
     - On the way: the 14:06 video drive's Isaac ran on for 20 h holding 14.5 GB of the GPU:
       `n8_stop.sh` matched `ego_ntu.yaml`, not `cam/ego_ntu_video.yaml`; it matches both now.
       `render_probe.py` loads only the tiles within 200 m of its views: the whole world takes
@@ -519,10 +536,11 @@ views (`render_probe.py`) before and after each step:
    2026-11-03.
 3. Trees: crowns with gaps (a cut-out pattern in their material) so the sun comes through in
    patches, the loose shards gone; check NDT on r01 and r02, since the lidar may see through the
-   gaps too. Or CARLA tree assets seen by cameras only, the scan's crowns by the lidar only
-   (to check: whether Isaac can hide a prim from one sensor and not the other).
-4. The scan's baked light: even out its shadows in the colours (the survey's sun and shade
-   under RTX's own). Partial at best.
+   gaps too. Done 2026-11-03 on a copy; NDT check queued. Not tried: CARLA tree assets seen by
+   cameras only, the scan's crowns by the lidar only (whether Isaac can hide a prim from one
+   sensor and not the other).
+4. The scan's baked light: the meshes' colours pulled toward their median brightness. Done
+   2026-11-03 with 3. Partial: walls stay blotchy.
 5. The car in its body in recorded videos: the world server with the CARLA asset set
    (`SWB_VEHICLE_USD`). Set up 2026-11-03; the recorded run waits for GPU memory.
 

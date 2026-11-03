@@ -89,6 +89,21 @@ SUN_INTENSITY = 3000.0
 SUN_ANGLE = 0.53
 SKY_INTENSITY = 1000.0
 SKY_SIZE = (1024, 512)  # the dome texture, latlong
+# The scan's own light out of the meshes' colours, and light through the crowns (roadmap 059 N10
+# 3, 4; `retouch_tile`). The scanner saw a crown's top sky-lit and its underside in shade, so its
+# vertex colours run from near black to near white (linear luminance p10-p90 0.03-0.55 in a
+# tile on r01); under RTX's own sun that light is counted twice. Each mesh's luminance is pulled
+# toward its median, L' = median (L / median) ** GAMMA, the chroma kept.
+DELIGHT_GAMMA = {"Tree": 0.45, "Other": 0.6, "Building": 0.6}
+DELIGHT_RANGE = (0.01, 0.6)   # linear luminance after
+# A crown is a closed Poisson shell, opaque: its shadow was solid black. A random HOLE_FRACTION of
+# its vertices get opacity 0 and the material cuts out where the interpolated opacity is under
+# 0.5, so the sun comes through in flecks (two shells: light passes a gap in both).
+HOLE_FRACTION = 0.45
+# Loose pieces: a Tree component of fewer than SHARD_FACES faces, or an Other one that small
+# standing more than SHARD_ABOVE m over the ground, is a fringe of leaves Poisson left floating.
+SHARD_FACES = 60
+SHARD_ABOVE = 2.0
 ROOT = "/NTU"
 
 
@@ -183,6 +198,91 @@ def vertex_normals(V, F):
         np.add.at(n, F[:, k], fn)
     ln = np.linalg.norm(n, axis=1, keepdims=True)
     return np.where(ln > 0, n / np.maximum(ln, 1e-12), [0.0, 0.0, 1.0])
+
+
+def _leaf_material(stage, path):
+    """The scan colour with a cut-out: opacity from the `displayOpacity` primvar, cut at 0.5."""
+    from pxr import Sdf, UsdShade
+
+    mat = _vertex_colour_material(stage, path)
+    pbr = UsdShade.Shader(stage.GetPrimAtPath(path + "/PBR"))
+    rd = UsdShade.Shader.Define(stage, path + "/opacity")
+    rd.CreateIdAttr("UsdPrimvarReader_float")
+    rd.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("displayOpacity")
+    rd.CreateInput("fallback", Sdf.ValueTypeNames.Float).Set(1.0)
+    rd.CreateOutput("result", Sdf.ValueTypeNames.Float)
+    pbr.CreateInput("opacity", Sdf.ValueTypeNames.Float).ConnectToSource(rd.ConnectableAPI(), "result")
+    pbr.CreateInput("opacityThreshold", Sdf.ValueTypeNames.Float).Set(0.5)
+    return mat
+
+
+def _components(F, n):
+    """Each face's connected component (faces sharing a vertex), and the components' sizes."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+
+    k = F.shape[1]
+    rows = np.repeat(np.arange(len(F)), k)
+    g = coo_matrix((np.ones(len(rows), np.int8), (rows, F.ravel())), shape=(len(F), n)).tocsr()
+    _, lab = connected_components(g @ g.T, directed=False)
+    return lab, np.bincount(lab)
+
+
+def retouch_tile(stage):
+    """Roadmap 059 N10 3 and 4 on a built tile: the meshes' colours delit (DELIGHT_GAMMA), the
+    loose shards dropped (SHARD_FACES), the crowns cut out (HOLE_FRACTION). Once per tile: a
+    tile marked `ntu:retouched` is left as it is. Returns {mesh: (faces before, after)}."""
+    from pxr import Sdf, UsdGeom, UsdShade, Vt
+
+    root = stage.GetPrimAtPath("/Tile")
+    if root.GetCustomDataByKey("ntu:retouched"):
+        return {}
+    ground = None
+    gp = stage.GetPrimAtPath("/Tile/Ground")
+    if gp:
+        from scipy.spatial import cKDTree
+
+        G = np.asarray(UsdGeom.Mesh(gp).GetPointsAttr().Get())
+        ground = (cKDTree(G[:, :2]), G[:, 2])
+    out = {}
+    for name, gamma in DELIGHT_GAMMA.items():
+        prim = stage.GetPrimAtPath(f"/Tile/{name}")
+        if not prim:
+            continue
+        mesh = UsdGeom.Mesh(prim)
+        V = np.asarray(mesh.GetPointsAttr().Get())
+        F = np.asarray(mesh.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
+        n0 = len(F)
+        if name in ("Tree", "Other") and len(F):
+            lab, size = _components(F, len(V))
+            drop = size[lab] < SHARD_FACES
+            if name == "Other" and ground is not None:
+                _, i = ground[0].query(V[F].mean(axis=1)[:, :2])
+                low = np.full(len(size), np.inf)
+                np.minimum.at(low, lab, V[F][:, :, 2].min(axis=1) - ground[1][i])
+                drop &= low[lab] > SHARD_ABOVE
+            F = F[~drop]
+            mesh.GetFaceVertexIndicesAttr().Set(Vt.IntArray.FromNumpy(F.astype(np.int32).ravel()))
+            mesh.GetFaceVertexCountsAttr().Set(Vt.IntArray.FromNumpy(np.full(len(F), 3, np.int32)))
+        pv = mesh.GetDisplayColorPrimvar()
+        if pv and pv.Get() is not None and len(F):
+            C = np.asarray(pv.Get(), np.float64)
+            L = C @ [0.2126, 0.7152, 0.0722]
+            used = np.unique(F)
+            med = float(np.median(L[used])) or 1e-3
+            L2 = np.clip(med * (np.maximum(L, 1e-4) / med) ** gamma, *DELIGHT_RANGE)
+            C = np.clip(C * (L2 / np.maximum(L, 1e-4))[:, None], 0.0, 1.0)
+            pv.Set(Vt.Vec3fArray.FromNumpy(C.astype(np.float32)))
+        if name == "Tree" and len(F):
+            # a vertex's hole from its position, so a rebuild cuts the same holes
+            h = np.abs(np.sin(V[:, 0] * 12.9898 + V[:, 1] * 78.233 + V[:, 2] * 37.719) * 43758.5453) % 1.0
+            op = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+                "displayOpacity", Sdf.ValueTypeNames.FloatArray, UsdGeom.Tokens.vertex)
+            op.Set(Vt.FloatArray.FromNumpy((h >= HOLE_FRACTION).astype(np.float32)))
+            UsdShade.MaterialBindingAPI.Apply(prim).Bind(_leaf_material(stage, "/Tile/Looks/ScanLeaves"))
+        out[name] = (n0, len(F))
+    root.SetCustomDataByKey("ntu:retouched", True)
+    return out
 
 
 def _mesh(stage, path, V, F, uv=None, colours=None, label=None, material=None, collider=True):
@@ -471,6 +571,7 @@ def tile_stage(path, ix, iy, mesh_dir, texture, clear=None, trees=None, assets=N
             recs = [t for t, lane in zip(recs, clear.on_road(foot)) if not lane]
         if recs:
             tree_assets(stage, recs, assets, "../trees")
+    retouch_tile(stage)
     stage.GetRootLayer().Save()
     return tris
 
@@ -544,7 +645,18 @@ def main(argv=None):
                     help="a CARLA asset export's town: its tree assets in place of the Tree layer (needs --trees)")
     ap.add_argument("--lights-only", action="store_true",
                     help="only (re)write the sun and sky into MAP_DIR/isaac/world.usdc (mesh_dir and ortho_dir unused)")
+    ap.add_argument("--retouch", action="store_true",
+                    help="only retouch the built tiles in MAP_DIR/isaac/tiles in place (N10 3, 4; once per tile)")
     a = ap.parse_args(argv)
+    if a.retouch:
+        from pxr import Usd
+
+        for tp in sorted(glob.glob(os.path.join(a.map_dir, "isaac", "tiles", "tile_*.usdc"))):
+            stage = Usd.Stage.Open(tp)
+            r = retouch_tile(stage)
+            stage.GetRootLayer().Save()
+            print(os.path.basename(tp), r or "already retouched", flush=True)
+        return 0
     if a.lights_only:
         from pxr import Usd
 

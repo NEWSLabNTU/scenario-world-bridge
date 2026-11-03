@@ -5,7 +5,8 @@ roads in OpenDRIVE, its ground, buildings and trees as meshes, built straight fr
 vendor's MLS scan and the Autoware maps. It is not a conversion of 059's Isaac world. 059's
 tools are reused as building blocks, and their outputs are shaped for CARLA from the start.
 
-**Status**: planned, 2026-11-03. The tools are on 133 (below); the pilot is next.
+**Status**: in progress, 2026-11-03. The tools are on 133 (below). The pilot, r01's corridor, is
+imported, packaged and installed into a stock 0.9.16, and its camera compared with Isaac's.
 
 Set up on 133 (2026-11-03; user direction: "We run things on our host"; files shared through
 the NAS):
@@ -42,6 +43,83 @@ end to end for Shalun on 241. [019](019-ntu-campus-twin.md), the first NTU-in-CA
 (never imported).
 **Relates to**: [062](062-ntu-roads-from-open-data.md) (the roads around the campus, the
 city's signal data). 059's Isaac world is swb 118's since 2026-11-03.
+
+## The pilot: r01's corridor (2026-11-03)
+
+The whole chain ran on 133: from 059's data to a package that a stock 0.9.16 binary
+installs and loads. Tools are in `scripts/ntu_carla/`; outputs are in
+`/mnt/p5plus/aeon/ntu-twin/carla/pilot/`.
+
+1. **Road network** (`lanelet_to_xodr.py`, written for this; no converter).
+   - Each road lanelet becomes a one-lane road whose reference line is its centreline. That
+     is the kept centreline where 059 widened a curve.
+   - The lane's width follows the bounds, and the elevation follows the centreline's z.
+   - Lanelets in a split or a merge become connecting roads, in 5 junctions.
+   - The geoReference is a transverse Mercator at MAP_ORIGIN (25.01767, 121.53819).
+   - r01 has 155 lanelets. CARLA's client parsed them into 197 topology edges and 4073 1 m
+     waypoints. On the full map (285 lanelets), the waypoints sit on the lanelet centrelines
+     (to within the 1 m sample spacing) and their z is within 7 mm.
+   - r01 and r02 have no lights; 48 roads start and 55 end at the map's edge.
+2. **Meshes** (`carla_meshes.py`): 72 tiles within 30 m of r01, in 56 s.
+   - It reuses 059's `world_usd.py`: the lane raster, road clearing, tree split, the de-light
+     and shard rules, and the crown cut-outs.
+   - The ground is split under the lanelets into Road (0.34 M triangles) and Terrain (3.4 M),
+     both on the ortho.
+   - Objects are decimated to 30 %: props 2.4 M and trees 4.5 M triangles.
+   - Trees carry their cut-outs as vertex alpha. No scan buildings fall in r01's tiles; its
+     walls are props.
+   - `lane_raster` with margin 0 grows without end (scipy's `iterations=0`), so the road
+     margin is one cell (0.25 m).
+3. **Package** (`carla_package.py`, bpy 4.2, a Python 3.11 venv at `~/.venvs/bpy42`).
+   - One FBX of 317 MB with an object per tile and class (`Road_Road_<t>`, `Road_Grass_<t>`,
+     `Prop_<t>`, `Tree_<t>`), the 72 ortho textures, the OpenDRIVE, and the JSON with
+     `use_carla_materials: false`.
+4. **Import** (`Import.sh --package NTU`): 13 min, 15 GB RAM, 678 MB of content. Three
+   things needed fixing on 133:
+   - `Import.py` imports `carla`. A source build makes it in its PythonAPI step; here the
+     release's cp310 wheel is unpacked on `PYTHONPATH` (`/mnt/p5plus/aeon/carla/pyapi310`).
+   - 0.9.16's MDL converter plugin asserts without its SDK, which lives in NVIDIA's packman
+     cache (left out of the copy). `Plugins/Converters/get_dependencies.sh` with
+     `PM_PACKAGES_ROOT` (now in `env.sh`) fetched it.
+   - CARLA's `Import.py` does not set UE's `VertexColorImportOption`, and the FBX's vertex
+     colours were dropped: props and trees rendered white. 133's copy of `Import.py` now
+     sets it to `Replace` (`Import.py.orig` beside it).
+
+   The import sorts meshes into `Static/Road` (37) and `Static/Terrain` (194, props and
+   trees too: it has no other folder). It gives every mesh complex-as-simple collision.
+5. **Material** (`ue_materials.py`, run in the editor's Python): one master material,
+   `M_NTU_ScanColour`, on the props and trees. BaseColor is the vertex colour, OpacityMask
+   its alpha (masked, two-sided).
+6. **Package and install.**
+   - `Package.sh --packages=NTU`: 7.7 min, giving `Dist/NTU_-dirty.tar.gz` of 1.04 GB. The
+     tag is empty because `.git` was not copied.
+   - The tarball holds `CarlaUE4/Content/NTU/` (`Maps/NTU/NTU.umap`, `OpenDrive/NTU.xodr`,
+     `TM/NTU.bin`, `Config/NTU.Package.json`, the cooked meshes and textures), the CARLA
+     assets the map references, and the tagged materials. It has no pedestrian navmesh.
+   - `ImportAssets.sh` put it into the 0.9.16 binary in 10 s.
+   - `/mnt/p5plus/aeon/carla/pilot_build.sh` runs import, material, package and install in
+     one go (19 min).
+7. **Running it.**
+   - The binary (port 2400, offscreen, Epic) loads `NTU`: 31 spawn points, 2084 waypoints at
+     2 m.
+   - A Model 3 settles on the road at z 12.05.
+   - With a 1280x720 camera and a 64-channel lidar (34 k points a scan), a synchronous
+     frame takes 12 ms (p95 15 ms). CARLA holds 4.3 GB of VRAM.
+8. **Picture** (`carla_probe.py`: 059's four r01 views, histogram auto-exposure, sun at 55
+   deg): `pilot/carla_vs_isaac.jpg`.
+   - It is in the same class as Isaac's after N10. Under the canopy the road is dappled and
+     brighter.
+   - Faults:
+     - The start view is overexposed.
+     - Turn 2's wall is in shade: CARLA's sun azimuth is not 059's convention.
+     - Decimation leaves larger floating shards, with hard shadows on the road.
+
+Next:
+- the sun's azimuth matched to Isaac's;
+- exposure compensation;
+- shards dropped after decimation as well as before;
+- walls and buildings in their own folder (semantic tag Building, not Terrain);
+- then the whole site, and Autoware on it.
 
 ## How a CARLA map is made and shipped
 

@@ -130,6 +130,49 @@ Next:
 - walls and buildings in their own folder (semantic tag Building, not Terrain);
 - then the whole site, and Autoware on it.
 
+## The whole site, and Autoware on it (2026-11-03)
+
+1. **Fixes from the pilot.**
+   - Sun: CARLA's `sun_azimuth_angle` is the map azimuth + 90, so Isaac's 135 is CARLA's
+     225. At 225 turn 2's wall is lit as in Isaac.
+   - Exposure: the RGB camera's `exposure_compensation`. On the pilot, -1 brought the start
+     view from overexposed to a mean of 111. On the whole site -1 leaves the road under the
+     canopy too dark (mean 35); the proof video uses -0.5. Not tuned further yet.
+   - Shards: `carla_meshes.py` drops small floating components after decimation too (fewer
+     than 25 faces and more than 1 m above the ground), not only before it.
+   - Semantic folders: `ue_materials.py` moves `Tree_*` to `Static/Vegetation`,
+     `Building_*` to `Static/Building` and `Prop_*` to `Static/Static`, the folders CARLA's
+     tagger reads (330 meshes on the site).
+2. **Build-host fixes on 133.**
+   - `Util/BuildTools/Import.py` (CARLA's source tree) is patched to import with
+     `"VertexColorImportOption": "Replace"`; without it UE drops the vertex colours and props
+     and trees render white. The original is kept beside it as `Import.py.orig`.
+   - `Import.py` imports `carla`: `PYTHONPATH` points at the unpacked cp310 wheel.
+   - The swb tools' `carla` module is the 0.9.16 cp310 wheel, `pip install --user --no-deps`.
+3. **The whole site** (`/mnt/p5plus/aeon/carla/site_build.sh`).
+   - 167 tiles, about 26 M triangles after decimation; the FBX is 764 MB.
+   - Import 23 min, material and folders 7 min, package and install the rest: 44 min in all.
+   - The package is 2.2 GB (`Dist/NTU_*.tar.gz`). The town is `NTU`, as the pilot's.
+   - Still visible: large flat grey planes left by decimation along the road (the shard rule
+     catches only small ones), and the orthophoto's blur on the ground.
+4. **Autoware on it, through the bridge.**
+   - The map dir is `$SWB_NTU_TWIN/carla/NTU`: links to 059's Lanelet2 map, point cloud and
+     projector, plus `carla/map_origin.yaml` (52500, 67700, 0). The bridge takes the town
+     from the directory name.
+   - `scenarios/ntu_twin/ntu_carla_r01.xosc` is 059's r01 scenario with that map dir.
+   - `CARLA_PORT=2400 just scenario scenarios/ntu_twin/ntu_carla_r01.xosc` passed three
+     times (junit 0 failures): the ego stack localized on the scan's point cloud and drove
+     r01's 340 m in about 95 s of sim time.
+   - One run logged an MRM for 0.1 s about 47 s in; not examined.
+5. **Proof video** (`carla_watch_video.py`). A second CARLA client that never ticks: it waits
+   for the ego (`role_name` `hero`), attaches a chase and a front camera, and records each
+   tick the bridge drives, until the ego is despawned.
+   - `ntu_carla_r01_autoware.mp4`, 95 s, on the NAS under
+     `autoveh/dataset/2026-10-30 NTU twin map/video/`.
+   - The scenario ends at SSv2's reach condition, 8.6 m before the marked goal.
+
+Next: exposure per scene, the large shards, r02, and the site package on the NAS.
+
 ## How a CARLA map is made and shipped
 
 The facts this phase builds on. Sources: CARLA 0.9.16's `Docs/tuto_M_*.md`,

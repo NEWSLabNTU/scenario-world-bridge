@@ -10,6 +10,12 @@ whose name holds Prop_, Tree_ or Building_ (the import prefixes the package's na
 - BaseColor is the vertex colour (RGB);
 - OpacityMask is its alpha: masked, clip at 0.5, two-sided, as 059's Isaac crowns;
 - Roughness is 0.9 and Specular 0.2, like a rough natural surface.
+
+Then it moves those meshes out of /Game/NTU/Static/Terrain, where CARLA's import puts everything
+that is not road, into the folders CARLA's tagger reads as their semantic class (Tagger.cpp):
+Tree_* to Static/Vegetation, Building_* to Static/Building, Prop_* to Static/Static (the scan's
+other objects mix walls, shrubs and parked cars). Redirectors stay behind for the level's
+actors; the cook follows them.
 """
 import unreal
 
@@ -17,6 +23,7 @@ PACKAGE = "/Game/NTU"
 MAT_DIR = PACKAGE + "/Static/Materials"
 MAT_NAME = "M_NTU_ScanColour"
 PREFIXES = ("Prop_", "Tree_", "Building_")
+FOLDER = {"Tree_": "Vegetation", "Building_": "Building", "Prop_": "Static"}
 
 lib = unreal.MaterialEditingLibrary
 assets = unreal.EditorAssetLibrary
@@ -54,4 +61,13 @@ for a in assets.list_assets(PACKAGE, recursive=True, include_folder=False):
         mesh.set_material(i, mat)
     assets.save_loaded_asset(mesh)
     n += 1
-unreal.log(f"ue_materials: {MAT_NAME} on {n} meshes")
+moved = 0
+for a in assets.list_assets(PACKAGE + "/Static/Terrain", recursive=True, include_folder=False):
+    name = a.split("/")[-1].split(".")[0]
+    for p, folder in FOLDER.items():
+        if p in name:
+            sub = a.split("/Static/Terrain/", 1)[1].rsplit("/", 1)[0]
+            if assets.rename_asset(a.split(".")[0], f"{PACKAGE}/Static/{folder}/{sub}/{name}"):
+                moved += 1
+            break
+unreal.log_warning(f"ue_materials: {MAT_NAME} on {n} meshes; {moved} moved to their class folders")

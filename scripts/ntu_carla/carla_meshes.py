@@ -89,14 +89,22 @@ def decimate(V, F, C, keep):
     return np.asarray(m.vertices), np.asarray(m.triangles), np.asarray(m.vertex_colors)
 
 
-def drop_shards(V, F, kind, ground):
+# After decimation: pieces this small (faces), standing this high over the ground (m), are the
+# fringes the decimation left floating; they cast hard shadows on the road (072 pilot).
+SHARD_FACES_AFTER = 25
+SHARD_ABOVE_AFTER = 1.0
+
+
+def drop_shards(V, F, kind, ground, faces=None, above=None):
+    faces = W.SHARD_FACES if faces is None else faces
+    above = W.SHARD_ABOVE if above is None else above
     lab, size = W._components(F, len(V))
-    drop = size[lab] < W.SHARD_FACES
+    drop = size[lab] < faces
     if kind == "prop" and ground is not None:
         _, i = ground[0].query(V[F].mean(axis=1)[:, :2])
         low = np.full(len(size), np.inf)
         np.minimum.at(low, lab, V[F][:, :, 2].min(axis=1) - ground[1][i])
-        drop &= low[lab] > W.SHARD_ABOVE
+        drop &= low[lab] > above
     return F[~drop]
 
 
@@ -164,6 +172,11 @@ def one(t):
             Vc, Fc, Cc = compact(V, Fp, C)
             Cc = delight(Cc, W.DELIGHT_GAMMA["Tree" if cls == "tree" else "Building" if cls == "building" else "Other"])
             Vc, Fc, Cc = decimate(Vc, Fc, Cc, a["keep"])
+            if cls in ("tree", "prop") and len(Fc):
+                Fc = drop_shards(Vc, Fc, "prop", ground, SHARD_FACES_AFTER, SHARD_ABOVE_AFTER)
+                Vc, Fc, Cc = compact(Vc, Fc, Cc)
+            if not len(Fc):
+                continue
             alpha = holes(Vc) if cls == "tree" else np.ones(len(Vc), np.float32)
             out[f"{cls}_V"] = (Vc - origin).astype(np.float32)
             out[f"{cls}_F"] = Fc.astype(np.int32)
@@ -191,8 +204,8 @@ def main(argv=None):
     elif a.route:
         tiles = route_tiles(osm, a.route)
     else:
-        tiles = sorted({tuple(map(int, re.findall(r"-?\d+", f)[:2]))
-                        for f in os.listdir(a.mesh_dir) if f.startswith("ground_")})
+        tiles = sorted({(int(m.group(1)), int(m.group(2))) for f in os.listdir(a.mesh_dir)
+                        if (m := re.match(r"ground_(-?\d+)_(-?\d+)\.npz$", f))})
     os.makedirs(a.out, exist_ok=True)
     ctx = {"mesh": a.mesh_dir, "osm": osm, "ground": a.ground_dir, "trees": a.trees_dir,
            "out": a.out, "keep": a.keep}

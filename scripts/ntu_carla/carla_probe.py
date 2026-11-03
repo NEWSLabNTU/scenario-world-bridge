@@ -31,6 +31,7 @@ def main(argv=None):
     ap.add_argument("--map", default="NTU")
     ap.add_argument("--fixed-exposure", action="store_true")
     ap.add_argument("--sun", default="55,135", help="altitude,azimuth deg")
+    ap.add_argument("--ev", type=float, default=0.0, help="the camera's exposure_compensation")
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
     client = carla.Client("localhost", a.port)
@@ -47,7 +48,8 @@ def main(argv=None):
     world.set_weather(w)
     bp = world.get_blueprint_library().find("sensor.camera.rgb")
     for k, v in (("image_size_x", "1280"), ("image_size_y", "720"), ("fov", "80"),
-                 ("exposure_mode", "manual" if a.fixed_exposure else "histogram")):
+                 ("exposure_mode", "manual" if a.fixed_exposure else "histogram"),
+                 ("exposure_compensation", str(a.ev))):
         bp.set_attribute(k, v)
     cam = world.spawn_actor(bp, carla.Transform(carla.Location(0, 0, 100)))
     q = queue.Queue()

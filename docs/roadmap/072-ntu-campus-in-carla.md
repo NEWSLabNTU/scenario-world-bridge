@@ -5,7 +5,30 @@ roads in OpenDRIVE, its ground, buildings and trees as meshes, built straight fr
 vendor's MLS scan and the Autoware maps. It is not a conversion of 059's Isaac world. 059's
 tools are reused as building blocks, and their outputs are shaped for CARLA from the start.
 
-**Status**: planned, 2026-11-03.
+**Status**: planned, 2026-11-03. The tools are on 133 (below); the pilot is next.
+
+Set up on 133 (2026-11-03; user direction: "We run things on our host"; files shared through
+the NAS):
+- **The binary:** CARLA 0.9.16's official release, from the NAS (`autoveh/apps/carla-simulator/
+  CARLA_0.9.16.tar.gz`), in `/mnt/p5plus/aeon/carla/CARLA_0.9.16` (19 GB; `CARLA_DIR` in
+  133's `.env`).
+- **The editor build:** 139's (built 2026-10-21 for roadmap 043; never used for `make
+  import`), staged by swb 139 at the NAS's `home/carla-src-0.9.16-139/`: two zstd tarballs,
+  39 GB, without `.git`, the DDC, the content tarball, packman, and the Mac and Windows
+  binaries. It is unpacked in `/mnt/p5plus/aeon/carla-src` (UE 106 GB in all, engine 77 GB,
+  CARLA 29 GB), at our own path, not 139's `/mnt/wd/aeon/carla-src` (user choice; rebuild
+  if it gives trouble).
+  - `env.sh` there sets `UE4_ROOT` and `CARLA_ROOT`.
+  - `~/.config/Epic/UnrealEngine/Install.ini` maps the engine's GUID to the new path.
+  - A headless boot (`UE4Editor-Cmd CarlaUE4.uproject -nullrhi`) took 70 s and needed no
+    rebuild: the Carla, CarlaTools and CarlaExporter plugins mount.
+  - 139's path stays in CARLA's dependency configs (cmake files, `libsqlite3.la`). That
+    matters only for a LibCarla rebuild, and they are text, so it can be rewritten.
+  - Untested here: `make import` and `make package`.
+- **Room:** 059's Isaac Sim, the CARLA vehicle USDs and the run logs were deleted. The Isaac
+  worlds and drive bags were moved to the NAS (`autoveh/dataset/2026-10-30 NTU twin
+  map/archive-133-2026-11-03/`, checksummed before the local copies went). `/mnt/p5plus` has
+  14 GB left, tight for an import's cook.
 
 **Source**: user direction 2026-11-03: "Shift our focus to build NTU map in CARLA 0.9.16
 instead", "I'd like to learn the map creation process on CARLA. Check the information included

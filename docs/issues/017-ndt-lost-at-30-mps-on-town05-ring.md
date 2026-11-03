@@ -1,7 +1,7 @@
 # 017: NDT loses the Isaac ego at 30 m/s on Town05's south straight and does not recover
 
 **Severity**: medium (ends a run above ~29 m/s; nothing in town traffic goes that fast).
-**Status**: open; worked around by holding the ring's laps to 28 m/s. **Found**: 2026-10-27,
+**Status**: cause found (issue 002's cycle, in cuda_ndt_matcher); fix staged; laps held to 28 m/s until it is verified. **Found**: 2026-10-27,
 roadmap 057, Town05 lap 24 (cuda_ndt_matcher, lockstep, issue 015's stamp fix in).
 
 ## What happened
@@ -32,7 +32,34 @@ Until that scan, NDT was 0.06-0.37 m from truth along the whole lap, the south s
   (iteration limit), so they are skipped too.
 - It is not the scan stamp: issue 015's fix was in, and NDT fitted truth at its stamp.
 
-## Open questions
+## Cause
+
+It is issue 002's two-point cycle, in cuda_ndt_matcher this time. NDT's iterations on the scans
+before the collapse, with the score still good:
+
+| simulated s | 45.45 | 45.65 | 46.5 | 46.5 | 46.55 | 46.55 | 46.6 |
+|---|---|---|---|---|---|---|---|
+| iterations | 16 | 14 | 24 | **30** | 28 | **30** | **30** |
+| NVTL | 3.11 | 3.07 | 3.02 | 3.01 | 3.01 | 2.74 | 2.14 |
+
+At the iteration limit ndt_scan_matcher skips the scan whatever its score. So the first skips
+came from scans that matched well (NVTL 3.0) but whose solver cycled until max_iterations (30),
+as on town01_soil. The faster the car, the farther the EKF's guess is from the scan's pose and
+the more iterations a scan takes, so 30 m/s is where it starts to hit the limit.
+
+The CPU ndt_scan_matcher has issue 002's fix in the Autoware overlay: halve the step bound each
+time the step reverses. cuda_ndt_matcher, which `ndt:=cuda` runs, did not: its graph kernels
+clamped every step to the fixed `ndt.step_size` (0.1), with line search on or off. They counted
+the reversals (`OSC_COUNT`, cosine below -0.9) and did nothing with them.
+
+## Fix
+
+cuda_ndt_matcher's graph kernels keep a step bound per alignment (`StateOffset::STEP_BOUND`). It
+starts at `step_size` and is halved at each reversal, at the same -0.9 cosine. It bounds both the
+line search's candidates and the plain clamped step. A search that never reverses takes the steps
+it took before.
+
+## Open questions (before the cause was found)
 
 Why one scan at 30 m/s converged badly: the scan itself (RTX lidar at that speed), the
 lockstep's timing of that scan, or the initial guess. And whether NDT should re-align from a

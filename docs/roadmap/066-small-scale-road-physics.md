@@ -527,7 +527,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     The host was loaded throughout (another session's builds, load 40-450 on 24 cores).
 
   Left for R4: the 80 km/h cost, 1.5 ms over the budget on a quiet host, cut since and not
-  yet measured on a quiet host (below).
+  yet measured on a quiet host (below; since measured, 3.9-4.1 ms, inside).
 
   **The rig's underbody** (2026-11-02). The spec gives the car's ground clearance
   (`body.ground_clearance`, sim_vehicle_spec 50f7223): the Model 3 at Tesla's 138 mm,
@@ -630,8 +630,33 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     122, PhysX the same, 0.8 ms more of our own bookkeeping); PhysX's own sleep instead of
     switching a rock's body off through USD (PhysX slower); speculative CCD off, a 1 cm contact
     offset, one solver iteration (within the noise).
-  - **Not resolved:** whether 80 km/h is now inside the budget. The same code's 80 km/h frame
-    ranged 11.5-40 ms on this host; it needs the quiet-host runs again.
+  - **Resolved on a quiet host: inside the budget at every speed** (2026-11-03, load 6-9, 800 m
+    each, swb_isaac_world eedae29). Frame p50, ms:
+
+    | run | 40 km/h | 60 km/h | 80 km/h |
+    |---|---|---|---|
+    | no rocks (two runs, around the rest) | 6.36 | 6.48 | 6.52 |
+    | rocks, three speeds in one process | 9.48 (+3.1) | 9.93 (+3.5) | 10.40 (+3.9) |
+    | rocks, 80 km/h from a cold start (two runs) | | | 10.84, 10.42 (+4.1) |
+
+    No frame over 50 ms (the slowest 41.8 ms), no rock lost, the car stuck nowhere, no
+    collision-group warning. p95 at 80 km/h: 31.4 ms with rocks, 12.9 without.
+  - **What it took, after the waking:** the earlier rerun the same day (load 12-27) put 80 km/h
+    from a cold start at +9.2 ms and the same speed after two drives at +3.9: the cold drive
+    made 624 rock prims mid-drive (issue 032's 10 % size steps cost the pool its reuse), 1-1.5
+    ms each. The stream now makes its pool when the road loads (`RockStream.prewarm`): for each
+    prototype and size a loose rock takes, the 99 % Poisson count of what Golombek and Rapp's
+    law puts in one vehicle's window (`expected_window`, 76 rocks on R3's corridor; 960
+    prims). A drive then makes 31. The pool in the rocks group made every tile row's edit of
+    that group take 100 ms of the next step, so a tile's static rocks have a group of their own
+    (`rockTiles`). A second drive over the same road warned again, a collider made at a removed
+    one's path (issue 034); every collider has a path of its own now. Not timed: the pool's
+    cost at the road's load (960 prims, about a second at the live rate).
+  - **Lockstep keeps a slow frame correct, not live.** The Isaac world server is lockstep with
+    SSv2 (052) and, with aib's `lockstep`, with the ego's localizer (057): a frame over its 50
+    ms slows the scenario's clock and drops nothing, so a rock road over the budget would cost
+    real time, not fidelity. The 5 ms stays the target for live runs; the acceptance's check
+    is the Autoware ego on R3's road with rocks, below.
   - **The washboard at 80 km/h** throws the car off its line in a fresh run at that speed:
     its wheels leave the ground on the 0.5 m corrugation and it wanders up to 5 m off before
     the spike's lane keeping brings it back (2 m with the new waking). The runs at 40 and 60

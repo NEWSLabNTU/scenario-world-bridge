@@ -270,6 +270,30 @@ Progress:
       `n8_stop.sh` matched `ego_ntu.yaml`, not `cam/ego_ntu_video.yaml`; it matches both now.
       `render_probe.py` loads only the tiles within 200 m of its views: the whole world takes
       about 16 GB of VRAM.
+  - N10's checks and the recorded run (118, 2026-11-03; handed over from 133, whose one GPU
+    stayed full). The retouched world (crowns cut out at 0.45) on 118's GPU 1
+    (`ISAAC_KIT_ARGS="--/renderer/multiGpu/enabled=false --/renderer/activeGpu=1"`), with Isaac,
+    Autoware (the overlay) and `auto_drive` on domain 11:
+
+    | drive | result | time | NVTL min | before (133, untouched crowns) | MRM 2 | AEB |
+    |---|---|---|---|---|---|---|
+    | r01 | arrived | 96 s | 2.92 | 2.88-2.90 | 1, at start-up only | 0 |
+    | r02 | arrived | 127 s | 3.10 | 3.08 | 0 | 0 |
+
+    The lidar does not see through the cut-outs enough to matter, so the retouched world is
+    `map/isaac` (the untouched one beside it, `map/isaac_n5v3`). AEB is now counted from
+    `/diagnostics` at ERROR named `emergency_braking`: the earlier count matched the word `AEB`,
+    which that diagnostic never prints, so it read 0 whatever happened.
+    Then r01 as the SSv2 scenario on the world server with its recorder
+    (`cam/ego_ntu_rec.yaml`: camera6 on, auto-exposed): passed, 101 s, and the world server's
+    log says `ego wears vehicle.tesla.model3`. The video (chase and dash side by side, 20 fps)
+    is on the NAS, `autoveh/dataset/2026-10-30 NTU twin map/video/n10_r01_chase_dash.mp4`.
+    It shows the car in its body and sun coming through the crowns in patches. Left: walls
+    stay blotchy, larger shards stand near r01's start, and the chase camera over-exposes the
+    road there for the first seconds.
+    On the way: `just isaac-world ego:=` with a path relative to the checkout crash-looped the
+    world server (73 respawns in 20 min, `FileNotFoundError`): the node runs from another
+    directory, so give an absolute path.
   - N2, the survey's moving objects (133, 2026-10-31; `scripts/ntu_twin/transients.py`, free-space
     carving along the vendor's trajectory, method in its docstring). 167 tiles in 2.1 h of
     worker time: of 5.47 M slab voxels (0.2 m, 0.2-3 m above the DTM) 1.16 M were crossed by
@@ -536,13 +560,14 @@ views (`render_probe.py`) before and after each step:
    2026-11-03.
 3. Trees: crowns with gaps (a cut-out pattern in their material) so the sun comes through in
    patches, the loose shards gone; check NDT on r01 and r02, since the lidar may see through the
-   gaps too. Done 2026-11-03 on a copy; NDT check queued. Not tried: CARLA tree assets seen by
+   gaps too. Done 2026-11-03; NDT passes on r01 and r02 (NVTL min 2.92, 3.10), now the
+   default world. Not tried: CARLA tree assets seen by
    cameras only, the scan's crowns by the lidar only (whether Isaac can hide a prim from one
    sensor and not the other).
 4. The scan's baked light: the meshes' colours pulled toward their median brightness. Done
    2026-11-03 with 3. Partial: walls stay blotchy.
 5. The car in its body in recorded videos: the world server with the CARLA asset set
-   (`SWB_VEHICLE_USD`). Set up 2026-11-03; the recorded run waits for GPU memory.
+   (`SWB_VEHICLE_USD`). Done 2026-11-03: r01 recorded on 118, the video on the NAS.
 
 These make a clean simulation picture, not a photograph: one colour per scan point, leaves as
 blobs. Photo-like pictures are stage B's gaussian layer, which needs the vendor's 2231 photos.

@@ -137,7 +137,7 @@ Next:
      225. At 225 turn 2's wall is lit as in Isaac.
    - Exposure: the RGB camera's `exposure_compensation`. On the pilot, -1 brought the start
      view from overexposed to a mean of 111. On the whole site -1 leaves the road under the
-     canopy too dark (mean 35); the proof video uses -0.5. Not tuned further yet.
+     canopy too dark (mean 35). Item 6 below settles it.
    - Shards: `carla_meshes.py` drops small floating components after decimation too (fewer
      than 25 faces and more than 1 m above the ground), not only before it.
    - Semantic folders: `ue_materials.py` moves `Tree_*` to `Static/Vegetation`,
@@ -153,15 +153,15 @@ Next:
    - 167 tiles, about 26 M triangles after decimation; the FBX is 764 MB.
    - Import 23 min, material and folders 7 min, package and install the rest: 44 min in all.
    - The package is 2.2 GB (`Dist/NTU_*.tar.gz`). The town is `NTU`, as the pilot's.
-   - Still visible: large flat grey planes left by decimation along the road (the shard rule
-     catches only small ones), and the orthophoto's blur on the ground.
+   - Still visible: grey lumps and planes along the road (item 6: the scan's own parked cars
+     and scooters, not decimation), and the orthophoto's blur on the ground.
 4. **Autoware on it, through the bridge.**
    - The map dir is `$SWB_NTU_TWIN/carla/NTU`: links to 059's Lanelet2 map, point cloud and
      projector, plus `carla/map_origin.yaml` (52500, 67700, 0). The bridge takes the town
      from the directory name.
    - `scenarios/ntu_twin/ntu_carla_r01.xosc` is 059's r01 scenario with that map dir.
    - `CARLA_PORT=2400 just scenario scenarios/ntu_twin/ntu_carla_r01.xosc` passed three
-     times (junit 0 failures): the ego stack localized on the scan's point cloud and drove
+     times that day (junit 0 failures): the ego stack localized on the scan's point cloud and drove
      r01's 340 m in about 95 s of sim time.
    - One run logged an MRM for 0.1 s about 47 s in; not examined.
 5. **Proof video** (`carla_watch_video.py`). A second CARLA client that never ticks: it waits
@@ -171,7 +171,43 @@ Next:
      `autoveh/dataset/2026-10-30 NTU twin map/video/`.
    - The scenario ends at SSv2's reach condition, 8.6 m before the marked goal.
 
-Next: exposure per scene, the large shards, r02, and the site package on the NAS.
+6. **Exposure and the grey planes** (2026-11-04).
+   - Exposure. CARLA's histogram auto-exposure is clamped to `exposure_min_bright` 10 ..
+     `exposure_max_bright` 12 (EV100). Every r01 view of this map wanted less than 10, so all
+     four sat on the floor and `exposure_compensation` only moved them together: lowering the
+     floor to 8 raised all four, and at 7 the views came off it. With the floor at 7 the
+     metering's own target is bright (start view mean 162), so compensation brings it down.
+     Mean brightness of the four probe views (start, turn 2, canopy, palms):
+
+     | camera | start | turn 2 | canopy | palms |
+     |---|---|---|---|---|
+     | ev -0.5, floor 10 (the first video) | 123 | 87 | 45 | 94 |
+     | ev 0, floor 7 | 162 | 144 | 135 | 160 |
+     | **ev -1.5, floor 7** | 124 | 103 | 89 | 122 |
+
+     `carla_probe.py` and `carla_watch_video.py` default to ev -1.5, floor 7. The start view's
+     washed-out road is the orthophoto's own sunlight, not exposure. The ego's cameras are the
+     car's (`sim_vehicle_spec`), not the map's, and are unchanged.
+   - Grey planes. Not decimation: the scan's `other` meshes have no edge over 2 m in the tiles
+     that show them, open3d's quadric output has no triangle off the source surface, and
+     pyfqmr and meshoptimizer give the same shapes at the same count. CARLA's semantic camera
+     tags them Static (our props). They are the scan's parked cars, scooter rows and hedges:
+     coarse one-sided lumps, white or grey where the vehicles are, which 059's Isaac render
+     shows too (`pilot/carla_vs_isaac.jpg`, the canopy view), only softer.
+   - Smooth shading. `carla_package.py` now smooth-shades every mesh (Blender's default is
+     flat; buildings keep edges over 60 deg sharp), and UE's recomputed normals honour the
+     FBX's smoothing groups. Rebuilt and compared at the same views: no visible change. The
+     faceting is in the geometry (noisy triangle orientations) and its hard cascaded shadows.
+   - The rebuild's first import was killed by the OOM killer at 30.7 GB (the ego stack held
+     11 GB beside it), and `Import.sh` still exited 0: a 239 MB package went into CARLA.
+     `site_rebuild.sh` now refuses to package or install unless the material step found 300+
+     meshes and the package is over 1 GB. Stop the ego stack before an import on 133.
+   - r01 again on the rebuilt map with the new exposure: passed (four of four now),
+     `ntu_carla_r01_autoware_v2.mp4` on the NAS beside the first.
+
+Next: the parked vehicles (drop them from the props, or put CARLA's vehicle meshes in their
+place), the hedges' faceting (smoothing the geometry, not the normals), r02, and the site
+package on the NAS.
 
 ## How a CARLA map is made and shipped
 

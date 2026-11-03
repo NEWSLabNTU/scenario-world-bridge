@@ -19,6 +19,11 @@ linear; A: the trees' cut-outs). `use_carla_materials` is false, so CARLA keeps 
 Frame: as 064's Shalun. The vertices are in metres, the map frame less MAP_ORIGIN, z up, as the
 OpenDRIVE; Blender's default FBX export, which UE imports in centimetres with y mirrored,
 CARLA's convention.
+
+Shading: every mesh is smooth-shaded (Blender's default is flat, and the FBX's smoothing
+groups then make UE light each triangle as its own plane: the scan's coarse parked cars,
+scooters and hedges came out as grey slabs, 072). Buildings keep edges sharper than
+SHARP_ANGLE, so their corners stay corners.
 """
 import argparse
 import json
@@ -41,7 +46,10 @@ def material_ortho(bpy, name, image_path):
     return m
 
 
-def add_object(bpy, name, V, F, material, uv=None, colours=None):
+SHARP_ANGLE = 60.0  # deg, buildings only
+
+
+def add_object(bpy, name, V, F, material, uv=None, colours=None, sharp_angle=None):
     me = bpy.data.meshes.new(name)
     me.vertices.add(len(V))
     me.vertices.foreach_set("co", V.astype(np.float32).ravel())
@@ -58,6 +66,9 @@ def add_object(bpy, name, V, F, material, uv=None, colours=None):
         ca.data.foreach_set("color", colours.astype(np.float32).ravel())
     me.materials.append(material)
     me.validate()
+    me.shade_smooth()
+    if sharp_angle is not None:
+        me.set_sharp_from_angle(angle=np.radians(sharp_angle))
     me.update()
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
@@ -98,7 +109,8 @@ def main(argv=None):
             if f"{cls}_V" not in z.files:
                 continue
             totals[cls] = totals.get(cls, 0) + add_object(bpy, obj, z[f"{cls}_V"], z[f"{cls}_F"], scan,
-                                                          colours=z[f"{cls}_C"])
+                                                          colours=z[f"{cls}_C"],
+                                                          sharp_angle=SHARP_ANGLE if cls == "building" else None)
     fbx = os.path.join(pkg, f"{a.name}.fbx")
     bpy.ops.export_scene.fbx(filepath=fbx, path_mode="RELATIVE", embed_textures=False,
                              mesh_smooth_type="FACE", use_mesh_modifiers=False, colors_type="LINEAR")

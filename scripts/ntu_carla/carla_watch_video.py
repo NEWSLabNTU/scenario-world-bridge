@@ -39,10 +39,10 @@ def find_ego(client, role, deadline):
     return None, None
 
 
-def camera(world, ego, sensors, ev, tf, fov="80", w="1280", h="720"):
+def camera(world, ego, sensors, ev, min_bright, tf, fov="80", w="1280", h="720"):
     bp = world.get_blueprint_library().find("sensor.camera.rgb")
     for k, v in (("image_size_x", w), ("image_size_y", h), ("fov", fov), ("exposure_mode", "histogram"),
-                 ("exposure_compensation", str(ev))):
+                 ("exposure_compensation", str(ev)), ("exposure_min_bright", str(min_bright))):
         bp.set_attribute(k, v)
     c = world.spawn_actor(bp, tf, attach_to=ego)
     q = queue.Queue()
@@ -79,7 +79,8 @@ def main(argv=None):
     ap.add_argument("--start", default="314.25,115.19")
     ap.add_argument("--role", default="hero")
     ap.add_argument("--wait", type=float, default=900.0, help="s to wait for the ego")
-    ap.add_argument("--ev", type=float, default=-0.5)
+    ap.add_argument("--ev", type=float, default=-1.5, help="exposure_compensation (072's sweep)")
+    ap.add_argument("--min-bright", type=float, default=7.0, help="exposure_min_bright (072's sweep)")
     ap.add_argument("--title", default="Autoware drives route r01 on the NTU campus in CARLA 0.9.16 (map built from the scan)")
     a = ap.parse_args(argv)
     gx, gy = (float(v) for v in a.goal.split(","))
@@ -104,8 +105,8 @@ def main(argv=None):
             print(f"ego {ego.id} {ego.type_id}, frame {world.get_snapshot().frame}", flush=True)
             sensors = []
             try:
-                qchase = camera(world, ego, sensors, a.ev, carla.Transform(carla.Location(x=-7.0, z=3.4), carla.Rotation(pitch=-15)))
-                qfront = camera(world, ego, sensors, a.ev, carla.Transform(carla.Location(x=0.9, z=2.0)), fov="74.5", w="640", h="360")
+                qchase = camera(world, ego, sensors, a.ev, a.min_bright, carla.Transform(carla.Location(x=-7.0, z=3.4), carla.Rotation(pitch=-15)))
+                qfront = camera(world, ego, sensors, a.ev, a.min_bright, carla.Transform(carla.Location(x=0.9, z=2.0)), fov="74.5", w="640", h="360")
                 wait = max(1.0, deadline - time.time()) if n == 0 else 30.0
                 while True:
                     try:

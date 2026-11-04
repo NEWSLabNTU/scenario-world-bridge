@@ -133,25 +133,48 @@ def holes(V):
 # SPIKE_ABOVE 0.08 lowered 48k road vertices in 51 tiles (median 0.10 m: crowns, humps); 0.15
 # keeps those and still takes the steps the ground filter stops for.
 SPIKE_WINDOW, SPIKE_ABOVE, SPIKE_NEAR = 8.0, 0.15, 2.0
+ROUND_SIGMA, ROUND_ABOVE = 1.5, 0.05  # m: the opened lane's convex edges, rounded to its Gaussian
 
 
-def despike(V, F):
+def despike(V, F, ix, iy):
+    """V's lane vertices brought down to the opened lane surface. The opening runs over this tile
+    and its eight neighbours' ground (as 059 built it), so a tile's edge sees the same surface as
+    the tile beside it: per tile, the window stopped at the edge and left a 0.3 m ridge on the seam
+    at (-289, -151), where the ego sat on its floor (the tour, run D, leg 02)."""
     from scipy import ndimage
     from scipy.spatial import cKDTree
 
     on = _ctx["road"].on_road(V)
     if not on.any():
         return V, 0
+    ctx = [V[on]]
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            p = os.path.join(_ctx["a"]["mesh"], f"ground_{ix + dx}_{iy + dy}.npz")
+            if (dx or dy) and os.path.exists(p):
+                Vn = np.load(p)["points"].astype(np.float64)
+                if len(Vn):
+                    ctx.append(Vn[_ctx["road"].on_road(Vn)])
+    L = np.concatenate(ctx)
     cell = _ctx["meta"]["cell"]
-    lo = V[:, :2].min(axis=0)
-    ij = np.round((V[:, :2] - lo) / cell).astype(int)
-    shape = tuple(ij.max(axis=0) + 1)
+    lo = L[:, :2].min(axis=0)
+    ij_l = np.round((L[:, :2] - lo) / cell).astype(int)
+    shape = tuple(ij_l.max(axis=0) + 1)
     Z = np.full(shape, np.inf)
-    Z[ij[on, 0], ij[on, 1]] = V[on, 2]
+    np.minimum.at(Z, (ij_l[:, 0], ij_l[:, 1]), L[:, 2])
     k = int(round(SPIKE_WINDOW / cell)) | 1
     ero = ndimage.minimum_filter(Z, size=k, mode="constant", cval=np.inf)
     ero[~np.isfinite(Z)] = -np.inf
     opened = ndimage.maximum_filter(ero, size=k, mode="constant", cval=-np.inf)
+    # then the opened surface's convex edges rounded (only ever lowered): a ramp's top edge left by
+    # the DTM (0.4 m over 2 m at (-289, -151)) high-centred the car on it (run D, leg 02)
+    lane = np.isfinite(opened)
+    S = np.where(lane, opened, 0.0)
+    sig = ROUND_SIGMA / cell
+    w = ndimage.gaussian_filter(lane.astype(float), sig)
+    sm = np.where(lane, ndimage.gaussian_filter(S, sig) / np.maximum(w, 1e-9), np.inf)
+    opened = np.where(lane & (opened - sm > ROUND_ABOVE), sm, opened)
+    ij = np.clip(np.round((V[:, :2] - lo) / cell).astype(int), 0, np.array(shape) - 1)
     ref = opened[ij[:, 0], ij[:, 1]]
     out = V.copy()
     lane_fix = on & np.isfinite(ref) & (V[:, 2] - ref > SPIKE_ABOVE)
@@ -264,7 +287,7 @@ def one(t):
         g = np.load(gp)
         V, F, UV = g["points"].astype(np.float64), g["faces"], g["uv"]
         if len(F):
-            V, stats["despiked"] = despike(V, F)
+            V, stats["despiked"] = despike(V, F, ix, iy)
             on = _ctx["road"].on_road(V[F].mean(axis=1))
             for cls, sel in (("road", on), ("terrain", ~on)):
                 if sel.any():

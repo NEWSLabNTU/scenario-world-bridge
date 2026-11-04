@@ -83,7 +83,7 @@ wheel speed fixes the scale; what is left is heading drift, which turns into lat
 
 1. [x] **Docs.** This plan (2026-10-30).
 2. [x] **Rig spec**: pose output, the seed, raw images (rig_localization `docs/superpowers/specs/2026-10-30-pose-output-design.md`, landed `a080019`, off by default). Replay on a golf-cart drive: at the anchor 0.0 mm / 0.04 deg; 0.48 m / -3.0 deg at +10 s, 1.30 m / -3.6 deg at +60 s; the early yaw step (anchor taken on init-window estimates up to ~2 s old) is for step 5.
-3. [ ] **Camera on**: the Mustang's camera on Isaac at the chosen rate; rendering cost measured.
+3. [x] **Camera on**: the Mustang's camera on Isaac at the chosen rate; rendering cost measured (2026-11-04: below the host's noise, ~23-31 ms a 10 ms frame either way; below).
 4. [ ] **Recordings**: one Isaac run per speed driven on the ground-truth pose, ground truth recorded.
 5. [ ] **Open-loop ladder**: rig on the recordings, scored.
 6. [ ] **Rate and compute**: profile, cut, re-score.
@@ -144,6 +144,24 @@ ground-truth lane departure stays the measure; perception still uses the lidar.
   30 Hz. The measure is the frame's wall time (from warm-up to stop) and the GPU's load; the
   lidar renders in both. Parked, the camera sees one view: the cost of a render, not of a
   moving scene's streaming, which the recordings show.
+
+  Result (2026-11-04, 139, 20 s = 2000 frames each, from warm-up to stop):
+
+  | pair | order | `zed_left` off | on, 30 Hz | GPU util in the loop, off / on |
+  |---|---|---|---|---|
+  | 1 | off, then on | 26.3 ms/frame (rt 0.38) | 22.6 ms/frame (rt 0.44) | 43 % / 72 % |
+  | 2 | on, then off | 30.7 ms/frame (rt 0.33) | 30.7 ms/frame (rt 0.33) | 93 % / 55 % |
+
+  The camera's render does not show in the frame time: the two pairs disagree by more than
+  the camera could cost, and each pair's difference has the sign of what else ran (pair 1's
+  off run came first, after a cold start, and compiled materials; during pair 2's off run
+  another user's job took the GPU to 95-99 % and 6.6 GB). The GPU's load does show it:
+  about 43 % without, 55-72 % with, on an otherwise quiet GPU. Memory: Isaac with Town05
+  takes ~5-6 GB of the GPU's (17.7 GB before, 23.0 GB in the loop, pair 1). So a 10 ms
+  frame is ~25-30 ms of wall time on 139 with or without the camera (rt ~0.33-0.44 at 100 Hz
+  frames and 1/240 s physics), set by the rest of the frame (physics, the lidar, Python),
+  and 30 Hz stays the rate. Parked, as said: one view; the recordings show a moving scene.
+  Logs: `/var/tmp/aeon/063/step3/{,pair1/}{run,gpu}_{off,on30}.log`.
 - **e. Ground truth out of aib** (step 4 needs it; nothing in aib publishes it today). An ego
   config key, `ground_truth: {}` off (the default), on with
   `{topic, pose_estimate, covariance}`:

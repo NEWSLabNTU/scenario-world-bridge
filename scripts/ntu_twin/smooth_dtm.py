@@ -58,7 +58,13 @@ south-west drop at (-289, -151)). Only ever lowered: raising the road to the lan
 steps at the edge of the raised deck at (-124, -91). The moved cells and the lane within
 BLEND_NEAR of them then take the Gaussian (BLEND_SIGMA) of the lane surface where it is lower,
 and a cell off the lane within FOOT_NEAR of a moved one, more than FOOT_ABOVE over the nearest,
-comes down to it. The original is kept as dtm_raw.npy (and read from it on a rerun);
+comes down to it. Last, where the scan has no road return, the fill can invent a hump the
+lanelets do not show: at leg 41 (map-minus-origin (523.7, 270-285)) 0.36-0.5 m over 12-15 m,
+which creep torque could not climb, the lanelets 0.4 m above the DTM so the rule above never
+saw it. A road cell without a return more than HUMP_ABOVE over the grey opening of the road
+surface over HUMP_WINDOW comes down to it, and the patch blends as above: an opening takes off
+bumps narrower than its window and leaves grades alone (roadmap 072's carla_meshes opening guard,
+the window longer). The original is kept as dtm_raw.npy (and read from it on a rerun);
 dtm.npy is rewritten. Then: build_meshes.py --ground-only, world_usd.py, register_lanelets.py.
 """
 import json
@@ -88,6 +94,9 @@ ROAD_MARGIN = 0.25  # m
 ELE_K, ELE_R, ELE_OFF = 6, 6.0, 0.25  # lanelet nodes, m, m
 BLEND_NEAR, BLEND_SIGMA = 1.5, 0.75  # m
 FOOT_NEAR, FOOT_ABOVE = 2.0, 0.3  # m
+# the invented humps: carla_meshes' opening guard (SPIKE_*) with a window longer than the hump at
+# leg 41 (map-minus-origin (523.7, 270-285), 12-15 m, 0.36-0.5 m, no scan return)
+HUMP_WINDOW, HUMP_ABOVE = 18.0, 0.10  # m
 SHIFT = np.array([-0.54, 0.20, 17.30])  # the DTM's frame = map + SHIFT (world_usd.SHIFT)
 
 
@@ -184,6 +193,17 @@ def to_lane_ele(out, osm, meta, road, scan):
     moved[jj[fix], ii[fix]] = True
     if not fix.any():
         return res, 0
+    res = blend(res, moved, road, c)
+    lowered = int((res < out - 1e-6).sum())
+    print(f"lanes: {int(fix.sum()):,} cells over the lanelets' surface, {lowered:,} lowered in all "
+          f"(max {float((out - res).max()):.2f} m)")
+    return res, lowered
+
+
+def blend(res, moved, road, c):
+    """After `moved` road cells came down: they and the road within BLEND_NEAR take the
+    Gaussian (BLEND_SIGMA) of the road surface where it is lower, and a cell off the road within
+    FOOT_NEAR of them, more than FOOT_ABOVE over the nearest, comes down to it."""
     near = ndimage.binary_dilation(moved, iterations=int(round(BLEND_NEAR / c))) & road
     sg = BLEND_SIGMA / c
     wsum = ndimage.gaussian_filter(road.astype(float), sg)
@@ -194,8 +214,27 @@ def to_lane_ele(out, osm, meta, road, scan):
     lane_z = res[fj, fi]
     foot = ~road & (dist * c <= FOOT_NEAR) & (res - lane_z > FOOT_ABOVE)
     res[foot] = lane_z[foot]
+    return res
+
+
+def open_lane_humps(out, road, scan, c):
+    """`out` with the humps the fill invents on the road taken off (the module's last step): a
+    road cell without a scan return (not `scan`) more than HUMP_ABOVE over the grey opening of
+    the road surface over HUMP_WINDOW comes down to it, then `blend`. The opening (the road's
+    own cells only) removes a bump narrower than its window in every direction and leaves a
+    grade or a deck that runs on alone. Returns the new grid and the number of cells lowered."""
+    big = 1e6
+    w = int(round(HUMP_WINDOW / c)) | 1
+    low = ndimage.minimum_filter(np.where(road, out, big), w)
+    opened = ndimage.maximum_filter(np.where(low < big / 2, low, -big), w)
+    res = out.astype(np.float64)
+    hump = road & ~scan & (opened > -big / 2) & (res - opened > HUMP_ABOVE)
+    res[hump] = opened[hump]
+    if not hump.any():
+        return res, 0
+    res = blend(res, hump, road, c)
     lowered = int((res < out - 1e-6).sum())
-    print(f"lanes: {int(fix.sum()):,} cells over the lanelets' surface, {lowered:,} lowered in all "
+    print(f"lanes: {int(hump.sum()):,} cells of invented humps, {lowered:,} lowered in all "
           f"(max {float((out - res).max()):.2f} m)")
     return res, lowered
 
@@ -249,8 +288,9 @@ def main():
     out = ndimage.gaussian_filter(ndimage.median_filter(out, MEDIAN), SIGMA_CELLS)
     if a.lanes:
         meta = json.load(open(os.path.join(d, "dtm.json")))
-        out, _ = to_lane_ele(out, a.lanes, meta, lane_raster(a.lanes, meta, dtm.shape, ROAD_MARGIN),
-                             use)
+        road = lane_raster(a.lanes, meta, dtm.shape, ROAD_MARGIN)
+        out, _ = to_lane_ele(out, a.lanes, meta, road, use)
+        out, _ = open_lane_humps(out, road, use, meta["cell"])
     np.save(os.path.join(d, "dtm.npy"), out.astype(dtm.dtype))
     for name, sel in (("ground", ground), ("non-ground", ~ground)):
         diff = np.abs(out - dtm)[sel]

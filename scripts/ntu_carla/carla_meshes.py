@@ -133,7 +133,9 @@ def holes(V):
 # SPIKE_ABOVE 0.08 lowered 48k road vertices in 51 tiles (median 0.10 m: crowns, humps); 0.15
 # keeps those and still takes the steps the ground filter stops for.
 SPIKE_WINDOW, SPIKE_ABOVE, SPIKE_NEAR = 8.0, 0.15, 2.0
-ROUND_SIGMA, ROUND_ABOVE = 1.5, 0.05  # m: the opened lane's convex edges, rounded to its Gaussian
+ELE_K, ELE_R, ELE_OFF = 6, 6.0, 0.25  # lanelet nodes, m, m: the lane's surface from the lanelets' ele
+ROUND_SIGMA, ROUND_ABOVE = 1.5, 0.05
+BLEND_NEAR, BLEND_SIGMA = 1.5, 0.75  # m: round what moved, the Gaussian that blends it  # m: the opened lane's convex edges, rounded to its Gaussian
 
 
 def despike(V, F, ix, iy):
@@ -147,6 +149,7 @@ def despike(V, F, ix, iy):
     on = _ctx["road"].on_road(V)
     if not on.any():
         return V, 0
+    V, at_ele = to_lane_ele(V, on)
     ctx = [V[on]]
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):
@@ -154,7 +157,8 @@ def despike(V, F, ix, iy):
             if (dx or dy) and os.path.exists(p):
                 Vn = np.load(p)["points"].astype(np.float64)
                 if len(Vn):
-                    ctx.append(Vn[_ctx["road"].on_road(Vn)])
+                    on_n = _ctx["road"].on_road(Vn)
+                    ctx.append(to_lane_ele(Vn, on_n)[0][on_n])
     L = np.concatenate(ctx)
     cell = _ctx["meta"]["cell"]
     lo = L[:, :2].min(axis=0)
@@ -179,6 +183,23 @@ def despike(V, F, ix, iy):
     out = V.copy()
     lane_fix = on & np.isfinite(ref) & (V[:, 2] - ref > SPIKE_ABOVE)
     out[lane_fix, 2] = ref[lane_fix]
+    lane_fix |= at_ele
+    # the edges of what moved, blended: a Gaussian of the lane surface over the moved vertices and
+    # BLEND_NEAR round them (hard replacement left 0.1-0.3 m steps at a patch's edge)
+    if lane_fix.any():
+        Zo = np.full(shape, np.nan)
+        Zo[ij[on, 0], ij[on, 1]] = out[on, 2]
+        lane_r = np.isfinite(Zo)
+        Mv = np.zeros(shape, bool)
+        Mv[ij[lane_fix, 0], ij[lane_fix, 1]] = True
+        Mv = ndimage.binary_dilation(Mv, iterations=int(round(BLEND_NEAR / cell))) & lane_r
+        sg = BLEND_SIGMA / cell
+        wsum = ndimage.gaussian_filter(lane_r.astype(float), sg)
+        zs = ndimage.gaussian_filter(np.where(lane_r, Zo, 0.0), sg) / np.maximum(wsum, 1e-9)
+        sel = on & Mv[ij[:, 0], ij[:, 1]]
+        # only ever lowered, as everything here
+        out[sel, 2] = np.minimum(out[sel, 2], zs[ij[sel, 0], ij[sel, 1]])
+        lane_fix |= sel
     n = int(lane_fix.sum())
     if n:
         # the cone's foot off the lane: down to the lowered lane beside it
@@ -204,6 +225,37 @@ def _init(a):
     _ctx["hedges"] = dict(np.load(a["hedges"])) if a.get("hedges") else None
     _ctx["meta"] = json.load(open(os.path.join(a["ground"], "dtm.json")))
     _ctx["a"] = a
+    from scipy.spatial import cKDTree
+
+    nodes = []
+    for n in ET.parse(a["osm"]).getroot().findall("node"):
+        t = {x.get("k"): x.get("v") for x in n.findall("tag")}
+        nodes.append((float(t["local_x"]), float(t["local_y"]), float(t.get("ele", 0))))
+    nodes = np.array(nodes)
+    _ctx["ele"] = (cKDTree(nodes[:, :2]), nodes[:, 2])
+
+
+def lane_ele(P):
+    """The lanelets' surface under map-frame points: the median ele of the ELE_K nearest lanelet
+    nodes within ELE_R (NaN where there are none)."""
+    tree, z = _ctx["ele"]
+    d, i = tree.query(P[:, :2], k=ELE_K, distance_upper_bound=ELE_R)
+    zz = np.where(np.isfinite(d), z[np.minimum(i, len(z) - 1)], np.nan)
+    with np.errstate(all="ignore"):
+        return np.nanmedian(zz, axis=1)
+
+
+def to_lane_ele(P, on):
+    """Lane points more than ELE_OFF over the lanelets' surface put on it: where the scan has no
+    ground under a canopy, the DTM's fill invents the road (0.3-0.5 m over the lanelets at
+    (101, 325), where the ego's ground filter stopped it: the tour, run D, leg 24)."""
+    e = lane_ele(P)
+    # only ever lowered: where the lanelets stand higher than the DTM (the raised deck at (-124, -91))
+    # raising made 1 m steps at the deck's edge
+    fix = on & np.isfinite(e) & (P[:, 2] - e > ELE_OFF)
+    out = P.copy()
+    out[fix, 2] = e[fix]
+    return out, fix
 
 
 def parked(P):

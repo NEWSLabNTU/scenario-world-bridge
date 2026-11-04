@@ -115,7 +115,8 @@ def main(argv=None):
     ap.add_argument("--ev", type=float, default=-1.5, help="exposure_compensation (072's sweep)")
     ap.add_argument("--min-bright", type=float, default=7.0, help="exposure_min_bright (072's sweep)")
     ap.add_argument("--state", help="also write state.jsonl here: per frame sim t, ego x, y, z (map minus "
-                    "origin) and speed (m/s), as 059's recorder (parity P6)")
+                    "origin) and speed (m/s), as 059's recorder (parity P6), and pitch (deg, CARLA's: nose up "
+                    "positive)")
     ap.add_argument("--mounts", choices=sorted(MOUNTS), default="rig",
                     help="rig: 059's Isaac camera poses (parity P6); legacy: the first videos'")
     ap.add_argument("--raw", default="", help="also write PREFIX_chase.mp4 and PREFIX_front.mp4, 1280x720 each")
@@ -187,7 +188,8 @@ def main(argv=None):
                         enc.stdin.write(np.ascontiguousarray(rgb(img)).tobytes())
                     if state:
                         state.write(json.dumps({"t": round(t, 3), "x": round(x, 3), "y": round(y, 3),
-                                                "z": round(tf.location.z, 3), "speed": round(speed / 3.6, 3)}) + "\n")
+                                                "z": round(tf.location.z, 3), "speed": round(speed / 3.6, 3),
+                                                "pitch": round(tf.rotation.pitch, 2)}) + "\n")
                     n += 1
                     if still_since is not None and t - still_since > 3.0:
                         break

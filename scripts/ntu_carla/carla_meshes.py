@@ -149,7 +149,10 @@ def despike(V, F, ix, iy):
     on = _ctx["road"].on_road(V)
     if not on.any():
         return V, 0
-    V, at_ele = to_lane_ele(V, on)
+    if _ctx["a"].get("lane_ele"):
+        V, at_ele = to_lane_ele(V, on)
+    else:
+        at_ele = np.zeros(len(V), bool)
     ctx = [V[on]]
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):
@@ -158,7 +161,9 @@ def despike(V, F, ix, iy):
                 Vn = np.load(p)["points"].astype(np.float64)
                 if len(Vn):
                     on_n = _ctx["road"].on_road(Vn)
-                    ctx.append(to_lane_ele(Vn, on_n)[0][on_n])
+                    if _ctx["a"].get("lane_ele"):
+                        Vn = to_lane_ele(Vn, on_n)[0]
+                    ctx.append(Vn[on_n])
     L = np.concatenate(ctx)
     cell = _ctx["meta"]["cell"]
     lo = L[:, :2].min(axis=0)
@@ -424,6 +429,10 @@ def main(argv=None):
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--parked", default="", help="parked_vehicles.py's mask: leave those out")
     ap.add_argument("--hedges", default="", help="hedges.py's height field: in place of the low vegetation")
+    ap.add_argument("--lane-ele", action="store_true",
+                    help="lower lane vertices over the lanelets' surface (off: 059's smooth_dtm.py does it "
+                         "since ground_n12, sparing cells backed by the scan's lowest return; this step "
+                         "lowered r01's road at (131, 182) 0.45 m under the scan)")
     a = ap.parse_args(argv)
     osm = os.path.join(a.map_dir, "lanelet2_map.osm")
     if a.tiles:
@@ -436,7 +445,7 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     ctx = {"mesh": a.mesh_dir, "osm": osm, "ground": a.ground_dir, "trees": a.trees_dir,
            "out": a.out, "keep": a.keep, "parked": a.parked,
-           "hedges": a.hedges}
+           "hedges": a.hedges, "lane_ele": a.lane_ele}
     t0, report = time.time(), {}
     with Pool(a.workers, initializer=_init, initargs=(ctx,)) as pool:
         for k, (t, st) in enumerate(pool.imap_unordered(one, tiles)):

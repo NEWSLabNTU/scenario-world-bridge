@@ -386,23 +386,25 @@ Next:
       Isaac's tour (059, 37c0dd9 legs, old ground) stopped at 03, 58 and 65 in the same places,
       which puts those stops on the map or the planner, not the simulator.
     - **Reruns of the failed legs** (E: map c2854a7c, ground_n12, cd55754; F and G: the same with
-      the profile change below):
+      the profile change below; H: the site rebuilt on ground_n13 and the hedges off the lanes,
+      23e3881 and 17f4d2e, same map and profile; H2 and H3 repeat 81 and 40 on it):
 
-      | leg | E (n12, c2854a7c) | F (expansion 0.3) | G (expansion 0.15, committed) |
-      |---|---|---|---|
-      | 02, 71, 73, 74, 89, 98 | pass | - | - |
-      | 03 | 154 s at (81.2, 312.4), path_optimizer outside drivable area | - | - |
-      | 24 | 121 of 130 m, then 180 s at (95.5, 323.4), obstacle_stop | - | - |
-      | 27 | 60 of 72 m, then 180 s at (468.9, 152.9), obstacle_stop | - | - |
-      | 40 | error at the start, no localization | - | - |
-      | 58 | 5 of 26 m, outside drivable area | pass | pass, 21 s |
-      | 65 | 3 of 53 m, outside drivable area | pass | pass, 24 s |
-      | 81 | 35 of 47 m, then 181 s at (470.2, 152.1), obstacle_stop | - | - |
-      | 110 | 3 of 22 m, outside drivable area; MRM after 150 s standing | pass | pass, 19 s |
+      | leg | E (n12, c2854a7c) | F (expansion 0.3) | G (expansion 0.15, committed) | H (n13, hedges off the lanes) |
+      |---|---|---|---|---|
+      | 02, 74 | pass | - | - | pass (74: 46 s) |
+      | 71, 73, 89, 98 | pass | - | - | - |
+      | 03 | 154 s at (81.2, 312.4), path_optimizer outside drivable area | - | - | - |
+      | 24 | 121 of 130 m, then 180 s at (95.5, 323.4), obstacle_stop | - | - | pass, 50 s |
+      | 27 | 60 of 72 m, then 180 s at (468.9, 152.9), obstacle_stop | - | - | pass, 44 s |
+      | 40 | error at the start, no localization | - | - | error at the start, no localization (H and H3) |
+      | 58 | 5 of 26 m, outside drivable area | pass | pass, 21 s | - |
+      | 65 | 3 of 53 m, outside drivable area | pass | pass, 24 s | - |
+      | 81 | 35 of 47 m, then 181 s at (470.2, 152.1), obstacle_stop | - | - | 37 of 47 m, then 600 s at rest at (469.8, 153.2) on the down-ramp; H2: pass, 23 s |
+      | 110 | 3 of 22 m, outside drivable area; MRM after 150 s standing | pass | pass, 19 s | - |
 
-      With D, E and G that is **109 of 114 legs**, plus r01 and r02, and no MRM while moving.
-      Every lanelet is on a leg except 1011236. Not driven: the hairpin join 1003951 -> 1004230
-      (03), and the stretches 24, 27, 40 and 81 stopped short of (below).
+      With D, E, G and H that is **111 of 114 legs** (81 passes in one of two runs), plus r01
+      and r02, and no MRM while moving. Every lanelet is on a leg except 1011236. Not driven:
+      the hairpin join 1003951 -> 1004230 (03) and leg 40's 62 m up the ramp.
     - **The profile change** (autoware_sim_vehicle a9bd75c; the user chose option (a) and
       left (b) off; it applies to every scenario, not only this map). The profile carries its
       own copy of `drivable_area_expansion.param.yaml` with `ego.extra_width` and
@@ -415,13 +417,38 @@ Next:
       - 03: the hairpin 1003951 -> 1004230 is about 5.5 m across; the model3 turns no tighter
         than 3.6 m (rear axle) / 4.8 m (outer front corner). Not drivable by this car; listed in
         `tour_legs_missing.json`. Isaac stopped there too.
-      - 24: a 0.7 m object at (102.9, 328.2), about 1 m from the goal at the scan's north edge.
-      - 27, 81: obstacle_stop on the ramp at (469-470, 152-153), the trench walls nearer the lane
-        than in the PCD.
-      - 40: NDT does not converge at its spawn in the ramp trench (yaw off by 0.40 rad).
+      - 81, marginal (passes in H2, fails in H). Twice the same 3 s route-obstacle stop comes
+        at the ramp head, at 13-14 m, while the car pitches down into the ramp. The cause is the
+        car park entrance's height barrier at y 167-171, z 10.5-11.3, 1.6-2.3 m over the
+        ramp floor. The barrier is in the PCD too, so `tour_lidar_diff.py` finds no in-lane
+        point away from it. The barrier is just past the goal (y 163). In H2 the car slowed to
+        1 m/s and went on. In H it came to rest on the 10 deg down-ramp and stayed there for
+        600 s. Autoware commanded 0.25 m/s and -0.48 m/s^2 after slope compensation, and the
+        PID integrator is off below 0.5 m/s (`enable_integration_at_low_speed: false`), so
+        the brake held the car still. Not yet chased: whether acb's brake at rest should let a
+        car on a downhill roll when the requested deceleration is weaker than gravity's pull
+        (1.23 m/s^2 here). A real car would roll at that brake force.
+      - 40: the initial pose's pitch has the wrong sign. The spawn faces up a 10 deg ramp. SSv2's
+        published ego status says ROS pitch -9.7 deg (nose up, right), and CARLA's car settles
+        at UE +10.9 (nose up). Every one of ndt_align's 200 particles (`loc_bag.sh`, its
+        monte_carlo_initial_pose_marker) started at ROS +9.7, nose down, 20 deg off. No
+        particle scored over NVTL 1.77; the true-yaw bin's best was 1.49 (about 3 elsewhere on
+        the tour). The best yaw is then any yaw: E 0.40, H3 -0.05, Isaac 1.55 against -1.59.
+        So the trench's symmetry is not the cause, and moving the leg's start would only hide the
+        bug. Sign tests with a ROS -9.7 pose at the spawn reach NDT as -9.7 through each of
+        ndt_align_srv, /localization/initialize, /api/localization/initialize and the relay's
+        ADAPI in the scenario domain (relay, swb_agent, Autoware). So the flip is upstream of the
+        relay, in SSv2's spawn and initial pose: CARLA's first spawn sample is UE +9.7, which
+        the conversion gives only from a ROS +9.7 pose, and Isaac's spawn is ROS +9.7 (059).
+        A second error makes CARLA's spawn look right. swb_core's `ros_to_carla_rotation` and
+        `carla_to_ros_rotation` (acb's copy too) negate roll and keep pitch. UE's convention
+        needs the opposite: `carla.Rotation(pitch=10)` points the nose up, and
+        `Rotation(roll=10)` drops the right side, as ROS roll +10 does. Neither is changed:
+        both reach every scenario with a slope, and they wait for the user's decision.
     - Tools: `tour_monitor.py`, `tour_lidar_diff.py`, `tour_clock.py`, `tour_table.py` in
       `scripts/ntu_carla/`. Runs: `/mnt/p5plus/aeon/ntu-twin/tour/runs_{B,C,D,E,F,G}` (videos,
-      state.jsonl, monitor.jsonl). Issue stills and videos: NAS `dataset/2026-10-30 NTU twin
+      state.jsonl, monitor.jsonl); H, H2, H3 add `40_locbag` (localization and ndt_align's
+      particles), the spawn and control probes and SSv2's ego status. Issue stills and videos: NAS `dataset/2026-10-30 NTU twin
       map/carla_tour/issues/`.
     - Run D, every leg (driven / planned m, time s, MRM, NVTL min):
 
@@ -548,11 +575,15 @@ Next:
 
       </details>
 
-Next: the four tour stops left (24's object at the goal, the ramp at (469, 153) for 27 and 81,
-NDT at 40's spawn in the ramp trench); the hairpin at 03 needs a wider join in the Lanelet2
+Next: leg 40's pitch sign: SSv2's spawn and initial pose (the flip) and swb_core's / acb's
+CARLA rotation conversion (roll and pitch), both the user's to decide, then rerun 40 (Isaac's
+spawn fall too, 059). Then 81's restart on the down-ramp (acb's brake at rest, or the
+controller's low-speed integration). The hairpin at 03 needs a wider join in the Lanelet2
 (agreed with 059 first) or stays off the car's routes. Then the site package on the NAS, and
 the rest of the parity list with 059 (P4 signals; P6's recorder mounts are in,
-`carla_watch_video.py --mounts`).
+`carla_watch_video.py --mounts`). Isaac's AEB on passing legs, not seen on CARLA's last
+full tour (D): 10 and 56 at (519, 282), 104 and 109 at (350-362, 233), 82 at (93, 184); leg 47
+lost NDT for 6 s (059's to look at).
 
 ## Parity with 059 (the NTU twin on Isaac)
 

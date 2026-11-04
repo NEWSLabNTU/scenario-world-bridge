@@ -121,6 +121,50 @@ def holes(V):
     return (h >= W.HOLE_FRACTION).astype(np.float32)
 
 
+# Spikes in the ground on and beside the lanes: 059's DTM put the road up to 6.5 m high into the
+# canopy in 7 places (smooth_dtm.py's lane rule took a crown for the lowest return where the whole
+# window was crown), and the ego stopped in front of the cone (the tour). A ground vertex on a lane
+# that stands SPIKE_ABOVE over the SPIKE_PCT-th percentile of the lane vertices within SPIKE_R comes
+# down to it; then so does a ground vertex within SPIKE_NEAR of one that came down (the cone's foot).
+SPIKE_R, SPIKE_PCT, SPIKE_ABOVE, SPIKE_NEAR = 5.0, 30, 0.3, 2.0
+
+
+def despike(V, F):
+    from scipy.spatial import cKDTree
+
+    on = _ctx["road"].on_road(V)
+    if not on.any():
+        return V, 0
+    lane = cKDTree(V[on, :2])
+    lane_ix = np.flatnonzero(on)
+    out, fixed = V.copy(), set()
+    nbs = lane.query_ball_point(V[lane_ix, :2], SPIKE_R)
+    for _ in range(3):  # the lane's own vertices first, a cone coming down from its rim in
+        if not _spike_pass(out, lane_ix, nbs, lane_ix, fixed):
+            break
+    if fixed:
+        # then the ground beside them, where the cone's foot stands off the lane
+        f = cKDTree(V[sorted(fixed), :2])
+        near = (f.query(V[:, :2], distance_upper_bound=SPIKE_NEAR)[0] < np.inf) & ~on
+        idx = np.flatnonzero(near)
+        _spike_pass(out, idx, lane.query_ball_point(V[idx, :2], SPIKE_R + SPIKE_NEAR), lane_ix, fixed)
+    return out, len(fixed)
+
+
+def _spike_pass(out, idx, nbs, lane_ix, fixed):
+    zl = out[lane_ix, 2]
+    moved = 0
+    for k, nb in zip(idx, nbs):
+        if len(nb) < 8:
+            continue
+        ref = np.percentile(zl[nb], SPIKE_PCT)
+        if out[k, 2] - ref > SPIKE_ABOVE:
+            out[k, 2] = ref
+            fixed.add(int(k))
+            moved += 1
+    return moved
+
+
 _ctx = {}
 
 
@@ -189,7 +233,9 @@ def hedge_mesh(ix, iy):
     if not q.any():
         return None
     dtm = np.asarray(_ctx["trees"].dtm[np.ix_(js, is_)], np.float64)
-    top = np.where(M, hg["top"][np.ix_(js, is_)].astype(np.float64), 0.0)
+    # not on a lane (the road clearing's raster, 0.5 m round the lanelets): the field's blur spread
+    # the roadside hedges up to 0.75 m onto the lane, and the ego's lidar stopped it there (the tour)
+    top = np.where(M & ~_ctx["clear"].lane[np.ix_(js, is_)], hg["top"][np.ix_(js, is_)].astype(np.float64), 0.0)
     jj, ii = np.meshgrid(js, is_, indexing="ij")
     V = np.stack([m["x0"] + (ii + 0.5) * m["cell"], m["y0"] + (jj + 0.5) * m["cell"], dtm + top], axis=-1).reshape(-1, 3) - W.SHIFT
     C = hg["colour"][np.ix_(js, is_)].reshape(-1, 3).astype(np.float64) / 255.0
@@ -213,6 +259,7 @@ def one(t):
         g = np.load(gp)
         V, F, UV = g["points"].astype(np.float64), g["faces"], g["uv"]
         if len(F):
+            V, stats["despiked"] = despike(V, F)
             on = _ctx["road"].on_road(V[F].mean(axis=1))
             for cls, sel in (("road", on), ("terrain", ~on)):
                 if sel.any():

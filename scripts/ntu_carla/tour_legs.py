@@ -28,17 +28,22 @@ import pathlib
 import xml.etree.ElementTree as ET
 
 import numpy as np
+import sys
+
 import lanelet2
 from lanelet2.io import Origin
 from lanelet2.projection import UtmProjector
 
 SCENARIOS = pathlib.Path(__file__).resolve().parents[2] / "scenarios/ntu_twin"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 TEMPLATE = SCENARIOS / "ntu_twin_r02.xosc"
 Z_LIFT = 0.4          # spawn height over the lanelet's elevation
 START_IN = 2.0        # the start pose at least this far into the first lanelet
 GOAL_BACK = 4.0       # the goal at least this far before the end of the last (and its footprint inside)
 MIN_LEG = 25.0
 MIN_START_GOAL = 12.0  # m, start to goal (SSv2's reach tolerance is 5 m)
+START_SCAN_DIRS, START_EDGE_MAX = 6, 40.0  # of 8 directions with scan 10-30 m out; m it may move in
+REACH_BEFORE, REACH_CLEAR = 20.0, 7.0  # m: no point this far before the goal comes this close to it
 # tesla_model3's vehicle_info: rear axle to the front edge (wheel_base + front_overhang), to the rear
 # edge, and half the width (wheel_tread / 2 + side overhang)
 FRONT, REAR, HALF_W = 3.005 + 0.807, 0.98, 1.667 / 2 + 0.248
@@ -202,8 +207,37 @@ def main():
                     return False
         return True
 
+    pcd_dir = pathlib.Path(a.osm).resolve().parent / "pointcloud_map"
+    pcd_tiles = {}
+
+    def scan_around(xy):
+        """How many of 8 directions have the map's point cloud 10-30 m from xy: NDT's initial
+        alignment fails at the scan's corners (118, leg 02 of 37c0dd9 on Isaac)."""
+        from tour_lidar_diff import read_pcd
+        pts_ = []
+        for i in range(int(xy[0] // 50) - 1, int(xy[0] // 50) + 2):
+            for j in range(int(xy[1] // 50) - 1, int(xy[1] // 50) + 2):
+                if (i, j) not in pcd_tiles:
+                    f = pcd_dir / f"tile_{i}_{j}.pcd"
+                    pcd_tiles[(i, j)] = read_pcd(f)[::20, :2] if f.exists() else np.zeros((0, 2))
+                pts_.append(pcd_tiles[(i, j)])
+        d = np.concatenate(pts_) - xy
+        r = np.hypot(d[:, 0], d[:, 1])
+        sel = (r > 10) & (r < 30)
+        return len(set((np.floor((np.arctan2(d[sel, 1], d[sel, 0]) + np.pi) / (np.pi / 4)).astype(int) % 8).tolist()))
+
     def start_d(p):
-        return unique_d(p[0], min(START_IN, length[p[0]] * 0.3), length[p[0]] * 0.8)
+        d = unique_d(p[0], min(START_IN, length[p[0]] * 0.3), length[p[0]] * 0.8)
+        if d is None or not pcd_dir.exists():
+            return d
+        # at the scan's edge, start further in along the first lanelet where the scan surrounds it
+        e = d
+        while e <= length[p[0]] * 0.8 and e - d <= START_EDGE_MAX:
+            q = pose_at(C[p[0]], e)
+            if scan_around(np.array(q[:2])) >= START_SCAN_DIRS and not others_at(p[0], q[:2], q[3]):
+                return e
+            e += 2.0
+        return d
 
     def goal_d(p, d0=None):
         """The goal on the leg's last lanelet: GOAL_BACK before its end or further back, on a point
@@ -217,10 +251,30 @@ def main():
         while d >= lo:
             g = pose_at(C[p[-1]], d)
             if not others_at(p[-1], g[:2], g[3]) and footprint_ok(p, g) and \
-                    (st is None or math.hypot(g[0] - st[0], g[1] - st[1]) >= MIN_START_GOAL):
+                    (st is None or math.hypot(g[0] - st[0], g[1] - st[1]) >= MIN_START_GOAL) and \
+                    (d0 is None or not passes_goal(p, d0, d, g)):
                 return d
             d -= 0.5
         return None
+
+    def passes_goal(p, d0, d1, g):
+        """Whether the leg comes within REACH_CLEAR of its goal (3D, as SSv2's ReachPositionCondition
+        measures) more than REACH_BEFORE before it: a loop, or the opposite lane, would end the
+        scenario there (118 found leg 00 of 37c0dd9 "passing" after 13 m)."""
+        pts = []
+        for k, x in enumerate(p):
+            c = C[x]
+            lo = d0 if k == 0 else 0.0
+            hi = d1 if k == len(p) - 1 else length[x]
+            for u in np.arange(lo, hi, 1.0):
+                pts.append(pose_at(c, u)[:3])
+        if not pts:
+            return False
+        P = np.array(pts)
+        cum = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+        rest = cum[-1] - cum
+        far = rest > REACH_BEFORE
+        return bool(far.any() and np.linalg.norm(P[far] - np.array(g[:3]), axis=1).min() < REACH_CLEAR)
 
     def endpoints_ok(p):
         d0 = start_d(p)
@@ -301,6 +355,26 @@ def main():
             unusable.setdefault(p[0], "leg")
         legs.append({"lanelets": p, "ends": ends})
         covered |= set(p)
+
+    # a second pass for what the greedy legs left out: the shortest leg (MIN_LEG or more) that ends,
+    # starts, or passes (from one or two lanelets before it) at the lanelet and has a start and a goal (a lanelet whose long legs loop past
+    # their goal often has a short one that does not)
+    done = {x for g in legs if g["ends"] for x in g["lanelets"]}
+    for x in sorted(set(L) - done):
+        if x in done:
+            continue
+        back = set(pred[x]) | {q2 for q in pred[x] for q2 in pred[q]}
+        cands = [path(s0, x) for s0 in L if x in trees[s0]] + [path(x, t) for t in trees[x]] + \
+            [path(q, t) for q in back for t in trees[q] if x in path(q, t)[:-1]]
+        cands = [c for c in cands if route(c[0], c[-1]) == c]
+        cands.sort(key=lambda c: (sum(length[y] for y in c) < MIN_LEG, sum(length[y] for y in c)))
+        for c in cands:
+            e = endpoints_ok(c)
+            if e:
+                legs.append({"lanelets": c, "ends": e})
+                done |= set(c)
+                unusable.pop(x, None)
+                break
 
     rows = []
     tmpl = TEMPLATE.read_text()

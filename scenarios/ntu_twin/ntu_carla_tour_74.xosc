@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- Generated from ntu_twin_tour_74.xosc by scripts/ntu_twin/scenario_pair.py: edit that file, not this one. -->
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 072: tour leg 74 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), lanelets 70 to 399 (3 lanelets), 117 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 072: tour leg 74 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), lanelets 70 to 399 (3 lanelets), 109 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
@@ -35,7 +35,7 @@
 					<PrivateAction>
 						<TeleportAction>
 							<Position>
-								<WorldPosition x="52210.90" y="67533.93" z="12.71" h="1.5805" p="0" r="0" />
+								<WorldPosition x="52210.83" y="67541.93" z="12.69" h="1.5804" p="0" r="0" />
 							</Position>
 						</TeleportAction>
 					</PrivateAction>

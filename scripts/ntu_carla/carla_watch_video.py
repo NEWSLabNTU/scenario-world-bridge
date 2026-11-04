@@ -9,6 +9,13 @@ whoever drives it (the bridge, in synchronous mode) does, and each tick gives a 
 The frame is `carla_drive_video.py`'s: the chase camera large, the front camera, the site's
 orthophoto with the track, and sim time, speed, steering and distance to the goal. Poses are in
 the map frame less MAP_ORIGIN; CARLA's frame negates y.
+
+`--mounts rig` (the default) puts the cameras where 059's Isaac recorder has them (parity P6):
+the rig's poses in Autoware's base_link (the rear axle, on the ground), moved to the CARLA
+actor's origin, which is REAR_AXLE ahead of the axle and at ground level on the model3. So
+CARLA's frames compare with Isaac's one to one. `--mounts legacy` keeps the first videos'.
+`--raw PREFIX` also writes the two cameras alone at 1280x720, PREFIX_chase.mp4 and
+PREFIX_front.mp4, for side-by-side clips.
 """
 import argparse
 import json
@@ -52,10 +59,29 @@ def camera(world, ego, sensors, ev, min_bright, tf, fov="80", w="1280", h="720")
     return q
 
 
+REAR_AXLE = 1.386  # m, the model3's rear axle behind the CARLA actor's origin (swb_isaac_world)
+# (x, y, z) in base_link, (pitch, yaw) in CARLA's convention (degrees; pitch up, yaw right), fov
+MOUNTS = {
+    "rig": {"chase": ((-7.0, 0.0, 3.4), (-15.0, 0.0), 80.0),
+            "front": ((0.9, 0.0, 2.0), (-0.86, 2.09), 74.5)},   # aib's camera6
+    "legacy": {"chase": ((-7.0 + REAR_AXLE, 0.0, 3.4), (-15.0, 0.0), 80.0),
+               "front": ((0.9 + REAR_AXLE, 0.0, 2.0), (0.0, 0.0), 74.5)},
+}
+
+
+def mount(carla, name, which):
+    (x, y, z), (pitch, yaw), fov = MOUNTS[name][which]
+    return carla.Transform(carla.Location(x=x - REAR_AXLE, y=y, z=z), carla.Rotation(pitch=pitch, yaw=yaw)), fov
+
+
+def rgb(img):
+    return np.frombuffer(img.raw_data, np.uint8).reshape(img.height, img.width, 4)[..., :3]
+
+
 def compose(ch, fr, topdown, track, pose, goal, title, t, speed, d, steer, arrived):
     frame = np.full((H, W, 3), 18, np.uint8)
-    frame[60:780, 0:1280] = np.frombuffer(ch.raw_data, np.uint8).reshape(720, 1280, 4)[..., :3]
-    frame[60:420, 1280:1920] = np.frombuffer(fr.raw_data, np.uint8).reshape(360, 640, 4)[..., :3]
+    frame[60:780, 0:1280] = rgb(ch)
+    frame[60:420, 1280:1920] = cv2.resize(rgb(fr), (640, 360), interpolation=cv2.INTER_AREA)
     frame[420:1020, 1280:1920] = topdown.draw(track, [], pose, goal)
     cv2.putText(frame, title, (14, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255, 255, 255), 2)
     cv2.putText(frame, "chase camera (CARLA RGB, auto-exposure)", (14, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
@@ -84,6 +110,9 @@ def main(argv=None):
     ap.add_argument("--min-bright", type=float, default=7.0, help="exposure_min_bright (072's sweep)")
     ap.add_argument("--state", help="also write state.jsonl here: per frame sim t, ego x, y, z (map minus "
                     "origin) and speed (m/s), as 059's recorder (parity P6)")
+    ap.add_argument("--mounts", choices=sorted(MOUNTS), default="rig",
+                    help="rig: 059's Isaac camera poses (parity P6); legacy: the first videos'")
+    ap.add_argument("--raw", default="", help="also write PREFIX_chase.mp4 and PREFIX_front.mp4, 1280x720 each")
     ap.add_argument("--title", default="Autoware drives route r01 on the NTU campus in CARLA 0.9.16 (map built from the scan)")
     a = ap.parse_args(argv)
     gx, gy = (float(v) for v in a.goal.split(","))
@@ -95,6 +124,13 @@ def main(argv=None):
                            "-s", f"{W}x{H}", "-r", "20", "-i", "-", "-c:v", "libx264", "-preset", "medium",
                            "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", a.out], stdin=subprocess.PIPE)
     assert ff.stdin is not None
+
+    def encoder(path):
+        return subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
+                                 "-s", "1280x720", "-r", "20", "-i", "-", "-c:v", "libx264", "-preset", "medium",
+                                 "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path],
+                                stdin=subprocess.PIPE)
+    raw = [encoder(f"{a.raw}_chase.mp4"), encoder(f"{a.raw}_front.mp4")] if a.raw else []
     track, n, t_first, still_since, arrived = [], 0, None, None, False
     state = open(a.state, "w", buffering=1) if a.state else None
     ours = []  # every camera this client spawned, destroyed again at the end whatever happened
@@ -110,8 +146,10 @@ def main(argv=None):
             print(f"ego {ego.id} {ego.type_id}, frame {world.get_snapshot().frame}", flush=True)
             sensors = []
             try:
-                qchase = camera(world, ego, sensors, a.ev, a.min_bright, carla.Transform(carla.Location(x=-7.0, z=3.4), carla.Rotation(pitch=-15)))
-                qfront = camera(world, ego, sensors, a.ev, a.min_bright, carla.Transform(carla.Location(x=0.9, z=2.0)), fov="74.5", w="640", h="360")
+                tf_ch, fov_ch = mount(carla, a.mounts, "chase")
+                tf_fr, fov_fr = mount(carla, a.mounts, "front")
+                qchase = camera(world, ego, sensors, a.ev, a.min_bright, tf_ch, fov=str(fov_ch))
+                qfront = camera(world, ego, sensors, a.ev, a.min_bright, tf_fr, fov=str(fov_fr))
                 wait = max(1.0, deadline - time.time()) if n == 0 else 30.0
                 while True:
                     try:
@@ -139,6 +177,8 @@ def main(argv=None):
                     frame = compose(ch, fr, topdown, track, (x, y, yaw), (gx, gy), a.title, t, speed, d,
                                     ego.get_control().steer, arrived)
                     ff.stdin.write(frame.tobytes())
+                    for enc, img in zip(raw, (ch, fr)):
+                        enc.stdin.write(np.ascontiguousarray(rgb(img)).tobytes())
                     if state:
                         state.write(json.dumps({"t": round(t, 3), "x": round(x, 3), "y": round(y, 3),
                                                 "z": round(tf.location.z, 3), "speed": round(speed / 3.6, 3)}) + "\n")
@@ -157,8 +197,9 @@ def main(argv=None):
                         except RuntimeError:
                             pass  # gone with its world
     finally:
-        ff.stdin.close()
-        ff.wait()
+        for enc in [ff] + raw:
+            enc.stdin.close()
+            enc.wait()
         if state:
             state.close()
         try:

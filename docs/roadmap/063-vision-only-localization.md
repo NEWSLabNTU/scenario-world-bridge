@@ -136,6 +136,31 @@ a no-NDT copy of autoware-drift's `drift.yaml`; the error-monitor file under `nd
 (cuda_ndt_matcher hard-codes it); both checks judge the EKF's covariance, not the error, so the
 ground-truth lane departure stays the measure; perception still uses the lidar.
 
+### The GPU steps (from 2026-11-04)
+
+- **Step 3, the camera's cost** (`/var/tmp/aeon/063/step3/`): aib's runner on Town05's SimReady
+  world, the Mustang parked, 057's run settings (100 Hz frames, 1/240 s physics), 20 s of sim
+  time as fast as the world goes, no Autoware and no lockstep; `zed_left` off, then on at
+  30 Hz. The measure is the frame's wall time (from warm-up to stop) and the GPU's load; the
+  lidar renders in both. Parked, the camera sees one view: the cost of a render, not of a
+  moving scene's streaming, which the recordings show.
+- **e. Ground truth out of aib** (step 4 needs it; nothing in aib publishes it today). An ego
+  config key, `ground_truth: {}` off (the default), on with
+  `{topic, pose_estimate, covariance}`:
+  - every frame, `nav_msgs/Odometry` on `topic` (default `/ground_truth/odom`): base_link's
+    pose in the **map** frame (the world plus the map's `map_origin`, as the GNSS is
+    projected), the body velocities as the vehicle status reports them, `child_frame_id`
+    base_link, stamped as the frame's sensors. That is what the recordings keep and the
+    scorer reads (`ladder_score.py --gt <bag> --gt-topic /ground_truth/odom`).
+  - `pose_estimate: true` also publishes it as `PoseWithCovarianceStamped` on NDT's topic
+    (`/localization/pose_estimator/pose_with_covariance`) with a small diagonal covariance
+    (`covariance`, default 0.01 m^2 and 0.0003 rad^2, about 0.1 m and 1 deg), so Autoware
+    under the profile's `ndt:=none` drives on the ground truth: the recordings' drive. A
+    lockstep on that topic would wait on itself, so the two are refused together.
+  - The pose is computed in `aib.sensing` (pure, unit-tested: world to map, the body twist),
+    published in `aib.ros`; swb_isaac_world's world server gets it with the ego config, as it
+    gets the lockstep.
+
 ## Decisions taken here (not the user's)
 
 - The Autoware project is `autoware-drift` (057's laps: its planning holds 25-30 m/s), with

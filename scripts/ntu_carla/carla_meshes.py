@@ -121,48 +121,53 @@ def holes(V):
     return (h >= W.HOLE_FRACTION).astype(np.float32)
 
 
-# Spikes in the ground on and beside the lanes: 059's DTM put the road up to 6.5 m high into the
-# canopy in 7 places (smooth_dtm.py's lane rule took a crown for the lowest return where the whole
-# window was crown), and the ego stopped in front of the cone (the tour). A ground vertex on a lane
-# that stands SPIKE_ABOVE over the SPIKE_PCT-th percentile of the lane vertices within SPIKE_R comes
-# down to it; then so does a ground vertex within SPIKE_NEAR of one that came down (the cone's foot).
-SPIKE_R, SPIKE_PCT, SPIKE_ABOVE, SPIKE_NEAR = 5.0, 30, 0.3, 2.0
+# Spikes and bumps in the ground on and beside the lanes. 059's DTM put the road up to 6.5 m high
+# into the canopy in 7 places (smooth_dtm.py's lane rule took a crown for the lowest return where
+# the whole window was crown; 118 fixed it in smooth_dtm.py 2cedde5, leaving 0.4-0.9 m), and the
+# ego stopped in front of the cone (the tour). Bringing single vertices down to a local percentile
+# left 0.25 m steps that the ego's ground filter called obstacles and stopped for (the tour, run C,
+# leg 00 at (499, 232)). So the lane's surface is opened (grey erosion then dilation over
+# SPIKE_WINDOW, lane cells only): a slope or a plane comes through unchanged and a bump narrower
+# than the window is cut off. A lane vertex more than SPIKE_ABOVE over the opening comes down to it,
+# then the ground within SPIKE_NEAR of one that came down, if it stands over the lane beside it.
+# SPIKE_ABOVE 0.08 lowered 48k road vertices in 51 tiles (median 0.10 m: crowns, humps); 0.15
+# keeps those and still takes the steps the ground filter stops for.
+SPIKE_WINDOW, SPIKE_ABOVE, SPIKE_NEAR = 8.0, 0.15, 2.0
 
 
 def despike(V, F):
+    from scipy import ndimage
     from scipy.spatial import cKDTree
 
     on = _ctx["road"].on_road(V)
     if not on.any():
         return V, 0
-    lane = cKDTree(V[on, :2])
-    lane_ix = np.flatnonzero(on)
-    out, fixed = V.copy(), set()
-    nbs = lane.query_ball_point(V[lane_ix, :2], SPIKE_R)
-    for _ in range(3):  # the lane's own vertices first, a cone coming down from its rim in
-        if not _spike_pass(out, lane_ix, nbs, lane_ix, fixed):
-            break
-    if fixed:
-        # then the ground beside them, where the cone's foot stands off the lane
-        f = cKDTree(V[sorted(fixed), :2])
-        near = (f.query(V[:, :2], distance_upper_bound=SPIKE_NEAR)[0] < np.inf) & ~on
-        idx = np.flatnonzero(near)
-        _spike_pass(out, idx, lane.query_ball_point(V[idx, :2], SPIKE_R + SPIKE_NEAR), lane_ix, fixed)
-    return out, len(fixed)
-
-
-def _spike_pass(out, idx, nbs, lane_ix, fixed):
-    zl = out[lane_ix, 2]
-    moved = 0
-    for k, nb in zip(idx, nbs):
-        if len(nb) < 8:
-            continue
-        ref = np.percentile(zl[nb], SPIKE_PCT)
-        if out[k, 2] - ref > SPIKE_ABOVE:
-            out[k, 2] = ref
-            fixed.add(int(k))
-            moved += 1
-    return moved
+    cell = _ctx["meta"]["cell"]
+    lo = V[:, :2].min(axis=0)
+    ij = np.round((V[:, :2] - lo) / cell).astype(int)
+    shape = tuple(ij.max(axis=0) + 1)
+    Z = np.full(shape, np.inf)
+    Z[ij[on, 0], ij[on, 1]] = V[on, 2]
+    k = int(round(SPIKE_WINDOW / cell)) | 1
+    ero = ndimage.minimum_filter(Z, size=k, mode="constant", cval=np.inf)
+    ero[~np.isfinite(Z)] = -np.inf
+    opened = ndimage.maximum_filter(ero, size=k, mode="constant", cval=-np.inf)
+    ref = opened[ij[:, 0], ij[:, 1]]
+    out = V.copy()
+    lane_fix = on & np.isfinite(ref) & (V[:, 2] - ref > SPIKE_ABOVE)
+    out[lane_fix, 2] = ref[lane_fix]
+    n = int(lane_fix.sum())
+    if n:
+        # the cone's foot off the lane: down to the lowered lane beside it
+        f = cKDTree(V[lane_fix, :2])
+        d, i = f.query(V[:, :2], distance_upper_bound=SPIKE_NEAR)
+        foot = ~on & np.isfinite(d)
+        lane_z = out[np.flatnonzero(lane_fix)[np.minimum(i[foot], n - 1)], 2]
+        high = V[foot, 2] - lane_z > 0.3
+        idx = np.flatnonzero(foot)[high]
+        out[idx, 2] = lane_z[high]
+        n += len(idx)
+    return out, n
 
 
 _ctx = {}

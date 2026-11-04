@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
+<!-- Generated from ntu_twin_r01.xosc by scripts/ntu_twin/scenario_pair.py: edit that file, not this one. -->
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-10-30T00:00:00+00:00" description="roadmap 072: route r01 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), 349 m, no NPCs" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
@@ -50,7 +51,7 @@
 				</Private>
 			</Actions>
 		</Init>
-		<Story name="ntu_twin_r01">
+		<Story name="ntu_carla_r01">
 			<Act name="drive_act">
 				<ManeuverGroup maximumExecutionCount="1" name="ego_maneuvers">
 					<Actors selectTriggeringEntities="false">

@@ -595,6 +595,25 @@ views (`render_probe.py`) before and after each step:
 These make a clean simulation picture, not a photograph: one colour per scan point, leaves as
 blobs. Photo-like pictures are stage B's gaussian layer, which needs the vendor's 2231 photos.
 
+## Parity with 072 (the NTU campus in CARLA)
+
+User direction 2026-11-04: the two twins, this one on Isaac (swb 118) and
+[072](072-ntu-campus-in-carla.md)'s on CARLA 0.9.16 (swb 133), get the same features and
+comparable outcomes. Agreed between the two sessions on 2026-11-04. 072 keeps the same list in its
+own words.
+
+| | what both twins provide | owner | Isaac (059) | CARLA (072) |
+|---|---|---|---|---|
+| P1 | The whole site (167 tiles) in the map frame, origin (52500, 67700, 0). One Autoware map dir: 059's Lanelet2, `pointcloud_map.pcd` and projector | both | have | have (`carla/NTU` links to 059's) |
+| P2 | The ego: `tesla_model3` from `sim_vehicle_spec`, the same sensor kit, Autoware profile and overlay. The lidar is each simulator's own (RTX, CARLA raycast), so NDT's input differs | both | have | have |
+| P3 | One scenario set. `ntu_twin_<case>.xosc` is the source and `scripts/ntu_twin/scenario_pair.py` writes `ntu_carla_<case>.xosc` from it (only the map dir, the header and the Story name differ; `--check` finds drift): r01, r02, r01_lead, r01_pedestrian. NPC scenarios to come: a cut-in, oncoming traffic at a turn, and a signalised junction once P4 is in | 118 | r01 and the two NPC cases pass; r02 not yet run as a scenario | r01 5/5 and r02 pass; NPC cases untested (walker blueprint, WalkStraightAction, DeleteEntity on swb_carla_world) |
+| P4 | Traffic lights, stop lines and crosswalks where scenarios need them: Lanelet2 (agreed before either session edits it) and the matching OpenDRIVE signals | Lanelet2 both, OpenDRIVE 133 | none yet | none yet |
+| P5 | The same picture targets: sun at elevation 55 deg, azimuth 135 (CARLA's 225, which is the map azimuth + 90), the same default weather, exposure judged on the same four r01 probe views (`render_probe.py` / `carla_probe.py`: start, canopy, turn 2, palms). Any asset fix is adopted by both: ortho refill, de-lighting, shards, parked vehicles removed (072's `scripts/ntu_carla/parked_vehicles.py`), low vegetation as a smooth height field (072's `hedges.py`, in test) | both | have, except parked vehicles and hedges | have, exposure ev -1.5 and min_bright 7 |
+| P6 | The same recording per run: chase and front views at 20 fps; a side-by-side mp4, 1600 px wide; `state.jsonl` of ego x, y, z and speed (map minus origin). The mounts are the rig's, in base_link (the rear axle): chase (-7.0, 0, 3.4), pitch 15 deg down, 80 deg; front = camera6 (0.9, 0, 2.0), pitch 0.86 deg down, yaw 2.09 deg right, 74.5 deg, 1280 x 720. CARLA mounts on the actor's origin, 1.386 m ahead of the rear axle on the model3 (swb_isaac_world reads the axle off the CARLA asset; its height against base_link is to check) | both | have (swb_isaac_world's recorder) | 133 adds state.jsonl, the 1600 px video and the base_link offset |
+| P7 | The same outcome measures: junit result, time to goal, NDT NVTL min and mean along r01 and r02 (`ndt_track.py`), MRM and emergency count, speed behind the lead, stop distance and minimum gap to the pedestrian, and the NPC check (`scripts/ntu_twin/ssv2_watch.py`: SSv2's view of each entity and event, simulator-agnostic) | 118 the scripts, each its runs | have | 133 adds NVTL on CARLA runs |
+| P8 | Camera stacks (N9): Vision Pilot and a VLM agent, open loop on P6 recordings first, one harness for both | 118 first | not started | later |
+| P9 | Distribution on the NAS: each simulator's package with a README (install, frame, versions), and one comparison page, CARLA beside Isaac (probe views, P7 numbers) | both | world on the NAS | site package pending |
+
 ## Risks
 
 - Trees look fake to a VLM; baked shadows in the scan's colour double RTX's own (seen in

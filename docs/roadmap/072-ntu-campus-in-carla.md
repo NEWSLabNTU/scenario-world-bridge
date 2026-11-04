@@ -303,6 +303,42 @@ Next:
 Next: the site package on the NAS, and the rest of the parity list with 059: the recorder on
 059's mounts with `state.jsonl`, NVTL along r01 and r02.
 
+## Parity with 059 (the NTU twin on Isaac)
+
+The user asked on 2026-11-04 for the two twins to ship the same features with comparable
+outcomes: [059](059-ntu-twin-on-isaac.md)'s on Isaac (swb 118) and this one on CARLA 0.9.16
+(swb 133). The two sessions agreed the list that day. 059 keeps the same list under its own
+"Parity with 072". Status as of 2026-11-04:
+
+| | what both twins provide | owner | CARLA (072) | Isaac (059) |
+|---|---|---|---|---|
+| P1 | The whole site (167 tiles) in the map frame, origin (52500, 67700, 0). One Autoware map dir: 059's Lanelet2, `pointcloud_map.pcd` and projector | both | have (`carla/NTU` links to 059's) | have |
+| P2 | The ego: `tesla_model3` from `sim_vehicle_spec`, the same sensor kit, Autoware profile and overlay. Each simulator has its own lidar (CARLA raycast, RTX), so NDT's input differs | both | have | have |
+| P3 | One scenario set. `ntu_twin_<case>.xosc` is the source, and `scripts/ntu_twin/scenario_pair.py` writes `ntu_carla_<case>.xosc` from it (only the map dir, the header and the Story name differ; `--check` finds drift). Cases: r01, r02, r01_lead, r01_pedestrian. NPC cases to come: a cut-in, oncoming traffic at a turn, a signalised junction once P4 is in. Positions that need moving for one simulator are changed in the `ntu_twin_` source | 118 | all four pass (item 10) | r01 and the two NPC cases pass; r02 to run |
+| P4 | Traffic lights, stop lines and crosswalks where scenarios need them: Lanelet2 (agreed before either session edits it) and the matching OpenDRIVE signals | Lanelet2 both, OpenDRIVE 133 | none yet | none yet |
+| P5 | The same picture targets: sun at elevation 55 deg, azimuth 135 (CARLA's 225 = map azimuth + 90), the same default weather, exposure judged on the four fixed probe views below. An asset fix is adopted by both: ortho refill, de-lighting, shards, parked vehicles left out (`parked_vehicles.py`, item 7), low vegetation as a height field (`hedges.py`, item 9) | both | have; exposure ev -1.5, min_bright 7 | have, except parked vehicles and hedges (adopting) |
+| P6 | The same recording per run: chase and front views at 20 fps, a side-by-side mp4 1600 px wide, and `state.jsonl` (ego x, y, z and speed, map minus origin). Mounts in base_link (the rear axle): chase (-7.0, 0, 3.4), pitch 15 deg down, 80 deg; front = camera6 (0.9, 0, 2.0), pitch 0.86 deg down, yaw 2.09 deg right, 74.5 deg, 1280 x 720. On CARLA those sit on the actor's origin, 1.386 m ahead of the model3's rear axle: chase x -8.386, front x -0.486 (height to check) | both | to do: mounts, `state.jsonl`, 1600 px video (`carla_watch_video.py`) | have |
+| P7 | The same outcome measures: junit result, time to goal, NDT NVTL min and mean along r01 and r02 (`ndt_track.py`), MRM and emergency count, speed behind the lead, stop distance and minimum gap to the pedestrian, and the NPC check (`scripts/ntu_twin/ssv2_watch.py`: SSv2's view of each entity and event, simulator-agnostic) | 118 the scripts, each its own runs | have, except NVTL | have |
+| P8 | Camera stacks (059 N9): Vision Pilot and a VLM agent, open loop on P6 recordings first, one harness for both | 118 first | later | not started |
+| P9 | Distribution on the NAS: each simulator's package with a README (install, frame, versions), and one comparison page, CARLA beside Isaac (probe views, P7 numbers) | both | site package pending | world on the NAS |
+
+The fixed probe views (P5): map minus origin, yaw in degrees counter-clockwise from +x, as
+`carla_probe.py --view` and `render_probe.py --view` take them:
+
+- `start,314.3,118.3,91`
+- `turn2,135.2,186.4,180`
+- `canopy,270.5,186.1,-180`
+- `palms,77.6,165.4,-88`
+
+Each is a chase camera 7 m back along the yaw and 3.4 m over the ground (a ray cast at x, y),
+pitch 15 deg down, 80 deg across, 1280 x 720.
+
+Split:
+- 118: the scenario template (P3), the watcher and metrics scripts (P7), the Isaac side.
+- 133: the OpenDRIVE signals (P4's CARLA half), CARLA's exposure, and the CARLA recorder
+  matching P6.
+- Neither session changes `scripts/ntu_twin/` functions without telling the other.
+
 ## How a CARLA map is made and shipped
 
 The facts this phase builds on. Sources: CARLA 0.9.16's `Docs/tuto_M_*.md`,

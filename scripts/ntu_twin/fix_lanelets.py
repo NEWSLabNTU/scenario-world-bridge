@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two fixes to the NTU twin's Lanelet2 map, agreed by roadmaps 059 and 072 (2026-11-04, the tour).
+"""Fixes to the NTU twin's Lanelet2 map, agreed by roadmaps 059 and 072 (2026-11-04, the tour).
 
 A. Custom centrelines that run against their lanelet. lanelet2 keeps a `centerline` member as it
    is stored, and Autoware keeps a custom centreline, so on these lanelets its path ran from the
@@ -11,6 +11,10 @@ B. Joins that touch but are not linked: a lanelet's end and the next one's start
 C. A node twice in a row in a way is dropped once: B makes these where a bound already ran
    through the upstream end node (5 ways). The first version of this script (output md5
    97f10f1a) left them, and SSv2 failed on r02 near 3855 ("failed to calculate curve index").
+D. Two nodes whose ele came from a DTM spike at map-minus-origin (310.1, 104.9), a canopy the
+   old DTM put 6 m over the road: 1014484 15.4770 -> 12.1951 and 1014483 13.2762 -> 12.1078,
+   the heights of smooth_dtm.py's fixed DTM there (ground_n11). Set only where a node still
+   holds the old value (ELE_FIX).
 
 Deterministic and idempotent: the output is the input's ElementTree round trip (byte-identical
 on an unchanged map) with these edits, and a map with nothing to fix is left alone.
@@ -35,6 +39,8 @@ from lanelet2.io import Origin
 from lanelet2.projection import UtmProjector
 
 JOIN = 0.5  # m
+# D: node id -> (ele as the spike left it, ele from the fixed DTM)
+ELE_FIX = {"1014484": ("15.4770", "12.1951"), "1014483": ("13.2762", "12.1078")}
 
 
 def md5(path):
@@ -140,6 +146,15 @@ def main():
                 w.remove(nd)
                 dups.append(wid)
             last = nd.get("ref")
+    # D: eles taken from a DTM spike
+    eles = []
+    for n in root.findall("node"):
+        if n.get("id") in ELE_FIX:
+            old, new = ELE_FIX[n.get("id")]
+            t = n.find("tag[@k='ele']")
+            if t is not None and t.get("v") == old:
+                t.set("v", new)
+                eles.append(n.get("id"))
     used = {nd.get("ref") for w in ways.values() for nd in w.findall("nd")}
     gone = [n for n in root.findall("node") if n.get("id") in replace and n.get("id") not in used]
     for n in gone:
@@ -148,8 +163,9 @@ def main():
     print(f"A: {len(reversed_)} centrelines reversed {reversed_}")
     print(f"B: {len(joins)} joins linked {joins}, {len(replace)} nodes replaced, {len(gone)} removed")
     print(f"C: {len(dups)} repeated nodes dropped, in ways {dups}")
+    print(f"D: {len(eles)} node eles set from the fixed DTM {eles}")
     print("before:", stats(a.osm))
-    if not reversed_ and not joins and not dups:
+    if not reversed_ and not joins and not dups and not eles:
         print("nothing to fix; map unchanged")
         print(f"output {h_in}")
         return

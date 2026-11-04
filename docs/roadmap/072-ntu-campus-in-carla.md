@@ -458,7 +458,11 @@ Next:
         timeout both times.
       - That made **113 of 114 legs**, plus r01 and r02. Only 03, the hairpin, was left.
     - **Leg 03's U-turn (fix_lanelets.py step E, 2026-11-05, agreed with 059; map c2854a7c ->
-      0d514c1d)**.
+      80f24846)**. The first output, 0d514c1d, differed from 118's (5cd1ef26) only in the new
+      nodes' lat/lon past the 9th decimal: an `np.linalg.lstsq` fit written at %.11f, whose
+      last bits follow numpy and BLAS (133's venv numpy 2.2.6, 118's 1.21.5). Written at %.9f
+      (about 0.1 mm), both give 80f24846; without lat/lon all three are the same file
+      (fbfafd1d), so the geometry and the runs below stand.
       - The turn: 1003951 -> 1004230 at (81, 312). Its centreline arced at R ~3.3 m, under the
         Model 3's 3.57 m minimum (wheel base 3.005 m, 0.7 rad), and the outer bounds sat
         5.2-5.6 m from the turn centre, inside the outer front corner's ~6.0-6.35 m.
@@ -483,7 +487,7 @@ Next:
         once with the ego stack up and passed with the stack stopped.
       - Results:
 
-        | leg | U0 (before, c2854a7c) | U1 (radius only, a6949ad8) | U2 (step E, 0d514c1d) |
+        | leg | U0 (before, c2854a7c) | U1 (radius only, a6949ad8) | U2 (step E, 0d514c1d = 80f24846 without lat/lon) |
         |---|---|---|---|
         | 03 | 0 m, stop at (81.3, 311.6), outside drivable area, 600 s timeout | the same at (81.8, 311.1) | **pass**: ~462 of 470 m, 128 s, no MRM, NVTL min 2.90, U-turn at >= 1.8 m/s |
         | 06, 07, 24, 25, 35, 36 (through the junction) | pass | pass | - (1004230 is on none of them) |
@@ -641,7 +645,7 @@ Next:
   81 had already passed since the pitch pair, so the clamp changes nothing measured here; it
   leaves the slope compensation room on ramps over 5.7 deg.
 
-Next: the proof run on both sides. Isaac reruns 40 on the fork's 7e98ecc4f and 03 on 0d514c1d (059). Then 81's restart on the down-ramp, still
+Next: the proof run on both sides. Isaac reruns 40 on the fork's 7e98ecc4f and 03 on 80f24846 (059). Then 81's restart on the down-ramp, still
 open even though 81 passed in R (acb's brake at rest, or the controller's low-speed
 integration). The hairpin at 03 needs a wider join in the Lanelet2 (agreed with 059 first)
 or stays off the car's routes. Then the site package on the NAS, and the rest of the parity

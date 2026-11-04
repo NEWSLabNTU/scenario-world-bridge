@@ -136,8 +136,8 @@ def uturn_fix(root, ways, xy):
         d = np.linalg.norm(pts - q, axis=1)
         near = np.argsort(d)[:6]
         ele = float(np.median(eles[near[d[near] < 6.0]])) if (d[near] < 6.0).any() else 0.0
-        node.set("lat", f"{lat:.11f}")
-        node.set("lon", f"{lon:.11f}")
+        node.set("lat", f"{lat:.9f}")
+        node.set("lon", f"{lon:.9f}")
         for k, v in (("local_x", f"{q[0]:.4f}"), ("local_y", f"{q[1]:.4f}"), ("ele", f"{ele:.4f}")):
             t = node.find(f"tag[@k='{k}']")
             if t is None:

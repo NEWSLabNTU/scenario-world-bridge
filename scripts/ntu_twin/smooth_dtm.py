@@ -38,8 +38,10 @@ is raised to that median less PIT_DEPTH. Through a drain grate at r01's road edg
 saw the pit under it, ground-classified 2 m below the road; the right wheels dropped in, the
 car slid sideways, and the EKF, rejecting NDT's poses, ended the drive in an MRM (N8). That
 pit was wider than the window: on and beside the lanes (--lanes, LANE_MARGIN around the
-lanelets), where a pit is always wrong, the closing repeats with windows of LANE_WINDOWS.
-Elsewhere one window keeps kerbs and ditches. Then
+lanelets), where a pit is always wrong, the closing repeats with windows of LANE_WINDOWS,
+raising a cell no higher than the lanelets' surface there: the ramp into the car park at
+(469, 153-170) is narrower than the widest window, and closing it as a pit lifted its floor
+towards the walls (close_lane_pits). Elsewhere one window keeps kerbs and ditches. Then
 the whole grid, ground cells too, takes a MEDIAN x MEDIAN median and a Gaussian of
 SIGMA_CELLS: the scan's ground cells carry single-cell steps of 0.1-0.2 m (sparse points, the
 SMRF band), and one stopped a car at creep torque on r01 after the cap. Kerbs round off over
@@ -130,10 +132,10 @@ def joined(cells, z, seed):
     return out
 
 
-def to_lane_ele(out, osm, meta, road, scan):
-    """`out` with its `road` cells kept off the lanelets' surface (the module's last step),
-    except the `scan` cells, whose height is the scan's own road.
-    Returns the new grid and the number of cells lowered."""
+def lane_ele(osm, meta, cells):
+    """The lanelets' surface at each of `cells` (a mask): the median ele of the ELE_K nearest
+    lanelet nodes within ELE_R, in the DTM's frame; NaN with no node near.
+    Returns (rows, cols, ele) of the cells."""
     import xml.etree.ElementTree as ET
 
     from scipy.spatial import cKDTree
@@ -144,13 +146,37 @@ def to_lane_ele(out, osm, meta, road, scan):
         nodes.append((float(t["local_x"]), float(t["local_y"]), float(t.get("ele", 0))))
     nodes = np.array(nodes) + SHIFT
     c = meta["cell"]
-    jj, ii = np.nonzero(road)
+    jj, ii = np.nonzero(cells)
     P = np.c_[meta["x0"] + (ii + 0.5) * c, meta["y0"] + (jj + 0.5) * c]
     d, k = cKDTree(nodes[:, :2]).query(P, k=ELE_K, distance_upper_bound=ELE_R)
     zz = np.where(np.isfinite(d), nodes[np.minimum(k, len(nodes) - 1), 2], np.nan)
     with warnings.catch_warnings():  # all-NaN rows (no node within ELE_R) give NaN, as meant
         warnings.simplefilter("ignore", RuntimeWarning)
-        e = np.nanmedian(zz, axis=1)
+        return jj, ii, np.nanmedian(zz, axis=1)
+
+
+def close_lane_pits(out, lanes, ceiling):
+    """Close pits on the lanes with each of LANE_WINDOWS in turn, as far as `ceiling` (the
+    lanelets' surface; NaN where unknown, no limit there). A cell is raised no higher than
+    the lanelets say the road is: a pit is a hole below the road (r01's drain grate, 2 m under
+    lanelets at road height), while a cutting the lanelets go down into is the road itself.
+    The ramp into the underground car park at map-minus-origin (469, 153-170) is 6 m wide,
+    and the 33-cell (8.25 m) median there is the street above: unlimited, the closing lifted
+    the ramp's floor 0.15-0.4 m towards both walls, and Autoware's obstacle stop took the
+    risen floor beside the lane for an obstacle (072, tour legs 27 and 81)."""
+    top = np.where(np.isfinite(ceiling), ceiling, np.inf)
+    for w in LANE_WINDOWS:
+        up = np.maximum(out, np.minimum(ndimage.median_filter(out, w) - PIT_DEPTH, top))
+        out = np.where(lanes, up, out)
+    return out
+
+
+def to_lane_ele(out, osm, meta, road, scan):
+    """`out` with its `road` cells kept off the lanelets' surface (the module's last step),
+    except the `scan` cells, whose height is the scan's own road.
+    Returns the new grid and the number of cells lowered."""
+    c = meta["cell"]
+    jj, ii, e = lane_ele(osm, meta, road)
     res = out.astype(np.float64)
     fix = np.isfinite(e) & (res[jj, ii] - e > ELE_OFF) & ~scan[jj, ii]
     res[jj[fix], ii[fix]] = e[fix]
@@ -213,8 +239,13 @@ def main():
         print(f"lanes: {int(use.sum()):,} of {int(lanes.sum()):,} cells from the scan's lowest return")
     out = np.maximum(out, ndimage.median_filter(out, PIT_WINDOW) - PIT_DEPTH)
     if lanes is not None:
-        for w in LANE_WINDOWS:
-            out = np.where(lanes, np.maximum(out, ndimage.median_filter(out, w) - PIT_DEPTH), out)
+        meta = json.load(open(os.path.join(d, "dtm.json")))
+        ceiling = np.full(out.shape, np.nan)
+        jj, ii, e = lane_ele(a.lanes, meta, lanes)
+        ceiling[jj, ii] = e
+        before = out
+        out = close_lane_pits(out, lanes, ceiling)
+        print(f"lanes: {int((out > before + 1e-6).sum()):,} pit cells raised")
     out = ndimage.gaussian_filter(ndimage.median_filter(out, MEDIAN), SIGMA_CELLS)
     if a.lanes:
         meta = json.load(open(os.path.join(d, "dtm.json")))

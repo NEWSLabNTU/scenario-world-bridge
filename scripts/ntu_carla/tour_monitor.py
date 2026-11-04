@@ -8,7 +8,8 @@ Each line has `wall` (time.time()) and `kind`:
 - `vf`: a velocity factor appeared or changed (behaviour, status, distance, detail), so a stop
   can be placed and explained;
 - `nvtl_low`: NVTL under --nvtl-warn (once per dip);
-- `hazard`: the hazard status changed (emergency, level, the faults: what an MRM is for).
+- `hazard`: the hazard status changed (emergency, level, the faults: what an MRM is for);
+- `wall`: a planning module's virtual-wall text changed (path_optimizer, motion_velocity_planner's).
 
     source /opt/autoware/1.5.0/setup.bash; source install/setup.bash
     export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=1 CYCLONEDDS_URI=file://.../cyclonedds-localhost.xml
@@ -26,6 +27,15 @@ from nav_msgs.msg import Odometry
 from autoware_adapi_v1_msgs.msg import MrmState, OperationModeState, RouteState, VelocityFactorArray
 from autoware_internal_debug_msgs.msg import Float32Stamped
 from autoware_system_msgs.msg import HazardStatusStamped
+from visualization_msgs.msg import MarkerArray
+
+MP = "/planning/scenario_planning/lane_driving/motion_planning"
+# planning's virtual walls: a stop some modules make without a velocity factor (path_optimizer's
+# "outside drivable area", the tour's legs 58 and 65) names itself here
+WALLS = [f"{MP}/path_optimizer/virtual_wall"] + [
+    f"{MP}/motion_velocity_planner/{m}/virtual_walls" for m in (
+        "obstacle_stop", "obstacle_slow_down", "obstacle_cruise", "obstacle_velocity_limiter", "out_of_lane",
+        "run_out", "road_user_stop", "dynamic_obstacle_stop", "boundary_departure_prevention")]
 
 MRM_STATE = {0: "UNKNOWN", 1: "NORMAL", 2: "MRM_OPERATING", 3: "MRM_SUCCEEDED", 4: "MRM_FAILED"}
 MRM_BEHAVIOR = {0: "UNKNOWN", 1: "NONE", 2: "PULL_OVER", 3: "COMFORTABLE_STOP", 4: "EMERGENCY_STOP"}
@@ -53,6 +63,9 @@ class Monitor(Node):
         self.create_subscription(VelocityFactorArray, "/api/planning/velocity_factors", self.on_vf, 10)
         self.create_subscription(HazardStatusStamped, "/system/emergency/hazard_status", self.on_hazard, 10)
         self.hazard = None
+        self.walls = {}
+        for t in WALLS:
+            self.create_subscription(MarkerArray, t, lambda m, t=t: self.on_wall(t, m), 10)
         self.create_timer(0.5, self.sample)
 
     def put(self, kind, **kw):
@@ -84,6 +97,13 @@ class Monitor(Node):
             self.put("hazard", emergency=st.emergency, level=st.level, faults=faults, pose=self.pose, speed=self.speed)
         self.hazard = v
 
+    def on_wall(self, topic, m):
+        texts = sorted({k.text for k in m.markers if k.text and k.action != 2})
+        name = topic.split("/")[-2]
+        if texts != self.walls.get(name, []):
+            self.put("wall", source=name, texts=texts, pose=self.pose, speed=self.speed)
+        self.walls[name] = texts
+
     def on_op(self, m):
         self.op = OP_MODE.get(m.mode, m.mode) + ("" if m.is_autoware_control_enabled else "/manual")
 
@@ -108,7 +128,8 @@ class Monitor(Node):
 
     def sample(self):
         self.put("s", pose=self.pose, speed=self.speed, nvtl=self.nvtl,
-                 mrm=self.mrm, op=self.op, route=self.route, vf=sorted(self.vf))
+                 mrm=self.mrm, op=self.op, route=self.route, vf=sorted(self.vf),
+                 walls=sorted(f"{k}:{t}" for k, v in self.walls.items() for t in v))
 
 
 def main():

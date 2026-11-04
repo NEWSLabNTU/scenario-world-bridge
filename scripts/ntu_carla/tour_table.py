@@ -65,7 +65,7 @@ def main():
                 if cur is None:
                     cur = {"from": x["wall"], "pose": x["pose"], "vf": set(), "mrm": set()}
                 cur["to"] = x["wall"]
-                cur["vf"] |= set(x.get("vf") or [])
+                cur["vf"] |= set(x.get("vf") or []) | set(x.get("walls") or [])
                 if x.get("mrm"):
                     cur["mrm"].add(x["mrm"][0])
             elif cur is not None:

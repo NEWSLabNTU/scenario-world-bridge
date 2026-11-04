@@ -19,7 +19,8 @@ So it is rebuilt as one, as the ground is:
   a scooter row's greenish faces are not a hedge, and the vehicles are left out);
 - the top: the cell's highest vegetation face (the nearest one's, in a gap the closing filled),
   median-filtered over 3x3 and Gaussian-smoothed (SIGMA cells) with nothing outside the mask,
-  so the sides fall to the ground over a few cells; the mask is then where the top is over EDGE.
+  so the sides fall to the ground over a few cells, none on a lane (LANE_CLEAR); the mask is
+  then where the top is over EDGE.
   The colour: the cells' mean face colour (sRGB), smoothed within the mask.
 OUT.npz holds `mask` (bool, the DTM's grid, rows by y like dtm.npy), `top` (float16, m over the
 DTM, 0 outside), `colour` (uint8 sRGB).
@@ -46,6 +47,10 @@ TRUNK_CLEAR = 0.4  # m from a trunk's surface
 MIN_AREA = 0.75  # m2
 SIGMA = 1.2  # cells
 EDGE = 0.05  # m: the smoothed top's edge, where it meets the ground
+# m around the lanelets with no hedge: the top's spread put 0.9 m of hedge into lanelet 1008385
+# at its end, (103, 328), and the ego stopped 9 m short of tour leg 24's goal (072); 202 cells
+# of the site's hedges stood on a lane. carla_meshes' road margin (ROAD_MARGIN) is the same.
+LANE_CLEAR = 0.25
 _ctx = {}
 
 
@@ -136,6 +141,8 @@ def main(argv=None):
     t = ndimage.median_filter(np.where(mask, top[jj, ii], 0), size=3)
     # unnormalised at the edge: the sides fall to the ground over a few cells, not a cell's step
     t = ndimage.gaussian_filter(t, SIGMA)
+    # the closing and the blur carry a hedge's top past its faces: off the lanes (LANE_CLEAR)
+    t[W.lane_raster(osm, meta, (H, Wd), LANE_CLEAR)] = 0
     mask = (t > EDGE) & ~parked
     rgb = smooth_within((col / np.maximum(nveg, 1)[..., None])[jj, ii], mask, SIGMA)
     np.savez_compressed(a.out, mask=mask, top=t.astype(np.float16),

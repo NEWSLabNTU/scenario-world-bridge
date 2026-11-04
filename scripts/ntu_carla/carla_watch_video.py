@@ -11,6 +11,7 @@ orthophoto with the track, and sim time, speed, steering and distance to the goa
 the map frame less MAP_ORIGIN; CARLA's frame negates y.
 """
 import argparse
+import json
 import math
 import os
 import queue
@@ -81,6 +82,8 @@ def main(argv=None):
     ap.add_argument("--wait", type=float, default=900.0, help="s to wait for the ego")
     ap.add_argument("--ev", type=float, default=-1.5, help="exposure_compensation (072's sweep)")
     ap.add_argument("--min-bright", type=float, default=7.0, help="exposure_min_bright (072's sweep)")
+    ap.add_argument("--state", help="also write state.jsonl here: per frame sim t, ego x, y, z (map minus "
+                    "origin) and speed (m/s), as 059's recorder (parity P6)")
     ap.add_argument("--title", default="Autoware drives route r01 on the NTU campus in CARLA 0.9.16 (map built from the scan)")
     a = ap.parse_args(argv)
     gx, gy = (float(v) for v in a.goal.split(","))
@@ -93,6 +96,8 @@ def main(argv=None):
                            "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", a.out], stdin=subprocess.PIPE)
     assert ff.stdin is not None
     track, n, t_first, still_since, arrived = [], 0, None, None, False
+    state = open(a.state, "w", buffering=1) if a.state else None
+    ours = []  # every camera this client spawned, destroyed again at the end whatever happened
     deadline = time.time() + a.wait
     try:
         # The ego found may be gone before a frame comes (a world load, or the end of the last
@@ -134,19 +139,35 @@ def main(argv=None):
                     frame = compose(ch, fr, topdown, track, (x, y, yaw), (gx, gy), a.title, t, speed, d,
                                     ego.get_control().steer, arrived)
                     ff.stdin.write(frame.tobytes())
+                    if state:
+                        state.write(json.dumps({"t": round(t, 3), "x": round(x, 3), "y": round(y, 3),
+                                                "z": round(tf.location.z, 3), "speed": round(speed / 3.6, 3)}) + "\n")
                     n += 1
                     if still_since is not None and t - still_since > 3.0:
                         break
             finally:
+                # stop and destroy each on its own: a stop that raised used to skip the destroy,
+                # leaving a listening camera behind ("sensor object went out of the scope but the
+                # sensor is still alive")
                 for s in sensors:
-                    try:
-                        s.stop()
-                        s.destroy()
-                    except RuntimeError:
-                        pass  # gone with its world
+                    ours.append(s.id)
+                    for f in (s.stop, s.destroy):
+                        try:
+                            f()
+                        except RuntimeError:
+                            pass  # gone with its world
     finally:
         ff.stdin.close()
         ff.wait()
+        if state:
+            state.close()
+        try:
+            left = [x.id for x in client.get_world().get_actors(ours)] if ours else []
+            if left:
+                client.apply_batch_sync([carla.command.DestroyActor(i) for i in left])
+                print(f"destroyed {len(left)} cameras left alive", flush=True)
+        except RuntimeError:
+            pass
     driven = sum(math.hypot(b[0] - p[0], b[1] - p[1]) for p, b in zip(track, track[1:]))
     print(f"{n} frames, {driven:.0f} m driven, {'ARRIVED' if arrived else 'not arrived'} -> {a.out}", flush=True)
     return 0

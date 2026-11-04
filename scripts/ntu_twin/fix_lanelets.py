@@ -8,6 +8,9 @@ B. Joins that touch but are not linked: a lanelet's end and the next one's start
    apart, on different nodes, so lanelet2's routing graph has no edge (5 on the 059 map; 3855
    and 3719 could not be reached, 2132 was isolated). The downstream start nodes are replaced,
    in every way that holds them, by the upstream end nodes; a node left unused is removed.
+C. A node twice in a row in a way is dropped once: B makes these where a bound already ran
+   through the upstream end node (5 ways). The first version of this script (output md5
+   97f10f1a) left them, and SSv2 failed on r02 near 3855 ("failed to calculate curve index").
 
 Deterministic and idempotent: the output is the input's ElementTree round trip (byte-identical
 on an unchanged map) with these edits, and a map with nothing to fix is left alone.
@@ -126,6 +129,17 @@ def main():
         for nd in w.findall("nd"):
             if nd.get("ref") in replace:
                 nd.set("ref", replace[nd.get("ref")])
+    # C: a way holding a node twice in a row (B's replacement makes these where a bound already
+    # ran through the upstream end node, 2-17 cm from its own start; SSv2's spline fails on the
+    # zero-length segment: "catmull_rom_spline.cpp:331: failed to calculate curve index")
+    dups = []
+    for wid, w in sorted(ways.items()):
+        last = None
+        for nd in w.findall("nd"):
+            if nd.get("ref") == last:
+                w.remove(nd)
+                dups.append(wid)
+            last = nd.get("ref")
     used = {nd.get("ref") for w in ways.values() for nd in w.findall("nd")}
     gone = [n for n in root.findall("node") if n.get("id") in replace and n.get("id") not in used]
     for n in gone:
@@ -133,8 +147,9 @@ def main():
 
     print(f"A: {len(reversed_)} centrelines reversed {reversed_}")
     print(f"B: {len(joins)} joins linked {joins}, {len(replace)} nodes replaced, {len(gone)} removed")
+    print(f"C: {len(dups)} repeated nodes dropped, in ways {dups}")
     print("before:", stats(a.osm))
-    if not reversed_ and not joins:
+    if not reversed_ and not joins and not dups:
         print("nothing to fix; map unchanged")
         print(f"output {h_in}")
         return

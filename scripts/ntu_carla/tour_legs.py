@@ -40,14 +40,22 @@ TEMPLATE = SCENARIOS / "ntu_twin_r02.xosc"
 Z_LIFT = 0.4          # spawn height over the lanelet's elevation
 START_IN = 2.0        # the start pose at least this far into the first lanelet
 GOAL_BACK = 4.0       # the goal at least this far before the end of the last (and its footprint inside)
-MIN_LEG = 25.0
+MIN_LEG = 25.0        # shorter legs get a predecessor or a follower added
 MIN_START_GOAL = 12.0  # m, start to goal (SSv2's reach tolerance is 5 m)
 START_SCAN_DIRS, START_EDGE_MAX = 6, 40.0  # of 8 directions with scan 10-30 m out; m it may move in
 REACH_BEFORE, REACH_CLEAR = 20.0, 7.0  # m: no point this far before the goal comes this close to it
 # tesla_model3's vehicle_info: rear axle to the front edge (wheel_base + front_overhang), to the rear
 # edge, and half the width (wheel_tread / 2 + side overhang)
 FRONT, REAR, HALF_W = 3.005 + 0.807, 0.98, 1.667 / 2 + 0.248
-SKIP = {1011236}       # isolated 4 m stub of the r01/r02 merge (059 and 072 agreed to leave it)        # shorter legs get a predecessor or a follower added
+SKIP = {1011236}       # isolated 4 m stub of the r01/r02 merge (059 and 072 agreed to leave it)
+# Transitions a tesla_model3 cannot drive: 1003951 -> 1004230 is a hairpin about 5.5 m across
+# (centreline radius 2.5-2.9 m) against the car's minimum turning radius of about 3.6 m at the rear
+# axle and 4.8 m at the outer front corner (wheel_base 3.005 m, max steer 0.7 rad); Autoware's path
+# ends at 1003951's end and the ego stops there (the tour, run D, leg 03). Agreed with 059. Not
+# planned around: leg 03 is the only leg whose goal works for 1003930 and 1008251 (the junction's
+# connectors overlap them), so it stays, drives them, and fails at the hairpin; this records why.
+NO_EDGE = {(1003951, 1004230): "hairpin ~5.5 m across (radius 2.5-2.9 m); tesla_model3 turns no tighter than ~3.6 m (rear axle) / 4.8 m (outer front corner)"}
+START_MIN = {}  # m into a lanelet a start must be (none now)
 
 
 def load(osm):
@@ -227,7 +235,7 @@ def main():
         return len(set((np.floor((np.arctan2(d[sel, 1], d[sel, 0]) + np.pi) / (np.pi / 4)).astype(int) % 8).tolist()))
 
     def start_d(p):
-        d = unique_d(p[0], min(START_IN, length[p[0]] * 0.3), length[p[0]] * 0.8)
+        d = unique_d(p[0], max(START_MIN.get(p[0], 0.0), min(START_IN, length[p[0]] * 0.3)), length[p[0]] * 0.8)
         if d is None or not pcd_dir.exists():
             return d
         # at the scan's edge, start further in along the first lanelet where the scan surrounds it
@@ -376,6 +384,7 @@ def main():
                 unusable.pop(x, None)
                 break
 
+
     rows = []
     tmpl = TEMPLATE.read_text()
     for n, g in enumerate(legs):
@@ -419,7 +428,8 @@ def main():
     if missing:
         why = {x: unusable.get(x, "?") for x in missing}
         print("not covered:", why)
-    json.dump({"not_covered": {str(x): unusable.get(x, "?") for x in missing}},
+    json.dump({"not_covered": {str(x): unusable.get(x, "?") for x in missing},
+               "not_driven_transitions": {f"{a_}->{b_}": why for (a_, b_), why in NO_EDGE.items()}},
               open(out / "tour_legs_missing.json", "w"), indent=1)
 
 

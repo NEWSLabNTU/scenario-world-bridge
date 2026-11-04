@@ -456,7 +456,42 @@ Next:
         -9.7 and the best NVTL is 2.74 at the true yaw. 27, 81 (23 s) and r01 pass.
         Town01's set is 5 of 6 before and after; town01_traffic_light fails on its 300 s
         timeout both times.
-      - That makes **113 of 114 legs**, plus r01 and r02. Only 03, the hairpin, is left.
+      - That made **113 of 114 legs**, plus r01 and r02. Only 03, the hairpin, was left.
+    - **Leg 03's U-turn (fix_lanelets.py step E, 2026-11-05, agreed with 059; map c2854a7c ->
+      0d514c1d)**.
+      - The turn: 1003951 -> 1004230 at (81, 312). Its centreline arced at R ~3.3 m, under the
+        Model 3's 3.57 m minimum (wheel base 3.005 m, 0.7 rad), and the outer bounds sat
+        5.2-5.6 m from the turn centre, inside the outer front corner's ~6.0-6.35 m.
+      - The paved junction is ~14 m across (ortho), and CARLA has no prop or tree in it.
+      - Step E draws the centreline as a quintic S into an R 4.0 arc about (78.15, 313.2) and a
+        quintic out onto the old centreline at 1017101. The outer bounds 1003950 / 1004894
+        follow r 6.8 from the inner join's ray to 200 deg; join node 1004044 moves onto that
+        ray; the inner bounds stay.
+      - Checked on the result: steer 37 deg of 40, the swept footprint 0.22 m inside the
+        lanelets, CARLA props 1.16 m off. It grazes the NW grass corner by ~0.1 m; the twin is
+        flat there.
+      - That alone did not move the stop. behavior_path_planner's path ended at 1003951's end
+        (`cutOverlappedLanes`: a route lanelet overlapping one two or more places back ends the
+        path). 1004230 and 1008251 overlapped by 2.2 m2 at (78.5-79.1, 290.7-300.2), where the
+        divider between the two directions was drawn twice, crossing by up to 0.6 m. That was
+        the cause all along, so the turn radius was only half of it.
+      - Step E makes 1004230's left bound run on 1008251's nodes there. After it, the only such
+        overlap left on any leg is leg 00's 1007209/1007204, which passes.
+      - Knock-on artefacts: the OpenDRIVE is regenerated. ground_n14 (7ce8bc1b) differs from
+        n13 by 21 cells, all under 5 cm, at (70.3-71.3, 317.1-318.3). The CARLA site rebuilt
+        from it (n14_build.sh; tile 1051_1360 the only mesh changed). Its import was OOM-killed
+        once with the ego stack up and passed with the stack stopped.
+      - Results:
+
+        | leg | U0 (before, c2854a7c) | U1 (radius only, a6949ad8) | U2 (step E, 0d514c1d) |
+        |---|---|---|---|
+        | 03 | 0 m, stop at (81.3, 311.6), outside drivable area, 600 s timeout | the same at (81.8, 311.1) | **pass**: ~462 of 470 m, 128 s, no MRM, NVTL min 2.90, U-turn at >= 1.8 m/s |
+        | 06, 07, 24, 25, 35, 36 (through the junction) | pass | pass | - (1004230 is on none of them) |
+        | r01, r02 | pass | pass | - |
+
+        With D, E, G, H and R that is **114 of 114 legs**, plus r01 and r02.
+        `tour_legs.py` keeps no undrivable transition (NO_EDGE empty), and leg 03's length is
+        470.2 m.
     - Tools: `tour_monitor.py`, `tour_lidar_diff.py`, `tour_clock.py`, `tour_table.py` in
       `scripts/ntu_carla/`. Runs: `/mnt/p5plus/aeon/ntu-twin/tour/runs_{B,C,D,E,F,G}` (videos,
       state.jsonl, monitor.jsonl); H, H2, H3 add `40_locbag` (localization and ndt_align's
@@ -587,7 +622,7 @@ Next:
 
       </details>
 
-Next: Isaac reruns 40 on the fork's 7e98ecc4f (059). Then 81's restart on the down-ramp, still
+Next: the longitudinal PID's pitch clamp to +/-0.2 rad (approved; 40, 27, 81, r01 and Town01 to test), then the proof run on both sides. Isaac reruns 40 on the fork's 7e98ecc4f and 03 on 0d514c1d (059). Then 81's restart on the down-ramp, still
 open even though 81 passed in R (acb's brake at rest, or the controller's low-speed
 integration). The hairpin at 03 needs a wider join in the Lanelet2 (agreed with 059 first)
 or stays off the car's routes. Then the site package on the NAS, and the rest of the parity

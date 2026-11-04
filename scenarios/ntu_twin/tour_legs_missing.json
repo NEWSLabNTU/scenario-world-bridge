@@ -1,6 +1,4 @@
 {
  "not_covered": {},
- "not_driven_transitions": {
-  "1003951->1004230": "hairpin ~5.5 m across (radius 2.5-2.9 m); tesla_model3 turns no tighter than ~3.6 m (rear axle) / 4.8 m (outer front corner)"
- }
+ "not_driven_transitions": {}
 }

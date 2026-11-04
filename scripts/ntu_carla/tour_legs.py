@@ -48,13 +48,12 @@ REACH_BEFORE, REACH_CLEAR = 20.0, 7.0  # m: no point this far before the goal co
 # edge, and half the width (wheel_tread / 2 + side overhang)
 FRONT, REAR, HALF_W = 3.005 + 0.807, 0.98, 1.667 / 2 + 0.248
 SKIP = {1011236}       # isolated 4 m stub of the r01/r02 merge (059 and 072 agreed to leave it)
-# Transitions a tesla_model3 cannot drive: 1003951 -> 1004230 is a hairpin about 5.5 m across
-# (centreline radius 2.5-2.9 m) against the car's minimum turning radius of about 3.6 m at the rear
-# axle and 4.8 m at the outer front corner (wheel_base 3.005 m, max steer 0.7 rad); Autoware's path
-# ends at 1003951's end and the ego stops there (the tour, run D, leg 03). Agreed with 059. Not
-# planned around: leg 03 is the only leg whose goal works for 1003930 and 1008251 (the junction's
-# connectors overlap them), so it stays, drives them, and fails at the hairpin; this records why.
-NO_EDGE = {(1003951, 1004230): "hairpin ~5.5 m across (radius 2.5-2.9 m); tesla_model3 turns no tighter than ~3.6 m (rear axle) / 4.8 m (outer front corner)"}
+# Transitions a tesla_model3 cannot drive (none now). 1003951 -> 1004230 was a hairpin about 5.5 m
+# across (centreline radius 2.5-2.9 m) against the car's minimum turning radius of 3.57 m at the rear
+# axle (wheel_base 3.005 m, max steer 0.7 rad); run D's leg 03 stopped at 1003951's end. Since
+# fix_lanelets.py step E (072, agreed with 059) its centreline turns at R 4.0 m inside wider outer
+# bounds, and leg 03 drives it.
+NO_EDGE = {}
 START_MIN = {}  # m into a lanelet a start must be (none now)
 
 

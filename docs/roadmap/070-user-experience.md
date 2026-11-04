@@ -85,8 +85,9 @@ the vehicle side), behind the world protocol, so the bridge needs no change at a
     (`MSGPACK_DEFINE_ARRAY(_asynchronous_call)`), so the request is `[0, id, "version",
     [[false]]]`. With empty params the server answers `rpclib: client error C0002: Function
     'version' was called with an invalid number of arguments` (spike, 2026-11-02; the
-    `[[false]]` form is from LibCarla's `rpc/Client.h` and `Metadata.h`, its live check
-    pending). The
+    `[[false]]` form is from LibCarla's `rpc/Client.h` and `Metadata.h`; live check
+    2026-11-04: CARLA 0.9.16 answers `[[1, '0.9.16']]` in 0.01 s, refused before the RPC
+    port is up, answering 72 s after start). The
     launcher packs this one request by hand (a dozen bytes), so it needs no msgpack module.
   - `carla_version:=` (launch argument) overrides the probe.
   - No server yet: wait as the world server does today, then probe.
@@ -204,10 +205,10 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
 2. [~] **Friction log.** Build half done, below. A fresh clone on this host in a clean shell (no `.env`, no
    `just`), following only the README. Every stumble written down with its fix owner.
    This sets C's list.
-3. [~] **A, spike** (2026-11-02, results in A). Three per-version world-server packages
-   in one colcon build: pass. The msgpack `version` probe against a live CARLA 0.9.16: the
-   first try sent empty params and was refused; the rerun with LibCarla's metadata waits
-   on a free GPU.
+3. [x] **A, spike** (2026-11-02, live check 2026-11-04; results in A). Three per-version
+   world-server packages in one colcon build: pass. The msgpack `version` probe against a
+   live CARLA 0.9.16: empty params are refused; with LibCarla's metadata (`[[false]]`) the
+   server answers its version, three calls of 0.01 s each.
 4. [ ] **A.** Library split, per-version packages for swb_carla_world and acb, the
    launcher with its tests (probe, override, refusal, wait). README "Other CARLA versions"
    rewritten.
@@ -236,8 +237,8 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 
 | 7 | Quick start, "wait for `ego: agent up`" | The relay prints it when the agent registers, while Autoware is still starting: a scenario started then got no answer to `change_to_stop` 30 times (`errors="1"`). Waiting for IDLE is wrong too (IDLE needs the ego spawned, which the scenario does). The cue that works is ours, `scripts/ego_stack_health.py` (ADAPI up, planning publishing), which colcon does not install. | **Fixed**: `scripts/ego_stack_health.py` is now swb_launch's `ego_ready` (`ros2 run swb_launch ego_ready --timeout 600`), named in the README and the tutorial; it defaults its own DDS to the stack's. `run.launch.xml` will wait on it (C). |
 | 8 | Quick start, terminal 3 without `CYCLONEDDS_URI` | Autoware never got the lidar (`No InputSource`, `only 0 fresh scan(s) in 10 s`), so align failed and no route came. The README calls the localhost config optional ("only if discovery fails"); on this host it is required, and nothing says so when it is missing. | **Fixed**: the profile moved into swb_launch (`config/`, installed). Every launch a user starts (`carla_simulation`, `isaac_simulation`, `ego_av`, `scenario`, `background_av`, `vehicle_agent`) sets `CYCLONEDDS_URI` (`dds_config:=`, default the environment's, else the installed profile) and `RMW_IMPLEMENTATION` (the environment's, else Cyclone) before it starts anything. Checked from a shell with neither: the bridge gets both under `ros2 launch` and play_launch 0.21.0; a test pins it. |
-| 9 | Quick start, terminal 3 under plain `ros2 launch`, 7 and 8 applied | Localization aligned, but Autoware stayed in PLANNING: `mission_planner: waiting odometry`, control commands in 10-15 s gaps. The same terminal under `play_launch launch`, nothing else changed, reached READY and DRIVING. | Find what `ros2 launch` starts differently (step 2, next). |
-| 10 | Quick start under play_launch, 7 and 8 applied | Drove, but `failures="1"` at the 180 s timeout: Autoware's control commands still came and went (gaps of 2-4 s) and the ego did not arrive. Our tested path also sources the Autoware overlay (the NDT step fix), the TensorRT 10.8 runtime and the GPU NDT, none of which the README mentions. | A/B against the tested path's extras, one at a time (step 2, next). |
+| 9 | Quick start, terminal 3 under plain `ros2 launch`, 7 and 8 applied | Localization aligned, but Autoware stayed in PLANNING: `mission_planner: waiting odometry`, control commands in 10-15 s gaps. The same terminal under `play_launch launch`, nothing else changed, reached READY and DRIVING. | **Gone with 8's fix** (it ran on Fast DDS, below). Re-measured 2026-11-04, every terminal under plain `ros2 launch` from the clean clone (c04ca46) in a clean shell, no RMW or `CYCLONEDDS_URI` exported: CARLA's RPC at 69 s, simulation side ready at 82 s, agent registered at 115 s, `ego_ready` at 116 s, `town01_ego_drive` **passed** (`failures="0" errors="0"`) at 163 s; everything reaped after. |
+| 10 | Quick start under play_launch, 7 and 8 applied | Drove, but `failures="1"` at the 180 s timeout: Autoware's control commands still came and went (gaps of 2-4 s) and the ego did not arrive. Our tested path also sources the Autoware overlay (the NDT step fix), the TensorRT 10.8 runtime and the GPU NDT, none of which the README mentions. | **Gone with 8's fix**: 9's re-measure ran the README path with none of the extras (no overlay, no TensorRT 10.8, CPU NDT) and passed. The extras stay optional. |
 
 | 11 | Our own path, `just scenario town01_ego_drive`, from the same clean clone with this host's `.env` | `just carla-start` exited 1 with no message. A fresh clone has no maps and nothing says to set `DATA_DIR`, so the first try handed Autoware a missing map. A stale overlay only warns. | `carla-start` says why it failed; `just scenario` refuses a missing map dir and a stale overlay (C). |
 | 12 | Our own path, CARLA started by hand, maps and a fresh overlay in place | **Fails**: `the ego's ADAPI or its agent is not ready after 300 s`, nothing publishes `/api/operation_mode/state`, the agent stays UNAVAILABLE. No CARLA scenario had run on main since 2026-10-24. | Root cause: 14 (13 first blamed play_launch, wrongly). |
@@ -249,8 +250,10 @@ A fresh clone of csb main in a clean shell (`env -i`, ROS + Autoware sourced, no
 The README path is not the tested path: 7-10 are the gap. **And 8-10 ran on Fast DDS**:
 Humble's and Autoware's `setup.bash` leave `RMW_IMPLEMENTATION` unset, the quick start never
 set it, so the `CYCLONEDDS_URI` those runs exported was never read (found with 14). 9 and 10
-are re-measured with the launches setting the transport themselves (8's fix). Seven live runs on 2026-11-02,
-each under the quiet-host gate; logs in `/var/tmp/aeon/070/`.
+were re-measured on 2026-11-04 with the launches setting the transport themselves (8's fix):
+the README path passes, so 7-10 are closed. Seven live runs on 2026-11-02 and one on
+2026-11-04, each under the quiet-host gate; logs in `/var/tmp/aeon/070/` (the re-measure in
+`qs2/`).
 
 ## Acceptance
 

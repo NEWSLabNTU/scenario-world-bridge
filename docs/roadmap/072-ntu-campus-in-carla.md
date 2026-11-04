@@ -242,8 +242,16 @@ Next:
      recorded); a route along the scooter blocks may differ.
    - `ntu_carla_r01_autoware_v3.mp4` (98 s, 344 m driven) on the NAS beside v2.
 
-Next: the hedges' faceting (smoothing the geometry, not the normals), r02, and the site
-package on the NAS.
+8. **r02** (2026-11-04, `scenarios/ntu_twin/ntu_carla_r02.xosc`). 059 N8's second route,
+   lanelet 7 to 49 eastward, on the map of item 7: start (52217.42, 67654.98), yaw 0.0035,
+   goal (52565.0, 67656.93), as N8's `r02_east.yaml`; z is Isaac's spawn height plus 0.2 m, as
+   r01's file. `just scenario scenarios/ntu_twin/ntu_carla_r02.xosc` with `CARLA_PORT=2400` on
+   the ego stack r01 had left up: passed (junit 0 failures), 343 m in 128 s, as on Isaac (127 s).
+   No NDT warning and no MRM during the run (the stack's only emergency stop is the one at its
+   start-up, before r01). `ntu_carla_r02_autoware.mp4` on the NAS beside r01's.
+
+Next: the hedges' faceting (smoothing the geometry, not the normals) and the site package on
+the NAS.
 
 ## How a CARLA map is made and shipped
 

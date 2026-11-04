@@ -16,7 +16,10 @@ car: a fixed start point whose pose NDT measures once); Autoware drives on rig's
 loop); the target computer is the Jetson AGX Orin, tested in simulation for now; no anchor (no
 visual map, no lane-line matching) for now. After the design review (user, same day): Autoware's
 localization checks widened to the lane, rig's covariance kept honest; the Isaac runs on 139 when
-its GPU is free; the camera a copy of the golf cart's ZED X left camera with the 2.2 mm lens.
+its GPU is free; the camera a copy of the golf cart's ZED X left camera with the 2.2 mm lens. For
+the recordings (user, 2026-11-04): between rungs, with 063's own Isaac world server up, the
+quiet-host gate without its Isaac check; the ring's lanelets raised to 110 km/h in 063's map copy
+only; no lidar/NDT comparison recordings.
 
 **Depends on**: [057](057-drift-campaign.md) (the Mustang, `drift_mustang`; Town05's ring route,
 its lanelet repairs; `jerry73204/autoware-drift`'s high-speed planning), rig_localization
@@ -205,10 +208,10 @@ ground-truth lane departure stays the measure; perception still uses the lidar.
     ring's 65 mph (104.6 km/h, 29.1 m/s) raised to 110 km/h, so that the 30 m/s rung is
     `max_velocity`'s and not the lanelets';
   - the quiet-host gate before the world server; between rungs, with our own world server
-    up, the same gate without its Isaac check; never with CARLA.
+    up, the same gate without its Isaac check (user's decision, 2026-11-04); never with CARLA.
   Each run is checked before the next: the scenario's result, 100 Hz ground truth, ~30 images
   per sim second, and the top speed on the straights against the rung. Lidar and NDT for
-  comparison are left out: under `ndt:=none` nothing matches, and a second stack per rung
+  comparison are left out (user's decision, 2026-11-04): under `ndt:=none` nothing matches, and a second stack per rung
   would double the runs.
 - **Step 5, the replays** (rig_localization's `rigloc_replay`, real time). Its replay launch
   plays a fixed list of the golf cart's topics; it gains `topics` and `remaps` arguments

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 059 N8: tour leg 54 on the NTU campus twin (MLS scan), lanelets 384 to 3560 (2 lanelets), 30 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 059 N8: tour leg 54 on the NTU campus twin (MLS scan), lanelets 3560 to 82 (2 lanelets), 36 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
@@ -34,7 +34,7 @@
 					<PrivateAction>
 						<TeleportAction>
 							<Position>
-								<WorldPosition x="52492.32" y="67632.04" z="12.98" h="1.5974" p="0" r="0" />
+								<WorldPosition x="52489.64" y="67661.00" z="12.72" h="2.1273" p="0" r="0" />
 							</Position>
 						</TeleportAction>
 					</PrivateAction>
@@ -42,7 +42,7 @@
 						<RoutingAction>
 							<AcquirePositionAction>
 								<Position>
-									<WorldPosition x="52488.93" y="67661.91" z="12.31" h="2.2824" p="0" r="0" />
+									<WorldPosition x="52454.63" y="67663.45" z="12.20" h="-3.1358" p="0" r="0" />
 								</Position>
 							</AcquirePositionAction>
 						</RoutingAction>
@@ -73,7 +73,7 @@
 											<EntityCondition>
 												<ReachPositionCondition tolerance="5.0">
 													<Position>
-														<WorldPosition x="52488.93" y="67661.91" z="12.31" h="0" p="0" r="0" />
+														<WorldPosition x="52454.63" y="67663.45" z="12.20" h="0" p="0" r="0" />
 													</Position>
 												</ReachPositionCondition>
 											</EntityCondition>

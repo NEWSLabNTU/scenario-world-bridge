@@ -23,6 +23,7 @@ merge, is left out (agreed with 059).
 import argparse
 import heapq
 import json
+import math
 import pathlib
 import xml.etree.ElementTree as ET
 
@@ -35,8 +36,12 @@ SCENARIOS = pathlib.Path(__file__).resolve().parents[2] / "scenarios/ntu_twin"
 TEMPLATE = SCENARIOS / "ntu_twin_r02.xosc"
 Z_LIFT = 0.4          # spawn height over the lanelet's elevation
 START_IN = 2.0        # the start pose at least this far into the first lanelet
-GOAL_BACK = 4.0       # the goal at least this far before the end of the last
+GOAL_BACK = 4.0       # the goal at least this far before the end of the last (and its footprint inside)
 MIN_LEG = 25.0
+MIN_START_GOAL = 12.0  # m, start to goal (SSv2's reach tolerance is 5 m)
+# tesla_model3's vehicle_info: rear axle to the front edge (wheel_base + front_overhang), to the rear
+# edge, and half the width (wheel_tread / 2 + side overhang)
+FRONT, REAR, HALF_W = 3.005 + 0.807, 0.98, 1.667 / 2 + 0.248
 SKIP = {1011236}       # isolated 4 m stub of the r01/r02 merge (059 and 072 agreed to leave it)        # shorter legs get a predecessor or a follower added
 
 
@@ -176,22 +181,63 @@ def main():
             x = trees[s][x]
         return p[::-1]
 
-    def endpoints_ok(p):
-        ls = length[p[0]]
-        d0 = unique_d(p[0], min(START_IN, ls * 0.3), ls * 0.8)
+    def footprint_ok(p, g):
+        """Autoware's goal check (default_planner's check_goal_footprint_inside_lanes): the car's
+        footprint at the goal inside the lanelets around it -- the goal's, those before it within
+        the car's front reach, and those after (here: the leg's, and the first follower's chain)."""
+        near = list(p)
+        x = p[-1]
+        reach = 0.0
+        while succ[x] and reach < FRONT:
+            x = succ[x][0]
+            if x in near:
+                break
+            near.append(x)
+            reach += length[x]
+        c, s_ = math.cos(g[3]), math.sin(g[3])
+        for u in np.linspace(-REAR, FRONT, 12):
+            for v in np.linspace(-HALF_W, HALF_W, 5):
+                q = (g[0] + u * c - v * s_, g[1] + u * s_ + v * c)
+                if not any(inside(poly[j], q) for j in near):
+                    return False
+        return True
+
+    def start_d(p):
+        return unique_d(p[0], min(START_IN, length[p[0]] * 0.3), length[p[0]] * 0.8)
+
+    def goal_d(p, d0=None):
+        """The goal on the leg's last lanelet: GOAL_BACK before its end or further back, on a point
+        of its own, the footprint inside the lanes, and MIN_START_GOAL from the start (SSv2's reach
+        condition, 5 m, would otherwise end a loop at once)."""
         le = length[p[-1]]
-        d1 = unique_d(p[-1], max(le - GOAL_BACK, le * 0.7), le * 0.2)
-        if d0 is None or d1 is None or (len(p) == 1 and d1 - d0 < 5.0):
+        d0 = start_d(p) if d0 is None else d0
+        st = pose_at(C[p[0]], d0) if d0 is not None else None
+        lo = (d0 + 5.0) if (len(p) == 1 and d0 is not None) else le * 0.2
+        d = max(le - GOAL_BACK, le * 0.7)
+        while d >= lo:
+            g = pose_at(C[p[-1]], d)
+            if not others_at(p[-1], g[:2], g[3]) and footprint_ok(p, g) and \
+                    (st is None or math.hypot(g[0] - st[0], g[1] - st[1]) >= MIN_START_GOAL):
+                return d
+            d -= 0.5
+        return None
+
+    def endpoints_ok(p):
+        d0 = start_d(p)
+        if d0 is None:
+            return None
+        d1 = goal_d(p, d0)
+        if d1 is None:
             return None
         return d0, d1
 
-    covered, legs = set(), []
+    covered, legs, unusable = set(), [], {}
     while True:
         best = None
         for s in L:
             for t in trees[s]:
                 p = path(s, t)
-                gain = sum(length[x] for x in p if x not in covered)
+                gain = sum(length[x] for x in p if x not in covered and x not in unusable)
                 if gain < a.min_gain:
                     continue
                 cost = sum(length[x] for x in p) - gain
@@ -202,13 +248,6 @@ def main():
             break
         p = best[1]
         # grow a short leg, or one whose start or goal has no point of its own, by a neighbour
-        def start_d(p):
-            return unique_d(p[0], min(START_IN, length[p[0]] * 0.3), length[p[0]] * 0.8)
-
-        def goal_d(p):
-            le = length[p[-1]]
-            return unique_d(p[-1], max(le - GOAL_BACK, le * 0.7), le * 0.2)
-
         def fit(c, front):
             """c, cut (at its back, or at its front) to the longest part that is lanelet2's route."""
             while len(c) >= 2:
@@ -243,6 +282,23 @@ def main():
         if route(p[0], p[-1]) != p:
             raise SystemExit(f"leg {p} is not lanelet2's route")
         ends = endpoints_ok(p)
+        # still no start or goal: cut the leg until it has both; a lanelet cut from an end that
+        # nothing else reaches is reported (a sink too short or too curved for the car's goal
+        # footprint, a source with no point of its own)
+        cut = []
+        while ends is None and len(p) > 1:
+            if start_d(p) is None:
+                cut.append((p[0], "start"))
+                p = p[1:]
+            else:
+                cut.append((p[-1], "goal"))
+                p = p[:-1]
+            ends = endpoints_ok(p)
+        for x, why in cut:
+            if x not in covered and x not in p:
+                unusable.setdefault(x, why)
+        if ends is None:
+            unusable.setdefault(p[0], "leg")
         legs.append({"lanelets": p, "ends": ends})
         covered |= set(p)
 
@@ -287,7 +343,10 @@ def main():
           f"under {MIN_LEG:.0f} m {sum(r.get('length', 99) < MIN_LEG for r in rows)}")
     missing = sorted(set(L) - cov)
     if missing:
-        print("not covered:", missing)
+        why = {x: unusable.get(x, "?") for x in missing}
+        print("not covered:", why)
+    json.dump({"not_covered": {str(x): unusable.get(x, "?") for x in missing}},
+              open(out / "tour_legs_missing.json", "w"), indent=1)
 
 
 if __name__ == "__main__":

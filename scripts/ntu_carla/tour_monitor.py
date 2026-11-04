@@ -7,7 +7,8 @@ Each line has `wall` (time.time()) and `kind`:
 - `mrm`: the MRM state or behaviour changed;
 - `vf`: a velocity factor appeared or changed (behaviour, status, distance, detail), so a stop
   can be placed and explained;
-- `nvtl_low`: NVTL under --nvtl-warn (once per dip).
+- `nvtl_low`: NVTL under --nvtl-warn (once per dip);
+- `hazard`: the hazard status changed (emergency, level, the faults: what an MRM is for).
 
     source /opt/autoware/1.5.0/setup.bash; source install/setup.bash
     export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=1 CYCLONEDDS_URI=file://.../cyclonedds-localhost.xml
@@ -24,6 +25,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from nav_msgs.msg import Odometry
 from autoware_adapi_v1_msgs.msg import MrmState, OperationModeState, RouteState, VelocityFactorArray
 from autoware_internal_debug_msgs.msg import Float32Stamped
+from autoware_system_msgs.msg import HazardStatusStamped
 
 MRM_STATE = {0: "UNKNOWN", 1: "NORMAL", 2: "MRM_OPERATING", 3: "MRM_SUCCEEDED", 4: "MRM_FAILED"}
 MRM_BEHAVIOR = {0: "UNKNOWN", 1: "NONE", 2: "PULL_OVER", 3: "COMFORTABLE_STOP", 4: "EMERGENCY_STOP"}
@@ -49,6 +51,8 @@ class Monitor(Node):
         self.create_subscription(OperationModeState, "/api/operation_mode/state", self.on_op, latched)
         self.create_subscription(RouteState, "/api/routing/state", self.on_route, latched)
         self.create_subscription(VelocityFactorArray, "/api/planning/velocity_factors", self.on_vf, 10)
+        self.create_subscription(HazardStatusStamped, "/system/emergency/hazard_status", self.on_hazard, 10)
+        self.hazard = None
         self.create_timer(0.5, self.sample)
 
     def put(self, kind, **kw):
@@ -71,6 +75,14 @@ class Monitor(Node):
         if v != self.mrm:
             self.put("mrm", state=v[0], behavior=v[1], pose=self.pose, speed=self.speed)
         self.mrm = v
+
+    def on_hazard(self, m):
+        st = m.status
+        faults = sorted(f"{d.name}: {d.message}" for d in list(st.diag_single_point_fault) + list(st.diag_latent_fault))
+        v = (st.emergency, st.level, tuple(faults))
+        if v != self.hazard:
+            self.put("hazard", emergency=st.emergency, level=st.level, faults=faults, pose=self.pose, speed=self.speed)
+        self.hazard = v
 
     def on_op(self, m):
         self.op = OP_MODE.get(m.mode, m.mode) + ("" if m.is_autoware_control_enabled else "/manual")

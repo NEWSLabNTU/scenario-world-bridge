@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- Generated from ntu_twin_tour_60.xosc by scripts/ntu_twin/scenario_pair.py: edit that file, not this one. -->
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 072: tour leg 60 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), lanelets 14 to 2768 (2 lanelets), 57 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 072: tour leg 60 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), lanelets 2768 to 21 (2 lanelets), 37 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
@@ -35,7 +35,7 @@
 					<PrivateAction>
 						<TeleportAction>
 							<Position>
-								<WorldPosition x="52277.29" y="67655.19" z="12.09" h="0.0086" p="0" r="0" />
+								<WorldPosition x="52332.39" y="67655.68" z="12.22" h="0.0105" p="0" r="0" />
 							</Position>
 						</TeleportAction>
 					</PrivateAction>
@@ -43,7 +43,7 @@
 						<RoutingAction>
 							<AcquirePositionAction>
 								<Position>
-									<WorldPosition x="52333.85" y="67655.70" z="11.83" h="0.0105" p="0" r="0" />
+									<WorldPosition x="52369.82" y="67655.98" z="11.93" h="0.0074" p="0" r="0" />
 								</Position>
 							</AcquirePositionAction>
 						</RoutingAction>
@@ -74,7 +74,7 @@
 											<EntityCondition>
 												<ReachPositionCondition tolerance="5.0">
 													<Position>
-														<WorldPosition x="52333.85" y="67655.70" z="11.83" h="0" p="0" r="0" />
+														<WorldPosition x="52369.82" y="67655.98" z="11.93" h="0" p="0" r="0" />
 													</Position>
 												</ReachPositionCondition>
 											</EntityCondition>

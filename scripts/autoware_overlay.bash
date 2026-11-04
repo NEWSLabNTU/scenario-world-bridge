@@ -26,8 +26,9 @@ SWB_AUTOWARE_OVERLAY_SOURCES=(
     # reverses, so a two-point cycle no longer runs to max_iterations and its WARN (an emergency
     # stop in Autoware 1.5's graph, docs/issues/002).
     "autoware_core https://github.com/NEWSLabNTU/autoware_core.git
-        fe45f964d8e03b899e1c87593fe76e1d8e5f9952
-        localization/autoware_ndt_scan_matcher"
+        879b7ce5f7324cbbf977c494c2783018ae47bafc
+        localization/autoware_ndt_scan_matcher
+        localization/autoware_localization_util"
 )
 
 # The pins, one line: what install/.swb_overlay_rev records

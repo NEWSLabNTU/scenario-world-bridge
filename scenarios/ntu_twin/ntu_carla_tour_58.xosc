@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- Generated from ntu_twin_tour_58.xosc by scripts/ntu_twin/scenario_pair.py: edit that file, not this one. -->
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 072: tour leg 58 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), lanelets 1004758 to 1007306 (2 lanelets), 221 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-11-04T00:00:00+00:00" description="roadmap 072: tour leg 58 on the NTU campus in CARLA 0.9.16 (map built from the MLS scan), lanelets 1007306 to 1004839 (2 lanelets), 26 m, no NPCs; written by scripts/ntu_carla/tour_legs.py" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
@@ -35,7 +35,7 @@
 					<PrivateAction>
 						<TeleportAction>
 							<Position>
-								<WorldPosition x="52588.93" y="67883.24" z="12.19" h="0.0000" p="0" r="0" />
+								<WorldPosition x="52806.11" y="67882.22" z="12.27" h="-0.3242" p="0" r="0" />
 							</Position>
 						</TeleportAction>
 					</PrivateAction>
@@ -43,7 +43,7 @@
 						<RoutingAction>
 							<AcquirePositionAction>
 								<Position>
-									<WorldPosition x="52809.53" y="67880.32" z="11.86" h="-0.7660" p="0" r="0" />
+									<WorldPosition x="52811.19" y="67858.59" z="12.01" h="-1.5673" p="0" r="0" />
 								</Position>
 							</AcquirePositionAction>
 						</RoutingAction>
@@ -74,7 +74,7 @@
 											<EntityCondition>
 												<ReachPositionCondition tolerance="5.0">
 													<Position>
-														<WorldPosition x="52809.53" y="67880.32" z="11.86" h="0" p="0" r="0" />
+														<WorldPosition x="52811.19" y="67858.59" z="12.01" h="0" p="0" r="0" />
 													</Position>
 												</ReachPositionCondition>
 											</EntityCondition>

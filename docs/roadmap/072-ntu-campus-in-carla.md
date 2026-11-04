@@ -428,23 +428,35 @@ Next:
         the brake held the car still. Not yet chased: whether acb's brake at rest should let a
         car on a downhill roll when the requested deceleration is weaker than gravity's pull
         (1.23 m/s^2 here). A real car would roll at that brake force.
-      - 40: the initial pose's pitch has the wrong sign. The spawn faces up a 10 deg ramp. SSv2's
-        published ego status says ROS pitch -9.7 deg (nose up, right), and CARLA's car settles
-        at UE +10.9 (nose up). Every one of ndt_align's 200 particles (`loc_bag.sh`, its
-        monte_carlo_initial_pose_marker) started at ROS +9.7, nose down, 20 deg off. No
-        particle scored over NVTL 1.77; the true-yaw bin's best was 1.49 (about 3 elsewhere on
-        the tour). The best yaw is then any yaw: E 0.40, H3 -0.05, Isaac 1.55 against -1.59.
-        So the trench's symmetry is not the cause, and moving the leg's start would only hide the
-        bug. Sign tests with a ROS -9.7 pose at the spawn reach NDT as -9.7 through each of
-        ndt_align_srv, /localization/initialize, /api/localization/initialize and the relay's
-        ADAPI in the scenario domain (relay, swb_agent, Autoware). So the flip is upstream of the
-        relay, in SSv2's spawn and initial pose: CARLA's first spawn sample is UE +9.7, which
-        the conversion gives only from a ROS +9.7 pose, and Isaac's spawn is ROS +9.7 (059).
-        A second error makes CARLA's spawn look right. swb_core's `ros_to_carla_rotation` and
-        `carla_to_ros_rotation` (acb's copy too) negate roll and keep pitch. UE's convention
-        needs the opposite: `carla.Rotation(pitch=10)` points the nose up, and
-        `Rotation(roll=10)` drops the right side, as ROS roll +10 does. Neither is changed:
-        both reach every scenario with a slope, and they wait for the user's decision.
+      - 40 (fixed, below): the initial pose's pitch had the wrong sign. SSv2 sent ROS +9.7,
+        nose down, for a car facing up the 10 deg ramp, and a second, opposite error in the
+        CARLA conversion hid it in CARLA's spawn. ndt_align's 200 particles all started 20 deg
+        off in pitch, no particle scored over NVTL 1.77, and the yaw came out at random.
+    - **The pitch pair (landed 2026-11-05)**. A probe build of SSv2 put the flip at
+      `CanonicalizedLaneletPose::adjustOrientationAndOzPosition`. Leg 40's spawn, at the
+      start of 1008343, is matched to 1008350, the down-ramp lanelet drawn over it, and the
+      entity took that lanelet's pitch as is: spawn +9.70, initialize +9.70, sent to the
+      world unchanged. The fix takes the slope along the entity's own heading,
+      atan(tan(p) * cos(dyaw)). It works in the ROS/ENU frame only and assumes no simulator
+      (fork 7e98ecc4f on `managed-ego-unforked`).
+      - The second half is CARLA's: swb_core's and acb's `ros_to_carla_rotation` /
+        `carla_to_ros_rotation` now keep roll and negate pitch, tested against LibCarla's
+        matrix (swb_world_protocol acefa17, swb_carla_world c49f6be, acb b389911). Isaac takes
+        the ROS quaternion as it is (aib `_set_xform`), so it needs only the SSv2 half.
+      - The protocol states the convention: REP-103, positive pitch nose down, each server
+        converting at its own edge (swb_world.proto "Orientation"; swb_world_protocol
+        0a3a38d, swb_carla_world a7b927b).
+      - `swb_world_check conformance` now checks orientation for any server. A pose's
+        orientation must read back as posed. With `--slope`, the ego must settle with the
+        road's pitch sign. On CARLA, NTU, `--slope 52969.53,67864.92,9.6,-91.1,-10.5`: the
+        fixed server settles at -10.9 and passes; the pre-fix binary settles at +10.9 and
+        fails. The round-trip check passes both, since a mirror applied both ways
+        round-trips.
+      - On 133 with the pair (runs_R): 40 passes, 57 of 62 m, 28 s. Its particles start at
+        -9.7 and the best NVTL is 2.74 at the true yaw. 27, 81 (23 s) and r01 pass.
+        Town01's set is 5 of 6 before and after; town01_traffic_light fails on its 300 s
+        timeout both times.
+      - That makes **113 of 114 legs**, plus r01 and r02. Only 03, the hairpin, is left.
     - Tools: `tour_monitor.py`, `tour_lidar_diff.py`, `tour_clock.py`, `tour_table.py` in
       `scripts/ntu_carla/`. Runs: `/mnt/p5plus/aeon/ntu-twin/tour/runs_{B,C,D,E,F,G}` (videos,
       state.jsonl, monitor.jsonl); H, H2, H3 add `40_locbag` (localization and ndt_align's
@@ -575,14 +587,13 @@ Next:
 
       </details>
 
-Next: leg 40's pitch sign: SSv2's spawn and initial pose (the flip) and swb_core's / acb's
-CARLA rotation conversion (roll and pitch), both the user's to decide, then rerun 40 (Isaac's
-spawn fall too, 059). Then 81's restart on the down-ramp (acb's brake at rest, or the
-controller's low-speed integration). The hairpin at 03 needs a wider join in the Lanelet2
-(agreed with 059 first) or stays off the car's routes. Then the site package on the NAS, and
-the rest of the parity list with 059 (P4 signals; P6's recorder mounts are in,
-`carla_watch_video.py --mounts`). Isaac's AEB on passing legs, not seen on CARLA's last
-full tour (D): 10 and 56 at (519, 282), 104 and 109 at (350-362, 233), 82 at (93, 184); leg 47
+Next: Isaac reruns 40 on the fork's 7e98ecc4f (059). Then 81's restart on the down-ramp, still
+open even though 81 passed in R (acb's brake at rest, or the controller's low-speed
+integration). The hairpin at 03 needs a wider join in the Lanelet2 (agreed with 059 first)
+or stays off the car's routes. Then the site package on the NAS, and the rest of the parity
+list with 059 (P4 signals; P6's recorder mounts are in, `carla_watch_video.py --mounts`).
+Isaac's AEB on passing legs, not seen on CARLA's last full tour (D): 10 and 56 at (519, 282),
+104 and 109 at (350-362, 233), 82 at (93, 184); leg 47
 lost NDT for 6 s (059's to look at).
 
 ## Parity with 059 (the NTU twin on Isaac)

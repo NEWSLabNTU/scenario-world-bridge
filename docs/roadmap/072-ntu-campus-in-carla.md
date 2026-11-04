@@ -622,7 +622,26 @@ Next:
 
       </details>
 
-Next: the longitudinal PID's pitch clamp to +/-0.2 rad (approved; 40, 27, 81, r01 and Town01 to test), then the proof run on both sides. Isaac reruns 40 on the fork's 7e98ecc4f and 03 on 0d514c1d (059). Then 81's restart on the down-ramp, still
+- **The longitudinal PID's pitch clamp at +/-0.2 rad (2026-11-05; autoware_sim_vehicle 45d62aa).**
+  The profile carries its own copy of autoware_launch's `pid.param.yaml`, whose only change is
+  `max_pitch_rad` / `min_pitch_rad` 0.2 / -0.2 (upstream 0.1 / -0.1, under the car park's 10.9 deg
+  ramp). `sim_lon_controller_param_path` picks it, every scenario under `sim_control`;
+  `use_individual_control_param` still takes the vehicle's own file. On the live stack
+  `ros2 param get /control/trajectory_follower/controller_node_exe max_pitch_rad` reads 0.2.
+  Tests, against runs R (the pitch pair, before) and town01_rot:
+
+  | | before | after |
+  |---|---|---|
+  | 40 | pass, 57 m, 28 s, NVTL min 2.77 | pass, 57 m, 28 s, 2.79 |
+  | 27 | pass, 66 m, 33 s, 2.93 | pass, 66 m, 34 s, 2.89 |
+  | 81 (twice after) | pass, 42 m, 23 s, no roll-back, no stall on the ramp | the same, both runs |
+  | r01 | pass, 344 m, 96 s, no MRM | pass, 345 m, 97 s; one 1 s AEB at (304, 186), an object 17 m ahead closing at 7 m/s on the flat (run A had the same on that road before the change) |
+  | Town01 set | 5 of 6 (traffic_light: 300 s timeout) | 5 of 6, the same timeout |
+
+  81 had already passed since the pitch pair, so the clamp changes nothing measured here; it
+  leaves the slope compensation room on ramps over 5.7 deg.
+
+Next: the proof run on both sides. Isaac reruns 40 on the fork's 7e98ecc4f and 03 on 0d514c1d (059). Then 81's restart on the down-ramp, still
 open even though 81 passed in R (acb's brake at rest, or the controller's low-speed
 integration). The hairpin at 03 needs a wider join in the Lanelet2 (agreed with 059 first)
 or stays off the car's routes. Then the site package on the NAS, and the rest of the parity

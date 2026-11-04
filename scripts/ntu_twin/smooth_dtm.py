@@ -22,7 +22,18 @@ that stands more than CANOPY above the window's lower quarter (a cell whose lowe
 a crown). Along r01's last lanelet the road runs above a drop: SMRF's 16 m opening took the
 raised road for an object, no cell there was ground, and the fill put the road 6 m down
 (zmin was 11.84-11.89 in every cell, the raw DTM 5.8-7.3); the car braked for its own road,
-slid towards the drop and NDT lost it (N8). Then narrow pits close: a cell more than PIT_DEPTH below its PIT_WINDOW x PIT_WINDOW median
+slid towards the drop and NDT lost it (N8). Under dense canopy the crown test is not enough:
+no return reaches the road, the window's lower quarter is crown too, and the lane rule put the
+road 5-7 m up in the trees (seven places found from the CARLA build of the same site, e.g.
+map-minus-origin (489.7, 232.3): raw 29.71, zmin median 35.51, lower quarter 35.49), and 14 m
+up on a roof at (473.6, 166.4). So a median more than RAISED above the capped surface counts
+only where it joins the road: where a chain of lane cells, each within STEP of the next, links
+it to one within RAISED of the capped surface. A raised road runs on into the road it leaves
+(r01's: 11.85 m all along, 5-6 m above the cap at the drop); a crown or a roof is an island,
+meters above the road at every edge. An island is dropped only where it stands more than STEP
+above every joined cell within LANE_WINDOWS[-1]: on a raised deck whose scan sees through in
+places (map-minus (-124, -91), 12 m, zmin 6-12) the medians mixing the two are islands too,
+but below the deck beside them, and stay. Then narrow pits close: a cell more than PIT_DEPTH below its PIT_WINDOW x PIT_WINDOW median
 is raised to that median less PIT_DEPTH. Through a drain grate at r01's road edge the scanner
 saw the pit under it, ground-classified 2 m below the road; the right wheels dropped in, the
 car slid sideways, and the EKF, rejecting NDT's poses, ended the drive in an MRM (N8). That
@@ -51,6 +62,8 @@ LANE_WINDOWS = (9, 17, 33)  # cells
 LANE_MARGIN = 3.0  # m
 ZMIN_MEDIAN = 5  # cells
 CANOPY = 0.3  # m above the window's 25th percentile of zmin
+RAISED = 1.0  # m above the capped surface: a zmin median this high must join the road
+STEP = 0.3    # m between neighbouring lane cells' zmin medians on such a chain
 MEDIAN = 5     # cells (1.25 m)
 SIGMA_CELLS = 1.0
 
@@ -69,6 +82,31 @@ def smooth(dtm, ground, cell):
         todo &= ~ok
         print(f"sigma {s:4.1f} m: {ok.sum():,} cells, {todo.sum():,} left", flush=True)
     return out, todo
+
+
+def joined(cells, z, seed):
+    """`cells` linked to a `seed` cell through 4-neighbours of `cells` whose z differ by
+    less than STEP."""
+    from scipy import sparse
+    from scipy.sparse.csgraph import connected_components
+
+    idx = np.full(z.shape, -1, np.int64)
+    n = int(cells.sum())
+    idx[cells] = np.arange(n)
+    a, b = [], []
+    for s0, s1 in (((slice(None), slice(None, -1)), (slice(None), slice(1, None))),
+                   ((slice(None, -1), slice(None)), (slice(1, None), slice(None)))):
+        k = cells[s0] & cells[s1] & (np.abs(z[s0] - z[s1]) < STEP)
+        a.append(idx[s0][k])
+        b.append(idx[s1][k])
+    a, b = np.concatenate(a), np.concatenate(b)
+    _, lab = connected_components(sparse.coo_matrix((np.ones(len(a), bool), (a, b)), (n, n)),
+                                  directed=False)
+    ok = np.zeros(lab.max() + 1, bool)
+    ok[lab[seed[cells]]] = True
+    out = np.zeros(z.shape, bool)
+    out[cells] = ok[lab]
+    return out
 
 
 def main():
@@ -101,6 +139,11 @@ def main():
         zm = ndimage.median_filter(zf, ZMIN_MEDIAN)
         low = ndimage.percentile_filter(zf, 25, size=PIT_WINDOW)
         use = lanes & seen & (zm < 1e5) & (zm <= low + CANOPY)
+        road = joined(use, zm, zm <= out + RAISED)
+        top = ndimage.maximum_filter(np.where(road, zm, -1e6), LANE_WINDOWS[-1])
+        island = use & ~road & (zm > top + STEP)
+        use &= ~island
+        print(f"lanes: {int(island.sum()):,} cells raised above the road and not joined to it")
         out = np.where(use, zm, out)
         print(f"lanes: {int(use.sum()):,} of {int(lanes.sum()):,} cells from the scan's lowest return")
     out = np.maximum(out, ndimage.median_filter(out, PIT_WINDOW) - PIT_DEPTH)

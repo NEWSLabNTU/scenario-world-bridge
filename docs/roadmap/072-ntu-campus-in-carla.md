@@ -250,8 +250,58 @@ Next:
    No NDT warning and no MRM during the run (the stack's only emergency stop is the one at its
    start-up, before r01). `ntu_carla_r02_autoware.mp4` on the NAS beside r01's.
 
-Next: the hedges' faceting (smoothing the geometry, not the normals) and the site package on
-the NAS.
+9. **Hedges as a height field** (2026-11-04, `hedges.py`, `carla_meshes.py --hedges`).
+   - Smoothing the geometry does not take the faceting out. Adjacent faces of the scan's
+     vegetation meet at 43 deg at the median (p90 80). Taubin smoothing (lambda 0.5, mu -0.53,
+     boundaries held) took that to 29 deg after 40 iterations, and the decimation put it back to
+     43. The surface is a crumpled sheet, not a noisy smooth one.
+   - A hedge is a top over the ground, so it is rebuilt as one, on the DTM's 25 cm grid.
+     - Low vegetation faces: off the road, under 2.6 m, and a tree's or green (G over R and B
+       by 8 %).
+     - Hedge cells: 2+ such faces, 60 % of the cell's low faces, a top over 0.25 m, 0.4 m
+       clear of a trunk, not under the parked-vehicle mask. Closed by two cells, opened by
+       one, blobs under 0.75 m2 dropped.
+     - The top: median 3x3 and an unnormalised Gaussian (sigma 1.2 cells), so the sides fall
+       to the ground over a few cells; the edge is where it drops under 5 cm.
+     - Site: 244617 cells, 15289 m2 in 1573 blobs, top p50 0.56 m.
+   - `carla_meshes.py --hedges` drops the low vegetation faces under the mask (2.08 M source
+     faces) and adds the field as tree-class geometry (Vegetation tag, alpha 1, no cut-outs):
+     523k triangles. Props after decimation 4.40 M -> 3.81 M triangles.
+   - The first build left a flat, light slab on the north kerb at turn 2. It was the scooter
+     row item 7 removes, whose greenish faces passed as vegetation; hence the parked-mask
+     exclusion.
+   - Probe views (`carla/site/hedges_before_after.jpg`):
+     - At turn 2 and palms the roadside hedges on the left are smooth mounds now, not
+       crumpled lumps. Start and canopy barely change.
+     - Left as they were: the bushes over 2.6 m or around a palm's trunk (palms, right side),
+       which are crowns, and the dark non-green lumps at the canopy view.
+   - `site_rebuild.sh` now counts free space after clearing its own last output (Content/NTU,
+     Dist/NTU_*). The import, materials (339 meshes) and package took 41 min.
+
+10. **The shared scenarios on the hedge map** (2026-11-04; 059's parity list, P3 and P7).
+    - The four NTU cases are generated pairs now: `scripts/ntu_twin/scenario_pair.py` writes
+      `ntu_carla_<case>.xosc` from `ntu_twin_<case>.xosc`. Only the LogicFile differs; edit the
+      `ntu_twin_` file.
+    - Run one after another on CARLA 2400, one ego stack, with the recorder and 059's
+      `ssv2_watch.py` (domain 9, this workspace's install sourced for
+      `openscenario_interpreter_msgs`):
+
+      | case | junit | driven | NPC check |
+      |---|---|---|---|
+      | r01 | 0 failures | 344 m | - |
+      | r02 | 0 failures | 343 m | - |
+      | r01_lead | 0 failures | 344 m | ego behind the lead at 2.44 m/s (lead 2.50), 15 m back; `lead_gone` complete |
+      | r01_pedestrian | 0 failures | 344 m | `cross`, `stand_in_the_lane`, `walk_on` complete in order; ego stopped 8.9 m from the walker (SSv2 entity positions); closest 8.1 m, after it walked on |
+
+    - Over the four runs the stack logged no MRM. NDT's only warnings came at its start-up,
+      before the map loaded. NVTL was not recorded.
+    - CARLA needed no change to the NPC files: the walker blueprint, WalkStraightAction with
+      SpeedAction, and DeleteEntityAction all worked, and Isaac's z values sit on CARLA's
+      ground.
+    - Videos: `carla/site/runs_h1/*.mp4`.
+
+Next: the site package on the NAS, and the rest of the parity list with 059: the recorder on
+059's mounts with `state.jsonl`, NVTL along r01 and r02.
 
 ## How a CARLA map is made and shipped
 

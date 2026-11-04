@@ -2,7 +2,7 @@
 """The NTU campus's meshes for CARLA (roadmap 072 C3-C5), per 50 m tile, from roadmap 059's.
 
     carla_meshes.py MESH_DIR MAP_DIR GROUND_DIR TREES_DIR OUT_DIR [--tiles ix_iy,...|--route r01]
-        [--keep 0.3] [--workers 4] [--parked PARKED.npz]
+        [--keep 0.3] [--workers 4] [--parked PARKED.npz] [--hedges HEDGES.npz]
 
 Run with the NTU tool venv (open3d, scipy). Reads 059's `build_meshes.py` output (MESH_DIR:
 ground_<t>.npz, building_<t>.ply, other_<t>.ply), the Lanelet2 map, the DTM and `trees.py`'s
@@ -18,7 +18,10 @@ the classes CARLA's import tags by name:
            with `--parked` (`parked_vehicles.py`'s mask) without the parked vehicles' faces
            below PARKED_BELOW
   tree     the trees' faces, de-lit and decimated; alpha 0 at a hashed HOLE_FRACTION of the
-           vertices, which the master material cuts out (as 059's Isaac crowns)
+           vertices, which the master material cuts out (as 059's Isaac crowns); with
+           `--hedges` (`hedges.py`'s height field) the low vegetation's faces under its mask
+           (trees' and props') are left out and the height field takes their place, a grid on
+           the DTM's cells with alpha 1, its edge down on the ground
 
 Vertices are in the map frame less MAP_ORIGIN (metres, z up), as the OpenDRIVE; colours are
 linear RGBA in 0..1. UE 4.26 has no Nanite: the buildings, props and trees keep `--keep` of
@@ -37,6 +40,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ntu_twin"))
 import world_usd as W  # noqa: E402
+
+import hedges as HG  # noqa: E402
 
 PARKED_BELOW = 2.6  # m over the DTM: a parked vehicle's faces, under the mask (parked_vehicles.TALL)
 ROAD_MARGIN = 0.25  # m (one DTM cell; 0 would make lane_raster dilate without end): Road, past it Terrain
@@ -124,6 +129,7 @@ def _init(a):
     _ctx["clear"] = W.RoadClear(a["osm"], a["ground"], 0.5)
     _ctx["trees"] = W.Trees(a["trees"], a["ground"])
     _ctx["parked"] = np.load(a["parked"])["mask"] if a.get("parked") else None
+    _ctx["hedges"] = dict(np.load(a["hedges"])) if a.get("hedges") else None
     _ctx["meta"] = json.load(open(os.path.join(a["ground"], "dtm.json")))
     _ctx["a"] = a
 
@@ -137,6 +143,61 @@ def parked(P):
     i = np.clip(((v[:, 0] - m["x0"]) / m["cell"]).astype(int), 0, m["width"] - 1)
     j = np.clip(((v[:, 1] - m["y0"]) / m["cell"]).astype(int), 0, m["height"] - 1)
     return mask[j, i] & (_ctx["trees"].height(P) < PARKED_BELOW)
+
+
+def _cell(P):
+    """Map-frame points' DTM cell (j, i)."""
+    m = _ctx["meta"]
+    v = P + W.SHIFT
+    i = np.clip(((v[:, 0] - m["x0"]) / m["cell"]).astype(int), 0, m["width"] - 1)
+    j = np.clip(((v[:, 1] - m["y0"]) / m["cell"]).astype(int), 0, m["height"] - 1)
+    return j, i
+
+
+def hedge_faces(V, F, C):
+    """Of the faces F (off the road), the low vegetation under the hedges' mask."""
+    hg = _ctx["hedges"]
+    if hg is None or not len(F):
+        return np.zeros(len(F), bool)
+    veg, _, _ = HG.low_vegetation(V, F, C, _ctx["trees"])
+    j, i = _cell(V[F].mean(axis=1))
+    return veg & hg["mask"][j, i]
+
+
+def hedge_mesh(ix, iy):
+    """The hedges' height field in tile (ix, iy): a vertex per DTM cell centre, a quad between
+    four of them when all four are within a cell of the mask and one is in it; the vertices
+    outside the mask sit on the DTM. Map frame; colours sRGB 0..1."""
+    hg, m = _ctx["hedges"], _ctx["meta"]
+    if hg is None:
+        return None
+    n = int(round(50.0 / m["cell"]))
+    i0 = int(round((ix * 50.0 - m["x0"]) / m["cell"]))
+    j0 = int(round((iy * 50.0 - m["y0"]) / m["cell"]))
+    if i0 + n < 0 or j0 + n < 0 or i0 >= m["width"] or j0 >= m["height"]:
+        return None
+    js = np.clip(np.arange(j0, j0 + n + 1), 0, m["height"] - 1)
+    is_ = np.clip(np.arange(i0, i0 + n + 1), 0, m["width"] - 1)
+    M = hg["mask"][np.ix_(js, is_)]
+    if not M.any():
+        return None
+    from scipy import ndimage
+
+    D = ndimage.binary_dilation(hg["mask"][np.ix_(np.clip(np.arange(j0 - 1, j0 + n + 2), 0, m["height"] - 1),
+                                                   np.clip(np.arange(i0 - 1, i0 + n + 2), 0, m["width"] - 1))])[1:-1, 1:-1]
+    q = D[:-1, :-1] & D[:-1, 1:] & D[1:, 1:] & D[1:, :-1] & (M[:-1, :-1] | M[:-1, 1:] | M[1:, 1:] | M[1:, :-1])
+    if not q.any():
+        return None
+    dtm = np.asarray(_ctx["trees"].dtm[np.ix_(js, is_)], np.float64)
+    top = np.where(M, hg["top"][np.ix_(js, is_)].astype(np.float64), 0.0)
+    jj, ii = np.meshgrid(js, is_, indexing="ij")
+    V = np.stack([m["x0"] + (ii + 0.5) * m["cell"], m["y0"] + (jj + 0.5) * m["cell"], dtm + top], axis=-1).reshape(-1, 3) - W.SHIFT
+    C = hg["colour"][np.ix_(js, is_)].reshape(-1, 3).astype(np.float64) / 255.0
+    w = n + 1
+    a = np.flatnonzero(q.ravel())
+    a = (a // n) * w + a % n  # the quad's lower-left vertex
+    F = np.r_[np.c_[a, a + 1, a + w + 1], np.c_[a, a + w + 1, a + w]]
+    return compact(V, F, C)
 
 
 def one(t):
@@ -170,16 +231,21 @@ def one(t):
         V, F, C = W.read_ply(p)
         if not len(F):
             continue
-        C = W.srgb_to_linear(C if C is not None else np.full((len(V), 3), 0.5))
+        C = C if C is not None else np.full((len(V), 3), 0.5)
         if name == "building":
             parts = [("building", F)]
         else:
             F = F[~_ctx["clear"].on_road(V[F].mean(axis=1))]
+            hf = hedge_faces(V, F, C)
+            if _ctx["hedges"] is not None:
+                stats["hedge_faces"] = int(hf.sum())
+            F = F[~hf]
             tr = _ctx["trees"].is_tree(V[F].mean(axis=1))
             Fp = F[~tr]
             pk = parked(V[Fp].mean(axis=1))
             stats["parked"] = int(pk.sum())
             parts = [("tree", F[tr]), ("prop", Fp[~pk])]
+        C = W.srgb_to_linear(C)
         for cls, Fp in parts:
             if not len(Fp):
                 continue
@@ -201,6 +267,19 @@ def one(t):
             out[f"{cls}_F"] = Fc.astype(np.int32)
             out[f"{cls}_C"] = np.c_[Cc, alpha].astype(np.float32)
             stats[cls] = (n0, int(len(Fc)))
+    h = hedge_mesh(ix, iy)
+    if h is not None:
+        Vh, Fh, Ch = h
+        Ch = np.c_[delight(W.srgb_to_linear(Ch), W.DELIGHT_GAMMA["Tree"]), np.ones(len(Vh))]
+        Vh = Vh - origin
+        if "tree_V" in out:
+            k = len(out["tree_V"])
+            out["tree_V"] = np.r_[out["tree_V"], Vh].astype(np.float32)
+            out["tree_F"] = np.r_[out["tree_F"], Fh + k].astype(np.int32)
+            out["tree_C"] = np.r_[out["tree_C"], Ch].astype(np.float32)
+        else:
+            out["tree_V"], out["tree_F"], out["tree_C"] = Vh.astype(np.float32), Fh.astype(np.int32), Ch.astype(np.float32)
+        stats["hedge"] = int(len(Fh))
     np.savez_compressed(os.path.join(a["out"], f"tile_{ix}_{iy}.npz"), **out)
     return t, stats
 
@@ -217,6 +296,7 @@ def main(argv=None):
     ap.add_argument("--keep", type=float, default=0.3)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--parked", default="", help="parked_vehicles.py's mask: leave those out")
+    ap.add_argument("--hedges", default="", help="hedges.py's height field: in place of the low vegetation")
     a = ap.parse_args(argv)
     osm = os.path.join(a.map_dir, "lanelet2_map.osm")
     if a.tiles:
@@ -228,7 +308,8 @@ def main(argv=None):
                         if (m := re.match(r"ground_(-?\d+)_(-?\d+)\.npz$", f))})
     os.makedirs(a.out, exist_ok=True)
     ctx = {"mesh": a.mesh_dir, "osm": osm, "ground": a.ground_dir, "trees": a.trees_dir,
-           "out": a.out, "keep": a.keep, "parked": a.parked}
+           "out": a.out, "keep": a.keep, "parked": a.parked,
+           "hedges": a.hedges}
     t0, report = time.time(), {}
     with Pool(a.workers, initializer=_init, initargs=(ctx,)) as pool:
         for k, (t, st) in enumerate(pool.imap_unordered(one, tiles)):

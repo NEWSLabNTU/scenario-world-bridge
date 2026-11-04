@@ -1,0 +1,297 @@
+<?xml version="1.0"?>
+<!--
+	Roadmap 059 N8: r01 on the NTU twin with a pedestrian crossing 160 m along it, on the
+	westbound stretch (the ego's lane spans y 67884.7-67887.5 there). When the ego is 40 m
+	before the crossing the pedestrian walks south at 1.2 m/s (SSv2's WalkStraightAction) into the
+	ego's lane, stands in it for 10 s, then walks on across both lanes.
+	Success: the ego reaches the goal. Failure: the ego touches the pedestrian or comes
+	within 1 m of it head on (as town01_pedestrian), or 600 s pass.
+-->
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-10-30T00:00:00+00:00" description="roadmap 059 N8: route r01 on the NTU campus twin, a pedestrian crosses in front" revMajor="1" revMinor="2" />
+	<ParameterDeclarations>
+	</ParameterDeclarations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork>
+		<LogicFile filepath="$(env SWB_NTU_TWIN)/map" />
+	</RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController>
+				<Controller name="Autoware">
+					<Properties>
+						<Property name="maxJerk" value="1.5" />
+						<Property name="minJerk" value="-1.5" />
+					</Properties>
+				</Controller>
+			</ObjectController>
+		</ScenarioObject>
+		<ScenarioObject name="pedestrian">
+			<Pedestrian model="unspecified" mass="70.0" name="walker.pedestrian.0001" pedestrianCategory="pedestrian">
+				<BoundingBox>
+					<Center x="0.0" y="0.0" z="0.9" />
+					<Dimensions width="0.6" length="0.6" height="1.8" />
+				</BoundingBox>
+				<Properties />
+			</Pedestrian>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init>
+			<Actions>
+				<Private entityRef="ego">
+					<PrivateAction>
+						<TeleportAction>
+							<Position>
+								<WorldPosition x="52814.25" y="67815.19" z="12.3" h="1.5773" p="0" r="0" />
+							</Position>
+						</TeleportAction>
+					</PrivateAction>
+					<PrivateAction>
+						<RoutingAction>
+							<AcquirePositionAction>
+								<Position>
+									<WorldPosition x="52578.0" y="67835.0" z="11.6" h="-1.5626" p="0" r="0" />
+								</Position>
+							</AcquirePositionAction>
+						</RoutingAction>
+					</PrivateAction>
+				</Private>
+				<Private entityRef="pedestrian">
+					<PrivateAction>
+						<TeleportAction>
+							<Position>
+								<WorldPosition x="52720.15" y="67891.0" z="12.0" h="-1.5708" p="0" r="0" />
+							</Position>
+						</TeleportAction>
+					</PrivateAction>
+				</Private>
+			</Actions>
+		</Init>
+		<Story name="ntu_twin_r01_pedestrian">
+			<Act name="drive_act">
+				<ManeuverGroup maximumExecutionCount="1" name="ego_maneuvers">
+					<Actors selectTriggeringEntities="false">
+						<EntityRef entityRef="ego" />
+					</Actors>
+					<Maneuver name="end_conditions">
+						<Event name="success" priority="parallel">
+							<Action name="exit_success">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitSuccess" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="reach_goal" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<ReachPositionCondition tolerance="5.0">
+													<Position>
+														<WorldPosition x="52578.0" y="67835.0" z="11.6" h="0" p="0" r="0" />
+													</Position>
+												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="pedestrian_clearance" priority="parallel">
+							<Action name="exit_failure_clearance">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="pedestrian_in_ego_path" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<RelativeDistanceCondition entityRef="pedestrian" freespace="true" relativeDistanceType="lateral" coordinateSystem="entity" rule="lessThan" value="0.3" />
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+									<Condition name="ego_within_1m_of_pedestrian_ahead" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<RelativeDistanceCondition entityRef="pedestrian" freespace="true" relativeDistanceType="longitudinal" coordinateSystem="entity" rule="lessThan" value="1.0" />
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="touched_pedestrian" priority="parallel">
+							<Action name="exit_collision_pedestrian">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="collision_pedestrian" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<CollisionCondition>
+													<EntityRef entityRef="pedestrian" />
+												</CollisionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="timeout" priority="parallel">
+							<Action name="exit_failure">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="timeout_condition" delay="0" conditionEdge="none">
+										<ByValueCondition>
+											<SimulationTimeCondition value="600.0" rule="greaterThan" />
+										</ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<ManeuverGroup maximumExecutionCount="1" name="pedestrian_crossing">
+					<Actors selectTriggeringEntities="false">
+						<EntityRef entityRef="pedestrian" />
+					</Actors>
+					<Maneuver name="cross_the_road">
+						<!-- SSv2's WalkStraightAction, not a timed FollowTrajectoryAction: on this map the
+						     trajectory follower left the pedestrian standing (0.1 m in 6 s, 2026-11-04). -->
+						<Event name="cross" priority="parallel">
+							<Action name="walk_speed">
+								<PrivateAction>
+									<LongitudinalAction>
+										<SpeedAction>
+											<SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time" />
+											<SpeedActionTarget>
+												<AbsoluteTargetSpeed value="1.2" />
+											</SpeedActionTarget>
+										</SpeedAction>
+									</LongitudinalAction>
+								</PrivateAction>
+							</Action>
+							<Action name="walk_straight">
+								<UserDefinedAction>
+									<CustomCommandAction type="WalkStraightAction" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="ego_40m_before_the_crossing" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<ReachPositionCondition tolerance="4.0">
+													<Position>
+														<WorldPosition x="52760.38" y="67886.12" z="11.9" h="0" p="0" r="0" />
+													</Position>
+												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="stand_in_the_lane" priority="parallel">
+							<Action name="stand">
+								<PrivateAction>
+									<LongitudinalAction>
+										<SpeedAction>
+											<SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time" />
+											<SpeedActionTarget>
+												<AbsoluteTargetSpeed value="0.0" />
+											</SpeedActionTarget>
+										</SpeedAction>
+									</LongitudinalAction>
+								</PrivateAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="pedestrian_in_the_ego_lane" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="pedestrian" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<ReachPositionCondition tolerance="0.6">
+													<Position>
+														<WorldPosition x="52720.15" y="67886.1" z="12.0" h="0" p="0" r="0" />
+													</Position>
+												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="walk_on" priority="parallel">
+							<Action name="walk_on_speed">
+								<PrivateAction>
+									<LongitudinalAction>
+										<SpeedAction>
+											<SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time" />
+											<SpeedActionTarget>
+												<AbsoluteTargetSpeed value="1.2" />
+											</SpeedActionTarget>
+										</SpeedAction>
+									</LongitudinalAction>
+								</PrivateAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="stood_10s" delay="10" conditionEdge="none">
+										<ByValueCondition>
+											<StoryboardElementStateCondition storyboardElementType="event" storyboardElementRef="stand_in_the_lane" state="completeState" />
+										</ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<StartTrigger>
+					<ConditionGroup>
+						<Condition name="start" delay="0" conditionEdge="none">
+							<ByValueCondition>
+								<SimulationTimeCondition value="0" rule="greaterThan" />
+							</ByValueCondition>
+						</Condition>
+					</ConditionGroup>
+				</StartTrigger>
+			</Act>
+		</Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

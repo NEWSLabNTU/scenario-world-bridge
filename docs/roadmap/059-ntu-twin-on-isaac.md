@@ -294,6 +294,28 @@ Progress:
     On the way: `just isaac-world ego:=` with a path relative to the checkout crash-looped the
     world server (73 respawns in 20 min, `FileNotFoundError`): the node runs from another
     directory, so give an absolute path.
+  - N8's scenarios with NPCs (118, 2026-11-04): two variants of r01 on the retouched world,
+    each on the world server with its recorder (Isaac on GPU 0; GPU 1 held by another user's
+    vLLM). The world server dresses a declared car in the nearest CARLA body and a pedestrian
+    as a CARLA walker. Positions come from r01's driven track (`n8/drive_n10a.csv`).
+    - `scenarios/ntu_twin/ntu_twin_r01_lead.xosc`: a car 25 m ahead in the ego's lane drives
+      r01 at 2.5 m/s and is deleted 45 m before the goal. Passed, 135 s: the ego closed up and
+      held 2.5 m/s behind it from the first turn to the last, then went on at 4.3 m/s.
+    - `scenarios/ntu_twin/ntu_twin_r01_pedestrian.xosc`: 160 m along r01, when the ego is 40 m
+      before the crossing, a pedestrian walks south at 1.2 m/s into the ego's lane, stands in
+      it for 10 s, then walks on across both lanes. Passed: the pedestrian was in the lane
+      with the ego 30 m away at 4.2 m/s. The ego braked from about 15 m (4-5 s later; about
+      1 m/s^2), stopped with its front about 4.8 m from the pedestrian, and drove on once the
+      pedestrian had cleared the lane.
+    - The first version moved the pedestrian with a timed `FollowTrajectoryAction` (as
+      town01_pedestrian does). SSv2 started the event on time, but the pedestrian moved only
+      0.1 m in the next 6 s. It reached the lane about 45 s late, after the ego had passed,
+      and the scenario still "passed". A watcher on `/simulation/entity/status` and
+      `/simulation/context` in the scenario domain showed it (`n8_npc_118/ssv2_watch.py` on
+      the NAS). Not chased further: SSv2's `WalkStraightAction` with speed steps is
+      deterministic here. A "passed" with NPCs needs a check that they did their part.
+    - Videos (chase and dash, 20 fps) on the NAS: `video/n8_r01_lead.mp4`,
+      `video/n8_r01_pedestrian.mp4`.
   - N2, the survey's moving objects (133, 2026-10-31; `scripts/ntu_twin/transients.py`, free-space
     carving along the vendor's trajectory, method in its docstring). 167 tiles in 2.1 h of
     worker time: of 5.47 M slab voxels (0.2 m, 0.2-3 m above the DTM) 1.16 M were crossed by
@@ -546,7 +568,8 @@ so NDT and the world agree by construction), r01 and r02's Lanelet2 merged and r
 to it, with traffic lights, stop lines and crosswalks added where the scenarios need them.
 
 **N8. Drive it.** Autoware on the Isaac ego: NDT on the RTX lidar (NVTL along r01 and r02), a
-route driven; SSv2 scenarios with NPCs from the catalog.
+route driven; SSv2 scenarios with NPCs from the catalog. Done 2026-11-04: r01 behind a slower
+car and r01 with a pedestrian crossing, both passed on 118.
 
 **N9. Camera stacks.** Vision Pilot and a VLM agent on the ego's camera, open loop first on
 recorded drives, then closed loop. Record what they get wrong that they do not get wrong on

@@ -614,6 +614,12 @@ own words.
 | P8 | Camera stacks (N9): Vision Pilot and a VLM agent, open loop on P6 recordings first, one harness for both | 118 first | not started | later |
 | P9 | Distribution on the NAS: each simulator's package with a README (install, frame, versions), and one comparison page, CARLA beside Isaac (probe views, P7 numbers) | both | world on the NAS | site package pending |
 
+The fixed probe views (P5), map minus origin, yaw in degrees counter-clockwise from +x, as
+`render_probe.py --view` / `carla_probe.py --view` take them: `start,314.3,118.3,91`,
+`turn2,135.2,186.4,180`, `canopy,270.5,186.1,-180`, `palms,77.6,165.4,-88`. Each is a chase camera
+7 m back along the yaw and 3.4 m over the ground (a ray cast at x, y), pitch 15 deg down, 80 deg
+across, 1280 x 720 (the scripts' defaults). The views N10's numbers were measured on.
+
 ## Risks
 
 - Trees look fake to a VLM; baked shadows in the scan's colour double RTX's own (seen in

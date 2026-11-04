@@ -43,10 +43,21 @@ repair_maps() {
     # Some lanelets ship with no subtype at all (kerb strips, mostly), which makes
     # Autoware's map_based_prediction abort as soon as a pedestrian is near one.
     python3 "$(dirname "$0")/repair_lanelet_subtypes.py" "$1"
+    # Lane lines between two lanes of one direction come as `dashed_dashed`, which lanelet2
+    # does not know and so lets no car cross: Town05's cars never reach their inner lanes,
+    # and its left turns are never routed. Make them `dashed`.
+    python3 "$(dirname "$0")/repair_lanelet_line_types.py" "$1"
+    # Those inner lanes take the opposite lane's left bound as their own, reversed, and
+    # Autoware's behavior_path_planner dies on a route through one. Give each its own way.
+    python3 "$(dirname "$0")/repair_lanelet_bound_directions.py" "$1"
     # The pack's local_x/local_y (what swb reads) are a spherical Mercator, 0.7 % long in
     # y against the TransverseMercator Autoware and SSv2 project lat/lon with: 2.2 m on
     # Town01's southern road. Rewrite every node's from its lat/lon.
     python3 "$(dirname "$0")/repair_lanelet_local_coords.py" "$1"
+    # Some bounds repeat a point as a second node at the same place; Autoware's fine centre
+    # line then has NaN points and length, and behavior_path_planner's walk back over the
+    # preceding lanelets never ends. Drop the repeats (after the local coordinates).
+    python3 "$(dirname "$0")/repair_lanelet_duplicate_points.py" "$1"
     # No lanelet carries turn_direction, so Autoware's intersection and blind_spot
     # modules never launch. Tag the junction lanelets from their heading change.
     python3 "$(dirname "$0")/repair_lanelet_turn_direction.py" "$1"

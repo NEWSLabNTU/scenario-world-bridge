@@ -147,7 +147,7 @@ it under `data/carla-autoware-bridge/<Town>/` with the projector fix SSv2 needs
 (`SWB_MAP_URL` fetches the zip from a mirror; `SWB_MAP_SOURCE=<pack dir>` uses a copy you
 already have); then generate each town's `carla/traffic_lights.yaml` as above. The script also repairs eight defects of the
 pack, idempotently (`scripts/repair_lanelet_traffic_lights.py`, `scripts/repair_lanelet_subtypes.py`,
-`scripts/repair_lanelet_local_coords.py`, `scripts/repair_lanelet_turn_direction.py`,
+`scripts/repair_lanelet_line_types.py`, `scripts/repair_lanelet_local_coords.py`, `scripts/repair_lanelet_turn_direction.py`,
 `scripts/repair_lanelet_joins.py`, `scripts/repair_lanelet_right_of_way.py`,
 `scripts/repair_lanelet_speed_limits.py`, `scripts/repair_lanelet_walkways_under_roads.py`;
 run them on a copy you installed another way, the last two after the local coordinates and with
@@ -155,7 +155,10 @@ run them on a copy you installed another way, the last two after the local coord
 traffic lights whose type tags are empty (invisible to Autoware and SSv2); lanelets with no
 `subtype` tag -- the kerb strips beside every road -- which make Autoware's
 `map_based_prediction` abort as soon as a pedestrian is near one
-(`lanelet::NoSuchAttributeError: Could not find 1`); and stop lines and signs whose nodes
+(`lanelet::NoSuchAttributeError: Could not find 1`); and lane lines between two lanes of one
+direction typed `dashed_dashed`, a line type Lanelet2 does not know and lets no car cross, so
+Autoware never routes a lane change into a road's inner lane and never a left turn that starts
+there (Town05's 158, Town01's 26 and Town02's 20 become `dashed`); and stop lines and signs whose nodes
 carry only lat/lon, which Autoware projects up to 2.4 m away from where the pack meant them;
 and junction lanelets with no `turn_direction` tag, without which Autoware's `intersection`
 and `blind_spot` modules never launch (each lanelet that leaves a fork or joins a merge is

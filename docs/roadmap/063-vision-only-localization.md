@@ -160,6 +160,49 @@ ground-truth lane departure stays the measure; perception still uses the lidar.
   - The pose is computed in `aib.sensing` (pure, unit-tested: world to map, the body twist),
     published in `aib.ros`; swb_isaac_world's world server gets it with the ego config, as it
     gets the lockstep.
+- **Step 4, the recordings** (`/var/tmp/aeon/063/step4/`, the bags in `/var/tmp/aeon/063/rec/`,
+  NVMe). One run per rung, 10, 15, 20, 25 and 30 m/s, each Autoware's `max_velocity`, a lap of
+  Town05's ring as 057 drove it (autoware-drift's `town05_ring_lap.xosc`, `just scenario ...
+  sim:=isaac`), with:
+  - the world server on `ego_rec.yaml`: `drift_mustang`'s rig (`zed_left` on at 30 Hz, the
+    lidar on for perception), Autoware's command straight to the car
+    (`control_topic: /control/command/control_cmd`, the drift controller not launched), no
+    lockstep, `ground_truth: {pose_estimate: true}`. Without the lockstep the world goes at
+    SSv2's pace (real time at most) and Autoware's EKF gets a pose every frame;
+  - the ego stack as 057's README command less `extra_launch` (no drift controller), with
+    `ndt:=none` and a diagnostic graph without NDT's unit: autoware-drift's
+    `drift_ndt_none.yaml`, `drift.yaml` less `scan_matching_status` and its `warn-to-ok` (the
+    profile's `check_launch_args` refuses `drift.yaml` under `ndt:=none`). The ego stack is
+    restarted per rung (`max_velocity` is a launch argument); the world server and the
+    simulation side stay up;
+  - `ros2 bag record` (mcap, domain 1, Cyclone) from the ego's readiness to the scenario's end:
+    the camera (`/sensing/camera/zed/image_raw`, `camera_info`), the IMU
+    (`/sensing/imu/imu_link/imu_raw`), the vehicle status (`velocity_status`,
+    `steering_status`), `/ground_truth/odom`, `/localization/kinematic_state` (the anchor's
+    reference on replay), `/tf_static` and `/clock`. Raw 960 x 600 rgb8 at 30 Hz is ~52 MB per
+    second of sim time: ~8 GB for the 10 m/s lap;
+  - the map: a copy of Town05's (`CARLA_MAPS=/var/tmp/aeon/063/maps`, the point cloud and
+    the Isaac world linked) with 057's repairs (local coordinates, speed limits from the
+    OpenDRIVE, walkways under the raised road; 139's own copy had only the first) and the
+    ring's 65 mph (104.6 km/h, 29.1 m/s) raised to 110 km/h, so that the 30 m/s rung is
+    `max_velocity`'s and not the lanelets';
+  - the quiet-host gate before the world server; between rungs, with our own world server
+    up, the same gate without its Isaac check; never with CARLA.
+  Each run is checked before the next: the scenario's result, 100 Hz ground truth, ~30 images
+  per sim second, and the top speed on the straights against the rung. Lidar and NDT for
+  comparison are left out: under `ndt:=none` nothing matches, and a second stack per rung
+  would double the runs.
+- **Step 5, the replays** (rig_localization's `rigloc_replay`, real time). Its replay launch
+  plays a fixed list of the golf cart's topics; it gains `topics` and `remaps` arguments
+  (default: today's list) and `wheel_quantum` for `rigloc_wheel_sim`'s `quantum`. An overlay
+  for the Isaac recordings: `cams: [zed]`, rectified (Isaac's pinhole has no distortion), the
+  raw image topic (`encoding: raw`), the IMU's topic, `pose_topic` with `pose.anchor` on,
+  `pose.anchor_settle_s` at 0 and at a settled value (checked on the 10 m/s rung). The camera's
+  mount as rig reads it from `/tf_static` is checked against the rig's (base_link
+  [1.45, 0, 1.2], level). Per rung three replays: the recorded wheel speed (the ideal wheel),
+  then `wheel_sim` from the kinematic state at scale +3 % and -3 %, each quantised to whole
+  km/h. Scored with `ladder_score.py` against `/ground_truth/odom`, lateral limit 1.75 m,
+  per stretch.
 
 ## Decisions taken here (not the user's)
 

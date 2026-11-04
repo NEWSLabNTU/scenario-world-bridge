@@ -43,12 +43,26 @@ Elsewhere one window keeps kerbs and ditches. Then
 the whole grid, ground cells too, takes a MEDIAN x MEDIAN median and a Gaussian of
 SIGMA_CELLS: the scan's ground cells carry single-cell steps of 0.1-0.2 m (sparse points, the
 SMRF band), and one stopped a car at creep torque on r01 after the cap. Kerbs round off over
-about a metre. The original is kept as dtm_raw.npy (and read from it on a rerun);
+about a metre. Last, the lanes (ROAD_MARGIN around the lanelets) are kept off the lanelets'
+surface, as roadmap 072's carla_meshes.py does with the same constants (deb22af), so both
+grounds agree: a lane cell more than ELE_OFF above the median ele of the ELE_K nearest lanelet
+nodes within ELE_R comes down to it, unless the lane rule above took the cell from the scan's lowest return: there
+the scan saw the road, and the lanelets are what is off (on r01 at (131, 182) their ele is
+11.79 m, the scan's road 12.22-12.28 m over 330 m^2; lowering it there puts the ground 0.45 m
+under the point cloud map). Under dense canopy the scan has no road, the lane rule
+cannot use zmin, and the fill invents a rise 0.3-0.9 m over the lanelets: the Isaac tour's
+legs 07, 24, 25, 71 and 73 stopped at such rises (e.g. map-minus-origin (101, 325), and the
+south-west drop at (-289, -151)). Only ever lowered: raising the road to the lanelets made 1 m
+steps at the edge of the raised deck at (-124, -91). The moved cells and the lane within
+BLEND_NEAR of them then take the Gaussian (BLEND_SIGMA) of the lane surface where it is lower,
+and a cell off the lane within FOOT_NEAR of a moved one, more than FOOT_ABOVE over the nearest,
+comes down to it. The original is kept as dtm_raw.npy (and read from it on a rerun);
 dtm.npy is rewritten. Then: build_meshes.py --ground-only, world_usd.py, register_lanelets.py.
 """
 import json
 import os
 import sys
+import warnings
 
 import numpy as np
 from scipy import ndimage
@@ -66,6 +80,13 @@ RAISED = 1.0  # m above the capped surface: a zmin median this high must join th
 STEP = 0.3    # m between neighbouring lane cells' zmin medians on such a chain
 MEDIAN = 5     # cells (1.25 m)
 SIGMA_CELLS = 1.0
+# roadmap 072's carla_meshes.py (deb22af), the same values: ROAD_MARGIN, ELE_*, BLEND_*, and its
+# SPIKE_NEAR and 0.3 m for the foot
+ROAD_MARGIN = 0.25  # m
+ELE_K, ELE_R, ELE_OFF = 6, 6.0, 0.25  # lanelet nodes, m, m
+BLEND_NEAR, BLEND_SIGMA = 1.5, 0.75  # m
+FOOT_NEAR, FOOT_ABOVE = 2.0, 0.3  # m
+SHIFT = np.array([-0.54, 0.20, 17.30])  # the DTM's frame = map + SHIFT (world_usd.SHIFT)
 
 
 def smooth(dtm, ground, cell):
@@ -107,6 +128,50 @@ def joined(cells, z, seed):
     out = np.zeros(z.shape, bool)
     out[cells] = ok[lab]
     return out
+
+
+def to_lane_ele(out, osm, meta, road, scan):
+    """`out` with its `road` cells kept off the lanelets' surface (the module's last step),
+    except the `scan` cells, whose height is the scan's own road.
+    Returns the new grid and the number of cells lowered."""
+    import xml.etree.ElementTree as ET
+
+    from scipy.spatial import cKDTree
+
+    nodes = []
+    for n in ET.parse(osm).getroot().findall("node"):
+        t = {x.get("k"): x.get("v") for x in n.findall("tag")}
+        nodes.append((float(t["local_x"]), float(t["local_y"]), float(t.get("ele", 0))))
+    nodes = np.array(nodes) + SHIFT
+    c = meta["cell"]
+    jj, ii = np.nonzero(road)
+    P = np.c_[meta["x0"] + (ii + 0.5) * c, meta["y0"] + (jj + 0.5) * c]
+    d, k = cKDTree(nodes[:, :2]).query(P, k=ELE_K, distance_upper_bound=ELE_R)
+    zz = np.where(np.isfinite(d), nodes[np.minimum(k, len(nodes) - 1), 2], np.nan)
+    with warnings.catch_warnings():  # all-NaN rows (no node within ELE_R) give NaN, as meant
+        warnings.simplefilter("ignore", RuntimeWarning)
+        e = np.nanmedian(zz, axis=1)
+    res = out.astype(np.float64)
+    fix = np.isfinite(e) & (res[jj, ii] - e > ELE_OFF) & ~scan[jj, ii]
+    res[jj[fix], ii[fix]] = e[fix]
+    moved = np.zeros(out.shape, bool)
+    moved[jj[fix], ii[fix]] = True
+    if not fix.any():
+        return res, 0
+    near = ndimage.binary_dilation(moved, iterations=int(round(BLEND_NEAR / c))) & road
+    sg = BLEND_SIGMA / c
+    wsum = ndimage.gaussian_filter(road.astype(float), sg)
+    zs = ndimage.gaussian_filter(np.where(road, res, 0.0), sg) / np.maximum(wsum, 1e-9)
+    res = np.where(near, np.minimum(res, zs), res)
+    lane_fix = moved | near
+    dist, (fj, fi) = ndimage.distance_transform_edt(~lane_fix, return_indices=True)
+    lane_z = res[fj, fi]
+    foot = ~road & (dist * c <= FOOT_NEAR) & (res - lane_z > FOOT_ABOVE)
+    res[foot] = lane_z[foot]
+    lowered = int((res < out - 1e-6).sum())
+    print(f"lanes: {int(fix.sum()):,} cells over the lanelets' surface, {lowered:,} lowered in all "
+          f"(max {float((out - res).max()):.2f} m)")
+    return res, lowered
 
 
 def main():
@@ -151,6 +216,10 @@ def main():
         for w in LANE_WINDOWS:
             out = np.where(lanes, np.maximum(out, ndimage.median_filter(out, w) - PIT_DEPTH), out)
     out = ndimage.gaussian_filter(ndimage.median_filter(out, MEDIAN), SIGMA_CELLS)
+    if a.lanes:
+        meta = json.load(open(os.path.join(d, "dtm.json")))
+        out, _ = to_lane_ele(out, a.lanes, meta, lane_raster(a.lanes, meta, dtm.shape, ROAD_MARGIN),
+                             use)
     np.save(os.path.join(d, "dtm.npy"), out.astype(dtm.dtype))
     for name, sel in (("ground", ground), ("non-ground", ~ground)):
         diff = np.abs(out - dtm)[sel]

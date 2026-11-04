@@ -205,8 +205,44 @@ Next:
    - r01 again on the rebuilt map with the new exposure: passed (four of four now),
      `ntu_carla_r01_autoware_v2.mp4` on the NAS beside the first.
 
-Next: the parked vehicles (drop them from the props, or put CARLA's vehicle meshes in their
-place), the hedges' faceting (smoothing the geometry, not the normals), r02, and the site
+7. **Parked vehicles left out** (2026-11-04, `parked_vehicles.py`, `carla_meshes.py --parked`).
+   CARLA puts its own vehicles where a scenario asks, so the scan's parked cars and scooter
+   rows go, not replaced.
+   - A 25 cm raster on the DTM's grid of the prop faces (off the lanes, outside the trees): per
+     cell the highest face over the DTM, the face count, the mean colour. Low cells (top 0.5 to
+     2.2 m, not next to a cell of 2.6 m or more: a wall, a kiosk) are closed by two cells and
+     labelled.
+   - A blob is a vehicle, a row of them nose to tail or a scooter block when its width (area
+     over its long axis) is 0.9 to 8 m, its top 0.9 to 2.5 m, under half its cells green, it
+     fills over 0.4 of its convex hull, covers 1.5 m2 or more and comes within 8 m of a lane.
+     Green fraction is bimodal (vehicles under 0.3, hedges over 0.6). The first rule (width
+     under 2.8 m, green under 0.35) found 161 blobs and missed the main avenue's scooter blocks,
+     several rows deep (3 m wide). The solidity test drops an L-shaped wall frame.
+   - Site: 260 vehicle blobs of 1946 low ones, 2860 m2, 63776 cells (one cell of margin).
+     `carla_meshes.py` drops the prop faces under the mask below 2.6 m: 272585 source faces,
+     props after decimation 4.48 M -> 4.40 M triangles. The ground under them is the DTM's
+     terrain, which was always there.
+   - Probe views before and after (`carla/site/parked_before_after.jpg`): at the canopy view the
+     scooter rows and cars in the north bays and the big grey block by the right road edge are
+     gone, terrain under them, walls and kerbs intact. At turn 2 a narrow olive row along the
+     north kerb is gone too (the orthophoto shows a light row there, most likely scooters; not
+     confirmed). The start and palms views barely change. Left in, the misses: smaller lumps
+     further along the canopy view's right edge and two dark ones on its left, shards by the
+     trees at the start view. Under 0.9 m, over 2.5 m, or merged with a hedge or a wall is a
+     blob the rule does not take.
+   - The rebuild's material step died of ENOSPC on `/mnt/p5plus` (UE's engine
+     DerivedDataCache had grown to 58 GB, 49 GB of it stale from earlier imports of this map;
+     cleared) and left half-moved assets, so the import was redone. `site_rebuild.sh` now
+     checks for 30 GB free and stops on the editor's or the packager's exit code.
+   - Lidar and NDT: the point cloud NDT matches against (059's) still holds the parked cars;
+     CARLA's lidar no longer sees them. r01 on the new map passed (junit 0 failures, five of
+     five on this map now): NDT logged no warning while driving, only the usual "No
+     InputTarget" before the map loaded and a 0.1 s emergency stop at start-up, before
+     engagement. So no sign on r01 that the missing cars disturb NDT (its scores were not
+     recorded); a route along the scooter blocks may differ.
+   - `ntu_carla_r01_autoware_v3.mp4` (98 s, 344 m driven) on the NAS beside v2.
+
+Next: the hedges' faceting (smoothing the geometry, not the normals), r02, and the site
 package on the NAS.
 
 ## How a CARLA map is made and shipped

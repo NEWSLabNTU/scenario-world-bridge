@@ -2,7 +2,7 @@
 """The NTU campus's meshes for CARLA (roadmap 072 C3-C5), per 50 m tile, from roadmap 059's.
 
     carla_meshes.py MESH_DIR MAP_DIR GROUND_DIR TREES_DIR OUT_DIR [--tiles ix_iy,...|--route r01]
-        [--keep 0.3] [--workers 4]
+        [--keep 0.3] [--workers 4] [--parked PARKED.npz]
 
 Run with the NTU tool venv (open3d, scipy). Reads 059's `build_meshes.py` output (MESH_DIR:
 ground_<t>.npz, building_<t>.ply, other_<t>.ply), the Lanelet2 map, the DTM and `trees.py`'s
@@ -14,7 +14,9 @@ the classes CARLA's import tags by name:
   road     the ground under a lanelet: Road_Road (tag Road), the ortho's UVs
   terrain  the rest of the ground: Road_Grass (tag Terrain), the ortho's UVs
   building the scan's buildings, de-lit and decimated, vertex colours
-  prop     the other objects off the road, without the trees' faces, de-lit and decimated
+  prop     the other objects off the road, without the trees' faces, de-lit and decimated;
+           with `--parked` (`parked_vehicles.py`'s mask) without the parked vehicles' faces
+           below PARKED_BELOW
   tree     the trees' faces, de-lit and decimated; alpha 0 at a hashed HOLE_FRACTION of the
            vertices, which the master material cuts out (as 059's Isaac crowns)
 
@@ -36,6 +38,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ntu_twin"))
 import world_usd as W  # noqa: E402
 
+PARKED_BELOW = 2.6  # m over the DTM: a parked vehicle's faces, under the mask (parked_vehicles.TALL)
 ROAD_MARGIN = 0.25  # m (one DTM cell; 0 would make lane_raster dilate without end): Road, past it Terrain
 
 
@@ -120,7 +123,20 @@ def _init(a):
     _ctx["road"] = W.RoadClear(a["osm"], a["ground"], ROAD_MARGIN)
     _ctx["clear"] = W.RoadClear(a["osm"], a["ground"], 0.5)
     _ctx["trees"] = W.Trees(a["trees"], a["ground"])
+    _ctx["parked"] = np.load(a["parked"])["mask"] if a.get("parked") else None
+    _ctx["meta"] = json.load(open(os.path.join(a["ground"], "dtm.json")))
     _ctx["a"] = a
+
+
+def parked(P):
+    """Faces (centroids, map frame) of a parked vehicle: under the mask, below PARKED_BELOW."""
+    mask, m = _ctx["parked"], _ctx["meta"]
+    if mask is None or not len(P):
+        return np.zeros(len(P), bool)
+    v = P + W.SHIFT
+    i = np.clip(((v[:, 0] - m["x0"]) / m["cell"]).astype(int), 0, m["width"] - 1)
+    j = np.clip(((v[:, 1] - m["y0"]) / m["cell"]).astype(int), 0, m["height"] - 1)
+    return mask[j, i] & (_ctx["trees"].height(P) < PARKED_BELOW)
 
 
 def one(t):
@@ -160,7 +176,10 @@ def one(t):
         else:
             F = F[~_ctx["clear"].on_road(V[F].mean(axis=1))]
             tr = _ctx["trees"].is_tree(V[F].mean(axis=1))
-            parts = [("tree", F[tr]), ("prop", F[~tr])]
+            Fp = F[~tr]
+            pk = parked(V[Fp].mean(axis=1))
+            stats["parked"] = int(pk.sum())
+            parts = [("tree", F[tr]), ("prop", Fp[~pk])]
         for cls, Fp in parts:
             if not len(Fp):
                 continue
@@ -197,6 +216,7 @@ def main(argv=None):
     ap.add_argument("--route", default="", help="r01 or r02: the tiles within 30 m of its lanelets")
     ap.add_argument("--keep", type=float, default=0.3)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--parked", default="", help="parked_vehicles.py's mask: leave those out")
     a = ap.parse_args(argv)
     osm = os.path.join(a.map_dir, "lanelet2_map.osm")
     if a.tiles:
@@ -208,7 +228,7 @@ def main(argv=None):
                         if (m := re.match(r"ground_(-?\d+)_(-?\d+)\.npz$", f))})
     os.makedirs(a.out, exist_ok=True)
     ctx = {"mesh": a.mesh_dir, "osm": osm, "ground": a.ground_dir, "trees": a.trees_dir,
-           "out": a.out, "keep": a.keep}
+           "out": a.out, "keep": a.keep, "parked": a.parked}
     t0, report = time.time(), {}
     with Pool(a.workers, initializer=_init, initargs=(ctx,)) as pool:
         for k, (t, st) in enumerate(pool.imap_unordered(one, tiles)):

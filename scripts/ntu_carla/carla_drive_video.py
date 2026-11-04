@@ -47,6 +47,12 @@ class TopDown:
         x0, ytop, cell = meta["x0"] - shift[0], meta["y0"] + meta["height"] * meta["cell"] - shift[1], meta["cell"]
         c0, r0 = int((self.ox - x0) / cell), int((ytop - self.oy) / cell)
         c1, r1 = int((self.ox + size[0] * span - x0) / cell), int((ytop - self.oy + size[1] * span) / cell)
+        # pad with black where the view runs past the site ortho (a route at the scan's edge, as
+        # tour leg 03 is: a negative row index made the crop empty and the recorder died)
+        pad = max(0, -r0, -c0, r1 - ortho.shape[0], c1 - ortho.shape[1])
+        if pad:
+            ortho = cv2.copyMakeBorder(ortho, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+            r0, r1, c0, c1 = r0 + pad, r1 + pad, c0 + pad, c1 + pad
         self.base = cv2.addWeighted(cv2.resize(ortho[r0:r1, c0:c1], size), 0.8, np.zeros((size[1], size[0], 3), np.uint8), 0.2, 0)
 
     def px(self, x, y):  # x, y in the map frame less ORIGIN

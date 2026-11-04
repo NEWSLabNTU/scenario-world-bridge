@@ -5,7 +5,9 @@ scenario, whatever the simulator. Once a period, every entity's pose, speed and 
 (`/simulation/context`). Run in the scenario domain, with the stack's DDS transport:
 
     source /opt/autoware/1.5.0/setup.bash
-    export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=$SCENARIO_ROS_DOMAIN_ID \\
+    source install/setup.bash     # this workspace's, after Autoware: openscenario_interpreter_msgs
+    # the scenario domain: SCENARIO_ROS_DOMAIN_ID from .env, 9 when it is not set there
+    export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} \\
         CYCLONEDDS_URI=file://$PWD/src/swb_launch/config/cyclonedds-localhost.xml
     python3 scripts/ntu_twin/ssv2_watch.py --event cross --event stand_in_the_lane > watch.log
 

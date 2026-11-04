@@ -300,8 +300,259 @@ Next:
       ground.
     - Videos: `carla/site/runs_h1/*.mp4`.
 
-Next: the site package on the NAS, and the rest of the parity list with 059: the recorder on
-059's mounts with `state.jsonl`, NVTL along r01 and r02.
+11. **Tour of every lane** (2026-11-04; user: "make a tour in r01 and r02 and visit every
+    paths. Fix the issues along the way, such as ghost mesh and point, mrm triggers").
+    Autoware drove every lanelet of 059's merged r01 + r02 map (285 road lanelets, 6.6 km of
+    lanes) on CARLA 2400, one leg per scenario on one ego stack. Isaac ran the same legs
+    (059, swb 118).
+    - **The legs** (`scripts/ntu_carla/tour_legs.py`, `scenarios/ntu_twin/ntu_twin_tour_NN.xosc`,
+      CARLA pairs by `scenario_pair.py`, `tour_legs.json`). The planner is greedy and polynomial:
+      a Dijkstra tree from every lanelet, and each leg is the tree path with the most uncovered
+      length. Each leg is checked to be lanelet2's own shortest path, which is Autoware's route
+      (the map has no lane changes). It puts the start and the goal where no same-direction
+      lanelet covers the point. The goal follows `default_planner`'s check, the model3 footprint
+      inside the goal's lanelets and their followers. No centreline point more than 20 m before
+      the goal comes within 7 m of it, since SSv2's 5 m reach condition fired on a loop or across
+      the road. At the scan's edge the start moves in until the PCD surrounds it (6 of 8
+      directions at 10-30 m). A second pass gives each lanelet the greedy pass missed a short leg
+      of its own. Result: 114 legs, 9.85 km, all 284 lanelets except 1011236, the isolated 4 m
+      stub left by the r01/r02 merge (agreed with 059). The first sets had planner bugs that a
+      run found: dcb0138's leg 02 "passed" at once (a loop), 03's goal footprint stuck out of a
+      curved sink, and 37c0dd9's leg 00 passed after 13 m from the opposite lane.
+    - **Lanelet2 fixes** (`scripts/ntu_twin/fix_lanelets.py`, agreed with 059; idempotent, md5
+      in and out; the map is 24aa4578 -> e12bfc42 -> c2854a7c after 059's step D):
+      - A: 23 custom centrelines ran against their lanelet. lanelet2 flips both bounds of these
+        lanelets on load, and Autoware keeps a custom centreline as stored, so its path ran
+        backwards. A reverses the 23 ways. Leg 25, which starts on one of them (1008389), passes.
+      - B: 5 joins touched but were not linked (on different nodes, under 0.4 m apart). 3855 and
+        3719 could not be reached, and 2132 was isolated. B links them.
+      - C: B's node replacement left 5 ways with a node twice in a row. SSv2 failed r02 next to
+        3855 ("catmull_rom_spline.cpp:331: failed to calculate curve index"). C drops the repeat.
+        The first output, 97f10f1a, was withdrawn the same hour.
+      - D (059): two node eles near r01's start had come from a DTM spike.
+    - **Ghost geometry: the ground.** 059's DTM put the road 2-6.5 m up into the canopy in 7
+      places, where no return reaches the road and the lowest return is a crown. Leg 00 stood
+      306 s before the cone at (489, 232) (`carla_tour/issues/` on the NAS). Two fixes:
+      - 059 fixed `smooth_dtm.py` (2cedde5), then added a lane-ele rule (6012df6): a lane cell
+        more than 0.25 m over the lanelets' surface comes down to it, except where the scan's
+        lowest return backs it. That gives ground_n12 (407b9203), CARLA's and Isaac's ground
+        since 18:00.
+      - `carla_meshes.py` keeps a guard that only ever lowers. It runs a grey opening of the
+        lane surface over 8 m, on the tile and its neighbours, and brings down lane vertices
+        more than 0.15 m above it. Then it rounds convex edges that stand more than 0.05 m over
+        a Gaussian with sigma 1.5 m, and blends the moved patch. A percentile version left
+        0.25 m steps that the ground filter called obstacles (run C, leg 00, 450 s). A per-tile
+        opening left a 0.3 m ridge on a seam that high-centred the car (run D, leg 02). A
+        lane-ele step in carla_meshes (deb22af) dug r01's road 0.45 m under the scan at
+        (131, 182); it is now behind `--lane-ele`, off, since n12 does it right.
+      - Under the canopy the fill also invented rises 0.3-0.75 m over the lanelets, and the
+        ground filter stopped the car there (D 24 at (101, 325), 71/73/74 at (-289, -150)).
+        n12's lane-ele rule takes them down.
+    - **Ghost geometry: the hedges.** The hedge height field's blur reached 0.6 m into lanelet
+      1008289 at (64, 210), and the ego stopped for a route-obstacle (run B, leg 04). The field
+      now stays off the lanes (the road clearing's raster). D's leg 04 passes.
+    - **Ghost points** (`tour_lidar_diff.py`: the ego's obstacle points farther than 0.5 m from
+      the PCD, in the map frame). In-lane hotspots in runs B and C were only the cone and the
+      hedge above. The PCD itself showed no ghost points on the lanes. It still holds the scan's
+      parked cars, which CARLA leaves out (item 7). NVTL along the tour shows no harm from that:
+      the median of the per-leg minima is 3.04, and the minima stay above 2.5 except at the two
+      scan corners and on the ramp.
+    - **MRM** (`tour_monitor.py`: MRM, hazard faults, velocity factors, planning walls).
+      - The 0.2 s PULL_OVER mid-drive (r01, (229, 186)) was NDT's pose buffer running dry. The
+        EKF publishes at the 20 Hz sim clock, one pose per 20 Hz scan, so the buffer held
+        exactly 2. One late pose made the scan fail to interpolate, a scan_matching_status
+        WARN, and the MRM. /clock has no bursts (steady 20 Hz, `tour_clock.py`). Fixed in the
+        overlay: autoware_core 879b7ce5 (autoware_localization_util), `SmartPoseBuffer::pop_old`
+        keeps the newest pose older than the scan; docs/issues/035. On the user's decision there
+        is no hysteresis mask. In tour D (new overlay) no leg logged an MRM while moving.
+      - The other MRMs come from cars standing for minutes on a ghost: EKF Mahalanobis WARNs
+        (run C, 314 flickers in leg 00) and AEB on the ramp (27, 81, below).
+    - **Results, run D** (ff5da50 legs, overlay 879b7ce5, meshes_n11 + the opening guard; full
+      table below): 100 of 114 legs pass, plus r01 and r02. 8.0 km driven. No MRM while moving.
+      NVTL minimum per leg: median 3.04, lowest 1.81 (81, on the ramp).
+      The 14 that failed, by cause:
+
+      | legs | stop | cause | status |
+      |---|---|---|---|
+      | 02, 74 | (-289, -153), at the start | the fill's rise at the SW scan edge (dtm_raw steps 13.21 -> 12.26): car high-centred on its edge | pass in E (n12) |
+      | 71, 73 | (-289, -150) | the same rise, approached from the north | pass in E |
+      | 24 | (93, 321) route-obstacle | the fill's rise over the lanelets at (101, 325), 0.3-0.5 m | still stops in E, below |
+      | 40 | error: no localization at the start | spawned at lanelet ele 9.47 in the ramp trench at (470, 165), under n11's road (10.4) | still fails in E, below |
+      | 27, 81 | (469-472, 150-155) AEB, MRM | the ramp down at (469, 155-165): trench walls 0.6-1.3 m nearer the lane than the PCD's; the road a metre over the lanelets | still stops in E, below |
+      | 58, 65, 89, 110 | inside a tight connector, at the start, no velocity factor | path_optimizer's "outside drivable area" stop: the car's swept footprint leaves the lanelets' drivable area in 83-84 deg turns of 10-14 m (1007306, 1011371, 1011115, 1007796) | 89 passes in E; 58, 65, 110 pass with the profile change (runs F, G, below) |
+      | 03 | (81, 312), no velocity factor | the hairpin 1003951 -> 1004230, about 5.5 m across; the model3 turns no tighter than 3.6 m (rear axle) / 4.8 m (outer front corner) | not drivable by this car; recorded in tour_legs_missing.json |
+      | 98 | error: Autoware stayed in PLANNING | [63, 2063, 206], goal at the SW scan corner (-289, -164) | pass in E |
+
+      Isaac's tour (059, 37c0dd9 legs, old ground) stopped at 03, 58 and 65 in the same places,
+      which puts those stops on the map or the planner, not the simulator.
+    - **Reruns of the failed legs** (E: map c2854a7c, ground_n12, cd55754; F and G: the same with
+      the profile change below):
+
+      | leg | E (n12, c2854a7c) | F (expansion 0.3) | G (expansion 0.15, committed) |
+      |---|---|---|---|
+      | 02, 71, 73, 74, 89, 98 | pass | - | - |
+      | 03 | 154 s at (81.2, 312.4), path_optimizer outside drivable area | - | - |
+      | 24 | 121 of 130 m, then 180 s at (95.5, 323.4), obstacle_stop | - | - |
+      | 27 | 60 of 72 m, then 180 s at (468.9, 152.9), obstacle_stop | - | - |
+      | 40 | error at the start, no localization | - | - |
+      | 58 | 5 of 26 m, outside drivable area | pass | pass, 21 s |
+      | 65 | 3 of 53 m, outside drivable area | pass | pass, 24 s |
+      | 81 | 35 of 47 m, then 181 s at (470.2, 152.1), obstacle_stop | - | - |
+      | 110 | 3 of 22 m, outside drivable area; MRM after 150 s standing | pass | pass, 19 s |
+
+      With D, E and G that is **109 of 114 legs**, plus r01 and r02, and no MRM while moving.
+      Every lanelet is on a leg except 1011236. Not driven: the hairpin join 1003951 -> 1004230
+      (03), and the stretches 24, 27, 40 and 81 stopped short of (below).
+    - **The profile change** (autoware_sim_vehicle a9bd75c; the user chose option (a) and
+      left (b) off; it applies to every scenario, not only this map). The profile carries its
+      own copy of `drivable_area_expansion.param.yaml` with `ego.extra_width` and
+      `ego.extra_front_overhang` at 0.15 m (upstream 0.0), passed as
+      `drivable_area_expansion_param_path`. 0.3 passed too; 0.15 is the smallest tried that
+      passes 58, 65 and 110. Town01's regression set (`basic/town01_*`), before and after:
+      the same 5 of 6 pass; `town01_traffic_light` fails on its 300 s timeout both times.
+      acb's deps pin moved with it (102b596); aib's is 059's to move.
+    - **What remains**:
+      - 03: the hairpin 1003951 -> 1004230 is about 5.5 m across; the model3 turns no tighter
+        than 3.6 m (rear axle) / 4.8 m (outer front corner). Not drivable by this car; listed in
+        `tour_legs_missing.json`. Isaac stopped there too.
+      - 24: a 0.7 m object at (102.9, 328.2), about 1 m from the goal at the scan's north edge.
+      - 27, 81: obstacle_stop on the ramp at (469-470, 152-153), the trench walls nearer the lane
+        than in the PCD.
+      - 40: NDT does not converge at its spawn in the ramp trench (yaw off by 0.40 rad).
+    - Tools: `tour_monitor.py`, `tour_lidar_diff.py`, `tour_clock.py`, `tour_table.py` in
+      `scripts/ntu_carla/`. Runs: `/mnt/p5plus/aeon/ntu-twin/tour/runs_{B,C,D,E,F,G}` (videos,
+      state.jsonl, monitor.jsonl). Issue stills and videos: NAS `dataset/2026-10-30 NTU twin
+      map/carla_tour/issues/`.
+    - Run D, every leg (driven / planned m, time s, MRM, NVTL min):
+
+      <details><summary>116 rows</summary>
+
+      | leg | result | m | s | MRM | NVTL min |
+      |---|---|---|---|---|---|
+      | r01 | pass | 344 / - | 107 | 0 | 2.85 |
+      | r02 | pass | 343 / - | 128 | 0 | 3.07 |
+      | 00 | pass | 1158 / 1167.3 | 327 | 0 | 2.9 |
+      | 01 | pass | 391 / 396.5 | 147 | 0 | 3.05 |
+      | 02 | no junit | 5 / 436.3 | 397 | 1 | 2.61 |
+      | 03 | no junit | 0 / 466.5 | None | 0 | 3.1 |
+      | 04 | pass | 145 / 150.7 | 51 | 0 | 2.97 |
+      | 05 | pass | 143 / 148.2 | 49 | 0 | 2.93 |
+      | 06 | pass | 99 / 105.2 | 48 | 0 | 3.0 |
+      | 07 | pass | 95 / 101.3 | 44 | 0 | 2.98 |
+      | 08 | pass | 143 / 147.9 | 59 | 0 | 3.04 |
+      | 09 | pass | 99 / 104.6 | 46 | 0 | 3.04 |
+      | 10 | pass | 154 / 159.2 | 47 | 0 | 2.69 |
+      | 11 | pass | 164 / 168.4 | 67 | 0 | 2.64 |
+      | 12 | pass | 119 / 124.8 | 49 | 0 | 2.7 |
+      | 13 | pass | 116 / 122.0 | 46 | 0 | 2.88 |
+      | 14 | pass | 62 / 67.0 | 30 | 0 | 2.89 |
+      | 15 | pass | 54 / 58.5 | 27 | 0 | 3.07 |
+      | 16 | pass | 54 / 58.5 | 28 | 0 | 3.08 |
+      | 17 | pass | 206 / 211.1 | 75 | 0 | 2.79 |
+      | 18 | pass | 97 / 102.9 | 44 | 0 | 2.8 |
+      | 19 | pass | 49 / 53.9 | 26 | 0 | 3.05 |
+      | 20 | pass | 48 / 53.2 | 24 | 0 | 3.04 |
+      | 21 | pass | 48 / 53.2 | 25 | 0 | 3.03 |
+      | 22 | pass | 96 / 101.7 | 42 | 0 | 3.04 |
+      | 23 | pass | 78 / 82.6 | 30 | 0 | 2.73 |
+      | 24 | no junit | 118 / 130.3 | 197 | 0 | 3.0 |
+      | 25 | pass | 122 / 128.1 | 53 | 0 | 2.98 |
+      | 26 | pass | 30 / 35.1 | 20 | 0 | 3.0 |
+      | 27 | no junit | 62 / 71.7 | 188 | 2 | 2.91 |
+      | 28 | pass | 25 / 30.2 | 18 | 0 | 3.04 |
+      | 29 | pass | 28 / 32.6 | 18 | 0 | 3.03 |
+      | 30 | pass | 62 / 67.0 | 31 | 0 | 3.05 |
+      | 31 | pass | 90 / 95.6 | 43 | 0 | 3.05 |
+      | 32 | pass | 22 / 27.1 | 18 | 0 | 2.96 |
+      | 33 | pass | 46 / 50.5 | 25 | 0 | 2.98 |
+      | 34 | pass | 68 / 72.5 | 32 | 0 | 3.03 |
+      | 35 | pass | 19 / 23.8 | 15 | 0 | 2.99 |
+      | 36 | pass | 19 / 23.9 | 18 | 0 | 2.92 |
+      | 37 | pass | 21 / 25.7 | 17 | 0 | 3.08 |
+      | 38 | pass | 18 / 22.8 | 14 | 0 | 3.15 |
+      | 39 | pass | 68 / 74.0 | 29 | 0 | 3.07 |
+      | 40 | error | 0 / 62.1 | 44 | 0 | 3.07 |
+      | 41 | pass | 60 / 65.1 | 32 | 0 | 2.63 |
+      | 42 | pass | 26 / 31.2 | 23 | 0 | 2.63 |
+      | 43 | pass | 48 / 53.3 | 24 | 0 | 3.01 |
+      | 44 | pass | 25 / 29.3 | 19 | 0 | 3.06 |
+      | 45 | pass | 48 / 53.2 | 25 | 0 | 3.03 |
+      | 46 | pass | 44 / 48.7 | 25 | 0 | 3.13 |
+      | 47 | pass | 33 / 38.3 | 25 | 0 | 3.13 |
+      | 48 | pass | 61 / 66.5 | 30 | 0 | 3.06 |
+      | 49 | pass | 35 / 39.9 | 18 | 0 | 3.02 |
+      | 50 | pass | 49 / 53.6 | 28 | 0 | 3.02 |
+      | 51 | pass | 24 / 29.0 | 17 | 0 | 3.13 |
+      | 52 | pass | 49 / 53.7 | 31 | 0 | 3.13 |
+      | 53 | pass | 84 / 89.0 | 38 | 0 | 3.05 |
+      | 54 | pass | 31 / 36.0 | 21 | 0 | 3.09 |
+      | 55 | pass | 24 / 28.6 | 18 | 0 | 3.02 |
+      | 56 | pass | 104 / 109.5 | 36 | 0 | 2.66 |
+      | 57 | pass | 93 / 98.2 | 41 | 0 | 3.15 |
+      | 58 | no junit | 5 / 26.1 | 164 | 0 | 3.13 |
+      | 59 | pass | 40 / 44.5 | 22 | 0 | 2.79 |
+      | 60 | pass | 33 / 37.4 | 20 | 0 | 2.79 |
+      | 61 | pass | 87 / 92.4 | 31 | 0 | 2.91 |
+      | 62 | pass | 27 / 31.6 | 18 | 0 | 2.88 |
+      | 63 | pass | 33 / 37.7 | 20 | 0 | 2.96 |
+      | 64 | pass | 44 / 49.9 | 26 | 0 | 3.13 |
+      | 65 | no junit | 4 / 52.9 | 162 | 0 | 2.93 |
+      | 66 | pass | 33 / 38.0 | 21 | 0 | 3.13 |
+      | 67 | pass | 47 / 51.4 | 26 | 0 | 3.13 |
+      | 68 | pass | 52 / 57.2 | 28 | 0 | 3.05 |
+      | 69 | pass | 52 / 57.2 | 28 | 0 | 3.06 |
+      | 70 | pass | 28 / 32.7 | 22 | 0 | 2.98 |
+      | 71 | no junit | 101 / 115.4 | 212 | 0 | 2.55 |
+      | 72 | pass | 64 / 69.9 | 32 | 0 | 3.15 |
+      | 73 | no junit | 80 / 93.4 | 199 | 0 | 2.58 |
+      | 74 | no junit | 5 / 108.7 | 159 | 0 | 2.6 |
+      | 75 | pass | 51 / 57.0 | 28 | 0 | 3.04 |
+      | 76 | pass | 48 / 53.0 | 28 | 0 | 2.91 |
+      | 77 | pass | 70 / 75.7 | 35 | 0 | 2.97 |
+      | 78 | pass | 47 / 53.0 | 27 | 0 | 3.09 |
+      | 79 | pass | 16 / 21.1 | 15 | 0 | 3.09 |
+      | 80 | pass | 47 / 52.8 | 26 | 0 | 3.08 |
+      | 81 | no junit | 33 / 47.3 | 229 | 31 | 1.81 |
+      | 82 | pass | 209 / 213.8 | 59 | 0 | 2.92 |
+      | 83 | pass | 44 / 48.5 | 22 | 0 | 2.98 |
+      | 84 | pass | 37 / 42.0 | 23 | 0 | 3.0 |
+      | 85 | pass | 68 / 73.8 | 35 | 0 | 3.06 |
+      | 86 | pass | 19 / 23.7 | 16 | 0 | 3.1 |
+      | 87 | pass | 47 / 52.2 | 28 | 0 | 3.03 |
+      | 88 | pass | 18 / 22.7 | 16 | 0 | 3.1 |
+      | 89 | no junit | 1 / 24.7 | 154 | 0 | 3.02 |
+      | 90 | pass | 21 / 25.4 | 18 | 0 | 3.1 |
+      | 91 | pass | 68 / 74.0 | 35 | 0 | 3.11 |
+      | 92 | pass | 25 / 30.0 | 21 | 0 | 3.07 |
+      | 93 | pass | 74 / 79.5 | 37 | 0 | 3.0 |
+      | 94 | pass | 79 / 84.4 | 38 | 0 | 3.05 |
+      | 95 | pass | 24 / 29.1 | 15 | 0 | 3.05 |
+      | 96 | pass | 53 / 59.0 | 29 | 0 | 3.1 |
+      | 97 | pass | 18 / 22.5 | 15 | 0 | 3.1 |
+      | 98 | error | 0 / 110.1 | 120 | 0 | 3.13 |
+      | 99 | pass | 18 / 23.2 | 15 | 0 | 3.17 |
+      | 100 | pass | 97 / 101.5 | 43 | 0 | 3.15 |
+      | 101 | pass | 55 / 60.4 | 29 | 0 | 3.11 |
+      | 102 | pass | 38 / 43.3 | 22 | 0 | 3.11 |
+      | 103 | pass | 87 / 91.5 | 37 | 0 | 3.11 |
+      | 104 | pass | 119 / 123.5 | 38 | 0 | 3.08 |
+      | 105 | pass | 30 / 34.8 | 18 | 0 | 3.01 |
+      | 106 | pass | 19 / 24.2 | 14 | 0 | 3.03 |
+      | 107 | pass | 28 / 33.7 | 17 | 0 | 3.11 |
+      | 108 | pass | 36 / 41.2 | 18 | 0 | 3.08 |
+      | 109 | pass | 132 / 137.2 | 41 | 0 | 3.07 |
+      | 110 | no junit | 3 / 22.5 | 160 | 0 | 3.1 |
+      | 111 | pass | 33 / 37.5 | 17 | 0 | 3.05 |
+      | 112 | pass | 120 / 125.2 | 41 | 0 | 3.06 |
+      | 113 | pass | 37 / 42.3 | 17 | 0 | 2.92 |
+
+      </details>
+
+Next: the four tour stops left (24's object at the goal, the ramp at (469, 153) for 27 and 81,
+NDT at 40's spawn in the ramp trench); the hairpin at 03 needs a wider join in the Lanelet2
+(agreed with 059 first) or stays off the car's routes. Then the site package on the NAS, and
+the rest of the parity list with 059 (P4 signals; P6's recorder mounts are in,
+`carla_watch_video.py --mounts`).
 
 ## Parity with 059 (the NTU twin on Isaac)
 

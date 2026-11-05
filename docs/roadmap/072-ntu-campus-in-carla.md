@@ -645,11 +645,42 @@ Next:
   81 had already passed since the pitch pair, so the clamp changes nothing measured here; it
   leaves the slope compensation room on ramps over 5.7 deg.
 
-Next: the proof run on both sides. Isaac reruns 40 on the fork's 7e98ecc4f and 03 on 80f24846 (059). Then 81's restart on the down-ramp, still
-open even though 81 passed in R (acb's brake at rest, or the controller's low-speed
-integration). The hairpin at 03 needs a wider join in the Lanelet2 (agreed with 059 first)
-or stays off the car's routes. Then the site package on the NAS, and the rest of the parity
-list with 059 (P4 signals; P6's recorder mounts are in, `carla_watch_video.py --mounts`).
+- **Ground n15 and the CARLA site on it (2026-11-05).** `smooth_dtm.py`'s hump opening (2bb49e2,
+  059) from n14's inputs and map 80f24846 gives dtm.npy 8049e322 on 133 as on 118; meshes,
+  parked, hedges, the CARLA meshes and the site package rebuilt from it (`n15_build.sh`,
+  `site_rebuild.sh`). 059's spots, rerun on it: 41 (the hump) 60 m, NVTL min 2.65; 24 (the
+  foliage at 88-98.5, 316-331) 125 m, 2.65; 104 and 109 119 and 132 m; r01 (the crest by its
+  start) and r02 343-344 m: all pass, no MRM. The CARLA meshes keep ~290 tree and prop samples
+  0.2-2.6 m over the lanes in leg 24's box and some at (359-372, 226-242) beside 104/109's; on
+  CARLA none stops the car (24 stopped there in runs D and E, before the hedges and lane
+  clearing of ff5da50).
+- **The proof run (2026-11-05): 116 of 116 legs, 10.0 km, no MRM.** One pass on one ego stack
+  (`run_proof.sh`: `run_tour.sh` with the recorder's `--mounts rig --raw`, so each leg also has
+  1280x720 chase and front videos at Isaac's road-view mounts; r01's frame 40 matches 059's
+  `proof_frames_isaac/r01_chase_000040.jpg`): r01, 00-113, r02. NVTL min over the pass 2.56.
+  - Leg 63 failed the first time: 0 m, `Simulator waited for the Autoware state to transition
+    to WAITING_FOR_ENGAGE, but time is up` (PLANNING). The route was accepted (3 lanelets),
+    the re-localization's align succeeded, and then NDT's score was exactly 0 for the whole leg
+    until 64's re-localization; no planner error. Its lanelets (70-81, 211-247) are nowhere
+    near step E. Rerun twice, it passed both times (33 m, NVTL min 3.07), and the second (with
+    the raw cameras) replaces it in the set. The same kind of stuck start as 98 once was on
+    CARLA and 45 on Isaac: a re-localization that converges and then loses the scan. A retry
+    in the vehicle agent when the score stays 0 after an align would cover it; that touches
+    every scenario, so it waits for approval.
+  - `scripts/ntu_carla/proof_video.py` makes the video: a title card (map, ground, commits),
+    each leg's composite at 5x with a label (leg, result, metres, MRM, NVTL min), and the
+    per-leg table at the end. `ntu_twin_carla_proof_2026-11-05.mp4`: 15 min 14 s, 563 MB,
+    H.264 1920x1080.
+  - On the NAS under `2026-10-30 NTU twin map/proof_2026-11-05/carla/`: the video, `table.json`,
+    `runs/` (the whole pass: composites, raw chase/front, state.jsonl, junit, logs; 1167 files)
+    and `runs_63_rerun/`, each with MD5SUMS, checked file by file. Isaac's side goes in
+    `proof_2026-11-05/isaac/` (059), and the side-by-side, synced by distance, in
+    `proof_2026-11-05/`.
+
+Next: the side-by-side with 059's Isaac pass. Then the agent's retry for a re-localization
+whose NDT score stays 0 (63, 98, Isaac's 45; needs approval), 81's restart on the down-ramp
+(acb's brake at rest, or the controller's low-speed integration), the site package on the
+NAS, and the rest of the parity list with 059 (P4 signals).
 Isaac's AEB on passing legs, not seen on CARLA's last full tour (D): 10 and 56 at (519, 282),
 104 and 109 at (350-362, 233), 82 at (93, 184); leg 47
 lost NDT for 6 s (059's to look at).

@@ -39,6 +39,10 @@ class FakeAutoware(C.AutopilotPort):
         self.init_pose = None
         self.refuse = set()
         self.publish_scans = True
+        # The scan matcher's score per scan once localized: a number, or a list of them, one
+        # per initialization (the last repeats); None publishes no score.
+        self.score_value = 3.0
+        self.initializations = 0
         clock.hooks.append(self.tick)
 
     def tick(self):
@@ -46,6 +50,12 @@ class FakeAutoware(C.AutopilotPort):
         self.s.pose_stamp = t  # the EKF keeps publishing
         if self.publish_scans:
             self.s.scan_stamp, self.s.scan_count = t, self.s.scan_count + 1
+            v = self.score_value
+            if isinstance(v, list):
+                v = v[min(max(self.initializations - 1, 0), len(v) - 1)]
+            if v is not None and self.s.localization == C.LOC_INITIALIZED:
+                self.s.score, self.s.score_count = v, self.s.score_count + 1
+                self.s.score_above += v > self.lost_score
         if self.route_set_at is not None and t - self.route_set_at >= self.PLAN_TIME:
             self.s.autonomous_available = True
         if self.initialized_at is not None and t - self.initialized_at >= self.CONVERGE_TIME:
@@ -68,6 +78,7 @@ class FakeAutoware(C.AutopilotPort):
             self.s.localization = C.LOC_INITIALIZING
             self.s.route = C.ROUTE_UNSET
             self.initialized_at, self.init_pose = self.clock(), pose
+            self.initializations += 1
             self.init_stamp = stamp
         return ok, msg
 

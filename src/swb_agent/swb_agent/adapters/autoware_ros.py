@@ -48,6 +48,16 @@ try:
     from tier4_rtc_msgs.srv import AutoModeWithModule, CooperateCommands
 except ImportError:  # pragma: no cover
     CooperateStatusArray = CooperateCommands = AutoModeWithModule = None
+# The scan matcher's score (NDT's NVTL); without it the agent does not check a converged
+# re-localization against the scan (AutowareAgent's verify stage passes on no score).
+try:
+    from autoware_internal_debug_msgs.msg import Float32Stamped
+except ImportError:  # pragma: no cover
+    try:
+        from tier4_debug_msgs.msg import Float32Stamped
+    except ImportError:
+        Float32Stamped = None
+SCORE_TOPIC = "/localization/pose_estimator/nearest_voxel_transformation_likelihood"
 
 RTC_MODULES = {
     "NONE": 0, "LANE_CHANGE_LEFT": 1, "LANE_CHANGE_RIGHT": 2, "AVOIDANCE_LEFT": 3,
@@ -130,6 +140,9 @@ class AutowarePort(AutopilotPort):
             callback_group=group)
         sub(PointCloud2, "/localization/util/downsample/pointcloud", self._on_scan,
             qos_profile_sensor_data, callback_group=group, raw=True)
+        if Float32Stamped is not None:
+            sub(Float32Stamped, SCORE_TOPIC, self._on_score, qos_profile_sensor_data,
+                callback_group=group)
         sub(MrmState, "/api/fail_safe/mrm_state", self._on_mrm, volatile,
             callback_group=group)
         sub(TurnIndicatorsCommand, "/control/command/turn_indicators_cmd", self._on_turn,
@@ -192,6 +205,13 @@ class AutowarePort(AutopilotPort):
         with self._lock:
             self._s.scan_stamp = stamp
             self._s.scan_count += 1
+
+    def _on_score(self, msg):
+        with self._lock:
+            self._s.score = float(msg.data)
+            self._s.score_count += 1
+            if msg.data > self.lost_score:
+                self._s.score_above += 1
 
     def _on_mrm(self, msg):
         with self._lock:

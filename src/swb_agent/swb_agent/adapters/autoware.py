@@ -6,8 +6,10 @@ Autoware's own clock and sensors (moved here from autoware_carla_bridge's acb_pi
 - reset (v2) / teleported (v1): stop and drop the route; wait until Autoware's services
   answer; wait for two LiDAR scans newer than the current estimate (the first after a
   respawn can belong to the previous vehicle); initialize localization at the pose; report
-  INITIALIZING until the estimate agrees with it (1 m, 0.2 rad, newer than before). Only
-  then IDLE.
+  INITIALIZING until the estimate agrees with it (1 m, 0.2 rad, newer than before), and
+  until the scan matcher scores a scan above 0 there (NDT's NVTL). An estimate that agrees
+  while every score is exactly 0 has lost the scan (roadmap 072, leg 63): initialize again at
+  the same pose, up to `reinitialize_attempts` times, then fail. Only then IDLE.
 - goal: (stop and clear, then) set the route; once Autoware reports autonomous mode
   available, engage by itself, retrying while availability flickers.
 - the state the relay sees: the phase derived from Autoware's localization, routing and
@@ -51,6 +53,14 @@ DEFAULTS = {
     # WAITING_FOR_ROUTE, but that clock now only starts once the agent reports IDLE.
     "converge_timeout": 30.0,
     "initialize_attempts": 5,
+    # After the estimate agrees: the scan matcher's score (NVTL) must leave exactly 0 within
+    # `lost_scores` scores, or the initialization is repeated (roadmap 072: an align that
+    # converges and then matches nothing leaves Autoware in PLANNING for good). A stack whose
+    # matcher publishes no score (ndt:=none) is not held: `verify_window` s without a score.
+    "lost_scores": 10,
+    "lost_score": 0.0,  # a score at or below this is a lost scan (raise it to force a retry)
+    "verify_window": 5.0,
+    "reinitialize_attempts": 3,
     "initialize_retry": 2.0,  # s between refused initialize calls
     "ready_timeout": 60.0,  # s at a reset for Autoware's services to answer
     "engage_retry": 3.0,  # s between engage attempts while availability flickers
@@ -73,6 +83,9 @@ class Snapshot:
     pose_stamp: float = 0.0
     scan_stamp: float = 0.0  # newest localization scan
     scan_count: int = 0
+    score: float | None = None  # the scan matcher's newest score (NDT's NVTL)
+    score_count: int = 0  # scores received
+    score_above: int = 0  # of which above the agent's lost_score
     mrm_state: int = MRM_UNKNOWN
     mrm_behavior: int = 0
     emergency: bool = False
@@ -83,6 +96,8 @@ class Snapshot:
 
 class AutopilotPort:
     """The Autoware interface the agent drives. Each call returns (ok, message)."""
+
+    lost_score = 0.0  # a scan-matcher score at or below this does not count in score_above
 
     def snapshot(self) -> Snapshot:
         raise NotImplementedError
@@ -156,7 +171,7 @@ class Relocalization:
     before: float  # estimate stamp at the start
     scan_count: int
     started: float
-    stage: str = "scans"  # scans -> initialize -> converge -> done | failed
+    stage: str = "scans"  # scans -> initialize -> converge -> verify -> done | failed
     fresh_scans: int = 0
     attempts: int = 0
     next_try: float = 0.0
@@ -164,6 +179,10 @@ class Relocalization:
     deadline: float = 0.0
     last_scan_count: int = field(default=0)
     failure: str = ""
+    reinits: int = 0  # initializations repeated after losing the scan
+    verify_until: float = 0.0
+    score_count0: int = 0
+    score_above0: int = 0
 
 
 class AutowareAgent(swb_agent.Agent):
@@ -179,6 +198,7 @@ class AutowareAgent(swb_agent.Agent):
         self.clock, self.sleep = clock, sleep
         self._closing = threading.Event()
         self.port = port if port is not None else self.make_port()
+        self.port.lost_score = float(self.cfg["lost_score"])
         self._core = threading.RLock()
         self.relocalization: Relocalization | None = None
         self.resetting = False  # on_reset runs: INITIALIZING whatever Autoware shows
@@ -470,13 +490,38 @@ class AutowareAgent(swb_agent.Agent):
                     and s.pose_stamp > r.before
                     and consistent(r.pose, s.pose, c["position_tolerance"],
                                    c["yaw_tolerance"])):
-                self.log.info(f"localized at the reset pose after "
-                              f"{self.clock() - r.started:.1f} s")
-                r.stage = "done"
+                r.stage, r.verify_until = "verify", self.clock() + c["verify_window"]
+                r.score_count0, r.score_above0 = s.score_count, s.score_above
             elif self.clock() >= r.deadline:
                 where = ("no estimate" if s.pose is None else
                          f"estimate at ({s.pose['x']:.2f}, {s.pose['y']:.2f})")
-                r.stage = "failed"
-                r.failure = (f"localization did not reach the reset pose in "
-                             f"{c['converge_timeout']:.0f} s ({where})")
-                self.log.warning(r.failure)
+                self._reinitialize(r, s, f"localization did not reach the reset pose in "
+                                         f"{c['converge_timeout']:.0f} s ({where})")
+                return
+        if r.stage == "verify":
+            s = self.port.snapshot()
+            scores = s.score_count - r.score_count0
+            if s.score_above > r.score_above0 or (
+                    scores == 0 and self.clock() >= r.verify_until):
+                self.log.info(f"localized at the reset pose after "
+                              f"{self.clock() - r.started:.1f} s"
+                              + ("" if scores else " (no scan-matcher score)"))
+                r.stage = "done"
+            elif scores >= c["lost_scores"] or self.clock() >= r.verify_until:
+                self._reinitialize(r, s, f"the scan matcher scored {scores} scan(s) at "
+                                         f"{c['lost_score']:g} or below after localizing at the reset pose")
+
+    def _reinitialize(self, r: Relocalization, s: Snapshot, why: str):
+        """Initialize again at the same pose, or fail once the repeats are spent."""
+        c = self.cfg
+        if r.reinits >= c["reinitialize_attempts"]:
+            r.stage = "failed"
+            r.failure = (f"{why}; gave up after {r.reinits + 1} initialization(s) at "
+                         f"({r.pose['x']:.2f}, {r.pose['y']:.2f})")
+            self.log.warning(r.failure)
+            return
+        r.reinits += 1
+        self.log.warning(f"{why}; initializing again ({r.reinits} of "
+                         f"{c['reinitialize_attempts']})")
+        r.stage, r.attempts, r.next_try = "initialize", 0, self.clock()
+        r.before = s.pose_stamp

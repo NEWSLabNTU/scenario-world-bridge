@@ -96,6 +96,54 @@ def test_reset_fails_when_localization_does_not_converge(rig):
     assert "did not reach" in agent.state_message()["detail"]
 
 
+def test_reset_checks_the_scan_matcher_score_on_a_healthy_start(rig):
+    clock, autoware, agent = rig
+    started = clock()
+    agent.on_reset(Episode(pose=START))
+    assert autoware.calls.count("initialize") == 1
+    assert agent.phase == P.IDLE
+    assert clock() - started < autoware.CONVERGE_TIME + 1.0  # no wait beyond one score
+
+
+def test_reset_initializes_again_when_the_scan_is_lost(rig):
+    # roadmap 072, leg 63: the align converges, then NDT scores every scan at exactly 0
+    clock, autoware, agent = rig
+    autoware.score_value = [0.0, 3.0]
+    agent.on_reset(Episode(pose=START))
+    assert autoware.calls.count("initialize") == 2
+    assert agent.phase == P.IDLE
+
+
+def test_reset_fails_loudly_when_the_scan_stays_lost(rig):
+    clock, autoware, agent = rig
+    autoware.score_value = 0.0
+    with pytest.raises(Failed, match="at 0 or below"):
+        agent.on_reset(Episode(pose=START))
+    assert autoware.calls.count("initialize") == 1 + agent.cfg["reinitialize_attempts"]
+    assert "gave up after 4 initialization(s)" in agent.state_message()["detail"]
+
+
+def test_lost_score_forces_the_retry(rig):
+    # how the retry is exercised on a live stack: every real score counts as lost
+    clock = Clock()
+    autoware = FakeAutoware(clock)
+    agent = C.AutowareAgent({"step_period": 0, "lost_score": 100.0}, port=autoware,
+                            clock=clock, sleep=clock.sleep)
+    with pytest.raises(Failed, match="at 100 or below"):
+        agent.on_reset(Episode(pose=START))
+    assert autoware.calls.count("initialize") == 4
+
+
+def test_reset_without_a_scan_matcher_score_does_not_hold(rig):
+    clock, autoware, agent = rig
+    autoware.score_value = None
+    started = clock()
+    agent.on_reset(Episode(pose=START))
+    assert autoware.calls.count("initialize") == 1
+    assert agent.phase == P.IDLE
+    assert clock() - started <= autoware.CONVERGE_TIME + agent.cfg["verify_window"] + 0.5
+
+
 def test_reset_retries_a_refused_initialize(rig):
     clock, autoware, agent = rig
     autoware.refuse.add("initialize")

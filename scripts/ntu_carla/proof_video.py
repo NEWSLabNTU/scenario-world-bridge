@@ -6,7 +6,10 @@ composite) at SPEED times real time with its label (leg, route, result, metres d
 MRM, NVTL min), then an end card with the per-leg table from tour_table.py.
 
     python3 scripts/ntu_carla/proof_video.py RUN_DIR OUT.mp4 --legs 00,01,...,r01,r02
-        [--speed 5] [--title-line TEXT]... [--table RUN_DIR/table.json]
+        [--speed 5] [--title TEXT] [--title-line TEXT]... [--table RUN_DIR/table.json]
+
+--title replaces the first title line (default: the CARLA one); roadmap 059's Isaac proof run
+uses the same script with its own.
 
 The table is tour_table.py's --json output for RUN_DIR (computed here when not given).
 """
@@ -65,6 +68,7 @@ def main(argv=None):
     ap.add_argument("out")
     ap.add_argument("--legs", required=True, help="comma-separated: 00,01,...,r01,r02")
     ap.add_argument("--speed", type=int, default=5)
+    ap.add_argument("--title", default="Autoware drives the NTU campus twin in CARLA 0.9.16")
     ap.add_argument("--title-line", action="append", default=[])
     ap.add_argument("--table")
     ap.add_argument("--card-s", type=float, default=4.0, help="seconds per card")
@@ -96,7 +100,7 @@ def main(argv=None):
 
     ncard = int(a.card_s * FPS)
     n_pass = sum(r["pass"] for r in rows)
-    title = ["Autoware drives the NTU campus twin in CARLA 0.9.16",
+    title = [a.title,
              f"Every leg of the tour: {len(rows)} legs, {n_pass} pass, "
              f"{sum(r['driven'] for r in rows) / 1000:.1f} km driven",
              f"Each leg at {a.speed}x real time"] + a.title_line

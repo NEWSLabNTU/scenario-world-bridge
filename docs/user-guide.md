@@ -63,6 +63,7 @@ git clone --recurse-submodules https://github.com/NEWSLabNTU/scenario-world-brid
 cd scenario-world-bridge
 source /opt/ros/humble/setup.bash && source <Autoware>/setup.bash   # e.g. /opt/autoware/1.5.0
 rosdep install --from-paths src --ignore-src -y   # prints only a summary when all is present
+export CMAKE_POLICY_VERSION_MINIMUM=3.5               # CMake 4 and the vendored embree
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release
 source install/setup.bash        # in every terminal below, after Autoware's setup.bash
 ```

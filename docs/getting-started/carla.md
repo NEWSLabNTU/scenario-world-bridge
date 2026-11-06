@@ -11,7 +11,7 @@ then by Autoware. Five stages; each ends with something you can see working.
 | [4. Your scenario](#4-your-scenario) | your own goal on your own road | ~15 min |
 | [5. Autoware](#5-autoware) | the same scenario driven by Autoware | ~20 min |
 
-The Isaac Sim guide follows the same stages (roadmap 070).
+[Getting started on Isaac Sim](isaac.md) follows the same stages.
 
 ## 1. Install
 
@@ -38,6 +38,7 @@ cd scenario-world-bridge
 source /opt/ros/humble/setup.bash
 source /opt/autoware/1.5.0/setup.bash
 rosdep install --from-paths src --ignore-src -y      # apt packages: needs sudo
+export CMAKE_POLICY_VERSION_MINIMUM=3.5               # CMake 4 and the vendored embree
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release
 ```
 
@@ -192,6 +193,8 @@ and the ego drives to your goal.
 
 | Symptom | Look at |
 |---|---|
+| The build fails at `embree_vendor`: `Compatibility with CMake < 3.5 has been removed from CMake` | a CMake 4 (pip or Kitware) ahead of Ubuntu's: `export CMAKE_POLICY_VERSION_MINIMUM=3.5` before `colcon build`, as stage 1 does |
+| The build fails in `traffic_simulator`: `-Werror=maybe-uninitialized` in boost's `rescale_policy.hpp` | a GCC newer than Ubuntu 22.04's 11: add `-DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized` to `--cmake-args` |
 | `scripts/download_maps.sh`: `checksum mismatch` | the download was cut short; delete `data/carla-autoware-bridge.zip` and run it again |
 | A repair prints `no OpenDRIVE for it ... skipped` | `SWB_XODR_DIR` does not point at the CARLA release's `CarlaUE4/Content/Carla/Maps/OpenDrive` |
 | The bridge logs `Cannot read the signal table`, or the scenario's traffic lights never change | stage 2's `--generate-signal-table` for that town |

@@ -189,6 +189,7 @@ cd scenario-world-bridge
 source /opt/ros/humble/setup.bash
 source /opt/autoware/1.5.0/setup.bash        # your Autoware
 rosdep install --from-paths src --ignore-src -y   # installs apt packages: needs sudo
+export CMAKE_POLICY_VERSION_MINIMUM=3.5               # CMake 4 and the vendored embree
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release
 source install/setup.bash                    # in every terminal below, after Autoware's
 ```
@@ -223,8 +224,25 @@ ROS_DOMAIN_ID=9 ros2 launch swb_launch scenario.launch.xml \
 cat /tmp/swb_run/scenario_test_runner/result.junit.xml
 ```
 
-On Isaac Sim, the world server is its own long-lived launch and the simulation side is
-`isaac_simulation.launch.xml`: [User Guide §4](docs/user-guide.md#4-run).
+On Isaac Sim the world server is its own long-lived launch, the ego's vehicle runs inside
+it, and the same scenario files run unchanged
+([Getting started on Isaac Sim](docs/getting-started/isaac.md)):
+
+```bash
+# 1. The Isaac world server, Town01 preloaded (the asset set: request it from NEWSLab)
+EGO_ROS_DOMAIN_ID=1 ros2 launch swb_isaac_world swb_isaac_world.launch.xml \
+    world:=$CARLA_MAPS/Town01/isaac/world.yaml render:=headless
+
+# 2. Simulation side: the bridge driving it and the agent relay
+ROS_DOMAIN_ID=9 ros2 launch swb_launch isaac_simulation.launch.xml
+
+# 3. Vehicle side: Autoware for the Isaac ego, its vehicle agent registered with the relay
+ROS_DOMAIN_ID=1 ros2 launch aib_launch isaac_simulator.launch.xml \
+    map_path:=$CARLA_MAPS/Town01 relay:=tcp://localhost:5560 \
+    extra_launch:=$(ros2 pkg prefix swb_launch)/share/swb_launch/launch/vehicle_agent.launch.xml
+
+# 4. A scenario, exactly as on CARLA
+```
 
 Without SSv2, Autoware on a CARLA scene you set up yourself is one launch, after CARLA
 (terminal 1) is up and your client has spawned the hero:
@@ -264,6 +282,8 @@ carla_simulation.launch.xml` -- plus a log directory per node and a web UI (`--w
 
 **Getting started** -- [on CARLA](docs/getting-started/carla.md): install, a map, a first run
 with CARLA's simple autopilot, your own scenario, then Autoware.
+[On Isaac Sim](docs/getting-started/isaac.md): install, the asset set and a map, the world
+server, Autoware, your own scenario.
 
 **Tutorials** -- from a map directory to a demo of your own scenario:
 
@@ -276,6 +296,10 @@ with CARLA's simple autopilot, your own scenario, then Autoware.
 4. [Demo run](docs/tutorials/04-demo-run.md) -- two Autoware vehicles in one scenario,
    recording a screencast, and the demo tour (`just demo-tour`: six incidents in one
    five-minute drive through Town01, with captions).
+5. [Other road users](docs/tutorials/05-other-road-users.md) -- pedestrians, obstacles,
+   scripted and simulator-driven cars, background Autoware vehicles.
+6. [Configure the system](docs/tutorials/06-configure.md) -- the bridge's and the world
+   servers' configuration, weather, ports and domains, your own Autoware, another car.
 
 **Reference** -- the [User Guide](docs/user-guide.md) (install, maps, scenario directories,
 running, configuring the CARLA world, troubleshooting) and

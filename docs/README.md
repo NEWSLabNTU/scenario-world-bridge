@@ -4,11 +4,14 @@
 
 - [README](../README.md) -- what it is, prerequisites, setup, quick start
 - [Getting started on CARLA](getting-started/carla.md) -- start here: install, the TUM maps, a first run, your scenario, Autoware
+- [Getting started on Isaac Sim](getting-started/isaac.md) -- the same on Isaac Sim: install, the asset set, the world server, Autoware, your scenario
 - Tutorials, in order:
   1. [First run](tutorials/01-first-run.md) -- both sides up, a starter scenario, its verdict
   2. [Prepare a scenario](tutorials/02-prepare-a-scenario.md) -- poses on the map, a `.xosc` of your own
   3. [Run and judge](tutorials/03-run-and-judge.md) -- suites, CARLA's contacts in the verdict, results
   4. [Demo run](tutorials/04-demo-run.md) -- two Autoware vehicles, recording a screencast
+  5. [Other road users](tutorials/05-other-road-users.md) -- pedestrians, obstacles, other cars, background AVs
+  6. [Configure the system](tutorials/06-configure.md) -- bridge and world server settings, weather, ports, your Autoware
 - [User Guide](user-guide.md) -- the reference: install, maps, scenario directories, running,
   the CARLA world, troubleshooting
 - [Writing an agent](agent-interface.md) -- drive scenarios with your own autopilot: the

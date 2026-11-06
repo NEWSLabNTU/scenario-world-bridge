@@ -7,6 +7,7 @@ stack.
 
 ## 1. Two Autoware vehicles
 
+([Tutorial 5](05-other-road-users.md) covers every kind of road user, this one included.)
 A vehicle in a scenario can be driven by an autopilot of its own instead of by SSv2: name its
 controller `agent`. The scenario then reaches it exactly as it reaches the ego -- through the
 relay, by entity name -- and you start one more vehicle side for it.

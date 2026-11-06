@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Roadmap 072: the scan's hedges and low bushes as a smooth height field on the DTM's grid, so
-`carla_meshes.py --hedges` can put it in place of their crumpled faces.
+"""Roadmap 072, map revision stage S4 (docs/design/ntu-twin-map-revisions.md): the scan's hedges
+and low bushes as a smooth height field on the DTM's grid, so each world's export can put it in
+place of their crumpled faces (`carla_meshes.py --hedges`).
 
     hedges.py MESH_DIR MAP_DIR GROUND_DIR TREES_DIR OUT.npz [--parked PARKED.npz] [--preview DIR]
         [--workers 6]
@@ -35,7 +36,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ntu_twin"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import world_usd as W  # noqa: E402
 
 LOW_TOP = 2.6  # m over the DTM: a hedge's faces are below (parked_vehicles.TALL)

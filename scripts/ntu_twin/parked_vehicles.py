@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Roadmap 072: where the scan holds parked vehicles, as a mask on the DTM's grid, so
-`carla_meshes.py --parked` can leave them out of the CARLA map.
+"""Roadmap 072, map revision stage S4 (docs/design/ntu-twin-map-revisions.md): where the scan
+holds parked vehicles, as a mask on the DTM's grid, so each world's export leaves them out
+(`carla_meshes.py --parked`, `world_usd.py --parked`).
 
     parked_vehicles.py MESH_DIR MAP_DIR GROUND_DIR TREES_DIR OUT.npz [--preview DIR]
 
@@ -29,7 +30,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ntu_twin"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import world_usd as W  # noqa: E402
 
 LOW, HIGH = 0.5, 2.2  # m over the DTM: a cell's highest prop face, for a candidate cell

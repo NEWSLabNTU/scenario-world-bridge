@@ -11,7 +11,10 @@ are held by another user's vLLM; the handover is `HANDOVER.md` in the NAS's
 `autoveh/dataset/2026-10-30 NTU twin map/`). On 133 the work lives on NVMe in
 `/mnt/p5plus/aeon/ntu-twin/` (tool venv `.venv`: laspy + lazrs, open3d 0.20, pyproj, scipy,
 matplotlib), Isaac Sim 6.1 in `/mnt/p5plus/aeon/isaac-sim/`. 241's copy was
-`/mnt/toshiba/aeon/ntu-map/`.
+`/mnt/toshiba/aeon/ntu-map/`. Since 2026-11-03 the Isaac twin runs on newslab-118-server
+(`/mnt/renegade/aeon/ntu-twin/`), and 072 builds the CARLA twin on 133. The walkthrough of r01,
+r02 and a tour of every lane passed 116 of 116 on both simulators on 2026-11-05 (below, "The
+walkthrough").
 
 Progress:
 
@@ -606,7 +609,7 @@ own words.
 |---|---|---|---|---|
 | P1 | The whole site (167 tiles) in the map frame, origin (52500, 67700, 0). One Autoware map dir: 059's Lanelet2, `pointcloud_map.pcd` and projector | both | have | have (`carla/NTU` links to 059's) |
 | P2 | The ego: `tesla_model3` from `sim_vehicle_spec`, the same sensor kit, Autoware profile and overlay. The lidar is each simulator's own (RTX, CARLA raycast), so NDT's input differs | both | have | have |
-| P3 | One scenario set. `ntu_twin_<case>.xosc` is the source and `scripts/ntu_twin/scenario_pair.py` writes `ntu_carla_<case>.xosc` from it (only the map dir, the header and the Story name differ; `--check` finds drift): r01, r02, r01_lead, r01_pedestrian. NPC scenarios to come: a cut-in, oncoming traffic at a turn, and a signalised junction once P4 is in | 118 | r01 and the two NPC cases pass; r02 not yet run as a scenario | r01 5/5 and r02 pass; NPC cases untested (walker blueprint, WalkStraightAction, DeleteEntity on swb_carla_world) |
+| P3 | One scenario set. `ntu_twin_<case>.xosc` is the source and `scripts/ntu_twin/scenario_pair.py` writes `ntu_carla_<case>.xosc` from it (only the map dir, the header and the Story name differ; `--check` finds drift): r01, r02, r01_lead, r01_pedestrian. NPC scenarios to come: a cut-in, oncoming traffic at a turn, and a signalised junction once P4 is in | 118 | r01, r02 and the two NPC cases pass; the 114 tour legs pass (the proof pass, below) | r01 5/5 and r02 pass; the tour 116/116; NPC cases untested (walker blueprint, WalkStraightAction, DeleteEntity on swb_carla_world) |
 | P4 | Traffic lights, stop lines and crosswalks where scenarios need them: Lanelet2 (agreed before either session edits it) and the matching OpenDRIVE signals | Lanelet2 both, OpenDRIVE 133 | none yet | none yet |
 | P5 | The same picture targets: sun at elevation 55 deg, azimuth 135 (CARLA's 225, which is the map azimuth + 90), the same default weather, exposure judged on the same four r01 probe views (`render_probe.py` / `carla_probe.py`: start, canopy, turn 2, palms). Any asset fix is adopted by both: ortho refill, de-lighting, shards, parked vehicles removed (072's `scripts/ntu_carla/parked_vehicles.py`), low vegetation as a smooth height field (072's `hedges.py`, in test) | both | have, except parked vehicles and hedges | have, exposure ev -1.5 and min_bright 7 |
 | P6 | The same recording per run: chase and front views at 20 fps; a side-by-side mp4, 1600 px wide; `state.jsonl` of ego x, y, z and speed (map minus origin). The mounts are the rig's, in base_link (the rear axle): chase (-7.0, 0, 3.4), pitch 15 deg down, 80 deg; front = camera6 (0.9, 0, 2.0), pitch 0.86 deg down, yaw 2.09 deg right, 74.5 deg, 1280 x 720. CARLA mounts on the actor's origin, 1.386 m ahead of the rear axle on the model3 (swb_isaac_world reads the axle off the CARLA asset; its height against base_link is to check) | both | Isaac: `just isaac-world record:=<dir> record_view:=road` (swb_isaac_world 7191e36). Until then the recorder had only its off-road view: chase (-7.5, 3.0, 3.0) looking at (3.0, 0, 0.3), 60 deg, 960 x 540; that is still the default (`record_view:=offroad`), and every Isaac recording before 2026-11-04 used it | 133 adds state.jsonl, the 1600 px video and the base_link offset |
@@ -620,12 +623,93 @@ The fixed probe views (P5), map minus origin, yaw in degrees counter-clockwise f
 7 m back along the yaw and 3.4 m over the ground (a ray cast at x, y), pitch 15 deg down, 80 deg
 across, 1280 x 720 (the scripts' defaults). The views N10's numbers were measured on.
 
+## The walkthrough: r01, r02 and a tour of every lane (P7)
+
+User direction 2026-11-04: "complete walkthrough on r01 and r02". The two sessions read it as
+measured r01 and r02 runs plus a tour whose legs together cover every lanelet of the map. Both
+simulators run the same legs (072's `scripts/ntu_carla/tour_legs.py` writes
+`scenarios/ntu_twin/ntu_twin_tour_NN.xosc`, paired by `scenario_pair.py`). Then a before/after
+comparison, then one clean proof pass per simulator. On Isaac every run goes through
+`n8/walk2.sh` on 118: per leg the scenario, `ssv2_watch.py`, `ndt_track.py`, MRM logging and
+072's `tour_monitor.py` (velocity factors, planning walls), then the chase|dash video. Stacks are
+kept up between legs.
+
+### Before (2026-11-04)
+
+98 legs (the 37c0dd9 set), ground n10, map e12bfc42, the overlay before the NDT pose-buffer fix:
+77 clean passes. The rest, by cause:
+
+| cause | legs | fixed by |
+|---|---|---|
+| DTM spikes (canopy or roofs filled into the road): NDT never converged at the start, or a stop for a phantom obstacle | 02, 10, 17, 35, 39, 56, 59, 74 | ground n11: `smooth_dtm.py` keeps the road out of the canopy (2cedde5), `swap_ground.py` (f172b67) |
+| Fill rising over the lanelets where the scan has no road (canopy): the car stopped at a 0.6-0.75 m rise | 07, 24, 25, 71, 73 | ground n12: lanes no higher than the lanelets' surface, except cells with scan returns (6012df6); two lanelet nodes' ele from a spike, `fix_lanelets.py` step D (49bf4e4) |
+| path_optimizer's "outside drivable area" in tight connectors (83-84 deg in 10-14 m) | 11, 58, 65 (and 110 in the later set) | the profile's drivable-area expansion, extra width and front overhang 0.15 m (autoware_sim_vehicle a9bd75c, user-approved) |
+| A U-turn tighter than the Model 3 turns (R 3.3 m against 3.57 m), and a divider drawn twice so two route lanelets overlap and the planner cuts the path | 03 | `fix_lanelets.py` step E: the U-turn at R 4.0 m, one shared divider (d8112f4, 890c7b9; map 80f24846) |
+| Spawn on the car-park ramp's 10.9 deg grade: SSv2 gave the ego the pitch of the down-ramp lanelet drawn over its own, so Isaac spawned it nose-down (it tipped over) and NDT started 20 deg off | 40 | SSv2 7e98ecc4f (pitch along the entity's heading) with swb_core's CARLA conversion fixed in the same change (0a3a38d) |
+| Stuck in PLANNING | 90 (later 45, 98, CARLA's 63) | partly the host (below); the agent re-initializes when NDT scores 0 after a reset (d3a7dc6) |
+| False pass: a loop's goal within SSv2's 5 m of its start | 00 | 072's leg planner (ff5da50) |
+
+### After, and what the after runs found
+
+The after tour (2026-11-04/05: 114 legs plus r01 and r02, ground n12, map c2854a7c, overlay
+879b7ce) passed 107. Its reruns found the rest:
+
+- **Host load is not the map.** Every brief PULL_OVER MRM on r01 and r02 fell in a second with
+  NDT's "exe time is too long" (load 43-120 on 48 cores from other jobs). In the same
+  session, NVTL later fell from 3.1 to 1.9, and with it legs 45, 58, 65, 110 and r01 failed. On
+  fresh stacks all of them passed. So judge MRMs against `diagnostics.csv`, and run measured
+  passes on a quiet host.
+- **The car-park ramp** (n13, 23e3881): the pit closing's 8.25 m median saw the street above
+  the 6 m trench and lifted the floor towards the walls. Lane pits now close no higher than
+  the lanelets' surface.
+- **The hill start** on leg 40, once the pitch was right: the car rolled 2 m back at engage.
+  Autoware's slope compensation is clamped at 0.1 rad (5.7 deg) against the ramp's 10.9 deg,
+  and Isaac's ECU delivers exactly the m a it is asked for (CARLA climbed on its flat-ground
+  pedal map's surplus). The profile's longitudinal PID clamp went to 0.2 rad (45d62aa,
+  user-approved); leg 40 now starts with no roll-back.
+- **An invented hump** on leg 41, (523.7, 270-285), Isaac only: 0.36-0.5 m over 12-15 m with
+  no scan return, the lanelets 0.4 m above it, so the lane-ele rule never saw it, and creep
+  torque could not climb it. The ground's last step is now a grey opening of the road over
+  18 m that lowers no-return road cells more than 0.10 m above it (2bb49e2, ground n15
+  8049e322; 56 clusters listed there, one 0.17 m crest shave near r01's start).
+
+### Proof pass (2026-11-05), both simulators
+
+Same commit, map 80f24846 and ground n15. On the NAS, `2026-10-30 NTU twin map/proof_2026-11-05/`:
+`carla/`, `isaac/` (each with a 5x video, `table.json`, per-leg raw 1280 x 720 chase and front
+clips and `state.jsonl`, MD5SUMS), and the side-by-side
+`ntu_twin_carla_isaac_proof_2026-11-05.mp4` (12:55, aligned at each leg's first motion).
+
+| | CARLA 0.9.16 (072) | Isaac Sim 6.1 (059) |
+|---|---|---|
+| legs passing | 116 of 116 (leg 63 rerun: stuck in PLANNING, NDT score 0) | 116 of 116 (113 and r02 rerun: the world server ran out of GPU memory at leg 113, see Risks) |
+| distance | 10.0 km | 10.0 km |
+| NVTL min | 2.56 | 2.70 |
+| legs with an MRM | 0 | 7 (03, 24, 55, 66, 82: 1 each; 104, 109: 2 each) |
+| legs with an AEB | (not counted) | 6 (03, 24, 82, 83, 104, 109) |
+| lost-scan re-initializations | - | 1 (leg 113's first start; it then localized) |
+
+Open, Isaac only (all of these legs pass):
+
+- **AEB.** It fires at (291, 183) on 03 and 82, (348-361, 233) on 104 and 109, (94.9, 322.9) on 24,
+  and (396, 153) on 83. At 24 AEB's own points are the road surface 5-9 m ahead, 0.2-0.5 m up:
+  the lanelets climb 12.0 to 12.45 m into the next lane in about 5 m where the scan has no
+  road, and the ground filter calls the climb an obstacle. Low foliage over the lanes was not it:
+  clearing Tree/Other faces 0.2-2.6 m over the road changed nothing, and was not committed.
+- **The slope conformance check** (swb_world_check `--slope`, 0a3a38d) reads pitch 0.0 on
+  Isaac after 3 s, whereas a real ramp spawn reads -10.4. The check's LoadWorld sends
+  map_origin (0, 0, 0), so the ego probably lands off the world; not yet looked at.
+
 ## Risks
 
 - Trees look fake to a VLM; baked shadows in the scan's colour double RTX's own (seen in
   the first videos, 2026-11-02; N10).
 - Texture budget (~1.8 G texels at 2 cm) needs tiles and streaming.
 - RTX lidar has crashed on multi-GPU setups: pin Isaac to one GPU.
+- The recorder's render products leak GPU memory across scenarios (docs/issues/003). In the
+  Isaac proof pass, the world server ran out of the 24 GB card at the 115th recorded scenario
+  (`Out of GPU memory allocating resource 'Tonemapping Output'`) and then hung with the
+  memory held. For a long recorded batch, restart the world server every 100 scenarios or so.
 - GPU: both RTX 5090s on 241 are held by another user's vLLM as of 2026-10-29, so the work
   moved to 133. On 133 another user runs a CUDA MPS daemon (`/tmp/nvidia-mps`), and our CUDA
   fails with 805 (MPS_CONNECTION_FAILED) unless `CUDA_MPS_PIPE_DIRECTORY` points at an empty

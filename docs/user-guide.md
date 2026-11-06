@@ -5,12 +5,12 @@ Background: [design/user-workflow.md](design/user-workflow.md).
 
 Two sides run independently and meet only in CARLA and the map directory:
 
-- **Simulation side**: CARLA, `scenario_world_bridge` (CARLA's adapter for
-  scenario_simulator_v2), `scenario_agent_relay`, and scenario_simulator_v2 (SSv2), which runs
+- **Simulation side**: CARLA, its world server `swb_carla_world`, `scenario_world_bridge`
+  (scenario_simulator_v2's adapter to the world server), `scenario_agent_relay`, and scenario_simulator_v2 (SSv2), which runs
   your `.xosc` files and judges them.
 - **Vehicle side**, one per autonomous vehicle: your Autoware with this project's sensor kit
   and vehicle interface, the CARLA vehicle bridge (`acb_bridge`) and the vehicle agent
-  (`acb_pilot agent`), which takes goals from the scenario through the relay and drives
+  (swb_agent's `vehicle_agent`), which takes goals from the scenario through the relay and drives
   Autoware's API locally.
 
 They need not share a ROS domain, a host, or a start order.
@@ -45,11 +45,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 pip install colcon-cargo-ros2
 ```
 
-- Optional, recommended: play_launch, the drop-in for `ros2 launch` (PyPI; 0.15.1 or newer -- 0.15.1 is the first to end a scenario stack when its runner exits under the default parser):
+- Optional, recommended: play_launch, the drop-in for `ros2 launch` (PyPI; 0.18.3 or newer -- 0.15.1 is the first to end a scenario stack when its runner exits under the default parser, 0.18.3 the first to keep a respawned node's earlier log as `out.1`/`err.1`):
 
 ```bash
 sudo apt install libz3-dev ros-humble-rclcpp-components ros-humble-class-loader
-pip install 'play_launch>=0.15.1'      # installs ~/.local/bin/play_launch
+pip install 'play_launch>=0.18.3'      # installs ~/.local/bin/play_launch
 play_launch --version
 ```
 
@@ -76,7 +76,7 @@ Fresh-machine notes:
 
 - Autoware's `data_path` must be writable (TensorRT writes each engine next to its ONNX file);
   the CARLA profile defaults to `~/autoware_data`. Populate it once:
-  `ros2 run acb_launch setup_autoware_data` (mirrors `/opt/autoware/1.5.0/data`; pass
+  `ros2 run autoware_sim_profile setup_autoware_data` (mirrors `/opt/autoware/1.5.0/data`; pass
   `SRC DST` for other locations). `carla_simulator.launch.xml` refuses to start, naming that
   command, while `data_path` is missing or read-only.
 - If `traffic_simulator` fails to find a dependency's headers after that dependency built,
@@ -145,9 +145,11 @@ download link is dead (HTTP 404 since 2026-07); NEWSLabNTU keeps their zip, byte
 it, checks the checksum, unpacks it unchanged into `data/tum-carla-autoware-maps/` and installs
 it under `data/carla-autoware-bridge/<Town>/` with the projector fix SSv2 needs
 (`SWB_MAP_URL` fetches the zip from a mirror; `SWB_MAP_SOURCE=<pack dir>` uses a copy you
-already have); then generate each town's `carla/traffic_lights.yaml` as above. The script also repairs eight defects of the
+already have); then generate each town's `carla/traffic_lights.yaml` as above. The script also repairs eleven defects of the
 pack, idempotently (`scripts/repair_lanelet_traffic_lights.py`, `scripts/repair_lanelet_subtypes.py`,
-`scripts/repair_lanelet_line_types.py`, `scripts/repair_lanelet_local_coords.py`, `scripts/repair_lanelet_turn_direction.py`,
+`scripts/repair_lanelet_line_types.py`, `scripts/repair_lanelet_bound_directions.py`,
+`scripts/repair_lanelet_local_coords.py`, `scripts/repair_lanelet_duplicate_points.py`,
+`scripts/repair_lanelet_turn_direction.py`,
 `scripts/repair_lanelet_joins.py`, `scripts/repair_lanelet_right_of_way.py`,
 `scripts/repair_lanelet_speed_limits.py`, `scripts/repair_lanelet_walkways_under_roads.py`;
 run them on a copy you installed another way, the last two after the local coordinates and with
@@ -158,9 +160,13 @@ traffic lights whose type tags are empty (invisible to Autoware and SSv2); lanel
 (`lanelet::NoSuchAttributeError: Could not find 1`); and lane lines between two lanes of one
 direction typed `dashed_dashed`, a line type Lanelet2 does not know and lets no car cross, so
 Autoware never routes a lane change into a road's inner lane and never a left turn that starts
-there (Town05's 158, Town01's 26 and Town02's 20 become `dashed`); and stop lines and signs whose nodes
+there (Town05's 158, Town01's 26 and Town02's 20 become `dashed`); and those inner lanes'
+left bounds, which reuse the opposite lane's way reversed and take `behavior_path_planner`
+down on a route through one (each gets a way of its own in its driving order); and stop lines and signs whose nodes
 carry only lat/lon, which Autoware projects up to 2.4 m away from where the pack meant them;
-and junction lanelets with no `turn_direction` tag, without which Autoware's `intersection`
+and bounds that repeat a point as a second node at the same place, which give Autoware's
+centre line NaN points and crash `behavior_path_planner` near a lane change (the repeats are
+dropped); and junction lanelets with no `turn_direction` tag, without which Autoware's `intersection`
 and `blind_spot` modules never launch (each lanelet that leaves a fork or joins a merge is
 tagged `straight`, `left` or `right` from its heading change); and road lanelets that start
 at fresh nodes exactly where their predecessor ends, which Lanelet2 does not treat as a
@@ -198,9 +204,14 @@ export CARLA_MAPS=<repo>/data/carla-autoware-bridge     # holds Town01/, Town02/
 
 ```
 $(ros2 pkg prefix swb_examples)/share/swb_examples/scenarios/
-    basic/      this project's Town01/Town02 scenarios (ego drive, traffic light, pedestrian,
-                rear contact, engage state, simulator autopilot, Town02 episode change)
+    basic/      this project's scenarios: Town01 (ego drive, traffic light, pedestrian, rear
+                contact, engage state, simulator autopilot), an ego drive in each of Town02,
+                Town03, Town05 and Town10, and the Town02 episode change
     multi_av/   town01_two_av.xosc: needs a second vehicle side, entity bg_av_1 (Terminal 3b)
+    tutorial/   town01_follow_to_goal.xosc, the worked example of Tutorial 2
+    demo/       town01_tour.xosc, the demo tour of Tutorial 4, and its incidents one by one
+                (incidents/)
+    isaac/      town01_rear_contact.xosc with a standing ego, for Isaac Sim
     awf/        AWF ODD use cases UC-ACC-001-0001 and UC-AEB-001-0001 (Apache-2.0), YAML with
                 ScenarioModifiers: one run per parameter combination (27 and 9)
 ```
@@ -210,8 +221,8 @@ terminal that runs them.
 
 **Which town the vehicle side loads.** The vehicle side's `map_path` is fixed when it starts,
 and it must be the town the scenario drives in: every starter scenario with an ego, in
-`basic/`, `multi_av/` and `awf/`, is Town01, so start the vehicle side with
-`map_path:=$CARLA_MAPS/Town01`. A scenario whose ego drives another town needs a vehicle
+`basic/`, `multi_av/` and `awf/`, is Town01 except `basic/`'s `town02_`, `town03_`, `town05_`
+and `town10_ego_drive`, so start the vehicle side with `map_path:=$CARLA_MAPS/Town01`. A scenario whose ego drives another town needs a vehicle
 side started with that town's map: with the wrong one, localization never converges and the
 scenario fails waiting for the ego (section 6). `just scenario` does this for you: it
 replaces a running ego stack whose map is not the scenario's.
@@ -269,6 +280,7 @@ ROS_DOMAIN_ID=9 ros2 launch swb_launch carla_simulation.launch.xml \
 # Terminal 3 -- vehicle side, any ROS domain, any host, any time
 ROS_DOMAIN_ID=1 ros2 launch acb_launch carla_simulator.launch.xml \
     map_path:=$CARLA_MAPS/Town01 vehicle_name:=hero relay:=tcp://<simulation host>:5560 \
+    extra_launch:=$(ros2 pkg prefix swb_launch)/share/swb_launch/launch/vehicle_agent.launch.xml \
     [rviz:=false] [autoware_launch:=<your autoware.launch.xml>]
 
 # Terminal 3b -- one more vehicle side per entity whose controller is `agent`, e.g. bg_av_1
@@ -323,7 +335,7 @@ One bridge drives a world server at a time: a second bridge is refused while the
   if started first (answering `just world-health` with "not ready" meanwhile), and the bridge
   binds the SSv2 port only once its world server is ready.
 - The vehicle side is ready when the relay (Terminal 2) logs
-  `entity 'ego': agent acb_agent registered` and then `ego: agent up`. Under play_launch the
+  `entity 'ego': agent autoware registered` and then `ego: agent up`. Under play_launch the
   vehicle side also logs `Startup complete: all nodes ready (nodes 63/63, containers 18/18,
   composable 127/127)` (the counts depend on your Autoware; check that each is whole). About
   a minute on a warm host; the first start builds TensorRT engines and takes several (every
@@ -364,7 +376,7 @@ simulation side's domain.
 Before each scenario, a pre-flight asks the agent relay (`--relay`, default
 `tcp://localhost:5560`) whether the vehicle agent of every entity the scenario needs is
 registered: the ego, and each entity whose controller is `agent`. If one is not, that
-scenario fails at once (`Preflight: no vehicle agent registered ... as 'ego'`) instead of
+scenario fails at once (`pre-flight: no vehicle agent registered ... as 'ego'`) instead of
 waiting out the scenario's timeouts. `--no-preflight` skips the check.
 
 `--timeout-per-scenario` caps one scenario file's wall-clock time, all its variants
@@ -545,7 +557,7 @@ tune them where named.
 | Clear route / engage / enable control / RTC retries | SSv2 fork | 30 x 3 s | 10 | rides out a transient refusal, fails a persistent one in about a minute |
 | One simulator response (frame, spawn, despawn) | env `SIMULATOR_RESPONSE_TIMEOUT` | 420 s | 90 s | the bridge's own CARLA RPC timeout is 30 s (+10 s settings); a dead bridge is reported in 1.5 min |
 | Simulator `Initialize` | env `SIMULATOR_INITIALIZE_TIMEOUT` | 420 s | 300 s | covers the CARLA wait below plus a town load (bridge's 120 s map-load RPC timeout) |
-| CARLA gone at `Initialize` | `bridge.yaml carla.reconnect_wait_seconds` | 240 s | 120 s | a CARLA restart serves its map in 25-51 s when the host is not saturated (three restarts, 2026-10-10); raise it where CARLA restarts unattended and slowly |
+| CARLA gone at `Initialize` | `swb_carla_world.yaml carla.reconnect_wait_seconds` | 240 s | 120 s | a CARLA restart serves its map in 25-51 s when the host is not saturated (three restarts, 2026-10-10); raise it where CARLA restarts unattended and slowly |
 | One scenario (variant) | `scenario.launch.xml global_timeout:=` | 600 s | 400 s | longest variant measured 190 s (town01_traffic_light, end to end) |
 | One scenario file, all variants | `run_suite --timeout-per-scenario` | 1800 s | none (0) | SSv2 bounds each variant; a fixed cap killed UC-ACC (27 variants) in proof run 1 |
 
@@ -619,8 +631,8 @@ different towns. Empty (the default) leaves CARLA's own.
   (section 2). Under `just ego-av`, `container_mode:=observable` selects the shared mode.
   On a host with several GPUs, `gpu:=<index>` on a vehicle side's launch pins its CUDA
   nodes to one card (`CUDA_VISIBLE_DEVICES`; empty, the default, inherits the
-  environment's); under `just ego-av`, `just ego-av gpu:=1`. `extra_launch:=<file>`
-  starts a launch file of your own beside a vehicle side, in its domain (a V2X node, a
+  environment's); under `just ego-av`, `just ego-av gpu:=1`. `user_launch:=<file>`
+  (under `just ego-av`, `extra_launch:=<file>`) starts a launch file of your own beside a vehicle side, in its domain (a V2X node, a
   recorder); it receives `vehicle_name`, `entity`, `map_path` and `use_sim_time`.
 - **CARLA dies**: the running scenario fails within ~30 s; restart CARLA; the next scenario
   waits for it (up to `carla.reconnect_wait_seconds`, 120 s) and runs.

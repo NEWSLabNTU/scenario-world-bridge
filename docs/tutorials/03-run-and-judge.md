@@ -28,7 +28,7 @@ them, sorted, recursively). It prints one line per scenario and a total:
 ```
 
 Before each scenario it asks the relay whether the scenario's vehicles are registered, and
-fails that scenario at once if one is not (`Preflight: no vehicle agent registered ...`)
+fails that scenario at once if one is not (`pre-flight: no vehicle agent registered ...`)
 instead of letting it time out. If play_launch is installed it runs each scenario with it;
 otherwise with `ros2 launch`.
 

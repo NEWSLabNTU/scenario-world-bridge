@@ -20,7 +20,7 @@ URL="${SWB_MAP_URL:-https://github.com/NEWSLabNTU/carla-autoware-maps/releases/d
 SHA256="6e582242198ae50aa1d1fd410b53609c8b7ecfc6b9696294c498646783ed4838"
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)/data"
-ZIP="$DIR/carla-autoware-bridge.zip}"
+ZIP="$DIR/carla-autoware-bridge.zip"
 PACK="$DIR/tum-carla-autoware-maps"
 OUT="$DIR/carla-autoware-bridge"
 

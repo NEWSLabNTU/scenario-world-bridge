@@ -35,7 +35,7 @@ ROS_DOMAIN_ID=2 ros2 launch swb_launch background_av.launch.xml \
 `background_av.launch.xml` is the same Autoware vehicle side with lighter perception choices
 (CPU lidar clustering, no traffic light camera), so a second stack fits beside CARLA and the
 ego's on one GPU. Ready when Terminal 2's relay prints
-`entity 'bg_av_1': agent acb_agent registered`. Then:
+`entity 'bg_av_1': agent autoware registered`. Then:
 
 ```bash
 # Terminal 4
@@ -70,9 +70,9 @@ sides with them:
 
 ```bash
 RVIZ=$(ros2 pkg prefix --share swb_launch)/rviz
-ROS_DOMAIN_ID=1 ros2 launch acb_launch carla_simulator.launch.xml \
-    map_path:=$CARLA_MAPS/Town01 vehicle_name:=hero relay:=tcp://localhost:5560 \
-    rviz_config:=$RVIZ/ego_autoware.rviz
+ROS_DOMAIN_ID=1 ros2 launch swb_launch ego_av.launch.xml \
+    map_path:=$CARLA_MAPS/Town01 relay:=tcp://localhost:5560 \
+    launch_rviz:=true rviz_config:=$RVIZ/ego_autoware.rviz
 ROS_DOMAIN_ID=2 ros2 launch swb_launch background_av.launch.xml \
     entity:=bg_av_1 map_path:=$CARLA_MAPS/Town01 relay:=tcp://localhost:5560 \
     launch_rviz:=true rviz_config:=$RVIZ/bg_av_1_autoware.rviz

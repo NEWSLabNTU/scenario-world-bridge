@@ -54,8 +54,8 @@ the NVIDIA card.
 
 ## 2. The simulation side
 
-The bridge (CARLA's adapter for SSv2) and the agent relay (which passes the scenario's
-goals to the vehicle). Start it once and leave it running; scenarios come and go.
+CARLA's world server, the bridge (SSv2's adapter to it) and the agent relay (which passes
+the scenario's goals to the vehicle). Start it once and leave it running; scenarios come and go.
 
 ```bash
 # Terminal 2
@@ -65,8 +65,8 @@ ROS_DOMAIN_ID=9 ros2 launch swb_launch carla_simulation.launch.xml
 Ready when both of these lines have appeared:
 
 ```
-[scenario_world_bridge-1] ... INFO scenario_world_bridge::zmq_server: ZMQ server ready, waiting for SSv2 requests...
-[relay-2] [INFO] ... [scenario_agent_relay]: Relaying entity 'ego': agents register on tcp://0.0.0.0:5560; ...
+[scenario_world_bridge-N] ... INFO scenario_world_bridge::zmq_server: ZMQ server ready, waiting for SSv2 requests...
+[relay-N] [INFO] ... [scenario_agent_relay]: Relaying entity 'ego': agents register on tcp://0.0.0.0:5560; ...
 ```
 
 `ROS_DOMAIN_ID=9` is the domain scenarios run in; the scenario in step 4 uses the same.
@@ -87,8 +87,8 @@ This starts ~90 processes and opens RViz (leave out `launch_rviz:=true` to skip 
 Terminal 2's relay soon reports the vehicle's agent:
 
 ```
-[relay-2] [INFO] ... entity 'ego': agent acb_agent registered from 127.0.0.1:...
-[relay-2] [INFO] ... ego: agent up -- ADAPI services offered
+[relay-N] [INFO] ... entity 'ego': agent autoware registered from 127.0.0.1:...
+[relay-N] [INFO] ... ego: agent up -- ADAPI services offered
 ```
 
 That is not ready yet: Autoware is still starting. Wait for this, in any terminal:
@@ -104,7 +104,8 @@ Autoware was built with. With any other version every start rebuilds. The fix is
 [user guide](../user-guide.md) (section 4, TensorRT 10.8.0) or `just setup-tensorrt`.
 
 `map_path` must be the town the scenario drives in. Every starter scenario with an ego is
-Town01.
+Town01, except `basic/`'s `town02_`, `town03_`, `town05_` and `town10_ego_drive`, which
+drive in their own towns.
 
 ## 4. A scenario
 
@@ -165,7 +166,7 @@ same arguments, and gives each node its own log file and the stack a web UI -- w
 an Autoware stack of ~90 processes:
 
 ```bash
-pip install 'play_launch>=0.15.1'
+pip install 'play_launch>=0.18.3'
 ROS_DOMAIN_ID=1 play_launch launch --web-addr 127.0.0.1:8082 \
     swb_launch ego_av.launch.xml map_path:=$CARLA_MAPS/Town01 relay:=tcp://localhost:5560
 # then open http://127.0.0.1:8082 ; logs in ./play_log/

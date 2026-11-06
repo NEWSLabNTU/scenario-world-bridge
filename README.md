@@ -144,9 +144,10 @@ Four checks keep them in agreement:
 | swb_isaac_world | The Isaac Sim world server. |
 | [autoware_carla_bridge](https://github.com/NEWSLabNTU/autoware_carla_bridge) (acb) | The CARLA vehicle bridge, and running Autoware on CARLA without SSv2. |
 | [autoware_isaac_bridge](https://github.com/NEWSLabNTU/autoware_isaac_bridge) (aib) | The Isaac Sim vehicle library and runner. |
+| [sim_vehicle_ecu](https://github.com/NEWSLabNTU/sim_vehicle_ecu) | The car's onboard computers below its vehicle interface: the drive unit's controller, the brake module and the power steering, which aib drives its PhysX vehicle through. No simulator, no ROS. |
 
-acb and aib build on their own with only the two vehicle repositories, so neither needs
-SSv2. The world servers need `sim_vehicle_spec` but not Autoware.
+acb builds on its own with only the two vehicle repositories, aib with those and
+`sim_vehicle_ecu`, so neither needs SSv2. The world servers need `sim_vehicle_spec` but not Autoware.
 
 ## Supported versions
 
@@ -257,7 +258,7 @@ ROS domains above 57 do not work with that profile.
 `ros2 launch`.** Same packages, files and arguments -- `play_launch launch swb_launch
 carla_simulation.launch.xml` -- plus a log directory per node and a web UI (`--web-addr
 127.0.0.1:8084`) for the ~90 processes of an Autoware stack. `pip install
-'play_launch>=0.15.1'`; `run_suite` uses it when it is installed.
+'play_launch>=0.18.3'`; `run_suite` uses it when it is installed.
 
 ## Learn more
 

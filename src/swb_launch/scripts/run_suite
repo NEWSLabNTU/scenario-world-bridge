@@ -355,7 +355,8 @@ def preflight(scenario: Path, relay: str, ego_entity: str = "ego") -> Optional[s
         return None
     return (f"pre-flight: no vehicle agent registered with the relay {relay} as "
             f"{', '.join(repr(e) for e in missing)}; start that vehicle side "
-            f"(acb_launch carla_simulator.launch.xml relay:={relay} entity:={missing[0]}) "
+            f"(swb_launch ego_av.launch.xml, or background_av.launch.xml entity:={missing[0]}, "
+            f"with relay:={relay}) "
             f"and wait until it has registered, or check it for exited nodes")
 
 

@@ -234,3 +234,6 @@ from another repository" in [vehicle side](../design/vehicle-side.md#a-vehicle-f
 
 Any autopilot that registers with the agent relay can drive the ego or a background vehicle:
 a Python class or a ROS 2 stack described in YAML. [Writing an agent](../agent-interface.md).
+
+Next: [Tutorial 7](07-the-stack.md) puts the simulator, the bridge, your autopilot and a
+scenario in one launch, with your own car, scenarios or simulator.

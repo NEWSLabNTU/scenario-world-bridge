@@ -12,6 +12,7 @@
   4. [Demo run](tutorials/04-demo-run.md) -- two Autoware vehicles, recording a screencast
   5. [Other road users](tutorials/05-other-road-users.md) -- pedestrians, obstacles, other cars, background AVs
   6. [Configure the system](tutorials/06-configure.md) -- bridge and world server settings, weather, ports, your Autoware
+  7. [The whole stack in one launch](tutorials/07-the-stack.md) -- simulator, bridge, autopilot and scenario or free drive; your car, scenarios and simulator
 - [User Guide](user-guide.md) -- the reference: install, maps, scenario directories, running,
   the CARLA world, troubleshooting
 - [Writing an agent](agent-interface.md) -- drive scenarios with your own autopilot: the

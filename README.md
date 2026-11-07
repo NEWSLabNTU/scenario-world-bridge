@@ -304,6 +304,9 @@ server, Autoware, your own scenario.
    scripted and simulator-driven cars, background Autoware vehicles.
 6. [Configure the system](docs/tutorials/06-configure.md) -- the bridge's and the world
    servers' configuration, weather, ports and domains, your own Autoware, another car.
+7. [The whole stack in one launch](docs/tutorials/07-the-stack.md) -- one command for
+   simulator, bridge, your autopilot and a scenario or free drive; your car, your scenarios,
+   your own simulator package.
 
 **Reference** -- the [User Guide](docs/user-guide.md) (install, maps, scenario directories,
 running, configuring the CARLA world, troubleshooting) and

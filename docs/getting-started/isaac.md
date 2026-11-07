@@ -252,6 +252,7 @@ vehicles.
 | `conformance` fails `a lamp shows the colour it was set to ... no lamp for OpenDRIVE id(s) 362` | a world without traffic lights (a point-cloud world); the SimReady world has them |
 | `install_isaac.sh`: `uv: command not found` | install uv first (stage 1) |
 | The world server never says ready | the first preload compiles materials: wait, and watch its log; `hello --wait` shows whether it answers |
+| The world server is `not up after 1200 s`, its Kit log ends at `omni.client` and it runs at 100 % CPU | a Kit cache link (`~/.cache/ov`, `~/.local/share/ov`, `~/.nvidia-omniverse`) points at a deleted directory, e.g. after reinstalling Isaac; create its target (`mkdir -p "$(readlink -m ~/.cache/ov)"`), or run `install_isaac.sh` again, which does |
 | The world server dies or hangs with an out-of-memory error | it needs the GPU (24 GB) and about 17.5 GB of RAM to itself; close other GPU work, and on two GPUs pin one (`ISAAC_KIT_ARGS`) |
 | It restarts after dying and is unavailable for minutes | the launch respawns it and it preloads the world again; wait for the ready line |
 | `isaac_town.sh`: `no Autoware map for Town01` | `CARLA_MAPS` is unset or stage 2's maps are missing |

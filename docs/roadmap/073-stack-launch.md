@@ -6,7 +6,7 @@ scenario and no use case, and the simulator is a slot like the rest. CARLA and I
 officially supported, so swb ships shortcuts for them; any other simulator comes from the
 user's own support package.
 
-**Status**: in progress, 2026-11-08: done 2026-11-08 (S1-S9). User direction: "I'd like to see if we can have a package
+**Status**: done, 2026-11-08 (S1-S9). User direction: "I'd like to see if we can have a package
 to launch the whole SSv2 + simulator stack"; "Note that scenario file is per use case. We
 don't save the scenario file in the swb project"; "The swb supports generic simulator. The
 simulator is switchable, and we allow user custom simulator via their support package"; "We

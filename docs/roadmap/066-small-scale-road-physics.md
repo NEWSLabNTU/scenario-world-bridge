@@ -663,6 +663,26 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     km/h first had hidden it. Plausible for a real car at that speed; the spike's left-road
     check (6 m) does not catch it.
 
+  **Closing R4** (2026-11-07, newslab-server-241; swb_isaac_world `5444614`):
+  - **The pool per ego.** `RockStream.reserve(n)` tops the pool up to the 99 % Poisson count
+    of n windows, called as each ego spawns. On R3's corridor laid over Town01 (carriageway
+    cover 1 %): 992 prims for one vehicle at the road's load in 3.7 s; the second ego adds
+    355 in 0.4-1.6 s at its spawn. Two windows' 99 % count is less than twice one's.
+  - **Rocks in the world server for real (issue 039).** The world loads the road before any
+    ego, and the rocks' collision groups then kept aib from making the vehicles' own: PhysX
+    never made the ego, every world-server run with rocks failed at preload. rock_world had
+    made the car first. Fixed; with `spikes/multi_ego_road.py` the rough Town01 preloads and
+    one and two egos (side by side, and 12 m apart in one lane) drive the 220 m, every sensor
+    on, no rock lost, 0-4 awake.
+  - **The budget, not yet measured.** The runs shared the host with another user's six GPU
+    jobs (both cards at 100 %, load 45-95 on 24 cores): a frame took 205 ms for one ego on
+    flat Town01, against 052's 29.2. The road layer's own share, timed directly, was 6.0 ms
+    p50 for one ego and 12.9 for two (contact per substep and the streams), against 5 per
+    ego; on a quiet host R4's rock road cost 3.9-4.1. The acceptance's numbers need the
+    flat/rough pair again on a quiet host (`play_log/multi_ego_road/2026-11-07_066*`).
+  - **The Autoware ego on a rock road** needs a lanelet map for the corridor; it moves to R7,
+    with the ground filter and NDT on rough tiles.
+
 - [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling
   radius, rim-strike flag. Feeds the corner (R2, R6) and question 1's sampling. Measured: cleat
@@ -778,6 +798,34 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     per-step hook after the soil's friction, on worlds with a `road_detail.yaml` only. With no
     detail the model would still change the smooth-road corner (wheel mass, tire spring), so
     055's suite must be rerun on such a world.
+
+  **055's suite on a road-layer world** (2026-11-07; `spikes/proving_ground_road`: the proving
+  ground with one corridor far from the pads, so the layer runs and every pad is smooth;
+  `play_log/manoeuvres/2026-11-07_066-r5`). Braking, the steer step, the lane change, the mud
+  cases and the rut crossing are unchanged. At the limit the car is a different car:
+
+  | case (ESC off) | PhysX alone | road layer | road layer, no bars |
+  |---|---|---|---|
+  | dry sine with dwell, heading change | -78.8 deg (spins) | -32.9 deg | -56.4 deg |
+  | dry sine, yaw ratio at 1 s | 0.80 | 0.07 | 0.60 |
+  | wet circle, speed it leaves at | 52.3 km/h | 65.6 | 59.3 |
+  | split-mu brake, peak sideslip | 2.2 deg | 7.1 | 2.4 |
+
+  - **Most of it is R2's anti-roll bars,** which the road layer's corner has and PhysX's vehicle
+    has not (a real Model 3 has both bars; their rates are assumed). The rest is the corner's
+    tire spring and wheel mass at 480 Hz. The sine with dwell sits at the spin threshold, so
+    small differences flip it; both runs are deterministic (055 reproduced to 0).
+  - The sweeps' force over load divided by PhysX's suspension force, which on a road-layer
+    world is not the tire's load (the friction is scaled by ours over PhysX's); manoeuvres.py
+    now divides by the road layer's load.
+  - So "055's suite unchanged on smooth road" cannot hold while only road-layer worlds have
+    the bars. Open: whether every world gets them (a force from PhysX's own suspension travel,
+    cheap), the real car's fact, at the cost of a new baseline for every scenario.
+  - **The rolling radius** stays deferred, and the ECU's need of it is answered: on the tour's
+    six sections the ECU's speed is within 0.05 m/s of the truth where the wheels stay down,
+    and ABS never acted. What the ECU met on rough road was a landing read as grip and a
+    driven wheel spinning in the air read as ice (issue 038; the first fixed in
+    sim_vehicle_ecu `15827bf`, rough-road detection open).
 
 - [ ] **R6. Wheel hop** (2-3 weeks). A virtual unsprung mass per corner on a tire spring at the
   vehicle substep rate, between R5's effective road and the sprung body; PhysX's spring

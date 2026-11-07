@@ -219,8 +219,9 @@ Two fixes Autoware 1.5.0 lacks, and the TensorRT version it needs, are in
 
 The car is described once, in `sim_vehicle_spec`'s `vehicles/<car>.yaml`, and everything
 else is generated from it: CARLA's physics, Isaac's rig, SSv2's catalog entry, Autoware's
-vehicle and sensor-kit packages. Two cars ship: `tesla_model3` (the default) and
-`drift_mustang`. A vehicle side selects one with `vehicle_model:=` and `sensor_model:=`, the
+vehicle and sensor-kit packages. Three cars ship: `tesla_model3` (the default),
+`drift_mustang`, and `newslab_golfcart` (NEWSLab's golf cart on Isaac, which drives with the
+cart's own Autoware). A vehicle side selects one with `vehicle_model:=` and `sensor_model:=`, the
 scenario with its catalog entry (`entryName=`), and the bridge refuses a run where they
 disagree. Adding a car: [vehicle side](../design/vehicle-side.md).
 

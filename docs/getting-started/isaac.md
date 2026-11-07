@@ -118,8 +118,7 @@ ls $CARLA_MAPS/Town01/isaac
 
 With the town's export present in the asset set it does not run CARLA's editor. The world
 file names the layer by its absolute path on this machine, so run it again after moving the
-asset set. It also rewrites the town's `Town01_physics.usda` in the asset set, so a later
-`asset_set check` lists that one file as changed; that is expected.
+asset set.
 
 ## 3. The world server
 

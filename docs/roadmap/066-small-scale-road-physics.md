@@ -683,7 +683,7 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - **The Autoware ego on a rock road** needs a lanelet map for the corridor; it moves to R7,
     with the ground filter and NDT on rough tiles.
 
-- [ ] **R5. Tire enveloping, live** (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
+- [x] **R5. Tire enveloping, live** (done 2026-11-07) (1-2 weeks, about 0.12 ms for 32 wheels). The tandem cam,
   5 x 6 per tire, on the height function each substep: effective height, slope and rolling
   radius, rim-strike flag. Feeds the corner (R2, R6) and question 1's sampling. Measured: cleat
   force shape, no braking kick at a step, edge strike tens of kN at 40 km/h. Risk: the cams'
@@ -818,9 +818,25 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
   - The sweeps' force over load divided by PhysX's suspension force, which on a road-layer
     world is not the tire's load (the friction is scaled by ours over PhysX's); manoeuvres.py
     now divides by the road layer's load.
-  - So "055's suite unchanged on smooth road" cannot hold while only road-layer worlds have
-    the bars. Open: whether every world gets them (a force from PhysX's own suspension travel,
-    cheap), the real car's fact, at the cost of a new baseline for every scenario.
+  - So "055's suite unchanged on smooth road" could not hold while only road-layer worlds had
+    the bars. Decided 2026-11-07: every world gets them, the real car's fact.
+    `swb_isaac_world.roll_bars` (`3a1aeb8`) adds R2's bars to PhysX's car where the road layer
+    is off: each axle's differential travel from PhysX's geometry, the bar's force on the body
+    at each wheel, each wheel's friction scaled by its load with the bar (1 % steps). 055's
+    suite again (`bars-*`, `road-off2`):
+
+    | case | PhysX alone | PhysX with bars | road layer |
+    |---|---|---|---|
+    | dry sine with dwell, heading change, ESC off | -78.8 deg | -28.5 | -32.9 |
+    | dry sine, yaw ratio at 1 s / 1.75 s, ESC off | 0.80 / 0.78 | 0.03 / 0.0 | 0.07 / 0.0 |
+    | wet sine, yaw ratio at 1 s, ESC off | 0.98 | 0.88 | 0.94 |
+    | dry sine, ESC on (FMVSS 126) | passes | passes | passes |
+    | dry brake, wet lane change path error | 8.33 m, 1.25 m | the same | the same |
+
+    The bars are the new baseline of every Isaac world: at the limit the car understeers more
+    and no longer spins in the dry sine with dwell without ESC. What remains between the two
+    is the corner's compliance (tire spring, wheel mass): the split-mu brake's sideslip was 7.1
+    deg on the road layer once with ESC off, 2.5 with bars (2.5 both with ESC).
   - **The rolling radius** stays deferred, and the ECU's need of it is answered: on the tour's
     six sections the ECU's speed is within 0.05 m/s of the truth where the wheels stay down,
     and ABS never acted. What the ECU met on rough road was a landing read as grip and a

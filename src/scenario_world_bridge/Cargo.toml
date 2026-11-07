@@ -9,6 +9,11 @@ description = "The scenario bridge: SSv2 on one side, a world server over the wo
 name = "scenario_world_bridge"
 path = "src/main.rs"
 
+# Free drive (roadmap 073 S5): the ego in a world with no scenario, SSv2's protocol in SSv2's place
+[[bin]]
+name = "swb_free_drive"
+path = "src/bin/swb_free_drive.rs"
+
 [package.metadata.ros]
 install_to_share = ["config", "launch"]
 
@@ -27,6 +32,8 @@ swb_interfaces = "*"
 futures = "0.3"
 
 prost = "0.13"
+# swb_free_drive reads the ego's vehicle catalog entry
+roxmltree = "0.20"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = "1"

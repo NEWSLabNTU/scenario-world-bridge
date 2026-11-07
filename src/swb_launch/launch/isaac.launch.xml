@@ -9,6 +9,7 @@
         [ego_launch:=<path>|'<package> <file>'] [ego_launch_args:='a:=1 b:=2'] \
         [vehicle_model:=...] [spec_hash_file:=...] [vehicle_catalogs:=...] \
         [scenario:=<path to .xosc>] [scenario_args:='...'] [exit_on_scenario_end:=false]
+        [spawn:=x,y,z,yaw [vehicle:=<catalog entry>] [realtime:=true]]   (free drive, no scenario)
 
   Host settings (ports, domains, ISAAC_ROOT, DISPLAY) are the environment's: stack.launch.py.
 -->
@@ -29,7 +30,9 @@
   <arg name="scenario" default=""/>
   <arg name="scenario_args" default=""/>
   <arg name="exit_on_scenario_end" default="false"/>
-  <arg name="spawn" default=""/>
+  <arg name="spawn" default="" description="free drive without a scenario: the ego at x,y,z,yaw (map frame)"/>
+  <arg name="vehicle" default="" description="free drive: the ego's catalog entry; empty: vehicle_model"/>
+  <arg name="realtime" default="true" description="free drive: pace to the wall clock; false: as fast as it goes (synchronous either way)"/>
 
   <include file="$(find-pkg-share swb_launch)/launch/stack.launch.py">
     <arg name="sim" value="isaac"/>
@@ -46,5 +49,7 @@
     <arg name="scenario_args" value="$(var scenario_args)"/>
     <arg name="exit_on_scenario_end" value="$(var exit_on_scenario_end)"/>
     <arg name="spawn" value="$(var spawn)"/>
+    <arg name="vehicle" value="$(var vehicle)"/>
+    <arg name="realtime" value="$(var realtime)"/>
   </include>
 </launch>

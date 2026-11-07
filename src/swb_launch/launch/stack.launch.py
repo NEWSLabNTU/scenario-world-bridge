@@ -29,7 +29,9 @@ Groups and their ROS domains:
     profile; the vehicle interface and sensors are the world server's); on carla,
     acb_launch carla_simulator.launch.xml (Autoware with acb_bridge, CARLA's vehicle
     bridge). none: no ego.
-- run (scenario domain): with `scenario`, SSv2 (scenario.launch.xml) as a nested play_launch:
+- run (scenario domain): with `spawn` and no scenario, free drive (swb_free_drive: the ego at
+  that pose, time stepped synchronously, paced to the wall clock unless realtime:=false; the
+  autopilot driven by hand). With `scenario`, SSv2 (scenario.launch.xml) as a nested play_launch:
   it shuts its own launch down when the scenario ends, which must not end the stack. With
   exit_on_scenario_end:=true the stack ends with it (scripted runs). Run the next scenario
   against the live stack with `play_launch launch swb_launch scenario.launch.xml
@@ -49,11 +51,9 @@ import shlex
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (DeclareLaunchArgument, EmitEvent, ExecuteProcess, GroupAction,
-                            IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler,
-                            SetEnvironmentVariable)
-from launch.event_handlers import OnProcessExit
-from launch.events import Shutdown
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess, GroupAction,
+                            IncludeLaunchDescription, OpaqueFunction, SetEnvironmentVariable,
+                            Shutdown)
 from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
@@ -92,13 +92,14 @@ def include(path, args):
     return IncludeLaunchDescription(AnyLaunchDescriptionSource(path), launch_arguments=args.items())
 
 
-def nested(name, target, args, domain, log_dir, respawn=False, extra=()):
+def nested(name, target, args, domain, log_dir, respawn=False, extra=(), required=False):
     """A launch as its own play_launch process: its own lifetime, its own log directory."""
     cmd = ["play_launch", "launch", "--disable-web-ui", "--log-dir", log_dir, *extra, *target]
     cmd += [f"{k}:={v}" for k, v in args.items()]
     return ExecuteProcess(cmd=cmd, name=name, output="screen", respawn=respawn,
                           respawn_delay=5.0 if respawn else 0.0,
-                          additional_env={"ROS_DOMAIN_ID": domain})
+                          additional_env={"ROS_DOMAIN_ID": domain},
+                          on_exit=Shutdown() if required else None)
 
 
 def _stack(context):
@@ -163,10 +164,14 @@ def _stack(context):
                                    "your launch, or none")
             # the preset's Autoware: its map, and on CARLA the server it drives
             preset = {"map_path": get("map_path")}
-            if sim == "carla":
-                preset.update(carla_host=_env("CARLA_HOST", ""), carla_port=_env("CARLA_PORT", ""))
             if not get("vehicle_model"):
                 context.launch_configurations["vehicle_model"] = "tesla_model3"
+            if sim == "carla":
+                # the CARLA world server's sensor-release sockets follow the SSv2 port (+1, +2)
+                preset.update(carla_host=_env("CARLA_HOST", ""), carla_port=_env("CARLA_PORT", ""),
+                              vehicle_model=get("vehicle_model"),
+                              release_notify_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 1}",
+                              release_ack_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 2}")
         else:
             preset = {}
         ego_args = {**{k: v for k, v in preset.items() if v},
@@ -192,15 +197,28 @@ def _stack(context):
             raise RuntimeError(f"stack: no scenario {path}")
         run = {"scenario": path, "port": ssv2_port,
                **named_args(get("scenario_args"), "scenario_args")}
-        proc = nested("scenario", [os.path.join(swb, "launch", "scenario.launch.xml")], run,
-                      scenario_domain, os.path.join(log_root, "scenario"))
-        actions.append(proc)
-        if get("exit_on_scenario_end") == "true":
-            actions.append(RegisterEventHandler(OnProcessExit(
-                target_action=proc, on_exit=[EmitEvent(event=Shutdown(reason="scenario ended"))])))
+        # exit_on_scenario_end: the scenario's process is required (on_exit=Shutdown, which
+        # play_launch honours as stock ros2 launch does)
+        actions.append(nested("scenario", [os.path.join(swb, "launch", "scenario.launch.xml")],
+                              run, scenario_domain, os.path.join(log_root, "scenario"),
+                              required=get("exit_on_scenario_end") == "true"))
     elif get("spawn"):
-        raise RuntimeError("stack: spawn:= (free drive) is not there yet (roadmap 073 S5); "
-                           "on Isaac, aib_launch isaac_vehicle.launch.xml drives without a scenario")
+        # Free drive: swb_free_drive in SSv2's place spawns the ego at `spawn` and steps the
+        # world, synchronously, paced to the wall clock unless realtime:=false. Respawned:
+        # it fails while the world server is still loading and simply starts over.
+        map_path = get("map_path")
+        if not map_path:
+            raise RuntimeError("stack: spawn:= needs map_path:= (its lanelet2_map.osm)")
+        catalogs = [c for c in get("vehicle_catalogs").replace(":", ",").split(",") if c]
+        catalog = catalogs[0] if catalogs else os.path.join(
+            get_package_share_directory("sim_vehicle_spec"), "catalogs", "vehicles.xosc")
+        entry = get("vehicle") or get("vehicle_model") or "tesla_model3"
+        actions.append(ExecuteProcess(
+            cmd=["ros2", "run", "scenario_world_bridge", "swb_free_drive",
+                 "--map", map_path, "--catalog", catalog, "--entry", entry,
+                 "--pose", get("spawn"), "--port", ssv2_port, "--name", get("entity"),
+                 "--step", str(1.0 / float(get("frame_rate"))), "--realtime", get("realtime")],
+            name="free_drive", output="screen", respawn=True, respawn_delay=5.0))
     return actions
 
 
@@ -225,7 +243,10 @@ def generate_launch_description():
         arg("scenario", default_value="", description="an .xosc to run; empty: none"),
         arg("scenario_args", default_value="", description="name:=value ... for scenario.launch.xml (global_timeout, global_real_time_factor, output_directory, ...)"),
         arg("exit_on_scenario_end", default_value="false", description="true: the stack ends with the scenario"),
-        arg("spawn", default_value="", description="free drive at x,y,z,yaw without a scenario (roadmap 073 S5)"),
+        arg("spawn", default_value="", description="free drive without a scenario: the ego at x,y,z,yaw in the map frame (needs map_path)"),
+        arg("vehicle", default_value="", description="free drive: the ego's entry in the (first) vehicle catalog; empty: vehicle_model"),
+        arg("realtime", default_value="true", description="free drive: pace the synchronous steps to the wall clock; false: as fast as the stack keeps up"),
+        arg("frame_rate", default_value="20", description="free drive: steps per simulated second"),
         arg("ego_domain", default_value=_env("EGO_ROS_DOMAIN_ID", "1")),
         arg("scenario_domain", default_value=_env("SCENARIO_ROS_DOMAIN_ID", "9")),
         arg("ssv2_port", default_value=_env("SSV2_PORT", "5555")),

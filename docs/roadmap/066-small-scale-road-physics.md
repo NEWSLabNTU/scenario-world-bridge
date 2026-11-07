@@ -693,7 +693,13 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
       (PhysX and the render) 13.8 / 20.0; the surface layer's place 0.4 / 5.0, of which the
       tire contact 4.2 (three substeps); the rest of the frame (commands, sensors, the
       after-step) 13.1 / 17.6.
-    - **To do for the budget:** the contact out of Python's per-call overhead (one call for
+    - **Repeats** (`-rep1..3`, each run after the host's load fell under 24; the GPU still
+    shared): flat 14.3, 41.6, 28.6 ms p50, Isaac's step alone 4.5 to 25.3, so another user's GPU
+    work moves the flat road more than the rough road costs. Stable across runs: the tire
+    contact 4.0-4.2 ms a frame with the rocks (2.7-2.9 without the rock stream), the surface
+    layer's place 4.8-5.1; Isaac's step 17-18 ms on the rough road, 15-17 bare. The budget
+    needs a GPU no one else uses. Issue 039 came back in 2 of the rough runs.
+  - **To do for the budget:** the contact out of Python's per-call overhead (one call for
       every ego, a compiled inner loop, R5's noted lever: 4.2 ms a frame now); what in
       Isaac's step grows by 6 ms on a large stage (the collision tiles' and the mesh's
       triangles in the scene's BVH, measured per part with repeats, interleaved); the frame's

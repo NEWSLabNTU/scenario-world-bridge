@@ -11,20 +11,22 @@ own output directory -- and merges the verdicts into one JUnit file:
 
 ```bash
 ROS_DOMAIN_ID=9 ros2 run swb_launch run_suite \
-    $(ros2 pkg prefix swb_examples)/share/swb_examples/scenarios/basic \
+    $(ros2 pkg prefix swb_examples)/share/swb_examples/scenarios/basic/town01_*.xosc \
     ~/my_scenarios \
     --output ~/swb_results/today
 ```
 
 Arguments are scenario files (`.xosc`, `.yaml`) or directories (every scenario file in
-them, sorted, recursively). It prints one line per scenario and a total:
+them, sorted, recursively). Keep a suite to the town of the vehicle side's `map_path`: the
+Town01 Autoware of Tutorial 1 fails the other towns' starters. It prints one line per
+scenario and a total (the six Town01 starters and Tutorial 2's `follow_to_goal`):
 
 ```
-[run_suite] 8 scenario(s), domain 9, results in /home/you/swb_results/today
-[run_suite] (1/8) town01_ego_drive: .../basic/town01_ego_drive.xosc
+[run_suite] 7 scenario(s), domain 9, results in /home/you/swb_results/today
+[run_suite] (1/7) town01_ego_drive: .../basic/town01_ego_drive.xosc
 [run_suite] PASS town01_ego_drive: 1/1 passed in 41 s
 ...
-[run_suite] 8/8 scenario(s) passed; /home/you/swb_results/today/suite.junit.xml
+[run_suite] 7/7 scenario(s) passed; /home/you/swb_results/today/suite.junit.xml
 ```
 
 Before each scenario it asks the relay whether the scenario's vehicles are registered, and

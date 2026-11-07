@@ -251,13 +251,17 @@ Without SSv2, Autoware on a CARLA scene you set up yourself is one launch, after
 ROS_DOMAIN_ID=1 ros2 launch acb_launch carla_simulator.launch.xml map_path:=$CARLA_MAPS/Town01
 ```
 
-A whole directory of scenarios, with CARLA's own collision check next to SSv2's verdict:
+A suite of scenarios, with CARLA's own collision check next to SSv2's verdict: here the six
+Town01 starters, which run on the Town01 Autoware above:
 
 ```bash
 ROS_DOMAIN_ID=9 ros2 run swb_launch run_suite \
-    $(ros2 pkg prefix swb_examples)/share/swb_examples/scenarios/basic \
+    $(ros2 pkg prefix swb_examples)/share/swb_examples/scenarios/basic/town01_*.xosc \
     --output ~/swb_results/basic --physical-verdict
 ```
+
+The other towns' starters (`town02_*` ... `town10_*`) need the vehicle side started with that
+town's map (`map_path:=$CARLA_MAPS/Town02`); against a Town01 Autoware they fail.
 
 Wait for each part before starting the next: CARLA serves port 2000; the bridge logs
 `ZMQ server ready`; the vehicle side is ready when `ROS_DOMAIN_ID=1 ros2 run swb_launch

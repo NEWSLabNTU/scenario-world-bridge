@@ -674,12 +674,30 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     made the car first. Fixed; with `spikes/multi_ego_road.py` the rough Town01 preloads and
     one and two egos (side by side, and 12 m apart in one lane) drive the 220 m, every sensor
     on, no rock lost, 0-4 awake.
-  - **The budget, not yet measured.** The runs shared the host with another user's six GPU
-    jobs (both cards at 100 %, load 45-95 on 24 cores): a frame took 205 ms for one ego on
-    flat Town01, against 052's 29.2. The road layer's own share, timed directly, was 6.0 ms
-    p50 for one ego and 12.9 for two (contact per substep and the streams), against 5 per
-    ego; on a quiet host R4's rock road cost 3.9-4.1. The acceptance's numbers need the
-    flat/rough pair again on a quiet host (`play_log/multi_ego_road/2026-11-07_066*`).
+  - **The budget, measured: over** (2026-11-07, host load 20-40, `play_log/multi_ego_road/
+    2026-11-07_066-{quiet,nomesh,norocks,neither,step,prof}`). Town01, every sensor on, frame
+    p50 / p95 ms (anti-roll bars on every world, R5):
+
+    | case | flat Town01 | R3's road with rocks over it |
+    |---|---|---|
+    | one ego | 22.0 / 27.6 | 40.5 / 81.8 |
+    | two side by side | 33.2 / 43.1 | 73.5 / 109.3 |
+    | two in one lane | 37.7 / 51.1 | 64.5 / 95.7 |
+
+    One ego on the rough road costs about 16-18 ms over flat, against 5 allowed; two egos no
+    longer keep real time. On rock_world's small stage the same road cost 3.9-4.1 ms.
+    - **Not the render mesh, the rocks or the friction writes alone:** without the render
+      mesh 35.6, without the rock stream 35.6, without both 40.1, with the friction share in
+      1 % steps 38.7 (swb_isaac_world `d251f2a`, kept). The host's noise is about 5 ms.
+    - **Where it goes** (`ROAD_PROFILE=1`, one ego, flat / rough, ms a frame): Isaac's step
+      (PhysX and the render) 13.8 / 20.0; the surface layer's place 0.4 / 5.0, of which the
+      tire contact 4.2 (three substeps); the rest of the frame (commands, sensors, the
+      after-step) 13.1 / 17.6.
+    - **To do for the budget:** the contact out of Python's per-call overhead (one call for
+      every ego, a compiled inner loop, R5's noted lever: 4.2 ms a frame now); what in
+      Isaac's step grows by 6 ms on a large stage (the collision tiles' and the mesh's
+      triangles in the scene's BVH, measured per part with repeats, interleaved); the frame's
+      remaining 4.5 ms, inside the noise until repeats separate it.
   - **The Autoware ego on a rock road** needs a lanelet map for the corridor; it moves to R7,
     with the ground filter and NDT on rough tiles.
 

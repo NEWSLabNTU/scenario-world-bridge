@@ -31,6 +31,8 @@
        description="where each episode's gap trace (roadmap 024) is written for gap_oracle; empty keeps the config file's (default: no trace)"/>
   <arg name="contact_report_dir" default=""
        description="where each ego run's contacts are written for physical_verdict (roadmap 021); 'off' disables; empty keeps the config file's (default ~/.ros/swb/contacts)"/>
+  <arg name="vehicle_catalogs" default=""
+       description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
 
   <include file="$(find-pkg-share scenario_world_bridge)/launch/bridge.launch.xml">
     <arg name="world_endpoint" value="$(var world_endpoint)"/>
@@ -43,6 +45,7 @@
     <arg name="npc_motion" value="$(var npc_motion)"/>
     <arg name="contact_report_dir" value="$(var contact_report_dir)"/>
     <arg name="gap_trace_dir" value="$(var gap_trace_dir)"/>
+    <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
     <!-- Entities with controller `agent` are driven through this same relay. -->
     <arg name="agent_relay" value="tcp://localhost:$(var agent_port)"/>
   </include>

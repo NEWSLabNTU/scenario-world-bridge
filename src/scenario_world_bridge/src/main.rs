@@ -52,6 +52,12 @@ fn main() -> Result<()> {
 
     let ssv2_port = config.ssv2.port;
 
+    // Vehicle catalogs beside the installed one (a car from another repository): read now, so
+    // a missing or unparsable file, or two that disagree, stops the bridge at start.
+    let vehicle_catalogs =
+        backend::remote::spec_check::listed_catalogs(&config_file, params.get("vehicle_catalogs"))?;
+    let catalog = backend::remote::spec_check::load_listed(&vehicle_catalogs)?;
+
     tracing::info!("scenario bridge starting");
     tracing::info!("  World server: {}", config.world.endpoint);
     tracing::info!("  SSv2:   tcp://*:{ssv2_port}");
@@ -81,10 +87,13 @@ fn main() -> Result<()> {
 
     // The world server first: the SSv2 port is bound only once a world server has taken
     // this bridge as its owner, so a scenario never reaches a bridge without a world.
-    let Some(remote) = backend::remote::connect(config, &shutdown)? else {
+    let Some(mut remote) = backend::remote::connect(config, &shutdown)? else {
         tracing::info!("Shutdown before a world server answered");
         return Ok(());
     };
+    if let Some(catalog) = catalog {
+        remote.set_catalog(catalog);
+    }
     let mut backend: Box<dyn SimBackend> = Box::new(remote);
     backend.before_serving();
     let coord = coordinator::Coordinator::new(backend);

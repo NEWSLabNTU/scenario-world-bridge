@@ -63,7 +63,7 @@ use crate::weather::{wire_form, WeatherReply, WeatherRequest};
 use swb_core::world_client::{self, CallError, Client};
 
 mod signals;
-mod spec_check;
+pub(crate) mod spec_check;
 mod tracking;
 use signals::SignalTable;
 use tracking::{Drive, Tracked};
@@ -630,7 +630,8 @@ pub struct RemoteBackend {
     ego_run: Option<EgoRun>,
     /// The agent relay connection for `agent` entities, started at the first such spawn.
     agent_link: Option<AgentLink>,
-    /// The installed vehicle catalog's `{model3d: spec_hash}`, read at the first ego spawn.
+    /// The vehicle catalog's `{model3d: spec_hash}`: the installed one, read at the first ego
+    /// spawn, unless [`RemoteBackend::set_catalog`] gave it (`vehicle_catalogs`).
     catalog_hashes: Option<HashMap<String, String>>,
     /// The drives the last `Apply` carried, by handle, for the tests.
     #[cfg(test)]
@@ -675,6 +676,12 @@ impl RemoteBackend {
             #[cfg(test)]
             sent: BTreeMap::new(),
         }
+    }
+
+    /// The catalog the ego's spec is checked against, read at start from `vehicle_catalogs`
+    /// (`spec_check::load_listed`), in place of the installed one alone.
+    pub fn set_catalog(&mut self, hashes: HashMap<String, String>) {
+        self.catalog_hashes = Some(hashes);
     }
 
     fn offers(&self, c: wire::Capability) -> bool {
@@ -768,21 +775,7 @@ impl RemoteBackend {
     ) -> Result<(), BackendError> {
         let catalog = self
             .catalog_hashes
-            .get_or_insert_with(|| {
-                let Some(path) = spec_check::installed_catalog() else {
-                    tracing::warn!(
-                        "No vehicle catalog installed (sim_vehicle_spec): the ego's \
-                                    spec is not checked against it"
-                    );
-                    return HashMap::new();
-                };
-                std::fs::read_to_string(&path)
-                    .map(|text| spec_check::catalog_hashes(&text))
-                    .unwrap_or_else(|e| {
-                        tracing::warn!("Reading the vehicle catalog {}: {e}", path.display());
-                        HashMap::new()
-                    })
-            })
+            .get_or_insert_with(spec_check::installed_hashes)
             .get(asset_key)
             .cloned();
         let agent = match self.agent_link().agent_spec_hash(name) {

@@ -282,6 +282,38 @@ from the spec.
 5. **Behaviour**: `vehicle_check`'s dynamics run on each simulator, without SSv2; its
    numbers go in the phase's results.
 
+## A vehicle from another repository
+
+swb does not need to know the car. A car whose spec, rig and Autoware description live in a
+repository of its own (a user of swb, such as a golf cart repository) is plugged in through
+these slots, and the `spec_hash` start check covers it like a car of `sim_vehicle_spec`:
+
+- **The world server's ego (Isaac).** The Isaac world server's launch argument `ego:=<yaml>`
+  (`swb_isaac_world.launch.xml`, `just isaac-world ego:=...`) takes an aib ego config from
+  anywhere. Its `rig:` and `body:` paths are relative to that file, and the rig names its spec
+  relative to itself, so the files can stay in the other repository. The rig's `spec_hash`
+  is what the world server reports in `SpawnReply.body`.
+- **The vehicle catalog.** The bridge's `vehicle_catalogs` (`bridge_config.yaml`: a list of
+  paths, relative to the file; or the ROS parameter and launch argument `vehicle_catalogs`
+  of `bridge.launch.xml`, `simulation.launch.xml`, `carla_simulation.launch.xml` and
+  `isaac_simulation.launch.xml`, comma- or colon-separated, added to the file's list) names
+  OpenSCENARIO vehicle catalogs whose `Vehicle` entries carry a `swb.spec_hash` property.
+  The check uses the union of these and `sim_vehicle_spec`'s installed
+  `catalogs/vehicles.xosc`, keyed by `model3d`. A listed file that is missing, is not a
+  catalog or has no such entry stops the bridge at start, naming the file; so does a
+  `model3d` that two catalogs give different hashes, naming both. With none listed the
+  bridge reads only the installed catalog, at the first ego spawn, as before. SSv2 has to
+  read the same catalog for its scenario; that is the scenario's `CatalogLocations`.
+- **The vehicle agent's model.** `vehicle_model:=<name>` (`vehicle_agent.launch.xml`, the
+  agent's ROS parameter) is Autoware's vehicle model; the agent registers with the
+  `spec_hash` in `<name>_description/config/spec_hash.yaml`, found on the ament index, so
+  an installed description package of the other repository works as it is.
+- **The vehicle agent's spec_hash file.** `spec_hash_file:=<yaml>` (same launch, same
+  node) names a YAML with the key `spec_hash` and is used instead of the package
+  convention, for a description that is not an ament package or does not keep the file
+  there. A file that is missing or unreadable is logged as an error and the agent registers
+  with no hash, which the check leaves out.
+
 ## Decisions (for the user)
 
 - **V1. Repository** for the vehicle layer, and its name. [decided 2026-10-23: two

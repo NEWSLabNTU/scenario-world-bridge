@@ -8,6 +8,7 @@
 
     play_launch launch scenario_world_bridge bridge.launch.xml world_endpoint:=tcp://127.0.0.1:5591
         [config_file:=...] [ssv2_port:=5555] [weather:=ClearNoon] [gap_trace_dir:=DIR]
+        [vehicle_catalogs:=FILE[,FILE...]]
 
   The bridge binds the SSv2 port only once a world server has taken it as its owner, and
   serves /scenario_world_bridge/set_weather and /scenario_world_bridge/get_weather (swb_interfaces) in its ROS domain for a
@@ -40,6 +41,8 @@
        description="where each episode's gap trace (roadmap 024) is written for gap_oracle; empty keeps the config file's (default: no trace)"/>
   <arg name="contact_report_dir" default=""
        description="where each ego run's contacts are written for physical_verdict (roadmap 021); 'off' disables; empty keeps the config file's (default ~/.ros/swb/contacts)"/>
+  <arg name="vehicle_catalogs" default=""
+       description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
 
   <node pkg="scenario_world_bridge" exec="scenario_world_bridge" name="scenario_world_bridge"
         output="screen" respawn="true" respawn_delay="2.0">
@@ -56,5 +59,6 @@
     <param name="npc_motion" value="$(var npc_motion)"/>
     <param name="contact_report_dir" value="$(var contact_report_dir)"/>
     <param name="gap_trace_dir" value="$(var gap_trace_dir)"/>
+    <param name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
   </node>
 </launch>

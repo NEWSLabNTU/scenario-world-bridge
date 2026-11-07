@@ -65,6 +65,14 @@ weather: ""
 # Misc objects, simulator-autopilot and agent vehicles and the ego are not affected. The
 # ROS parameter / launch arg `npc_motion` overrides it.
 npc_motion: tracked
+# Vehicle catalogs (OpenSCENARIO, each Vehicle with a `swb.spec_hash` property) the ego's
+# spec_hash start check reads beside sim_vehicle_spec's installed catalogs/vehicles.xosc: a
+# car defined in another repository brings its own. Paths relative to this file unless
+# absolute. The check uses the union keyed by model3d; a listed file that is missing or not
+# such a catalog, or a body two catalogs give different spec_hashes, stops the bridge at start,
+# naming the file(s). The ROS parameter / launch arg `vehicle_catalogs` (comma- or
+# colon-separated) adds to this list. Empty: the installed catalog only.
+vehicle_catalogs: []
 # Gap trace (roadmap 024): one JSON Lines file per Initialize,
 # <gap_trace_dir>/<UTC time>_<episode>.jsonl -- per entity its declared and CARLA boxes, per
 # SSv2 frame both worlds' poses, every CARLA contact -- for the offline oracle (gap_oracle).

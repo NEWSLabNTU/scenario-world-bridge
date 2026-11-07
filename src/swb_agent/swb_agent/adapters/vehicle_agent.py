@@ -24,6 +24,9 @@ ROS parameters:
         `config/spec_hash.yaml` (autoware_sim_vehicle, roadmap 051) is the spec_hash the
         agent registers with, which the scenario bridge compares with the world's and the
         catalog's. Empty, or a package without the file: none is sent.
+    spec_hash_file (str, default "", or "none"): a YAML file with key `spec_hash`, used instead
+        of `vehicle_model`'s package (a car whose description lives in another repository).
+        A file that is missing or unreadable: an error, and none is sent.
 
 Usage:
     ros2 run swb_agent vehicle_agent --ros-args -p relay:=tcp://localhost:5560 -p entity:=ego \\
@@ -55,6 +58,7 @@ class AgentNode(Node):
         self.declare_parameter("timeout", 600.0)
         self.declare_parameter("agent_config", "")
         self.declare_parameter("vehicle_model", "")
+        self.declare_parameter("spec_hash_file", "")
         self.relay = self.get_parameter("relay").value
         self.entity = self.get_parameter("entity").value
         self.goal_file = self.get_parameter("goal_poses_file").value
@@ -64,12 +68,23 @@ class AgentNode(Node):
         config["entity"] = self.entity
         self.agent = AutowareAgent(config, port=AutowarePort(self))
         self.agent.spec_hash = spec_hash_of(self.get_parameter("vehicle_model").value,
-                                            self.get_logger())
+                                            self.get_logger(),
+                                            self.get_parameter("spec_hash_file").value)
 
 
-def spec_hash_of(vehicle_model, log):
-    """The spec_hash in `<vehicle_model>_description/config/spec_hash.yaml`, "" when there is
-    none (a vehicle description not generated from a sim_vehicle_spec spec)."""
+def spec_hash_of(vehicle_model, log, spec_hash_file=""):
+    """The spec_hash in `spec_hash_file` when one is given, else in
+    `<vehicle_model>_description/config/spec_hash.yaml`; "" when there is none (a vehicle
+    description not generated from a sim_vehicle_spec spec)."""
+    if spec_hash_file not in ("", "none"):
+        try:
+            with open(spec_hash_file) as f:
+                value = str((yaml.safe_load(f) or {}).get("spec_hash") or "")
+        except (OSError, yaml.YAMLError, AttributeError) as e:
+            log.error(f"no spec_hash from spec_hash_file {spec_hash_file!r}: {e}")
+            return ""
+        log.info(f"spec_hash_file {spec_hash_file}: spec_hash {value[:12]}")
+        return value
     if vehicle_model in ("", "none"):
         return ""
     from ament_index_python.packages import PackageNotFoundError, get_package_share_directory

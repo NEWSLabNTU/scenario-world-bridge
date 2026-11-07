@@ -28,6 +28,7 @@
   <arg name="weather" default=""/>
   <arg name="gap_trace_dir" default=""/>
   <arg name="contact_report_dir" default=""/>
+  <arg name="vehicle_catalogs" default="" description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
 
   <include file="$(find-pkg-share swb_launch)/launch/simulation.launch.xml">
     <arg name="world_endpoint" value="tcp://127.0.0.1:$(var isaac_port)"/>
@@ -42,5 +43,6 @@
     <arg name="weather" value="$(var weather)"/>
     <arg name="gap_trace_dir" value="$(var gap_trace_dir)"/>
     <arg name="contact_report_dir" value="$(var contact_report_dir)"/>
+    <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
   </include>
 </launch>

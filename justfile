@@ -776,6 +776,7 @@ isaac-check:
 #                     interface on its domain; roadmap 045); ego:=none (or empty) keeps 037's
 #                     kinematic box
 #   follow:=true      with a window: no UI, the full-window viewport chases the ego
+#   follow:=editor    the same chase with Isaac's editor UI kept
 #   render:=auto      window | headless; auto: a window when DISPLAY is set (see above)
 #   world:=<w>[,<w>]  worlds to load and render before serving: world files
 #                     (<map>/isaac/world.yaml), map directories or USD files. A world's first

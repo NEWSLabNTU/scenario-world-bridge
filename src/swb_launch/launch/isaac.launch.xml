@@ -17,7 +17,7 @@
   <arg name="ego" default="default" description="the world server's ego: default (aib's Tesla), none, or an aib ego config (a car from your repository)"/>
   <arg name="world" default="none" description="worlds to preload, comma separated: world files, map directories or USDs; the first stays loaded"/>
   <arg name="render" default="auto" description="auto (a window on DISPLAY) | window | headless"/>
-  <arg name="follow" default="false" description="true: no UI, the viewport chases the ego"/>
+  <arg name="follow" default="false" description="true: no UI, the viewport chases the ego; editor: the chase with the editor UI; false: the editor's camera"/>
   <arg name="physics_hz" default="60" description="the physics rate, Hz"/>
   <arg name="map_path" default="" description="the default autopilot's map directory"/>
   <arg name="ego_launch" default="" description="the autopilot's launch; empty: aib's Autoware profile; none: no ego"/>

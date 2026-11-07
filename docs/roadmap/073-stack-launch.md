@@ -6,7 +6,7 @@ scenario and no use case, and the simulator is a slot like the rest. CARLA and I
 officially supported, so swb ships shortcuts for them; any other simulator comes from the
 user's own support package.
 
-**Status**: planned, 2026-11-08. User direction: "I'd like to see if we can have a package
+**Status**: in progress, 2026-11-08: S1-S4 done. User direction: "I'd like to see if we can have a package
 to launch the whole SSv2 + simulator stack"; "Note that scenario file is per use case. We
 don't save the scenario file in the swb project"; "The swb supports generic simulator. The
 simulator is switchable, and we allow user custom simulator via their support package"; "We
@@ -19,10 +19,10 @@ relative paths and `aib.gen --spec`).
 
 ## Shape
 
-### `swb_launch stack.launch.xml` (generic)
+### `swb_launch stack.launch.py` (generic)
 
 ```bash
-play_launch launch swb_launch stack.launch.xml \
+play_launch launch swb_launch stack.launch.py \
     sim:=isaac|carla|<package> sim_args:="..." \
     ego_launch:=<the user's autopilot launch> ego_launch_args:="..." \
     vehicle_catalogs:=<catalog.xosc> spec_hash_file:=<spec_hash.yaml> \
@@ -63,7 +63,7 @@ play_launch launch swb_launch isaac.launch.xml ego:=<ego.yaml> world:=<world.yam
 play_launch launch swb_launch carla.launch.xml map:=Town01 vehicle_model:=... ego_launch:=... [scenario:=...]
 ```
 
-Each includes `stack.launch.xml` with `sim:=isaac` or `sim:=carla`.
+Each includes `stack.launch.py` with `sim:=isaac` or `sim:=carla`.
 
 ### A use case's own launch (the golf cart's, outside swb)
 
@@ -82,14 +82,26 @@ play_launch launch golfcart_twin twin.launch.xml scenario:=route1
 |---|---|---|
 | S1 | play_launch: a `<group>`'s `<set_env ROS_DOMAIN_ID>` stays in the group | **done 2026-11-08**: play_launch 0.30.0 scopes it as stock `ros2 launch` does (two groups at 21 and 22, the outer process at the shell's 5, both tools) |
 | S2 | SSv2 inside a larger launch | **checked 2026-11-08**: `scenario_test_runner` is `on_exit=ShutdownOnce`. An included launch's Shutdown ends the whole launch, in stock `ros2 launch` and in play_launch alike, so the stack would die with the scenario. A nested launch does not: the run group starts the scenario as its own `play_launch launch --disable-web-ui ... scenario.launch.xml` process, which ends alone while the stack lives on (both tools). `exit_on_scenario_end:=true` makes that process required, for scripted runs |
-| S3 | `stack.launch.xml` with the groups, `sim:=` presets and the package hook | |
-| S4 | Shortcuts `isaac.launch.xml`, `carla.launch.xml` | |
-| S5 | Free-drive driver | SSv2's ZMQ protocol (initialize, spawn ego, update frames); the bridge needs no change |
+| S3 | `stack.launch.py` with the groups, `sim:=` presets and the package hook | **done 2026-11-08** (Python: it parses `sim_args`/`ego_launch_args` and picks presets). The ego and the vehicle agent run as nested play_launch processes, respawned: an autopilot stack ends its own launch at an episode end (acb_bridge is required), which must not end the stack. Smoke test on 118 (Isaac, the golf cart's ego config and Autoware, no scenario): world server, ego and agent in domain 11, bridge and relay in 19; the bridge took the world server (28 s, the twin preloaded), the agent registered with the relay, the cart's Autoware came up (43 nodes); killing the ego's play_launch respawned it; SIGINT to the stack left nothing behind |
+| S4 | Shortcuts `isaac.launch.xml`, `carla.launch.xml` | **done 2026-11-08**. Isaac's run in S3's test; CARLA's composed (world server, bridge, relay) with no CARLA up. A scenario through the stack waits for S8's (the golf cart's) |
+| S5 | Free-drive driver | SSv2's ZMQ protocol (initialize, spawn ego, update frames); the bridge needs no change. Synchronous like a scenario: it steps the world frame by frame. Paced to real time by default (user, 2026-11-08); `realtime:=false` steps as fast as the stack keeps up |
 | S6 | The ego group restarts after a world reload or a simulator restart | today `swb-agent supervise` does this for `just` recipes |
 | S7 | Docs: tutorial on the stack; "a simulator of your own" (the package contract) | |
+| S9 | `just run` and `just scenario` on `stack.launch.py` (user, 2026-11-08) | one path; the `just` recipes keep their host settings and supervision roles, and `scripts/carla_up.sh`/`isaac_up.sh` become thin |
 | S8 | Golf cart (its repository): `twin.launch.xml`, its catalog (generated from its spec), spec hash file, `scenarios/` | phase C of its roadmap 10 |
 
-## Open
+## Synchronous time
 
-- Whether `just run` and `just scenario` move onto `stack.launch.xml` (one path) or stay.
-- The free drive's time: real time by default, like the stand-alone runner.
+Every way of running steps the simulator synchronously:
+- **With a scenario:** SSv2 steps the world frame by frame through the bridge. CARLA is in
+  synchronous mode and Isaac's world server is stepped. The pace is
+  `global_real_time_factor` (scenario_args).
+- **Free drive (S5):** the same lockstep, paced to the wall clock by default, as fast as
+  possible with `realtime:=false`.
+- **aib's stand-alone runner:** it steps its world itself; `realtime` paces it.
+
+## Decisions
+
+- `just run` and `just scenario` move onto `stack.launch.py` (S9; user, 2026-11-08).
+- Free drive runs at real time by default, and stays synchronous (user, 2026-11-08: "Ensure
+  we have ways to run in synchronous mode").

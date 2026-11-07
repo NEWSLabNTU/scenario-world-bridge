@@ -20,6 +20,7 @@ Groups and their ROS domains:
     on `world_endpoint`.
   `sim_args` go to that launch.
 - simulation side (scenario domain): the bridge and the agent relay (simulation.launch.xml).
+  `side_args` go to that launch (config_file, weather, gap_trace_dir, npc_motion, ...).
 - ego (ego domain): the autopilot's launch and swb's vehicle agent (vehicle_agent.launch.xml),
   as a nested play_launch, respawned. An autopilot stack ends with its episode (a world load,
   a simulator restart: acb_bridge is required), and that must not end the stack; the
@@ -145,7 +146,8 @@ def _stack(context):
 
     # --- simulation side
     side = {"world_endpoint": endpoint, "ssv2_port": ssv2_port, "agent_port": agent_port,
-            "vehicle_catalogs": get("vehicle_catalogs"), **timeouts}
+            "vehicle_catalogs": get("vehicle_catalogs"), **timeouts,
+            **named_args(get("side_args"), "side_args")}
     actions.append(GroupAction(scoped=True, actions=[
         SetEnvironmentVariable("ROS_DOMAIN_ID", scenario_domain),
         include(os.path.join(swb, "launch", "simulation.launch.xml"), side)]))
@@ -219,6 +221,7 @@ def generate_launch_description():
         arg("vehicle_model", default_value="", description="the agent's vehicle model (its description's spec_hash.yaml)"),
         arg("spec_hash_file", default_value="", description="the agent's spec_hash YAML, instead of vehicle_model's"),
         arg("vehicle_catalogs", default_value="", description="the bridge's extra vehicle catalogs, comma separated"),
+        arg("side_args", default_value="", description="name:=value ... for the simulation side's launch (simulation.launch.xml: config_file, weather, gap_trace_dir, ...)"),
         arg("scenario", default_value="", description="an .xosc to run; empty: none"),
         arg("scenario_args", default_value="", description="name:=value ... for scenario.launch.xml (global_timeout, global_real_time_factor, output_directory, ...)"),
         arg("exit_on_scenario_end", default_value="false", description="true: the stack ends with the scenario"),

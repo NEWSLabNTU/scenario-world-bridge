@@ -31,7 +31,7 @@ NEWSLabNTU, each a direct submodule here (`docs/roadmap/051-target-shape.md`):
 just setup    # One-time: the user install (rustup, colcon plugin, submodules, rosdep) + dev tools
 just build    # The user's colcon build, plus --symlink-install and the dev-release profile
 just clean    # Clean artifacts
-just run      # Simulation side on CARLA: world server + bridge + relay (sim:=isaac for Isaac)
+just run      # The stack on CARLA: world server + bridge + relay + ego (sim:=isaac for Isaac; ego_launch:=none)
 just check    # Format + clippy
 just test     # Run tests (with the pin check, scripts/check_pins.py)
 ```
@@ -351,11 +351,12 @@ on its own when the run ends, and its log says so:
 
 **The ego stack ends only with its episode** (roadmap 051): `acb_bridge` and `clock_guard`
 are required, so a world load or a CARLA restart ends it, and nothing else does -- otherwise
-it has to be stopped deliberately, and everything below still applies to it. **A stack
-`scripts/carla_up.sh` started is supervised** (`swb-agent supervise`, `play_log/ego.console`):
-its supervisor starts it again whenever it ends, so killing its play_launch only restarts it.
-Stop the supervisor instead (SIGTERM to the `python3 -m swb_agent supervise` above the
-play_launch: it stops its group and exits); `carla_up.sh`'s `stop_stack` does exactly that.
+it has to be stopped deliberately, and everything below still applies to it. **The ego of
+`just run` is respawned** (roadmap 073 S9): it is a nested play_launch of the stack (logs in
+`play_log/ego/`, no web UI), which starts it again whenever it ends, so killing the ego's
+play_launch only restarts it. Stop the stack instead (its play_launch on +4, by process
+group); `scripts/stack_up.bash`'s `stop_stack` does exactly that. A separate `just ego-av`
+(+2) is not supervised.
 
 Before a run, know what is already up:
 
@@ -366,11 +367,15 @@ ps -eo pid,ppid,etimes,args --no-headers | grep -E "CarlaUE4-Linux|scenario_worl
 ss -lpn | grep 5555        # exactly one bridge should hold the SSv2 port
 ```
 
-**The simulation side is its own long-lived launch.** `just run` (`sim:=carla`, the default)
-starts `swb_launch carla_simulation.launch.xml` under play_launch (web 8084, scenario domain
-9): the CARLA world server `swb_carla_world`, the bridge driving it, and the agent relay (TCP 5560)
-the ego's vehicle agent registers with, each `respawn="true"`. Scenario launches never include
-it, so it outlives sessions -- one bridge was once found serving scenarios 44 hours later,
+**The stack is its own long-lived launch** (roadmap 073 S9). `just run` (`sim:=carla`, the
+default) starts `swb_launch carla.launch.xml` (stack.launch.py) under play_launch (web 8084,
+logs `play_log/bridge/`): the CARLA world server `swb_carla_world`, the bridge driving it and the
+agent relay (TCP 5560) in the scenario domain (9), each `respawn="true"`, and the ego -- acb's
+Autoware and swb's vehicle agent, nested play_launches, respawned -- in the ego domain (1),
+with `just ego-av`'s environment and defaults (`ego_launch:=none`: no ego; then `just ego-av`
+can be the ego). `just scenario` runs only the scenario against it and starts it (setsid,
+`play_log/stack.console`) when it is not up. Scenario launches never include it, so it
+outlives sessions -- one bridge was once found serving scenarios 44 hours later,
 running code from two rebuilds earlier. Treat it as a tracked singleton: check its age
 against the build before trusting a measurement, and after `just build` restart it
 deliberately (stop the play_launch on 8084 by pid, then `setsid just run > log 2>&1 &`). It
@@ -395,15 +400,16 @@ ss -lpn | grep -E ":5555 |:5560 |:5591 "   # bridge, relay, CARLA world server
 just world-health                           # its simulator, owner, readiness
 ```
 
-**On Isaac (roadmap 043) the world server is its own stack**: `just isaac-world`
-(swb_isaac_world `swb_isaac_world.launch.xml`, web 8085, `play_log/isaac/`, respawned on death), and
-`just run sim:=isaac` is the bridge and the relay driving it (`isaac_simulation.launch.xml`).
-`just scenario|acceptance|e2e <xosc> sim:=isaac` starts the world server, the simulation
-side on Isaac and `just ego-isaac` when they are absent (`scripts/isaac_up.sh`; CARLA's is
-`scripts/carla_up.sh`, which starts CARLA itself too; neither starts an ego stack for a scenario
-without an ego, `_scenario-has-ego`) and leaves them up (`e2e` stops what it
-started); it refuses a CARLA simulation side on 8084 or a `just ego-av` on 8082 rather than
-replace them. `just world-health sim:=isaac` is the Hello probe. The world server holds
+**On Isaac** `just run sim:=isaac` (`isaac.launch.xml`) holds the world server too
+(`ego:=`, `world:=`, `render:=` as `just isaac-world` takes them), with aib's Autoware as the
+ego; `just isaac-world` (web 8085) and `just ego-isaac` remain for running the parts apart.
+`just scenario|acceptance|e2e <xosc> [sim:=isaac]` start the stack when it is absent
+(`scripts/isaac_up.sh`, `scripts/carla_up.sh` -- which starts CARLA itself too -- over
+`scripts/stack_up.bash`; without an ego for a scenario that has none, `_scenario-has-ego`)
+and leave it up (`e2e` stops what it started); they refuse a stack of the other simulator (or
+the old `*_simulation.launch.xml`) on 8084 and a separate `just isaac-world` on 8085 rather
+than replace them, replace a stack on another map or without the ego the scenario needs, and
+use a separate `just ego-av` on 8082 as the ego when one is up. `just world-health sim:=isaac` is the Hello probe. The world server holds
 ~17.5 GB of RAM with Town01's SimReady world: on a host whose memory other work has taken,
 the kernel's OOM killer picks it first (seen once, as the ego stack started), and the
 respawned one preloads again for ~7 minutes; the bridge forgets the old one's entities and

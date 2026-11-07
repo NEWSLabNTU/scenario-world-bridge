@@ -25,6 +25,7 @@
   <arg name="vehicle_model" default=""/>
   <arg name="spec_hash_file" default=""/>
   <arg name="vehicle_catalogs" default=""/>
+  <arg name="side_args" default="" description="name:=value ... for the simulation side (simulation.launch.xml: config_file, weather, gap_trace_dir, npc_motion, contact_report_dir)"/>
   <arg name="scenario" default=""/>
   <arg name="scenario_args" default=""/>
   <arg name="exit_on_scenario_end" default="false"/>
@@ -40,6 +41,7 @@
     <arg name="vehicle_model" value="$(var vehicle_model)"/>
     <arg name="spec_hash_file" value="$(var spec_hash_file)"/>
     <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
+    <arg name="side_args" value="$(var side_args)"/>
     <arg name="scenario" value="$(var scenario)"/>
     <arg name="scenario_args" value="$(var scenario_args)"/>
     <arg name="exit_on_scenario_end" value="$(var exit_on_scenario_end)"/>

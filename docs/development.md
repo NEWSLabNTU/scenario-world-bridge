@@ -26,12 +26,12 @@ recipes. The ones you will use most:
 | `just ci` | build + check + test |
 | `just format` | format the Rust code |
 | `just carla-start` / `carla-status` / `carla-stop` / `carla-health` | CARLA as a background service, and whether it is fit to run a scenario |
-| `just run` | the simulation side (CARLA world server + bridge + agent relay), play_launch, web UI on 8084 |
+| `just run` | the whole stack (`swb_launch carla.launch.xml`, `sim:=isaac`: `isaac.launch.xml`): world server + bridge + agent relay + the ego (Autoware and its agent, nested, respawned; `ego_launch:=none` for none), play_launch, web UI on 8084 |
 | `just world-check` | the conformance check against the running world server (`sim:=isaac` for Isaac's) |
 | `just ego-av` | the vehicle side for the ego, web UI on 8082 (`just ego-av rviz:=true` for RViz; any acb_launch argument as `name:=value`) |
 | `just build-autoware-overlay` | Autoware fixes 1.5.0 lacks, built from a pinned fork commit into `third_party/autoware_overlay/`; `ego-av` / `bg-av` source it by default (`autoware_overlay:=false`: off; roadmap 042) |
 | `just setup-tensorrt` | the TensorRT 10.8.0 runtime Autoware 1.5.0 was compiled against, from NVIDIA's pip wheel into `AUTOWARE_TENSORRT_LIB` (default `third_party/tensorrt/lib`); `ego-av` / `ego-isaac` / `bg-av` put it first on `LD_LIBRARY_PATH`, so CenterPoint's engines survive a restart |
-| `just scenario <file>` | one scenario (web UI on 8081); verdict in `<output_directory>/scenario_test_runner/` (`output_directory:=`, default `/tmp`) |
+| `just scenario <file>` | one scenario (web UI on 8081) against `just run`'s stack, which it starts when it is not up; verdict in `<output_directory>/scenario_test_runner/` (`output_directory:=`, default `/tmp`) |
 | `just two-av` | two Autoware stacks, one scenario; `record:=true` records a screencast |
 | `just prune-logs [days:=7]` | move runs older than that out of the log root into the archive on `/mnt/disk1` (never deletes) |
 | `just acceptance <file> <runs>` | repeat a scenario and summarise |
@@ -129,7 +129,7 @@ sides need no shared domain. Details: [architecture](design/architecture.md),
 - **Unit tests** (`just test`): the coordinator's policies, coordinate conversion, the
   blueprint chooser, the contact report, `run_suite` and `physical_verdict`. Pure logic is
   kept apart from the CARLA calls so it can be tested without a server.
-- **Live runs**: `just run`, `just ego-av`, then `just scenario <file>` or `ros2 run
+- **Live runs**: `just run` (with its ego), then `just scenario <file>` or `ros2 run
   swb_launch run_suite <dir> --physical-verdict`. The starter scenarios are the regression
   set; `scenarios/gap/` holds reproducers for fixed SSv2-vs-CARLA disagreements.
 - Before trusting a surprising measurement, check the running binaries against the source

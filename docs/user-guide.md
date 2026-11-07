@@ -232,9 +232,9 @@ replaces a running ego stack whose map is not the scenario's.
 of the simulator, whose time starts again, and Autoware cannot follow time back. So on CARLA
 every vehicle side of the old episode ends at the load: `acb_bridge` exits (status 3,
 naming the change) and its launch takes the Autoware stack with it; a restarted CARLA does
-the same. The stack comes back when something restarts it: `just scenario` and `just e2e`
-start the ego stack under a supervisor (`swb-agent supervise`) that does, and the next
-scenario waits for its agent. `town02_episode_change` has no ego; it only makes CARLA load
+the same. The stack comes back when something restarts it: `just run` (which `just scenario` and
+`just e2e` start when it is not up) holds the ego as a nested launch it starts again, and the
+next scenario waits for its agent. `town02_episode_change` has no ego; it only makes CARLA load
 Town02, ending the ego stack, and the next Town01 scenario loads Town01 back, ending it once
 more. Each town change costs a stack start (about a minute here); keep a suite's scenarios on
 one town where you can.

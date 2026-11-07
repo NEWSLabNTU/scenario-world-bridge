@@ -113,7 +113,7 @@ It needs the ego stack started for it -- 40 km/h, and CenterPoint with the lidar
 the cyclist is a BICYCLE and the pedestrian is seen in time -- and clear noon:
 
 ```bash
-just run weather:=ClearNoon                     # Terminal 2, if not already running
+just run weather:=ClearNoon ego_launch:=none    # Terminal 2, if not already running (the ego is Terminal 3's)
 just ego-av max_velocity:=11.11 lidar_detection_model:=centerpoint \
     use_multi_channel_tracker_merger:=false     # Terminal 3; CenterPoint: minutes unless TensorRT is 10.8.0
 just demo-tour                                  # the tour, headless; prints the verdict

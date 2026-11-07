@@ -61,7 +61,8 @@ start_sim() {
         exit 1
     fi
     say "starting the simulation side, gap traces to $out/traces"
-    setsid just run gap_trace_dir:="$out/traces" > "$out/sim.log" 2>&1 < /dev/null &
+    # without its ego: this script starts and replaces `just ego-av` on +2 itself
+    setsid just run ego_launch:=none gap_trace_dir:="$out/traces" > "$out/sim.log" 2>&1 < /dev/null &
     for _ in $(seq 1 300); do
         ss -lnt | grep -q ":$ssv2 " && ss -lnt | grep -q ":${WORLD_PORT:-5591} " && return 0
         sleep 2

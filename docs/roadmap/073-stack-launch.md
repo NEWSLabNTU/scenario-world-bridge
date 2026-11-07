@@ -6,7 +6,7 @@ scenario and no use case, and the simulator is a slot like the rest. CARLA and I
 officially supported, so swb ships shortcuts for them; any other simulator comes from the
 user's own support package.
 
-**Status**: in progress, 2026-11-08: S1-S4 done. User direction: "I'd like to see if we can have a package
+**Status**: in progress, 2026-11-08: S1-S4 and S9 done. User direction: "I'd like to see if we can have a package
 to launch the whole SSv2 + simulator stack"; "Note that scenario file is per use case. We
 don't save the scenario file in the swb project"; "The swb supports generic simulator. The
 simulator is switchable, and we allow user custom simulator via their support package"; "We
@@ -87,7 +87,7 @@ play_launch launch golfcart_twin twin.launch.xml scenario:=route1
 | S5 | Free-drive driver | SSv2's ZMQ protocol (initialize, spawn ego, update frames); the bridge needs no change. Synchronous like a scenario: it steps the world frame by frame. Paced to real time by default (user, 2026-11-08); `realtime:=false` steps as fast as the stack keeps up |
 | S6 | The ego group restarts after a world reload or a simulator restart | today `swb-agent supervise` does this for `just` recipes |
 | S7 | Docs: tutorial on the stack; "a simulator of your own" (the package contract) | |
-| S9 | `just run` and `just scenario` on `stack.launch.py` (user, 2026-11-08) | one path; the `just` recipes keep their host settings and supervision roles, and `scripts/carla_up.sh`/`isaac_up.sh` become thin |
+| S9 | `just run` and `just scenario` on `stack.launch.py` (user, 2026-11-08) | **done 2026-11-08**. `just run [sim:=carla|isaac]` is one play_launch of `carla.launch.xml`/`isaac.launch.xml` (web +4, logs `bridge/`, nested `ego/`, `agent/`) in `just ego-av`'s environment (Autoware, fix overlay, cuda_ndt, acb, TensorRT 10.8, Cyclone) and with its defaults for the default ego (hero, physics verify, the release sockets at SSV2_PORT+1/+2, no RViz, no localization seed); the ego is in by default, `ego_launch:=none` leaves it out; a name the shortcut does not declare is refused; the simulation side's `weather:=`, `config_file:=`, `gap_trace_dir:=`, ... go through the new `side_args` (stack.launch.py and both shortcuts). `scripts/carla_up.sh`/`isaac_up.sh` are thin over `scripts/stack_up.bash`: reuse the stack on +4, else start `just run` (setsid) on the scenario's map (`ego_launch:=none` for a scenario without ego, or when a separate `just ego-av` is up on +2: two-av, demo-tour, run_050_set start it so), replace one on another map or without the needed ego, wait for the bridge, relay, `ego_ready` and the agent. `isaac-world`, `ego-av`, `ego-isaac` stay. Live on 118 (CARLA 2010, Epic): `just scenario basic/town01_ego_drive.xosc` with nothing up started the stack (ego ready and its agent registered within ~1 min of the start), the ego drove (agent READY -> DRIVING), PASS; a second `just scenario` reused the stack, PASS; SIGTERM to the stack's process group took the nested ego and agent (their own group) down in ~12 s, no orphans. Isaac not run here (Town01 crashes this host's GPU). The stack's ego ignores `EGO_RMW_IMPLEMENTATION` (the recipe warns) and has no web UI, so `ego_ready` cannot reload a crashed composable through it (`--composable-respawn on-crash` remains) |
 | S8 | Golf cart (its repository): `twin.launch.xml`, its catalog (generated from its spec), spec hash file, `scenarios/` | phase C of its roadmap 10 |
 
 ## Synchronous time

@@ -57,17 +57,17 @@ just isaac-msgs && just isaac-world-gen # once: Autoware's messages for Isaac, t
 just scenario basic/town01_ego_drive.xosc sim:=isaac   # starts what is missing, then runs
 ```
 
-`sim:=isaac` brings up the world server (`just isaac-world`, under play_launch with
-respawn, web 8085, logs in `play_log/isaac/`), swb on it (`just run sim:=isaac`, 8084) and
-the ego's Autoware (`just ego-isaac`, 8082), each waited for, and leaves them up for the next
-run; a cold host takes about 8 minutes before the scenario starts. `just acceptance <xosc> 3
+`sim:=isaac` brings up the stack (`just run sim:=isaac`, one play_launch, web 8084: the
+world server, swb on it and the ego's Autoware, nested), waits for each part, and leaves it
+up for the next run; a cold host takes about 8 minutes before the scenario starts. `just acceptance <xosc> 3
 sim:=isaac` scores runs with acb's checks and limits from one bag of the ego's domain
 (`scripts/acceptance_bag.py`); `just e2e <xosc> sim:=isaac` also stops the stacks it
-started. To start them by hand instead (DISPLAY=:8 and `follow:=true` to watch on VNC):
+started. To start it by hand (`just run sim:=isaac world:=data/carla-autoware-bridge/Town01`)
+or its parts apart (DISPLAY=:8 and `follow:=true` to watch on VNC):
 
 ```bash
 just isaac-world world:=data/carla-autoware-bridge/Town01 &  # world server; `just isaac-health` says when it answers
-just run sim:=isaac &                 # swb on it
+ROS_DOMAIN_ID=9 play_launch launch swb_launch isaac_simulation.launch.xml &   # swb on it: bridge + relay
 just ego-isaac &                          # Autoware, domain 1
 ros2 run swb_launch run_suite basic/town01_ego_drive.xosc --output <dir>
 ```
@@ -81,8 +81,7 @@ box SSv2 poses or leaves standing, so they need the world server without the ego
 limits) and run with `managed_ego:=false` and no agent pre-flight:
 
 ```bash
-just isaac-world ego:=none &            # the world server, kinematic ego
-just run sim:=isaac &               # swb on it
+just run sim:=isaac ego:=none ego_launch:=none &   # the world server (kinematic ego) and swb on it
 ros2 run swb_launch run_suite isaac/ --output <dir> --no-preflight -- managed_ego:=false
 ```
 

@@ -354,8 +354,8 @@ two-av *args: _require-carla
     # The simulation side (bridge + relay) is long-lived and not part of any scenario launch.
     # This checkout's bridge, by its SSv2 port: another checkout's on the host is not ours.
     if ! ss -lnt | grep -q ":{{ssv2_port}} "; then
-        echo "[two-av] no bridge running; starting the simulation side (just run)"
-        setsid just run > "$logs/bridge.log" 2>&1 &
+        echo "[two-av] no bridge running; starting the stack without its ego (just run ego_launch:=none)"
+        setsid just run ego_launch:=none > "$logs/bridge.log" 2>&1 &
         for _ in $(seq 1 120); do
             grep -q "ZMQ server ready" "$logs/bridge.log" 2>/dev/null && break
             sleep 5
@@ -532,8 +532,8 @@ demo-tour *args: _require-carla
 
     # The simulation side, ClearNoon.
     if ! stack_on_port $((SWB_WEB_PORT + 4)) > /dev/null; then
-        echo "[demo-tour] starting the simulation side (just run weather:=ClearNoon)"
-        setsid just run weather:=ClearNoon > "$logs/bridge.log" 2>&1 < /dev/null &
+        echo "[demo-tour] starting the stack without its ego (just run weather:=ClearNoon ego_launch:=none)"
+        setsid just run weather:=ClearNoon ego_launch:=none > "$logs/bridge.log" 2>&1 < /dev/null &
         started+=($!)
         for _ in $(seq 1 120); do
             ss -lnt 2>/dev/null | grep -q ":{{ssv2_port}} " && break
@@ -630,48 +630,118 @@ _require-agent entity:
                      "(`just bg-av {{entity}}`) and wait for 'Startup complete'")
     sys.exit("[just] the relay closed the connection")
 
-# The simulation side (roadmaps 017, 046), long-lived, in the scenario domain. sim:=carla
-# (default): swb_launch carla_simulation.launch.xml -- the CARLA world server, the bridge
-# driving it and the agent relay, one launch; CARLA itself runs apart (`just carla-start`).
-# sim:=isaac: isaac_simulation.launch.xml -- the bridge and the relay, driving the Isaac
-# world server (`just isaac-world`). play_launch restarts a server or bridge that died.
-# Other arguments are the launch file's, name:=value (config_file:=, weather:=,
-# gap_trace_dir:=, npc_contact_sensors:= on CARLA, world_render:= on Isaac). Ports and
-# CARLA_HOST are the host's. `just build` after changes; restart this after a build.
+# The whole stack (roadmap 073 S9), long-lived: ONE play_launch of swb_launch carla.launch.xml
+# (sim:=carla, default) or isaac.launch.xml (sim:=isaac), web SWB_WEB_PORT+4, logs in
+# $SWB_LOG_ROOT/bridge/ (the ego's, agent's and a scenario's nested launches in .../ego,
+# .../agent, .../scenario). It holds the world server (CARLA's or Isaac's; CARLA itself runs
+# apart, `just carla-start`), the bridge and the relay in the scenario domain, and the ego --
+# Autoware (acb's profile on CARLA, aib's on Isaac) and swb's vehicle agent, each a nested
+# play_launch, respawned when it ends (an episode change ends it) -- in the ego domain.
+# The environment is `just ego-av`'s / `ego-isaac`'s (Autoware, its fix overlay, cuda_ndt,
+# acb, this install, TensorRT 10.8, Cyclone), so the nested ego inherits it.
 #
-# Usage: just run [sim:=carla|isaac] [name:=value ...]
+# Arguments are the shortcut's, name:=value (stack.launch.py's slots): map_path:=<dir> (default
+# the Town01 map), ego_launch:=none (no ego: the scenario's own, `just ego-av`, or none),
+# ego_launch:=<launch> ego_launch_args:="a:=1 ...", vehicle_model:=, spec_hash_file:=,
+# vehicle_catalogs:=, scenario:=<xosc>, scenario_args:=, side_args:=; on CARLA
+# vehicle_physics:=, npc_contact_sensors:=; on Isaac the world server's ego:=, world:=,
+# render:=, follow:=, physics_hz:= (as `just isaac-world`). The simulation side's own
+# config_file:=, weather:=, gap_trace_dir:=, npc_motion:=, contact_report_dir:=, world_render:=
+# go to it (side_args). The recipe's own: overlay:=<setup.bash> and autoware_overlay:=false as
+# for `just ego-av`. An unknown name is refused. Ports, domains, CARLA_HOST are the host's.
+# `just build` after changes; restart this after a build. Run the next scenario against it
+# with `just scenario <xosc>`.
+#
+# Usage: just run [sim:=carla|isaac] [map_path:=<dir>] [ego_launch:=none] [name:=value ...]
 [positional-arguments]
 run *args:
     #!/usr/bin/env bash
     set -e
     source "{{lib}}"; swb_reject_env
-    sim=carla; args=()
+    sim=carla; overlay=""; autoware_overlay=true; ego_launch=""; ego_user=""; side_user=""
+    given=(); side=()
+    abs() { (cd "{{invocation_directory()}}" && realpath -ms "$1"); }
     for a in "$@"; do
         case "$a" in
             sim:=*) sim="${a#sim:=}" ;;
             backend:=*) echo "run: backend:= is now sim:= (roadmap 046)" >&2; exit 2 ;;
-            *) args+=("$a") ;;
+            overlay:=*) overlay="${a#*:=}" ;;
+            autoware_overlay:=*) autoware_overlay="${a#*:=}" ;;
+            config_file:=*|weather:=*|gap_trace_dir:=*|npc_motion:=*|contact_report_dir:=*|world_render:=*)
+                [ -n "${a#*:=}" ] && side+=("$a") ;;
+            side_args:=*) side_user="${a#*:=}" ;;
+            ego_launch_args:=*) ego_user="${a#*:=}" ;;
+            ego_launch:=*) ego_launch="${a#*:=}" ;;
+            map_path:=?*|scenario:=?*) given+=("${a%%:=*}:=$(abs "${a#*:=}")") ;;
+            # as `just isaac-world`: an empty ego is none, an empty world the default
+            ego:=) given+=("ego:=none") ;;
+            world:=) ;;
+            *:=*) given+=("$a") ;;
+            *) echo "run: '$a' is not name:=value" >&2; exit 2 ;;
         esac
     done
-    case "$sim" in
-        carla) launch=(carla_simulation.launch.xml carla_host:="${CARLA_HOST:-localhost}"
-                       carla_port:={{carla_port}} world_port:={{world_port}}) ;;
-        isaac) launch=(isaac_simulation.launch.xml isaac_port:={{isaac_port}}) ;;
-        *) echo "run: sim '$sim' is not carla or isaac" >&2; exit 2 ;;
-    esac
-    log_dir=$(swb_log_dir "{{project}}" bridge)
+    case "$sim" in carla|isaac) ;; *) echo "run: sim '$sim' is not carla or isaac" >&2; exit 2 ;; esac
+    shortcut="{{project}}/install/swb_launch/share/swb_launch/launch/$sim.launch.xml"
+    [ -f "$shortcut" ] || { echo "run: no $shortcut: just build" >&2; exit 2; }
+    # Refuse a name the shortcut does not declare: a launch drops it without a word.
+    declared=" $(grep -oE '<arg name="[^"]+" default=' "$shortcut" | sed -E 's/<arg name="([^"]+)".*/\1/' | tr '\n' ' ')"
+    for a in "${given[@]}"; do
+        n="${a%%:=*}"
+        case "$declared" in *" $n "*) ;; *)
+            echo "run: unknown argument '$n' for $sim.launch.xml (its own:$declared; the recipe's: sim, overlay, autoware_overlay, and the simulation side's config_file, weather, gap_trace_dir, npc_motion, contact_report_dir, world_render)" >&2
+            exit 2 ;; esac
+    done
+    swb_with_defaults args map_path:="{{maps_dir}}/{{default_map}}" -- "${given[@]}"
+    # The default autopilot gets `just ego-av`'s / `ego-isaac`'s defaults (each dropped when
+    # ego_launch_args names it); its agent is the stack's own nested vehicle_agent.
+    read -ra ego_tokens <<< "$ego_user"
+    if [ -n "$ego_launch" ]; then
+        args+=("ego_launch:=$ego_launch")
+    else
+        case "$sim" in
+            carla) swb_with_defaults ego_tokens vehicle_name:=hero carla_physics_mode:=verify \
+                       release_notify_endpoint:="tcp://127.0.0.1:$(({{ssv2_port}} + 1))" \
+                       release_ack_endpoint:="tcp://127.0.0.1:$(({{ssv2_port}} + 2))" \
+                       rviz:=false seed_localization_on_attach:=false -- "${ego_tokens[@]}" ;;
+            isaac) swb_with_defaults ego_tokens rviz:=false -- "${ego_tokens[@]}" ;;
+        esac
+    fi
+    swb_reject_args "{{project}}" "${ego_tokens[@]}" "${args[@]}"
+    [ ${#ego_tokens[@]} -gt 0 ] && args+=("ego_launch_args:=${ego_tokens[*]}")
+    side_all="${side_user:+$side_user }${side[*]}"
+    [ -n "${side_all// /}" ] && args+=("side_args:=$side_all")
+    if [ -n "${EGO_RMW_IMPLEMENTATION:-}" ]; then
+        echo "run: EGO_RMW_IMPLEMENTATION is not applied to the stack's ego (one RMW for the stack); \`just ego-av\` with \`just run ego_launch:=none\` honours it" >&2
+    fi
+    # The ego's environment (`just ego-av`): Autoware, its fix overlay, cuda_ndt, overlay:=,
+    # acb, this install, then TensorRT 10.8.0 first on LD_LIBRARY_PATH.
     source "{{autoware_setup}}"
+    source "{{project}}/scripts/autoware_overlay.bash"
+    swb_autoware_overlay_source "{{autoware_overlay_dir}}" "$autoware_overlay"
+    if [ -f "{{cuda_ndt_dir}}/install/setup.bash" ]; then source "{{cuda_ndt_dir}}/install/setup.bash"
+        # its CUDA libraries first: cudarc dlopens libnvrtc.so by name (build-cuda-ndt)
+        [ -s "{{cuda_ndt_dir}}/install/.swb_cuda_path" ] && export LD_LIBRARY_PATH="$(cat "{{cuda_ndt_dir}}/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"; fi
+    if [ -n "$overlay" ]; then source "$overlay"; fi
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
     source "{{project}}/install/setup.bash"
+    source "{{project}}/scripts/autoware_tensorrt.bash"
+    swb_tensorrt_source "{{autoware_tensorrt_lib}}"
     export CYCLONEDDS_URI="file://{{project}}/src/swb_launch/config/cyclonedds-localhost.xml"
-    # On CycloneDDS like every other process of the stack; an unset RMW is Fast DDS, whose
-    # relay SSv2 cannot see.
+    # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
+    # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+    # The host settings stack.launch.py reads; each group sets its own ROS domain.
+    export EGO_ROS_DOMAIN_ID={{ego_domain}} SCENARIO_ROS_DOMAIN_ID={{scenario_domain}} \
+        SSV2_PORT={{ssv2_port}} AGENT_PORT={{agent_port}} WORLD_PORT={{world_port}} \
+        ISAAC_PORT={{isaac_port}} CARLA_PORT={{carla_port}} CARLA_HOST="${CARLA_HOST:-localhost}" \
+        ISAAC_ROOT={{isaac_root}} SWB_ISAAC_DIR="{{project}}/src/swb_isaac_world" \
+        SWB_LOG_ROOT="${SWB_LOG_ROOT:-{{project}}/play_log}"
     export ROS_DOMAIN_ID={{scenario_domain}}
+    for kind in ego agent scenario; do swb_log_dir "{{project}}" "$kind" > /dev/null; done
+    log_dir=$(swb_log_dir "{{project}}" bridge)
     exec play_launch launch --web-addr 0.0.0.0:$((SWB_WEB_PORT + 4)) \
         --log-dir "$log_dir" \
-        swb_launch "${launch[@]}" agent_port:={{agent_port}} ssv2_port:={{ssv2_port}} \
-        "${args[@]}"
+        swb_launch "$sim.launch.xml" "${args[@]}"
 
 
 # quality:=low saves memory but must not change towns: Low segfaults on load_world to another
@@ -1055,9 +1125,11 @@ _require-ego-stack:
     # container, and behavior_path_planner does that about once in 60 route resets
     # (autoware_universe#12460, an rclcpp race with no upstream fix). Without it the stack
     # looks up, the ego spawns and never moves, and the run dies at the storyboard timeout.
-    if ! "{{project}}/src/swb_launch/scripts/ego_ready" --reload-failed; then
-        echo "[just] Refusing to start: run \`just ego-av\` first and wait for"
-        echo "[just] 'Startup complete'. See phase 012, startup order."
+    # This checkout's ego stack's ledger (`just ego-av`, +2); the stack's nested ego has no web
+    # UI, so there only the topics are checked.
+    if ! "{{project}}/src/swb_launch/scripts/ego_ready" --reload-failed --web-port $((SWB_WEB_PORT + 2)); then
+        echo "[just] Refusing to start: the ego is not up -- \`just run\` (its ego) or \`just ego-av\`;"
+        echo "[just] wait for \`ros2 run swb_launch ego_ready\`. See phase 012, startup order."
         exit 1
     fi
 
@@ -1312,8 +1384,6 @@ bg-av *args: _require-carla
         --log-dir "$log_dir" \
         swb_launch background_av.launch.xml "${launch_args[@]}"
 
-# Run SSv2 scenario (adapter and the ego stack — `just run`, `just ego-av` — must already
-# be up; SSv2 no longer launches Autoware)
 # Clear leftovers from a previous scenario run.
 #
 # An interrupted run -- Ctrl-C, a timeout, a killed harness -- can leave its interpreter
@@ -1355,10 +1425,13 @@ _clear-stale-scenario:
         sleep 3
     fi
 
-# Run one scenario against the stacks, bringing up what is missing first: each simulator's
-# scripts/<sim>_up.sh (roadmap 046) starts or reuses its simulator, the simulation side
-# (`just run sim:=<sim>`) and the ego's Autoware, each waited for, and leaves them up for the
-# next run. sim:=carla (default) or sim:=isaac. worlds:=<map>[,<map>] (Isaac): what a world
+# Run one scenario against the stack, bringing it up first when it is not (roadmap 073 S9):
+# each simulator's scripts/<sim>_up.sh reuses the stack `just run sim:=<sim>` started (web
+# SWB_WEB_PORT+4) or starts one (setsid, console in $SWB_LOG_ROOT/stack.console) on the
+# scenario's map -- without its ego for a scenario that has none -- and on CARLA starts CARLA
+# first; it waits for the bridge, the relay and the ego, and leaves the stack up for the next
+# run. Then only the scenario runs (scenario.launch.xml, scenario domain, web +1). sim:=carla
+# (default) or sim:=isaac. worlds:=<map>[,<map>] (Isaac): what a world
 # server started here preloads, map names under CARLA_MAPS or paths (default: the scenario's
 # map). output_directory:=<dir> (default /tmp): the verdict is
 # <dir>/scenario_test_runner/result.junit.xml. global_timeout:=<s>: the runner's wall-clock cap

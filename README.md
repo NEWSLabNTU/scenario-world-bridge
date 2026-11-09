@@ -9,17 +9,28 @@ localization, planning and control, while
 scenario and gives the verdict.
 
 <p align="center">
-  <img src="docs/media/showreel_pedestrian.gif" alt="Autoware in CARLA stops for a crossing pedestrian, then drives on" width="640"><br>
-  <em>A starter scenario: Autoware sees a pedestrian crossing ahead, stops, and drives on (8x).</em>
+  <img src="docs/media/hero_carla_vs_isaac.webp" alt="The same Autoware drives the same NTU campus route in CARLA (left) and Isaac Sim (right)" width="840"><br>
+  <em>One Autoware, one vehicle spec, two simulators: the same NTU campus route in CARLA and Isaac Sim (5x).</em>
 </p>
 
-<details>
-<summary><b>▶ Two Autoware vehicles in one scenario</b> (2.5 MB animation)</summary>
-<p align="center">
-  <img src="docs/media/showreel_two_av.gif" alt="Two Autoware stacks driving in one CARLA scenario" width="640"><br>
-  <em>Two complete Autoware stacks in one scenario, each driving its own vehicle (6x).</em>
-</p>
-</details>
+<table>
+  <tr>
+    <td width="33%"><img src="docs/media/pedestrian.webp" alt="Autoware in CARLA stops for a crossing pedestrian, then drives on"><br>
+      <b>Stops for a pedestrian</b><br><sub>CARLA, Town01 (8x)</sub></td>
+    <td width="33%"><img src="docs/media/two_av.webp" alt="Two Autoware stacks drive their own vehicles in one CARLA scenario"><br>
+      <b>Two Autoware vehicles</b><br><sub>CARLA, Town01, one scenario (6x)</sub></td>
+    <td width="33%"><img src="docs/media/lead_car.webp" alt="Autoware follows a lead car on the NTU campus twin in CARLA"><br>
+      <b>Follows a lead car</b><br><sub>CARLA, NTU campus twin (2x)</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/campus_tour.webp" alt="Autoware drives scenario legs across the NTU campus twin in CARLA"><br>
+      <b>116 legs, 10 km, all pass</b><br><sub>CARLA, NTU campus twin (5x)</sub></td>
+    <td><img src="docs/media/isaac_campus.webp" alt="Autoware drives the NTU campus twin, built from a laser scan, in Isaac Sim"><br>
+      <b>The campus from a laser scan</b><br><sub>Isaac Sim, NTU campus twin</sub></td>
+    <td><img src="docs/media/gravel.webp" alt="A car at 60 km/h on a gravel road with ruts, potholes and loose rocks in Isaac Sim"><br>
+      <b>Gravel and rocks at 60 km/h</b><br><sub>Isaac Sim, surfaces</sub></td>
+  </tr>
+</table>
 
 ## Why
 

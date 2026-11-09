@@ -75,11 +75,17 @@ import warnings
 import numpy as np
 from scipy import ndimage
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import site_params  # noqa: E402  (sites/<SWB_TWIN_SITE>.yaml, default ntu)
+
+SITE = site_params.current()
+
+
 SIGMAS_M = (0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0)
 WEIGHT = 0.05  # of a full neighbourhood of ground (17.8 % of the site is ground)
 CAP = 0.05     # m above the ground-only estimate
 PIT_WINDOW = 9  # cells (2.25 m)
-PIT_DEPTH = 0.15  # m
+PIT_DEPTH = SITE.get("pit_depth", 0.15)  # m (a site may set its own: a small car feels less)
 LANE_WINDOWS = (9, 17, 33)  # cells
 LANE_MARGIN = 3.0  # m
 ZMIN_MEDIAN = 5  # cells
@@ -97,7 +103,7 @@ FOOT_NEAR, FOOT_ABOVE = 2.0, 0.3  # m
 # the invented humps: carla_meshes' opening guard (SPIKE_*) with a window longer than the hump at
 # leg 41 (map-minus-origin (523.7, 270-285), 12-15 m, 0.36-0.5 m, no scan return)
 HUMP_WINDOW, HUMP_ABOVE = 18.0, 0.10  # m
-SHIFT = np.array([-0.54, 0.20, 17.30])  # the DTM's frame = map + SHIFT (world_usd.SHIFT)
+SHIFT = np.array(SITE["shift"])  # the DTM's frame = map + SHIFT (world_usd.SHIFT; NTU (-0.54, 0.20, 17.30))
 
 
 def smooth(dtm, ground, cell):
@@ -149,11 +155,7 @@ def lane_ele(osm, meta, cells):
 
     from scipy.spatial import cKDTree
 
-    nodes = []
-    for n in ET.parse(osm).getroot().findall("node"):
-        t = {x.get("k"): x.get("v") for x in n.findall("tag")}
-        nodes.append((float(t["local_x"]), float(t["local_y"]), float(t.get("ele", 0))))
-    nodes = np.array(nodes) + SHIFT
+    nodes = np.array(list(site_params.lanelet_nodes(ET.parse(osm).getroot(), SITE).values())) + SHIFT
     c = meta["cell"]
     jj, ii = np.nonzero(cells)
     P = np.c_[meta["x0"] + (ii + 0.5) * c, meta["y0"] + (jj + 0.5) * c]

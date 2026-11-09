@@ -1,0 +1,8 @@
+# The NTU campus twin (roadmap 059): the vendor MLS scan, re-tiled by retile_laz.py into MGRS
+# 51RUH local; the Autoware maps r01/r02 use the MGRS projector, so lanelet nodes carry
+# local_x/local_y in that frame.
+name: ntu
+shift: [-0.54, 0.20, 17.30]        # the tiles' (vendor) frame minus the map frame (roadmap 019)
+map_origin: [52500.0, 67700.0, 0.0]  # the Isaac world = the map frame less this
+ortho_m: 0.02                      # m per orthophoto pixel
+lanelet_xy: local                  # lanelet node x, y from their local_x / local_y tags

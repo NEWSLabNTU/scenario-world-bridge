@@ -41,7 +41,14 @@ from multiprocessing import Pool
 
 import numpy as np
 
-SHIFT = np.array([-0.54, 0.20, 17.30])  # vendor (MGRS local) minus map frame
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import site_params  # noqa: E402  (sites/<SWB_TWIN_SITE>.yaml, default ntu)
+
+SITE = site_params.current()
+
+
+SHIFT = np.array(SITE["shift"])  # the tiles' frame minus the map frame (NTU (-0.54, 0.20, 17.30))
 TILE = 50.0
 GROUND_BAND = 0.12      # m, as ground_ortho.py
 GROUND_REACH = 2.0      # m: a DTM cell is meshed within this of a ground cell
@@ -110,6 +117,12 @@ def poisson(P, C):
     import open3d as o3d
 
     off = P.min(0)
+    flat = np.ptp(P, axis=0) < 1e-3
+    if flat.any():
+        # An exactly planar layer (COSS's map holds a vertical sheet of points at one y along
+        # its edge) is cocircular to Qhull, inside the normals' orientation (QH6239): a seeded
+        # 1 mm jitter across the plane meshes it unchanged at the scale that matters.
+        P = P + np.random.default_rng(0).normal(0.0, 1e-3, P.shape) * flat
     pc = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(P - off))
     pc.colors = o3d.utility.Vector3dVector(C)
     pc = pc.voxel_down_sample(VOXEL)

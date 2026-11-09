@@ -27,9 +27,16 @@ from multiprocessing import Pool
 
 import numpy as np
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import site_params  # noqa: E402  (sites/<SWB_TWIN_SITE>.yaml, default ntu)
+
+SITE = site_params.current()
+
+
 CELL = 0.25          # m, the DTM grid
 TILE = 50.0          # m, retile_laz.py's tiles
-ORTHO = 0.02         # m per ortho pixel
+ORTHO = SITE["ortho_m"]  # m per ortho pixel (NTU 0.02)
 GROUND_BAND = 0.12   # m above the DTM that still counts as ground
 SLOPE = 0.15         # SMRF slope (rise per metre of window)
 MAX_WINDOW = 16.0    # m, the largest object the filter removes

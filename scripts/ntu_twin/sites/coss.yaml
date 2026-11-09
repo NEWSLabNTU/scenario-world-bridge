@@ -1,0 +1,22 @@
+# NTU COSS (AutoSDV's car A twin, AutoSDV roadmap 15): the survey arrives as a map-frame PCD
+# (data/COSS-map-planning/pointcloud_map.pcd), coloured and tiled by color_transfer.py, so the
+# tiles are in the map frame. The map's projector is TransverseMercator about
+# map_projector_info.yaml's origin; the lanelet nodes' local_x/local_y are TWD97, not the map
+# frame: their x, y are local_x/local_y less TWD97 of the map origin (lanelet_offset).
+name: coss
+map_dir: ${COSS_MAP_DIR}           # holds map_projector_info.yaml and lanelet2_map.osm
+shift: [0.0, 0.0, 0.0]
+map_origin: [0.0, 0.0, 0.0]        # the map frame is already near the site's middle
+ortho_m: 0.04                      # the map cloud's 4-5 cm spacing
+# The lanelets' map frame is their local_x/local_y (TWD97) plus this, exactly: Autoware's
+# projector of their lat/lon gives the same for all 2276 nodes (to 0.1 mm). Read so, the world's
+# scripts need no projection (world_usd.py runs under Isaac's Python, which has no pyproj).
+lanelet_xy: local
+lanelet_offset: [-304731.3793, -2768113.4495]
+# The map frame is TWD97 less TWD97(map origin), not a projection: the PCD lines up with the
+# survey only so, and the lanelets' lat/lon were made from it (TM(lat, lon) = local - origin to
+# 2 cm), so Autoware's projector agrees with it (AutoSDV roadmap 15, task 6).
+survey_frame: twd97_minus_origin
+# Pits deeper than this below their 2.25 m neighbourhood close (smooth_dtm.py). NTU's 0.15 m is
+# a road car's; a 5 cm wheel drops into a 9 cm grate (one patch on a COSS path did).
+pit_depth: 0.04

@@ -1,8 +1,7 @@
 # 039: A road with rocks, loaded before any ego, keeps the ego out of PhysX
 
 **Severity**: high (every world-server run on a `road_detail.yaml` with `rocks:` fails at
-its first ego). **Status**: open again: the fix in swb_isaac_world `5444614` took it from
-every run to 2 of 12, the cause of the rest unknown (see the end). **Found**: 2026-11-07, in
+its first ego). **Status**: fixed in swb_isaac_world `5444614` and `daca90c` (two causes; see the end). **Found**: 2026-11-07, in
 066's acceptance spike (`spikes/multi_ego_road.py` on Town01 with a rough corridor and
 rocks), Isaac Sim 6.1.
 
@@ -57,3 +56,16 @@ prims and the groups are made at the road's load, all in one stage edit before P
 step). Next: a run that, on the failure, prints whether the ego's prims carry their physics
 APIs and the groups their includes, and a stepped world (one `world.step` after the road
 loads, before the ego) to see whether parsing the load's edits first removes it.
+
+## The second cause, fixed (2026-11-09)
+
+16 preload-only runs (`multi_ego_road.py`, `ROAD_CASES=`): 8 plain, 1 failed; 8 with one
+physics step after the world's load, none failed. At the failure every collision group was
+in place (`chassis` with its colliders, `groundQuery`, the rocks' four), so the groups were
+not the cause this time. The road's load makes the rock pool's parked prims (992 here) in one
+stage edit, and the preload's ego was made in the same batch, before PhysX had stepped: now
+and then PhysX made no body for it.
+
+Fix (swb_isaac_world `daca90c`): `IsaacWorld._load_road` steps the physics once after a road
+with rocks loads, before any ego. With it, 16 of 16 preloads from the world server passed;
+24 of 24 with the step in all, against 3 failures in 20 without it.

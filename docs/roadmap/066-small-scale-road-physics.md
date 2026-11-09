@@ -698,7 +698,9 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     work moves the flat road more than the rough road costs. Stable across runs: the tire
     contact 4.0-4.2 ms a frame with the rocks (2.7-2.9 without the rock stream), the surface
     layer's place 4.8-5.1; Isaac's step 17-18 ms on the rough road, 15-17 bare. The budget
-    needs a GPU no one else uses. Issue 039 came back in 2 of the rough runs.
+    needs a GPU no one else uses. Issue 039 came back in 2 of the rough runs; its second cause
+    (the ego made in the same stage batch as the rock pool) is fixed by one physics step after
+    the road loads (`daca90c`, 24 of 24 preloads).
   - **To do for the budget:** the contact out of Python's per-call overhead (one call for
       every ego, a compiled inner loop, R5's noted lever: 4.2 ms a frame now); what in
       Isaac's step grows by 6 ms on a large stage (the collision tiles' and the mesh's

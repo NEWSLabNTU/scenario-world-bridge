@@ -45,11 +45,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 pip install colcon-cargo-ros2
 ```
 
-- Optional, recommended: play_launch, the drop-in for `ros2 launch` (PyPI; 0.18.3 or newer -- 0.15.1 is the first to end a scenario stack when its runner exits under the default parser, 0.18.3 the first to keep a respawned node's earlier log as `out.1`/`err.1`):
+- play_launch, the drop-in for `ros2 launch` (PyPI; 0.30.0 or newer). `just run` and `just scenario` need it: the stack launch nests play_launch processes, and 0.30.0 is the first to keep a `<group>`'s `ROS_DOMAIN_ID` inside the group, as `ros2 launch` does (roadmap 073 S1). The 4-terminal path with `ros2 launch` runs without it:
 
 ```bash
 sudo apt install libz3-dev ros-humble-rclcpp-components ros-humble-class-loader
-pip install 'play_launch>=0.18.3'      # installs ~/.local/bin/play_launch
+pip install 'play_launch>=0.30.0'      # installs ~/.local/bin/play_launch
 play_launch --version
 ```
 

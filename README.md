@@ -15,18 +15,18 @@ scenario and gives the verdict.
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/media/pedestrian.webp" alt="Autoware in CARLA stops for a crossing pedestrian, then drives on"><br>
-      <b>Stops for a pedestrian</b><br><sub>CARLA, Town01 (8x)</sub></td>
+    <td width="33%"><img src="docs/media/demo_tour.webp" alt="One CARLA drive with six incidents: a pedestrian, a braking lead car, a red light, a broken-down car, crossing traffic and a cyclist"><br>
+      <b>Six incidents, one drive</b><br><sub>CARLA, Town01: pedestrian, braking car, red light, blocked lane, crossing traffic, cyclist; all pass (3x)</sub></td>
     <td width="33%"><img src="docs/media/two_av.webp" alt="Two Autoware stacks drive their own vehicles in one CARLA scenario"><br>
       <b>Two Autoware vehicles</b><br><sub>CARLA, Town01, one scenario (6x)</sub></td>
-    <td width="33%"><img src="docs/media/lead_car.webp" alt="Autoware follows a lead car on the NTU campus twin in CARLA"><br>
-      <b>Follows a lead car</b><br><sub>CARLA, NTU campus twin (2x)</sub></td>
+    <td width="33%"><img src="docs/media/awf_acc.webp" alt="Autoware follows a decelerating vehicle in the AWF adaptive cruise scenario on CARLA, with RViz inset"><br>
+      <b>AWF adaptive cruise</b><br><sub>CARLA, UC-ACC-001; RViz inset (3x)</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/media/campus_tour.webp" alt="Autoware drives scenario legs across the NTU campus twin in CARLA"><br>
-      <b>116 legs, 10 km, all pass</b><br><sub>CARLA, NTU campus twin (5x)</sub></td>
-    <td><img src="docs/media/isaac_campus.webp" alt="Autoware drives the NTU campus twin, built from a laser scan, in Isaac Sim"><br>
-      <b>The campus from a laser scan</b><br><sub>Isaac Sim, NTU campus twin</sub></td>
+    <td><img src="docs/media/isaac_town02.webp" alt="An SSv2 scenario on Isaac Sim: Autoware turns left on Town02 and drives to its goal, with RViz inset"><br>
+      <b>The same scenarios on Isaac Sim</b><br><sub>Isaac Sim, Town02; RViz inset (2.5x)</sub></td>
+    <td><img src="docs/media/haruna_drift.webp" alt="A Mustang drifts through a 10.8 m hairpin on the Mount Haruna road in Isaac Sim"><br>
+      <b>Hairpin drift on Mount Haruna</b><br><sub>Isaac Sim, sideslip up to 22 degrees</sub></td>
     <td><img src="docs/media/gravel.webp" alt="A car at 60 km/h on a gravel road with ruts, potholes and loose rocks in Isaac Sim"><br>
       <b>Gravel and rocks at 60 km/h</b><br><sub>Isaac Sim, surfaces</sub></td>
   </tr>

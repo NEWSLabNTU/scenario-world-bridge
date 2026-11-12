@@ -706,6 +706,19 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
       Isaac's step grows by 6 ms on a large stage (the collision tiles' and the mesh's
       triangles in the scene's BVH, measured per part with repeats, interleaved); the frame's
       remaining 4.5 ms, inside the noise until repeats separate it.
+  - **The contact compiled** (2026-11-12, swb_isaac_world `81434f5`, `0f15da7`): the cams'
+    discs, the tandem's effective road and the inner loop are one warp kernel on the CPU
+    (`road_contact_warp`, float64, numpy's results to 1e-10 N), the launch recorded once; the
+    disc's max is searched outward from its centre and pruned (the same max); `RockSet.shares`
+    returns at once with no rock in reach. Offline 0.19-0.20 ms a substep, from numpy's
+    0.38-0.44. Live, rough Town01, one ego, three interleaved pairs on a shared GPU
+    (`play_log/multi_ego_road/2026-11-07_066-ab2-*`; `ROAD_KERNEL=numpy|warp`): the road
+    contact 3.71-3.75 ms a frame in numpy, 2.83-2.89 compiled (one run 3.43 on a busier host).
+    What is left of the 2.9 ms (`ROAD_PROFILE=2`, cProfile, a substep): the road's heights for
+    the cams 0.2, the rocks' grid lookups and footprints about 0.45, the kernel 0.1, the rest
+    numpy's glue (the base plane's fit, the attachments). The frame's excess over flat is
+    still Isaac's step (+6 to 12 ms) and the rest of the frame; the contact is now inside the
+    5 ms on its own.
   - **The Autoware ego on a rock road** needs a lanelet map for the corridor; it moves to R7,
     with the ground filter and NDT on rough tiles.
 

@@ -719,6 +719,17 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     numpy's glue (the base plane's fit, the attachments). The frame's excess over flat is
     still Isaac's step (+6 to 12 ms) and the rest of the frame; the contact is now inside the
     5 ms on its own.
+  - **Isaac's step on an idle GPU** (2026-11-14, GPU 1 of 241 with nothing else on it; the
+    host's CPU was not idle, load 39-55; `play_log/multi_ego_road/2026-11-07_066-gpu1-*`, one
+    ego, the compiled contact, two runs each, Isaac's step p50 in ms): flat 22.2 (the second
+    flat run, 83, is an outlier from a host stall); rough 25.5 and 19.2; rough without the
+    render mesh 24.5 and 27.8; without the rock stream and collision tiles 22.5 and 23.0;
+    without either 30.7 and 23.0. On an idle GPU the rough stage does not grow Isaac's step:
+    the +6 to 12 ms seen before was the shared GPU, and neither the mesh nor the rocks shows
+    above the run-to-run spread (about 5 ms). The road layer's whole share (`surface_place`,
+    which holds the contact, plus `flush` and `update`) is 5.2-7.3 ms a frame against 0.9
+    flat, the contact 3.7-4.4 of it on this loaded CPU (2.8-2.9 on a quieter one). So the
+    budget is the CPU's: the contact, and the bars and the attachments beside it.
   - **The Autoware ego on a rock road** needs a lanelet map for the corridor; it moves to R7,
     with the ground filter and NDT on rough tiles.
 

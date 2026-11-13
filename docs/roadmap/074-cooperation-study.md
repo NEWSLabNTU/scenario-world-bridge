@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a in progress. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's first slice done (the grid with intervals); next: continuous rules and double oracle. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -217,6 +217,44 @@ What the mass runs give:
    equilibrium is reported as "no deviation gaining more than x found by a search of budget n".
    The rules that exploit Autoware's assumptions are the candidates C3 checks on the real stack.
 4. **Welfare**: $W$, the social optimum, PoA and PoS per cell (C1+).
+
+**C2a, first slice (2026-11-13).** Two arenas (ports 2600 and 2610, K = 4 each) ran C1's grid,
+coarser: d0 -6..30 m step 2, dv -4..4 m/s step 1, 171 contexts x 9 profiles x 4 seeds = 6156
+runs in 17 minutes, 13 800 runs per hour per arena (runs are now up to 40 s). Perception from E2
+(delay 0.19 s, speed noise 0.2 m/s, position 0.3 m), reaction 1 s +- 0.2.
+`scripts/coop/arena_game.py --grid` solves each cell and bootstraps it over the seeds (200
+resamples); data in `/mnt/p5plus/aeon/coop/c2a/grid2/`.
+
+```
+arena (lower case: bootstrap < 90 %; '.': < 60 %)   C1 (carla_model3)
+       d0 -6 .. 30 m, step 2
+ +4.0  WccCggggggggggggggg   |  WWWWMMggggggggggggg
+ +2.0  WwWcCCcgggggggggggg   |  WWWWWWMGggggggggggg
+ +0.0  WWWWw.cCGGGGggggggg   |  WWWWWWWWMGggggggggg
+ -2.0  WWWWWWW.CCCGGGGGGGG   |  WWWWWWWWWWGGGGGGGGG
+ -4.0  WWWWWWWWWWCCCCgGGGG   |  WWWWWWWWWWWWGGGGGGG
+```
+
+- The bootstrap is confident (>= 90 %) in 146 of 171 cells; in 118 of those the arena's class
+  is C1's. The four regions are the same (drop behind, a boundary band, go and B yields, go and
+  B need not); they differ in the band.
+- Where C1's band has only mixed equilibria (M), the arena's has coordination (C): both "drop
+  behind" and "go" are equilibria. Uncertainty from noise and reaction-time spread turns C1's
+  knife-edge into two stable outcomes, which is where a convention would decide.
+- At dv > 0 the arena reaches "go" at smaller d0 than C1 (CARLA's car accelerates harder).
+- **Contacts (479 runs) are all A going against a closing B**: d0 8-18 m with A 3-4 m/s slower.
+  B sees the lane change only after the perception delay and a lateral threshold, then reacts a
+  second later; C1, which sees the move at once, calls the same cells safe. So the perception
+  delay, not the physics, moves the safety boundary.
+- **"After you" deadlock (910 runs)**: B yields first (pre_yield) while A drops behind or waits
+  for a yield it misreads, both slow, and A is not in after 40 s.
+- Two bugs found and fixed on the way: the analysis took "A merged" for "A merged ahead"
+  (`ahead` is recorded now; with it agreement rose from 82 to 118 cells); and the grid script's
+  `wait` also waited for the CARLAs it had started.
+
+Still to do in C2a: rules over a continuous psi, double oracle with exploitability (and the
+Autoware-like rule's), the split surrogate, more seeds where the bootstrap is unsure, and $W$,
+PoA and PoS per cell from the arena's payoffs.
 
 **C2b. The swb check (sample).** A few cells per region, chosen where the arena's map changes,
 rerun through swb itself: `multi_av/town05_cut_in.xosc` with A and B as agent entities, each

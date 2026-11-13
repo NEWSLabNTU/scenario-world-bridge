@@ -57,6 +57,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sim_vehicle_spec import carla_physics  # noqa: E402
 
 import cutin_game as C1  # noqa: E402
+import measures  # noqa: E402
 
 CAR = "tesla_model3"
 PHYSICS = ROOT / f"src/sim_vehicle_spec/generated/{CAR}/carla_physics.yaml"
@@ -522,6 +523,8 @@ class Pair:
         self.contact = False
         self.peak = [0.0, 0.0]
         self.prev_ab = 0.0
+        b = C1.TYPES["car"].b_max
+        self.meas = measures.Measures(b_max=(b, b))
 
     def step_run(self):
         t = self.ar.t - self.t0
@@ -624,15 +627,18 @@ class Pair:
         dx = xa - xb
         if dy < (A.width + B.width) / 2 and abs(dx) < (la + lb) / 2:
             self.contact = True
+        follower = gap = closing = None
         if dy < (A.width + B.width) / 2 + 0.3:  # same lane
             if dx > 0:
-                closing, vf, gap = vb - va, vb, dx - (la + lb) / 2
+                follower, closing, vf, gap = 1, vb - va, vb, dx - (la + lb) / 2
             else:
-                closing, vf, gap = va - vb, va, -dx - (la + lb) / 2
+                follower, closing, vf, gap = 0, va - vb, va, -dx - (la + lb) / 2
             if closing > 1e-3 and gap > 0:
                 self.min_ttc = min(self.min_ttc, gap / closing)
             if vf > 1.0 and gap > 0:
                 self.min_thw = min(self.min_thw, gap / vf)
+        self.meas.push(t, (va, vb), lat_a=lat, follower=follower, gap=gap, closing=closing,
+                       contact=self.contact)
         if getattr(self.args, "trace", False):
             self.trace.append((round(t, 2), round(xa - self.xa0, 2), round(va, 3), round(xb - self.xb0, 2), round(vb, 3),
                                round(self.lat(), 3), self.decide, self.dropping, round(aa, 2), round(ab, 2)))
@@ -669,7 +675,7 @@ class Pair:
                     "contact": int(self.contact), "got_in": int(got_in),
                     "ahead": int(got_in and not self.dropping and xa > xb),  # merged in front of B
                     "peakA": round(self.peak[0], 2), "peakB": round(self.peak[1], 2),
-                    "y_end_A": round(ya, 2), "t_run": round(t, 2)}
+                    "y_end_A": round(ya, 2), "t_run": round(t, 2), **self.meas.result(self.decide)}
         if getattr(self.args, "trace", False):
             self.rec["trace"] = self.trace
         self.phase = "done"

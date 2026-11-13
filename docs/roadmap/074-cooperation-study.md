@@ -381,6 +381,13 @@ Rerun of all 24 runs (`run2/`, against `run1`'s arena runs rescored the same way
 - The arena is trusted for outcome classes and payoff levels within 0.02, except a yielding B's
   cost, which it overstates by up to 0.04 at 10/0; stage 5 may start.
 
+**Raw measures (2026-11-13).** `scripts/coop/measures.py`, recorded by the arena and by `c2b.py`'s
+scoring beside the utility (which is unchanged: run2's rescored payoffs are identical): DRAC and
+the capability margin, TET/TIT, impact speed, stops and stopped time, peak jerk, and event times
+for the reaction latencies. In run2 every run has margin 1 and TET 0 (no closing on a shared
+lane); B's reaction to A's move where B yields (10/0) is 1.5 s (equilibrium pair) and 2.6 s
+(Autoware-like pair), A's braking jerk when it drops behind 3.6-5.5 m/s^3.
+
 ### C3. B as Autoware
 
 First with perception off and acb's ground-truth objects (planning and control are Autoware's,

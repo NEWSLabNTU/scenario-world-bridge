@@ -498,6 +498,24 @@ on top of a game-theoretic payoff model.
 | social cost | $C = -\sum_i U_i \ge 0$ over everyone in the trace, own utilities $U$ (not the SVO-weighted $J$, which would count the others twice); for comparisons across car models in common units (vehicle-seconds of delay), with safety as a constraint | |
 | price of anarchy, of stability | $C(\text{worst eq.}) / C(\text{opt})$, $C(\text{best eq.}) / C(\text{opt})$, both $\ge 1$; the losses $C(\text{eq.}) - C(\text{opt})$ when $C(\text{opt})$ is near 0 | what selfish rules cost against coordination; what a good convention can recover |
 
+Per run, swb and the arena record the same raw measures from truth (`scripts/coop/measures.py`),
+each defined over time rather than samples so that the arena's 0.05 s ticks and swb's 0.1 s logs
+agree, and none scaled by the run's length:
+
+| kind | measures |
+|---|---|
+| safety | contact and the closing speed at impact; minimum TTC and time headway; the deceleration rate to avoid a crash (DRAC, closing²/2·gap) and the capability margin $1 - \text{DRAC}/b_{max}$; time-exposed and time-integrated TTC below 3 s (TET, TIT); PET for crossings |
+| efficiency | lost progress against free flow over a fixed horizon; stops (below 0.1 m/s for 1 s or more) and seconds stopped; time to complete the manoeuvre |
+| comfort | peak braking and peak jerk, both as slopes over 0.5 s |
+| latency | event times: A's lateral move, each car's first braking, A's decision; from them B's reaction to A's move and A's reaction to B's yield |
+
+Latency is a property of the car, so it enters the game as a type parameter, and its cost shows
+in the outcome; the measured reaction times check that the agents react as their type says.
+The utility combines a few of these (lost progress, the TTC and headway shortfall, peak braking,
+contact); the rest are reported beside it, so that safety can also be applied as a constraint
+(drop profiles whose contact rate or margin fails a bound, then compare on efficiency) and the
+equilibrium map can be checked for how much it depends on the weights.
+
 ### From the theory to the measurement
 
 swb estimates $\hat J_i(\psi, c, t)$ from runs: a mean per profile, context and type pair with its

@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cutin_game as C1  # noqa: E402
 import double_oracle as DO  # noqa: E402
+import measures  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 H = math.atan2(1.0, 0.025)
@@ -112,20 +113,24 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
     end = ta[-1]
     peak = [0.0, 0.0]
     hist = []
+    b = C1.TYPES["car"].b_max
+    meas = measures.Measures(b_max=(b, b))
     for r in ta:
         t = r["t"] - t0
         lat, along, v, ov = r["lat"], r["along"], r["v"], r["ov"]  # along: B's centre ahead of A
+        follower = gap = closing = None
         if lat >= C1.LANE_LINE:
             if abs(along) < L:
                 contact = True
             if along < 0:  # A ahead
-                closing, vf, gap = ov - v, ov, -along - L
+                follower, closing, vf, gap = 1, ov - v, ov, -along - L
             else:
-                closing, vf, gap = v - ov, v, along - L
+                follower, closing, vf, gap = 0, v - ov, v, along - L
             if closing > 1e-3 and gap > 0:
                 min_ttc = min(min_ttc, gap / closing)
             if vf > 1.0 and gap > 0:
                 min_thw = min(min_thw, gap / vf)
+        meas.push(t, (v, ov), lat_a=lat, follower=follower, gap=gap, closing=closing, contact=contact)
         # peak braking as arena.py measures it: the largest speed drop over any 0.5 s
         hist.append((t, v, ov))
         while hist and t - hist[0][0] > 0.5 + 1e-9:
@@ -160,7 +165,8 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
     return {"d0_real": start.get("along") and round(-start["along"] - L, 2), "dv_real": start.get("v") and round(start["v"] - start["ov"], 2),
             "uA": round(C1.utility(o, 0, cap, pref), 4), "uB": round(C1.utility(o, 1, cap, pref), 4),
             "contact": int(contact), "ahead": int(ahead), "got_in": int(got_in), "t_run": round(T, 2),
-            "ttc": round(min_ttc, 2) if math.isfinite(min_ttc) else "inf"}
+            "ttc": round(min_ttc, 2) if math.isfinite(min_ttc) else "inf",
+            **meas.result(dec)}
 
 
 def run_one(out, d0, dv, pa, pb, seed, port, relay):

@@ -209,6 +209,7 @@ def main():
     ap.add_argument("--carla-port", type=int, default=int(os.environ.get("CARLA_PORT", 2000)))
     ap.add_argument("--relay", default=f"tcp://127.0.0.1:{os.environ.get('AGENT_PORT', '5560')}")
     ap.add_argument("--seeds", type=int, default=1)
+    ap.add_argument("--seed0", type=int, default=0, help="first seed (to split seeds across hosts)")
     ap.add_argument("--only", type=int, default=0, help="run just the first N runs (a smoke test)")
     ap.add_argument("--rescore", action="store_true")
     ap.add_argument("--arena-port", type=int, default=0, help="instead: C2b's arena cells at this VB on this CARLA")
@@ -230,7 +231,7 @@ def main():
                 r.update(c2b.score(rd / "coop_a.jsonl", rd / "coop_a.jsonl", r["d0"], r["dv"], pa["t_prep"]))
                 f.write(json.dumps(r) + "\n")
         return
-    runs = [(d0, dv, pa, s) for (d0, dv) in CELLS for pa in RULES for s in range(a.seeds)]
+    runs = [(d0, dv, pa, s) for (d0, dv) in CELLS for pa in RULES for s in range(a.seed0, a.seed0 + a.seeds)]
     if a.only:
         runs = runs[: a.only]
     with open(path, "a") as f:

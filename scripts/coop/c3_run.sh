@@ -2,7 +2,7 @@
 # Roadmap 074 C3: one batch of the cut-in with B the Autoware ego, start to finish, on this host.
 #
 #   OUT=<dir> [RUN=c3b] [C3_VB=6.0] [SEEDS=2] [ONLY=n] [CARLA_PORT=2400] \
-#   [EXTRA="lidar_detection_model:=centerpoint"] [GPU=1] scripts/coop/c3_run.sh
+#   [EXTRA="lidar_detection_model:=centerpoint"] [GPU=1] [SEED0=0] [ARENA=1] scripts/coop/c3_run.sh
 #
 # Starts its own CARLA (CARLA_DIR, port CARLA_PORT) on Town03 and the stack with the ego
 # (`just run`, max_velocity C3_VB, the spec's physics, EXTRA as further ego arguments); checks
@@ -11,6 +11,7 @@
 # on the same CARLA (c3.py --arena-port); stops CARLA; touches $OUT/DONE. Everything it
 # writes is under $OUT. Run it detached: nohup setsid scripts/coop/c3_run.sh > log 2>&1 &
 #
+# SEED0 shifts the seeds (two hosts: SEED0=0 and SEED0=2); ARENA=0 skips the arena's cells.
 # GPU=<index> puts CARLA (-graphicsadapter) and the stack (CUDA_VISIBLE_DEVICES) on that GPU.
 #
 # EXTRA presets: C3a (ground-truth objects, no CUDA) "publish_ground_truth_objects:=true
@@ -79,12 +80,12 @@ PY
 )
 echo "check vmax ${VMAX:-none} (limit $VB)" | tee "$OUT/check.log"
 if python3 -c "import sys; sys.exit(0 if 0.5 < float('${VMAX:-99}') < $VB + 0.6 else 1)"; then
-    in_env python3 scripts/coop/c3.py --out "$OUT" --carla-port $PORT --seeds ${SEEDS:-2} ${ONLY:+--only $ONLY} > "$OUT/stdout.log" 2>&1
+    in_env python3 scripts/coop/c3.py --out "$OUT" --carla-port $PORT --seeds ${SEEDS:-2} --seed0 ${SEED0:-0} ${ONLY:+--only $ONLY} > "$OUT/stdout.log" 2>&1
 else
     echo "check failed: not running C3" | tee -a "$OUT/check.log"
 fi
 kill -TERM -$SPID; sleep 20
-in_env python3 scripts/coop/c3.py --out "$OUT" --arena-port $PORT > "$OUT/arena.log" 2>&1
+[ "${ARENA:-1}" = 1 ] && in_env python3 scripts/coop/c3.py --out "$OUT" --arena-port $PORT > "$OUT/arena.log" 2>&1
 kill -TERM -$CPID 2>/dev/null; sleep 5
 for p in $(ps -eo pid,comm --no-headers | awk '$2 ~ /^CarlaUE4-Linux/ {print $1}'); do
     tr '\0' ' ' < /proc/$p/cmdline | grep -q "carla-rpc-port=$PORT" && kill $p

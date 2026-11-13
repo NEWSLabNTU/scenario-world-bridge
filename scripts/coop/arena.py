@@ -510,8 +510,10 @@ class Pair:
         self.xa0, self.xb0 = self.A.state()[0], self.B.state()[0]
         self.d0_real = self.rear(self.A) - self.front(self.B)
         self.dv_real = va - vb
-        self.decide = 0.0 if self.job["a"] == C1.GO else None
-        self.dropping = self.job["a"] == C1.WAIT
+        self.pa, self.pb = self.job.get("pa"), self.job.get("pb")  # parameterized rules (C2a)
+        self.decide = 0.0 if self.job.get("a") == C1.GO else None
+        self.dropping = self.job.get("a") == C1.WAIT
+        self.b_latched = False
         self.lat_seen = self.in_lane_at = self.b_brake_seen = None
         self.min_ttc = self.min_thw = math.inf
         self.contact = False
@@ -533,7 +535,20 @@ class Pair:
             _, xb_s, _, vb_s, ab_s = sb
         else:
             xb_s, vb_s, ab_s = xb, vb, 0.0
-        if job["a"] == C1.GO_IF_YIELD and self.decide is None and not self.dropping:
+        if self.pa is not None and self.decide is None and not self.dropping:
+            pa = self.pa
+            gap_ahead = (xa - la / 2) - (xb_s + lb / 2)  # A's rear ahead of B's front, as seen
+            need = pa["buffer"] + vb_s * pa["tau"] + max(0.0, vb_s ** 2 - va ** 2) / (2 * pa["a_rear"])
+            if ab_s <= -C1.YIELD_SEEN and self.b_brake_seen is None:
+                self.b_brake_seen = t
+            if gap_ahead >= need:
+                self.decide = t
+            elif (pa["use_yield"] and self.b_brake_seen is not None and t >= self.b_brake_seen + self.react_a
+                  and gap_ahead > -la / 2):
+                self.decide = t
+            elif t >= pa["patience"] + (C1.WATCH if pa["use_yield"] else 0.0):
+                self.dropping = True
+        elif job.get("a") == C1.GO_IF_YIELD and self.decide is None and not self.dropping:
             if ab_s <= -C1.YIELD_SEEN and self.b_brake_seen is None:
                 self.b_brake_seen = t
             if self.b_brake_seen is not None and t >= self.b_brake_seen + self.react_a:
@@ -552,8 +567,9 @@ class Pair:
             aa = C1.follow_accel(gap_behind, va, vb_s, cap, self.va0)
         else:
             aa = max(-1.0, min(cap.a_max, 1.5 * (self.va0 - va)))
-        if self.decide is not None and t >= self.decide + cap.t_prep:
-            s = min(1.0, (t - self.decide - cap.t_prep) / cap.t_lc)
+        t_prep = self.pa["t_prep"] if self.pa is not None else cap.t_prep
+        if self.decide is not None and t >= self.decide + t_prep:
+            s = min(1.0, (t - self.decide - t_prep) / cap.t_lc)
             y_t = self.yA0 + (self.yB - self.yA0) * 0.5 * (1 - math.cos(math.pi * s))
         else:
             y_t = self.yA0
@@ -568,11 +584,21 @@ class Pair:
             self.in_lane_at = t
         gap_b = (xa_s - la / 2) - (xb + lb / 2)
         a_ahead = xa_s > xb - lb
-        yielding = (job["b"] == C1.PRE_YIELD and t >= self.react_b and a_ahead) or (
-            job["b"] == "react_yield" and self.lat_seen is not None
-            and t >= self.lat_seen + self.react_b and a_ahead)
+        if self.pb is not None:
+            pb = self.pb
+            pre = t >= self.react_b and a_ahead and lat_s < C1.LANE_LINE and gap_b < pb["pre_band"]
+            react = (self.lat_seen is not None and t >= self.lat_seen + self.react_b and a_ahead
+                     and gap_b < pb["react_gap"])
+            self.b_latched = self.b_latched or ((pre or react) and a_ahead)
+            yielding = self.b_latched and a_ahead
+            b_decel = pb["b_y"]
+        else:
+            yielding = (job["b"] == C1.PRE_YIELD and t >= self.react_b and a_ahead) or (
+                job["b"] == "react_yield" and self.lat_seen is not None
+                and t >= self.lat_seen + self.react_b and a_ahead)
+            b_decel = C1.B_YIELD_DECEL
         if yielding:
-            ab = -C1.B_YIELD_DECEL if gap_b < C1.S0 + vb * C1.HEADWAY else \
+            ab = -b_decel if gap_b < C1.S0 + vb * C1.HEADWAY else \
                 C1.follow_accel(gap_b, vb, va_s, cap, self.vb0)
         else:
             ab = max(-1.0, min(cap.a_max, 1.5 * (self.vb0 - vb)))
@@ -599,7 +625,7 @@ class Pair:
             if vf > 1.0 and gap > 0:
                 self.min_thw = min(self.min_thw, gap / vf)
         merged = self.lat() >= 0.99
-        waiting = self.decide is None and (self.dropping or job["a"] == C1.GO_IF_YIELD)
+        waiting = self.decide is None and (self.dropping or job.get("a") == C1.GO_IF_YIELD or self.pa is not None)
         if self.contact or t >= C1.T_MAX or (t >= HORIZON and (merged or not waiting and self.decide is None)):
             self.finish()
 
@@ -669,39 +695,63 @@ def cutin(args):
         cars = [(Car(ar, a), Car(ar, b)) for a, b in cars]
         setup_s = time.monotonic() - t_setup
         t_run = time.monotonic()
-        queue = deque(work)
-        while queue:
-            pairs = []
-            for r in range(args.k):
-                if not queue:
-                    break
-                p = Pair(ar, r, cars[r][0], cars[r][1], queue.popleft(), rng, args)
-                p.place()
-                pairs.append(p)
-            for _ in range(3):  # let the parked cars settle on the road
-                for p in pairs:
-                    for c in (p.A, p.B):
-                        c.a.apply_control(carla.VehicleControl(brake=1.0, hand_brake=True))
-                ar.tick()
-            for p in pairs:
-                p.tw = ar.t
-            while any(p.phase != "done" for p in pairs):
-                for p in pairs:
-                    if p.phase == "warmup":
-                        p.step_warmup()
-                    elif p.phase == "run":
-                        p.step_run()
-                    else:
-                        p.A.drive(-2.0, p.yA0 if not p.rec["got_in"] else p.yB)
-                        p.B.drive(-2.0, p.yB)
-                w0 = time.monotonic()
-                ar.tick()
-                tick_wall.append(time.monotonic() - w0)
-            rows += [p.rec for p in pairs]
-            print(f"  {len(rows)}/{len(work)} runs, {time.monotonic() - t_run:.0f} s", flush=True)
+        rows = run_jobs(ar, cars, work, rng, args, tick_wall, log=True)
         run_s = time.monotonic() - t_run
     finally:
         ar.close()
+    return write_summary(args, rows, setup_s, run_s, tick_wall)
+
+
+def setup_cars(ar, k):
+    cars = []
+    for r in range(k):
+        b = ar.spawn(r, -1, 30.0)
+        a = ar.spawn(r, -2, 60.0)
+        cars.append((a, b))
+    ar.put_physics([x for p in cars for x in p])
+    return [(Car(ar, a), Car(ar, b)) for a, b in cars]
+
+
+def run_jobs(ar, cars, work, rng, args, tick_wall=None, log=False):
+    """Run jobs K at a time on the arena's roads; one result row per job, in job order."""
+    rows = []
+    queue = deque(work)
+    t_run = time.monotonic()
+    while queue:
+        pairs = []
+        for r in range(args.k):
+            if not queue:
+                break
+            p = Pair(ar, r, cars[r][0], cars[r][1], queue.popleft(), rng, args)
+            p.place()
+            pairs.append(p)
+        for _ in range(3):  # let the parked cars settle on the road
+            for p in pairs:
+                for c in (p.A, p.B):
+                    c.a.apply_control(carla.VehicleControl(brake=1.0, hand_brake=True))
+            ar.tick()
+        for p in pairs:
+            p.tw = ar.t
+        while any(p.phase != "done" for p in pairs):
+            for p in pairs:
+                if p.phase == "warmup":
+                    p.step_warmup()
+                elif p.phase == "run":
+                    p.step_run()
+                else:
+                    p.A.drive(-2.0, p.yA0 if not p.rec["got_in"] else p.yB)
+                    p.B.drive(-2.0, p.yB)
+            w0 = time.monotonic()
+            ar.tick()
+            if tick_wall is not None:
+                tick_wall.append(time.monotonic() - w0)
+        rows += [p.rec for p in pairs]
+        if log:
+            print(f"  {len(rows)}/{len(work)} runs, {time.monotonic() - t_run:.0f} s", flush=True)
+    return rows
+
+
+def write_summary(args, rows, setup_s, run_s, tick_wall):
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "runs.csv"), "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))

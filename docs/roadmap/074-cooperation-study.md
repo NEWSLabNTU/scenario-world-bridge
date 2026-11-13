@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's first slice done (the grid with intervals); next: continuous rules and double oracle. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; next: C2b (needs an ego truth pose, see C2b), E3, C3. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -256,7 +256,71 @@ Still to do in C2a: rules over a continuous psi, double oracle with exploitabili
 Autoware-like rule's), the split surrogate, more seeds where the bootstrap is unsure, and $W$,
 PoA and PoS per cell from the arena's payoffs.
 
-**C2b. The swb check (sample).** A few cells per region, chosen where the arena's map changes,
+**C2a, double oracle (2026-11-13).** `scripts/coop/double_oracle.py` plays the rules of
+`arena.py`'s parameterized families on three arenas (ports 2600-2620, K = 4), over six contexts
+(the band and the contact cells: d0, dv = (2, 2), (6, 0), (6, 3), (10, 0), (10, -2), (14, -3)) and
+two seeds each:
+
+- A: go when the gap ahead of B (as seen) >= buffer + v_B tau + max(0, v_B^2 - v_A^2)/(2 a_rear), the
+  form of Autoware's lane-change check; checking for `patience` s, optionally also on a seen
+  yield; then drop behind; `t_prep` before the lateral move.
+- B: yield at b_y when A is within `pre_band` before any lane change is seen, or within
+  `react_gap` once it is; otherwise hold. The safety layer always brakes.
+- Starting rules: Autoware-like A, conservative (tau 2 s, a_rear 1 m/s^2, 3 s prepare) and
+  permissive (1 s, 2 m/s^2, 3 s prepare); a bold A; Autoware-like B (holds: no yield to a cut-in,
+  only the safety layer), a courteous B, a reactive B.
+- Meta-game: every Nash equilibrium by support enumeration, the highest-welfare one kept; best
+  responses by 40 random rules plus two rounds of local refinement around the best three, earlier
+  best responses retried. 7812 runs in 13 minutes. (A first run with 16 + 8 candidates stopped at
+  round 0 on a best response that a later search beat: the search budget matters; data in
+  `c2a/do1`.)
+
+Result (`/mnt/p5plus/aeon/coop/c2a/do2/`):
+
+| round | equilibrium | vA | vB | welfare | best-response gain A / B |
+|---|---|---|---|---|---|
+| 0 | A_aw_perm / B_aw (holds) | -0.117 | -0.007 | -0.124 | -0.000 / 0.000 |
+| 1 | A_aw_perm / B_aw | -0.117 | -0.007 | -0.124 | **+0.008** / 0.000 (A: tau 0.68, a_rear 2.07, buffer 4.2 m, no prepare) |
+| 2 | that A / B_react (yields when the lane change is seen within 10 m) | -0.108 | -0.059 | **-0.167** | 0.001 / 0.003: stop |
+
+- **The equilibrium**: A checks the gap with tau = 0.7 s and a_rear = 2 m/s^2 (Autoware's
+  permissive assumptions, roughly, but without the 3 s prepare phase); B yields once it sees the
+  change within ~10 m. No contacts on these contexts. Exploitability found: 0.003 (a lower
+  bound).
+- **Smarter selfish rules lower welfare**: A's better rule gains A 0.009 and costs B 0.052, which
+  then yields; the equilibrium's welfare (-0.167) is below the Autoware-like pair's (-0.124). A
+  first measured instance of a price of anarchy between rules, not just within one context.
+- **Autoware's conservative lane-change assumption never cuts in** on these contexts (A ahead in
+  0 % of runs against every B, utility -0.24 against the equilibrium A's -0.11): waiting behind
+  is its only outcome. The permissive one cuts in 1 time in 3 against a holding B.
+- **Autoware-like B (holding) is almost a best response for a selfish B** (gain 0.0001 at round 0);
+  only against the sharper A does reacting pay B (0.003).
+- Noise: two seeds per context, so differences under ~0.01 are not resolved, and a counter-rule
+  search against B_aw found a weaker rule (-0.159) than one the oracle already had (-0.108); the
+  exploit numbers are lower bounds of lower bounds. More seeds and a shared candidate archive
+  next.
+
+### U1. The left turn against an oncoming queue, kinematic (2026-11-13)
+
+`scripts/coop/left_turn_game.py`: A waits to turn left across one oncoming lane; a chain of n
+cars at speed v and headway h; A's rule is a gap-acceptance threshold G (1-8 s, seen with the
+0.19 s delay); the chain's first car C1 holds or yields (2 m/s^2 when A is waiting within 40 m);
+its followers follow (IDM). Welfare counts every car in the chain. At v = 10 m/s:
+
+- For short queues the game is a coordination game with two equilibria: A waits for a 3.5-4 s
+  gap while C1 holds, or C1 yields and A goes at once. Holding is the welfare optimum: a yield
+  delays every follower, and the yield equilibrium costs 2-2.5 times as much for n = 1-3.
+- For long, sparse queues (n = 5, h 2.5-4 s) only the yield equilibrium is left, and at h = 4 s it
+  is also the optimum: holding makes A wait 12 s for the whole queue.
+- So courtesy at a left turn pays only when the queue behind the courteous car is long enough to
+  trap A; a convention "yield to a waiting left turner" is right in sparse traffic and wrong in
+  dense. The arena and swb versions are next.
+
+**C2b. The swb check (sample).** *Blocked on a design choice (2026-11-13):* without Autoware nothing in swb gives a light
+policy its own car's pose. acb publishes the other cars as ground-truth objects, and the ego's
+pose comes from Autoware's localization. Either acb gains a ground-truth odometry output (opt-in,
+like `publish_ground_truth_objects`, only with Autoware off), or each light policy runs on
+Autoware's localization (NDT) alone. A few cells per region, chosen where the arena's map changes,
 rerun through swb itself: `multi_av/town05_cut_in.xosc` with A and B as agent entities, each
 driven by the same light policy behind acb, the trace (024) and contacts (021) as payoffs. The
 policy is a small ROS node per car: it reads its own odometry and the other car from acb's ground

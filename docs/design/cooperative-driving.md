@@ -196,5 +196,10 @@ value of information, measured on deployment code at deployment rates.
 - Autoware's lane change measured (E2): about 4 s before the lateral move from a start, 4.8 s
   across. An earlier stall was AEB stopping a change into Town03's tunnel divider, which the
   lanelet map marks as a driving lane (a map-tool issue).
-- Next: C3 (Autoware as a player, on the west straight), N1-N2 (conflict-set sizes, three-car
+- C3 done: Autoware as B on Town03's west straight, with ground truth (C3a) and CenterPoint (C3b).
+  Four to five of six cells agree with the arena once its Autoware imitation reacts to the lane
+  change's onset (1.0 s, perception adds 0.1-0.45 s); a slow cut-in 14 m ahead is a near miss
+  (0.2-0.6 m clearance) that the arena grazes. Bugs found and fixed on the way: the ego's pedal maps
+  under the spec's physics, acb's ground-truth headings, the agent at junctions.
+- Next: C2a and the double oracle with the refitted imitation, N1-N2 (conflict-set sizes, three-car
   composition), E3 (Autoware's knobs as rules).

@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b running on 241 and 118; next: B_AW's lateral reaction, E3, N1-N2. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; next: C2a and the double oracle with it, E3, N1-N2. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -469,8 +469,26 @@ Data `/mnt/p5plus/aeon/coop/c3/c3a{,_6_0}/`.
   TET/margin), not by contact. Under C3b's perception (B with CenterPoint's observer in the
   arena) the fit is the same: five cells with any reacting rule (best B_r20_b2.5_t1), this one
   on the edge.
-- C3b (CenterPoint) runs on 241 (seeds 0-1, with the arena) and 118 (seeds 2-3), results to
-  `~/nas/autoveh/dataset/2026-11-13_coop-c3/`.
+
+**C3b, Autoware on its own perception (2026-11-14).** The same cells with CenterPoint
+(`lidar_detection_model:=centerpoint`), run on 118 (GPU 0, seeds 0-3, 48 runs, all valid) and 241
+(GPU 1, the arena's cells; 14 of its 24 runs lost to Autoware staying INITIALIZING after the ego's
+restart on a loaded host, so c3.py now retries such a run with its cause). Data
+`~/nas/autoveh/dataset/2026-11-13_coop-c3/` (`c3b_118`, `c3b_118_s01`, `c3b_241`).
+- **Every outcome class is the same as with ground truth**, and no run touches. Perception adds
+  0.1-0.45 s to Autoware's reaction to the lane change's onset (1.1-1.45 s against 1.0), as E2's
+  0.19 s object latency plus tracking predicts. Payoffs move only at 14/-3.
+- **Minimum clearance** (body to body, from the agents' truth logs) per cell, C3a | C3b: 2/+2
+  2.95-2.97 | 2.91-3.21 m; 6/0, 10/-2 1.36 | 1.35-1.36 (side by side in the next lane); 10/0
+  9.4-10.0 | 9.1-9.9; 20/+1 20.4 | 20.3-20.5; 14/-3 A_eq 1.35-3.79 | 1.35-2.88; **14/-3 A_aw_perm
+  0.42-0.61 | 0.21-1.35**. The 3 s prepare at 14/-3 is the one near miss, on both perceptions.
+- **The imitation refitted under C3b's perception** (B seeing through the CenterPoint observer):
+  the same five cells fit with any reacting rule, best B_r20_b2.5_t1 (error 10.7 against 27.2 for
+  B_AW's no reaction); the rest is the 14/-3 contact edge.
+- **D4 for C3**: the arena's B becomes a reacting rule (react to A's lateral motion within
+  20-30 m, 1.0 s, 2.5 m/s^2; under ground truth B's observer is exact); the arena is trusted for
+  outcome classes in these cells and flags the near-miss cell by clearance, not by contact. Next:
+  rerun C2a's band and the double oracle with it.
 
 ### C4. Fit and explain
 

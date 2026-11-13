@@ -191,7 +191,10 @@ value of information, measured on deployment code at deployment rates.
 
 ## Status and open problems (2026-11-13)
 
-- Done: scoring and raw measures; two-car games (C1, C2a, double oracle, U1); arena trusted (D2).
-- Open: Autoware's own lane change on Town03 (E2) stalls mid-change with the emergency stop
-  cycling every 2.5 s; being diagnosed. It blocks C3 (Autoware as a player).
-- Next: N1-N2 (conflict-set sizes, three-car composition), E3 (Autoware's knobs as rules), C3.
+- Done: scoring and raw measures; two-car games (C1, C2a, double oracle, U1); arena trusted (D2);
+  Autoware's timing (E2).
+- Autoware's lane change measured (E2): about 4 s before the lateral move from a start, 4.8 s
+  across. An earlier stall was AEB stopping a change into Town03's tunnel divider, which the
+  lanelet map marks as a driving lane (a map-tool issue).
+- Next: C3 (Autoware as a player, on the west straight), N1-N2 (conflict-set sizes, three-car
+  composition), E3 (Autoware's knobs as rules).

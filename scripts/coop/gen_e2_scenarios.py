@@ -144,6 +144,16 @@ def main():
         "lane_change_long", "Town03 east straight and curve: start in the inner lane, goal in the innermost lane "
         "220 m on, past the curve; the lane change happens on the move; no other traffic",
         xy("inner", 22.0), (183.72, 199.55, 3.1261), 9.0))
+    # Both scenarios above change into the "innermost" lane, which is CARLA's Bidirectional lane 1
+    # of road 65: the tunnel's divider, with walls at x 240.2 from y 62 on. Autoware's map has it
+    # as a driving lanelet (68766), so the lane change is legal, and AEB stops it at the walls
+    # (E2, 2026-11-13). The inner | outer line is solid. Town03's west straight has two real
+    # driving lanes with a dashed line for 244 m, no signals (lanelets 5750 | 5518, then a
+    # junction, then 8395 | 8209), heading -y.
+    (OUT / "town03_e2_lane_change_west.xosc").write_text(doc(
+        "lane_change_west", "Town03 west straight: start in the right lane (5750), goal in the left lane (8209) "
+        "200 m on, past an unsignalled junction; the lane change happens on the move; no other traffic",
+        (-88.6, 118.0, -1.568), (-84.6, -80.0, -1.568), 12.0))  # above the ego's max_velocity 10
 
 
 if __name__ == "__main__":

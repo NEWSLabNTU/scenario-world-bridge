@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); next: E2's lane change, E3, C3, N1-N2. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); next: E3, C3, N1-N2. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -116,7 +116,7 @@ logs and runs in `/mnt/p5plus/aeon/coop/e1/`), `scripts/coop/arena_game.py` for 
 and parity holds against vehicle-check's acceptance. The calibrated kinematic model is not
 needed for mass runs; C1 stays the prediction.
 
-### E2. Autoware's timing on CARLA (2026-11-13; partly open)
+### E2. Autoware's timing on CARLA (2026-11-13; done)
 
 What the light policies' perception model and the Autoware-like rules need, measured on the
 stack (`just run`, CARLA 0.9.16 on port 2400, a fresh build of both workspaces at the pins).
@@ -141,11 +141,24 @@ which kept the ego from ever closing on the lead).
   0.3 m).
 - **No acceleration from the tracker**: a light policy that reads intent from the other car's
   braking must infer it from speeds, as `arena.py`'s observer does (1 s slope).
-- **Lane change, open.** On Town05 a route-forced lane change ran, its lateral move took about 7 s
-  at 3.5 m/s (on a 10 % ramp, below). On Town03 the lane-change module reports the change safe,
-  automatic and waiting for execution 9 m ahead, while the ego stands after 5 m, three runs out
-  of three; the prepare phase is still to be measured on a start where the ego is already
-  moving.
+- **Lane change.** On Town05 a route-forced lane change ran, its lateral move took about 7 s
+  at 3.5 m/s (on a 10 % ramp, below). On Town03's east straight it never completed, from a
+  standstill or on the move (`town03_e2_lane_change_long.xosc`, twice): the ego got 1.7 m across
+  at 5.5 m/s, then AEB fired 627 times and the MRM's emergency stop cycled every 2.5 s
+  (on 1.9 s, off 0.6 s), so the ego crept to the timeout. **AEB was right**: the target, the
+  "innermost" lane (lanelet 68766), is CARLA's Bidirectional lane 1 of road 65, the tunnel's
+  divider, with walls (`BP_RepSpline65`) at x = 240.2 from y = 62. **The Town03 lanelet map turns
+  that lane into a driving lanelet with a legal change into it**; the inner | outer line is
+  solid, so that road has no valid lane change. Any scenario that drives lanelet 68766 meets the
+  walls (a map-tool issue, not fixed here). Found from `/diagnostics` in the bag
+  (`autonomous_emergency_braking: aeb_emergency_stop`, `/system/fail_safe/mrm_state`); no object
+  was tracked, AEB acted on the points.
+- **Lane change, measured** on Town03's west straight (two driving lanes, dashed line, 244 m, no
+  signals; lanelets 5750 | 5518, `town03_e2_lane_change_west.xosc`, passes): the module asks to
+  start 10 m ahead and finish 60 m on; the lateral move starts **4.05-4.10 s** after the ego
+  starts moving (at 4.2 m/s) and takes **4.80-4.85 s** at 6.6 m/s mean, two runs alike. So the
+  `autoware` type's t_prep 3 s and t_lc 3 s are short: on this stack from a start, about 4 s and
+  4.8 s.
 - **Sites.** Town05's only long multi-lane straights are the ring: its north side is a 10 %
   ramp to 10 m (the lanelet map is flat at z = 0), and each lane is one 831 m lanelet, on which
   a single NPC made SSv2's own frame take 2.2 s. Town03's east straight (lanelets 69738, 69252,

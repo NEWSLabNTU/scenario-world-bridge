@@ -277,12 +277,113 @@ This changes what a strategy is, and so shrinks the space most:
 swb's part: the exact ground truth at small N with real stacks, the exploitability check (the search
 for profitable deviations against any proposed equilibrium), and the deadlock finder.
 
+## A per-vehicle strategy layer, on Autoware
+
+User direction 2026-11-13: explore the per-vehicle strategy design and architecture, mindful of
+message rates and practical deployment, with Autoware as the reference. The numbers below are
+Autoware 1.5.0's shipped configuration (`/opt/autoware/1.5.0/share/autoware_launch/config`); no
+live rates were measured (the stack on 133 was idle).
+
+### Autoware already holds a belief about the other car: a fixed one
+
+| where | parameter | default | what it assumes about the other car |
+|---|---|---|---|
+| lane change, safety check (prepare / lane changing / cancel) | `expected_rear_deceleration` | -1.0 / -2.0 m/s^2 | how hard the car behind brakes for us |
+| lane change | `rear_vehicle_reaction_time` | 1.0-2.0 s | its reaction time |
+| obstacle cruise | `min_object_accel_for_rss` | -1.0 m/s^2 | how hard the car ahead may brake |
+| obstacle cruise | `idling_time` | 2.0 s | how long until the car ahead's braking is noticed |
+| map-based prediction | `prediction_time_horizon.vehicle`, `prediction_sampling_delta_time` | 15 s, 0.5 s | |
+
+One number for a truck, a golf cart and a sports car. The method of this study replaces these
+constants with a per-object belief. RTC, Autoware's approval gate on behaviour modules, is off for
+lane change in the default configuration (`enable_rtc: false` in `scene_module_manager.param.yaml`);
+using it as the go-now / wait control means turning it on.
+
+### The rates it must live with
+
+| stage | rate | note |
+|---|---|---|
+| lidar | 10 Hz on a real car (20 Hz in our simulated egos) | |
+| tracking and prediction | 10 Hz | pipeline delay about 0.1-0.3 s (not measured here) |
+| behavior path planner | 10 Hz (`planning_hz`) | lane change budget 50 ms a cycle (`time_limit`) |
+| lane change prepare phase | 2-4 s | cancel judged per 1 s, 5 unsafe cycles before it acts |
+| vehicle command gate | 10 Hz | |
+| control | 33 Hz (`ctrl_period` 0.03 s) | |
+| V2X | BSM / CAM about 10 Hz; manoeuvre coordination event-driven | about 0.1 s latency and loss (from memory, not checked) |
+
+The consequence: telling a yield from a hold takes about 0.5-1.5 s of filtered acceleration
+(Autoware itself waits 2 s to judge that the car ahead brakes), and the lane change decides within
+2-4 s. The belief has one to three updates' worth of evidence before the decision is due; this is
+why probing pays, since a nudge makes the other car show itself sooner.
+
+### Two nodes between prediction and planning, the safety layers untouched
+
+```
+lidar 10Hz -> tracking -> prediction 10Hz --+-----------------------------> planning 10Hz -> control 33Hz
+                                            |                                 ^      ^
+                     (V2X BSM, 10 Hz) ------+                                 |      |
+                                            v                                 |      |
+                                [interaction_belief, 10 Hz]                   |      |
+                       per object: class prior -> capability and intent       |      |
+                                            v                                 |      |
+                                [interaction_strategy, 2-5 Hz, dwell >= 1 s] -+      |
+                       a few reactive rules scored by the offline payoff table       |
+                       out: go / wait (RTC), a speed limit, belief-shaped     -------+
+                            predictions or per-object safety bounds
+```
+
+1. **`interaction_belief`, 10 Hz** (with tracking). Only the objects in the interaction set (same
+   or next lane, within a few seconds). Prior from class and size, and a V2X capability broadcast
+   when there is one; updated from observed acceleration, speed plateaus (a capability cap) and a
+   deceleration that starts when the ego signals (a yield). A few hypotheses per object (interacting
+   multiple models or particles). About 100 B per object: 20 objects are about 20 KB/s.
+2. **`interaction_strategy`, 2-5 Hz, minimum dwell 1 s.** Slower than the planner on purpose: a
+   lane change that switches often chatters and cancels. Candidates: go now, wait tau, abort (A);
+   yield, hold (B). Scored by the payoff table built offline in swb, indexed by the ego's car class,
+   the belief about the other and the context (gap, speeds): a lookup of microseconds. An online
+   game solve for a small group (iLQGames-class, under 50 ms warm for three cars) also fits the
+   budget. Each decision is logged with its belief, the candidates' payoffs and the choice; the log
+   is the explanation.
+3. **Into Autoware**, from least to most invasive:
+   - existing interfaces, no fork: go / wait through RTC (with `enable_rtc` on) or the
+     `external_request_lane_change` module (already in swb's preset); yield / hold through the
+     AD API's velocity limit;
+   - belief-shaped predictions: a filter edits the predicted paths of objects whose belief is
+     pessimistic, the planner unchanged. Lane change reads only the most confident path
+     (`use_all_predicted_paths: false`), so several hypotheses on one object are ignored unless that
+     changes;
+   - per-object safety bounds: `expected_rear_deceleration` and the like taken per object from the
+     belief. A code change in lane change and obstacle cruise, which the Autoware overlay
+     (roadmap 042) carries as a fork per package. The cleanest, and the most invasive.
+
+### Deployment rules
+
+- **The shield stays.** AEB, obstacle stop and the RSS checks are never bypassed; the layer only
+  picks among options the planner already finds safe, or makes the car more conservative.
+- **The fallback is stock Autoware.** With the belief node dead or unsure, the constants above
+  apply, as today.
+- **V2X is untrusted.** A broadcast capability is a prior, checked against observed motion;
+  messages are lost or late, so the layer must work on observation alone.
+- **Own capability is known** (the vehicle spec, `vehicle_info`), others' only through the belief.
+  The same node runs on every car model; only the ego's limits and the table's index change.
+- **It fits an ECU**: a table lookup and a small filter per interacting object.
+
+### How swb tests it
+
+- The same nodes run inside every ego stack in swb, so the experiments run deployment code.
+- One ablation on the same scenarios: stock constants, belief, belief and V2X. The differences are
+  the value of information, measured.
+- At deployment rates: 10 Hz perception with a realistic delay, not ground truth at 20 Hz, or the
+  belief converges faster than it would on the road.
+- Open: the real perception delay on our stack; whether lane change and obstacle cruise take
+  parameter changes at run time.
+
 ## What swb brings
 
 | needed for the method | swb today |
 |---|---|
 | several AVs in one world, each a real stack | CARLA: the ego plus background AVs, each an Autoware stack in its own ROS domain, reached through the agent relay (`multi_av/town01_two_av.xosc`, `just two-av`, `just bg-av`). Isaac: open (roadmap 039) |
-| a strategy plugged into a car | `swb_agent.Agent`: any Python policy drives a car; Autoware's RTC (operator approval at intersection, lane change and other modules) is reachable through `on_cooperate` / `on_cooperate_auto`, which is a go-now / wait control on a real stack |
+| a strategy plugged into a car | `swb_agent.Agent`: any Python policy drives a car; Autoware's RTC (operator approval at intersection, lane change and other modules) is reachable through `on_cooperate` / `on_cooperate_auto`, which is a go-now / wait control on a real stack once the module's `enable_rtc` is on (Autoware 1.5's default config has it off for lane change) |
 | contexts as parameters | OpenSCENARIO parameters and SSv2's parameter sweeps; roadmap 025's genomes, including a cut-in family (gap 5-40 m, merge length 6-30 m, speed 2-10 m/s, acceleration 1-5 m/s^2) |
 | choosing the next runs | 025's ask/tell search (`scripts/gap_search.py`: corpus, archive, Exp3, Thompson sampling; tested offline) and its exploit pipeline (bisecting to a boundary); the same machinery can sample an equilibrium boundary instead of a gap boundary |
 | payoffs from physics | the per-frame trace (024: every entity's pose and velocity), contacts with impulse (021), JUnit verdicts; TTC, PET, delay and comfort follow from the trace |

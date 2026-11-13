@@ -35,6 +35,8 @@ REACTS = tuple(float(x) for x in os.environ.get("FIT_REACTS", "0.5,0.8,1.0").spl
 # C3a: Autoware (B) sees ground-truth objects; A, the agent, sees through its observer (E2's
 # CenterPoint numbers), as in the arena's default
 OBS_GT = {"obs_b_delay": 0.0, "obs_b_sigma_x": 0.0, "obs_b_sigma_v": 0.0}
+# C3b: Autoware on its own perception (CenterPoint): B sees as A does, the arena's default (E2)
+OBS = {"gt": OBS_GT, "cp": {}}[os.environ.get("FIT_OBS", "gt")]
 
 
 def autoware_means(dirs):
@@ -86,7 +88,7 @@ def main():
         if not (d / "arena.jsonl").exists():
             c2b.PAIRS = [(c2b.A_EQ, cand), (DO.A_AW_PERM, cand)]
             d.mkdir(parents=True, exist_ok=True)
-            c2b.arena_compare(a.carla_port, str(d), seeds=a.seeds, obs=OBS_GT, react_b=rt)
+            c2b.arena_compare(a.carla_port, str(d), seeds=a.seeds, obs=OBS, react_b=rt)
         rows = [json.loads(line) for line in open(d / "arena.jsonl")]
         err, detail = score(rows, target)
         results.append((err, cand["name"], detail))

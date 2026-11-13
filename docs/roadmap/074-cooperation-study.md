@@ -460,7 +460,15 @@ Data `/mnt/p5plus/aeon/coop/c3/c3a{,_6_0}/`.
   the arena side-swipes (impact ~0.1 m/s) in 3/4 runs at 2.5 m/s^2 and 2/4 at 7, while on the real
   stack A ends at a standstill and nobody touches. Best so far B_r30_b7_t1 (error 5.0, against
   10.4 for B_AW). Open: whether the gap is B's braking or A's port (the agent stops; the arena's A
-  presses on into B's flank), to locate with both cars' traces side by side.
+  presses on into B's flank), to locate with both cars' traces side by side. **Located**: the
+  real runs are near misses, not clear passes. A (3 s prepare, 2.3 m/s) is part-way over (lat
+  0.27) when B draws alongside; A brakes to a stop following B, Autoware stops too, and the
+  bodies clear by 0.42 and 0.61 m (seeds 0, 1; 1.35 m in C3b's seed 2). The arena's same
+  sequence ends a few tenths of a metre further over and grazes at ~0.1 m/s. The cell is on the
+  contact edge, where a binary contact flips on ~0.5 m; compare it by the minimum clearance (and
+  TET/margin), not by contact. Under C3b's perception (B with CenterPoint's observer in the
+  arena) the fit is the same: five cells with any reacting rule (best B_r20_b2.5_t1), this one
+  on the edge.
 - C3b (CenterPoint) runs on 241 (seeds 0-1, with the arena) and 118 (seeds 2-3), results to
   `~/nas/autoveh/dataset/2026-11-13_coop-c3/`.
 

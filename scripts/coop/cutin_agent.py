@@ -122,6 +122,22 @@ class CutInAgent(CarlaBasicAgent):
         cands = [w for w in (wp, wp.get_left_lane(), wp.get_right_lane()) if w is not None]
         return min(cands, key=lambda w: w.transform.location.distance(like.transform.location))
 
+    @staticmethod
+    def _advance(wp, loc):
+        """Follow a lane from waypoint `wp` to the point level with `loc`, by lane continuity
+        (next/previous), never by a fresh nearest-lane lookup that may pick a neighbour on the
+        next road segment."""
+        for _ in range(3):
+            f = wp.transform.get_forward_vector()
+            d = (loc.x - wp.transform.location.x) * f.x + (loc.y - wp.transform.location.y) * f.y
+            if abs(d) < 0.05:
+                break
+            cands = wp.next(d) if d > 0 else wp.previous(-d)
+            if not cands:
+                break
+            wp = min(cands, key=lambda w: w.transform.location.distance(loc))
+        return wp
+
     # -- hooks -----------------------------------------------------------------------------
     def on_goal(self, goal, waypoints):
         with self._ctl:
@@ -141,6 +157,14 @@ class CutInAgent(CarlaBasicAgent):
             self.own_lane = self.world.map.get_waypoint(v.get_location())
             self.b_lane = self.world.map.get_waypoint(
                 (v if self.side == "B" else self.other).get_location())
+            # tracked waypoints at my position: my lane, and B's lane beside me
+            self.trk_own = self.own_lane
+            if self.side == "A":
+                nb = [w for w in (self.own_lane.get_left_lane(), self.own_lane.get_right_lane())
+                      if w is not None and (w.road_id, w.lane_id) == (self.b_lane.road_id, self.b_lane.lane_id)]
+                self.trk_b = nb[0] if nb else self._lane_wp(v.get_location(), self.b_lane)
+            else:
+                self.trk_b = self.own_lane
             self.t0 = self.world.world.get_snapshot().timestamp.elapsed_seconds
             self.stage = "warmup"
             self.decide = None
@@ -173,14 +197,17 @@ class CutInAgent(CarlaBasicAgent):
         oloc, oyaw, ov = self._truth(other)
         hx, hy = math.cos(yaw), math.sin(yaw)
         along = (oloc.x - loc.x) * hx + (oloc.y - loc.y) * hy  # the other's centre ahead of mine
-        # lanes at my position
-        my_b = self._lane_wp(loc, self.b_lane if self.side == "B" else self.b_lane)
-        my_own = self._lane_wp(loc, self.own_lane) if self.side == "A" else my_b
+        # lanes at my position, tracked by lane continuity
+        self.trk_own = self._advance(self.trk_own, loc)
+        self.trk_b = self._advance(self.trk_b, loc) if self.side == "A" else self.trk_own
+        my_own, my_b = self.trk_own, self.trk_b
         width = max(1.0, my_own.transform.location.distance(my_b.transform.location))
         lat = 0.0
         if self.side == "A":
-            d_own = loc.distance(my_own.transform.location)
-            lat = max(0.0, min(1.0, d_own / width))
+            # lateral progress: my offset from my lane toward B's, along the line between them
+            ox, oy = my_own.transform.location.x, my_own.transform.location.y
+            ux, uy = (my_b.transform.location.x - ox) / width, (my_b.transform.location.y - oy) / width
+            lat = max(0.0, min(1.0, ((loc.x - ox) * ux + (loc.y - oy) * uy) / width))
         look = max(6.0, 0.7 * v)
         if self.stage == "warmup":
             accel, s_lat = self._warmup(t, along, v, ov)
@@ -227,14 +254,25 @@ class CutInAgent(CarlaBasicAgent):
         return max(-4.0, min(3.0, a)), 0.0
 
     def _run(self, t, along, v, ov, lat):
-        seen = self.obs.push(t, along, 0.0, ov)
+        other_lat = self._other_lat(along) if self.side == "B" else 0.0
+        seen = self.obs.push(t, along, other_lat, ov)
         if seen is None:
-            seen = (t, along, 0.0, ov, 0.0)
-        _, along_s, _, ov_s, oa_s = seen
+            seen = (t, along, other_lat, ov, 0.0)
+        _, along_s, lat_s, ov_s, oa_s = seen
         cap = C1.TYPES["car"]
         if self.side == "A":
             return self._run_a(t, along_s, v, ov_s, oa_s, lat, cap)
-        return self._run_b(t, along_s, v, ov_s, cap)
+        return self._run_b(t, along_s, v, ov_s, cap, lat_s)
+
+    def _other_lat(self, along):
+        """B: A's lateral progress into my lane (truth; B sees it through its observer)."""
+        oloc = self.other.get_location()
+        wp = self.trk_own
+        cands = wp.next(along) if along > 0.05 else (wp.previous(-along) if along < -0.05 else [wp])
+        if cands:
+            wp = min(cands, key=lambda w: w.transform.location.distance(oloc))
+        off = oloc.distance(wp.transform.location)
+        return max(0.0, min(1.0, 1.0 - off / max(1.0, wp.lane_width)))
 
     def _run_a(self, t, along_s, v, vb_s, ab_s, lat, cap):
         pa = self.rule
@@ -269,16 +307,11 @@ class CutInAgent(CarlaBasicAgent):
             s_lat = 0.5 * (1 - math.cos(math.pi * s))
         return accel, s_lat
 
-    def _run_b(self, t, along_s, v, va_s, cap):
+    def _run_b(self, t, along_s, v, va_s, cap, lat_s):
         pb = self.rule
-        # along_s: A's centre ahead of mine; A's lateral progress is read from the truth of the
-        # lane geometry by A only, so B sees A "in my lane" from its lateral distance
-        me, other = self.world.vehicle, self.other
-        oloc = other.get_location()
-        wp_b = self._lane_wp(oloc, self.b_lane)
-        off = oloc.distance(wp_b.transform.location)
-        lat_s = max(0.0, min(1.0, 1.0 - off / 3.5))
-        if lat_s > 0.08 and self.lat_seen is None and t > 0.3:
+        # along_s, lat_s: A's centre ahead of mine and its progress into my lane, as seen
+        # (delayed, 10 Hz), as arena.py's B sees them
+        if lat_s > 0.08 and self.lat_seen is None:
             self.lat_seen = t
         a_ahead = along_s > -self.L
         gap_b = along_s - (self.L + self.Lo) / 2

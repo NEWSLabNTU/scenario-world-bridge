@@ -66,6 +66,7 @@ ROAD_LEN = 1100.0  # warm-up and a run of up to T_MAX at up to 16 m/s
 ROAD_GAP = 60.0
 LANE_W = 3.5
 WARMUP = 15.0  # s, to bring a pair to its context
+PEAK_WINDOW = 0.5  # s, over which peak braking is measured
 HORIZON = C1.HORIZON
 
 
@@ -514,6 +515,8 @@ class Pair:
         self.decide = 0.0 if self.job.get("a") == C1.GO else None
         self.dropping = self.job.get("a") == C1.WAIT
         self.b_latched = False
+        self.trace = []
+        self.vhist = (deque(), deque())
         self.lat_seen = self.in_lane_at = self.b_brake_seen = None
         self.min_ttc = self.min_thw = math.inf
         self.contact = False
@@ -607,10 +610,16 @@ class Pair:
         A.drive(aa, y_t)
         B.drive(ab, self.yB)
         # --- truth
-        A.measure()
-        B.measure()
-        self.peak[0] = max(self.peak[0], -A.acc)
-        self.peak[1] = max(self.peak[1], -B.acc)
+        # peak braking: the largest speed drop over any 0.5 s, per 0.5 s, so that it does not
+        # depend on how often speed is sampled (the arena ticks at 0.05 s, swb's logs at 0.1 s;
+        # 074 D2)
+        for k, vv in ((0, va), (1, vb)):
+            h = self.vhist[k]
+            h.append((t, vv))
+            while h and t - h[0][0] > PEAK_WINDOW + 1e-9:
+                h.popleft()
+            if t - h[0][0] >= PEAK_WINDOW - 1e-9:
+                self.peak[k] = max(self.peak[k], (h[0][1] - vv) / PEAK_WINDOW)
         dy = abs(ya - yb)
         dx = xa - xb
         if dy < (A.width + B.width) / 2 and abs(dx) < (la + lb) / 2:
@@ -624,7 +633,13 @@ class Pair:
                 self.min_ttc = min(self.min_ttc, gap / closing)
             if vf > 1.0 and gap > 0:
                 self.min_thw = min(self.min_thw, gap / vf)
-        merged = self.lat() >= 0.99
+        if getattr(self.args, "trace", False):
+            self.trace.append((round(t, 2), round(xa - self.xa0, 2), round(va, 3), round(xb - self.xb0, 2), round(vb, 3),
+                               round(self.lat(), 3), self.decide, self.dropping, round(aa, 2), round(ab, 2)))
+        # merged: A's lane change is complete by its own plan (decision + prepare + lane change),
+        # the same rule in the arena, swb (c2b.py) and C1, not a measured lateral threshold
+        t_prep = self.pa["t_prep"] if self.pa is not None else cap.t_prep
+        merged = self.decide is not None and t >= self.decide + t_prep + cap.t_lc
         waiting = self.decide is None and (self.dropping or job.get("a") == C1.GO_IF_YIELD or self.pa is not None)
         if self.contact or t >= C1.T_MAX or (t >= HORIZON and (merged or not waiting and self.decide is None)):
             self.finish()
@@ -633,9 +648,9 @@ class Pair:
         xa, ya, _, _ = self.A.state()
         xb, _, _, _ = self.B.state()
         t = self.ar.t - self.t0  # the run lasts until A's merge is complete (C1.T_MAX at most)
-        free_a, free_b = self.va0 * t, self.vb0 * t
-        lost_a = max(0.0, (free_a - (xa - self.xa0)) / max(free_a, 1.0))
-        lost_b = max(0.0, (free_b - (xb - self.xb0)) / max(free_b, 1.0))
+        free_a, free_b = self.va0 * t, self.vb0 * t  # as a share of free flow over HORIZON (C1)
+        lost_a = min(1.0, max(0.0, (free_a - (xa - self.xa0)) / max(self.va0 * HORIZON, 1.0)))
+        lost_b = min(1.0, max(0.0, (free_b - (xb - self.xb0)) / max(self.vb0 * HORIZON, 1.0)))
         got_in = self.lat() >= 0.9
         if self.contact:
             lost_a = lost_b = 1.0
@@ -655,6 +670,8 @@ class Pair:
                     "ahead": int(got_in and not self.dropping and xa > xb),  # merged in front of B
                     "peakA": round(self.peak[0], 2), "peakB": round(self.peak[1], 2),
                     "y_end_A": round(ya, 2), "t_run": round(t, 2)}
+        if getattr(self.args, "trace", False):
+            self.rec["trace"] = self.trace
         self.phase = "done"
 
 

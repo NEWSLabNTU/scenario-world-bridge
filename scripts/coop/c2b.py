@@ -97,7 +97,7 @@ def scenario(path, d0, dv):
 ''')
 
 
-def score(log_a, log_b, d0, dv):
+def score(log_a, log_b, d0, dv, t_prep=0.0):
     """The arena's judgement from the agents' logs."""
     ra = [json.loads(line) for line in open(log_a) if line.strip()]
     rb = [json.loads(line) for line in open(log_b) if line.strip()]
@@ -110,8 +110,8 @@ def score(log_a, log_b, d0, dv):
     min_ttc = min_thw = math.inf
     contact = False
     end = ta[-1]
-    peak, acc_f = [0.0, 0.0], [0.0, 0.0]
-    vprev = None
+    peak = [0.0, 0.0]
+    hist = []
     for r in ta:
         t = r["t"] - t0
         lat, along, v, ov = r["lat"], r["along"], r["v"], r["ov"]  # along: B's centre ahead of A
@@ -126,15 +126,16 @@ def score(log_a, log_b, d0, dv):
                 min_ttc = min(min_ttc, gap / closing)
             if vf > 1.0 and gap > 0:
                 min_thw = min(min_thw, gap / vf)
-        # peak braking as arena.py measures it: speed differenced, smoothed 0.7 / 0.3 (its
-        # filter at 0.05 s ticks; the log is every 0.1 s, so two filter steps per sample)
-        if vprev is not None:
-            for k, now in ((0, v), (1, ov)):
-                a = (now - vprev[k]) / 0.1
-                acc_f[k] = 0.49 * acc_f[k] + 0.51 * a
-                peak[k] = max(peak[k], -acc_f[k])
-        vprev = (v, ov)
-        merged = lat >= 0.99
+        # peak braking as arena.py measures it: the largest speed drop over any 0.5 s
+        hist.append((t, v, ov))
+        while hist and t - hist[0][0] > 0.5 + 1e-9:
+            hist.pop(0)
+        if t - hist[0][0] >= 0.5 - 0.051:
+            span = t - hist[0][0]
+            peak[0] = max(peak[0], (hist[0][1] - v) / span)
+            peak[1] = max(peak[1], (hist[0][2] - ov) / span)
+        dec = r.get("decide")
+        merged = dec is not None and r["t"] - t0 >= (dec - 0.0) + t_prep + C1.TYPES["car"].t_lc
         if contact or t >= C1.T_MAX or (t >= C1.HORIZON and merged):
             end = r
             break
@@ -142,9 +143,12 @@ def score(log_a, log_b, d0, dv):
     va0, vb0 = ta[0]["v"], ta[0]["ov"]
     da = sum(r["v"] * 0.1 for r in ta if t0 <= r["t"] <= end["t"])
     db = sum(r["ov"] * 0.1 for r in ta if t0 <= r["t"] <= end["t"])
-    lost_a = max(0.0, (va0 * T - da) / max(va0 * T, 1.0))
-    lost_b = max(0.0, (vb0 * T - db) / max(vb0 * T, 1.0))
-    got_in = end["lat"] >= 0.9
+    lost_a = min(1.0, max(0.0, (va0 * T - da) / max(va0 * C1.HORIZON, 1.0)))
+    lost_b = min(1.0, max(0.0, (vb0 * T - db) / max(vb0 * C1.HORIZON, 1.0)))
+    # in: A's lane change is complete by its plan and A is in B's lane (the lateral measure on the
+    # curve settles near 0.96, so a 0.9 threshold at the end misread a finished merge)
+    dec = end.get("decide")
+    got_in = dec is not None and end["t"] - t0 >= dec + t_prep + C1.TYPES["car"].t_lc and end["lat"] >= 0.5
     dropped = any(r.get("dropping") for r in ta)
     ahead = got_in and not dropped and end["along"] < 0
     if contact:
@@ -186,7 +190,7 @@ def run_one(out, d0, dv, pa, pb, seed, port, relay):
         p.wait(timeout=20)
     res = {"d0": d0, "dv": dv, "a": pa["name"], "b": pb["name"], "seed": seed, "scenario_exit": r.returncode}
     try:
-        res.update(score(rd / "coop_a.jsonl", rd / "coop_b.jsonl", d0, dv))
+        res.update(score(rd / "coop_a.jsonl", rd / "coop_b.jsonl", d0, dv, pa["t_prep"]))
     except Exception as e:  # noqa: BLE001 -- recorded with the run
         res["error"] = repr(e)
     return res
@@ -209,7 +213,8 @@ def main():
             for r in old:
                 tag = f"d{r['d0']:g}_v{r['dv']:g}_{r['a']}_{r['b']}_s{r['seed']}"
                 rd = Path(a.out) / tag
-                r.update(score(rd / "coop_a.jsonl", rd / "coop_b.jsonl", r["d0"], r["dv"]))
+                pa = A_EQ if r["a"] == "A_eq" else DO.A_AW_PERM
+                r.update(score(rd / "coop_a.jsonl", rd / "coop_b.jsonl", r["d0"], r["dv"], pa["t_prep"]))
                 f.write(json.dumps(r) + "\n")
         return
     if a.arena_port:

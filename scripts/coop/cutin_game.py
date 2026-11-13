@@ -208,9 +208,11 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
                 min_thw = min(min_thw, gap / v_follow)
     # progress is judged over the whole run, which lasts until A's merge is complete: an
     # unfinished merge no longer scores as a total loss at a fixed horizon
+    # lost progress over the run, as a share of free flow over a fixed HORIZON: a run that goes on
+    # past HORIZON (until A's merge is complete) adds its loss without diluting it (074 D2)
     free_a, free_b = va0 * t, vb0 * t
-    lost_a = max(0.0, (free_a - (xa - d0 - cap_a.length)) / max(free_a, 1.0))
-    lost_b = max(0.0, (free_b - xb) / max(free_b, 1.0))
+    lost_a = min(1.0, max(0.0, (free_a - (xa - d0 - cap_a.length)) / max(va0 * HORIZON, 1.0)))
+    lost_b = min(1.0, max(0.0, (free_b - xb) / max(vb0 * HORIZON, 1.0)))
     if contact:
         lost_a = lost_b = 1.0
     if decide is None:

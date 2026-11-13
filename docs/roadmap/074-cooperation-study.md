@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b first sample run: outcomes agree 24/24, payoffs 71 % (D2 not met; offset to locate); next: locate the offset, E3, C3. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); next: E2's lane change, E3, C3, N1-N2. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -363,6 +363,23 @@ pairs (the double oracle's equilibrium; the Autoware-like pair) x two seeds = 24
   end state; one tick of control latency in the agent (it acts on the world tick's callback).
   The equilibrium classes rest on payoff *differences* within a cell, which a common offset does
   not move; the welfare levels and the double oracle's small gains (~0.003-0.01) do depend on it.
+
+**D2, second sample (2026-11-13): met.** The offset was the scoring, not the physics. Both sides
+scored lost progress over the run's own length, and swb's runs lasted 23-30 s (its lateral
+measure on the curve plateaued at ~0.96, so "merged" came late), which diluted or inflated the
+loss; and peak braking was the largest sample, so it depended on the logging rate. Fixed in both
+(`cutin_game`, `arena`, `c2b`): a merge is complete at decide + t_prep + t_lc (the plan, as the
+agent runs it) with the lateral at >= 0.5 of a lane; lost progress is a share of free flow over the
+fixed HORIZON (a longer run adds its loss without diluting it); peak braking is the speed drop over
+a 0.5 s window. In the agent: lanes are tracked by continuity (the lane lookup failed on the
+curve at 20/1), and B sees A's lateral through the observer, as in the arena, not from truth.
+Rerun of all 24 runs (`run2/`, against `run1`'s arena runs rescored the same way):
+- **Payoffs: 44 of 48 (92 %) inside the arena's intervals; outcomes agree in 24 of 24. D2 met.**
+- The four misses are all one cell, 10/0, where B yields: the arena's B loses 0.123, swb's
+  0.086-0.100. B's yield is softer in swb (the observer sees A's move later on the curve than on
+  the arena's straight road). The cell's class (A ahead, no contact) agrees.
+- The arena is trusted for outcome classes and payoff levels within 0.02, except a yielding B's
+  cost, which it overstates by up to 0.04 at 10/0; stage 5 may start.
 
 ### C3. B as Autoware
 

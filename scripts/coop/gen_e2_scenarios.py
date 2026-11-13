@@ -47,7 +47,8 @@ LEAD = '''		<ScenarioObject name="lead">
 
 
 def pos(p):
-    return f'<WorldPosition x="{p[0]}" y="{p[1]}" z="0.0" h="{H:.4f}" p="0" r="0" />'
+    h = p[2] if len(p) > 2 else H
+    return f'<WorldPosition x="{p[0]}" y="{p[1]}" z="0.0" h="{h:.4f}" p="0" r="0" />'
 
 
 def reach(ent, p, tol=3.0):
@@ -136,6 +137,13 @@ def main():
     (OUT / "town03_e2_lane_change.xosc").write_text(doc(
         "lane_change", "Town03 east straight: start in the innermost lane, goal in the inner lane 106 m on, across "
         "a dashed line; the route forces a lane change; no other traffic", xy("innermost", 22.0), xy("inner", 128.0), 9.0))
+    # The route-forced change from a standstill stalled on Town03 (E2): here the change is
+    # needed only 220 m on, past the curve (lanelet 68766 at arc length 220 m), so Autoware is
+    # already moving when its lane-change module acts.
+    (OUT / "town03_e2_lane_change_long.xosc").write_text(doc(
+        "lane_change_long", "Town03 east straight and curve: start in the inner lane, goal in the innermost lane "
+        "220 m on, past the curve; the lane change happens on the move; no other traffic",
+        xy("inner", 22.0), (183.72, 199.55, 3.1261), 9.0))
 
 
 if __name__ == "__main__":

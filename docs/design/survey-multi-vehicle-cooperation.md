@@ -277,6 +277,152 @@ This changes what a strategy is, and so shrinks the space most:
 swb's part: the exact ground truth at small N with real stacks, the exploitability check (the search
 for profitable deviations against any proposed equilibrium), and the deadlock finder.
 
+## Theory formulation
+
+User direction 2026-11-13: explore the theory formulation. This section states the game the rest of
+the document measures, in the user's terms: a general strategy and payoff space, the car model as a
+restriction, the other car's capability unknown, beliefs updated from observed behaviour. The
+propositions marked as such are standard results or direct consequences; the ones marked
+*hypothesis* are for swb to test.
+
+### Primitives
+
+- **Agents** $i \in N$, the cars in an interaction.
+- **Type** $t_i = (\theta_i, \varphi_i)$: the **capability** $\theta_i$ (acceleration and braking
+  bounds, top speed, lateral acceleration and curvature bounds, actuator lag, size) and the
+  **preference** $\varphi_i$ (the weights of its payoff; an SVO angle in the simplest case). The
+  ego knows its own type; another car's is private.
+- **Dynamics** $x_{k+1} = f(x_k, u_k)$ over the joint state, each car's control constrained by its
+  capability, $u_i \in U(\theta_i)$. The car's stack sits inside $f$ and $U$: Autoware turns a
+  high-level action into controls, and its own limits make $U(\theta_i)$ the physical bounds
+  intersected with the stack's.
+- **Observation** $o_{i,k} = h_i(x_{k-d}) + \text{noise}$ at the perception rate (10 Hz) with delay
+  $d$: the others' pose, velocity, size and class, never their type.
+- **Prior** $b_{i,0}(t_j \mid c_j)$ from the observed class and size $c_j$, and from a V2X broadcast
+  when there is one.
+- **Outcome** $\omega$ of an episode: the order of passage, each car's delay, minimum TTC and PET,
+  peak deceleration and jerk, contact and its impulse.
+- **Payoff** $J_i(\omega;\varphi_i)$: one function of the outcome for every car model. With an SVO
+  angle, $J_i = \cos\varphi_i\,U_i(\omega) + \sin\varphi_i\,U_{-i}(\omega)$, where $U$ is a car's
+  own utility (progress, comfort, safety).
+
+### Strategies: general rules, restricted by the car model
+
+A strategy is a **reactive rule** over high-level actions, not a full-horizon plan:
+
+$$\pi_i(a \mid b_i, s_i;\ \psi_i), \qquad a \in A_i,$$
+
+where $A_i$ is a handful of actions (A: go, wait, abort; B: yield, hold, close), $s_i$ the local
+state (gap, speeds, distance left), $b_i$ the belief about the others and $\psi_i \in \Psi$ the
+rule's parameters (merge threshold, wait, evidence needed). $\Psi$ is the same for every car
+model. The car model enters as a **type-dependent strategy set**: a rule is executable by type
+$\theta$ if the controls it induces stay in $U(\theta)$ over the contexts considered,
+
+$$\Psi(\theta_i) = \{\psi \in \Psi : u_i(\psi, \cdot) \in U(\theta_i)\} \subseteq \Psi,$$
+
+and the reachable outcomes shrink with it. A larger capability gives a larger set:
+$U(\theta) \subseteq U(\theta') \Rightarrow \Psi(\theta) \subseteq \Psi(\theta')$.
+
+### Beliefs from observed behaviour
+
+$$b_{i,k}(t_j) \;\propto\; P(o_{i,1:k} \mid t_j, \pi_j)\; b_{i,0}(t_j).$$
+
+Two kinds of evidence, with different logic:
+
+- **Capability evidence is set-valued.** An observed deceleration of $6\ \text{m/s}^2$ proves the
+  braking bound is at least 6: types below it get probability zero, whatever the strategy. The
+  support only shrinks; this part needs no model of the other's strategy.
+- **Intent evidence is strategic.** Whether a deceleration means "yields" depends on the strategy
+  the other is believed to play, so beliefs and strategies must be consistent: the likelihood uses
+  $\pi_j$, which is itself an equilibrium object.
+
+### Solution concept
+
+The exact object is a **perfect Bayesian equilibrium** of a dynamic game with type-dependent
+strategy sets: each car's rule a best response to the others' given its belief, beliefs updated by
+Bayes' rule on the equilibrium path. Intractable in general; three restrictions make it usable:
+
+1. **Restricted rules**: $\psi$ low-dimensional, so the game is over parameters, evaluated by
+   simulation: an empirical Bayesian game.
+2. **Approximate equilibrium**: an $\varepsilon$-Bayes-Nash equilibrium, with $\varepsilon$ measured as
+   exploitability (below), not assumed.
+3. **Safety as a constraint, not a payoff term**: each rule must satisfy
+   $P_{b_i}(\text{contact}) \le \delta$ under its own belief, which makes the game a generalized Nash
+   problem whose feasible sets depend on the others' strategies. The shield (AEB, RSS) is the hard
+   floor under it.
+
+The result is an **equilibrium map** $E(c, t)$ over the context $c$ (gap, speeds) and the types: the
+object swb measures.
+
+### The two-car cut-in: canonical forms
+
+**One-shot, at a fixed context: chicken.** Go/go risks contact, wait/wait costs time, and the two
+asymmetric profiles (one goes, one yields) are both equilibria. Which one is played is an
+**equilibrium selection** problem, not a computation problem. With B's type unknown, A's best response
+is a **threshold rule**. Let $p = P_{b_A}(\text{B yields})$, and $U_s$, $U_c$, $U_w$ A's payoffs if it
+goes and B yields, if it goes and B holds, and if it waits. Then A goes if and only if
+
+$$p \;>\; \kappa(c, \theta) = \frac{U_w - U_c}{U_s - U_c}.$$
+
+The threshold is explainable ("A went because $P(\text{yield}) = 0.7 > \kappa = 0.55$"), and the
+capabilities enter through $U_c$: the cost of going against a car that holds depends on how hard
+both can brake.
+
+**In time: a war of attrition.** "Wait" is a choice of when to concede. With private types
+(capability, patience), the classical result is that equilibrium concession times are monotone in
+type, and **deadlock is an equilibrium outcome**: two patient cars both wait. A deadlock is then not
+a bug of one stack but a property of the game, and its cure is outside the two cars: a tie-break.
+
+**Signals.** A's lateral nudge is a costly signal (it costs risk), B's early deceleration a signal
+back. Where the cost differs by type, separating equilibria exist and the nudge is informative; the
+turn indicator is cheap talk.
+
+**Conventions as correlation devices.** Right-of-way rules, traffic lights and a V2X negotiation
+act as correlation devices: they pick one of the asymmetric equilibria for both cars, a correlated
+equilibrium. In this view, cooperation is mostly **equilibrium selection**, and the question of
+which convention to use becomes mechanism design.
+
+### Capability in the game: two hypotheses for swb
+
+- **Single-agent monotonicity holds.** Against fixed others, more capability never hurts:
+  $\Psi(\theta) \subseteq \Psi(\theta')$, so the best response over the larger set is at least as
+  good.
+- *Hypothesis*: **in the game it can fail.** In chicken, inability is commitment: a car that
+  visibly cannot brake hard (a loaded truck), or cannot accelerate (the golf cart), is yielded to
+  or waited for, so a lower capability can earn a higher equilibrium payoff. Whether the stacks'
+  equilibrium map shows it, per car-model pair, is a measurement.
+- *Hypothesis*: **misbelief is asymmetric.** Overestimating the other's braking (believing it can
+  yield when it cannot) costs contact; underestimating it costs delay. The type-confusion matrix
+  should be lopsided, which argues for pessimistic priors on capability and neutral ones on
+  intent.
+
+### N cars
+
+- **Graphical Bayesian game**: $J_i$ depends on the cars adjacent to $i$ in a time-varying
+  interaction graph $G_k$; equilibria are local, and their cost grows with the largest clique.
+- **Anonymity within a class**: payoffs depend on how many cars of each class play each rule.
+- **Near-potential approximation**: fit $\Phi$ with $J_i(\psi_i, \psi_{-i}) - J_i(\psi_i', \psi_{-i})
+  \approx \Phi(\psi_i, \psi_{-i}) - \Phi(\psi_i', \psi_{-i})$; an equilibrium is then an optimum of
+  $\Phi$, and the fit's residual bounds how far it is from one.
+
+### Measures
+
+| measure | definition | what it says |
+|---|---|---|
+| exploitability | $\varepsilon(\pi) = \max_i \max_{\pi_i'} [J_i(\pi_i', \pi_{-i}) - J_i(\pi)]$ | how far a profile is from equilibrium; found by search, so independent of how the profile was made |
+| misbelief regret | $R_i = J_i(\pi_i^{b}; t) - J_i(\pi_i^{t}; t)$ | what acting on the belief instead of the truth cost |
+| value of information | $\mathbb{E}_t[R_i]$ | what knowing the other's type is worth, so what a V2X broadcast is worth |
+| social welfare | $W = \sum_i J_i$ | |
+| price of anarchy, of stability | $W(\text{opt}) / W(\text{worst eq.})$, $W(\text{opt}) / W(\text{best eq.})$ | what selfish rules cost against coordination; what a good convention can recover |
+
+### From the theory to the measurement
+
+swb estimates $\hat J_i(\psi, c, t)$ from runs: a mean per profile, context and type pair with its
+uncertainty, a surrogate (a Gaussian process) over $c$, and runs placed where the equilibrium map
+changes. A profile is reported as an $\varepsilon$-equilibrium with confidence $1-\alpha$ from the
+estimates' bounds, as in EGTA's statistical results [18]. What is new against the literature: the
+type is the capability, the strategy sets depend on it, and the dynamics include the real stack.
+
 ## A per-vehicle strategy layer, on Autoware
 
 User direction 2026-11-13: explore the per-vehicle strategy design and architecture, mindful of

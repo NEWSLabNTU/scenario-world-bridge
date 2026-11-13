@@ -329,9 +329,12 @@ $$b_{i,k}(t_j) \;\propto\; P(o_{i,1:k} \mid t_j, \pi_j)\; b_{i,0}(t_j).$$
 
 Two kinds of evidence, with different logic:
 
-- **Capability evidence is set-valued.** An observed deceleration of $6\ \text{m/s}^2$ proves the
-  braking bound is at least 6: types below it get probability zero, whatever the strategy. The
-  support only shrinks; this part needs no model of the other's strategy.
+- **Capability evidence is set-valued, but soft.** An observed deceleration of $6\ \text{m/s}^2$
+  says the braking bound is at least 6, whatever the strategy; this part needs no model of the
+  other's strategy. But the acceleration is differentiated twice out of 10 Hz tracks, so the bound
+  is a likelihood with a noise model, not a hard cut, or one noisy sample prunes the true type.
+  And cars seldom show their limits in normal traffic, so most of the capability belief is the
+  class prior; observed motion mostly rules out the weakest types (roadmap 074 review).
 - **Intent evidence is strategic.** Whether a deceleration means "yields" depends on the strategy
   the other is believed to play, so beliefs and strategies must be consistent: the likelihood uses
   $\pi_j$, which is itself an equilibrium object.
@@ -356,9 +359,15 @@ object swb measures.
 
 ### The two-car cut-in: canonical forms
 
-**One-shot, at a fixed context: chicken.** Go/go risks contact, wait/wait costs time, and the two
-asymmetric profiles (one goes, one yields) are both equilibria. Which one is played is an
-**equilibrium selection** problem, not a computation problem. With B's type unknown, A's best response
+**One-shot, at a fixed context: chicken, only where the moves are simultaneous.** Go/go risks
+contact, wait/wait costs time, and the two asymmetric profiles (one goes, one yields) are both
+equilibria. But the cut-in is sequential: B sees A's lane change and replies, and a threat to hold
+against a car that already went is not credible if yielding is then better for B. With B's reply
+sequentially rational the chicken band of a simultaneous model disappears (roadmap 074, C1 after
+its review). Chicken stays where something makes the choices simultaneous: a commitment that has to
+be made before the other's move is visible (B's courtesy before any signal; A's prepare phase),
+latency longer than the window, or uncertainty about the other's type. There, which equilibrium
+is played is an **equilibrium selection** problem, not a computation problem. With B's type unknown, A's best response
 is a **threshold rule**. Let $p = P_{b_A}(\text{B yields})$, and $U_s$, $U_c$, $U_w$ A's payoffs if it
 goes and B yields, if it goes and B holds, and if it waits. Then A goes if and only if
 
@@ -366,7 +375,9 @@ $$p \;>\; \kappa(c, \theta) = \frac{U_w - U_c}{U_s - U_c}.$$
 
 The threshold is explainable ("A went because $P(\text{yield}) = 0.7 > \kappa = 0.55$"), and the
 capabilities enter through $U_c$: the cost of going against a car that holds depends on how hard
-both can brake.
+both can brake. With safety as a constraint rather than a payoff, going against a hold that ends
+in contact is allowed only when $P(\text{hold}) \le \delta$, so A goes iff
+$p > \max(\kappa, 1-\delta)$; otherwise a large payoff gain could buy a contact risk.
 
 **In time: a war of attrition.** "Wait" is a choice of when to concede. With private types
 (capability, patience), the classical result is that equilibrium concession times are monotone in
@@ -409,11 +420,11 @@ which convention to use becomes mechanism design.
 
 | measure | definition | what it says |
 |---|---|---|
-| exploitability | $\varepsilon(\pi) = \max_i \max_{\pi_i'} [J_i(\pi_i', \pi_{-i}) - J_i(\pi)]$ | how far a profile is from equilibrium; found by search, so independent of how the profile was made |
+| exploitability | $\varepsilon(\pi) = \max_i \max_{\pi_i'} [J_i(\pi_i', \pi_{-i}) - J_i(\pi)]$ | how far a profile is from equilibrium; found by search, so independent of how the profile was made, and a lower bound: reported with the search's budget |
 | misbelief regret | $R_i = J_i(\pi_i^{b}; t) - J_i(\pi_i^{t}; t)$ | what acting on the belief instead of the truth cost |
 | value of information | $\mathbb{E}_t[R_i]$ | what knowing the other's type is worth, so what a V2X broadcast is worth |
-| social welfare | $W = \sum_i J_i$ | |
-| price of anarchy, of stability | $W(\text{opt}) / W(\text{worst eq.})$, $W(\text{opt}) / W(\text{best eq.})$ | what selfish rules cost against coordination; what a good convention can recover |
+| social cost | $C = -\sum_i U_i \ge 0$ over everyone in the trace, own utilities $U$ (not the SVO-weighted $J$, which would count the others twice); for comparisons across car models in common units (vehicle-seconds of delay), with safety as a constraint | |
+| price of anarchy, of stability | $C(\text{worst eq.}) / C(\text{opt})$, $C(\text{best eq.}) / C(\text{opt})$, both $\ge 1$; the losses $C(\text{eq.}) - C(\text{opt})$ when $C(\text{opt})$ is near 0 | what selfish rules cost against coordination; what a good convention can recover |
 
 ### From the theory to the measurement
 

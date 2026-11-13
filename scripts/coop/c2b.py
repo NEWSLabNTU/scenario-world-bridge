@@ -110,7 +110,7 @@ def score(log_a, log_b, d0, dv):
     min_ttc = min_thw = math.inf
     contact = False
     end = ta[-1]
-    peak_b = 0.0
+    peak, acc_f = [0.0, 0.0], [0.0, 0.0]
     vprev = None
     for r in ta:
         t = r["t"] - t0
@@ -126,9 +126,14 @@ def score(log_a, log_b, d0, dv):
                 min_ttc = min(min_ttc, gap / closing)
             if vf > 1.0 and gap > 0:
                 min_thw = min(min_thw, gap / vf)
+        # peak braking as arena.py measures it: speed differenced, smoothed 0.7 / 0.3 (its
+        # filter at 0.05 s ticks; the log is every 0.1 s, so two filter steps per sample)
         if vprev is not None:
-            peak_b = max(peak_b, -(ov - vprev) / 0.1)
-        vprev = ov
+            for k, now in ((0, v), (1, ov)):
+                a = (now - vprev[k]) / 0.1
+                acc_f[k] = 0.49 * acc_f[k] + 0.51 * a
+                peak[k] = max(peak[k], -acc_f[k])
+        vprev = (v, ov)
         merged = lat >= 0.99
         if contact or t >= C1.T_MAX or (t >= C1.HORIZON and merged):
             end = r
@@ -146,7 +151,7 @@ def score(log_a, log_b, d0, dv):
         lost_a = lost_b = 1.0
     elif not got_in:
         lost_a = 1.0
-    o = C1.Outcome((lost_a, lost_b), min_ttc, min_thw, contact, (0.0, min(peak_b, 9.6)), ahead, "")
+    o = C1.Outcome((lost_a, lost_b), min_ttc, min_thw, contact, (peak[0], peak[1]), ahead, "")
     pref, cap = C1.Preference(), C1.TYPES["car"]
     return {"d0_real": start.get("along") and round(-start["along"] - L, 2), "dv_real": start.get("v") and round(start["v"] - start["ov"], 2),
             "uA": round(C1.utility(o, 0, cap, pref), 4), "uB": round(C1.utility(o, 1, cap, pref), 4),
@@ -195,8 +200,18 @@ def main():
     ap.add_argument("--seeds", type=int, default=1)
     ap.add_argument("--only", type=int, default=0, help="run just the first N runs (a smoke test)")
     ap.add_argument("--arena-port", type=int, default=0, help="instead: the same cells in the arena on this CARLA")
+    ap.add_argument("--rescore", action="store_true", help="instead: score the runs in --out again from their logs")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
+    if a.rescore:
+        old = [json.loads(l) for l in open(os.path.join(a.out, "c2b.jsonl")) if l.strip()]
+        with open(os.path.join(a.out, "c2b.jsonl"), "w") as f:
+            for r in old:
+                tag = f"d{r['d0']:g}_v{r['dv']:g}_{r['a']}_{r['b']}_s{r['seed']}"
+                rd = Path(a.out) / tag
+                r.update(score(rd / "coop_a.jsonl", rd / "coop_b.jsonl", r["d0"], r["dv"]))
+                f.write(json.dumps(r) + "\n")
+        return
     if a.arena_port:
         arena_compare(a.arena_port, a.out)
         return

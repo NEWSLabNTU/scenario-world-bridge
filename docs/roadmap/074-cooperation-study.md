@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; next: C2b (the cut-in agent), E3, C3. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b first sample run: outcomes agree 24/24, payoffs 71 % (D2 not met; offset to locate); next: locate the offset, E3, C3. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -335,6 +335,34 @@ policy is a small ROS node per car: it reads its own odometry and the other car 
 truth (`publish_ground_truth_objects:=true`, `/perception/object_recognition/objects`, Autoware's
 perception off) and publishes Autoware's control command to acb. No Autoware is needed. It shows the arena measures what swb measures; any difference names a
 gap in the arena (spawn, physics settings, timing) before its numbers are trusted.
+
+**C2b and D2, first sample (2026-11-13).** `scripts/coop/cutin_agent.py` (the light policies as
+swb agents), `scripts/coop/c2b.py` (a two-agent Town03 scenario per run through `just scenario`,
+the agents' truth logs scored as the arena scores, and the same cells rerun in the arena with
+`--arena-port`), `scripts/coop/d2_compare.py`. Stack: `just run map_path:=<Town03>
+ego_launch:=none vehicle_physics:=<the spec's carla_physics.yaml>` (without `vehicle_physics` the
+agent cars run the blueprint's physics, and both levelled off while asking for acceleration).
+Cars in CARLA's driving lanes 2 and 3 of road 65 (its lane at x = 239 is Bidirectional, though
+Autoware's lanelet 68766 there is a driving lane). v_B 8 m/s, 8 s warm-up; six cells x two rule
+pairs (the double oracle's equilibrium; the Autoware-like pair) x two seeds = 24 swb runs, against
+4 arena seeds each. Data in `/mnt/p5plus/aeon/coop/c2b/run1/`.
+
+- **Outcomes agree in 24 of 24 runs**: who merges ahead and whether anyone touches (nobody does)
+  are the same in swb and the arena, cell by cell, for both rule pairs. Contexts reached in swb:
+  d0 within 1.2 m, dv within 0.5 m/s of the target (the arena's warm-up is tighter).
+- **Payoffs: 34 of 48 (71 %) inside the arena's 95 % intervals; D2's bar (90 %) is not met.**
+  The misses are one-sided: where A drops behind (6/0, 10/-2, 14/-3) or B yields (10/0), the
+  arena's car loses 0.02-0.04 more utility than swb's (10-25 % of the value). Where A goes
+  ahead cleanly the two agree.
+- A first scoring of the swb runs left A's braking term out and differenced B's speed raw;
+  rescored as the arena measures (smoothed), the miss narrowed from 69 % to 71 % inside and the
+  offsets from ~0.05 to 0.02-0.04 (the first scoring is kept as `c2b.first_scoring.jsonl`).
+- **D2: mismatch; locate before trusting the arena's payoff levels** (its outcome classes are
+  supported). Candidates, in order: lost progress is measured from straight-line positions in the
+  arena but from integrated speed along a curving path in swb; the run's end and the warm-up's
+  end state; one tick of control latency in the agent (it acts on the world tick's callback).
+  The equilibrium classes rest on payoff *differences* within a cell, which a common offset does
+  not move; the welfare levels and the double oracle's small gains (~0.003-0.01) do depend on it.
 
 ### C3. B as Autoware
 

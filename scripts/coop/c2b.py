@@ -253,10 +253,11 @@ def arena_compare(port, out, seeds=4):
         rows = AR.run_jobs(ar, cars, jobs, random.Random(5), Args())
     finally:
         ar.close()
-    keep = ("d0", "dv", "a", "b", "seed", "d0_real", "dv_real", "uA", "uB", "contact", "ahead", "got_in", "t_run", "ttc")
+    keep = ("d0", "dv", "a", "b", "seed", "d0_real", "dv_real", "uA", "uB", "contact", "ahead", "got_in", "t_run", "ttc",
+            *measures.Measures().result().keys())
     with open(os.path.join(out, "arena.jsonl"), "w") as f:
         for r in rows:
-            f.write(json.dumps({k: r[k] for k in keep}) + "\n")
+            f.write(json.dumps({k: r.get(k) for k in keep}) + "\n")
     return rows
 
 

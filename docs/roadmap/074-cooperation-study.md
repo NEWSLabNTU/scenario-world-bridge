@@ -400,6 +400,11 @@ the capability margin, TET/TIT, impact speed, stops and stopped time, peak jerk,
 for the reaction latencies. In run2 every run has margin 1 and TET 0 (no closing on a shared
 lane); B's reaction to A's move where B yields (10/0) is 1.5 s (equilibrium pair) and 2.6 s
 (Autoware-like pair), A's braking jerk when it drops behind 3.6-5.5 m/s^3.
+Against the arena's runs of the same cells (arena / swb, means): B's reaction to A's move
+1.64 / 1.50 s and 2.69 / 2.60 s; A's lateral start within 0.05-0.3 s in 10 of 12 cells (the 2/2
+cell 1.0-1.2 s later in swb); A's jerk when it drops behind 3.7-5.7 / 3.6-5.5 m/s^3. The one
+clear difference is B's jerk when it yields (10/0): 5.3-5.6 in the arena, 3.7-3.8 in swb, the
+same softer yield that D2's remaining misses show.
 
 ### C3. B as Autoware
 

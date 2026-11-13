@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); next: E3, C3, N1-N2. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b running on 241 and 118; next: B_AW's lateral reaction, E3, N1-N2. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -419,6 +419,41 @@ found among Autoware's own knobs first (obstacle cruise's following distance, th
 module's safety margins; the survey's "Strategy knobs" gap); until then B is Autoware as shipped,
 one strategy, and the map shows which of A's choices it rewards. Then A by RTC (go now / wait,
 `enable_rtc` on), then both Autoware.
+
+**C3a, first map (2026-11-14).** B the Autoware ego with ground-truth objects
+(`publish_ground_truth_objects:=true`, occupancy grid `laserscan_based`: another user's vLLM held
+27 of 32 GB of 133's GPU), A a light agent (`scripts/coop/c3.py`, `c3_run.sh`), on Town03's west
+straight (two driving lanes, dashed line; the east straight's third lane is the tunnel's divider).
+v_B 6 m/s: at 8 the 20 s scoring horizon ran A off the straight's end. The six C2b cells x the two A
+rules x 2 seeds, against the arena's same cells at 6 m/s with B the Autoware-like rule (B_AW, 4 seeds).
+Data `/mnt/p5plus/aeon/coop/c3/c3a{,_6_0}/`.
+
+| cell (d0, dv) | arena, B = B_AW | Autoware |
+|---|---|---|
+| 2, +2 | A ahead, both ~0 | the same; Autoware does not brake |
+| 6, 0 | A_aw_perm ahead 4/4 (uB -0.25), A_eq 1/4 | A behind 4/4 (uA -0.28) |
+| 10, 0 | A ahead, uB -0.09 | A ahead, uB -0.12 |
+| 10, -2 | A behind | the same |
+| 14, -3 | contact: A_eq 4/4 at 3 m/s, A_aw_perm 2/4 | no contact 4/4; Autoware brakes (uB ~-0.4), A ahead 1/4 |
+| 20, +1 | A ahead, ~0 | the same |
+
+- **Four of six cells agree** in outcome and within ~0.03 in payoff.
+- **D4's first residual (14/-3): the imitation reacts too late.** B_AW reacts only once A is in its
+  lane; Autoware brakes on the lane change's onset (its prediction sees A's lateral motion), so a
+  slow car cutting in 14 m ahead is a contact in the arena and a firm brake on the real stack. The
+  arena overstates contact where A is slower than B. Next: give B_AW a reaction to A's lateral
+  motion (the observer's lateral), refit, rerun C2a's band.
+- **Boundary sensitivity (6/0).** Autoware cruises ~0.2 m/s above its limit's set point relative to
+  A (5.8 against 5.6), so the 6.6 m gap closes and A_aw_perm (needs 8 m) waits out its patience
+  and drops behind; B_AW holds its speed exactly and the gap lets A in. The cell sits on the
+  ahead/behind boundary; its class flips on a 0.2 m/s cruise difference.
+- **Bugs found on the way, fixed**: the stack never gave the ego its spec physics' pedal maps
+  (`stack.launch.py`: the ego ran to 30 m/s against a limit of 8), acb's ground-truth objects all
+  faced east (headings converted to radians twice, so a car in the next lane had a path across the
+  ego's lane and obstacle_stop halted it), the agent took CARLA's turn branch at a junction (both
+  branches start tangent; now judged 6 m along).
+- C3b (CenterPoint) runs on 241 (seeds 0-1, with the arena) and 118 (seeds 2-3), results to
+  `~/nas/autoveh/dataset/2026-11-13_coop-c3/`.
 
 ### C4. Fit and explain
 

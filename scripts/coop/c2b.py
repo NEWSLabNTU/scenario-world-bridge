@@ -28,8 +28,9 @@ import measures  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 H = math.atan2(1.0, 0.025)
 LANES = {"coop_b": 246.0, "coop_a": 242.5}  # x at y = 16.7, +0.025 m per m of y
-# (CARLA's lane at x = 239 is Bidirectional, not Driving, though Autoware's lanelet 68766 is a
-# driving lane: the light agents use CARLA's two driving lanes, 2 and 3)
+# (CARLA's lane at x = 239 is Bidirectional, not Driving; Autoware's lanelet 68766 there was a
+# driving lane until repair_lanelet_non_driving_lanes.py closed it: the light agents use CARLA's
+# two driving lanes, 2 and 3)
 L = 4.79
 VB, WARMUP = 8.0, 8.0
 

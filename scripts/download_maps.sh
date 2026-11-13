@@ -77,6 +77,12 @@ repair_maps() {
     # walkway module stops on Town05's raised ring highway for footpaths 10 m below.
     python3 "$(dirname "$0")/repair_lanelet_walkways_under_roads.py" "$1" \
         ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
+    # Some road lanelets lie on OpenDRIVE lanes no car may drive: Town03's twelve
+    # `bidirectional` lanes, one of them the east tunnel's divider with walls in it, which
+    # Autoware changed lanes into until its AEB stopped it (roadmap 074 E2). Close them to
+    # vehicles (participant:vehicle=no), so routing and lane changes leave them out.
+    python3 "$(dirname "$0")/repair_lanelet_non_driving_lanes.py" "$1" \
+        ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
 }
 
 # Skip if already present

@@ -120,7 +120,7 @@ needed for mass runs; C1 stays the prediction.
 
 What the light policies' perception model and the Autoware-like rules need, measured on the
 stack (`just run`, CARLA 0.9.16 on port 2400, a fresh build of both workspaces at the pins).
-Scenarios `scenarios/coop/town03_e2_{lead_brake,lane_change}.xosc` (written by
+Scenarios `scenarios/coop/town03_e2_{lead_brake,lane_change_west}.xosc` (written by
 `scripts/coop/gen_e2_scenarios.py`); a ROS bag in the ego domain around each run
 (`/mnt/p5plus/aeon/coop/e2/run_one.sh`), the bridge's gap trace as the truth, and
 `scripts/coop/e2_bag.py` for the numbers. `max_velocity:=10` (the profile's default is 4.17 m/s,
@@ -150,7 +150,11 @@ which kept the ego from ever closing on the lead).
   divider, with walls (`BP_RepSpline65`) at x = 240.2 from y = 62. **The Town03 lanelet map turns
   that lane into a driving lanelet with a legal change into it**; the inner | outer line is
   solid, so that road has no valid lane change. Any scenario that drives lanelet 68766 meets the
-  walls (a map-tool issue, not fixed here). Found from `/diagnostics` in the bag
+  walls. **Fixed (2026-11-13)**: `scripts/repair_lanelet_non_driving_lanes.py`, in
+  `download_maps.sh`'s chain, closes to vehicles (`participant:vehicle=no`) every road lanelet on an
+  OpenDRIVE lane that is not a driving lane: Town03's twelve `bidirectional` lanes, 68766 among them,
+  none in the other towns. Routing and lane changes now leave them out; the two east-straight
+  lane-change scenarios are retired. Found from `/diagnostics` in the bag
   (`autonomous_emergency_braking: aeb_emergency_stop`, `/system/fail_safe/mrm_state`); no object
   was tracked, AEB acted on the points.
 - **Lane change, measured** on Town03's west straight (two driving lanes, dashed line, 244 m, no

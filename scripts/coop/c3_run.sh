@@ -11,7 +11,7 @@
 # on the same CARLA (c3.py --arena-port); stops CARLA; touches $OUT/DONE. Everything it
 # writes is under $OUT. Run it detached: nohup setsid scripts/coop/c3_run.sh > log 2>&1 &
 #
-# SEED0 shifts the seeds (two hosts: SEED0=0 and SEED0=2); ARENA=0 skips the arena's cells.
+# CELLS='6,0;14,-3' runs only those cells. SEED0 shifts the seeds (two hosts: SEED0=0 and SEED0=2); ARENA=0 skips the arena's cells.
 # GPU=<index> puts CARLA (-graphicsadapter) and the stack (CUDA_VISIBLE_DEVICES) on that GPU.
 #
 # EXTRA presets: C3a (ground-truth objects, no CUDA) "publish_ground_truth_objects:=true
@@ -80,7 +80,7 @@ PY
 )
 echo "check vmax ${VMAX:-none} (limit $VB)" | tee "$OUT/check.log"
 if python3 -c "import sys; sys.exit(0 if 0.5 < float('${VMAX:-99}') < $VB + 0.6 else 1)"; then
-    in_env python3 scripts/coop/c3.py --out "$OUT" --carla-port $PORT --seeds ${SEEDS:-2} --seed0 ${SEED0:-0} ${ONLY:+--only $ONLY} > "$OUT/stdout.log" 2>&1
+    in_env python3 scripts/coop/c3.py --out "$OUT" --carla-port $PORT --seeds ${SEEDS:-2} --seed0 ${SEED0:-0} ${ONLY:+--only $ONLY} ${CELLS:+--cells "$CELLS"} > "$OUT/stdout.log" 2>&1
 else
     echo "check failed: not running C3" | tee -a "$OUT/check.log"
 fi

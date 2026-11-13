@@ -5,7 +5,8 @@ starting with the cases swb can run today. The method, the theory and the litera
 [design/survey-multi-vehicle-cooperation.md](../design/survey-multi-vehicle-cooperation.md);
 this phase is its first experiment and the urban cases next to it.
 
-**Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). User direction: "Start from those already doable in
+**Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
+(E1-E7, D1-D9) below; next: E1, the arena spike. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -162,6 +163,13 @@ capabilities from `just vehicle-check` instead of `TYPES`.
 
 Each light policy believes the other's class and limits from a prior and the observed motion, not
 the truth; the type-confusion matrix and misbelief regret per context.
+
+### C7. Conventions
+
+A convention picks one equilibrium for every car: a priority rule, a courtesy band in which B
+pre-yields, a V2X negotiation. Each is played in the arena as a correlation device over C2's
+rules, and measured by the part of the price of stability it recovers. This says whether
+cooperation needs a convention or a new layer on the car, and feeds D6.
 
 ### U1-U3. The urban cases
 

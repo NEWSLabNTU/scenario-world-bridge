@@ -174,6 +174,46 @@ In this order, each first in a kinematic model as C1, then with light agents as 
 
 On-ramp and lane drop wait for a map (031); scooters and the night market for reactive NPCs.
 
+## Plan: exploration and decision steps
+
+User direction 2026-11-13: "Show me the road map. You can have design exploration and decision
+steps." Each stage builds (B), explores to learn what the build needs (E), and ends in a decision
+(D) with its criterion and options, so a stage that does not pay off changes the plan instead of
+being carried.
+
+| stage | step | kind | what | out / criterion |
+|---|---|---|---|---|
+| 0 theory | C1, review | B | kinematic cut-in, sequential; design review | done (a8505ad) |
+| 1 mass | E1 arena spike | E | own CARLA, generated road, one pair then K = 4, 16; runs per hour, tick time, CPU and GPU; step responses against the same car in swb | throughput and physics parity numbers |
+| | D1 arena or calibrated model | D | does the CARLA arena pay for itself? | arena if >= 1000 runs/h per host at K >= 4 and parity holds (speed RMSE <= 0.2 m/s, stopping distance within 5 %, lane change within 0.2 m); low throughput: a kinematic model calibrated on CARLA's step responses, the arena for spot checks; parity fails: fix the physics or drive the arena through `swb_carla_world` |
+| | E2 stack timing | E | Autoware ego on Town05: perception latency, tracked velocity and acceleration noise, lane-change prepare and total time, cruise reaction | the light policies' perception model; the `autoware` type's numbers |
+| | C2a arena | B | noise sources, warm-up, maps with intervals, double oracle, exploitability of the Autoware-like rule | maps, equilibria, exploits |
+| | C2b swb check | B | Town05 scenario, light policies on acb's ground truth | sampled cells |
+| | D2 trust the arena | D | do arena and swb agree? | >= 3 cells per region, >= 90 % of swb payoffs inside the arena's 95 % intervals, boundaries within one grid step; else locate and fix (spawn, timing, physics) and repeat; persistent: mass runs through swb itself on parallel pipelines (026), at lower volume |
+| 2 real stack | E3 Autoware knobs | E | which Autoware 1.5 parameters move B between yield and hold (obstacle cruise's idling time and RSS accelerations, lane change's rear-car assumptions, RTC), and whether they change at run time | knob-to-behaviour table |
+| | D3 B's strategies on Autoware | D | what is a strategy of a real stack? | stock Autoware as one fixed strategy first (A's best reply to it); knob settings as strategies where >= 2 settings move outcomes measurably; an overlay switch (042) only if neither works |
+| | C3a, C3b | B | B Autoware with ground-truth objects, then with perception | real-stack maps |
+| | D4 where the stack leaves the model | D | residual map against the Autoware-like rule | refit the imitation and rerun C2a; or perception-caused (C3a against C3b): update the perception model; or record as a finding |
+| | C3c | B | A by RTC, then both Autoware | cross-play of two configurations |
+| 3 explain | C4 fit | B | kappa rules, SVO, potential, level-k; identifiability | fitted models, residuals |
+| | D5 which explanation | D | which model the strategy layer carries | held-out payoff error and readability; default the threshold (kappa) rules |
+| | E4 heavier car | E | is a truck or bus spec available or buildable in `sim_vehicle_spec` | spec or none |
+| | C5 car models | B | pairs from the catalog, measured capabilities | maps per pair; the commitment hypothesis |
+| | C6 hidden capability | B | beliefs, type confusion, misbelief regret, value of information | regret and VoI maps |
+| | C7 conventions | B | a priority rule, a courtesy band for B, a V2X negotiation; each as a correlation device | the part of PoS each recovers |
+| | D6 build the strategy layer? | D | is acting on beliefs worth a node on the car? | build if regret or VoI reaches >= 10 % of stock's welfare loss in a non-trivial share of contexts; else stop at the findings, or recommend a capability broadcast only |
+| 4 vehicle | P1 strategy layer | B | `interaction_belief`, `interaction_strategy` on Autoware; ablation stock / belief / belief + V2X on the same maps | ablation maps |
+| | D7 deployable? | D | | never worse than stock on contact and the TTC distribution, a significant welfare gain, within the message-rate budget: propose it; else keep it as research |
+| 5 cases | E5 left-turn signals | E | can SSv2 give the left turn and the oncoming queue green together on Town05/10 | yes or a workaround |
+| | U1, U2 | B | left turn against a queue; roundabout entry (Town03); each kinematic, arena, swb | maps |
+| | E6 4-way stop site | E | lights switched off on a Town05 junction, or an unsignalled junction | site |
+| | D8 4-way stop | D | | site found: U3; else skip |
+| | E7 merge site | E | a lane drop on Town03/05 | site or none |
+| | D9 N-car merge | D | where to study N = 3-4 | the arena on a generated on-ramp or lane drop (no Autoware map needed) for the game; the swb check on a found site, or a Town04 map (031) only if the arena's results call for one |
+
+Order: stage 1 first. Stage 5 starts after D2 (it needs a trusted arena) and runs beside stages
+2-4. Scooters and the night market are a later phase (reactive NPCs).
+
 ## Design review, 2026-11-13
 
 User direction: "Review the design. Explore design flaws in theory, impractical assumption and

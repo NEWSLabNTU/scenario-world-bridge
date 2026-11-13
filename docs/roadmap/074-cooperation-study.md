@@ -446,10 +446,16 @@ being carried.
 | | E6 4-way stop site | E | lights switched off on a Town05 junction, or an unsignalled junction | site |
 | | D8 4-way stop | D | | site found: U3; else skip |
 | | E7 merge site | E | a lane drop on Town03/05 | site or none |
-| | D9 N-car merge | D | where to study N = 3-4 | the arena on a generated on-ramp or lane drop (no Autoware map needed) for the game; the swb check on a found site, or a Town04 map (031) only if the arena's results call for one |
+| | N1 conflict-set sizes | E | how many cars are in each car's conflict set, per slot, in the arena's and SSv2's multi-car scenes (and highD if it is at hand) | the size distribution; the literature's 3.2 mean / 7 max (survey, N cars) checked on ours |
+| | N2 composition | B | three-car arena games (a cut-in between B and its follower; a cut-in with a lead ahead of A) against the pair terms composed per measure (risk max, delay max-plus, braking max) | the residual $r$ per context with its bootstrap interval |
+| | D9 pairs enough? | D | does the composed model predict three cars | $r$ within the D2 tolerance in >= 90 % of contexts: pairs suffice, N grows only by composition; systematic: N3; large and irregular: those contexts stay explicit games, try N = 4 there only |
+| | N3 residual model | B | a permutation-invariant residual over the slots, fitted on three-car runs, tested on four | held-out error against the composed model's |
+| | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
+| | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |
 
 Order: stage 1 first. Stage 5 starts after D2 (it needs a trusted arena) and runs beside stages
-2-4. Scooters and the night market are a later phase (reactive NPCs).
+2-4. Its N-car path (N1-N5) follows the survey's formulation: pair terms, composition per
+measure, a measured residual, N grown by error, mean field past the conflict set. Scooters and the night market are a later phase (reactive NPCs).
 
 ## Design review, 2026-11-13
 

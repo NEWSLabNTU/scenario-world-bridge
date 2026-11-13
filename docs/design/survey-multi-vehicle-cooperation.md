@@ -407,14 +407,86 @@ which convention to use becomes mechanism design.
   should be lopsided, which argues for pessimistic priors on capability and neutral ones on
   intent.
 
-### N cars
+### N cars: pair terms, composition, residual, mean field
 
-- **Graphical Bayesian game**: $J_i$ depends on the cars adjacent to $i$ in a time-varying
-  interaction graph $G_k$; equilibria are local, and their cost grows with the largest clique.
-- **Anonymity within a class**: payoffs depend on how many cars of each class play each rule.
-- **Near-potential approximation**: fit $\Phi$ with $J_i(\psi_i, \psi_{-i}) - J_i(\psi_i', \psi_{-i})
-  \approx \Phi(\psi_i, \psi_{-i}) - \Phi(\psi_i', \psi_{-i})$; an equilibrium is then an optimum of
-  $\Phi$, and the fit's residual bounds how far it is from one.
+The two-car games above are what swb can measure cheaply (C2a: thousands of runs per hour). An
+N-car scene is built from them, and the error of doing so is measured rather than assumed.
+
+**Locality.** At step $k$ car $i$'s conflict set $K_i(k)$ is the cars whose reachable sets meet
+$i$'s within the horizon, sorted into slots: lead, rear, the four adjacent-lane neighbours (front
+and rear on each side), crossing, oncoming. Its payoff depends on $K_i$ only, a graphical game
+(Kearns, Littman, Singh [37]). Naturalistic data says $K_i$ is small: multi-vehicle interaction
+events in INTERACTION involve 3.2 vehicles on average and 7 at most, WOMD and Lyft at most 5
+[38]; at INTERACTION's intersections 10-17 cars are in the scene but about 5 or fewer are in
+conflict [39]. So exact games up to $|K_i| = 4$-$5$ cover most events, and the slots bound the
+local structure that a learned model must generalize over (Yehudai et al. [40]: size
+generalization holds only when local neighbourhoods match).
+
+**Pair terms.** $J^{(2)}(\psi_i, \psi_j; c_{ij}, t_i, t_j)$ is the measured two-car game for the
+pair's slot, relative context and types: the cut-in (C2a, the double oracle), the left turn (U1),
+car following. Each pair term splits into the measures it is made of: risk $\rho_{ij}$
+(post-encroachment or time-to-collision shortfall, contact), delay $d_{ij}$, peak braking $b_{ij}$.
+
+**Composition.** Different measures compose differently, and the rule is part of the model:
+
+| measure | rule | why | precedent |
+|---|---|---|---|
+| risk | $\rho_i = \max_{j \in K_i} \rho_{ij}$ (safe iff every pair is safe); upper bound $\sum_j \rho_{ij}$ | a car is hit by one other car at a time; the sum is the union bound | RSS [41]; pairwise CBF union bound [42] |
+| delay | max-plus along the leader-follower DAG: $d_j = \max(d_j^{\text{own}}, d_{\text{lead}(j)} - s_j)$, $s_j$ the slack its headway absorbs | a yield propagates down the queue (U1's chain externality) | FJMP's DAG factorization [43], M2I [44] |
+| braking | $b_i = \max_j b_{ij}$ | peak, not total | |
+| welfare | $C = \sum_i$ of the composed own costs | as for two cars | |
+
+The composed model $\hat J^{\text{comp}}_i = \mathrm{Agg}_{j \in K_i} J^{(2)}$ is the prediction;
+pairwise sums of social forces are known to fail in dense crowds (Moussaïd et al. [45]), which
+is why the aggregation is per measure and tested.
+
+**Higher-order residual.** Run the N-car game in the arena and in swb and measure
+$r_i = J_i - \hat J^{\text{comp}}_i$ per profile and context, with its bootstrap interval. Three
+outcomes: $r$ within noise (pairs suffice: report the variance the pairs explain); $r$ systematic
+but smooth in the slot features (learn it: $J_i = \hat J^{\text{comp}}_i + g_\theta(\{x_j\}_{j \in
+K_i})$, $g$ permutation-invariant per slot class, a Deep Sets or attention model; theory plus a
+learned residual as in PERL [46] and physics-informed car following [47]); $r$ large and
+irregular (the scene is a game of its own: solve it exactly). Cell-migration work fits pair plus
+three-body terms to trajectories and finds the three-body term a small correction in one of two
+cell lines [48]; that is the template, and nobody has done it for driving stacks.
+
+**Growing N by error.** Start from pairs. For each context family run $N = 3$; where the residual
+interval excludes zero and exceeds the tolerance $\delta$ (the D2 bar), keep the three-car game
+explicit and try $N = 4$ there only. Stop when $N+1$ changes the payoffs by less than $\delta$.
+The cost grows with the number of contexts that need it, not with $N$.
+
+**Equilibria.** With symmetric pair terms and self terms the game is a potential game: a pure
+equilibrium exists and best response converges (Liu et al. [10]). Right of way, truck against car
+and capability types make pairs asymmetric; then the near-potential fit above applies, and the
+fit's residual bounds the distance to an equilibrium. Pairwise games can be over-cautious and
+deadlock [10]; the arena's "after you" deadlock (910 runs in C2a) is that.
+
+**Mean-field regime.** Past the conflict set, cars matter through aggregates. Near field exact,
+far field mean field:
+
+$$J_i = J_i^{\text{near}}(\psi_i, \psi_{K_i}; c) + J^{\text{far}}(\psi_i; \rho, \bar v, \mu_\psi)$$
+
+with $\rho$ the density, $\bar v$ the mean speed and $\mu_\psi$ the population's rule mix,
+in equilibrium with the far field's own response (a mean-field game, Lasry-Lions [49],
+Huang-Malhamé-Caines [50]; for traffic, a driver utility calibrated to the fundamental diagram
+[51], AV speed control [11], lane changes [52], mixed human and AV populations [53]). One AV among
+many is a major agent among minor ones [54]; mean-field RL replaces the pair sum by an interaction
+with the neighbours' mean action [55], which is the bridge between the two halves. The
+finite-$N$ error is $O(1/\sqrt N)$ [54]; the one empirical threshold found is $N \gtrsim 30$, for
+routing [56], none for merges or junctions. Mean field fails at small $N$, under strong asymmetric
+coupling (mixed-autonomy routing's price of anarchy is unbounded [57]) and in dense crowds. For
+scooter swarms the far field is a porous-flow density [58].
+
+Hybrids of near and far exist in traffic *simulation* (micro-macro coupling at an interface) and
+in generic MARL (attention over near neighbours plus a mean field), but no game model has an exact
+conflict-set game plus a mean-field remainder, and there is no error bound for the split. swb can
+measure that error directly: the same scene with the far field explicit (all cars as agents) and
+as a density, at increasing $N$.
+
+**What is new here** (searched 2026-11-13, abstracts only): a measured higher-order residual on a
+full AV stack; payoff composition rules compared on measured multi-car risk and delay; a
+near-field game with a mean-field remainder for traffic and its validity range; a residual learned
+on top of a game-theoretic payoff model.
 
 ### Measures
 
@@ -757,6 +829,28 @@ Verified by title, authors, venue and URL on 2026-11-13 unless marked.
 34. nuPlan https://arxiv.org/abs/2106.11810; Waymo Sim Agents https://arxiv.org/abs/2305.12032; Waymax https://arxiv.org/abs/2310.08710; InterSim https://arxiv.org/abs/2210.14413; MetaDrive https://arxiv.org/abs/2109.12674; SMARTS https://arxiv.org/abs/2010.09776; Bench2Drive https://arxiv.org/abs/2406.03877
 35. Huai et al., "DoppelTest", ICSE 2023. https://ics.uci.edu/~yhuai/DoppelTest
 36. "STCLocker", 2025. https://arxiv.org/abs/2506.23995
+37. Kearns, Littman, Singh, "Graphical Models for Game Theory", UAI 2001 (UNVERIFIED, from memory).
+38. InterHub, multi-vehicle interaction events across datasets, 2024. https://arxiv.org/abs/2411.18302
+39. Transferable behaviour prediction at INTERACTION intersections, 2022. https://arxiv.org/abs/2202.05140
+40. Yehudai, Fetaya, Meirom, Chechik, Maron, "From Local Structures to Size Generalization in Graph Neural Networks", ICML 2021 (author list UNVERIFIED).
+41. Shalev-Shwartz, Shammah, Shashua, "On a Formal Model of Safe and Scalable Self-driving Cars", 2017. https://arxiv.org/abs/1708.06374
+42. TTC-based barrier functions for stochastic systems, 2026. https://arxiv.org/abs/2609.17347
+43. Rowe et al., "FJMP: Factorized Joint Multi-Agent Motion Prediction", CVPR 2023.
+44. Sun et al., "M2I: From Factored Marginal Trajectory Prediction to Interactive Prediction", CVPR 2022.
+45. Moussaïd, Helbing, Theraulaz, "How simple rules determine pedestrian behavior and crowd disasters", PNAS 108(17), 2011.
+46. Long et al., "PERL: physics-enhanced residual learning" for car following, 2023. https://arxiv.org/abs/2309.15284
+47. Mo, Shi, Di, physics-informed deep learning for car following, TR-C 2021. https://arxiv.org/abs/2012.13376
+48. Pair and three-body interactions fitted to cell trajectories, Physical Review Research 2025 (UNVERIFIED citation details).
+49. Lasry, Lions, "Mean field games", Japanese Journal of Mathematics 2, 2007 (UNVERIFIED, from memory).
+50. Huang, Malhamé, Caines, Nash certainty equivalence, Communications in Information and Systems 6(3), 2006 (UNVERIFIED, from memory).
+51. Chevalier, Le Ny, Malhamé, "A micro-macro traffic model based on mean-field games", ACC 2015.
+52. Festa, Göttlich, "A mean field game approach for multi-lane traffic management", 2017. https://arxiv.org/abs/1711.04116
+53. Multi-class Nash mean-field games for mixed human and AV traffic, TR-B 2025. https://arxiv.org/abs/2306.13543
+54. Nourian, Caines, "ε-Nash mean field game theory for nonlinear stochastic dynamical systems with major and minor agents", SICON 2013. https://arxiv.org/abs/1209.5684
+55. Yang et al., "Mean Field Multi-Agent Reinforcement Learning", ICML 2018. https://arxiv.org/abs/1802.05438
+56. Cabannes et al., "Solving N-player dynamic routing games with congestion: a mean field approach", AAMAS 2022. https://arxiv.org/abs/2110.11943
+57. Lazar, Coogan, Pedarsani, routing with mixed autonomy, unbounded price of anarchy, 2018-2019 (venue UNVERIFIED).
+58. Nair, Mahmassani, Miller-Hooks, "A porous flow approach to modeling heterogeneous traffic in disordered systems", TR-B 45(9), 2011.
 37. Wu, Kreidieh, Parvate, Vinitsky, Bayen, "Flow", IEEE T-RO 38(2), 2022. https://arxiv.org/abs/1710.05465
 38. Le Maitre, Prorok, "Effects of Controller Heterogeneity on Autonomous Vehicle Traffic", ITSC 2020. https://arxiv.org/abs/2005.04995
 39. Zhou, Gao, Olofsson, Frisk, "Uncertainty-Aware Decision-Making and Planning for Autonomous Forced Merging", CDC 2024. https://arxiv.org/abs/2410.20514

@@ -58,7 +58,7 @@ done
 
 # the check: the west lane change, the ego must hold max_velocity
 CHK="$OUT/check"; rm -rf "$CHK"; mkdir -p "$CHK"
-( source "$ENVSH" >/dev/null 2>&1
+( set +u; source "$ENVSH" >/dev/null 2>&1  # ROS setup scripts read unset variables
   exec ros2 bag record -s mcap -o "$CHK/bag" -e '^/localization/kinematic_state$' ) > "$CHK/bag.log" 2>&1 &
 BAG=$!; sleep 5
 just scenario "$R/scenarios/coop/town03_e2_lane_change_west.xosc" output_directory:="$CHK" > "$CHK/scenario.log" 2>&1

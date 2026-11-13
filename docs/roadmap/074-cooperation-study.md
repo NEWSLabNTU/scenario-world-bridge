@@ -452,6 +452,15 @@ Data `/mnt/p5plus/aeon/coop/c3/c3a{,_6_0}/`.
   faced east (headings converted to radians twice, so a car in the next lane had a path across the
   ego's lane and obstacle_stop halted it), the agent took CARLA's turn branch at a junction (both
   branches start tangent; now judged 6 m along).
+- **Refitting the imitation (`scripts/coop/c3_fit.py`)**: B rules reacting to A's lateral motion
+  (react_gap 12-30 m), B's reaction 0.5-1.0 s, braking 2.5-7 m/s^2, B seeing ground truth and A
+  the agent's observer (the arena now takes per-side observers and a per-run reaction). Autoware's
+  measured reaction is 1.0 s from A's lateral onset, with a hard brake (B jerk 8.8-11 against the
+  arena's 6.5). Five cells fit with any reacting rule; 14/-3 with A_aw_perm (3 s prepare) does not:
+  the arena side-swipes (impact ~0.1 m/s) in 3/4 runs at 2.5 m/s^2 and 2/4 at 7, while on the real
+  stack A ends at a standstill and nobody touches. Best so far B_r30_b7_t1 (error 5.0, against
+  10.4 for B_AW). Open: whether the gap is B's braking or A's port (the agent stops; the arena's A
+  presses on into B's flank), to locate with both cars' traces side by side.
 - C3b (CenterPoint) runs on 241 (seeds 0-1, with the arena) and 118 (seeds 2-3), results to
   `~/nas/autoveh/dataset/2026-11-13_coop-c3/`.
 

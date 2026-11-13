@@ -459,9 +459,13 @@ class Pair:
         self.yB, _ = arena.lane_y(road, -1)
         self.yA0, _ = arena.lane_y(road, -2)
         self.react_a = C1.TYPES["car"].reaction + rng.uniform(-args.reaction_jitter, args.reaction_jitter)
-        self.react_b = C1.TYPES["car"].reaction + rng.uniform(-args.reaction_jitter, args.reaction_jitter)
+        self.react_b = job.get("react_b", C1.TYPES["car"].reaction) + rng.uniform(-args.reaction_jitter, args.reaction_jitter)
         mk = lambda: Observer(args.obs_delay, args.obs_sigma_x, args.obs_sigma_v, rng)
-        self.obs_a, self.obs_b = mk(), mk()  # what A sees of B, what B sees of A
+        # B may perceive differently from A (C3a: Autoware on ground-truth objects, A the agent's
+        # observer): obs_b_* when the args carry them
+        gb = lambda k: getattr(args, "obs_b_" + k, None)
+        mk_b = (lambda: Observer(gb("delay"), gb("sigma_x"), gb("sigma_v"), rng)) if gb("delay") is not None else mk
+        self.obs_a, self.obs_b = mk(), mk_b()  # what A sees of B, what B sees of A
         self.phase = "warmup"
         self.t0 = None
         self.rec = None

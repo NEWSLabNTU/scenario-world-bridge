@@ -238,18 +238,22 @@ def main():
             f.flush()
 
 
-def arena_compare(port, out, seeds=4):
-    """The same cells and rules in the arena, at C2b's settings (v_B 8 m/s, 8 s warm-up)."""
+def arena_compare(port, out, seeds=4, obs=None, react_b=None):
+    """The same cells and rules in the arena, at C2b's settings (v_B 8 m/s, 8 s warm-up).
+    obs: the observer's settings (default: CenterPoint's, E2); react_b: B's reaction time."""
     import random
     import arena as AR
 
     class Args:
         k, obs_delay, obs_sigma_x, obs_sigma_v, reaction_jitter = 4, 0.19, 0.3, 0.2, 0.2
+    for key, val in (obs or {}).items():
+        setattr(Args, key, val)
     AR.WARMUP = WARMUP
     ar = AR.Arena(port, 4)
     try:
         cars = AR.setup_cars(ar, 4)
-        jobs = [{"d0": d0, "dv": dv, "vb": VB, "pa": pa, "pb": pb, "seed": s, "a": pa["name"], "b": pb["name"]}
+        jobs = [{"d0": d0, "dv": dv, "vb": VB, "pa": pa, "pb": pb, "seed": s, "a": pa["name"], "b": pb["name"],
+                 **({"react_b": react_b} if react_b is not None else {})}
                 for (d0, dv) in CELLS for pa, pb in PAIRS for s in range(seeds)]
         rows = AR.run_jobs(ar, cars, jobs, random.Random(5), Args())
     finally:

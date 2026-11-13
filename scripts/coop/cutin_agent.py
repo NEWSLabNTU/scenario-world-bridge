@@ -76,6 +76,13 @@ def _yaw_off(wp, ref_yaw):
     return abs((wp.transform.rotation.yaw - ref_yaw + 180.0) % 360.0 - 180.0)
 
 
+def _branch_off(wp, ref_yaw, probe=6.0):
+    """How far a branch turns from `ref_yaw`, judged `probe` m along it: at a junction the
+    straight and the turning branches start at the same point with the same heading."""
+    nxt = wp.next(probe)
+    return _yaw_off(nxt[0] if nxt else wp, ref_yaw)
+
+
 class CutInAgent(CarlaBasicAgent):
     name = "coop_cutin"
 
@@ -137,7 +144,7 @@ class CutInAgent(CarlaBasicAgent):
             cands = wp.next(min(step, left))
             if not cands:
                 return None
-            wp = min(cands, key=lambda w: _yaw_off(w, ref_yaw))
+            wp = min(cands, key=lambda w: _branch_off(w, ref_yaw))
             left -= step
         return wp
 
@@ -156,7 +163,7 @@ class CutInAgent(CarlaBasicAgent):
                 break
             # through a junction: the branch that goes straight on, never a turn (the nearest
             # branch to a car changing lanes there was a left turn, and A followed it; 074 C3)
-            wp = min(cands, key=lambda w: (round(_yaw_off(w, ref_yaw) / 5.0), w.transform.location.distance(loc)))
+            wp = min(cands, key=lambda w: (round(_branch_off(w, ref_yaw)), w.transform.location.distance(loc)))
         return wp
 
     # -- hooks -----------------------------------------------------------------------------

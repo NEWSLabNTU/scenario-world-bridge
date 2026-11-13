@@ -137,6 +137,77 @@ equilibrium mixture in the measured game, and its parameters are then fitted bac
 family where possible. RL's generalisation problem is checked, not assumed away: every proposed
 strategy is evaluated on contexts and maps it did not train on.
 
+## Car models, and what a car does not know about the other
+
+User direction 2026-11-13: the method must adapt to any car model, under a practical
+assumption: a car does not know the other vehicle's kinematic or dynamic properties. "The strategy
+and payoff space can be general to any car models. The car model restricts the set of strategies
+and outcomes."
+
+### One general game, the car model as a constraint
+
+- **The strategy space is the interaction's, not the car's.** A (cutting in): the gap g at which it
+  starts, the merge duration T, the target speed v*. B (in the lane): the time headway h it keeps,
+  its response to the cut-in (open the gap, keep it, close it) and how fast. Or, one level down,
+  the speed and lateral profiles over time. The same space for a sedan, a truck and a golf cart.
+- **The payoff space is the outcomes'.** Who goes first, each car's delay, minimum TTC and PET, the
+  peak deceleration and jerk used, contact and its severity. Severity depends on mass and speed, so
+  the outcome carries the physics and the payoff function stays one.
+- **A car model is a feasible set.** Its capability theta (acceleration and braking limits, top
+  speed, lateral acceleration and curvature, actuator lag, size) cuts the space: car i can execute
+  only S intersected with F(theta_i), and only the outcomes those strategies reach. The golf cart
+  (2.5 m/s ceiling) has no "go now" ahead of a fast B at a short gap; a truck's braking removes the
+  outcomes where B yields late. A larger capability gives a superset of strategies, so the
+  equilibrium regions should move predictably as theta grows; how far they move is a result.
+- **F is the car's and its stack's.** The autopilot limits the car below its physics (Autoware's
+  own speed, acceleration and jerk settings), so F = physical limits intersected with the stack's.
+  Both are measurable.
+
+A new car model is then a new F and one measurement of it, not a new game: the payoff model over
+the general strategies is reused, and only the boundaries move.
+
+### Incomplete information: the other car's F is a belief
+
+A car sees the other's pose, velocity, size and class, not its theta. So the game is Bayesian with
+the type being the other car's capability:
+
+1. **Prior from what the sensors show**: a class and size give a prior over limits (a car this size
+   brakes at least so hard). RSS [42] assumes such bounds as fixed worst cases, which is the
+   assumption this study drops; used per class it is the conservative fallback.
+2. **Belief from observed motion**: every observed acceleration is a lower bound on capability (a
+   6 m/s^2 stop proves at least 6). Zhou et al. [39] estimate other cars' acceleration bounds online
+   for forced merging; LUCIDGames [40] runs an unscented Kalman filter over others' parameters inside
+   a game MPC, where theta could hold limits instead of costs; constraint-learning inverse games [41]
+   recover constraint parameters, and capability limits are constraints.
+3. **Decisions over the belief**: robust (the worst case over the belief's support), chance
+   constrained (CCILQGames [43]), or confidence-aware (more conservative when the model predicts
+   badly, [44]).
+4. **Probing**: the cut-in is itself a probe. Nudging toward the lane reveals how B responds;
+   Sadigh et al. [45] probe a driver's style so, and dual control [46] trades probing against
+   performance under a safety shield. Here it would probe capability, not style.
+
+**What the literature lacks** (follow-up search, 2026-11-13): no driving game whose Bayesian type is
+the other car's dynamics or capability; types are objectives, intent, rationality or
+aggressiveness. No class-aware filter (car, truck, bus, cart) with class-specific limits feeding an
+interaction planner. No policy conditioned on the *other* agent's inferred dynamics (RMA [47] infers
+the ego's own; DynaDreamer [48] transfers across chassis from microcars to buses, single-agent). No
+quantitative study of how equilibria shift with the vehicle mix. The pieces exist apart; the
+combination is open.
+
+### Measuring the cost of not knowing
+
+The simulator knows every car's true theta; the cars do not. swb can therefore score both what
+happened and what would have happened with knowledge:
+
+- **Misbelief regret**: J(true type | belief) - J(true type | true type), per car and run.
+- **Value of information**: its expectation over the type distribution, i.e. what knowing the
+  other's capability is worth, and so what a V2X capability broadcast would be worth.
+- **The type-confusion matrix**: assumed class x actual class, with contact rate, minimum TTC and
+  delay in each cell. No AV paper reports it; in swb it is a sweep over two catalog entries and one
+  belief parameter.
+- The game-to-real gap of Ferguson et al. [49] (utility obtained less utility expected under the
+  agent's own model) is the same quantity in general games.
+
 ## What swb brings
 
 | needed for the method | swb today |
@@ -146,6 +217,7 @@ strategy is evaluated on contexts and maps it did not train on.
 | contexts as parameters | OpenSCENARIO parameters and SSv2's parameter sweeps; roadmap 025's genomes, including a cut-in family (gap 5-40 m, merge length 6-30 m, speed 2-10 m/s, acceleration 1-5 m/s^2) |
 | choosing the next runs | 025's ask/tell search (`scripts/gap_search.py`: corpus, archive, Exp3, Thompson sampling; tested offline) and its exploit pipeline (bisecting to a boundary); the same machinery can sample an equilibrium boundary instead of a gap boundary |
 | payoffs from physics | the per-frame trace (024: every entity's pose and velocity), contacts with impulse (021), JUnit verdicts; TTC, PET, delay and comfort follow from the trace |
+| car models, with true capabilities | `sim_vehicle_spec`: one spec per car (mass, size, brake torque and lag, motor limits and lag, steering limit and lag); three cars ship (`tesla_model3`, `drift_mustang`, `newslab_golfcart`), chosen per entity from the catalog. `just vehicle-check` measures each car's dynamics, so F(theta) is measured, not assumed |
 | two simulators | CARLA 0.9.16 and Isaac Sim 6.1 behind one world protocol: a payoff map measured on both says whether it depends on the simulator |
 
 What it adds that the literature lacks: payoffs measured on **full production stacks** (perception,
@@ -187,11 +259,18 @@ The user's own 2 x 2 cut-in, end to end, before any N-vehicle work:
    where the real stack behaves outside the model.
 4. **Fit and explain.** SVO angles and potential-game weights fitted to steps 2 and 3; the fit's
    residuals reported.
-5. **Then N = 3-4** on a merge: interaction-graph decomposition and one PSRO round with an RL best
+5. **Car models.** Steps 1-3 repeated with A and B drawn from the catalog (Model 3, golf cart, a
+   heavier car when one is specified): the equilibrium map per pair, and how it moves with theta
+   against what F(theta) predicts.
+6. **Hidden capability.** Each car's policy gets a belief over the other's class and limits instead
+   of the truth, from a class prior refined by observed motion. The type-confusion matrix and the
+   misbelief regret per context; then probing (A's nudge) against passive estimation.
+7. **Then N = 3-4** on a merge: interaction-graph decomposition and one PSRO round with an RL best
    response trained in step 1's model and validated in steps 2 and 3.
 
-Outputs: the equilibrium map with confidence, the fitted readable model and where it fails, and for
-step 3 the cross-play payoffs of two stack configurations, which no published work reports.
+Outputs: the equilibrium map with confidence, per car-model pair; the fitted readable model and
+where it fails; the cost of not knowing the other car's capability; and for step 3 the cross-play
+payoffs of two stack configurations. None of these is reported for full stacks in published work.
 
 ## References
 
@@ -235,3 +314,14 @@ Verified by title, authors, venue and URL on 2026-11-13 unless marked.
 36. "STCLocker", 2025. https://arxiv.org/abs/2506.23995
 37. Wu, Kreidieh, Parvate, Vinitsky, Bayen, "Flow", IEEE T-RO 38(2), 2022. https://arxiv.org/abs/1710.05465
 38. Le Maitre, Prorok, "Effects of Controller Heterogeneity on Autonomous Vehicle Traffic", ITSC 2020. https://arxiv.org/abs/2005.04995
+39. Zhou, Gao, Olofsson, Frisk, "Uncertainty-Aware Decision-Making and Planning for Autonomous Forced Merging", CDC 2024. https://arxiv.org/abs/2410.20514
+40. Le Cleac'h, Schwager, Manchester, "LUCIDGames", RA-L 6(3), 2021. https://arxiv.org/abs/2011.08152
+41. Zhang, Chiu, Chou, "Constraint Learning in Multi-Agent Dynamic Games from Demonstrations of Local Nash Interactions", 2025. https://arxiv.org/abs/2508.19945
+42. Shalev-Shwartz, Shammah, Shashua, "On a Formal Model of Safe and Scalable Self-driving Cars" (RSS), 2017. https://arxiv.org/abs/1708.06374
+43. Zhong, Shimizu, Chen, "CCILQGames", RA-L 2023. https://arxiv.org/abs/2203.01222
+44. Tian, Sun, Bajcsy, Tomizuka, Dragan, confidence-aware game-theoretic human models with a reachability safety monitor (venue UNVERIFIED). https://arxiv.org/abs/2109.14700
+45. Sadigh, Sastry, Seshia, Dragan, "Information Gathering Actions Over Human Internal State", IROS 2016. https://doi.org/10.1109/IROS.2016.7759036
+46. Hu, Isele, Bae, Fisac, "Active Uncertainty Reduction for Safe and Efficient Interaction Planning: A Shielding-Aware Dual Control Approach", IJRR 43(9), 2024. https://arxiv.org/abs/2302.00171
+47. Kumar, Fu, Pathak, Malik, "RMA: Rapid Motor Adaptation for Legged Robots", RSS 2021. https://arxiv.org/abs/2107.04034
+48. Wang, ..., Lv, "DynaDreamer", 2026. https://arxiv.org/abs/2607.13410
+49. Ferguson, Maheshwari, Wu, Sastry, "Game-to-Real Gap", 2026. https://arxiv.org/abs/2601.16367

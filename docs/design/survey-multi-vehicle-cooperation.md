@@ -423,6 +423,121 @@ changes. A profile is reported as an $\varepsilon$-equilibrium with confidence $
 estimates' bounds, as in EGTA's statistical results [18]. What is new against the literature: the
 type is the capability, the strategy sets depend on it, and the dynamics include the real stack.
 
+## Multi-vehicle cases from real traffic
+
+User direction 2026-11-13: the formulation on multi-vehicle cases (highway, night market, urban).
+Literature checked by web search the same day (a third round); unchecked items are marked.
+
+### What changes with many road users
+
+- **Heterogeneous classes.** Road users are cars, trucks, buses, scooters, bicycles and pedestrians.
+  A class is a prior over the type: a scooter is light, quick to turn, slow to brake hard and has
+  high agility, and a pedestrian has almost no momentum and a large lateral freedom.
+- **An open system.** Agents arrive and leave, so the game is a stochastic game with entry over a
+  time-varying interaction graph $G_k$, not a fixed $N$.
+- **Externalities beyond the graph.** A courtesy yield on a highway is local, but its cost
+  travels upstream as a shockwave to cars that never interacted with the merger. The game can be
+  solved locally, but the welfare must be measured over everyone the trace holds.
+- **Three structural regimes**, each with its own solver:
+
+| regime | where | structure | solver |
+|---|---|---|---|
+| few agents, tight coupling | merge gap, 4-way stop, roundabout entry, left turn | a Bayesian game over rules among 2-4 cars | the empirical game of this document, exactly |
+| chains | lanes, queues, an oncoming stream | leader-follower pairs along a lane; a follower's choice depends on its leader's | leader-follower decomposition; externality propagation along the chain |
+| populations | scooter swarm at a light, night-market crowd | many interchangeable agents; a payoff depends on the distribution, not on who | population or mean-field game: one AV against a distribution |
+
+- **Conventions differ per setting**: a zipper sign, first-come order at a stop, the two-stage left
+  box, or none at all in a night market. Each is a correlation device that selects among
+  equilibria, and its effect is measurable.
+
+### Highway: on-ramp, weaving, lane drop
+
+- **Players**: the merging car and the cars in the target lane, a chain. Zhang, Han, Grammatico [53]
+  treat the ego against the surrounding cars as one player that picks a gap, with a branch MPC
+  hedging whether the others play Nash or Stackelberg: an N > 2 setting kept small.
+- **Strategies**: the merger's gap choice and timing (which gap, when); each target-lane car's
+  yield or hold, and its headway.
+- **Lane drop**: an N-player alternating-priority game. The zipper is socially efficient, but a late
+  merger can look like it defects ("jumping the queue"). No game model of it was found. Field
+  evidence is weak: Kentucky 2017 found minor, not significant gains [54]; Iowa 2024 found better
+  operations but widely varying driver compliance [55]. Read as a game, the zipper is a norm
+  equilibrium that depends on familiarity: price of anarchy without it, of stability with it.
+- **Phenomena to test**: gap acceptance by speed difference and by class (a truck merging); the
+  courtesy yield's upstream shockwave (simulation evidence only so far, [56]).
+- **Data**: highD, exiD, INTERACTION [57-59].
+- **swb**: CARLA's highway towns (Town04, Town06) have ramps; the target-lane traffic can be SSv2's
+  NPCs plus background AVs; the upstream cost is read from the trace.
+
+### Urban: 4-way stop, unprotected left, roundabout, Taiwan's scooters
+
+- **Conflict-zone structure.** Cars interact through the conflict zones of an intersection, so the
+  game is a scheduling game: the order of passage through each zone. An equilibrium is an order; a
+  **deadlock is a cycle in the wait-for graph** (STCLocker's oracle [36]).
+- **4-way stop**: symmetric arrivals have no deterministic tie-break, so randomisation, auctions
+  (GAMEPLAN [60]) or backing off are needed. First-come order is the convention. Li et al. [61] model
+  several concurrent leader-follower pairs at an uncontrolled intersection, scaling to N. Data:
+  INTERACTION's multi-way stops [59].
+- **Unprotected left against an oncoming queue**: the oncoming cars are a chain. A follower cannot
+  yield unless its leader does, so A plays against the chain, not against one car. Two-player models
+  exist (bounded rationality, a quantal response equilibrium [62]; a Bayesian game [13]); none for the
+  queue was found.
+- **Roundabout entry**: level-k with an online estimate of the other driver's type [63]; a
+  Stackelberg-coalition model for CAVs [64]. Data: rounD [58], INTERACTION.
+- **Taiwan's scooters**:
+  - The swarm at a light is a population: scooters fill the waiting box and discharge ahead of the
+    cars. A Thai study found a motorcycle storage zone raises cars' start-up lost time linearly in
+    the motorcycles queued [65].
+  - Filtering between car lanes is a game between the scooter's choice of a gap and the car's
+    lateral position.
+  - The two-stage left box is a convention trading the scooter's delay for fewer conflicts.
+  - Seepage and porous-medium models exist [66]; **no game model of any of these was found.**
+  - **HetroD** [67] is drone data from six Taiwanese urban sites, about 70 % vulnerable road users,
+    with hook turns, lane splitting and aggressive overtaking, maps and signal states (licence
+    unverified). It is the dataset to fit scooter types and payoffs on.
+- **swb**: Town maps for the generic cases; the NTU twin (072, 059) for Taiwan's campus roads, where
+  scooters are common. A swarm needs many scooter NPCs. SSv2 scripts its NPCs rather than letting
+  them react, so a population that responds to the AV needs a reactive NPC controller. That
+  controller does not exist in swb.
+
+### Night market: shared space at walking speed
+
+- **Players**: one vehicle, sometimes a scooter or two, against a crowd: a population of pedestrians
+  of varying attention and patience, with stalls as obstacles. There are no lanes and no
+  convention.
+- **Formulation**: a repeated sequential chicken (Fox, Camara [68]) between the vehicle and each
+  pedestrian ahead of it. The vehicle's strategy is its assertiveness: its creep speed and the
+  minimum gap it holds. A pedestrian's best response is to step in front or to wait, by gap
+  acceptance. Johora and Müller [69] layer this: trajectory planning, social force for free flow, and
+  a game at each conflict.
+- **Equilibrium phenomena**: a vehicle that is too risk-averse is exploited and freezes, because
+  pedestrians cross with impunity in front of a car that always yields (Millard-Ball's argument
+  [70], popular-press source). A vehicle that is too assertive has unacceptable risk. The design
+  question is the creep speed and gap that keep throughput above zero with contact near zero.
+- **Capability** matters differently here: what counts is the stopping distance at walking speed,
+  the precision of a crawl, and the pedestrians' belief that the car can stop. Beliefs about
+  pedestrians cover attention (a phone), children and stall operators.
+- **Data**: Hamburg-Bergedorf shared space [71], DUT and CITR [72]. Nothing is at night-market
+  density. Golchoubian et al. [73] train a crowd-navigating AV on Bergedorf data (not a game).
+- **swb**: not ready. There is no map, SSv2's pedestrians are scripted, not reactive, and Autoware's
+  perception of a dense crowd is untested. The first step is offline: fit the sequential chicken on
+  Bergedorf or DUT, then add a social-force crowd controller as a world-side NPC driver.
+
+### Summary
+
+| setting | regime | start from | data | phenomenon | swb today |
+|---|---|---|---|---|---|
+| on-ramp, weaving | chain + small game | matrix game + branch MPC [53] | exiD, highD, INTERACTION | gap choice, courtesy shockwave | ready (Town04/06) |
+| lane drop | N-player alternating priority (new) | none | highD, own sweeps | zipper vs early merge, defection | ready |
+| 4-way stop | small game, scheduling | concurrent leader-follower [61]; auction [60] | INTERACTION | symmetric deadlock, tie-breaks | ready |
+| left turn vs queue | chain | QRE left turn [62], extended to a queue | INTERACTION, WOMD, SinD | gap acceptance vs queue length | ready |
+| roundabout | small game | adaptive level-k [63] | rounD, INTERACTION | entry assertiveness | ready |
+| Taiwan scooters | population | seepage models [66] + a game layer (new) | HetroD | swarm discharge, two-stage box, filtering | needs reactive scooter NPCs |
+| night market | population, shared space | sequential chicken [68] + GSFM [69] | Bergedorf, DUT | frozen vehicle vs risk | needs a map and a reactive crowd |
+
+The gaps in the literature are the lane-drop game, the left turn against a queue, any game model of
+scooter traffic, and shared space at night-market density. swb reaches the first two now. The other
+two need reactive populations.
+
 ## A per-vehicle strategy layer, on Autoware
 
 User direction 2026-11-13: explore the per-vehicle strategy design and architecture, mindful of
@@ -641,6 +756,28 @@ Verified by title, authors, venue and URL on 2026-11-13 unless marked.
 47. Kumar, Fu, Pathak, Malik, "RMA: Rapid Motor Adaptation for Legged Robots", RSS 2021. https://arxiv.org/abs/2107.04034
 48. Wang, ..., Lv, "DynaDreamer", 2026. https://arxiv.org/abs/2607.13410
 49. Ferguson, Maheshwari, Wu, Sastry, "Game-to-Real Gap", 2026. https://arxiv.org/abs/2601.16367
+
+53. Zhang, Han, Grammatico, lane merging as a matrix game with branch MPC, 2023. https://arxiv.org/abs/2311.14916
+54. Kentucky zipper merge field study, 2017. https://rosap.ntl.bts.gov/view/dot/35694/dot_35694_DS1.pdf
+55. Iowa zipper merge study, 2024. https://rosap.ntl.bts.gov/view/dot/80870
+56. Repeated-game freeway lane-change model, 2020. https://arxiv.org/abs/2002.02529
+57. Krajewski et al., highD, 2018. https://arxiv.org/abs/1810.05642
+58. exiD, inD, rounD (LevelX; original venues UNVERIFIED). https://www.exid-dataset.com
+59. Zhan et al., INTERACTION dataset, 2019. https://arxiv.org/abs/1910.03088
+60. GAMEPLAN, 2021. https://arxiv.org/abs/2109.01896
+61. Li, Yao, Kolmanovsky, Atkins, Girard, "Game-Theoretic Modeling of Multi-Vehicle Interactions at Uncontrolled Intersections", 2019. https://arxiv.org/abs/1904.05423
+62. Quantal response equilibrium model of the unprotected left turn, 2025. https://arxiv.org/abs/2507.03002
+63. Tian et al., adaptive game-theoretic roundabout entry, 2018. https://arxiv.org/abs/1810.00829
+64. Stackelberg and grand coalition for CAVs at an unsignalized roundabout, 2021. https://arxiv.org/abs/2103.07910
+65. Motorcycle queue storage zones and cars' start-up lost time, Thailand (EASTS). https://www.jstage.jst.go.jp/article/easts/6/0/6_0_137/_article
+66. Agarwal, Lämmel, seepage queue model, https://depositonce.tu-berlin.de//handle/11303/7627; Gashaw, Goatin, Härri, porous-medium model of two-wheelers, https://www.eurecom.edu/en/node/4902956
+67. HetroD, Taiwanese urban drone dataset, 2026 (licence UNVERIFIED). https://hetrod-data.github.io/HetroD/
+68. Camara, Fox, Sequential Chicken (Fox et al. 2018 venue UNVERIFIED). https://eprints.whiterose.ac.uk/159638/1/Camara%26Fox2020game_UK_RAS_2020.pdf
+69. Johora, Müller, "Modeling Interactions of Multimodal Road Users in Shared Spaces", ITSC 2018. https://arxiv.org/abs/2107.02083
+70. Millard-Ball, "Pedestrians, Autonomous Vehicles, and Cities", JPER 2018 (paper UNVERIFIED; popular-press summary). https://www.scientificamerican.com/article/how-pedestrians-will-defeat-autonomous-vehicles/
+71. Pascucci et al., Hamburg-Bergedorf shared space data. https://doi.org/10.24355/dbbs.084-202111081809-0
+72. Yang, Li, Redmill, Özgüner, DUT and CITR, IV 2019. https://arxiv.org/abs/1902.00487
+73. Golchoubian et al., uncertainty-aware DRL for an AV in a shared-space crowd, T-IV 2024. https://arxiv.org/abs/2405.13969
 
 Cited from memory, not re-checked by search:
 

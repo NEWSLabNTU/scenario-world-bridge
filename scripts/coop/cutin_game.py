@@ -45,7 +45,7 @@ import sys
 from dataclasses import dataclass, replace
 
 DT = 0.05
-HORIZON = 12.0
+HORIZON = 20.0  # s; 12 s left a wait at d0 = 20 m unfinished, scored as a total loss (074 E1)
 LANE_LINE = 0.5  # A's lateral progress (0 own lane, 1 B's lane) at which it occupies B's lane
 
 
@@ -81,6 +81,9 @@ TYPES = {
     "car": Capability(4.79, a_max=3.0, b_max=7.0, v_max=30.0, reaction=1.0, t_prep=0.0, t_lc=3.0),
     "car_alert": Capability(4.79, a_max=3.0, b_max=7.0, v_max=30.0, reaction=0.5, t_prep=0.0, t_lc=3.0),
     "autoware": Capability(4.79, a_max=3.0, b_max=7.0, v_max=30.0, reaction=1.0, t_prep=3.0, t_lc=3.0),
+    # The Model 3 as the arena measured it on CARLA (roadmap 074 E1): 0-12 m/s in 2.55 s
+    # (4.7 m/s^2 mean), full braking peaks at 9.6 m/s^2 (7.4 mean from 12 m/s with the lags).
+    "carla_model3": Capability(4.79, a_max=4.7, b_max=9.6, v_max=30.0, reaction=1.0, t_prep=0.0, t_lc=3.0),
     "golfcart": Capability(2.4, a_max=1.5, b_max=4.0, v_max=6.9, reaction=1.0, t_prep=0.0, t_lc=3.0),
 }
 

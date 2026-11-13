@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below; next: E1, the arena spike. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); next: E2 and C2a. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -60,6 +60,61 @@ Results, two Model 3-like cars at 12 m/s, reaction 1 s, as of the review:
 
 The capabilities are first numbers (`TYPES`), including an `autoware` type with a 3 s prepare
 phase before the lateral move. C5 replaces them with measured ones.
+
+### E1. The arena spike (done 2026-11-13) and D1
+
+`scripts/coop/arena.py` on a CARLA 0.9.16 of its own (port 2600, Epic, `no_rendering_mode`;
+logs and runs in `/mnt/p5plus/aeon/coop/e1/`), `scripts/coop/arena_game.py` for the game.
+
+- **The world**: K parallel straight roads from `generate_opendrive_world`, two lanes one way, 900 m,
+  60 m apart; lane centres asked of the map. Loading it takes about 1 s.
+- **The car**: `sim_vehicle_spec`'s `carla_physics.yaml` applied with its own Python module
+  (`carla_physics.apply`, read back with `differences`); swb_carla_world's timing (0.05 s ticks,
+  16 substeps); acb's control path ported: the pedal maps inverted as `command_for` does, the
+  pedal lags of `pedal_lag.rs`, the steer command of `steer_command_for`.
+- **Parity** (`--parity`): vehicle-check's 12 steps (`autoware_sim_check.dynamics`, its own plan
+  and judge) all pass. Acceleration and brake steps are within 0.01 m/s^2 of the request (the
+  limit is 0.35); steering is within 0.002 rad and the yaw rate within 6 % of the bicycle model
+  (the limit is 15 %). Measured capability: 0-12 m/s in 2.55 s; full braking from 12 m/s stops
+  in 9.72 m, 7.4 m/s^2 mean with the lags and 9.6 m/s^2 peak (C1 assumed 3 and 7;
+  `carla_model3` in `TYPES` now). This is parity with vehicle-check's acceptance on the same
+  physics and maps; a side-by-side with swb's own run of the car is still open (the stack's
+  CARLA is owned by the running stack).
+- **Throughput** (288 runs = 8 contexts x 9 profiles x 4 seeds, 15 s warm-up + 12 s run):
+
+  | K pairs per CARLA | runs per hour | faster than real time | tick, p50 / p95 |
+  |---|---|---|---|
+  | 1 | 10 000 | 75x | 0.54 / 0.94 ms |
+  | 4 | 18 400 | 34x | 1.16 / 1.82 ms |
+  | 16 | 19 800 | 9x | 4.5 / 6.0 ms |
+  | 2 CARLAs x 4, in parallel | 35 400 | | 1.2 ms each |
+
+  CARLA's own physics is the cost (about 0.14 ms per car per tick at 16 substeps), not the
+  Python client (one snapshot and one batch of controls per tick changed nothing). Beyond K = 4
+  a CARLA does not get faster; more CARLAs do. One arena holds 1.35 cores (CARLA) + 0.9 (the
+  client), 2.7 GB RAM and 3.9 GB VRAM: by memory, about 6 fit beside today's load on 133
+  (estimate). With a 20 s horizon, K = 16 gives 13 700 runs per hour.
+- **Context accuracy**: the warm-up hits d0 within 0.22 m and dv within 0.08 m/s; B settles at
+  11.94 m/s for 12 (a P controller's offset), recorded as `vb_real`.
+- **Findings that changed the design**:
+  1. *Perception noise reads as intent.* 0.1 m/s of speed noise at 10 Hz, differenced, gives
+     about 1.4 m/s^2 of acceleration noise, and A took it for B yielding. The observer now
+     takes the slope over 1 s, and a false yield still appears in about 1 run in 16. Intent
+     evidence is weak even in the arena, as the review expected.
+  2. *A horizon cliff.* A wait at d0 = 20 m could not finish its merge in 12 s and scored as a
+     total loss, while the same merge at 12.1 s would have cost 0.4. The horizon is 20 s in C1
+     and the arena. C1's conclusions hold at 20 s (no selfish chicken band, the welfare loss
+     where A is close and faster, a negotiated cut-in with a prosocial B). An unfinished merge
+     still scores as a total loss; C2a replaces that with the time it still needs.
+  3. *Arena against C1*: the equilibrium class agrees in 4 of 8 contexts (d0 4-20 m, dv 0 and
+     +2), all four at d0 >= 12 m. At d0 4-8 m the arena finds coordination (A goes against B's
+     pre-yield, or waits) where C1 has A dropping behind. Seed spreads reach 0.5 there, so 4
+     seeds cannot separate the two; that is C2a's work (intervals, more seeds, the boundary).
+     C1 with the measured capability gives the same classes.
+
+**D1, decided: build the arena.** Throughput is 10-35 times the criterion (1000 runs per hour)
+and parity holds against vehicle-check's acceptance. The calibrated kinematic model is not
+needed for mass runs; C1 stays the prediction.
 
 ### C2. Light policies in mass: the payoff map, filled (next)
 
@@ -192,8 +247,8 @@ being carried.
 | stage | step | kind | what | out / criterion |
 |---|---|---|---|---|
 | 0 theory | C1, review | B | kinematic cut-in, sequential; design review | done (a8505ad) |
-| 1 mass | E1 arena spike | E | own CARLA, generated road, one pair then K = 4, 16; runs per hour, tick time, CPU and GPU; step responses against the same car in swb | throughput and physics parity numbers |
-| | D1 arena or calibrated model | D | does the CARLA arena pay for itself? | arena if >= 1000 runs/h per host at K >= 4 and parity holds (speed RMSE <= 0.2 m/s, stopping distance within 5 %, lane change within 0.2 m); low throughput: a kinematic model calibrated on CARLA's step responses, the arena for spot checks; parity fails: fix the physics or drive the arena through `swb_carla_world` |
+| 1 mass | E1 arena spike (done) | E | own CARLA, generated road, one pair then K = 4, 16; runs per hour, tick time, CPU and GPU; step responses against the same car in swb | throughput and physics parity numbers |
+| | D1 arena or calibrated model (decided: arena) | D | does the CARLA arena pay for itself? | arena if >= 1000 runs/h per host at K >= 4 and parity holds (speed RMSE <= 0.2 m/s, stopping distance within 5 %, lane change within 0.2 m); low throughput: a kinematic model calibrated on CARLA's step responses, the arena for spot checks; parity fails: fix the physics or drive the arena through `swb_carla_world` |
 | | E2 stack timing | E | Autoware ego on Town05: perception latency, tracked velocity and acceleration noise, lane-change prepare and total time, cruise reaction | the light policies' perception model; the `autoware` type's numbers |
 | | C2a arena | B | noise sources, warm-up, maps with intervals, double oracle, exploitability of the Autoware-like rule | maps, equilibria, exploits |
 | | C2b swb check | B | Town05 scenario, light policies on acb's ground truth | sampled cells |

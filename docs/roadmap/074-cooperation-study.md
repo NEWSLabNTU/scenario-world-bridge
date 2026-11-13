@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; next: C2b (needs an ego truth pose, see C2b), E3, C3. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; next: C2b (the cut-in agent), E3, C3. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -316,11 +316,19 @@ its followers follow (IDM). Welfare counts every car in the chain. At v = 10 m/s
   trap A; a convention "yield to a waiting left turner" is right in sparse traffic and wrong in
   dense. The arena and swb versions are next.
 
-**C2b. The swb check (sample).** *Blocked on a design choice (2026-11-13):* without Autoware nothing in swb gives a light
-policy its own car's pose. acb publishes the other cars as ground-truth objects, and the ego's
-pose comes from Autoware's localization. Either acb gains a ground-truth odometry output (opt-in,
-like `publish_ground_truth_objects`, only with Autoware off), or each light policy runs on
-Autoware's localization (NDT) alone. A few cells per region, chosen where the arena's map changes,
+**C2b. The swb check (sample).** *Design settled (2026-11-13).* The user chose a ground-truth pose for the light policies over
+Autoware's localization. Two ways were found that need no change to acb: acb already publishes
+the ego's true pose on `/carla/ground_truth/odom`, always; and swb already has an agent that
+drives a scenario entity with no ROS and no Autoware, `swb_agent.adapters.carla_basic`
+(CARLA's BasicAgent; it reads the world, applies control to its own vehicle only, on world
+ticks, and exits when the server goes). The world server applies the spec's physics to every
+vehicle a stack drives, `agent` entities included. So C2b is a cut-in agent on carla_basic's
+pattern (`scripts/coop/cutin_agent.py`): it finds its car and the other by role name, reads both
+from the world snapshot, and runs `arena.py`'s rules, perception model and controls (pedal maps,
+lags, steering) on world ticks; the scenario has A and B as `agent` entities and no Autoware;
+the context (d0, dv, v_B) and the rules are the scenario's parameters, and the agents do the
+warm-up themselves, as the arena does. Site: Town03's east straight and the curve after it
+(lateral targets follow the lane's waypoints, not a straight line). A few cells per region, chosen where the arena's map changes,
 rerun through swb itself: `multi_av/town05_cut_in.xosc` with A and B as agent entities, each
 driven by the same light policy behind acb, the trace (024) and contacts (021) as payoffs. The
 policy is a small ROS node per car: it reads its own odometry and the other car from acb's ground

@@ -208,6 +208,75 @@ happened and what would have happened with knowledge:
 - The game-to-real gap of Ferguson et al. [49] (utility obtained less utility expected under the
   agent's own model) is the same quantity in general games.
 
+## Taming the strategy space
+
+User direction 2026-11-13 named three ways in: (1) start from general strategy combinations over
+all cars and refine the dominant ones; (2) a learned proposer of strategies, per car or for several,
+validated with care because it is framed by its training data; (3) a car watches the other, whether
+it slows or keeps its speed as time moves on, and updates its belief. Each fits a different layer.
+
+### 1. Combinations, refined: exploit structure, never enumerate
+
+The joint space is k^N only if every car's payoff depends on every other car's strategy. In
+traffic it rarely does.
+
+- **Locality: graphical games** [50]. A car's payoff depends on the cars it interacts with (its
+  lane, the next lane, within a few seconds), so the game is a set of small local games coupled
+  through shared cars. On a tree-shaped interaction graph an equilibrium is found in polynomial
+  time. The cost grows with the largest group, not with N.
+- **Anonymity: anonymous games** [51]. Cars of one class playing one strategy are interchangeable:
+  a payoff depends on how many cars play each strategy, not which. Profiles drop from k^N to count
+  vectors, about N^(k-1).
+- **Double oracle** [52]. Start from a few strategies, solve, add only the best response to the
+  current equilibrium, repeat. Equilibria usually have small support, so the set stays small.
+  Refining the dominant strategies is this loop made systematic; PSRO [19] is its learned form.
+
+### 2. A learned proposer: it proposes, something independent decides
+
+The risk is real: a proposer knows only its training distribution. It is contained if the proposer
+never decides:
+
+- **Propose, then verify.** As in PSRO, the proposer only adds candidates; the game solver over
+  measured payoffs decides what is played. A bad proposer then costs time, not correctness.
+- **Exploitability is the validation.** Against a proposed equilibrium, search hard for any car's
+  profitable deviation: 025's adaptive search and an untrained random search, both independent of
+  the proposer. A gain near zero means the equilibrium holds, and needs no trust in the training
+  data; a gain names exactly what the proposer missed.
+- **Exact ground truth at small N.** For two or three cars, 1. computes the equilibria exactly; the
+  proposer must reproduce them before it is trusted at larger N.
+- **Held-out conditions.** Contexts, maps and car models the proposer did not train on; and its
+  proposals are always mixed with untrained exploration, so the search cannot be trapped in its
+  blind spot.
+
+### 3. Observe and update: strategies become short reactive rules
+
+This changes what a strategy is, and so shrinks the space most:
+
+- **A strategy is a rule over the belief, not a full-horizon plan**: "if B slows, go; if B holds,
+  wait one more second; past gap g, abort". Each decision is among two or three actions over a few
+  seconds, and the belief carries the rest. Strategies become low-dimensional parameter vectors
+  (the merge threshold, the wait, how much evidence before going), searched by Bayesian
+  optimisation or 025's search rather than enumerated.
+- **One belief over intent and capability.** Slowing is ambiguous: a yield, a car that cannot go
+  faster, or a reaction to something else. The rate, the timing and the context tell them apart: a
+  capability limit shows as a plateau, a yield as a deceleration that starts when A signals.
+- **The other car watches too.** An action is also a signal: A's nudge toward the lane probes B and
+  tells B. Model it to one or two levels (level-k [3, 4]), not to infinity.
+- **Mutual waiting.** Both cars wait to learn more and neither moves: the frozen robot, or a
+  deadlock. It needs a tie-break (a time limit, a priority rule, a deliberate probe), and swb can
+  find where it happens by sweeping contexts.
+
+### Together
+
+| layer | what runs | idea |
+|---|---|---|
+| in the car, live | belief update and a short-horizon reactive choice among a few actions | 3 |
+| offline, analysis | local games over the interaction graph, anonymity per car class, double oracle | 1 |
+| offline, scale | a learned proposer feeding the double oracle; exploitability measured in swb; exact agreement at N = 2-3 first | 2 |
+
+swb's part: the exact ground truth at small N with real stacks, the exploitability check (the search
+for profitable deviations against any proposed equilibrium), and the deadlock finder.
+
 ## What swb brings
 
 | needed for the method | swb today |
@@ -325,3 +394,9 @@ Verified by title, authors, venue and URL on 2026-11-13 unless marked.
 47. Kumar, Fu, Pathak, Malik, "RMA: Rapid Motor Adaptation for Legged Robots", RSS 2021. https://arxiv.org/abs/2107.04034
 48. Wang, ..., Lv, "DynaDreamer", 2026. https://arxiv.org/abs/2607.13410
 49. Ferguson, Maheshwari, Wu, Sastry, "Game-to-Real Gap", 2026. https://arxiv.org/abs/2601.16367
+
+Cited from memory, not re-checked by search:
+
+50. Kearns, Littman, Singh, "Graphical Models for Game Theory", UAI 2001.
+51. Daskalakis, Papadimitriou, "Computing Equilibria in Anonymous Games", FOCS 2007.
+52. McMahan, Gordon, Blum, "Planning in the Presence of Cost Functions Controlled by an Adversary" (double oracle), ICML 2003.

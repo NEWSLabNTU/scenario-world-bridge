@@ -5,7 +5,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 [design/survey-multi-vehicle-cooperation.md](../design/survey-multi-vehicle-cooperation.md);
 this phase is its first experiment and the urban cases next to it.
 
-**Status**: started 2026-11-13; C1 done. User direction: "Start from those already doable in
+**Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -50,17 +50,51 @@ limit binds: the car model restricts the outcomes, as the user framed it.
 The capabilities are first numbers (`TYPES`): the Model 3's length and limits from
 `sim_vehicle_spec`, Autoware's own 1 s rear reaction, an assumed golf cart. C5 replaces them.
 
-### C2. The cut-in in swb, light agents (next)
+### C2. Light policies in mass: the payoff map, filled (next)
 
-- A Town05 scenario, `multi_av/town05_cut_in.xosc`: A and B as agent-controlled entities on two
-  adjacent lanes of a straight stretch, with d0, dv and vB as parameters.
-- A light policy per car on `swb_agent.Agent`: ground-truth pose, no perception, the same go/wait
-  and yield/hold rules and limits as C1. To check first: what the agent sees of the other car, and
-  whether two light agents need no Autoware stack at all.
-- The context swept over C1's grid, then refined at the region boundaries with 025's ask/tell
-  search (`scripts/gap_search.py`) aimed at a class change instead of a gap.
-- Payoffs from 024's trace and 021's contacts, with the same formulas as C1.
-- Output: the measured map against C1's, cell by cell, with each cell's run count.
+User direction 2026-11-13: "We can employ light policies to exploit the cost/payoff map in mass."
+
+A light policy is a rule $\pi(a \mid b, s; \psi)$ in a few lines of Python on ground truth: no
+perception, no localization, no planner. That makes a run cost CARLA's physics and nothing else, so
+the map can be filled by the thousands, not the tens. Two parts:
+
+**C2a. The arena (mass).** `scripts/coop/arena.py`, a study tool, not part of the swb stack:
+
+- Its own CARLA 0.9.16 on its own port (the stack's CARLA and `swb_carla_world` untouched; the
+  arena exits with its server, so no client outlives one), synchronous, fixed `dt` 0.05 s,
+  `no_rendering_mode`, no sensors. Town05, the same lanelet geometry SSv2 uses.
+- K pairs at once in one world, each on its own straight two-lane stretch of Town05, far enough
+  apart not to interact; each pair runs one profile at one context.
+- Each car's body and physics from `sim_vehicle_spec` (`carla_physics.yaml`), so the capability
+  is the simulator's, not C1's numbers; actuation is CARLA's `VehicleControl` from a small
+  longitudinal and lateral controller under the policy, so the limits bind as they do for acb.
+- Payoffs from the arena's own per-tick ground truth with C1's formulas; contacts from collision
+  sensors. One CSV row per (context, profile, seed), in C1's schema plus run metadata.
+- Several arenas in parallel (one CARLA each); throughput to be measured, the target is
+  thousands of runs per hour against tens for an Autoware run.
+
+**The policy space is continuous, not 2 x 2.** A's rule: the gap threshold to go, the
+acceleration while going, a nudge (lateral probe) and its length; B's: the yield threshold, the
+yield deceleration, the headway it holds. Plus the Autoware-like rules, light imitations of
+Autoware 1.5's fixed assumptions (the lane change's rear car braking at -1 to -2 m/s^2 after
+1-2 s, obstacle cruise's -1 m/s^2), so the arena can ask which rule exploits Autoware's.
+
+What the mass runs give:
+
+1. **The map**: every cell of C1's grid with enough seeds for a confidence interval; C1 against
+   the arena, cell by cell, where the model is right and where CARLA's physics moves a boundary.
+2. **Equilibria over continuous rules**: the empirical game over sampled $\psi$, a GP surrogate
+   per payoff, and double oracle / PSRO rounds, each best response found by search in the arena.
+3. **Exploitability**: for any rule, including the Autoware-like one, the best counter-rule and
+   what it gains, $\varepsilon(\pi)$; the rules that exploit Autoware's assumptions are the
+   candidates C3 checks on the real stack.
+4. **Welfare**: $W$, the social optimum, PoA and PoS per cell (C1+).
+
+**C2b. The swb check (sample).** A few cells per region, chosen where the arena's map changes,
+rerun through swb itself: `multi_av/town05_cut_in.xosc` with A and B as agent entities, each
+driven by the same light policy behind acb (control commands, no Autoware), the trace (024) and
+contacts (021) as payoffs. It shows the arena measures what swb measures; any difference names a
+gap in the arena (spawn, physics settings, timing) before its numbers are trusted.
 
 ### C3. B as Autoware
 

@@ -179,6 +179,12 @@ def run_one(out, d0, dv, pa, seed, port, relay):
     tag = f"d{d0:g}_v{dv:g}_{pa['name']}_aw_s{seed}"
     rd = Path(out) / tag
     rd.mkdir(parents=True, exist_ok=True)
+    for old in ("bag", "scenario_test_runner"):  # a retry: keep the failed attempt's beside it
+        if (rd / old).exists():
+            n = 1
+            while (rd / f"{old}.failed{n}").exists():
+                n += 1
+            (rd / old).rename(rd / f"{old}.failed{n}")
     xosc = rd / "c3.xosc"
     scenario(xosc, d0, dv)
     if not restart_ego():

@@ -172,6 +172,14 @@ def _stack(context):
                               vehicle_model=get("vehicle_model"),
                               release_notify_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 1}",
                               release_ack_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 2}")
+                # The pedal maps belong to the physics: when the world server applies the
+                # spec's physics, acb must drive with the spec's maps and only verify the
+                # physics. Without this the ego ran the blueprint's maps on the spec's car and
+                # overran Autoware's commands (1.2 m/s^2 for +0.1, to 30 m/s against a limit of
+                # 8; roadmap 074 C3).
+                physics = sim_args.get("vehicle_physics", "none")
+                if physics and physics != "none":
+                    preset.update(carla_physics=physics, carla_physics_mode="verify")
         else:
             preset = {}
         ego_args = {**{k: v for k, v in preset.items() if v},

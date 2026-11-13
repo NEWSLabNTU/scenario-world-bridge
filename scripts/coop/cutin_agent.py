@@ -71,6 +71,11 @@ import arena as AR  # noqa: E402
 import cutin_game as C1  # noqa: E402
 
 
+def _yaw_off(wp, ref_yaw):
+    """Degrees between a waypoint's heading and `ref_yaw`."""
+    return abs((wp.transform.rotation.yaw - ref_yaw + 180.0) % 360.0 - 180.0)
+
+
 class CutInAgent(CarlaBasicAgent):
     name = "coop_cutin"
 
@@ -123,7 +128,21 @@ class CutInAgent(CarlaBasicAgent):
         return min(cands, key=lambda w: w.transform.location.distance(like.transform.location))
 
     @staticmethod
-    def _advance(wp, loc):
+    def _ahead(wp, dist, ref_yaw, step=2.0):
+        """The waypoint `dist` m on along wp's lane, going straight through junctions:
+        Waypoint.next returns one waypoint per branch, and the first may be a turn (on
+        Town03's west straight it was a left turn, and A left the road; 074 C3)."""
+        left = dist
+        while left > 1e-6:
+            cands = wp.next(min(step, left))
+            if not cands:
+                return None
+            wp = min(cands, key=lambda w: _yaw_off(w, ref_yaw))
+            left -= step
+        return wp
+
+    @staticmethod
+    def _advance(wp, loc, ref_yaw):
         """Follow a lane from waypoint `wp` to the point level with `loc`, by lane continuity
         (next/previous), never by a fresh nearest-lane lookup that may pick a neighbour on the
         next road segment."""
@@ -135,7 +154,9 @@ class CutInAgent(CarlaBasicAgent):
             cands = wp.next(d) if d > 0 else wp.previous(-d)
             if not cands:
                 break
-            wp = min(cands, key=lambda w: w.transform.location.distance(loc))
+            # through a junction: the branch that goes straight on, never a turn (the nearest
+            # branch to a car changing lanes there was a left turn, and A followed it; 074 C3)
+            wp = min(cands, key=lambda w: (round(_yaw_off(w, ref_yaw) / 5.0), w.transform.location.distance(loc)))
         return wp
 
     # -- hooks -----------------------------------------------------------------------------
@@ -159,6 +180,9 @@ class CutInAgent(CarlaBasicAgent):
                 (v if self.side == "B" else self.other).get_location())
             # tracked waypoints at my position: my lane, and B's lane beside me
             self.trk_own = self.own_lane
+            # the road's heading here: through a junction the lanes and the aim follow the branch
+            # nearest to it, so the cars go straight on (both branches start tangent; 074 C3)
+            self.ref_yaw = self.own_lane.transform.rotation.yaw
             if self.side == "A":
                 nb = [w for w in (self.own_lane.get_left_lane(), self.own_lane.get_right_lane())
                       if w is not None and (w.road_id, w.lane_id) == (self.b_lane.road_id, self.b_lane.lane_id)]
@@ -173,7 +197,10 @@ class CutInAgent(CarlaBasicAgent):
             self.lat_seen = self.in_lane_at = self.brake_seen = None
             self.mode = "drive"
         self.report(P.DRIVING, detail="")
-        self.log.info(f"{self.side}: context {self.ctx}, rule {self.rule}")
+        lane = lambda w: (w.road_id, w.lane_id, round(w.transform.location.x, 1), round(w.transform.location.y, 1))
+        self.log.info(f"{self.side}: context {self.ctx}, rule {self.rule}; own lane {lane(self.own_lane)}, "
+                      f"B's lane {lane(self.b_lane)}, tracked B lane {lane(self.trk_b)}")
+        self.log_event("lanes", own=lane(self.own_lane), b=lane(self.b_lane), trk_b=lane(self.trk_b))
 
     def _on_world_tick(self):
         with self._ctl:
@@ -198,8 +225,8 @@ class CutInAgent(CarlaBasicAgent):
         hx, hy = math.cos(yaw), math.sin(yaw)
         along = (oloc.x - loc.x) * hx + (oloc.y - loc.y) * hy  # the other's centre ahead of mine
         # lanes at my position, tracked by lane continuity
-        self.trk_own = self._advance(self.trk_own, loc)
-        self.trk_b = self._advance(self.trk_b, loc) if self.side == "A" else self.trk_own
+        self.trk_own = self._advance(self.trk_own, loc, self.ref_yaw)
+        self.trk_b = self._advance(self.trk_b, loc, self.ref_yaw) if self.side == "A" else self.trk_own
         my_own, my_b = self.trk_own, self.trk_b
         width = max(1.0, my_own.transform.location.distance(my_b.transform.location))
         lat = 0.0
@@ -219,9 +246,9 @@ class CutInAgent(CarlaBasicAgent):
         else:
             accel, s_lat = self._run(t - self.tr0, along, v, ov, lat)
         # steering: pure pursuit to a point between my lane and B's lane, `look` ahead
-        na, nb = my_own.next(look), my_b.next(look)
-        pa = (na[0] if na else my_own).transform.location  # the road's end: aim at the lane here
-        pb = (nb[0] if nb else my_b).transform.location
+        na, nb = self._ahead(my_own, look, self.ref_yaw), self._ahead(my_b, look, self.ref_yaw)
+        pa = (na or my_own).transform.location  # the road's end: aim at the lane here
+        pb = (nb or my_b).transform.location
         tx, ty = pa.x + (pb.x - pa.x) * s_lat, pa.y + (pb.y - pa.y) * s_lat
         alpha = math.atan2(ty - loc.y, tx - loc.x) - yaw
         alpha = math.atan2(math.sin(alpha), math.cos(alpha))
@@ -232,6 +259,7 @@ class CutInAgent(CarlaBasicAgent):
         me.apply_control(carla.VehicleControl(throttle=th, brake=br, steer=self.steer.command(angle)))
         if self.logf and int(t * 20) % 2 == 0:
             self.logf.write(json.dumps({"t": round(t, 3), "phase": self.stage, "along": round(along, 2),
+                                        "x": round(loc.x, 2), "y": round(loc.y, 2), "ox": round(oloc.x, 2), "oy": round(oloc.y, 2),
                                         "v": round(v, 2), "ov": round(ov, 2), "lat": round(lat, 3),
                                         "accel": round(accel, 2), "th": round(th, 3), "br": round(br, 3), "decide": self.decide,
                                         "dropping": self.dropping, "latched": self.latched}) + "\n")

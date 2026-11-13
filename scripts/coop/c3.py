@@ -165,6 +165,16 @@ def restart_ego(timeout=600):
     return False
 
 
+def junit_message(rd):
+    """The scenario's failure message from its JUnit file, if any."""
+    import re
+    for f in Path(rd).rglob("result.junit.xml"):
+        m = re.search(r'message="([^"]*)"', f.read_text(errors="replace"))
+        if m:
+            return m.group(1)[:200]
+    return None
+
+
 def run_one(out, d0, dv, pa, seed, port, relay):
     tag = f"d{d0:g}_v{dv:g}_{pa['name']}_aw_s{seed}"
     rd = Path(out) / tag
@@ -238,7 +248,15 @@ def main():
         runs = runs[: a.only]
     with open(path, "a") as f:
         for d0, dv, pa, s in runs:
-            res = run_one(a.out, d0, dv, pa, s, a.carla_port, a.relay)
+            for attempt in range(3):
+                res = run_one(a.out, d0, dv, pa, s, a.carla_port, a.relay)
+                res["attempt"] = attempt
+                if "error" not in res:
+                    break
+                # a run with no run phase is the stack's failure, not the game's (on a loaded host
+                # Autoware stayed INITIALIZING after its restart): restart the ego and run it again
+                res["cause"] = junit_message(Path(a.out) / f"d{d0:g}_v{dv:g}_{pa['name']}_aw_s{s}")
+                print(json.dumps(res), flush=True)
             print(json.dumps(res), flush=True)
             f.write(json.dumps(res) + "\n")
             f.flush()

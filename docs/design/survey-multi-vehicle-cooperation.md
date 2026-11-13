@@ -465,7 +465,8 @@ Literature checked by web search the same day (a third round); unchecked items a
 - **Phenomena to test**: gap acceptance by speed difference and by class (a truck merging); the
   courtesy yield's upstream shockwave (simulation evidence only so far, [56]).
 - **Data**: highD, exiD, INTERACTION [57-59].
-- **swb**: CARLA's highway towns (Town04, Town06) have ramps; the target-lane traffic can be SSv2's
+- **swb**: CARLA's highway towns (Town04, Town06) have ramps, but swb has no Autoware map of either
+  (roadmap 074; Town06 is not in the 0.9.16 binary here), which SSv2 needs; the target-lane traffic can be SSv2's
   NPCs plus background AVs; the upstream cost is read from the trace.
 
 ### Urban: 4-way stop, unprotected left, roundabout, Taiwan's scooters
@@ -526,16 +527,17 @@ Literature checked by web search the same day (a third round); unchecked items a
 
 | setting | regime | start from | data | phenomenon | swb today |
 |---|---|---|---|---|---|
-| on-ramp, weaving | chain + small game | matrix game + branch MPC [53] | exiD, highD, INTERACTION | gap choice, courtesy shockwave | ready (Town04/06) |
-| lane drop | N-player alternating priority (new) | none | highD, own sweeps | zipper vs early merge, defection | ready |
-| 4-way stop | small game, scheduling | concurrent leader-follower [61]; auction [60] | INTERACTION | symmetric deadlock, tie-breaks | ready |
-| left turn vs queue | chain | QRE left turn [62], extended to a queue | INTERACTION, WOMD, SinD | gap acceptance vs queue length | ready |
-| roundabout | small game | adaptive level-k [63] | rounD, INTERACTION | entry assertiveness | ready |
+| on-ramp, weaving | chain + small game | matrix game + branch MPC [53] | exiD, highD, INTERACTION | gap choice, courtesy shockwave | needs a Town04 map (031) |
+| lane drop | N-player alternating priority (new) | none | highD, own sweeps | zipper vs early merge, defection | needs a lane-drop site |
+| 4-way stop | small game, scheduling | concurrent leader-follower [61]; auction [60] | INTERACTION | symmetric deadlock, tie-breaks | needs an unsignalled junction |
+| left turn vs queue | chain | QRE left turn [62], extended to a queue | INTERACTION, WOMD, SinD | gap acceptance vs queue length | ready (Town05, Town10) |
+| roundabout | small game | adaptive level-k [63] | rounD, INTERACTION | entry assertiveness | ready (Town03) |
 | Taiwan scooters | population | seepage models [66] + a game layer (new) | HetroD | swarm discharge, two-stage box, filtering | needs reactive scooter NPCs |
 | night market | population, shared space | sequential chicken [68] + GSFM [69] | Bergedorf, DUT | frozen vehicle vs risk | needs a map and a reactive crowd |
 
 The gaps in the literature are the lane-drop game, the left turn against a queue, any game model of
-scooter traffic, and shared space at night-market density. swb reaches the first two now. The other
+scooter traffic, and shared space at night-market density. swb reaches the left turn now; the lane
+drop needs a site on a mapped town, and the on-ramp a Town04 map (roadmap 074). The other
 two need reactive populations.
 
 ## A per-vehicle strategy layer, on Autoware
@@ -669,7 +671,8 @@ is a configuration change in swb, not a new simulator.
   the lane change module's safety margins are candidates. To be measured before they are called
   strategies.
 - **The map.** A cut-in needs two lanes in one direction; Town01 has one each way (025's i7 pulls
-  out from the shoulder instead). Town04 or Town05 has multi-lane roads.
+  out from the shoulder instead). Town05 has multi-lane roads and an Autoware map; Town04 has no
+  map here.
 - **Isaac.** Several Autoware stacks on Isaac (039) is open; CARLA carries the first experiments.
 - **SSv2.** SSv2 drives one scenario ego; the other AVs are entities with the `agent` controller,
   reached through the relay. Whether every SSv2 condition sees them as it sees the ego is not
@@ -682,7 +685,7 @@ The user's own 2 x 2 cut-in, end to end, before any N-vehicle work:
 1. **Theory baseline.** The cut-in in a kinematic model: A's (g_A, a_A), B's yield or hold;
    payoffs from progress, minimum TTC and contact. Compute the equilibrium map over (gap, speed
    difference) analytically or by grid. This is the prediction.
-2. **swb, light agents.** The same game on Town04 or Town05 in CARLA, A and B as `swb_agent`
+2. **swb, light agents.** The same game on Town05 in CARLA, A and B as `swb_agent`
    policies with the same parameters; the context swept by 025's search, aimed at the equilibrium
    boundaries. Compare the measured map with the predicted one.
 3. **swb, Autoware.** B a full Autoware stack, A a light agent or a second Autoware with RTC timing

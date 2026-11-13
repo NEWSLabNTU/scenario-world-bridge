@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!-- Roadmap 074 E2: Town03 east straight, outer lane: a lead car 28 m ahead at 6 m/s brakes to a stop at 4 m/s^2 at y = 90, then drives on; perception latency, tracking error, cruise reaction. Written by scripts/coop/gen_e2_scenarios.py; edit that, not this. -->
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-11-13T00:00:00+00:00" description="074 E2 lead_brake: Town03 east straight, outer lane: a lead car 28 m ahead at 6 m/s brakes to a stop at 4 m/s^2 at y = 90, then drives on; perception latency, tracking error, cruise reaction" revMajor="1" revMinor="2" />
+	<ParameterDeclarations />
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork><LogicFile filepath="$(env CARLA_MAPS)/Town03" /></RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="9.0" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="Autoware"><Properties>
+				<Property name="maxJerk" value="1.5" /><Property name="minJerk" value="-1.5" />
+			</Properties></Controller></ObjectController>
+		</ScenarioObject>
+		<ScenarioObject name="lead">
+			<Vehicle name="lead" vehicleCategory="car">
+				<BoundingBox><Center x="1.5" y="0.0" z="0.9" /><Dimensions width="2.1" height="1.8" length="4.5" /></BoundingBox>
+				<Performance maxSpeed="20" maxAcceleration="15.0" maxDeceleration="15.0" />
+				<Axles>
+					<FrontAxle maxSteering="0.5" wheelDiameter="0.6" trackWidth="1.8" positionX="3.1" positionZ="0.3" />
+					<RearAxle maxSteering="0.0" wheelDiameter="0.6" trackWidth="1.8" positionX="0.0" positionZ="0.3" />
+				</Axles>
+				<Properties />
+			</Vehicle>
+			<ObjectController><Controller name=""><Properties></Properties></Controller></ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init><Actions>
+			<Private entityRef="ego">
+				<PrivateAction><TeleportAction><Position><WorldPosition x="246.13" y="22.0" z="0.0" h="1.5458" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="248.78" y="128.0" z="0.0" h="1.5458" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+			</Private>
+			<Private entityRef="lead">
+				<PrivateAction><TeleportAction><Position><WorldPosition x="246.83" y="50.0" z="0.0" h="1.5458" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="248.96" y="135.0" z="0.0" h="1.5458" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+				<PrivateAction><LongitudinalAction><SpeedAction><SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time" /><SpeedActionTarget><AbsoluteTargetSpeed value="0.0" /></SpeedActionTarget></SpeedAction></LongitudinalAction></PrivateAction>
+			</Private>
+		</Actions></Init>
+		<Story name="e2"><Act name="e2_act">
+				<ManeuverGroup maximumExecutionCount="1" name="ego_group"><Actors selectTriggeringEntities="false"><EntityRef entityRef="ego" /></Actors>
+				<Maneuver name="ego_m">
+					<Event name="goal" priority="parallel" maximumExecutionCount="1">
+						<Action name="goal_a"><UserDefinedAction><CustomCommandAction type="exitSuccess" /></UserDefinedAction></Action>
+						<StartTrigger><ConditionGroup><Condition name="goal_c" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="3.0"><Position><WorldPosition x="248.78" y="128.0" z="0.0" h="1.5458" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition></Condition></ConditionGroup></StartTrigger>
+					</Event>
+					<Event name="timeout" priority="parallel" maximumExecutionCount="1">
+						<Action name="timeout_a"><UserDefinedAction><CustomCommandAction type="exitFailure" /></UserDefinedAction></Action>
+						<StartTrigger><ConditionGroup><Condition name="timeout_c" delay="0" conditionEdge="none"><ByValueCondition><SimulationTimeCondition value="150" rule="greaterThan" /></ByValueCondition></Condition></ConditionGroup></StartTrigger>
+					</Event>
+				</Maneuver></ManeuverGroup>
+				<ManeuverGroup maximumExecutionCount="1" name="lead_group"><Actors selectTriggeringEntities="false"><EntityRef entityRef="lead" /></Actors>
+				<Maneuver name="lead_m">
+					<Event name="lead_go" priority="parallel" maximumExecutionCount="1">
+						<Action name="lead_go_a"><PrivateAction><LongitudinalAction><SpeedAction><SpeedActionDynamics dynamicsShape="linear" value="2.0" dynamicsDimension="rate" /><SpeedActionTarget><AbsoluteTargetSpeed value="6.0" /></SpeedActionTarget></SpeedAction></LongitudinalAction></PrivateAction></Action>
+						<StartTrigger><ConditionGroup><Condition name="lead_go_c" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities><EntityCondition><SpeedCondition value="1.0" rule="greaterThan" /></EntityCondition></ByEntityCondition></Condition></ConditionGroup></StartTrigger>
+					</Event>
+					<Event name="lead_brake" priority="parallel" maximumExecutionCount="1">
+						<Action name="lead_brake_a"><PrivateAction><LongitudinalAction><SpeedAction><SpeedActionDynamics dynamicsShape="linear" value="4.0" dynamicsDimension="rate" /><SpeedActionTarget><AbsoluteTargetSpeed value="0.0" /></SpeedActionTarget></SpeedAction></LongitudinalAction></PrivateAction></Action><Action name="lead_brake_log"><UserDefinedAction><CustomCommandAction type="test(e2, lead_brake)" /></UserDefinedAction></Action>
+						<StartTrigger><ConditionGroup><Condition name="lead_brake_c" delay="0" conditionEdge="none"><ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="lead" /></TriggeringEntities><EntityCondition><ReachPositionCondition tolerance="2.0"><Position><WorldPosition x="247.83" y="90.0" z="0.0" h="1.5458" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition></ByEntityCondition></Condition></ConditionGroup></StartTrigger>
+					</Event>
+					<Event name="lead_resume" priority="parallel" maximumExecutionCount="1">
+						<Action name="lead_resume_a"><PrivateAction><LongitudinalAction><SpeedAction><SpeedActionDynamics dynamicsShape="linear" value="2.0" dynamicsDimension="rate" /><SpeedActionTarget><AbsoluteTargetSpeed value="6.0" /></SpeedActionTarget></SpeedAction></LongitudinalAction></PrivateAction></Action>
+						<StartTrigger><ConditionGroup><Condition name="lead_resume_c" delay="0" conditionEdge="none"><ByValueCondition><StoryboardElementStateCondition storyboardElementType="event" storyboardElementRef="lead_brake" state="completeState" /></ByValueCondition></Condition></ConditionGroup></StartTrigger>
+					</Event>
+				</Maneuver></ManeuverGroup>
+			<StartTrigger><ConditionGroup><Condition name="start" delay="0" conditionEdge="none"><ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan" /></ByValueCondition></Condition></ConditionGroup></StartTrigger>
+		</Act></Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

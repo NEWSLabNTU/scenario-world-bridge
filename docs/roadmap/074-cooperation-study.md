@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); next: E2 and C2a. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a in progress. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -115,6 +115,42 @@ logs and runs in `/mnt/p5plus/aeon/coop/e1/`), `scripts/coop/arena_game.py` for 
 **D1, decided: build the arena.** Throughput is 10-35 times the criterion (1000 runs per hour)
 and parity holds against vehicle-check's acceptance. The calibrated kinematic model is not
 needed for mass runs; C1 stays the prediction.
+
+### E2. Autoware's timing on CARLA (2026-11-13; partly open)
+
+What the light policies' perception model and the Autoware-like rules need, measured on the
+stack (`just run`, CARLA 0.9.16 on port 2400, a fresh build of both workspaces at the pins).
+Scenarios `scenarios/coop/town03_e2_{lead_brake,lane_change}.xosc` (written by
+`scripts/coop/gen_e2_scenarios.py`); a ROS bag in the ego domain around each run
+(`/mnt/p5plus/aeon/coop/e2/run_one.sh`), the bridge's gap trace as the truth, and
+`scripts/coop/e2_bag.py` for the numbers. `max_velocity:=10` (the profile's default is 4.17 m/s,
+which kept the ego from ever closing on the lead).
+
+| | clustering (the default) | CenterPoint (`lidar_detection_model:=centerpoint`) |
+|---|---|---|
+| objects' latency, sim time at receipt minus the scan's stamp | 0.175 s p50, 0.184 p95 | 0.19 s p50, 0.21 p95 |
+| tracked speed of the moving lead | **always 0** | error p50 0.13 m/s, p95 1.17 (in the brake), mean -0.09 |
+| tracked position (box centre against the trace's origin) | 2.1 m p50 | 0.28 m p50, 0.61 p95 |
+| tracked acceleration | never reported | never reported |
+| lead brakes at 4 m/s^2, ego 24-28 m behind at 5.7-6.7 m/s: Autoware's braking command | 2.3 s after (speed falls 2.7 s after) | 1.25 s after (1.35 s) |
+
+- **With the default perception Autoware sees other cars as standing still**: clustering gives
+  UNKNOWN objects whose tracked velocity is 0, so a cutting-in car has no speed for the lane
+  change's or the cruise's checks. C3 runs Autoware with CenterPoint; its numbers are the ones
+  the light policies take (`arena.py`'s defaults: delay 0.19 s, speed noise 0.2 m/s, position
+  0.3 m).
+- **No acceleration from the tracker**: a light policy that reads intent from the other car's
+  braking must infer it from speeds, as `arena.py`'s observer does (1 s slope).
+- **Lane change, open.** On Town05 a route-forced lane change ran, its lateral move took about 7 s
+  at 3.5 m/s (on a 10 % ramp, below). On Town03 the lane-change module reports the change safe,
+  automatic and waiting for execution 9 m ahead, while the ego stands after 5 m, three runs out
+  of three; the prepare phase is still to be measured on a start where the ego is already
+  moving.
+- **Sites.** Town05's only long multi-lane straights are the ring: its north side is a 10 %
+  ramp to 10 m (the lanelet map is flat at z = 0), and each lane is one 831 m lanelet, on which
+  a single NPC made SSv2's own frame take 2.2 s. Town03's east straight (lanelets 69738, 69252,
+  68766; 120 m, flat) is the site; one NPC still costs SSv2 about 0.5-1 s a frame there (522 of
+  ~740 frames warned), which makes these runs slow, not wrong.
 
 ### C2. Light policies in mass: the payoff map, filled (next)
 

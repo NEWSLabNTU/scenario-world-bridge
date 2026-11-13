@@ -46,6 +46,7 @@ from dataclasses import dataclass, replace
 
 DT = 0.05
 HORIZON = 20.0  # s; 12 s left a wait at d0 = 20 m unfinished, scored as a total loss (074 E1)
+T_MAX = 40.0  # s; a run goes on past HORIZON until A's lane change is complete, up to this (074 C2a)
 LANE_LINE = 0.5  # A's lateral progress (0 own lane, 1 B's lane) at which it occupies B's lane
 
 
@@ -141,7 +142,9 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
     contact = False
     peak = [0.0, 0.0]
     t = 0.0
-    for _ in range(int(HORIZON / DT)):
+    while t < T_MAX - 1e-9:
+        if t >= HORIZON - 1e-9 and (lat >= 1.0 or (decide is None and not dropping and a_strat != GO_IF_YIELD)):
+            break
         in_lane = lat >= LANE_LINE
         # --- A
         if a_strat == GO_IF_YIELD and decide is None and not dropping:
@@ -203,7 +206,9 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
                 min_ttc = min(min_ttc, gap / closing)
             if v_follow > 1.0:
                 min_thw = min(min_thw, gap / v_follow)
-    free_a, free_b = va0 * HORIZON, vb0 * HORIZON
+    # progress is judged over the whole run, which lasts until A's merge is complete: an
+    # unfinished merge no longer scores as a total loss at a fixed horizon
+    free_a, free_b = va0 * t, vb0 * t
     lost_a = max(0.0, (free_a - (xa - d0 - cap_a.length)) / max(free_a, 1.0))
     lost_b = max(0.0, (free_b - xb) / max(free_b, 1.0))
     if contact:

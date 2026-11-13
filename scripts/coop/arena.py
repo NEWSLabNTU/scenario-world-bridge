@@ -62,7 +62,7 @@ CAR = "tesla_model3"
 PHYSICS = ROOT / f"src/sim_vehicle_spec/generated/{CAR}/carla_physics.yaml"
 MAPS = ROOT / f"src/autoware_sim_vehicle/cars/{CAR}/{CAR}_description/config"
 DT = 0.05
-ROAD_LEN = 900.0
+ROAD_LEN = 1100.0  # warm-up and a run of up to T_MAX at up to 16 m/s
 ROAD_GAP = 60.0
 LANE_W = 3.5
 WARMUP = 15.0  # s, to bring a pair to its context
@@ -598,13 +598,16 @@ class Pair:
                 self.min_ttc = min(self.min_ttc, gap / closing)
             if vf > 1.0 and gap > 0:
                 self.min_thw = min(self.min_thw, gap / vf)
-        if t >= HORIZON or self.contact:
+        merged = self.lat() >= 0.99
+        waiting = self.decide is None and (self.dropping or job["a"] == C1.GO_IF_YIELD)
+        if self.contact or t >= C1.T_MAX or (t >= HORIZON and (merged or not waiting and self.decide is None)):
             self.finish()
 
     def finish(self):
         xa, ya, _, _ = self.A.state()
         xb, _, _, _ = self.B.state()
-        free_a, free_b = self.va0 * HORIZON, self.vb0 * HORIZON
+        t = self.ar.t - self.t0  # the run lasts until A's merge is complete (C1.T_MAX at most)
+        free_a, free_b = self.va0 * t, self.vb0 * t
         lost_a = max(0.0, (free_a - (xa - self.xa0)) / max(free_a, 1.0))
         lost_b = max(0.0, (free_b - (xb - self.xb0)) / max(free_b, 1.0))
         got_in = self.lat() >= 0.9
@@ -623,8 +626,9 @@ class Pair:
                     "ttc": round(self.min_ttc, 3) if math.isfinite(self.min_ttc) else "inf",
                     "thw": round(self.min_thw, 3) if math.isfinite(self.min_thw) else "inf",
                     "contact": int(self.contact), "got_in": int(got_in),
+                    "ahead": int(got_in and not self.dropping and xa > xb),  # merged in front of B
                     "peakA": round(self.peak[0], 2), "peakB": round(self.peak[1], 2),
-                    "y_end_A": round(ya, 2)}
+                    "y_end_A": round(ya, 2), "t_run": round(t, 2)}
         self.phase = "done"
 
 
@@ -632,13 +636,20 @@ B_PROFILES = (C1.PRE_YIELD, "react_yield", "react_hold")
 
 
 def jobs(args, rng):
-    d0s = [4.0, 8.0, 12.0, 20.0] if args.contexts >= 8 else [8.0, 16.0]
-    dvs = [0.0, 2.0] if args.contexts >= 8 else [0.0]
-    ctx = list(itertools.product(d0s, dvs))[: args.contexts]
+    if args.grid:
+        # C1's map, coarser: d0 -6..30 m step 2, dv -4..4 m/s step 1
+        ctx = list(itertools.product([float(d) for d in range(-6, 31, 2)], [float(v) for v in range(-4, 5)]))
+    else:
+        d0s = [4.0, 8.0, 12.0, 20.0] if args.contexts >= 8 else [8.0, 16.0]
+        dvs = [0.0, 2.0] if args.contexts >= 8 else [0.0]
+        ctx = list(itertools.product(d0s, dvs))[: args.contexts]
+    i, n = (int(x) for x in args.shard.split("/"))
+    ctx = ctx[i::n]
     out = []
     for (d0, dv), a, b in itertools.product(ctx, C1.A_STRATS, B_PROFILES):
         for s in range(args.seeds):
             out.append({"d0": d0, "dv": dv, "vb": args.vb, "a": a, "b": b, "seed": s})
+    # spread one context's runs over the batch so a batch mixes contexts (no effect on results)
     return out
 
 
@@ -702,7 +713,7 @@ def cutin(args):
     summary = {
         "k": args.k, "runs": len(rows), "setup_s": round(setup_s, 1), "run_s": round(run_s, 1),
         "runs_per_hour": round(len(rows) / run_s * 3600, 0),
-        "sim_s_per_run": per_run_sim,
+        "sim_s_per_run_min": per_run_sim,
         "realtime_factor": round(len(rows) / args.k * per_run_sim / run_s, 2),
         "tick_wall_ms": {"p50": round(1000 * tick_wall[n // 2], 2), "p95": round(1000 * tick_wall[int(n * .95)], 2),
                          "max": round(1000 * tick_wall[-1], 2)},
@@ -724,11 +735,13 @@ def main():
     p.add_argument("--k", type=int, default=1, help="pairs per world")
     p.add_argument("--contexts", type=int, default=8)
     p.add_argument("--seeds", type=int, default=1)
+    p.add_argument("--grid", action="store_true", help="C1's grid (171 contexts) instead of --contexts")
+    p.add_argument("--shard", default="0/1", help="i/n: this process's share of the contexts")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--vb", type=float, default=12.0)
-    p.add_argument("--obs-delay", type=float, default=0.2)
-    p.add_argument("--obs-sigma-x", type=float, default=0.2)
-    p.add_argument("--obs-sigma-v", type=float, default=0.1)
+    p.add_argument("--obs-delay", type=float, default=0.19, help="s; E2: 0.19 p50, 0.21 p95 (CenterPoint)")
+    p.add_argument("--obs-sigma-x", type=float, default=0.3, help="m; E2: tracked position error p50 0.28")
+    p.add_argument("--obs-sigma-v", type=float, default=0.2, help="m/s; E2: tracked speed error p50 0.13")
     p.add_argument("--reaction-jitter", type=float, default=0.2)
     args = p.parse_args()
     os.makedirs(args.out, exist_ok=True)

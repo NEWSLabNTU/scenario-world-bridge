@@ -70,6 +70,21 @@ WARMUP = 15.0  # s, to bring a pair to its context
 PEAK_WINDOW = 0.5  # s, over which peak braking is measured
 HORIZON = C1.HORIZON
 LEGACY_FOLLOW = False  # True: the pre-N3 follower (IDM at v_des = its start speed), for re-runs only
+# B's safety layer: Autoware's obstacle_stop as C3 measured it (074, the C3a/C3b bags). Once A's
+# lane change starts (its predicted path reaches B's), obstacle_stop puts a stop point stop_margin
+# before A (RSS: before where A would stop, braking at stop_rss_dec, when A moves faster than
+# stop_fixed_v); the planner brakes for it within its limit (stop_a_plan) once stopping there
+# needs at least stop_a_start (a far point that A keeps moving away asks for nothing: in the bags
+# B's command stays >= 0 at 2/2 and 20/1 and reaches -1.05 at 10/0), and when the point is
+# already at or behind B the controller's strong stop (pid smooth_stop_strong_stop_acc, -3.4)
+# takes over; the gate limits jerk (lon_jerk_lim_for_lon_acc, 5 m/s^3). The decision needs
+# stop_on_time s on and stop_off_time s off (min_on_duration, min_off_duration), and its command
+# starts stop_delay s after it (the bags: the control command 0.3 s after the stop factor, the
+# speed falling 0.8 s after it, of which the arena's own pedal lag gives 0.3). Off by default: a
+# B rule without "stop" behaves as before.
+STOP_DEFAULTS = {"stop": 0, "stop_margin": 5.0, "stop_rss_dec": 1.2, "stop_v_offset": 1.0, "stop_fixed_v": 3.0,
+                 "stop_lat_on": 0.03, "stop_on_time": 0.3, "stop_off_time": 1.0, "stop_a_plan": 2.5,
+                 "stop_a_strong": 3.4, "stop_jerk": 5.0, "stop_delay": 0.5, "stop_a_start": 0.7}
 
 
 def follow(gap, v, v_lead, cap, v_des):
@@ -568,6 +583,9 @@ class Pair:
         self.contact = False
         self.peak = [0.0, 0.0]
         self.prev_ab = 0.0
+        self.stop_cond_since = self.stop_clear_since = None
+        self.stop_active = False
+        self.stop_dec = 0.0  # the safety layer's deceleration now (jerk limited)
         b = C1.TYPES["car"].b_max
         self.meas = measures.Measures(b_max=(b, b))
 
@@ -655,6 +673,8 @@ class Pair:
             ab = max(-1.0, min(cap.a_max, 1.5 * (self.vb0 - vb)))
         if self.in_lane_at is not None and t >= self.in_lane_at + self.react_b and xa_s > xb:
             ab = min(ab, follow(gap_b, vb, va_s, cap, self.vb0))
+        if self.pb is not None and self.pb.get("stop", STOP_DEFAULTS["stop"]):
+            ab = min(ab, -self.stop_layer(t, xa_s, lat_s, va_s, xb, vb, la, lb))
         A.drive(aa, y_t)
         B.drive(ab, self.yB)
         # --- truth
@@ -696,6 +716,40 @@ class Pair:
         waiting = self.decide is None and (self.dropping or job.get("a") == C1.GO_IF_YIELD or self.pa is not None)
         if self.contact or t >= C1.T_MAX or (t >= HORIZON and (merged or not waiting and self.decide is None)):
             self.finish()
+
+    def stop_layer(self, t, xa_s, lat_s, va_s, xb, vb, la, lb):
+        """B's safety layer (STOP_DEFAULTS): the deceleration it asks for now, >= 0."""
+        p = {k: self.pb.get(k, v) for k, v in STOP_DEFAULTS.items()}
+        # A in B's path: its lane change has started and its front is ahead of B's front
+        cond = lat_s >= p["stop_lat_on"] and xa_s + la / 2 > xb + lb / 2
+        if cond:
+            self.stop_clear_since = None
+            if self.stop_cond_since is None:
+                self.stop_cond_since = t
+            if t - self.stop_cond_since >= p["stop_on_time"] + p["stop_delay"] - 1e-9:
+                self.stop_active = True
+        else:
+            self.stop_cond_since = None
+            if self.stop_active:
+                if self.stop_clear_since is None:
+                    self.stop_clear_since = t
+                if t - self.stop_clear_since >= p["stop_off_time"] - 1e-9:
+                    self.stop_active = False
+        want = 0.0
+        if self.stop_active:
+            x_obs = xa_s - la / 2
+            if va_s >= p["stop_fixed_v"]:
+                v = max(0.0, va_s - p["stop_v_offset"])
+                x_obs += v * v / (2 * p["stop_rss_dec"])
+            dist = x_obs - p["stop_margin"] - (xb + lb / 2)
+            if dist <= 0.5:
+                want = p["stop_a_strong"] if vb > 0.01 else 0.0
+            else:
+                need = vb * vb / (2 * dist)
+                want = min(p["stop_a_plan"], need) if need >= p["stop_a_start"] else 0.0
+        step = p["stop_jerk"] * DT
+        self.stop_dec += max(-step, min(step, want - self.stop_dec))
+        return self.stop_dec
 
     def finish(self):
         xa, ya, _, _ = self.A.state()

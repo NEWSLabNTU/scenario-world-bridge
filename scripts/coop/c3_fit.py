@@ -37,6 +37,9 @@ REACTS = tuple(float(x) for x in os.environ.get("FIT_REACTS", "0.5,0.8,1.0").spl
 OBS_GT = {"obs_b_delay": 0.0, "obs_b_sigma_x": 0.0, "obs_b_sigma_v": 0.0}
 # C3b: Autoware on its own perception (CenterPoint): B sees as A does, the arena's default (E2)
 OBS = {"gt": OBS_GT, "cp": {}}[os.environ.get("FIT_OBS", "gt")]
+# FIT_STOP=1: every candidate B carries the arena's safety layer (arena.STOP_DEFAULTS:
+# Autoware's obstacle_stop as C3's bags show it); the candidates' names end in _s
+STOP = int(os.environ.get("FIT_STOP", "0"))
 
 
 def autoware_means(dirs):
@@ -83,7 +86,8 @@ def main():
     c2b.VB = VB
     results = []
     for gap, by, rt in itertools.product(REACT_GAPS, B_YS, REACTS):
-        cand = {"name": f"B_r{gap:g}_b{by:g}_t{rt:g}", "pre_band": -99.0, "react_gap": gap, "b_y": by}
+        cand = {"name": f"B_r{gap:g}_b{by:g}_t{rt:g}{'_s' if STOP else ''}", "pre_band": -99.0,
+                "react_gap": gap, "b_y": by, "stop": STOP}
         d = Path(a.out) / cand["name"]
         if not (d / "arena.jsonl").exists():
             c2b.PAIRS = [(c2b.A_EQ, cand), (DO.A_AW_PERM, cand)]

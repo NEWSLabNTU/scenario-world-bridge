@@ -366,3 +366,9 @@ def test_ego_geometry_against_the_catalog(tmp_path):
                    "catalog's 0.74", "front_x 1.385, the catalog's 3.005"]
     assert project.geometry_problems(project.vehicle_geometry(ET.fromstring(
         '<Vehicle><Axles><FrontAxle positionX="3.004"/></Axles></Vehicle>')), good) == []
+
+
+def test_logging_keys_not_built_are_refused_by_name():
+    f = project._check_logging("swb.yaml", "logging", {"levels": {"bridge": "info"},
+                                                       "debug": ["bridge"], "capture": "full"})
+    assert len(f) == 2 and "not built yet" in str(f[0]) and "not built yet" in str(f[1])

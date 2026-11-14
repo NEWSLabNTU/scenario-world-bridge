@@ -439,8 +439,10 @@ wall time: run start/end, pilot ready, SSv2 milestones, judge events, and every 
 WARN or above in any slice.
 
 Levels: `result` (result, resolved, JUnit, timeline), `standard` (+ slices, SSv2's logs),
-`full` (+ a rosbag of the key topics, `host.json` samples), `debug` (+ every topic, DEBUG on
-`logging.debug:` groups). `capture` records; `keep` prunes per verdict after it is known;
+`full` (+ a rosbag of the key topics, `host.json` samples), `debug` (+ every topic).
+Per-process ROS log levels (`logging.levels`, DEBUG on named groups as `logging.debug`) are
+designed but not built; `project check` refuses both keys by name, so none is silently
+ignored. `capture` records; `keep` prunes per verdict after it is known;
 At `full` a `ros2 bag record` per pilot domain (pilots sharing a domain share one) records
 the key topics (ego state, control command, vehicle status, detected objects, trajectory,
 `/swb/wheels`; `logging.topics` replaces the list) from the moment every pilot is ready until

@@ -47,7 +47,12 @@ LIFETIMES = ("stack", "run")
 INPUTS = ("sensors", "map", "ground_truth")
 LEVELS = ("result", "standard", "full", "debug")
 VERDICTS = ("passed", "failed", "error")
-LOGGING_KEYS = ("capture", "keep", "levels", "budget", "debug", "topics")
+LOGGING_KEYS = ("capture", "keep", "budget", "topics")
+# designed, not built: refused by name rather than accepted and ignored
+LOGGING_NOT_YET = {"levels": "per-process ROS log levels are not built yet; give a pilot its"
+                             " own (e.g. args: {log_level: warn}) where its launch takes one",
+                   "debug": "DEBUG on named groups is not built yet; capture: debug records"
+                            " every topic"}
 SUITE_KEYS = ("scenarios", "parameters", "distribution", "repetitions", "seed", "expect",
               "retry", "pilot_args", "logging")
 EXTERNAL_CONTROLLERS = ("agent", "autoware")
@@ -356,7 +361,9 @@ def _check_logging(file, where, lg) -> list:
         return [Finding(file, f"{where}: is not a mapping")]
     out = []
     for k in lg:
-        if k not in LOGGING_KEYS:
+        if k in LOGGING_NOT_YET:
+            out.append(Finding(file, f"{where}.{k}: {LOGGING_NOT_YET[k]}", f"remove {k}:"))
+        elif k not in LOGGING_KEYS:
             out.append(Finding(file, f"{where}: unknown key {k}",
                                f"use only {', '.join(LOGGING_KEYS)}"))
     if lg.get("capture") is not None and lg["capture"] not in LEVELS:

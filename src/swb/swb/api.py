@@ -59,7 +59,10 @@ def run_one(project, scenario, overrides=None) -> RunResult:
     spec = runmod.RunSpec(path, dict(o.get("parameters") or {}), int(o.get("repetition") or 0),
                           o.get("seed"), o.get("expect"), o.get("pilot_args") or {},
                           o.get("logging") or {}, timeout=o.get("timeout"))
-    return runmod.run_spec(ctx, spec)
+    try:
+        return runmod.run_spec(ctx, spec)
+    finally:
+        runmod.release_turn(ctx)
 
 
 @contextlib.contextmanager

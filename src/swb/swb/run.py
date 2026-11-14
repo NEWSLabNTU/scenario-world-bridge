@@ -607,7 +607,7 @@ RUN_LOCK = "run.lock"
 def take_turn(ctx: Context):
     """One runner at a time on a stack: two SSv2s in one ROS domain drive each other's nodes
     (their names are the same), so a second run is refused, naming the one running. Held
-    from this process's first run on a stack until it exits (a suite keeps its turn)."""
+    from a command's first run until the command ends (a suite keeps its turn)."""
     if getattr(ctx, "turn", None) is not None:
         return
     stack_dir = Path(ctx.stack["proc"]).parent
@@ -631,6 +631,17 @@ def take_turn(ctx: Context):
     os.pwrite(fd, json.dumps(info).encode(), 0)
     os.set_inheritable(fd, False)
     ctx.turn = fd
+
+
+def release_turn(ctx: Context):
+    """Give the stack's run lock back (the command or run_one ends)."""
+    fd = getattr(ctx, "turn", None) if ctx is not None else None
+    if fd is not None:
+        ctx.turn = None
+        try:
+            os.close(fd)
+        except OSError:
+            pass
 
 
 def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult:
@@ -1043,6 +1054,7 @@ def _main(args, out, stack_command=None) -> int:
         sys.stderr.write(f"swb run: error: {e}\n")
         return EXIT_INFRA
     finally:
+        release_turn(ctx)
         started = ctx.started if ctx is not None else None
         if started is not None:
             if args.stop_stack:

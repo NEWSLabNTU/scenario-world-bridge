@@ -653,6 +653,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         samples = [host_sample()]
 
     procs, recorders = [], []
+    ssv2 = None
     try:
         for p, entry in (run_pilots if not infra else []):
             log_dir = logs / f"pilot-{p['entity']}"
@@ -713,7 +714,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         t_end = time.time()
         mark1 = slices.LogMark.take(proc_dir)
     finally:
-        # the recorders first, on SIGINT, so each bag is closed before its topics go away
+        # SSv2 first: interrupted, it would go on talking to the stack's bridge and join the
+        # next run's scenario as a second client. Then the recorders, on SIGINT, so each bag
+        # is closed before its topics go away
+        if ssv2 is not None and ssv2.poll() is None:
+            _stop(ssv2)
         stackmod.stop_processes(recorders)
         for proc in procs:
             _stop(proc)

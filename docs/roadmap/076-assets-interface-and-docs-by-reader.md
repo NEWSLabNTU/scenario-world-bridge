@@ -594,12 +594,16 @@ sharing a project.
   - fixed (031d462): SIGTERM to `swb run` stops what the run started (seen live: nothing
     left over, exit 130). SIGINT from a non-interactive shell's `&` is ignored by POSIX,
     so scripts stop a runner with SIGTERM.
-  - open: the third run errored with the host at load average 139 (other users' jobs).
-    The bridge logged each of SSv2's Initialize and spawn requests twice, the second spawn
-    refused ("an entity of that name exists"), then the variants failed in a chain. That
-    fits a client retrying a reply that took more than its timeout (Initialize took 4 s).
-    To check on a quiet host; if it holds, the bridge should treat a retried request as
-    the same request.
+  - fixed (this commit): the third run's errors were not the host's load (139 at the time).
+    An interrupted run left its SSv2 running (the runner's finally stopped the pilots and
+    recorders, not SSv2), and that SSv2 joined the next stack's bridge on the same port as a
+    second client: every Initialize and spawn arrived twice, the second spawn was refused
+    ("an entity of that name exists"), and the variants failed in a chain. SSv2's client
+    never retries (timeouts of 90 to 300 s, then an error), which ruled out a retry. The
+    runner now stops SSv2 first on any exit.
+  - open: the bridge cannot tell two SSv2 clients apart on its REP socket; a stray SSv2
+    from outside swb would do the same. A per-scenario client id in Initialize would let it
+    refuse the second one.
 
 ## Acceptance
 

@@ -783,3 +783,42 @@ def test_sigterm_stops_what_the_runner_started(tmp_path):
     assert p.returncode == 130, err
     assert marker.read_text() == "yes"
     assert "stopping the stack this run started" in out and "interrupted" in err
+
+
+def test_an_interrupted_run_stops_ssv2(live, where, monkeypatch):
+    """An interrupt while SSv2 runs stops SSv2; left alone it joins the next run's bridge."""
+    d, _ = live
+    pidfile = where["tmp"] / "ssv2.pid"
+    sleeper = where["tmp"] / "sleeper.py"
+    sleeper.write_text(f"import os, time\nopen({str(pidfile)!r}, 'w').write(str(os.getpid()))\n"
+                       "time.sleep(120)\n")
+    started = {}
+    real_start = run._start
+
+    def start(argv, env, log, cwd=None):
+        proc = real_start(argv, env, log, cwd)
+        if str(sleeper) in argv:
+            started["ssv2"] = proc
+
+            def wait(timeout=None):
+                deadline = time.time() + 10
+                while not pidfile.exists() and time.time() < deadline:
+                    time.sleep(0.05)
+                raise KeyboardInterrupt
+            proc.wait = wait
+        return proc
+    monkeypatch.setattr(run, "_start", start)
+    with pytest.raises(KeyboardInterrupt):
+        api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"scenario_command": lambda *a: [sys.executable, str(sleeper)]})
+    pid = int(pidfile.read_text())
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(pid, signal.SIGKILL)
+        raise AssertionError("SSv2 outlived the interrupted run")

@@ -29,6 +29,7 @@ import shlex
 import signal
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -210,6 +211,7 @@ class Carla:
         self.events = events or (lambda name, **kw: None)
         self.respawn_delay = respawn_delay
         self.proc = None
+        self.reaper = None
         self.t_start = None
         self.next_probe = 0.0
         self.due = None
@@ -241,6 +243,7 @@ class Carla:
                                              preexec_fn=_die_with_parent)
             finally:
                 fh.close()
+            self.reaper = start_reaper(self.proc.pid)
         self.t_start = time.time()
         self.next_probe = 0.0
         self.due = None
@@ -314,6 +317,57 @@ class Carla:
         self.events("carla.stop", pid=proc.pid)
 
 
+REAP_GRACE = 20.0   # a CARLA whose keeper died: SIGTERM, this long, then SIGKILL
+
+
+def start_reaper(pid, grace=REAP_GRACE):
+    """A watcher for the CARLA at ``pid`` that ends it when the keeper dies. The parent-death
+    signal gives CARLA SIGTERM, but UE's graceful exit can hang, and play_launch SIGKILLs the
+    keeper seconds after SIGTERM, before its own SIGKILL to CARLA: the watcher, in its own
+    session (play_launch's stop does not reach it), escalates instead. None if it cannot
+    start (CARLA then has only its parent-death signal)."""
+    try:
+        return subprocess.Popen([sys.executable, "-m", "swb.simulator", "reap", str(pid),
+                                 "--grace", str(grace), "--parent", str(os.getpid())],
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                start_new_session=True, preexec_fn=_die_with_parent)
+    except OSError:
+        return None
+
+
+def reap(pid: int, parent: int, grace: float = REAP_GRACE, poll: float = 1.0) -> int:
+    """Wait while ``parent`` lives; then SIGTERM CARLA (its process group too), wait
+    ``grace`` seconds, SIGKILL. Through a pidfd: a pid used again is never signalled. Returns
+    at once when CARLA ends first (its keeper stopped it)."""
+    import select
+    try:
+        fd = os.pidfd_open(pid)
+    except (ProcessLookupError, OSError):
+        return 0
+    gone = {"now": False}
+    signal.signal(signal.SIGTERM, lambda *_: gone.update(now=True))
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    def ended(timeout):
+        return bool(select.select([fd], [], [], timeout)[0])
+
+    def send(sig):
+        try:
+            signal.pidfd_send_signal(fd, sig)
+        except ProcessLookupError:
+            return
+        if not ended(0):
+            _kill_group(pid, sig)   # the engine under a launcher script, in CARLA's session
+    while not gone["now"] and os.getppid() == parent:
+        if ended(poll):
+            return 0
+    send(signal.SIGTERM)
+    if ended(grace):
+        return 0
+    send(signal.SIGKILL)
+    return 0
+
+
 def _kill_group(pgid, sig):
     try:
         os.killpg(pgid, sig)
@@ -324,3 +378,19 @@ def _kill_group(pgid, sig):
 def _iso():
     import datetime
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def main(argv=None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(prog="python3 -m swb.simulator")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("reap", help="end a stack's CARLA when its keeper dies (internal)")
+    r.add_argument("pid", type=int)
+    r.add_argument("--parent", type=int, required=True)
+    r.add_argument("--grace", type=float, default=REAP_GRACE)
+    a = ap.parse_args(argv)
+    return reap(a.pid, a.parent, a.grace)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

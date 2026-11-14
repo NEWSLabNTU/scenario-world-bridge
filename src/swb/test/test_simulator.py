@@ -388,3 +388,50 @@ def test_a_started_carla_dies_with_a_killed_keeper(tmp_path):
         time.sleep(0.05)
     os.kill(child, 9)
     raise AssertionError("the started CARLA outlived its SIGKILLed keeper")
+
+
+def test_a_carla_deaf_to_sigterm_is_killed_after_its_keeper(tmp_path):
+    """UE's graceful exit can hang: the reaper SIGKILLs CARLA after the grace."""
+    import subprocess as sp
+    pidfile = tmp_path / "carla.pid"
+    script = tmp_path / "keeper.py"
+    script.write_text(textwrap.dedent(f"""
+        import subprocess, sys, time
+        from swb import simulator
+        p = subprocess.Popen([sys.executable, "-c",
+                              "import os, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                              "open({str(pidfile)!r}, 'w').write(str(os.getpid())); time.sleep(120)"],
+                             start_new_session=True, preexec_fn=simulator._die_with_parent)
+        simulator.start_reaper(p.pid, grace=1.0)
+        time.sleep(120)
+    """))
+    root = str(Path(sim.__file__).resolve().parents[1])
+    keeper = sp.Popen([sys.executable, str(script)],
+                      env=dict(os.environ, PYTHONPATH=root + os.pathsep + os.environ.get("PYTHONPATH", "")))
+    deadline = time.time() + 15
+    while not (pidfile.exists() and pidfile.read_text()) and time.time() < deadline:
+        time.sleep(0.05)
+    assert pidfile.exists(), "the stand-in CARLA never started"
+    child = int(pidfile.read_text())
+    time.sleep(1.0)   # the reaper is up
+    keeper.kill()
+    keeper.wait()
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.05)
+    os.kill(child, 9)
+    raise AssertionError("a CARLA that ignores SIGTERM outlived its SIGKILLed keeper")
+
+
+def test_the_reaper_leaves_with_a_carla_its_keeper_stopped(tmp_path):
+    import subprocess as sp
+    carla = sp.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    reaper = sim.start_reaper(carla.pid, grace=1.0)
+    time.sleep(0.5)
+    carla.terminate()
+    carla.wait()
+    assert reaper.wait(timeout=10) == 0

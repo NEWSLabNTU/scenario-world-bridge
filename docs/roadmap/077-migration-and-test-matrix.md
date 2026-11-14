@@ -193,3 +193,9 @@ Isaac's rear contact (inventory row 18).
   - Still open: the keeper is SIGKILLed by play_launch about 5 s after SIGTERM, inside the
     pilots' stop grace, so stack.json ends at `stopping` rather than `stopped` (pilots and
     CARLA still end, by their parent-death signal).
+- A started CARLA left alive once more (2026-11-15): its keeper's SIGTERM reached it by the
+  parent-death signal, but UE's graceful exit hung with the RPC port open and unanswered,
+  and the keeper (SIGKILLed by play_launch) never escalated; the next stack refused port
+  2000 as "not CARLA's RPC server". Each started CARLA now has a reaper (`python3 -m
+  swb.simulator reap`, its own session, so play_launch's stop does not reach it) that, when
+  the keeper dies, sends SIGTERM, waits 20 s and sends SIGKILL, through a pidfd.

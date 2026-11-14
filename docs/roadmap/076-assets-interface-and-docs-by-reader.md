@@ -601,6 +601,10 @@ sharing a project.
     ("an entity of that name exists"), and the variants failed in a chain. SSv2's client
     never retries (timeouts of 90 to 300 s, then an error), which ruled out a retry. The
     runner now stops SSv2 first on any exit.
+  - passed (2026-11-15): `nightly.yaml` with `--stop-stack` and `carla.start: auto`: the stack
+    started CARLA from `carla.root`, UC-ACC 27/27 and UC-AEB 9/9 variants passed, each with a
+    fresh Autoware, and the `physical_verdict` judge passed both (its first live run). The
+    stack stopped CARLA with itself; nothing was left over.
   - open: the bridge cannot tell two SSv2 clients apart on its REP socket; a stray SSv2
     from outside swb would do the same. A per-scenario client id in Initialize would let it
     refuse the second one.

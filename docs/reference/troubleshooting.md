@@ -33,7 +33,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 |---|---|
 | `runs why` names the simulator group; CARLA is not serving | start CARLA; a restarted CARLA is waited for up to 120 s at a scenario's start |
 | The bridge logs `CARLA version mismatch` | CARLA and the build are different versions |
-| A pilot never became ready within `--ready-timeout` | its log under the stack's `proc/pilot-<entity>/` says why; the first Autoware start on a machine builds TensorRT engines (minutes) |
+| A pilot never became ready within `--ready-timeout` | its log under the stack's `proc/pilot-<entity>/` says why; a user's first Autoware start builds TensorRT engines into `~/autoware_data` (minutes; kept for later starts): run again, or give `--ready-timeout 1200` |
 | The ego is up but never engages; the relay's log has no `registered` for it | the pilot's agent did not register: its log, and for `kind: none` your own agent's `--relay` |
 | `Requested the service /api/autoware/set/velocity_limit 5 times` | the ego lacks Autoware's deprecated API, which serves a scenario's absolute `SpeedAction` (every AWF use case): keep `launch_deprecated_api` on ([Your Autoware](../how-to/your-autoware.md)) |
 | A scenario fails in PLANNING or WAITING_FOR_ENGAGE | a node of the ego's Autoware exited: its log in the stack's web UI says why. `map_based_prediction` aborting with `Could not find 1` is a map without lanelet subtypes; `behavior_path_planner` aborting now and then (`failed to add guard condition to wait set`) is an Autoware bug the pilot's respawn recovers from |
@@ -43,7 +43,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 
 | Symptom | Cause, fix |
 |---|---|
-| `ros2 topic list` is empty although the stack runs | the terminal is not on the stack's domain and DDS: `eval "$(ros2 run swb seat env 0)"` (the first pilot) or `seat env scenario` |
+| `ros2 topic list` is empty although the stack runs | the terminal is not on the stack's domain and DDS: `eval "$(ros2 run swb seat env 0)"`. The argument names a domain of your seat: `scenario` (the bridge, the relay, SSv2) or `0`, `1`, ... (the first, second, ... pilot, in the order they start, the ego first) |
 | Still empty | the `ros2` daemon kept other DDS settings: `ros2 daemon stop`, or add `--no-daemon` |
 | The vehicle side never localizes; the point cloud map never arrives | the kernel's socket buffers are too small for a point cloud: the `sysctl` step of [Install](../getting-started/install.md); `RcvbufErrors` in `netstat -su` says so |
 | A domain above 57 fails with `failed to create domain` | the DDS profile's ports end at domain 57: a seat table within 0 to 57 ([Several stacks on one host](../how-to/several-stacks.md)) |
@@ -55,7 +55,8 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | CARLA takes minutes to answer, then freezes in synchronous mode | it came up on another GPU or a software renderer: start it with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json` |
 | CARLA crashes when a scenario changes towns | it runs at `-quality-level=Low`, where CARLA 0.9.16 segfaults on a town change: keep the default (Epic) |
 | A second CARLA on a held port crashes at start | the first still holds it: stop it by its pid (SIGKILL if it ignores SIGTERM) |
-| CARLA dies mid-run | the run fails within about 30 s; restart CARLA; the next run waits for it and runs |
+| CARLA dies mid-run | the run fails within about 30 s. A CARLA the stack started (`carla.root`) is started again by the stack; one you started, restart yourself. The next run waits for it and runs |
+| The stack stops: CARLA did not serve its RPC within `carla.ready_timeout` | the CARLA it started is slow on this host, or failed: read its log, `proc/simulator/carla.log` in the stack's directory; raise `carla.ready_timeout` |
 | The light never changes; `Cannot read the signal table` | the world server could not write the map's signal table into `state/<map>/`: the project directory must be writable |
 
 ## Isaac Sim

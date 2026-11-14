@@ -233,8 +233,8 @@ changed one line (`simulator: isaac`) and one dataset. The map directory is the 
 Autoware map as on CARLA plus `isaac/world.yaml`, which names the world's USD stage
 through `${SWB_CARLA_USD}`, set by the stack. On Isaac the ego's vehicle is a PhysX car
 inside the world server (aib's Model 3, generated from the same vehicle spec as CARLA's),
-so there is no separate vehicle bridge, and the world server carries one ego. How the
-asset set is made: [Isaac assets](../design/isaac-assets.md).
+so there is no separate vehicle bridge, and the world server carries one ego. For
+developers, how the asset set is made: [Isaac assets](../design/isaac-assets.md).
 
 ## Exercises
 

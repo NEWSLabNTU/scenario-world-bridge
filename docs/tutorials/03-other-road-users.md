@@ -180,7 +180,7 @@ decides those, and the scenario fails naming the action rather than ignoring it.
 On Isaac Sim the same files run as far as the simulator can drive them: scripted
 pedestrians, obstacles and cars the same way; `simulator_autopilot` is refused (Isaac has no
 driver of its own), and only one entity can have a pilot (the ego). Every rule for each kind
-of road user: [Writing scenarios](../design/scenario-authoring.md).
+of road user: [What a scenario may use](../reference/scenarios.md).
 
 ## Exercises
 

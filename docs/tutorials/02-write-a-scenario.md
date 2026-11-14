@@ -19,12 +19,14 @@ passed   2026-11-15T11-02-13_follow_to_goal_r0  .../runs/2026-11-15T11-02-13_fol
 ## Before you start
 
 - [Tutorial 1](01-first-drive.md): the project `~/my_first_drive` with Town01 fetched, and
-  its stack running (`map:=Town01`). Every terminal: `source ~/swb.bash`.
+  its stack running. Every terminal: `source ~/swb.bash`.
 - CARLA's Python client (`pip install carla==0.9.16`), from
   [Getting started on CARLA](../getting-started/carla.md).
 - About 30 minutes.
 
-The finished file ships with the workspace, so you can compare against it:
+The finished file ships with the workspace, so you can compare against it. It lives in
+the Isaac Sim example project, because Tutorial 6 runs this same file there unchanged; it
+is the same scenario on CARLA:
 
 ```bash
 E=$(ros2 pkg prefix --share swb_examples)/projects
@@ -212,11 +214,11 @@ outside (controller `Autoware` or `agent`); the project only says *who* drives e
 those (`pilots:`). So the same `.xosc` runs in any project that fetched its map and
 binds its entities, on CARLA or on Isaac Sim.
 
-Rules worth knowing from [Writing scenarios](../design/scenario-authoring.md), the ones a
+Rules worth knowing from [What a scenario may use](../reference/scenarios.md), the ones a
 first scenario meets:
 
-- **SSv2-driven cars never get pushed.** They are placed where SSv2 says every frame; a
-  collision does not move them. For vehicles that drive with physics, use the controller
+- **SSv2-driven cars go where SSv2 says.** They follow SSv2's pose every frame; a
+  collision does not change their path. For vehicles that drive with physics, use the controller
   `simulator_autopilot` (CARLA's Traffic Manager) or `agent` (a pilot of the project,
   [Tutorial 4](04-several-pilots.md)).
 - **Uncommanded traffic lights are green.** CARLA's own light cycling is frozen; command

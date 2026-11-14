@@ -35,15 +35,14 @@ has to see the pedestrian and the car ahead with its own perception.
 **One car, one source.** A car is described once, in a vehicle spec. The simulators'
 physics and sensors, SSv2's catalog entry and Autoware's vehicle packages are made from
 it, and each names the spec's hash; the bridge refuses an ego whose parts name different
-specs, or whose body is more than 2 cm off its catalog box
-([vehicle side](../design/vehicle-side.md)).
+specs, or whose body is more than 2 cm off its catalog box ([Your car](../how-to/your-car.md)).
 
 **Time** is the scenario's. SSv2 steps the world frame by frame through the bridge (CARLA
 in synchronous mode, Isaac's world server stepped), as fast as the slowest part keeps up,
 so a slow frame slows the clock rather than losing physics. Every process reads the
 simulation clock. A world load starts a new episode whose clock starts again, and an
 Autoware cannot follow time back: on CARLA a town change ends every vehicle side, and the
-stack starts them again ([time and ticking](../design/time-and-ticking.md)).
+stack starts them again.
 
 ## Project, stack, run
 
@@ -84,5 +83,6 @@ and a verdict: `passed`, `failed` or `error`, the last for a run the stack could
 a port or a CARLA. A seat number gives each its own; the host's table maps the number to
 domains, ports and a GPU ([Several stacks on one host](../how-to/several-stacks.md)).
 
-The design in full: [Projects, stacks, runs and pilots](../design/projects-and-pilots.md)
-and [the architecture](../design/architecture.md).
+For developers, the design in full:
+[Projects, stacks, runs and pilots](../design/projects-and-pilots.md) and
+[the architecture](../design/architecture.md).

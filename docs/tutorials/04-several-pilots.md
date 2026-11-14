@@ -32,9 +32,9 @@ passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-
 
 - About 45 minutes.
 
-The example is new: its junction and poses come from Town01's lanelet map, and it has not
-yet been run end to end on a live stack (2026-11-15). If a run fails on the cut-in's
-timing, exercise 2 is where to start.
+The example passed end to end on a live stack on 2026-11-15, with all four pilots: two
+Autowares, the BasicAgent and the command agent. If a run fails on the cut-in's timing,
+exercise 2 is where to start.
 
 ## 1. Copy the example
 
@@ -108,6 +108,9 @@ play_launch launch --web-addr 127.0.0.1:8080 \
     swb_launch swb.launch.xml \
     map:=Town01
 ```
+
+`map:=Town01` starts the pilots at once, on Town01, rather than at the first run, so that
+you can watch them come up before running anything.
 
 The stack starts the pilots that live with it: both Autowares and the BasicAgent, each
 nested play_launch in its own pilot domain of the seat. `cut_in` is `lifetime: run`: each

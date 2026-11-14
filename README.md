@@ -53,7 +53,9 @@ traffic light. For someone who already writes SSv2 scenarios:
 - **The verdict is SSv2's**, with CARLA's own contact check and judges of your own beside
   it.
 - **Any autopilot.** Autoware is the default; CARLA's BasicAgent, a launch file of yours or
-  a Python program drive other vehicles in the same scenario.
+  a Python program drive other vehicles in the same scenario. An autopilot of your own
+  drives its car through Autoware's vehicle interface (Autoware's control and status
+  messages), whatever it is built on.
 
 ## How it works
 
@@ -65,19 +67,23 @@ traffic light. For someone who already writes SSv2 scenarios:
 You work in a **project**: a directory with a `swb.yaml` that names the simulator, the
 assets (maps, USD worlds, cars) and which **pilot** drives each scenario entity. A
 long-lived **stack** brings up the simulator side and the pilots; each **run** of a
-scenario goes against it and leaves a result.
-[How it works](docs/explanation/how-it-works.md) says more. In short, with CARLA running:
+scenario goes against it and leaves a result. These words and the others the pages use
+are in the [glossary](docs/reference/glossary.md);
+[How it works](docs/explanation/how-it-works.md) says more.
+
+In short, once [installed](docs/getting-started/install.md), with CARLA installed and
+named in your host settings (the stack then starts it):
 
 ```bash
 ros2 run swb project new ~/my_first_drive        # a starter project
 cd ~/my_first_drive
 ros2 run swb assets fetch                        # its map, from Hugging Face
 play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml map:=Town01        # the stack: leave it running
+    swb_launch swb.launch.xml                    # the stack: leave it running
 ros2 run swb run scenarios/drive_to_goal.xosc    # in a second terminal
 ```
 
-The run prints one line, `passed   <run id>  <run directory>`, and exits 0.
+The run ends with one line, `passed   <run id>  <run directory>`, and exits 0.
 [Tutorial 1](docs/tutorials/01-first-drive.md) goes through it step by step.
 
 ## Requirements
@@ -101,11 +107,12 @@ datasets on Hugging Face, fetched by name into a project (below).
 | **New to swb** | [Install](docs/getting-started/install.md), [Getting started on CARLA](docs/getting-started/carla.md), then the [tutorials](docs/README.md#tutorials) in order |
 | **Adopting swb** for your project: your car, your autopilot, your maps | [Start a project of your own](docs/how-to/start-a-project.md), the [how-to guides](docs/README.md#how-to-guides) and the [reference](docs/README.md#reference) |
 | **Teaching** a course or a lab | [Teaching with swb](docs/teaching.md): seats on one host, the tutorials as labs, grading with judges |
-| **Writing scenarios** | [Tutorial 2: write a scenario](docs/tutorials/02-write-a-scenario.md), [Writing scenarios](docs/design/scenario-authoring.md) (what the bridge supports) |
+| **Writing scenarios** | [Tutorial 2: write a scenario](docs/tutorials/02-write-a-scenario.md), [What a scenario may use](docs/reference/scenarios.md) |
 | **Integrating an autopilot** | [Your autopilot as a pilot](docs/how-to/your-autopilot.md), [the agent SDK](docs/reference/agent-sdk.md) |
 | **Developing swb itself** | the [Developer Guide](docs/development.md) |
 
-[All documentation](docs/README.md).
+[All documentation](docs/README.md). What swb does not do, on one page:
+[Supported and not supported](docs/reference/limits.md).
 
 ## Datasets
 
@@ -120,10 +127,9 @@ fetch` downloads only what it takes:
 | [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages) | Isaac test stages for road surfaces, a proving ground, a rough road | Apache-2.0 |
 | [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models) | a golf cart for Isaac Sim and RViz | Apache-2.0 |
 
-**Other CARLA versions.** CARLA 0.9.16 is tested. 0.9.14 and 0.9.15 build (set
-`CARLA_VERSION=0.9.15` in front of `colcon build`, with that release's CARLA and `carla`
-wheel) but are untested; the bridges refuse a server of another version than they were
-built for. 0.10 is not supported yet.
+**Other CARLA versions.** CARLA 0.9.16 is tested; 0.9.14 and 0.9.15 build but are
+untested, and 0.10 is not supported
+([Supported and not supported](docs/reference/limits.md#platform)).
 
 ## Related projects
 

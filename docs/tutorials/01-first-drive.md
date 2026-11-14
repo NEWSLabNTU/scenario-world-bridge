@@ -20,18 +20,23 @@ RUN                                   VERDICT  SCENARIO           DURATION
 - to make a project with `ros2 run swb project new` and say what is in it;
 - to fetch a project's assets by name and check them;
 - to bring up a stack, and tell when it is ready;
-- to run a scenario against the stack and read its result and its timeline.
+- to run a scenario against the stack, watch it, and read its result and its timeline.
+
+The words this tutorial uses (project, stack, pilot, seat, run, ego, SSv2, ...) are in the
+[glossary](../reference/glossary.md).
 
 ## Before you start
 
 - [Install](../getting-started/install.md) and
   [Getting started on CARLA](../getting-started/carla.md): the workspace built, the
-  environment file, CARLA serving its port.
+  environment file, and CARLA either named in your host settings (`carla.root`, so the stack
+  starts it: recommended for this tutorial) or serving its port.
 - Every terminal: `source ~/swb.bash`.
-- About 30 minutes. The first Autoware start on a machine builds TensorRT engines and can
-  take several minutes; later starts take about one.
-- An NVIDIA GPU with room for CARLA (about 2 GB on Town01) and Autoware, about 0.1 GB of
-  disk for the map.
+- Network access to Hugging Face for step 2.
+- About 30 minutes once the install is done. The first Autoware start on a machine can take
+  several minutes longer (step 4 says why).
+- An NVIDIA GPU with room for CARLA and Autoware (on one host they held about 2.0 to 2.5 GB
+  and 1 to 2 GB of video memory), and about 0.1 GB of disk for the map.
 
 ## 1. Make a project
 
@@ -79,6 +84,8 @@ problem: scenarios/drive_to_goal.xosc: map Town01 is not fetched (assets/maps/To
 ros2 run swb assets fetch
 ```
 
+The datasets are public: no Hugging Face account or login is needed, only network access.
+
 **What you see**: the dataset resolved to a commit, its files downloaded (about 0.1 GB),
 the map linked into the project, and the lock written:
 
@@ -87,6 +94,9 @@ carla-town-autoware-maps: e94113508882: 9 file(s), 9 downloaded
 linked assets/maps/Town01 -> .../jerry73204/carla-town-autoware-maps/e94.../Town01
 swb.lock written
 ```
+
+Without a network the fetch retries a few times, then prints `error: <url>: <reason>` and
+exits 2; run it again once the network is back. Files already downloaded are kept.
 
 `swb.lock` pins the dataset's commit and every file's checksum: commit it with the
 project, and every later fetch, on any machine, gets the same files. The files live in
@@ -109,26 +119,34 @@ In a terminal of its own, in the project directory:
 ```bash
 cd ~/my_first_drive
 play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
-    map:=Town01
+    swb_launch swb.launch.xml
 ```
 
-The stack checks the project, takes a seat, starts CARLA's world server, the bridge, the
-agent relay and, because of `map:=Town01`, the ego's pilot: Autoware on Town01 with CARLA's
-vehicle bridge. Leave it running; every run goes against it. `8080` is seat 0's web port:
-on a host with other users, take yours from `ros2 run swb seat show`.
+The stack checks the project and takes a **seat**: one stack's share of the host (its ROS
+domains, its ports and its web UI port, all from one number), so that it never meets
+another user's stack. It starts CARLA when `carla.root` is set and nothing answers on the
+port, then CARLA's world server, the bridge and the agent relay. Leave it running; every
+run goes against it. `8080` is seat 0's web port: on a host with other users, take yours
+from `ros2 run swb seat show`.
 
-**What you see**, in order (paths shortened):
+The ego's pilot, Autoware with CARLA's vehicle bridge, starts when the first run needs it,
+on that run's map. To start it at once on a map, add `map:=Town01` to the command; nothing
+else changes.
+
+**What you see**, in order (paths shortened; the two CARLA lines only when the stack
+starts CARLA):
 
 ```
-swb: project .../my_first_drive on seat 0 (carla, maps Town01; pilots on Town01); ...
+swb: project .../my_first_drive on seat 0 (carla, maps Town01; pilots on the first ...
 swb stack 2026-11-15T10-15-42_seat0: seat 0; scenario domain 1, SSv2 5555, ...
-swb stack: pilot ego ready on Town01
+swb stack: CARLA started on localhost:2000 (pid ..., log ...); waiting for its RPC, ...
+swb stack: CARLA serves RPC (0.9.16)
 swb stack 2026-11-15T10-15-42_seat0: ready
 ```
 
-The third line comes when Autoware can take a scenario: a minute, or several on the first
-start. The web UI at `http://127.0.0.1:8080` lists every process with its log.
+A CARLA the stack starts takes one to three minutes to serve its port. The web UI at
+`http://127.0.0.1:8080` lists every process with its log. On a remote machine, forward the
+port first (`ssh -L 8080:127.0.0.1:8080 <host>`) and open the same address locally.
 
 **Check**, in a second terminal:
 
@@ -148,14 +166,35 @@ cd ~/my_first_drive
 ros2 run swb run scenarios/drive_to_goal.xosc
 ```
 
-The run starts SSv2 on the scenario, which teleports the ego to its start, gives Autoware
-the goal and engages it. In CARLA's window (or RViz, if the pilot has `rviz: true`) the
-car drives west and stops at the goal.
+The run asks the stack to start the pilots on Town01, waits until Autoware can take a
+route, then starts SSv2 on the scenario, which teleports the ego to its start, gives
+Autoware the goal and engages it. The car drives west and stops at the goal.
 
-**What you see**, after about a minute: one line, the verdict, the run id and the run
-directory.
+**The first Autoware start on a machine** builds TensorRT engines for its neural networks
+and writes them to `~/autoware_data`; later starts load them. Meanwhile the run prints
+nothing, the machine is busy on every core, and the pilot's logs grow under
+`~/.local/state/swb/logs/my_first_drive/seat-0-current/proc/pilot-ego/` (and in the web
+UI). That is not a hang: the run waits up to 600 s for the pilot (`--ready-timeout`). Later
+starts take about a minute, and later runs against the same stack none.
+
+**Watching the drive.** CARLA started by the stack runs off-screen, without a window. On a
+machine with a display:
+
+- give the pilot RViz, `ego: {kind: autoware, vehicle: tesla_model3, rviz: true}` in
+  `swb.yaml`, and restart the stack: Autoware's RViz shows the car, its route, the lidar and
+  what it detects;
+- or open a chase camera on the ego, `ros2 run swb_launch chase_view` (a window; it needs
+  `pygame`);
+- or start CARLA yourself without `-RenderOffScreen` for CARLA's own window
+  ([Getting started on CARLA](../getting-started/carla.md#or-start-it-yourself)).
+
+Without a display, the timeline and logs of step 5 tell what happened.
+
+**What you see**: the map line on the first run, then, after about a minute of driving,
+one line: the verdict, the run id and the run directory.
 
 ```
+map      Town01  (pilots restarted from none in ... s)
 passed   2026-11-15T10-21-07_drive_to_goal_r0  .../my_first_drive/runs/2026-11-15T10-...
 ```
 
@@ -165,8 +204,10 @@ passed   2026-11-15T10-21-07_drive_to_goal_r0  .../my_first_drive/runs/2026-11-1
 echo $?
 ```
 
-prints `0`: the run passed. A failed run exits 1, a run the stack could not judge 2, a
-refused one 3.
+prints `0`: the run passed. The other codes: 1, the scenario failed (its conditions say
+the car did not do what it should); 2, an error, a run the stack could not judge because
+something in it broke (CARLA gone, a pilot that never became ready; `ros2 run swb runs why`
+says what); 3, refused, nothing was run (no stack, a missing asset, a bad argument).
 
 ## 5. Read the result
 
@@ -204,13 +245,14 @@ prints `"verdict": "passed",`.
 ros2 run swb run scenarios/drive_to_goal.xosc
 ```
 
-**What you see**: a second `passed` line with a new run id. Nothing restarted: the stack,
-Autoware included, serves one run after another.
+**What you see**: a second `passed` line with a new run id, and no map line. Nothing
+restarted: the stack, Autoware included, serves one run after another.
 
 **Check**: `ros2 run swb runs list` has two rows.
 
 When you are done, stop the stack with Ctrl-C in its terminal: it ends every process it
-started and frees the seat. CARLA stays up.
+started (CARLA too, if it started CARLA) and frees the seat. A CARLA you started yourself
+stays up.
 
 ## What happened
 
@@ -245,10 +287,13 @@ started and frees the seat. CARLA stays up.
 | Symptom | Fix |
 |---|---|
 | The stack stops at once: `swb: the stack is refused (3): ...` | the message names the problem and its fix; most often the assets were not fetched (step 2) |
+| `assets fetch` ends `error: ...` and exits 2 | Hugging Face did not answer: check the network (a proxy needs `https_proxy`), then fetch again |
+| The stack stops with `CARLA ... ready_timeout` | the CARLA it started did not serve its port in 300 s: read the `carla.log` the message names; a first start on a new host can take longer, raise `carla.ready_timeout` |
 | `swb run: refused: no stack of project my_first_drive on any seat` | the stack is not up, or was started in another directory: start it in the project (step 3) |
-| `swb run: refused: the stack ... is not ready (... waiting for ego); try --wait 600` | Autoware is still starting: wait for `pilot ego ready`, or add `--wait 600` |
+| The first run prints nothing for minutes | Autoware's first start builds TensorRT engines (step 4); `runs why` after the run if it ends `error` |
+| The run ends `error`: `pilot ego never became ready (600 s)` | a slow first start: run again (the engines built so far are kept), or give `--ready-timeout 1200` |
 | The run ends `error` and `runs why` names CARLA | CARLA is not serving its port (`ss -lnt` lists no `:2000`), or is another version |
-| A `ros2 topic list` of your own shows nothing | the terminal is not on the stack's domain and DDS: `eval "$(ros2 run swb seat env 0)"` first ([ROS domains and DDS](../explanation/domains-and-dds.md)) |
+| A `ros2 topic list` of your own shows nothing | the terminal is not on the pilot's ROS domain: `eval "$(ros2 run swb seat env 0)"` first. The argument is a domain of your seat: `scenario` for the bridge, relay and SSv2, or `0`, `1`, ... for the first, second, ... pilot ([ROS domains and DDS](../explanation/domains-and-dds.md)) |
 
 More: [Troubleshooting](../reference/troubleshooting.md).
 

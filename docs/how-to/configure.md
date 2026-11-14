@@ -27,9 +27,9 @@ cp $(ros2 pkg prefix --share swb_carla_world)/config/swb_carla_world.yaml config
 ```
 
 `stack_args` replaces what the stack gives that launch itself, so repeat the project's
-state directory in it, as below. (Project keys for these files are planned; the
-`stack_args` lines here have not been run with play_launch's own argument parser on a live
-stack, 2026-11-15.)
+state directory in it, as below. There are no project keys for these files
+([Supported and not supported](../reference/limits.md#projects)), which also says how far
+the `stack_args` lines here have been run.
 
 ## The bridge
 

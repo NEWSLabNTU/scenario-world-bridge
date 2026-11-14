@@ -111,7 +111,8 @@ time, on one thread; do not block in one for longer than its command allows (bel
 
 Poses are dictionaries `{x, y, z, qx, qy, qz, qw}` in the map frame (the same frame as the
 scenario's Lanelet2 map). `ep` (`swb_agent.Episode`) carries `pose` and, from the relay,
-an `episode` id; `scenario`, `map` and `parameters` are empty for now.
+an `episode` id; `scenario`, `map` and `parameters` are empty (the relay does not fill
+them).
 
 `self.config` is the `--config` file (JSON or YAML) as a dict, `self.entity` the entity
 name, `self.seed` and `self.run_dir` the run's seed and directory (`--seed`, `--run-dir`;
@@ -275,7 +276,8 @@ The agent logs each command: `reset` (it finds the vehicle the bridge spawned, b
 `role_name`, `hero` for the ego, else the entity's name), `set_goal` (BasicAgent plans
 through the route), `ARRIVED`, `stop`.
 
-How it behaves, so you can write your own the same way (`swb_agent/adapters/carla_basic.py`):
+How it behaves, so you can write your own the same way (the module
+`swb_agent.adapters.carla_basic`):
 
 - **It never touches the simulation beyond its vehicle.** The bridge ticks CARLA in
   synchronous mode; the agent never ticks, never changes settings, never spawns or destroys
@@ -365,5 +367,5 @@ The protocol is versioned. Agents written with this SDK speak v2 and fall back t
 older relay; the relay serves v1 agents unchanged, giving them the v1 sequence (`stop`,
 `clear_goal`, `teleported(pose)`) instead of `reset`. An
 agent without `on_reset` is treated the same way by the SDK. The protocol itself, for
-writing an agent in another language: [design/user-workflow.md, "The agent protocol
-(I3)"](../design/user-workflow.md#the-agent-protocol-i3).
+writing an agent in another language, is in the developer documentation:
+[the agent protocol](../design/user-workflow.md#the-agent-protocol-i3).

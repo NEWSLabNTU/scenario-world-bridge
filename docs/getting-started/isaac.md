@@ -31,7 +31,7 @@ system's Python), with Autoware's messages built for that Python. Choose where i
 run the two installers from the workspace:
 
 ```bash
-cd ~/scenario-world-bridge
+cd ~/scenario-world-bridge                        # your clone
 export ISAAC_ROOT=~/isaac-sim
 src/swb_isaac_world/scripts/install_isaac.sh     # ends: isaacsim 6.1.0.0, INSTALL-DONE
 src/swb_isaac_world/scripts/build_msgs.sh        # into $ISAAC_ROOT/msgs

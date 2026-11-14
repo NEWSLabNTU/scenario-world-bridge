@@ -24,6 +24,7 @@ seats:
   domains: {base: 1, stride: 8}  # seat n: scenario domain base + stride n, then pilots'
   ports: {base: 5555, stride: 100}   # SSv2 +0 (+1, +2), relay +5, world server +36
   web: {base: 8080, stride: 10}  # the stack's web UI +0, a run's scenario +1
+  # carla: {base: 2000, stride: 10}   # optional: seat n's CARLA port base + stride n
   count: 7
   gpus: null                     # a list, seat -> GPU index; null: GPU 0 for every seat
 seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can write
@@ -40,8 +41,10 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |
 | `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
 | `isaac.root` | the stack | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
-| `autoware.setup` | not read yet | Autoware's `setup.bash`; source it in your environment file |
+| `autoware.setup` | nothing | not read: source Autoware's `setup.bash` in your environment file ([Install](../getting-started/install.md#the-environment-file)) |
 | `seats` | the stack, `seat` | the host's seat table ([Several stacks on one host](../how-to/several-stacks.md)) |
+| `seats.carla` | the stack, `seat` | `{base, stride}`: each seat its own CARLA port, `base + stride n` for seat `n`, over `carla.port`. `stride` at least 3 (CARLA uses its port and the two after it); a table whose CARLA ports meet the seats' other ports is refused. `seat show` prints each seat's CARLA port. With `carla.root` set and `carla.start: auto`, each seat's stack starts its own CARLA there |
+| `hub_url` | `assets` | the Hugging Face endpoint (default the public Hub); another URL is read over plain HTTPS with the Hub's API, for a mirror of the datasets |
 | `seat_locks` | the stack, `seat` | the seat locks' directory |
 
 Every domain of the seat table must be 0 to 57 (the localhost DDS profile's limit), and

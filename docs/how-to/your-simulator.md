@@ -2,7 +2,7 @@
 
 Make another simulator a backend: every simulator is a **world server** behind one
 protocol, `swb_world.proto` in `swb_world_protocol`, and the bridge needs nothing new for
-one ([design](../design/simulator-interface-split.md)). CARLA's world server
+one (for developers, the [design](../design/simulator-interface-split.md)). CARLA's world server
 (`swb_carla_world`, Rust) and Isaac Sim's (`swb_isaac_world`, Python) are the worked
 examples.
 
@@ -53,8 +53,10 @@ It starts no autopilot of its own. Who drives each entity is `pilots:=`, the sam
 a project's `pilots:` in YAML or JSON, e.g. `pilots:='{ego: {kind: launch, launch: my_pkg
 drive.launch.xml}}'` ([Project file](../reference/project-file.md)).
 
-The project's stack, `swb.launch.xml`, starts `carla` and `isaac` only today (2026-11-15),
-so a third simulator runs without projects, seats and `swb run`: its scenarios go to
-`scenario.launch.xml` directly. The vehicle under test needs a vehicle side of its own:
-the car's sensors, `/vehicle/status/*`, `/control/command/*` and `/clock`, as acb (CARLA)
-and aib (Isaac Sim) are.
+The project's stack, `swb.launch.xml`, starts `carla` and `isaac` only
+([Supported and not supported](../reference/limits.md#projects)), so a third simulator
+runs without projects, seats and `swb run`: its scenarios go to `scenario.launch.xml`
+directly. The vehicle under test needs a vehicle side of its own: the car's sensors and
+the vehicle interface CARLA's and Isaac's offer
+([Your autopilot, the vehicle interface](your-autopilot.md#the-vehicle-interface)),
+`/clock` included.

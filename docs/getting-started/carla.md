@@ -1,7 +1,7 @@
 # Getting started on CARLA
 
-CARLA 0.9.16 installed, running, and found by swb. About 20 minutes, most of it the
-download. Do [Install](install.md) first.
+CARLA 0.9.16 installed and found by swb. Mostly the download (the unpacked release
+measured 30 GB). Do [Install](install.md) first.
 
 ## CARLA itself
 
@@ -9,15 +9,39 @@ Download the packaged release, `CARLA_0.9.16.tar.gz`, from
 [CARLA's releases](https://github.com/carla-simulator/carla/releases/tag/0.9.16) and unpack
 it, say into `~/CARLA_0.9.16`
 ([CARLA's quick start](https://carla.readthedocs.io/en/0.9.16/start_quickstart/)). Then its
-Python client, which the pose helper and CARLA's BasicAgent pilot use:
+Python client, which the pose helper and CARLA's BasicAgent pilot use. Install it for your
+user into Humble's Python (the system `python3`, 3.10), as the tools of
+[Install](install.md#your-tools):
 
 ```bash
-pip install carla==0.9.16 networkx shapely
+python3 -m pip install --user carla==0.9.16 networkx shapely
+python3 -c 'import carla; print(carla.__file__)'
 ```
 
-## Start it
+## Let the stack start it (recommended)
 
-CARLA runs in a terminal of its own and stays up between runs and between projects:
+Tell swb where CARLA is installed, in `~/.config/swb/host.yaml`:
+
+```yaml
+carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
+```
+
+With `carla.root` set, the stack starts CARLA itself when nothing answers on the port
+(`carla.start: auto`, the default), waits for it (up to `carla.ready_timeout`, 300 s) and
+stops it with the stack. It runs CARLA off-screen, on the NVIDIA card, at the default
+quality (Epic), and writes CARLA's output to
+`<logs>/<project>/seat-<n>-current/proc/simulator/carla.log` (`logs:` of the host
+settings, `~/.local/state/swb/logs` by default). This is the way for a first drive: nothing else to start, and
+nothing left running. The BasicAgent pilot of [Tutorial 4](../tutorials/04-several-pilots.md)
+needs `carla.root` anyway.
+
+Off-screen means there is no CARLA window. To watch a drive, see
+[Tutorial 1, step 4](../tutorials/01-first-drive.md#4-run-the-scenario).
+
+## Or start it yourself
+
+To keep one CARLA up between stacks, or to see CARLA's own window, start it in a terminal
+of its own; the stack then uses it as it is and never stops it:
 
 ```bash
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
@@ -28,8 +52,11 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
 ```
 
 The `VK_ICD_FILENAMES` line makes CARLA render on the NVIDIA card on a laptop or a host
-with two GPUs; without it CARLA may pick another and take minutes to answer. Leave out
-`-RenderOffScreen` to get CARLA's window.
+with two GPUs; without it CARLA may pick another and take minutes to answer. Check the file
+exists (`ls /usr/share/vulkan/icd.d/`); if there is no `nvidia_icd.json`, the NVIDIA
+driver's Vulkan part is missing or names its file differently, and CARLA will not render on
+the NVIDIA card until it is there. Leave out `-RenderOffScreen` to get CARLA's window (it
+needs a display).
 
 It serves its port after one to three minutes. **Check**:
 
@@ -39,36 +66,22 @@ ss -lnt | grep ':2000 '
 
 prints one `LISTEN` line.
 
-## Tell swb where it is
+## Another port or another machine
 
-swb finds CARLA through the host settings. `localhost:2000` is the default; for another
-port or another machine, set it in `~/.config/swb/host.yaml`:
-
-```yaml
-carla: {host: localhost, port: 2000}
-```
-
-Or let the stack start CARLA for you: give `carla.root` and the stack starts CARLA when
-nothing answers on the port (`carla.start: auto`, the default), waits for it (up to
-`carla.ready_timeout`, 300 s) and stops it with the stack. A CARLA you started yourself
-is used as it is and never stopped:
-
-```yaml
-carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
-```
-
-Its quality level matters when a
-scenario changes towns: at `-quality-level=Low` CARLA 0.9.16 crashes on a town change, so
-keep the default (Epic) unless every run stays on the town CARLA started with.
+`localhost:2000` is the default. For another, set it in `~/.config/swb/host.yaml`, for
+example `carla: {host: localhost, port: 3000}`. On a host with several stacks, the seat
+table can give every seat its own CARLA port
+([Several stacks on one host](../how-to/several-stacks.md#one-carla-per-stack)).
 
 ## If it does not work
 
 | Symptom | Fix |
 |---|---|
+| The stack says CARLA did not answer within `carla.ready_timeout` | read the stack's `proc/simulator/carla.log`; a first start on a new host can take minutes: raise `carla.ready_timeout` |
 | CARLA takes minutes to serve its port, then freezes | it came up on another GPU or a software renderer: keep the `VK_ICD_FILENAMES` line |
 | A second CARLA on the same port crashes at start | the first one still holds it: stop it by its pid (SIGKILL if it ignores SIGTERM) |
-| The bridge logs `CARLA version mismatch` | CARLA and the build are different versions: use 0.9.16, or build for yours (README, Other CARLA versions) |
-
+| CARLA crashes when a scenario changes towns | it runs at `-quality-level=Low`: keep the default, Epic ([Supported and not supported](../reference/limits.md#running-carla)) |
+| The bridge logs `CARLA version mismatch` | CARLA and the build are different versions: use 0.9.16 ([Supported and not supported](../reference/limits.md#platform)) |
 ## Next
 
 [Tutorial 1: first drive](../tutorials/01-first-drive.md): a project, its map, the stack

@@ -34,10 +34,14 @@ your seat: auto (the first free one when the stack starts)
 | web UI | `8080 + 10 n` for the stack, +1 for a run's scenario |
 | GPU | `gpus[n]` of the table, else 0 |
 
-A stack takes a seat when it starts and holds it while it is up (a lock file in
+A stack takes a seat when it starts and holds it while it is up (a lock on a file in
 `/tmp/swb-seats`, naming the user, the process and the project); a second stack on a held
 seat is refused, naming the holder. With `seat: auto` (the default) a stack takes the
-first free seat.
+first free seat. The lock is the kernel's: when the stack's process ends, however it ends,
+the seat is free again, so a crashed stack leaves no stale lock. What a stack killed by
+hand can leave behind are its child processes, still holding the seat's ports: the next
+stack on that seat then fails with `Address already in use`. Find them with `ps -u $USER
+-o pid,ppid,etimes,comm` (orphans have parent 1) and stop them by pid.
 
 ## Take a seat
 
@@ -63,22 +67,33 @@ SSv2) or `seat env <k>` (the k-th pilot, from 0).
 ## One CARLA per stack
 
 A CARLA world server drives one CARLA (a lock on CARLA's host and port), so each CARLA
-stack needs a CARLA of its own. Start each on its own port, leaving the two after it free
-(CARLA uses three), and give each user's host settings theirs:
+stack needs a CARLA of its own. CARLA uses its port and the two after it, and its Traffic
+Manager takes port CARLA + 6000 (8000 for 2000). Each CARLA held about 2.4 GB of RAM and
+2 GB of video memory on Town01.
+
+The simplest way: give every seat its own CARLA port in the seat table, and let each stack
+start its own CARLA there. In `/etc/swb/host.yaml` (or a user's `~/.config/swb/host.yaml`):
+
+```yaml
+seats:
+  carla: {base: 2000, stride: 10}   # seat n: CARLA on 2000 + 10 n
+carla:
+  root: /opt/CARLA_0.9.16           # where CARLA is installed, readable by every user
+```
+
+`seat show` then prints each seat's CARLA port, and a stack on seat `n` uses CARLA on
+`2000 + 10 n`, starting it there when nothing answers (`carla.start: auto`) and stopping it
+with the stack. `stride` must be at least 3, and a table whose CARLA ports meet the seats'
+other ports is refused.
+
+Without `seats.carla`, every stack uses `carla.port` (2000): give each user or checkout its
+own in its host settings or `.swb/local.yaml`, for example `carla: {port: 3000}`, and start
+that CARLA, or let the stack start it from `carla.root`:
 
 ```bash
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
     ~/CARLA_0.9.16/CarlaUE4.sh -RenderOffScreen -nosound -carla-rpc-port=3000
 ```
-
-```yaml
-# ~/.config/swb/host.yaml of the second user
-seat: 1
-carla: {host: localhost, port: 3000}
-```
-
-CARLA's Traffic Manager takes port CARLA + 6000 (8000 for 2000, 9000 for 3000). Each CARLA
-holds about 2.4 GB of RAM and 2 GB of video memory on Town01.
 
 An Isaac stack needs an RTX GPU with 24 GB to itself: one Isaac stack per GPU.
 
@@ -105,6 +120,7 @@ holds: the scenario's and `stride - 1` pilot domains, one per pilot (an Autoware
 
 ## Resources
 
-Each Autoware is about 90 processes and several GB of GPU memory. On one GPU, two Autowares
-beside one CARLA is a comfortable limit; three Autowares starting together saturated a
-48-core host. Start stacks one after another, each once the previous one is ready.
+Each Autoware is about 90 processes; one Autoware with the default lidar detector held
+about 1 to 2 GB of video memory on one host. On one GPU, two Autowares beside one CARLA is
+a comfortable limit; three Autowares starting together saturated a 48-core host. Start
+stacks one after another, each once the previous one is ready.

@@ -1,7 +1,8 @@
 # Run suites in CI
 
 Run a project's suites unattended (a nightly job, a merge check) and hand the verdicts to
-the CI system. It assumes a host with the workspace built, CARLA serving, and the project
+the CI system. It assumes a host with the workspace built, CARLA installed (named in the
+host settings as `carla.root`, so the stack starts it, or already serving), and the project
 checked out ([Start a project](start-a-project.md)); suites are
 [Tutorial 5](../tutorials/05-suites.md).
 
@@ -20,8 +21,11 @@ setsid play_launch launch --web-addr 127.0.0.1:8080 \
     swb_launch swb.launch.xml map:=Town01 > stack.log 2>&1 &
 STACK=$!
 
-ros2 run swb run suites/nightly.yaml --wait 1200
-CODE=$?
+ros2 run swb run suites/nightly.yaml --wait 1200 | tee run.out
+CODE=${PIPESTATUS[0]}
+# the first cause of each run that did not pass
+awk '$1 == "failed" || $1 == "error" {print $2}' run.out \
+    | xargs -r -n1 ros2 run swb runs why
 
 kill -INT -$STACK            # the whole stack, and only it
 wait $STACK
@@ -32,7 +36,39 @@ exit $CODE
 `--wait 1200` lets the run wait up to 20 minutes for the stack to become ready, instead of
 refusing at once. `setsid` gives the stack a process group of its own, so the job stops
 exactly what it started. A stack that is already up and from the same project state
-serves the job as it is; one from another state is refused (restart it).
+serves the job as it is; one from another state is refused (restart it). `map:=Town01`
+starts the pilots before the first run, so `--wait` covers Autoware's start too.
+
+**Headless.** A CI host needs no display: the CARLA the stack starts runs off-screen
+(`-RenderOffScreen`), and nothing else opens a window unless a pilot asks for RViz
+(`rviz: true`; leave it out in CI).
+
+## In a CI system
+
+The job needs the host's GPU, CARLA and the built workspace, so it runs on a machine of
+your own: a self-hosted runner. For GitHub Actions, for example:
+
+```yaml
+# .github/workflows/nightly.yml in the project's repository
+on:
+  schedule: [{cron: "0 2 * * *"}]
+jobs:
+  nightly:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - run: PROJECT=$PWD bash nightly.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results
+          path: runs/*/result.json
+```
+
+A GitLab CI job is the same script under a `tags:` that picks the GPU runner. The
+runner's user needs its own host settings (`~/.config/swb/host.yaml`) and a seat no
+person books.
 
 ## What the CI system reads
 

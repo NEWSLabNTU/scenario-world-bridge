@@ -32,7 +32,7 @@ judges: []                              # programs over each finished run
 | `assets` | a list of datasets and paths ([Assets](#assets)) |
 | `maps` | map names under `assets/maps/`; default: every map the project's scenarios name. Give it when runs use maps the project's own scenarios do not, or to fix their order |
 | `pilots` | entity name or pattern to a pilot ([Pilots](#pilots)) |
-| `vehicles` | spec files of your own cars; checked to exist, not yet loaded by the stack ([Your car](../how-to/your-car.md)) |
+| `vehicles` | spec files of your own cars; checked to exist, not loaded by the stack ([Your car](../how-to/your-car.md), [Supported and not supported](limits.md#projects)) |
 | `ground` | Isaac: `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the project ([Road physics](road-physics.md)) |
 | `logging` | what runs record and keep ([Logging](#logging)) |
 | `judges` | programs run over each finished run ([Judges](#judges)) |

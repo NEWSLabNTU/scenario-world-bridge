@@ -17,8 +17,19 @@ ros2 run swb project new ~/my_project \
 
 The templates are `carla-first-drive` (the default), `multi-pilot` and `isaac`. `--from`
 copies any project directory (an installed example, or a colleague's checkout) without
-what each host makes: `assets/`, `state/`, `runs/`, `.swb/`. The installed examples are
-listed in [their README](../../src/swb_examples/projects/README.md).
+what each host makes: `assets/`, `state/`, `runs/`, `.swb/`. The installed examples, each
+`pkg://swb_examples/projects/<name>`:
+
+| Example | Simulator | Shows |
+|---|---|---|
+| `first_drive` | CARLA | one Autoware ego: a drive to a goal, a red light, a pedestrian crossing |
+| `multi_pilot` | CARLA | four pilots in one run: Autoware, a second Autoware, CARLA's BasicAgent and a program cutting in |
+| `safety_suite` | CARLA | the Autoware Foundation's ACC and AEB use cases as a nightly suite, with an expected failure and a contact judge |
+| `isaac_first_drive` | Isaac Sim | one Autoware ego on CARLA's Town01 in USD |
+| `road_physics` | Isaac Sim | mud, gravel and a wet road under the ego's wheels |
+
+Each copy has a README naming its commands, what a passing run prints, and the hardware
+it needs.
 
 Then, in the project:
 

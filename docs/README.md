@@ -1,5 +1,8 @@
 # Documentation
 
+New words (project, stack, pilot, seat, run, judge, ...): the [glossary](reference/glossary.md).
+What swb does not do: [Supported and not supported](reference/limits.md).
+
 ## By reader
 
 | You are | Start with | Then |
@@ -7,9 +10,9 @@
 | **New to swb** | [Install](getting-started/install.md), [Getting started on CARLA](getting-started/carla.md) | the [tutorials](#tutorials) in order |
 | **Adopting swb** for your project | [Start a project of your own](how-to/start-a-project.md) | [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md), [your Autoware](how-to/your-autoware.md), the [reference](#reference) |
 | **Teaching** | [Teaching with swb](teaching.md) | [several stacks on one host](how-to/several-stacks.md), the tutorials as labs |
-| **Writing scenarios** | [Tutorial 2](tutorials/02-write-a-scenario.md), [Tutorial 3](tutorials/03-other-road-users.md) | [Writing scenarios](design/scenario-authoring.md): what the bridge supports |
+| **Writing scenarios** | [Tutorial 2](tutorials/02-write-a-scenario.md), [Tutorial 3](tutorials/03-other-road-users.md) | [What a scenario may use](reference/scenarios.md) |
 | **Integrating an autopilot** | [Your autopilot as a pilot](how-to/your-autopilot.md) | [the agent SDK](reference/agent-sdk.md), [Tutorial 4](tutorials/04-several-pilots.md) |
-| **Developing swb** | the [Developer Guide](development.md) | [design/](design/) |
+| **Developing swb** | the [Developer Guide](development.md) | the design documents, [design/](design/) (for developers) |
 
 ## Getting started
 
@@ -67,8 +70,11 @@ A task in your own project, starting from a working stack:
   agent
 - [Road physics on Isaac Sim](reference/road-physics.md): surface classes, zones, the rough
   road, `/swb/wheels`
+- [What a scenario may use](reference/scenarios.md): the ego, road users the simulator or a
+  pilot drives, traffic lights, collisions
+- [Supported and not supported](reference/limits.md): every limit, on one page
+- [Glossary](reference/glossary.md): the words these pages use
 - [Troubleshooting](reference/troubleshooting.md): symptoms, causes, fixes
-- [Writing scenarios](design/scenario-authoring.md): what a scenario may use, and how
 
 ## Explanation
 

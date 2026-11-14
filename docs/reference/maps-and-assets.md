@@ -22,7 +22,7 @@ A fetched map is read-only. What the stack writes for a map goes to the project'
 |---|---|---|
 | `traffic_lights.yaml`, `carla/traffic_lights.yaml` | CARLA's world server, the first time it loads the map (and again when the map's lanelet2 changes) | which Lanelet2 signal is which CARLA light |
 | `ruts/runs/<time>.npz` | Isaac's world server, at each scenario's end | the soil's ruts |
-| `surfaces.yaml`, `road_detail.yaml` | you, for now ([Road physics](road-physics.md)) | the project's ground for this map, used over the map's |
+| `surfaces.yaml`, `road_detail.yaml` | you ([Road physics](road-physics.md)) | the project's ground for this map, used over the map's |
 
 **A map not drawn in CARLA's frame** needs `carla/map_origin.yaml`: the map-frame position
 of CARLA's world origin, in metres, no rotation. CARLA's towns share CARLA's origin and need
@@ -81,5 +81,5 @@ Town10 `Town10HD`; the map directory is `Town10`.
 
 **CARLA's assets in USD.** Isaac renders CARLA's towns, vehicles, props and walkers from
 the USD set; a scenario entity's `model3d` picks its model by CARLA blueprint id
-([Tutorial 6](../tutorials/06-carla-assets-on-isaac.md)). How the set is made, from a CARLA
-editor build: [Isaac assets](../design/isaac-assets.md).
+([Tutorial 6](../tutorials/06-carla-assets-on-isaac.md)). For developers, how the set is made
+from a CARLA editor build: [Isaac assets](../design/isaac-assets.md).

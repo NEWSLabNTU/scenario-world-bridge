@@ -2,8 +2,8 @@
 
 What the Isaac world server models under the wheels, and every key of the files that set
 it: the surface classes, a surface map's zones, the road detail, and what a scenario may
-change. [Tutorial 7](../tutorials/07-road-physics.md) uses them; the design is in
-[off-road surfaces](../design/off-road-surfaces.md).
+change. [Tutorial 7](../tutorials/07-road-physics.md) uses them. For developers, the
+design is in [off-road surfaces](../design/off-road-surfaces.md).
 
 ## Layers
 
@@ -212,7 +212,7 @@ friction), and the road condition, soil zones and ruts loaded and saved.
 
 ## Limits
 
-| Not there | Today |
+| Not there | What there is |
 |---|---|
 | CARLA | the same `RoadCondition` scales every vehicle's tire friction and makes the road look wet; no zones, soil, ruts or rough road, and `swb.` properties are refused with that reason |
 | Deforming ground outside zones | soil only in zones; elsewhere a grip model per class |
@@ -221,7 +221,7 @@ friction), and the road condition, soil zones and ruts loaded and saved.
 | Validated mud and snow | `mud_wet` sinkage and `snow_loose` traction are flagged; hydroplaning is an engineering model |
 | Wheel hop, bank and crown of a town's road, road edges | not modelled |
 | Visible water, splashes, dust | none; zones are physics only |
-| Stability control from a project | ESC is a field of the world server's ego config (`ecu: {esc_enabled: true}`), which `swb.yaml` does not reach yet |
+| Stability control from a project | ESC is a field of the world server's ego config (`ecu: {esc_enabled: true}`), which `swb.yaml` does not reach |
 
 Ruts cost memory: PhysX keeps every collision mesh it builds, about 100 MB per km of tracks
 in a soil zone with its own ground, for as long as the world server runs.

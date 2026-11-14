@@ -41,6 +41,7 @@ BP = {"hgv": "vehicle.carlamotors.european_hgv", "fire": "vehicle.carlamotors.fi
 D0S = [float(d) for d in range(-6, 31, 4)]
 DVS = [-4.0, -2.0, 0.0, 2.0, 4.0]
 B_PROFILES = (C1.PRE_YIELD, "react_yield", "react_hold")
+CTX_TOL = (1.0, 0.3)  # m, m/s: a context the warm-up did not reach is left out of the maps
 
 
 def jobs(vb, seeds):
@@ -97,6 +98,10 @@ def make_classes(e4dir):
 def run(args):
     import arena as AR
     ty = K.types(os.path.join(args.e4, "e4.json"))
+    # a heavy A cannot follow the warm-up's ghost in 15 s (at dv >= 0 it started 6-66 m and up to
+    # 2.5 m/s off its context): --warmup 35 with a road long enough for it
+    AR.WARMUP = args.warmup
+    AR.ROAD_LEN = args.road_len
     StockCar, C5Pair = make_classes(args.e4)
     AR.Pair = C5Pair  # arena.run_jobs builds its pairs by this name
     os.makedirs(args.out, exist_ok=True)
@@ -177,20 +182,28 @@ def game(cc):
 
 def analyze(out, kin):
     import arena_game as G
-    maps = {}
+    maps, skipped = {}, {}
     for f in sorted(os.listdir(out)):
         if not (f.startswith("runs_") and f.endswith(".csv")):
             continue
         na, nb = f[5:-4].split("_x_")
         cells = G.load([os.path.join(out, f)])
         m = {}
+        off = []
         for d0, dv in sorted({(k[0], k[1]) for k in cells}):
             cc = {(a, b): cells.get((d0, dv, a, b), []) for a in C1.A_STRATS for b in B_PROFILES}
             if any(not v for v in cc.values()):
                 continue
+            rows = [r for v in cc.values() for r in v]
+            e0 = st.median(abs(float(r["d0_real"]) - d0) for r in rows)
+            e1 = st.median(abs(float(r["dv_real"]) - dv) for r in rows)
+            if e0 > CTX_TOL[0] or e1 > CTX_TOL[1]:
+                off.append((d0, dv, round(e0, 1), round(e1, 2)))
+                continue
             lab, pure, u, ya, yb = game(cc)
             m[(d0, dv)] = {"cls": lab, "u": u, "yield_to_A": ya, "yield_to_B": yb, "loss": None, "contact_off_eq": 0}
         maps[(na, nb, 12.0)] = m
+        skipped[(na, nb)] = off
     L = ["C5 arena: classes per context (rows dv top = +4; columns d0 " + " ".join(f"{d:g}" for d in D0S) + ")",
          "arena | kinematic (c5_cars at the same contexts)"]
     kinm = {}
@@ -205,7 +218,8 @@ def analyze(out, kin):
             rk = "".join(kinm[key][(d0, dv)]["cls"] if (d0, dv) in kinm[key] else " " for d0 in D0S)
             agree += sum(1 for d0 in D0S if (d0, dv) in m and (d0, dv) in kinm[key] and m[(d0, dv)]["cls"] == kinm[key][(d0, dv)]["cls"])
             L.append(f"  {dv:+4.0f}  {ra}  |  {rk}")
-        L.append(f"  class equal to the kinematic one: {agree} of {len(m)}")
+        L.append(f"  class equal to the kinematic one: {agree} of {len(m)}; contexts not reached in the warm-up "
+                 f"(median |d0 err| > {CTX_TOL[0]} m or |dv err| > {CTX_TOL[1]} m/s), left out: {skipped[key[:2]]}")
     L.append("")
     L.append("commitment (as c5_cars.compare; the weak car against the Model 3 in its role):")
     for weak, role in (("hgv", "B"), ("hgv", "A")):
@@ -259,6 +273,8 @@ def main():
     ap.add_argument("--chunk", type=int, default=120)
     ap.add_argument("--limit", type=int, default=0, help="run: at most this many runs per pair (a smoke test)")
     ap.add_argument("--vb", type=float, default=12.0)
+    ap.add_argument("--warmup", type=float, default=15.0, help="s, arena.WARMUP")
+    ap.add_argument("--road-len", type=float, default=1100.0, help="m, arena.ROAD_LEN")
     ap.add_argument("--obs-delay", type=float, default=0.19)
     ap.add_argument("--obs-sigma-x", type=float, default=0.3)
     ap.add_argument("--obs-sigma-v", type=float, default=0.2)

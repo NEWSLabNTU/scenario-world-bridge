@@ -137,7 +137,8 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
 6. [x] README and the two getting-started guides onto the stack, no `just` (2026-11-14):
    the quick start is one `carla.launch.xml scenario:=... exit_on_scenario_end:=true`; the
    four-terminal form is each guide's appendix; swb_examples' README too.
-7. [x] Tutorials renumbered and fixed; reference docs fixed; the index (2026-11-14): five
+7. [x] Tutorials 6 (CARLA's assets on Isaac) and 7 (road physics) added, e5d2147.
+   Tutorials renumbered and fixed; reference docs fixed; the index (2026-11-14): five
    tutorials on the stack (first-run and the-stack retired into the guides), the user guide
    as the launch and environment reference, the agent guide's `ros2 run swb_agent swb-agent`
    and "With the stack", scenario-authoring's config homes, user-workflow marked a design
@@ -172,6 +173,23 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    (`raw/dem5a/`, `raw/seamlessphoto/`, the debug mosaic and a stray DEM tile, unmodified
    server responses) were removed from the courses and its history squashed, so no revision
    serves them; `raw/jobs.txt` lists their URLs. `shalun-map` and `ntu-campus-maps` stay private.
+
+## Gaps found writing tutorials 6 and 7 (2026-11-14)
+
+Places where a user has no user-level path yet (the tutorials say so plainly):
+
+- The 13-surface ground (`isaac-road-physics-stages`) has no lanelet map, so it runs only from
+  its demo script, not the stack.
+- `isaac.launch.xml` has no `record:=`; no ROS topic carries wheel or soil state.
+- The rough road (rocks, potholes, washboard) is `road_detail.yaml` plus scripts under
+  swb_isaac_world's `spikes/`, not an installed command.
+- Building the CARLA USD set and a town's Isaac world are repository scripts
+  (`isaac_town.sh`), not `ros2 run` targets.
+- The Haruna course's `haruna_down.xosc` names the building host's map path and a
+  `drift_mustang` ego; the user edits both.
+- Fixed on the dataset side: `carla-0.9.16-isaac-usd`'s manifest now covers Town07_Opt and
+  leaves out the card, so `sha256sum --check MANIFEST.sha256` and `asset_set check` pass on
+  a download.
 
 ## Acceptance
 

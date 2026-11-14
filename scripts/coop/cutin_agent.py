@@ -99,7 +99,7 @@ class CutInAgent(CarlaBasicAgent):
         self.warmup = float(c.get("warmup", 8.0))
         self.rule = c["rule"]
         rng = random.Random(int(c.get("seed", 0)) * 2 + (0 if self.side == "A" else 1))
-        self.react = 1.0 + rng.uniform(-0.2, 0.2)
+        self.react = float(self.rule.get("react", 1.0)) + rng.uniform(-0.2, 0.2)  # as arena.Pair
         self.obs = AR.Observer(float(c.get("obs_delay", 0.19)), float(c.get("obs_sigma_x", 0.3)),
                                float(c.get("obs_sigma_v", 0.2)), rng)
         self.logf = open(c["log"], "w") if c.get("log") else None

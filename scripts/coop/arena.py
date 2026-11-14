@@ -551,7 +551,10 @@ class Pair:
         self.yB, _ = arena.lane_y(road, -1)
         self.yA0, _ = arena.lane_y(road, -2)
         self.react_a = C1.TYPES["car"].reaction + rng.uniform(-args.reaction_jitter, args.reaction_jitter)
-        self.react_b = job.get("react_b", C1.TYPES["car"].reaction) + rng.uniform(-args.reaction_jitter, args.reaction_jitter)
+        # B's reaction: the job's (c3_fit's candidates), else the B rule's own ("react", e.g.
+        # B_AW_REACT), else a car's
+        react_b = job.get("react_b", (job.get("pb") or {}).get("react", C1.TYPES["car"].reaction))
+        self.react_b = react_b + rng.uniform(-args.reaction_jitter, args.reaction_jitter)
         mk = lambda: Observer(args.obs_delay, args.obs_sigma_x, args.obs_sigma_v, rng)
         # B may perceive differently from A (C3a: Autoware on ground-truth objects, A the agent's
         # observer): obs_b_* when the args carry them

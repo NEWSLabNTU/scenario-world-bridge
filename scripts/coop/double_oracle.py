@@ -53,9 +53,10 @@ A_AW_PERM = {"name": "A_aw_perm", "tau": 1.0, "a_rear": 2.0, "buffer": 2.0, "pat
 A_BOLD = {"name": "A_bold", "tau": 0.3, "a_rear": 4.0, "buffer": 1.0, "patience": 2.0, "use_yield": 1, "t_prep": 0.0}
 B_AW = {"name": "B_aw", "pre_band": -99.0, "react_gap": -99.0, "b_y": 2.0, "stop": 0}
 # Autoware as C3 measured it (roadmap 074 C3, c3_fit.py): it brakes on the lane change's onset,
-# about 1 s after it (the arena's B reaction, 1.0 s), not once A is in its lane as B_aw does;
-# fitted at v_B 6 m/s on Town03's west straight, under CenterPoint's observer
-B_AW_REACT = {"name": "B_aw_react", "pre_band": -99.0, "react_gap": 20.0, "b_y": 2.5, "stop": 0}
+# 0.5 s after it (its own "react"; the arena's car default is 1.0 s), not once A is in its lane
+# as B_aw does; fitted at v_B 6 m/s on Town03's west straight (C3a ground truth and C3b
+# CenterPoint, the outcome shares against Autoware's binomial intervals; 074 job 5)
+B_AW_REACT = {"name": "B_aw_react", "pre_band": -99.0, "react_gap": 20.0, "b_y": 2.5, "stop": 0, "react": 0.5}
 B_COURTEOUS = {"name": "B_court", "pre_band": 8.0, "react_gap": 15.0, "b_y": 2.0, "stop": 0}
 B_REACT = {"name": "B_react", "pre_band": -99.0, "react_gap": 10.0, "b_y": 2.5, "stop": 0}
 

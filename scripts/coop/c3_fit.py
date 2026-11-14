@@ -7,7 +7,9 @@ oracle's family (react to A's lateral motion within `react_gap` m, braking at `b
 cells in the arena at C3's speed, and each is scored against Autoware's per-cell means:
 
   error = mean over (cell, A rule) of (uA - uA_aw)^2 + (uB - uB_aw)^2
-          + 0.25 * [ahead differs] + 1.0 * [contact differs]   (outcome shares, not single runs)
+          + 0.25 * d(ahead) + 1.0 * d(contact)
+  d(share): how far the arena's share lies outside Autoware's Wilson 95 % interval over its runs
+  (0 inside)
 
 Needs a CARLA server on --carla-port (the arena loads its own road).
 
@@ -19,6 +21,7 @@ import argparse
 import collections
 import itertools
 import json
+import math
 import os
 import statistics as st
 import sys
@@ -57,18 +60,38 @@ def autoware_means(dirs):
                 st.mean(r["contact"] for r in v), len(v)) for k, v in by.items()}
 
 
+def wilson(share, n, z=1.96):
+    """The Wilson score interval (95 %) of a share observed in n runs."""
+    if n <= 0:
+        return 0.0, 1.0
+    c = share * n
+    den = n + z * z
+    mid = (c + z * z / 2) / den
+    half = z * math.sqrt(c * (n - c) / n + z * z / 4) / den
+    return max(0.0, mid - half), min(1.0, mid + half)
+
+
+def outside(x, lo, hi):
+    """How far x lies outside [lo, hi] (0 inside)."""
+    return max(0.0, lo - x, x - hi)
+
+
 def score(arena_rows, target):
     rows = collections.defaultdict(list)
     for r in arena_rows:
         rows[(r["d0"], r["dv"], r["a"])].append(r)
     errs, detail = [], {}
-    for k, (ua, ub, ah, co, _) in target.items():
+    for k, (ua, ub, ah, co, n) in target.items():
         a = rows.get(k)
         if not a:
             continue
         m = (st.mean(r["uA"] for r in a), st.mean(r["uB"] for r in a), st.mean(r["ahead"] for r in a),
              st.mean(r["contact"] for r in a))
-        e = (m[0] - ua) ** 2 + (m[1] - ub) ** 2 + 0.25 * abs(m[2] - ah) + 1.0 * abs(m[3] - co)
+        # the outcome shares against Autoware's binomial (Wilson 95 %) interval over its n runs: a
+        # share inside it costs nothing, one outside the distance to it (074 job 5: a cell of four
+        # binary runs is not a point target)
+        e = (m[0] - ua) ** 2 + (m[1] - ub) ** 2 + 0.25 * outside(m[2], *wilson(ah, n)) \
+            + 1.0 * outside(m[3], *wilson(co, n))
         errs.append(e)
         detail[k] = (round(e, 4), [round(x, 3) for x in m])
     return st.mean(errs), detail

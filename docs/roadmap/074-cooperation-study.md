@@ -1459,6 +1459,34 @@ swb 118, in progress.
 
   The grid follows: v 10 m/s at lags 2-9 s (plus 3.5, 4.5, 5.5), and v 8 m/s at 3, 5, 7 s.
 
+**Results** (91a2a91, swb 118; NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn
+autoware/`): 28 runs with CenterPoint. Lag here is A's time to the conflict point when B's front
+crosses its stop line.
+- **Autoware yields only when A is within about 50 m at B's stop line.** At 10 m/s it yielded at
+  every lag up to 5.06 s and went at every lag from 5.49 s, a critical lag of 5.3 s. At 8 m/s it
+  yielded at 5.05 s and went at 7.0 s.
+- **A danger band at lags of 5.5-7 s.** B's turn takes about 9 s, so it goes while A is still beyond
+  its view, and is hit:
+
+  | v | contacts in the band |
+  |---|---|
+  | 10 m/s | 6 of 6 |
+  | 8 m/s | 2 of 2 |
+
+  Beyond the band, a lag of 8 s gave PET 0.7 s and 9 s gave 1.4 s.
+- **Yields are safe:** PET 4.4-7.4 s, clearance 1.0-1.6 m. uB is about -0.6, against -0.38 for a
+  free go. The lag-3 cells did not flip (4 of 4 yielded).
+- **Against the models:**
+  - U1 (G* 3.5 s) agrees in 14 of 22 runs at 10 m/s. Autoware yields at 3.5-5 s where U1 goes, and
+    U1 misses the band at 5.5-9 s because its turner clears in 3.2 s, not 9.
+  - Against the arena's left_turn_queue: Autoware's unsafe gaps are medium (5.5-9 s), not short
+    (≤ 3 s).
+- **The cause is the stack's reach against its own turn time,** not its gap rule. A view of about
+  50 m at the stop line covers 5 s at 10 m/s, while the turn needs about 9 s. Whether the 50 m is
+  CenterPoint's configured range, our simulated lidar's range, or the tracker is the next question
+  (swb 118). If it is our sensor configuration, it is a bug in swb's car, not a finding about
+  Autoware.
+
 ### C4. Fit and explain
 
 Note on identifiability: from 2-3 discrete choices per run, an SVO angle and a capability are

@@ -17,9 +17,23 @@ of the project's; else started is ready), sets ``state: ready``, and on SIGTERM 
 parent's death) sets ``state: stopped`` and lets the seat go. A keeper that cannot take the
 seat exits, and the launch with it.
 
+The keeper also **runs the stack's pilots** (``lifetime: stack``), each a nested play_launch
+of its kind's launch in its domain, respawned 5 s after it ends (an episode end: a world load
+ends acb_bridge), so that it can restart them with another ``map_path``. A stack serves
+several maps (``maps:`` of swb.yaml, else every map the project's scenarios name); its pilots
+run on one at a time, ``map`` in stack.json. On CARLA they start lazily, for the first run's
+map, unless ``map:=`` names one; on Isaac the world is the stack's (``world:=``), so the
+first map is the stack's for its lifetime.
+
+A runner asks for another map by writing ``switch-request.json`` (``{id, map}``) into the
+stack's directory; the keeper sees a new id within 0.1 s, stops the pilots, records the map
+in stack.json (``map``, ``map_path``, the pilots' contract), starts them again with the new
+``map_path`` and answers in stack.json's ``switch`` (``{id, map, state: done|failed,
+error}``). The run then waits for its pilots' readiness as every run does; the world server
+loads the town on SSv2's Initialize.
+
 Not in this step: the simulator's own start (``simulator_start``: CARLA is external, as
-before; Isaac's world server is part of the stack), lazy pilots (stack pilots start with the
-stack), ``end_with:=run``.
+before; Isaac's world server is part of the stack), ``end_with:=run``.
 """
 import argparse
 import ctypes
@@ -43,6 +57,10 @@ SCHEMA = "swb.stack/1"
 STARTING, READY, STOPPED = "starting", "ready", "stopped"
 STACK_JSON = "stack.json"
 EVENTS = "events.jsonl"
+SWITCH_REQUEST = "switch-request.json"
+SWITCHING, DONE, FAILED = "switching", "done", "failed"
+RESPAWN_DELAY = 5.0   # as stack.launch.py's nested launches
+STOP_GRACE = 20.0     # SIGINT, then SIGTERM, then SIGKILL
 
 # kind -> its launch under swb_launch's launch/pilots/ (stack.launch.py's PILOT_KINDS)
 PILOT_FILES = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.launch.py",
@@ -330,6 +348,58 @@ def swb_launch_share():
         return str(Path(__file__).resolve().parents[2] / "swb_launch")
 
 
+# --- maps -----------------------------------------------------------------------------------
+
+def map_dir(project, name) -> Path:
+    return Path(project) / "assets" / "maps" / name
+
+
+def served_maps(settings: dict, scenarios) -> list:
+    """The maps a stack serves: swb.yaml's ``maps:``, else every map the scenarios name."""
+    listed = settings.get("maps")
+    if isinstance(listed, list) and listed:
+        return [str(m) for m in listed]
+    return sorted({m for _p, sc in scenarios if (m := map_of(sc))})
+
+
+def contract_for_map(contract: dict, project, sim, name) -> dict:
+    """The pilots' common contract with the map's parts: ``map_path`` and, on CARLA, the
+    state dir's signal table."""
+    out = {k: v for k, v in contract.items()
+           if k not in ("map_path", "traffic_light_state_path")}
+    if name:
+        out["map_path"] = str(map_dir(project, name))
+        if sim == "carla":
+            out["traffic_light_state_path"] = str(
+                Path(project) / "state" / name / "carla" / "traffic_lights.yaml")
+    return out
+
+
+def switch_problem(rec: dict, name: str):
+    """Why the stack of ``rec`` cannot move its pilots to map ``name`` (None: it can)."""
+    if name == rec.get("map"):
+        return None
+    if not map_dir(rec["project"], name).is_dir():
+        return (f"map {name} is not fetched ({map_dir(rec['project'], name)}); "
+                f"{projectmod.FETCH}")
+    if rec.get("simulator") == "isaac":
+        return (f"the scenario is on map {name}, the stack's Isaac world on {rec.get('map')} "
+                f"(the world server loads it at start): restart the stack with map:={name}")
+    if name not in (rec.get("maps") or []):
+        return (f"map {name} is not one of the stack's maps ({', '.join(rec.get('maps') or [])});"
+                " add it to maps: in swb.yaml and restart the stack")
+    return None
+
+
+def _named(text) -> dict:
+    out = {}
+    for tok in shlex.split(text or ""):
+        k, sep, v = tok.partition(":=")
+        if sep and k:
+            out[k] = v
+    return out
+
+
 # --- the plan -------------------------------------------------------------------------------
 
 @dataclass
@@ -401,16 +471,20 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         raise StackRefused(f"seat {s.index} is taken: {seatmod.describe_holder(h)}")
 
     scenarios = scan_scenarios(project)
-    maps = sorted({m for _p, sc in scenarios if (m := map_of(sc))})
-    if map_name:
-        chosen = map_name
-    elif maps:
-        chosen = maps[0]
-    else:
-        raise StackRefused("no scenario names a map ($(env SWB_MAPS)/<map>); give map:=")
-    map_path = project / "assets" / "maps" / chosen
-    if not map_path.is_dir():
-        raise StackRefused(f"map {chosen} is not fetched ({map_path}); {projectmod.FETCH}")
+    maps = served_maps(psettings, scenarios)
+    if map_name and map_name not in maps:
+        maps.append(map_name)
+    if not maps:
+        raise StackRefused("no scenario names a map ($(env SWB_MAPS)/<map>); give map:= "
+                           "or maps: in swb.yaml")
+    for m in maps:
+        if not map_dir(project, m).is_dir():
+            raise StackRefused(f"map {m} is not fetched ({map_dir(project, m)}); "
+                               f"{projectmod.FETCH}")
+    # CARLA: the pilots start for the first run's map unless map:= names one; Isaac: the
+    # world server loads its world at start, so the stack has a map from the beginning
+    chosen = map_name or (maps[0] if sim == "isaac" else None)
+    map_path = map_dir(project, chosen) if chosen else None
 
     bound = assign_domains(bind_pilots(psettings, scenarios), s, sim)
     stack_pilots = [b for b in bound if b.lifetime == "stack"]
@@ -449,10 +523,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "carla_host": str(carla.get("host") or ""),
         "carla_port": str(carla.get("port") or ""),
         "log_dir": str(proc),
-        "map_path": str(map_path),
+        "map_path": str(map_path or ""),
         "vehicle_model": vehicle,
         "nest_side": "true",
-        "pilots": json.dumps(entries),
     }
     # the world server writes what it makes for a map (CARLA's signal table, Isaac's ruts
     # and surfaces) into the project's state dir, never into the fetched (read-only) map
@@ -465,14 +538,17 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     for k, v in (stack_args or {}).items():
         args[k] = v
 
-    common = {"relay": f"tcp://localhost:{s.relay_port}", "map_path": str(map_path),
-              "vehicle": vehicle, "sim": sim, "use_sim_time": "true"}
+    common = {"relay": f"tcp://localhost:{s.relay_port}", "vehicle": vehicle, "sim": sim,
+              "use_sim_time": "true"}
     if sim == "carla":
         common.update(carla_host=args["carla_host"], carla_port=args["carla_port"],
                       release_notify_endpoint=f"tcp://127.0.0.1:{s.release_ports[0]}",
                       release_ack_endpoint=f"tcp://127.0.0.1:{s.release_ports[1]}")
-        common["traffic_light_state_path"] = str(
-            project / "state" / map_path.name / "carla" / "traffic_lights.yaml")
+        # as stack.launch.py: the spec's physics read back when the world server applies it
+        physics = _named(args.get("sim_args")).get("vehicle_physics", "none")
+        if physics and physics != "none":
+            common.update(carla_physics=physics, carla_physics_mode="verify")
+    common = contract_for_map(common, project, sim, chosen)
 
     pilots = []
     for b in bound:
@@ -489,7 +565,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "project_name": name,
         "simulator": sim,
         "map": chosen,
+        "map_path": str(map_path) if map_path else None,
         "maps": maps,
+        "switch": None,
         "fingerprint": fingerprint(project, psettings),
         "seat": numbers,
         "lock_dir": s.lock_dir,
@@ -500,6 +578,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                   "web_run": s.web_port_run},
         "env": env,
         "pilots": pilots,
+        "pilot_entries": entries,
         "pilot_contract": common,
         "pilots_dir": str(Path(swb_launch_share()) / "launch" / "pilots"),
         "spec_hash": {b.entity: h for b in bound if (h := spec_hash_of(b.spec.get("vehicle")))},
@@ -512,7 +591,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "host": socket.gethostname(),
     }
     return Plan(project=project, name=name, simulator=sim, seat=s, stack_id=stack_id,
-                stack_dir=stack_dir, map=chosen, map_path=str(map_path), env=env,
+                stack_dir=stack_dir, map=chosen, map_path=str(map_path) if map_path else None,
+                env=env,
                 launch_args=args, record=record, pilots=pilots, host=host)
 
 
@@ -579,6 +659,198 @@ def check_ready(cmd, env, timeout=60) -> bool:
         return False
 
 
+# --- pilot processes ------------------------------------------------------------------------
+
+def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
+    """A pilot as a nested play_launch of its kind's launch: the stack's contract (map_path
+    of the stack's current map), then the entry's own arguments; None for kind none."""
+    name = PILOT_FILES.get(p["kind"])
+    if name is None:
+        return None
+    args = dict(rec.get("pilot_contract") or {})
+    args["entity"] = p["entity"]
+    for k, v in entry.items():
+        if k in ("entity", "kind", "domain", "args"):
+            continue
+        args[k] = v
+    args.update(entry.get("args") or {})
+    words = []
+    for k, v in args.items():
+        if isinstance(v, bool):
+            v = "true" if v else "false"
+        elif isinstance(v, (list, tuple)):
+            v = shlex.join(str(x) for x in v)
+        v = "" if v is None else str(v)
+        if v != "":
+            words.append(f"{k}:={v}")
+    extra = ([] if p["kind"] == "carla_basic"
+             else ["--container-mode", "isolated", "--composable-respawn", "on-crash"])
+    return (["play_launch", "launch", "--disable-web-ui", "--log-dir", str(log_dir), *extra,
+             os.path.join(rec["pilots_dir"], name)] + words)
+
+
+def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):
+    """``argv`` in its own session (its group is signalled as one), output to ``log``."""
+    log.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(log, "ab")
+    try:
+        return subprocess.Popen(argv, env=env, stdout=fh, stderr=subprocess.STDOUT, cwd=cwd,
+                                start_new_session=True,
+                                preexec_fn=_die_with_parent if die_with_parent else None)
+    finally:
+        fh.close()
+
+
+def stop_processes(procs, grace=STOP_GRACE):
+    """SIGINT to every process group, then SIGTERM, then SIGKILL, waiting for all at once."""
+    live = [p for p in procs if p is not None and p.poll() is None]
+    for sig, wait in ((signal.SIGINT, grace), (signal.SIGTERM, 10.0), (signal.SIGKILL, 5.0)):
+        if not live:
+            return
+        for p in live:
+            try:
+                os.killpg(p.pid, sig)
+            except (ProcessLookupError, PermissionError):
+                pass
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            live = [p for p in live if p.poll() is None]
+            if not live:
+                return
+            time.sleep(0.05)
+
+
+class Pilots:
+    """The stack's pilots as the keeper's children: started, respawned, stopped."""
+
+    def __init__(self, stack_dir: Path, command=None, respawn_delay=RESPAWN_DELAY):
+        self.stack_dir = Path(stack_dir)
+        self.command = command or pilot_argv
+        self.respawn_delay = respawn_delay
+        self.procs = {}   # entity -> Popen
+        self.due = {}     # entity -> wall time of its (re)start
+
+    @staticmethod
+    def stack_pilots(rec):
+        entries = {e["entity"]: e for e in rec.get("pilot_entries") or []}
+        return [(p, entries[p["entity"]]) for p in rec.get("pilots", [])
+                if p.get("lifetime", "stack") == "stack" and p["entity"] in entries]
+
+    def _start(self, rec, p, entry):
+        log_dir = Path(rec["proc"]) / f"pilot-{p['entity']}"
+        argv = self.command(rec, p, entry, log_dir)
+        if not argv:
+            return
+        try:
+            proc = start_process(argv, ros_env(rec, p["domain"]), log_dir / "console.log",
+                                 cwd=rec.get("project"), die_with_parent=True)
+        except OSError as e:
+            event(self.stack_dir, "pilot.error", entity=p["entity"], error=str(e))
+            print(f"swb stack: pilot {p['entity']} did not start: {e}", file=sys.stderr,
+                  flush=True)
+            self.due[p["entity"]] = time.time() + self.respawn_delay
+            return
+        self.procs[p["entity"]] = proc
+        p["pid"] = proc.pid
+        p["started_at"] = iso_now()
+        p["map"] = rec.get("map")
+        event(self.stack_dir, "pilot.start", entity=p["entity"], pid=proc.pid,
+              map=rec.get("map"))
+
+    def start_all(self, rec):
+        self.due.clear()
+        for p, entry in self.stack_pilots(rec):
+            self._start(rec, p, entry)
+
+    def stop_all(self, rec=None):
+        self.due.clear()
+        procs = list(self.procs.values())
+        self.procs.clear()
+        stop_processes(procs)
+        for p in (rec or {}).get("pilots", []):
+            p["pid"] = None
+
+    def supervise(self, rec) -> bool:
+        """Respawn what ended; True when stack.json should be written."""
+        changed = False
+        now = time.time()
+        by_entity = dict((p["entity"], (p, e)) for p, e in self.stack_pilots(rec))
+        for entity, proc in list(self.procs.items()):
+            code = proc.poll()
+            if code is None:
+                continue
+            del self.procs[entity]
+            self.due[entity] = now + self.respawn_delay
+            p = by_entity[entity][0]
+            p["pid"] = None
+            p["restarts"] = int(p.get("restarts") or 0) + 1
+            event(self.stack_dir, "pilot.exit", entity=entity, code=code)
+            print(f"swb stack: pilot {entity} ended ({code}); respawn in "
+                  f"{self.respawn_delay:.0f} s", flush=True)
+            changed = True
+        for entity, at in list(self.due.items()):
+            if now >= at and entity in by_entity:
+                del self.due[entity]
+                self._start(rec, *by_entity[entity])
+                changed = True
+        return changed
+
+
+# --- the map switch -------------------------------------------------------------------------
+
+def request_switch(stack_dir: Path, name: str, request_id: str = None) -> str:
+    """Ask the keeper of ``stack_dir`` to move its pilots to map ``name``; the request's id."""
+    rid = request_id or f"{os.getpid()}-{time.time_ns()}"
+    write_json(Path(stack_dir) / SWITCH_REQUEST,
+               {"id": rid, "map": name, "requested": iso_now(), "by": os.getpid()})
+    return rid
+
+
+def read_request(stack_dir: Path):
+    try:
+        req = read_json(Path(stack_dir) / SWITCH_REQUEST)
+    except (OSError, ValueError):
+        return None
+    return req if isinstance(req, dict) and req.get("id") and req.get("map") else None
+
+
+def switch_map(stack_dir: Path, rec: dict, req: dict, pilots: Pilots) -> bool:
+    """Carry out ``req`` (``{id, map}``) on the stack of ``rec``: stop the pilots, record the
+    map, start them on it; the answer in ``rec["switch"]``, written to stack.json."""
+    path = Path(stack_dir) / STACK_JSON
+    name = req["map"]
+    sw = {"id": req["id"], "map": name, "from": rec.get("map"), "state": SWITCHING,
+          "requested": req.get("requested"), "started": iso_now()}
+    rec["switch"] = sw
+    problem = switch_problem(rec, name)
+    if problem:
+        sw.update(state=FAILED, error=problem, ended=iso_now())
+        write_json(path, rec)
+        event(stack_dir, "map.switch_failed", map=name, error=problem)
+        print(f"swb stack: no switch to map {name}: {problem}", file=sys.stderr, flush=True)
+        return False
+    if name == rec.get("map") and pilots.procs:
+        sw.update(state=DONE, ended=iso_now())
+        write_json(path, rec)
+        return True
+    write_json(path, rec)
+    event(stack_dir, "map.switch", map=name, previous=rec.get("map"))
+    print(f"swb stack: pilots to map {name} (from {rec.get('map') or 'none'})", flush=True)
+    pilots.stop_all(rec)
+    rec["map"] = name
+    rec["map_path"] = str(map_dir(rec["project"], name))
+    rec["pilot_contract"] = contract_for_map(rec.get("pilot_contract") or {}, rec["project"],
+                                             rec.get("simulator"), name)
+    for p in rec.get("pilots", []):
+        if p.get("lifetime", "stack") == "stack":
+            p["ready_at"] = None
+    pilots.start_all(rec)
+    sw.update(state=DONE, ended=iso_now())
+    write_json(path, rec)
+    event(stack_dir, "map.switched", map=name)
+    return True
+
+
 # --- the keeper -----------------------------------------------------------------------------
 
 def _die_with_parent():
@@ -589,10 +861,20 @@ def _die_with_parent():
         pass
 
 
-def keep(stack_dir, poll=5.0, once=False) -> int:
-    """Hold the seat for the stack in ``stack_dir``; mark it ready; mark it stopped at the end.
+def _waiting(rec):
+    if not rec.get("map"):
+        return []
+    return [p for p in rec["pilots"]
+            if p.get("lifetime", "stack") == "stack" and not p.get("ready_at")]
 
-    ``once``: return right after the stack is ready (tests)."""
+
+def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
+         respawn_delay=RESPAWN_DELAY) -> int:
+    """Hold the seat for the stack in ``stack_dir``; run its pilots on the stack's map and
+    move them to another on request; mark it ready, and stopped at the end.
+
+    ``once``: return right after the stack is ready (tests). ``pilot_command``:
+    ``(rec, pilot, entry, log_dir) -> argv`` in place of ``pilot_argv`` (tests)."""
     stack_dir = Path(stack_dir)
     path = stack_dir / STACK_JSON
     rec = read_json(path)
@@ -612,47 +894,61 @@ def keep(stack_dir, poll=5.0, once=False) -> int:
 
     previous = {sig: signal.signal(sig, on_signal) for sig in (signal.SIGTERM, signal.SIGINT)}
     rec["pid"] = os.getpid()
+    # a request left by an earlier stack in this directory is not this one's
+    old = read_request(stack_dir)
+    if old is not None and not rec.get("switch"):
+        rec["switch"] = {"id": old["id"], "map": old["map"], "state": FAILED,
+                         "error": "requested before this keeper started"}
     write_json(path, rec)
     link_current(stack_dir, rec)
     event(stack_dir, "stack.start", stack_id=rec["stack_id"], pid=os.getpid())
     print(f"swb stack {rec['stack_id']}: seat {s.index}; scenario domain {s.scenario_domain}, "
           f"SSv2 {s.ssv2_port}, relay {s.relay_port}, world server {s.world_port}; "
-          f"web UI: pass --web-addr 127.0.0.1:{s.web_port}", flush=True)
+          f"web UI: pass --web-addr 127.0.0.1:{s.web_port}; pilots on "
+          f"{rec.get('map') or 'the first run' + chr(39) + 's map'}", flush=True)
+    pilots = Pilots(stack_dir, pilot_command, respawn_delay)
     try:
-        waiting = [p for p in rec["pilots"] if p.get("lifetime", "stack") == "stack"]
-        while waiting and not stop["now"]:
-            for p in list(waiting):
-                if check_ready(p.get("ready"), ros_env(rec, p["domain"])):
-                    p["ready_at"] = iso_now()
-                    waiting.remove(p)
-                    event(stack_dir, "pilot.ready", entity=p["entity"])
-                    print(f"swb stack: pilot {p['entity']} ready", flush=True)
+        if rec.get("map"):
+            pilots.start_all(rec)
             write_json(path, rec)
-            if waiting:
-                for _ in range(int(poll * 10)):
+        next_check = 0.0
+        while not stop["now"]:
+            req = read_request(stack_dir)
+            if req is not None and req["id"] != (rec.get("switch") or {}).get("id"):
+                switch_map(stack_dir, rec, req, pilots)
+                next_check = 0.0
+            if pilots.supervise(rec):
+                write_json(path, rec)
+            waiting = _waiting(rec)
+            if waiting and time.time() >= next_check:
+                for p in waiting:
                     if stop["now"]:
                         break
-                    time.sleep(0.1)
-        if not stop["now"]:
-            rec["state"] = READY
-            rec["ready_at"] = iso_now()
-            write_json(path, rec)
-            event(stack_dir, "stack.ready")
-            print(f"swb stack {rec['stack_id']}: ready", flush=True)
-            if once:
-                return 0
-        while not stop["now"]:
-            time.sleep(0.5)
+                    if check_ready(p.get("ready"), ros_env(rec, p["domain"])):
+                        p["ready_at"] = iso_now()
+                        event(stack_dir, "pilot.ready", entity=p["entity"], map=rec.get("map"))
+                        print(f"swb stack: pilot {p['entity']} ready on {rec.get('map')}",
+                              flush=True)
+                write_json(path, rec)
+                next_check = time.time() + poll
+                waiting = _waiting(rec)
+            if not waiting and rec.get("state") != READY:
+                rec["state"] = READY
+                rec["ready_at"] = iso_now()
+                write_json(path, rec)
+                event(stack_dir, "stack.ready")
+                print(f"swb stack {rec['stack_id']}: ready", flush=True)
+                if once:
+                    return 0
+            time.sleep(0.1)
     finally:
+        pilots.stop_all(rec)
         if not once:
-            rec = read_json(path)
             rec["state"] = STOPPED
             rec["stopped"] = iso_now()
             write_json(path, rec)
             event(stack_dir, "stack.stop")
-            lock.release()
-        else:
-            lock.release()
+        lock.release()
         for sig, h in previous.items():
             signal.signal(sig, h)
     return 0
@@ -661,13 +957,24 @@ def keep(stack_dir, poll=5.0, once=False) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python3 -m swb.stack")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    k = sub.add_parser("keep", help="hold the seat for a stack and track its readiness")
+    k = sub.add_parser("keep", help="hold the seat for a stack, run its pilots, track readiness")
     k.add_argument("stack_dir")
     k.add_argument("--poll", type=float, default=5.0)
+    k.add_argument("--respawn-delay", type=float, default=RESPAWN_DELAY)
+    k.add_argument("--pilot-wrap", metavar="PROGRAM",
+                   help="run each pilot's command line under PROGRAM (tests, debugging)")
     a = ap.parse_args(argv)
     if a.cmd == "keep":
         _die_with_parent()
-        return keep(a.stack_dir, poll=a.poll)
+        command = None
+        if a.pilot_wrap:
+            wrap = shlex.split(a.pilot_wrap)
+
+            def command(rec, p, entry, log_dir):
+                argv = pilot_argv(rec, p, entry, log_dir)
+                return wrap + argv if argv else None
+        return keep(a.stack_dir, poll=a.poll, pilot_command=command,
+                    respawn_delay=a.respawn_delay)
     return 3
 
 

@@ -4,6 +4,13 @@ docs/design/projects-and-pilots.md, "Runs" and "Suites". The stack is found thro
 ``<logs>/<project>/seat-<n>-current/stack.json``; a run refuses (3) a stack that is missing,
 not running, not ready, or whose fingerprint differs from the project's (naming what).
 
+Each run on its scenario's map: when the stack's pilots are on another (or on none yet),
+the runner asks the stack's keeper to move them (``switch-request.json``, answered in
+stack.json; swb.stack) and waits for the answer; a map that is not fetched, or not one of the
+stack's, is refused. A run on the stack's map restarts nothing. A suite's runs are ordered by
+map (the stack's current map first, then by first appearance; stable within a map), after
+``--shard`` picks its share, so that shards agree across hosts.
+
 Each run: ``runs/<id>/`` (``<project>/runs`` links to ``<logs>/<project>/runs``),
 ``resolved.yaml``; ``lifetime: run`` pilots started (a nested play_launch each, in its
 domain) and every pilot's readiness waited for; the stack's log sizes noted; SSv2
@@ -45,6 +52,7 @@ EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
 DEFAULT_TIMEOUT = 400          # scenario.launch.xml's global_timeout
 END_MARGIN = 120               # past global_timeout before the runner stops SSv2 itself
 READY_TIMEOUT = 600
+SWITCH_TIMEOUT = 180           # the keeper stopping and starting the pilots (not their readiness)
 JUNIT = Path("scenario_test_runner") / "result.junit.xml"
 DEFAULT_LOGGING = {"capture": "standard", "keep": {"passed": "result", "failed": "full",
                                                    "error": "full"}}
@@ -320,56 +328,17 @@ def scenario_argv(rec: dict, spec: RunSpec, run_dir: Path, scenario: Path) -> li
 
 
 def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
-    """A ``lifetime: run`` pilot as a nested play_launch of its kind's launch."""
-    name = stackmod.PILOT_FILES.get(p["kind"])
-    if name is None:
-        return None
-    args = dict(rec.get("pilot_contract") or {})
-    args["entity"] = p["entity"]
-    for k, v in entry.items():
-        if k in ("entity", "kind", "domain", "args"):
-            continue
-        args[k] = v
-    args.update(entry.get("args") or {})
-    words = []
-    for k, v in args.items():
-        if isinstance(v, bool):
-            v = "true" if v else "false"
-        elif isinstance(v, (list, tuple)):
-            import shlex
-            v = shlex.join(str(x) for x in v)
-        v = "" if v is None else str(v)
-        if v != "":
-            words.append(f"{k}:={v}")
-    extra = ([] if p["kind"] == "carla_basic"
-             else ["--container-mode", "isolated", "--composable-respawn", "on-crash"])
-    return (["play_launch", "launch", "--disable-web-ui", "--log-dir", str(log_dir), *extra,
-             os.path.join(rec["pilots_dir"], name)] + words)
+    """A ``lifetime: run`` pilot as a nested play_launch of its kind's launch (as the keeper
+    starts a stack pilot: swb.stack.pilot_argv)."""
+    return stackmod.pilot_argv(rec, p, entry, log_dir)
 
 
 def _start(argv, env, log: Path, cwd=None):
-    log.parent.mkdir(parents=True, exist_ok=True)
-    fh = open(log, "ab")
-    try:
-        return subprocess.Popen(argv, env=env, stdout=fh, stderr=subprocess.STDOUT, cwd=cwd,
-                                start_new_session=True)
-    finally:
-        fh.close()
+    return stackmod.start_process(argv, env, log, cwd=cwd)
 
 
-def _stop(proc, grace=20.0):
-    if proc is None or proc.poll() is not None:
-        return
-    for sig, wait in ((signal.SIGINT, grace), (signal.SIGTERM, 10.0), (signal.SIGKILL, 5.0)):
-        try:
-            os.killpg(proc.pid, sig)
-        except (ProcessLookupError, PermissionError):
-            return
-        try:
-            proc.wait(timeout=wait)
-            return
-        except subprocess.TimeoutExpired:
-            continue
+def _stop(proc, grace=stackmod.STOP_GRACE):
+    stackmod.stop_processes([proc], grace)
 
 
 def host_sample() -> dict:
@@ -399,11 +368,73 @@ class Context:
     out: object = None
 
 
-def _scenario_map_problem(rec: dict, scenario) -> str:
-    m = stackmod.map_of(scenario)
-    if m and rec.get("map") and m != rec["map"]:
-        return (f"the scenario is on map {m}, the stack's pilots on {rec['map']}: restart the "
-                f"stack with map:={m}")
+def scenario_map(path: Path, sc=None):
+    """The project map a scenario names (a distribution: its ScenarioFile's), or None."""
+    try:
+        sc = sc or projectmod.read_scenario(path)
+        if sc.distribution_of is not None:
+            if "$(" in sc.distribution_of:
+                return None
+            target = Path(sc.distribution_of)
+            if not target.is_absolute():
+                target = Path(path).parent / target
+            sc = projectmod.read_scenario(target)
+    except (ValueError, OSError):
+        return None
+    return stackmod.map_of(sc)
+
+
+def order_by_map(specs: list, current=None) -> list:
+    """The specs grouped by map: the stack's current map first, then the maps in order of
+    first appearance; stable within a map (and specs with no map keep their group's place)."""
+    cache, groups = {}, {}
+    for s in specs:
+        key = str(s.scenario)
+        if key not in cache:
+            cache[key] = scenario_map(s.scenario)
+        groups.setdefault(cache[key], []).append(s)
+    order = list(groups)
+    if current is not None and current in groups:
+        order.remove(current)
+        order.insert(0, current)
+    return [s for m in order for s in groups[m]]
+
+
+def ensure_map(ctx: Context, name: str, timeout: float = SWITCH_TIMEOUT):
+    """The stack's pilots on map ``name``: nothing when they are; else the keeper is asked to
+    move them and the answer waited for. Refused when the stack cannot serve the map; an
+    infrastructure message (str) when the switch failed; None when done. ``ctx.stack``
+    becomes the stack.json after the switch."""
+    rec = ctx.stack
+    if rec.get("map") == name:
+        return None
+    problem = stackmod.switch_problem(rec, name)
+    if problem:
+        raise Refused(problem)
+    stack_dir = Path(rec["proc"]).parent
+    out = ctx.out or sys.stdout
+    t0 = time.time()
+    rid = stackmod.request_switch(stack_dir, name)
+    while True:
+        try:
+            cur = stackmod.read_json(stack_dir / stackmod.STACK_JSON)
+        except (OSError, ValueError):
+            cur = {}
+        sw = cur.get("switch") or {}
+        if sw.get("id") == rid and sw.get("state") in (stackmod.DONE, stackmod.FAILED):
+            break
+        if cur and not stack_alive(cur):
+            return f"the stack {rec.get('stack_id')} stopped while switching to map {name}"
+        if time.time() - t0 >= timeout:
+            return (f"the stack {rec.get('stack_id')} did not move its pilots to map {name} "
+                    f"within {timeout:.0f} s")
+        time.sleep(0.1)
+    if sw["state"] == stackmod.FAILED:
+        return f"the stack could not switch to map {name}: {sw.get('error')}"
+    ctx.stack = cur
+    out.write(f"map      {name}  (pilots restarted from {rec.get('map') or 'none'} in "
+              f"{time.time() - t0:.1f} s)\n")
+    out.flush()
     return None
 
 
@@ -435,9 +466,6 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         infra.append(f"the scenario cannot be read: {e}")
     pilots = []
     if sc is not None and sc.distribution_of is None:
-        problem = _scenario_map_problem(rec, sc)
-        if problem:
-            raise Refused(problem)
         by_entity = {p["entity"]: p for p in rec.get("pilots", [])}
         for ent in sc.entities:
             if not ent.external:
@@ -449,6 +477,19 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             pilots.append(p)
     else:
         pilots = list(rec.get("pilots", []))
+
+    # the stack's pilots on the scenario's map (a switch when they are on another)
+    m = scenario_map(spec.scenario, sc) if sc is not None else None
+    if m:
+        msg = ensure_map(ctx, m)
+        if msg:
+            infra.append(msg)
+        rec = ctx.stack
+        by_entity = {p["entity"]: p for p in rec.get("pilots", [])}
+        pilots = [by_entity.get(p["entity"], p) for p in pilots]
+    elif sc is not None and not rec.get("map") and pilots:
+        raise Refused(f"{sc_rel} names no project map ($(env SWB_MAPS)/<map>) and the stack's "
+                      "pilots are on none yet: start the stack with map:=")
 
     run_dir = new_run_dir(ctx.runs_root, spec.key)
     run_id = run_dir.name
@@ -502,7 +543,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
 
     procs = []
     try:
-        for p, entry in run_pilots:
+        for p, entry in (run_pilots if not infra else []):
             log_dir = logs / f"pilot-{p['entity']}"
             argv = (ctx.pilot_command or pilot_argv)(rec, p, entry, log_dir)
             if argv:
@@ -510,9 +551,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                                     log_dir / "console.log", cwd=str(project)))
                 run_events.append({"t_wall": time.time(), "event": "pilot.start",
                                    "entity": p["entity"]})
-        # every pilot ready
+        # every pilot ready (none waited for when the stack already failed the run)
         deadline = time.time() + ctx.ready_timeout
-        waiting = list(pilots)
+        waiting = list(pilots) if not infra else []
         while waiting:
             for p in list(waiting):
                 if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"])):
@@ -726,6 +767,7 @@ def main(argv=None, out=None) -> int:
                 s.timeout = args.timeout
         if args.shard:
             specs = shard(specs, args.shard)
+        specs = order_by_map(specs, ctx.stack.get("map"))
         suite_dir = None
         if suite is not None:
             name = _token(Path(args.target).stem)

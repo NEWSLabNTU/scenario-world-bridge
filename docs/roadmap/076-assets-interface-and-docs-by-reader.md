@@ -458,8 +458,8 @@ sharing a project.
     its command line's (`--web-addr` the seat's web port, printed at start).
   - **Seat numbers are arguments.** `stack.launch.py` gained `world_port`, `carla_host`,
     `carla_port`; swb.launch.py passes every domain and port, never the environment.
-  - **One map per stack.** The stack's pilots load the first map the project's scenarios name
-    (`map:=` picks another); a run on another map is refused, naming the `map:=` to restart with.
+  - **One map per stack** (superseded by the next step's map switch, below). The stack's pilots
+    loaded the first map the project's scenarios name; a run on another map was refused.
   - **Parameters reach SSv2 as `override_parameters`** (its preprocessor writes them into the
     scenario's ParameterDeclarations; `scenario.launch.xml` passes it on). A
     `distribution:` file goes to SSv2 as it is, one run per repetition; this SSv2's
@@ -473,6 +473,22 @@ sharing a project.
   judge's verdict sits beside the run's, never replaces it** (the run's verdict is SSv2's;
   "scoring stays outside"); a certification gate reads `judges/` or `summary.csv`'s `judges`
   column. Retries are not budgeted (they replace a run that `keep` prunes).
+- Step 6, map changes (C3, use case 1): a stack serves several maps (`maps:` in swb.yaml, new,
+  else the scenarios' maps). Decisions:
+  - **The keeper runs the stack pilots**, not stack.launch.py (a launch cannot restart a
+    process with other arguments): nested play_launches it respawns 5 s after they end, as
+    the launch did.
+  - **Lazy on CARLA**: the pilots start for the first run's map unless `map:=`; on Isaac the
+    world is the stack's (`world:=` at start), so another map there is refused.
+  - **The control channel is a request file**, `switch-request.json` in the stack directory,
+    answered in stack.json's `switch`; the run then waits for its pilots' readiness as every
+    run does. A map not fetched, or not among the stack's, is refused (3); a switch that fails
+    is the run's `error`.
+  - **Suites are ordered by map** after sharding: the stack's map first, then by first
+    appearance, stable within a map.
+  - Not yet: loading the new town before the pilots restart (the world server loads it on
+    SSv2's Initialize, so CARLA's vehicle stacks start once on the old town and once more on
+    the new).
 
 ## Acceptance
 

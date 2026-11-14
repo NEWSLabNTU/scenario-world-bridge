@@ -43,6 +43,8 @@ Groups and their ROS domains:
   is the world server's, on ego_domain: a pilot with a vehicle side must run there (one such
   pilot), and carla_basic is refused. With pilots and no ego_launch the old ego is not
   started; ego_launch:=<launch> still starts it, in ego_domain, beside the pilots.
+  swb.launch.xml passes no pilots here: its keeper (swb.stack) runs them, so that it can
+  restart them with another map_path when a run is on another map.
 - run (scenario domain): with `spawn` and no scenario, free drive (swb_free_drive: the ego at
   that pose, time stepped synchronously, paced to the wall clock unless realtime:=false; the
   autopilot driven by hand). With `scenario`, SSv2 (scenario.launch.xml) as a nested play_launch:

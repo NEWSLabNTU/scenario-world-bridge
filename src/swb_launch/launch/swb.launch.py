@@ -15,10 +15,16 @@ domain of the seat, and sets SWB_MAPS, SWB_CARLA_USD and the DDS profile for eve
 
 What it starts: a keeper (`python3 -m swb.stack keep`, required) that holds the seat's lock
 while the stack is up, writes <logs>/<project>/stacks/<id>/stack.json and links
-<logs>/<project>/seat-<n>-current to it, and marks it ready once every stack pilot is; and
-stack.launch.py with the seat's domains and ports, the world server and the bridge nested
-(nest_side:=true) so that every stack process logs under stacks/<id>/proc/<group>/, where a
-run cuts its slices.
+<logs>/<project>/seat-<n>-current to it, runs the stack's pilots (nested play_launches,
+respawned) on the stack's map and moves them to another map when a run asks
+(switch-request.json in the stack's directory), and marks the stack ready once every stack
+pilot is; and stack.launch.py with the seat's domains and ports, the world server and the
+bridge nested (nest_side:=true) so that every stack process logs under
+stacks/<id>/proc/<group>/, where a run cuts its slices. stack.launch.py starts no pilot here.
+
+The stack serves several maps (maps: in swb.yaml, else every map the project's scenarios
+name). On CARLA its pilots start for the first run's map unless map:= names one; on Isaac
+the world server loads its world at start, so the first map is the stack's.
 
 play_launch binds its web UI and opens its log directory before this file is read, so those
 two are the command line's: give --web-addr the seat's web port (`ros2 run swb seat show`;
@@ -43,7 +49,7 @@ ARGS = {
     "project": ("", "the project: a directory or pkg://<package>; empty: the working directory's"),
     "seat": ("", "a seat number or auto; empty: the host settings' seat:"),
     "simulator": ("", "carla or isaac; empty: the project's simulator:"),
-    "map": ("", "the map the stack's pilots load; empty: the first the project's scenarios name"),
+    "map": ("", "the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"),
     "logs": ("", "the log root; empty: the host settings' logs:"),
     "gpu": ("", "the GPU index; empty: the seat's"),
     "stack_args": ("", "name:=value ... for stack.launch.py, after swb's own (they win)"),
@@ -82,8 +88,10 @@ def _swb(context):
         raise RuntimeError(f"swb: the stack is refused (3): {e}") from None
     stack.write_plan(plan)
     here = os.path.dirname(os.path.abspath(__file__))
-    print(f"swb: project {plan.project} on seat {plan.seat.index} ({plan.simulator}, map "
-          f"{plan.map}); stack {plan.stack_dir}; web UI port {plan.seat.web_port}", flush=True)
+    on = plan.map or "the first run's map"
+    print(f"swb: project {plan.project} on seat {plan.seat.index} ({plan.simulator}, maps "
+          f"{', '.join(plan.record['maps'])}; pilots on {on}); stack {plan.stack_dir}; web UI "
+          f"port {plan.seat.web_port}", flush=True)
     actions = [SetEnvironmentVariable(k, v) for k, v in plan.env.items()]
     actions.append(ExecuteProcess(cmd=["python3", "-m", "swb.stack", "keep", str(plan.stack_dir)],
                                   name="stack_keeper", output="screen", on_exit=Shutdown()))

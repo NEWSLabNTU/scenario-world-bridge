@@ -37,12 +37,31 @@ FAKE_SSV2 = textwrap.dedent('''\
 ''')
 
 
+# a stack pilot in place of play_launch: notes its start (entity, map_path) and a ready file
+# named for its map, then sleeps until the keeper stops it
+FAKE_PILOT = textwrap.dedent('''\
+    import json, signal, sys, time
+    from pathlib import Path
+    out, argv = Path(sys.argv[1]), sys.argv[2:]
+    words = dict(w.split(":=", 1) for w in argv if ":=" in w)
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / "starts.jsonl", "a") as f:
+        f.write(json.dumps({"entity": words.get("entity"), "map_path": words.get("map_path"),
+                            "argv": argv}) + "\\n")
+    ready = out / (words.get("entity", "x") + "." + Path(words.get("map_path", "")).name)
+    ready.touch()
+    signal.signal(signal.SIGINT, lambda *a: (ready.unlink(missing_ok=True), sys.exit(0)))
+    time.sleep(600)
+''')
+
+
 @pytest.fixture
 def where(host):
     tmp = host["tmp"]
     (tmp / "system" / "host.yaml").write_text(yaml.safe_dump(
         {"seat_locks": str(tmp / "locks"), "logs": str(tmp / "logs"), "seat": 1}))
     (tmp / "fake_ssv2.py").write_text(FAKE_SSV2)
+    (tmp / "fake_pilot.py").write_text(FAKE_PILOT)
     return host
 
 
@@ -55,21 +74,23 @@ def make(where, swb_yaml=None):
     return d
 
 
-def start_stack(d, ready=("true",)):
-    p = stack.plan(project_arg=str(d))
+def start_stack(d, ready=("true",), map_name="Town01"):
+    p = stack.plan(project_arg=str(d), map_name=map_name)
     for x in p.record["pilots"]:
-        x["ready"] = list(ready)
+        x["ready"] = list(ready) if not callable(ready) else ready(x)
     stack.write_plan(p)
     err = p.stack_dir / "proc" / "bridge" / "2026-11-15_00-00-00" / "node" / "scenario_world_bridge"
     err.mkdir(parents=True)
     (err / "err").write_text("[ERROR] [1.0] [scenario_world_bridge]: before the run\n")
     env = dict(os.environ, PYTHONPATH=f"{SWB_ROOT}:{os.environ.get('PYTHONPATH', '')}")
+    pilots_out = d.parent / "pilots"
+    wrap = f"{sys.executable} {d.parent / 'fake_pilot.py'} {pilots_out}"
     proc = subprocess.Popen([sys.executable, "-m", "swb.stack", "keep", str(p.stack_dir),
-                             "--poll", "0.05"], env=env)
+                             "--poll", "0.05", "--pilot-wrap", wrap], env=env)
     deadline = time.time() + 20
     while time.time() < deadline:
         rec = json.loads(p.stack_json.read_text())
-        if rec.get("pid") and (rec["state"] == "ready" or ready != ("true",)):
+        if rec.get("pid") and (rec["state"] == "ready" or ready == ("false",)):
             break
         time.sleep(0.05)
     return p, proc
@@ -242,13 +263,14 @@ def test_error_when_ssv2_writes_nothing(live, where):
     assert r.verdict == "error" and "no JUnit" in r.reason
 
 
-def test_map_mismatch_refused(live, where):
-    d, _ = live
+def test_map_not_fetched_refused(live, where):
+    d, p = live
     other = d / "scenarios" / "three_pilots.xosc"
     town05 = d / "town05.xosc"
     town05.write_text(other.read_text().replace("SWB_MAPS)/Town01", "SWB_MAPS)/Town05"))
-    with pytest.raises(run.Refused, match="map Town05, the stack's pilots on Town01"):
+    with pytest.raises(run.Refused, match="map Town05 is not fetched"):
         api.run_one(d, town05, {"scenario_command": fake(where)})
+    assert not (p.stack_dir / stack.SWITCH_REQUEST).exists()  # nothing asked of the stack
 
 
 def test_suite_cli_summary_resume_retry(live, where, monkeypatch):
@@ -286,6 +308,188 @@ def test_suite_cli_summary_resume_retry(live, where, monkeypatch):
     out = io.StringIO()
     assert run.main(["suites/s.yaml", "--project", str(d), "--shard", "1/2"], out=out) == 0
     assert out.getvalue().startswith("failed (expected failed) ")
+
+
+TWO_TOWNS = """simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01, Town05]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+  lead: {kind: carla_basic}
+  follower: {kind: command, run: [python3, pilots/follower.py]}
+"""
+
+
+def two_towns(where):
+    d = make(where, TWO_TOWNS)
+    sc = d / "scenarios" / "three_pilots.xosc"
+    (d / "scenarios" / "town05.xosc").write_text(
+        sc.read_text().replace("SWB_MAPS)/Town01", "SWB_MAPS)/Town05"))
+    return d
+
+
+def starts(where):
+    f = where["tmp"] / "pilots" / "starts.jsonl"
+    return [json.loads(ln) for ln in f.read_text().splitlines()] if f.is_file() else []
+
+
+def map_ready(where):
+    """Each pilot's ready check: its fake's ready file for the stack's current map would need
+    the map; the file of either town will do, the map is checked through starts.jsonl."""
+    out = where["tmp"] / "pilots"
+    return lambda x: ["sh", "-c", f"ls {out}/{x['entity']}.Town* >/dev/null 2>&1"]
+
+
+def test_lazy_stack_switches_maps(where, maps_hub):
+    d = two_towns(where)
+    p, proc = start_stack(d, ready=map_ready(where), map_name=None)
+    try:
+        rec = json.loads(p.stack_json.read_text())
+        assert rec["state"] == "ready" and rec["map"] is None
+        assert rec["maps"] == ["Town01", "Town05"]
+        assert starts(where) == []  # lazy: nothing started before the first run
+        out = io.StringIO()
+        r = api.run_one(d, "scenarios/town05.xosc", {"scenario_command": fake(where),
+                                                     "ready_timeout": 20, "out": out})
+        assert r.verdict == "passed", r.reason
+        assert "map      Town05  (pilots restarted from none" in out.getvalue()
+        town05 = str(d / "assets" / "maps" / "Town05")
+        first = starts(where)
+        assert sorted(x["entity"] for x in first) == ["ego", "follower", "lead"]
+        assert all(x["map_path"] == town05 for x in first)
+        rec = json.loads(p.stack_json.read_text())
+        assert rec["map"] == "Town05" and rec["map_path"] == town05
+        assert rec["switch"]["state"] == "done" and rec["switch"]["map"] == "Town05"
+        assert rec["pilot_contract"]["map_path"] == town05
+        assert rec["pilot_contract"]["traffic_light_state_path"].endswith(
+            "state/Town05/carla/traffic_lights.yaml")
+        run_dir = where["tmp"] / "logs" / "proj" / "runs" / r.run_id
+        assert yaml.safe_load((run_dir / "resolved.yaml").read_text())["stack"]["map"] == "Town05"
+        # the same map again: nothing restarted
+        out = io.StringIO()
+        r = api.run_one(d, "scenarios/town05.xosc", {"scenario_command": fake(where), "out": out})
+        assert r.verdict == "passed" and "map " not in out.getvalue()
+        assert len(starts(where)) == 3
+        # another map: the pilots stopped and started with its map_path
+        pids = {x["entity"]: x["pid"] for x in rec["pilots"]}
+        r = api.run_one(d, "scenarios/three_pilots.xosc", {"scenario_command": fake(where),
+                                                           "ready_timeout": 20})
+        assert r.verdict == "passed", r.reason
+        later = starts(where)[3:]
+        assert sorted(x["entity"] for x in later) == ["ego", "follower", "lead"]
+        assert all(x["map_path"] == str(d / "assets" / "maps" / "Town01") for x in later)
+        rec = json.loads(p.stack_json.read_text())
+        assert rec["map"] == "Town01"
+        assert all(not os.path.exists(f"/proc/{pid}") or
+                   open(f"/proc/{pid}/stat").read().split()[2] == "Z" for pid in pids.values())
+        assert all(x["pid"] and x["pid"] not in pids.values() for x in rec["pilots"])
+        ev = [json.loads(ln) for ln in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+        assert [e["map"] for e in ev if e["event"] == "map.switched"] == ["Town05", "Town01"]
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=60)
+    # the keeper stopped its pilots on the way out
+    rec = json.loads(p.stack_json.read_text())
+    assert rec["state"] == "stopped" and all(x["pid"] is None for x in rec["pilots"])
+    assert not list((where["tmp"] / "pilots").glob("*.Town*"))
+
+
+def test_keeper_respawns_a_pilot(where, maps_hub):
+    d = make(where)
+    p, proc = start_stack(d)
+    try:
+        deadline = time.time() + 20
+        while len(starts(where)) < 3 and time.time() < deadline:
+            time.sleep(0.05)
+        ego = json.loads(p.stack_json.read_text())["pilots"][0]
+        os.killpg(ego["pid"], signal.SIGKILL)  # an episode end
+        deadline = time.time() + 30
+        while len(starts(where)) < 4 and time.time() < deadline:
+            time.sleep(0.1)
+        again = starts(where)[3:]
+        assert [x["entity"] for x in again] == ["ego"]
+        assert again[0]["map_path"] == str(d / "assets" / "maps" / "Town01")
+        ev = [json.loads(ln)["event"] for ln in
+              (p.stack_dir / "events.jsonl").read_text().splitlines()]
+        assert "pilot.exit" in ev
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=60)
+
+
+def test_switch_failure_is_an_error(where, maps_hub):
+    d = two_towns(where)
+    p, proc = start_stack(d, map_name="Town01")
+    try:
+        ctx = run.context(str(d))
+        # the keeper finds the map gone after the runner checked it: an infrastructure error
+        rec = dict(ctx.stack)
+        real = stack.switch_problem
+        calls = {"n": 0}
+
+        def once_ok(r, m):
+            calls["n"] += 1
+            return None if calls["n"] == 1 else real(r, m)
+        import shutil
+        try:
+            stack.switch_problem = once_ok
+            target = d / "assets" / "maps" / "Town05"
+            moved = d / "Town05.away"
+            shutil.move(str(target), str(moved))
+            msg = run.ensure_map(ctx, "Town05", timeout=20)
+        finally:
+            stack.switch_problem = real
+            shutil.move(str(moved), str(target))
+        assert msg and "could not switch to map Town05: map Town05 is not fetched" in msg
+        assert ctx.stack["map"] == "Town01" == rec["map"]
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=60)
+
+
+def test_order_by_map(tmp_path):
+    maps = {"a": "Town01", "b": "Town05", "c": "Town01", "d": "Town03", "e": None}
+    for n, m in maps.items():
+        lf = f'<LogicFile filepath="$(env SWB_MAPS)/{m}"/>' if m else ""
+        (tmp_path / f"{n}.xosc").write_text(f"<OpenSCENARIO><RoadNetwork>{lf}</RoadNetwork>"
+                                            "</OpenSCENARIO>")
+    (tmp_path / "dist.xosc").write_text(
+        '<OpenSCENARIO><ParameterValueDistribution><ScenarioFile filepath="b.xosc"/>'
+        "</ParameterValueDistribution></OpenSCENARIO>")
+    specs = [run.RunSpec(tmp_path / f"{n}.xosc", {}, k)
+             for n in ("a", "b", "c", "dist", "d", "e", "a") for k in (0, 1)]
+    names = lambda ss: [f"{s.scenario.stem}{s.repetition}" for s in ss]  # noqa: E731
+    assert names(run.order_by_map(specs)) == [
+        "a0", "a1", "c0", "c1", "a0", "a1",          # Town01, in their order
+        "b0", "b1", "dist0", "dist1",                 # Town05 (the distribution's target)
+        "d0", "d1", "e0", "e1"]
+    assert names(run.order_by_map(specs, "Town03"))[:2] == ["d0", "d1"]
+    assert run.scenario_map(tmp_path / "dist.xosc") == "Town05"
+
+
+def test_suite_runs_ordered_by_map(where, maps_hub, monkeypatch):
+    d = two_towns(where)
+    p, proc = start_stack(d, ready=map_ready(where), map_name="Town05")
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    (d / "suites").mkdir()
+    (d / "suites" / "s.yaml").write_text(yaml.safe_dump({
+        "scenarios": ["scenarios/three_pilots.xosc", "scenarios/town05.xosc"],
+        "repetitions": 2, "logging": {"keep": {}}}))
+    try:
+        out = io.StringIO()
+        assert run.main(["suites/s.yaml", "--project", str(d), "--ready-timeout", "20"],
+                        out=out) == 0
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=60)
+    lines = [ln for ln in out.getvalue().splitlines() if not ln.startswith("summary")]
+    # the stack's own map first, then one switch
+    assert [ln.split()[0] for ln in lines] == ["passed", "passed", "map", "passed", "passed"]
+    assert "_town05_r0" in lines[0] and "_town05_r1" in lines[1]
+    assert lines[2].startswith("map      Town01")
+    assert "_three_pilots_r0" in lines[3]
+    assert len(starts(where)) == 6  # started on Town05, then once more on Town01
 
 
 RUN_PILOT = """simulator: carla

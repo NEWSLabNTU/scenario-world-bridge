@@ -27,7 +27,7 @@ DEFAULT_TEMPLATE = "carla-first-drive"
 # a template's files whose names a package cannot carry as they are
 RENAMES = {"gitignore": ".gitignore"}
 
-TOP_KEYS = ("simulator", "assets", "pilots", "vehicles", "ground", "logging", "judges")
+TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges")
 REQUIRED = ("simulator", "pilots", "assets")
 SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
@@ -177,6 +177,11 @@ def check_schema(settings: dict) -> list:
                                  or not all(isinstance(v, str) for v in vehicles)):
         out.append(Finding(pf, "vehicles: is not a list of spec files",
                            "vehicles: [vehicles/my_car.yaml]"))
+    maps = settings.get("maps")
+    if maps is not None and (not isinstance(maps, list) or not maps
+                             or not all(isinstance(m, str) and m for m in maps)):
+        out.append(Finding(pf, "maps: is not a list of map names",
+                           "maps: [Town01, Town05] (each under assets/maps/)"))
     if settings.get("ground") is not None and not isinstance(settings["ground"], dict):
         out.append(Finding(pf, "ground: is not a mapping", "ground: {<map>: ...}"))
     for where, msg in judgesmod.problems(settings.get("judges")):
@@ -382,6 +387,11 @@ def check_project(path) -> list:
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (project / v).is_file():
             out.append(Finding(config.PROJECT_FILE, f"vehicles: {v}: no such file"))
+    maps = settings.get("maps")
+    for m in maps if isinstance(maps, list) else []:
+        if isinstance(m, str) and m and not (project / "assets" / "maps" / m).is_dir():
+            out.append(Finding(config.PROJECT_FILE, f"maps: {m} is not fetched (assets/maps/{m})",
+                               _map_fix(m, settings), refused=True))
     files, found = collect_scenarios(project)
     out += found
     if not files:

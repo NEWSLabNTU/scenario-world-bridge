@@ -30,17 +30,26 @@ def make(where, template="multi-pilot", swb_yaml=None, maps_hub=None):
     return d
 
 
+def fake_pilot(rec, p, entry, log_dir):
+    """A pilot that only sleeps (the keeper's pilot_command in tests)."""
+    import sys
+    return [sys.executable, "-c", "import time; time.sleep(60)"]
+
+
 def test_plan_multi_pilot(where, maps_hub):
     d = make(where)
     p = stack.plan(project_arg=str(d))
-    assert p.seat.index == 2 and p.simulator == "carla" and p.map == "Town01"
+    # lazy on CARLA: the pilots start for the first run's map
+    assert p.seat.index == 2 and p.simulator == "carla" and p.map is None
+    assert p.record["maps"] == ["Town01"] and p.record["map"] is None
+    assert "map_path" not in p.record["pilot_contract"]
     a = p.launch_args
     assert (a["scenario_domain"], a["ego_domain"]) == ("17", "18")
     assert (a["ssv2_port"], a["agent_port"], a["world_port"]) == ("5755", "5760", "5791")
     assert a["ego_launch"] == "none" and a["nest_side"] == "true"
-    assert a["map_path"] == str(d / "assets" / "maps" / "Town01")
+    assert a["map_path"] == "" and "pilots" not in a  # the keeper runs the pilots
     assert a["log_dir"] == str(where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "proc")
-    pilots = json.loads(a["pilots"])
+    pilots = p.record["pilot_entries"]
     assert [(x["entity"], x["kind"], x["domain"]) for x in pilots] == [
         ("ego", "autoware", 18), ("follower", "command", 19), ("lead", "carla_basic", 20)]
     follower = pilots[1]
@@ -57,13 +66,64 @@ def test_plan_multi_pilot(where, maps_hub):
     assert r["pilot_contract"]["release_notify_endpoint"] == "tcp://127.0.0.1:5756"
 
 
+def test_plan_map_given(where, maps_hub):
+    d = make(where)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    town = d / "assets" / "maps" / "Town01"
+    assert p.map == "Town01" and p.record["map_path"] == str(town)
+    c = p.record["pilot_contract"]
+    assert c["map_path"] == str(town)
+    assert c["traffic_light_state_path"] == str(d / "state" / "Town01" / "carla" /
+                                                "traffic_lights.yaml")
+    with pytest.raises(stack.StackRefused, match="map Town05 is not fetched"):
+        stack.plan(project_arg=str(d), map_name="Town05")
+
+
+MAPS_YAML = """simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01, Town05]
+maps: [Town05, Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+  lead: {kind: carla_basic}
+  follower: {kind: command, run: [python3, pilots/follower.py]}
+"""
+
+
+def test_maps_key(where, maps_hub):
+    d = make(where, swb_yaml=MAPS_YAML)
+    assert project.check_project(d) == []
+    p = stack.plan(project_arg=str(d))
+    assert p.record["maps"] == ["Town05", "Town01"] and p.map is None
+    (d / "swb.yaml").write_text(MAPS_YAML.replace("[Town05, Town01]", "[Town05, Town03]"))
+    f = project.check_project(d)
+    assert [x.what for x in f] == ["maps: Town03 is not fetched (assets/maps/Town03)"]
+    assert f[0].refused
+    (d / "swb.yaml").write_text(MAPS_YAML.replace("[Town05, Town01]", "Town05"))
+    assert [x.what for x in project.check_project(d)] == ["maps: is not a list of map names"]
+
+
+def test_switch_problem(where, maps_hub):
+    d = make(where, swb_yaml=MAPS_YAML.replace("maps: [Town05, Town01]\n", ""))
+    rec = stack.plan(project_arg=str(d)).record
+    assert rec["maps"] == ["Town01"]
+    assert stack.switch_problem(rec, "Town01") is None
+    assert "not one of the stack's maps (Town01)" in stack.switch_problem(rec, "Town05")
+    assert "map Town03 is not fetched" in stack.switch_problem(rec, "Town03")
+    rec = dict(rec, simulator="isaac", map="Town01", maps=["Town01", "Town05"])
+    assert "restart the stack with map:=Town05" in stack.switch_problem(rec, "Town05")
+
+
 def test_plan_args_pass_stack_launch(where, maps_hub):
     pytest.importorskip("launch")
     spec = importlib.util.spec_from_file_location("stack_launch", LAUNCH / "stack.launch.py")
     sl = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sl)
-    a = stack.plan(project_arg=str(make(where))).launch_args
-    parsed = sl.parse_pilots(a["pilots"], a["sim"], a["ego_domain"], a["scenario_domain"])
+    p = stack.plan(project_arg=str(make(where)))
+    a = p.launch_args
+    parsed = sl.parse_pilots(json.dumps(p.record["pilot_entries"]), a["sim"], a["ego_domain"],
+                             a["scenario_domain"])
     assert [p["domain"] for p in parsed] == ["18", "19", "20"]
     assert stack.PILOT_FILES == sl.PILOT_KINDS
 
@@ -108,7 +168,7 @@ pilots:
     (d / "swb.yaml").write_text((d / "swb.yaml").read_text().replace(
         '"{param:policy}"]}', '"{param:policy}"], lifetime: run}'))
     p = stack.plan(project_arg=str(d))
-    assert [x["entity"] for x in json.loads(p.launch_args["pilots"])] == ["ego", "lead"]
+    assert [x["entity"] for x in p.record["pilot_entries"]] == ["ego", "lead"]
     assert [x["lifetime"] for x in p.pilots] == ["stack", "run", "stack"]
 
 
@@ -168,19 +228,57 @@ def test_substitute():
 
 def test_keeper_marks_ready_and_links(where, maps_hub):
     d = make(where)
-    p = stack.plan(project_arg=str(d))
+    p = stack.plan(project_arg=str(d), map_name="Town01")
     for x in p.record["pilots"]:
         x["ready"] = ["true"]
     stack.write_plan(p)
-    assert stack.keep(p.stack_dir, poll=0.01, once=True) == 0
+    assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot) == 0
     rec = json.loads(p.stack_json.read_text())
     assert rec["state"] == "ready" and rec["pid"] == os.getpid()
     assert all(x["ready_at"] for x in rec["pilots"])
+    # the keeper ran the pilots (kind none would not be), and stopped them on its way out
+    assert all(x["map"] == "Town01" and x["started_at"] for x in rec["pilots"])
+    assert all(x["pid"] for x in rec["pilots"])
+    for x in rec["pilots"]:
+        assert not seat.pid_alive(x["pid"]) or _zombie(x["pid"])
     link = where["tmp"] / "logs" / "proj" / "seat-2-current"
     assert link.resolve() == p.stack_dir.resolve()
     ev = [json.loads(l)["event"] for l in (p.stack_dir / "events.jsonl").read_text().splitlines()]
     assert ev[0] == "stack.start" and ev[-1] == "stack.ready"
     assert seat.holder(2, str(where["tmp"] / "locks")) is None  # once: released
+
+
+def _zombie(pid):
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().split()[2] == "Z"
+    except OSError:
+        return True
+
+
+def test_lazy_keeper_ready_without_pilots(where, maps_hub):
+    d = make(where)
+    p = stack.plan(project_arg=str(d))
+    stack.write_plan(p)
+    started = []
+
+    def cmd(*a):
+        started.append(a)
+        return fake_pilot(*a)
+    assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=cmd) == 0
+    rec = json.loads(p.stack_json.read_text())
+    assert rec["state"] == "ready" and rec["map"] is None and started == []
+
+
+def test_pilot_argv_has_the_maps_contract(where, maps_hub):
+    d = make(where)
+    rec = stack.plan(project_arg=str(d), map_name="Town01").record
+    ego = rec["pilots"][0]
+    argv = stack.pilot_argv(rec, ego, rec["pilot_entries"][0], Path("/l"))
+    assert argv[:5] == ["play_launch", "launch", "--disable-web-ui", "--log-dir", "/l"]
+    assert argv[argv.index("--composable-respawn") + 2].endswith("pilots/autoware.launch.xml")
+    words = dict(w.split(":=", 1) for w in argv if ":=" in w)
+    assert words["map_path"] == str(d / "assets" / "maps" / "Town01")
+    assert words["entity"] == "ego" and words["relay"] == "tcp://localhost:5760"
 
 
 def test_keeper_refuses_a_held_seat(where, maps_hub):

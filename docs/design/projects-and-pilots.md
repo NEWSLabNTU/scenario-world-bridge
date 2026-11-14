@@ -60,6 +60,8 @@ assets:                                 # see "Assets"
     take: [Town01, Town05]
   - path: ../shared/my_map              # a directory of your own, linked as is
     as: my_map
+maps: [Town01, Town05]                  # the maps the stack serves; default: every map
+                                        # the project's scenarios name
 pilots:                                 # entity name (or fnmatch pattern) -> pilot
   ego:     {kind: autoware, vehicle: tesla_model3}
   bg_av_*: {kind: autoware}
@@ -71,13 +73,15 @@ judges: []                              # post-run programs over result.json
 ```
 
 Keys not listed are refused by name (`project check`). `simulator`, `pilots` and `assets` are
-required; the rest default as shown.
+required; the rest default as shown. `maps` is a list of map names under `assets/maps/`;
+give it when runs name maps the project's own scenarios do not (a scenario run by path), or
+to fix the order; without it the stack serves the maps its scenarios name.
 
 `project check` (and the stack before it starts):
 
 1. every asset is fetched and matches `swb.lock`;
 2. every scenario under `scenarios/` (and every suite's) parses; its `LogicFile` names
-   `$(env SWB_MAPS)/<map>` with `<map>` fetched;
+   `$(env SWB_MAPS)/<map>` with `<map>` fetched; every map of `maps:` is fetched;
 3. every entity whose controller is `agent`/`Autoware` (SSv2's external control) matches a
    pilot; every pilot kind is valid for the simulator (`carla_basic`: CARLA only);
 4. every car named by a scenario or pilot is in a catalog the stack loads, and its spec hash
@@ -179,12 +183,44 @@ settings applied):
 4. starts the simulator side (on CARLA, CARLA itself when `carla.root` is set and nothing
    serves `carla.port`; `simulator_start: external` never starts it), the bridge and the relay
    in the scenario domain;
-5. starts pilots: `lifetime: stack` pilots now, `lifetime: run` ones per run; each in its own
-   domain;
+5. starts pilots: `lifetime: stack` pilots for the stack's map (below), `lifetime: run` ones
+   per run; each in its own domain;
 6. writes `<logs>/<project name>/stacks/<stack id>/stack.json`: the fingerprint (hashes of
    swb.yaml and swb.lock, the pilots, the workspace's build commits), the seat, the domains
-   and ports, the pids, and `state: ready` once every stack pilot is ready; and links
-   `<logs>/<project name>/seat-<n>-current` to it.
+   and ports, the pids, the maps, and `state: ready` once every stack pilot is ready; and
+   links `<logs>/<project name>/seat-<n>-current` to it.
+
+### Maps and the keeper
+
+A stack serves several maps: `maps:` of swb.yaml, else every map its scenarios name (each
+must be fetched, or the stack is refused). Its `lifetime: stack` pilots run on one of them at
+a time, `map` in stack.json; Autoware loads the map's lanelet2 and point cloud at start, so
+another map means a pilot restart with another `map_path`.
+
+- **When the pilots start.** On CARLA, for the first run's map (the stack is ready with
+  `map: null` and no pilot running), unless `map:=` names one. On Isaac the world server
+  loads its world (`world:=`) at start, so the first map is the stack's for its lifetime, and
+  a run on another is refused, naming the `map:=` to restart with.
+- **Who runs them.** The keeper (`python3 -m swb.stack keep`), not the launch: a launch cannot
+  restart a process with other arguments. Each pilot is a nested play_launch of its kind's
+  launch (`swb_launch/launch/pilots/`) in its own session, with the stack's contract
+  (`map_path` and, on CARLA, the state dir's signal table, of the current map), logging under
+  `proc/pilot-<entity>/`, respawned 5 s after it ends, as the launch did (an episode end: a
+  world load ends `acb_bridge`, exit 3); it dies with the keeper (`PR_SET_PDEATHSIG`), and
+  the keeper stops every pilot on its way out (SIGINT, SIGTERM, SIGKILL to its group).
+- **The switch.** A runner whose scenario is on another map writes `switch-request.json`
+  (`{id, map}`, atomically) into the stack's directory. The keeper polls it every 0.1 s; on a
+  new id it records `switch: {id, map, state: switching}`, stops the pilots, sets `map`,
+  `map_path` and the pilots' contract in stack.json, starts them again and answers
+  `state: done` (or `failed` with `error`). The runner waits for that answer (180 s), then for
+  its pilots' readiness as every run does; the world server loads the town itself on SSv2's
+  Initialize (which ends the CARLA vehicle stacks once more; the keeper respawns them, and
+  SSv2 waits for the ego's agent). A file, not a socket: the keeper already polls, a request
+  survives a slow keeper, and stack.json stays the one record a run reads.
+- **What is refused (3)**: a map that is not fetched, one not among the stack's maps, another
+  map on Isaac. A switch the keeper could not do, or did not answer, is the run's `error`.
+
+A run on the stack's current map restarts nothing.
 
 ## Runs
 
@@ -195,13 +231,17 @@ settings applied):
    not ready;
 2. expands `<x>` into run specs (a scenario, or a suite: below), each with an id
    `<time>_<scenario>[_<params>]_r<k>`;
-3. per run: creates `runs/<id>/`, writes `resolved.yaml`, starts `lifetime: run` pilots and
+3. per run: moves the stack's pilots to the scenario's map when they are on another (above),
+   creates `runs/<id>/`, writes `resolved.yaml`, starts `lifetime: run` pilots and
    waits for every pilot's readiness, notes each stack log's size (the slice start), starts
    SSv2 (`scenario.launch.xml` as a nested play_launch in the scenario domain, with the
    project's `SWB_MAPS`), waits for it to end, notes the sizes again, cuts the slices, builds
    the timeline, writes `result.json`, applies `keep`, prints one line;
 4. a suite writes `summary.csv` and a merged JUnit; `--resume` skips run ids with a
-   `result.json`; `--shard i/n` takes every n-th spec from the i-th.
+   `result.json`; `--shard i/n` takes every n-th spec from the i-th; then the runs are ordered
+   by map (the stack's current map first, then by first appearance, stable within a map), so
+   a suite over five towns switches at most five times. Sharding comes first, so that every
+   host takes the same share.
 
 `swb.api.run_one(project, scenario, overrides) -> RunResult` does step 3 from Python.
 

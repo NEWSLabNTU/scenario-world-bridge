@@ -16,7 +16,7 @@
   <arg name="project" default="" description="the project: a directory or pkg://&lt;package&gt;; empty: the working directory's"/>
   <arg name="seat" default="" description="a seat number or auto; empty: the host settings' seat:"/>
   <arg name="simulator" default="" description="carla or isaac; empty: the project's simulator:"/>
-  <arg name="map" default="" description="the map the stack's pilots load; empty: the first the project's scenarios name"/>
+  <arg name="map" default="" description="the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"/>
   <arg name="logs" default="" description="the log root; empty: the host settings' logs:"/>
   <arg name="gpu" default="" description="the GPU index; empty: the seat's"/>
   <arg name="stack_args" default="" description="name:=value ... for stack.launch.py, after swb's own (they win)"/>

@@ -142,7 +142,7 @@ subtract T = (−0.288, +0.216, +17.26) m (solved on r02; 17 m is a vertical dat
       51RUH)
 - [ ] Produce an xodr that agrees with the Lanelet2 map (CommonRoad Scenario Designer or
       hand); check alignment with `--generate-signal-table`
-- [ ] Assemble a map dir per [user-guide](../user-guide.md) §2 (`lanelet2_map.osm`,
+- [ ] Assemble a map dir per [maps and assets](../reference/maps-and-assets.md) §2 (`lanelet2_map.osm`,
       `pointcloud_map.pcd`, projector, `carla/traffic_lights.yaml`)
 
 ### 6. Import into CARLA

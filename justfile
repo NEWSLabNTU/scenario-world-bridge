@@ -63,7 +63,7 @@ autoware_tensorrt_lib := env_var_or_default('AUTOWARE_TENSORRT_LIB', justfile_di
 default:
     @just --list
 
-# The user install of docs/user-guide.md section 1 (rustup, colcon-cargo-ros2,
+# The user install of docs/getting-started/install.md (rustup, colcon-cargo-ros2,
 # submodules, `rosdep install`), plus developer extras (nightly rustfmt for
 # `just check`/`format`, cargo-nextest for `just test`). Safe to re-run.
 #
@@ -262,6 +262,9 @@ test:
         cargo nextest run --no-tests pass --no-fail-fast)
     # Every component's deps/ pins are this workspace's pins (roadmap 051)
     python3 scripts/check_pins.py
+    # The user docs keep their rules: links resolve, no `just`, no banned punctuation, every
+    # tutorial in the tutorial format (roadmap 076 B6)
+    python3 scripts/check_docs.py
     # SSv2's protos in swb_world_protocol are the fork's (roadmap 051)
     python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py
     # run_suite's discovery and JUnit aggregation (stdlib only, no ROS graph needed)
@@ -1220,7 +1223,7 @@ ego-av *args: _require-carla
     # setups, which on some Autoware installs export RMW_IMPLEMENTATION themselves.
     # `_require-ego-stack` reads the same variable, so `just scenario` finds the ego.
     if [ -n "${EGO_RMW_IMPLEMENTATION:-}" ]; then export RMW_IMPLEMENTATION="$EGO_RMW_IMPLEMENTATION"; fi
-    # The user's vehicle side, exactly (docs/user-guide.md section 4, Terminal 3):
+    # The user's vehicle side, exactly (the autoware pilot, docs/how-to/your-autoware.md):
     # acb_launch carla_simulator.launch.xml under play_launch with the guide's flags, so a
     # dev run proves what users get. Defaults that differ from the launch file's: no RViz,
     # the relay `just run` starts, and no localization seed on attach (the agent

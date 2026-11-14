@@ -6,8 +6,8 @@ Status: **design, decisions taken 2026-10-08** (UX campaign). Roadmap: 017.
 
 > This is a design record, not a user guide. Some parts describe the system as it stood
 > when it was written. To run scenarios, read
-> [Build your own stack](../build-your-own-stack.md) and the
-> [User Guide](../user-guide.md).
+> [the tutorials](../README.md#tutorials) and the
+> [reference](../README.md#reference).
 
 ## Goals
 

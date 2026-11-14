@@ -29,7 +29,7 @@
     FLAGS are the play_launch options container-mode isolated, composable-respawn on-crash,
     web-addr 127.0.0.1:<SWB_WEB_PORT+2> (8082)
     (each with a double-hyphen prefix, which an XML comment cannot contain);
-    docs/user-guide.md section 4 says why.
+    docs/reference/commands.md says why.
 
     `just ego-av` and the user guide start acb_launch carla_simulator.launch.xml directly;
     this file keeps CPU-only perception defaults.

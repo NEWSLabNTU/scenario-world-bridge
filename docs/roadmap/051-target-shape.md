@@ -64,7 +64,7 @@ What depends on what:
   in `autoware_sim_vehicle`. Consumers read the installed files. Another autopilot adds
   its own `<autopilot>_sim_vehicle` next to Autoware's, generated from the same spec with
   `sim_vehicle_spec`'s generator library, and takes goals through the relay as any agent
-  does ([agent-interface](../agent-interface.md)). If it cannot read the I5 contract's
+  does ([agent-sdk](../reference/agent-sdk.md)). If it cannot read the I5 contract's
   Autoware messages, it needs its own vehicle bridge.
 - **Without SSv2**: acb or aib, plus the two vehicle repositories, is a complete Autoware-on-a-simulator
   system. Neither needs swb, `swb_world_protocol` or the other bridge. On CARLA this

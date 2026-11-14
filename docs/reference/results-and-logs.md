@@ -1,0 +1,86 @@
+# Results and logs
+
+What a run leaves, where, and what each file holds. The verdicts are explained in
+[Verdicts](../explanation/verdicts.md); the commands that read them are `ros2 run swb runs
+list|show|why|summary|prune` ([Commands](commands.md#ros2-run-swb-runs)).
+
+## Where
+
+```
+<logs>/<project name>/
+  stacks/<stack id>/   stack.json  events.jsonl  proc/<group>/...   one per stack
+  seat-<n>-current  -> stacks/<stack id>          the live stack on seat n
+  runs/<run id>/       one per run (below)
+  suites/<suite>[_shard-i-of-n]/   links to its runs, summary.csv, junit.xml
+<project>/runs  -> <logs>/<project name>/runs
+```
+
+`<logs>` is the host settings' `logs:` (default `~/.local/state/swb/logs`); keep it on a
+fast disk, since every process of a stack writes there. A stack id is
+`<time>_seat<n>`; a run id `<time>_<scenario>[_<name>-<value>...]_r<k>`.
+
+`stack.json` is the stack's record: its fingerprint (hashes of `swb.yaml` and `swb.lock`,
+the pilots, the workspace's build commits), seat, domains and ports, processes, maps, its
+current map, each pilot's entity, kind, domain and readiness, and `state` (`ready` once
+every stack pilot is). A run refuses a stack whose fingerprint is not the project's.
+
+## A run's directory
+
+| File | Level | Holds |
+|---|---|---|
+| `result.json` | result | the verdict and its first cause, the scenario, events, metrics, pilots, provenance (below) |
+| `resolved.yaml` | result | everything the run was given, after defaults |
+| `junit.xml` | result | SSv2's verdict as JUnit |
+| `timeline.jsonl` | result | one event per line, by wall time (below) |
+| `judges/<name>.json` | result | each judge's record |
+| `logs/<group>/` | standard | every stack process's log for the time of the run (a slice), SSv2's own logs (`logs/ssv2/`), `lifetime: run` pilots' logs |
+| `record/<entity>/` | full | a rosbag of the pilot's key topics, from the moment every pilot is ready until SSv2 ends |
+| `host.json` | full | samples of the host's load |
+| `record/scenario/` | debug | every topic of the scenario domain (and every topic of each pilot domain in `record/<entity>/`) |
+
+Groups: `simulator`, `bridge`, `relay`, `pilot-<entity>`, `scenario`, `judge`. The key
+topics at `full`: the ego's state, the control command, the vehicle status, the detected
+objects, the trajectory, and `/swb/wheels` on Isaac; `logging.topics` replaces the list.
+A run's `capture` sets what it records; `keep` reduces it per verdict once the verdict is
+known ([The project file](project-file.md#logging)).
+
+## `result.json`
+
+Schema `swb.result/1`:
+
+```json
+{
+  "schema": "swb.result/1",
+  "run_id": "2026-11-14T10-21-07_cut_in_gap6_yield_r2",
+  "verdict": "passed | failed | error",
+  "reason": "first cause, one line",
+  "scenario": {"file": "...", "sha256": "...", "parameters": {}, "repetition": 2,
+               "seed": 1002},
+  "ssv2": {"junit": "junit.xml", "failures": 0, "errors": 0, "message": "..."},
+  "events": [{"t_sim": 18.4, "t_wall": "...", "type": "collision.vehicle",
+              "entity": "ego", "other": "cut_in"}],
+  "metrics": {"duration_s": 24.0, "route_completion": 0.62},
+  "pilots": {"ego": {"kind": "autoware", "vehicle": "tesla_model3",
+                     "inputs": ["sensors"], "version": "..."}},
+  "provenance": {"swb": "<commit>", "submodules": {}, "simulator": "carla",
+                 "swb_lock": "sha256:...", "spec_hash": {"ego": "..."},
+                 "host": "...", "gpu": "...", "stack_id": "..."}
+}
+```
+
+Event types: `collision.vehicle`, `collision.pedestrian`, `collision.static`, `red_light`,
+`off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`.
+
+## The timeline
+
+`timeline.jsonl`: one JSON object per line, `{t_wall, t_sim, group, event, ...}`, ordered
+by wall time: the run's start and end, each pilot's readiness, SSv2's milestones, judge
+events, and every log line at WARN or above in any slice. `ros2 run swb runs show <id>`
+prints it as a table; `runs why <id>` prints its first WARN or ERROR and its group.
+
+## A suite's table
+
+`summary.csv` has one row per run: `run_id`, `scenario`, `params`, `repetition`, `seed`,
+`verdict`, `reason`, `duration`, `judges`, `path`. The merged `junit.xml` holds one test
+suite per run with SSv2's testcases, plus a testcase standing for an `error` (or a
+failure) SSv2 did not report.

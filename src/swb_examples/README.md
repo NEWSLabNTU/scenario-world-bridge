@@ -45,7 +45,7 @@ ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
 `ros2 launch` takes the same arguments as `play_launch launch`, but play_launch must still
 be installed: the stack starts its parts as play_launch processes of their own. Both
 commands assume the environment file of
-[Build your own stack](../../docs/build-your-own-stack.md#1-the-environment-file).
+[Install](../../docs/getting-started/install.md#the-environment-file).
 
 Times are wall-clock on the development host (32 cores, one RTX GPU, CARLA 0.9.16 at Epic
 quality), ego stack already running, measured by `run_suite` on 2026-10-10. They include
@@ -69,13 +69,13 @@ SSv2 start-up and the ego's engage, which is most of a short scenario.
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
-| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a background AV launch registered as `bg_av_1` with the agent relay ([Build your own stack, more cars](../../docs/build-your-own-stack.md#8-more-cars)). |
+| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a background AV launch registered as `bg_av_1` with the agent relay ([Tutorial 4, several pilots](../../docs/tutorials/04-several-pilots.md)). |
 
 ## tutorial/ -- the worked example of the tutorials
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
-| `town01_follow_to_goal.xosc` | Town01 | The ego drives 80 m to a goal behind a slower SSv2-driven car (`leadSpeed`, 4 m/s) and must not touch it. Every pose comes from `ros2 run swb_launch carla_poses`; written step by step in [Prepare a scenario](../../docs/tutorials/01-prepare-a-scenario.md). |
+| `town01_follow_to_goal.xosc` | Town01 | The ego drives 80 m to a goal behind a slower SSv2-driven car (`leadSpeed`, 4 m/s) and must not touch it. Every pose comes from `ros2 run swb_launch carla_poses`; written step by step in [Write a scenario](../../docs/tutorials/02-write-a-scenario.md). |
 
 ## isaac/ -- Isaac Sim
 
@@ -137,7 +137,7 @@ trigger to arrive the way the tour does, and routes it through to a nearby goal;
 incident starts when the ego arrives, its actors are added then and deleted when it is
 over, and a watchdog clears them if the ego stands still too long (logged as degraded).
 They are timed for the tour's 40 km/h on CenterPoint with the Autoware overlay
-([User Guide](../../docs/user-guide.md#your-own-autoware)); start the stack with:
+([Your Autoware](../../docs/how-to/your-autoware.md#fixes-autoware-150-lacks)); start the stack with:
 
 ```bash
 EGO="max_velocity:=11.11 lidar_detection_model:=centerpoint"

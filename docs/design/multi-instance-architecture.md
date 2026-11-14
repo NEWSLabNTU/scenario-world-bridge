@@ -300,7 +300,7 @@ upstream's) and reaches the ego only through the agent relay (roadmap 017).
 
 ### Startup
 
-*(historical: today's order is any order -- see [../user-guide.md](../user-guide.md))*
+*(historical: today's order is any order -- see [the reference](../README.md#reference))*
 
 ```
 1. CARLA server up

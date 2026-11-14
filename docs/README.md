@@ -1,66 +1,88 @@
 # Documentation
 
-## Using scenario-world-bridge
+## By reader
 
-Read in this order:
+| You are | Start with | Then |
+|---|---|---|
+| **New to swb** | [Install](getting-started/install.md), [Getting started on CARLA](getting-started/carla.md) | the [tutorials](#tutorials) in order |
+| **Adopting swb** for your project | [Start a project of your own](how-to/start-a-project.md) | [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md), [your Autoware](how-to/your-autoware.md), the [reference](#reference) |
+| **Teaching** | [Teaching with swb](teaching.md) | [several stacks on one host](how-to/several-stacks.md), the tutorials as labs |
+| **Writing scenarios** | [Tutorial 2](tutorials/02-write-a-scenario.md), [Tutorial 3](tutorials/03-other-road-users.md) | [Writing scenarios](design/scenario-authoring.md): what the bridge supports |
+| **Integrating an autopilot** | [Your autopilot as a pilot](how-to/your-autopilot.md) | [the agent SDK](reference/agent-sdk.md), [Tutorial 4](tutorials/04-several-pilots.md) |
+| **Developing swb** | the [Developer Guide](development.md) | [design/](design/) |
 
-- [README](../README.md): what it is, requirements, a quick start on CARLA
-- Getting started, from install to Autoware driving your own scenario:
-  - [on CARLA](getting-started/carla.md): install, the TUM maps, a first run, your
-    scenario, Autoware
-  - [on Isaac Sim](getting-started/isaac.md): install, the asset set from Hugging Face,
-    the stack, a first scenario, your scenario
-- [Build your own stack](build-your-own-stack.md): your scenario, simulator, car, autopilot
-  and more cars, in one launch
-- [ROS domains and DDS](domains-and-dds.md): which process runs in which domain, values
-  0-57, Cyclone, looking into each domain, two stacks on one host
-- Tutorials, in order:
-  1. [Prepare a scenario](tutorials/01-prepare-a-scenario.md): poses on the map, a `.xosc`
-     of your own
-  2. [Run and judge](tutorials/02-run-and-judge.md): suites, CARLA's contacts in the
-     verdict, results
-  3. [Other road users and more AVs](tutorials/03-other-road-users.md): pedestrians,
-     obstacles, other cars, background AVs
-  4. [Configure the system](tutorials/04-configure.md): bridge and world server settings,
-     weather, ports, domains
-  5. [A demo run and recording](tutorials/05-demo-and-recording.md): a longer drive,
-     recording a screencast
-  6. [CARLA's assets on Isaac Sim](tutorials/06-carla-assets-on-isaac.md): the asset set
-     from Hugging Face, a town's Isaac world, CARLA's vehicles, walkers and props in a
-     scenario, a light Town01, the Mount Haruna course
-  7. [Road physics: surfaces, mud and rocks](tutorials/07-road-physics.md)
+## Getting started
 
-## Datasets
+- [Install](getting-started/install.md): the workspace, the environment file, the host
+  settings file
+- [On CARLA](getting-started/carla.md): CARLA 0.9.16, running and found
+- [On Isaac Sim](getting-started/isaac.md): Isaac Sim 6.1, installed and found
 
-Published on Hugging Face (`hf download jerry73204/<name> --repo-type dataset`):
+## Tutorials
 
-- [carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd):
-  CARLA 0.9.16's towns, 41 vehicles, 97 props and 52 walkers as USD (CC BY 4.0)
-- [carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps):
-  TUM's CARLA towns as Autoware maps, with our repairs (LGPL-3.0)
-- [haruna-tsukuba-courses](https://huggingface.co/datasets/jerry73204/haruna-tsukuba-courses):
-  Mount Haruna and Tsukuba Circuit, Isaac worlds and Autoware maps (ODbL, GSI)
-- [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages):
-  road-surface and proving-ground test stages for Isaac Sim (Apache-2.0)
-- [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models):
-  a golf cart's Isaac body, rig, spec and RViz mesh (Apache-2.0)
+Learning by doing: one path each, every step with a check, exercises at the end. CARLA
+first, Isaac Sim from tutorial 6.
+
+1. [First drive](tutorials/01-first-drive.md): a project, its map, the stack, one run, its
+   result
+2. [Write a scenario](tutorials/02-write-a-scenario.md): poses, the ego's goal, a pass
+   condition, a parameter
+3. [Other road users](tutorials/03-other-road-users.md): pedestrians, obstacles, a traffic
+   light, a car the simulator drives
+4. [Several pilots](tutorials/04-several-pilots.md): Autoware, CARLA's BasicAgent and your
+   own agent in one run
+5. [Suites](tutorials/05-suites.md): a parameter grid, repetitions, a judge, the results
+   table
+6. [The same project on Isaac Sim](tutorials/06-carla-assets-on-isaac.md): CARLA's assets
+   in USD, models in a scenario, the Mount Haruna course
+7. [Road physics](tutorials/07-road-physics.md): mud, gravel and a wet road, watching the
+   wheels
+
+## How-to guides
+
+A task in your own project, starting from a working stack:
+
+- [Start a project of your own](how-to/start-a-project.md): templates, your maps, sharing
+- [Your car](how-to/your-car.md): a shipped car, or one from your vehicle spec
+- [Your autopilot as a pilot](how-to/your-autopilot.md): a launch file, a program, your
+  own process
+- [Your Autoware](how-to/your-autoware.md): arguments, your build, fixes, TensorRT
+- [Your simulator](how-to/your-simulator.md): a world server for another simulator
+- [Several stacks on one host](how-to/several-stacks.md): seats
+- [Configure the stack](how-to/configure.md): the bridge, the world servers, the weather,
+  timeouts
+- [Run suites in CI](how-to/run-in-ci.md): exit codes, JUnit, two hosts, the disk
+- [Record a demo](how-to/record-a-demo.md): windows, a screencast, rosbags
 
 ## Reference
 
-- [User Guide](user-guide.md): the launches, their arguments and defaults, the environment,
-  troubleshooting
-- [Writing an agent](agent-interface.md): drive scenarios with your own autopilot, the
-  `swb_agent.Agent` class, `ros_adapter` from YAML
+- [Commands](reference/commands.md): every `ros2 run swb` command, the stack's arguments,
+  exit codes, the other tools
+- [The project file](reference/project-file.md): `swb.yaml`, suites, `swb.lock`
+- [Host settings](reference/host-settings.md): `host.yaml`, `local.yaml`, the seat table
+- [Results and logs](reference/results-and-logs.md): a run's directory, `result.json`, the
+  timeline, capture levels
+- [Maps and assets](reference/maps-and-assets.md): a map directory, the datasets
+- [The agent SDK](reference/agent-sdk.md): `swb_agent.Agent`, `ros_adapter`, checking an
+  agent
+- [Road physics on Isaac Sim](reference/road-physics.md): surface classes, zones, the rough
+  road, `/swb/wheels`
+- [Troubleshooting](reference/troubleshooting.md): symptoms, causes, fixes
 - [Writing scenarios](design/scenario-authoring.md): what a scenario may use, and how
 
-## Developing scenario-world-bridge
+## Explanation
 
-- [Developer Guide](development.md): build, test, layout, how a scenario runs, conventions,
-  and the index of design documents ([design/](design/))
-- [User workflow and the vehicle agent](design/user-workflow.md): the design of the two
-  sides
+- [How it works](explanation/how-it-works.md): the parts of a run; project, stack, run
+- [ROS domains and DDS](explanation/domains-and-dds.md): why several domains, which
+  process lives where
+- [Verdicts](explanation/verdicts.md): passed, failed, error; CARLA's contacts; judges
 
-## Roadmap
+## Datasets
 
-- [Roadmap](roadmap/README.md): one document per phase: problem, design, steps, measured
-  results
+Public, on Hugging Face under `jerry73204`; a project fetches them by name
+([Maps and assets](reference/maps-and-assets.md#datasets)):
+[carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps),
+[carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd),
+[haruna-tsukuba-courses](https://huggingface.co/datasets/jerry73204/haruna-tsukuba-courses),
+[isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages),
+[newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models).

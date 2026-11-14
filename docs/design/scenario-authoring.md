@@ -2,11 +2,11 @@
 
 Scenarios are standard OpenSCENARIO 1.x files run by scenario_simulator_v2 (SSv2). This page
 covers what is specific to running them in CARLA through scenario-world-bridge. Workflow:
-[Build your own stack](../build-your-own-stack.md) and the [tutorials](../tutorials/);
-reference: [../user-guide.md](../user-guide.md); architecture:
+the [tutorials](../tutorials/) and the [how-to guides](../README.md#how-to-guides);
+reference: [the project file](../reference/project-file.md); architecture:
 [user-workflow.md](user-workflow.md). On Isaac Sim the same files run as far as the
 simulator can drive them: no `simulator_autopilot`, and one ego only
-([Tutorial 3, section 5](../tutorials/03-other-road-users.md#5-on-isaac-sim)).
+([Tutorial 3](../tutorials/03-other-road-users.md#what-happened)).
 
 ## The map
 

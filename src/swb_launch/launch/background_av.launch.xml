@@ -33,7 +33,7 @@
     FLAGS are the play_launch options container-mode isolated, composable-respawn on-crash,
     web-addr 127.0.0.1:<SWB_WEB_PORT+3> (8083)
     (each with a double-hyphen prefix, which an XML comment cannot contain);
-    docs/user-guide.md section 4 says why.
+    docs/reference/commands.md says why.
 
     Long-lived, like the ego stack: one start serves consecutive scenarios, and it may come
     up before or after a scenario starts (the bridge tells the agent where its vehicle is as

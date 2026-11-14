@@ -1,0 +1,81 @@
+# Run suites in CI
+
+Run a project's suites unattended (a nightly job, a merge check) and hand the verdicts to
+the CI system. It assumes a host with the workspace built, CARLA serving, and the project
+checked out ([Start a project](start-a-project.md)); suites are
+[Tutorial 5](../tutorials/05-suites.md).
+
+## A job
+
+```bash
+#!/usr/bin/env bash
+# nightly.sh: the project's nightly suite against a stack this job starts and stops
+set -u
+source ~/swb.bash
+cd "$PROJECT"
+ros2 run swb assets fetch || exit 3
+ros2 run swb project check || exit 3
+
+setsid play_launch launch --web-addr 127.0.0.1:8080 \
+    swb_launch swb.launch.xml map:=Town01 > stack.log 2>&1 &
+STACK=$!
+
+ros2 run swb run suites/nightly.yaml --wait 1200
+CODE=$?
+
+kill -INT -$STACK            # the whole stack, and only it
+wait $STACK
+ros2 run swb runs summary
+exit $CODE
+```
+
+`--wait 1200` lets the run wait up to 20 minutes for the stack to become ready, instead of
+refusing at once. `setsid` gives the stack a process group of its own, so the job stops
+exactly what it started. A stack that is already up and from the same project state
+serves the job as it is; one from another state is refused (restart it).
+
+## What the CI system reads
+
+| Exit code | Means |
+|---|---|
+| 0 | every run ended as expected (passed, or what the suite `expect`s) |
+| 1 | a scenario failed |
+| 2 | a run could not be judged for the stack's fault (`error`): a world server or bridge error, a pilot that never became ready |
+| 3 | refused: no stack, a stack of another project state, a missing asset, bad input |
+
+Each suite writes `summary.csv` and a merged `junit.xml` under
+`<logs>/<project>/suites/<suite>/`, printed on its last line (`summary: <path>`); `ros2 run
+swb runs summary [<dir>]` writes the same for any directory of runs. Any JUnit viewer reads
+the merged file: one test suite per run, SSv2's testcases in it, and an `error` testcase
+when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summary.csv`'s
+`judges` column and in each run's `judges/`, never in place of the run's
+([Verdicts](../explanation/verdicts.md)).
+
+## Two hosts, one suite
+
+With the same project and `swb.lock` on both:
+
+```bash
+ros2 run swb run suites/nightly.yaml --shard 1/2     # host A
+ros2 run swb run suites/nightly.yaml --shard 2/2     # host B
+```
+
+Each writes its own `suites/nightly_shard-1-of-2/` table. Copy both runs directories to one
+place and run `ros2 run swb runs summary <dir>` there for one table. A job that was cut
+short continues with `--resume`, which skips the runs that already have a result.
+
+## Keep the disk
+
+`logging` in `swb.yaml` (or the suite) sets what a run records (`capture`) and what it
+keeps once its verdict is known (`keep`), and `budget` refuses a suite the log disk cannot
+hold:
+
+```yaml
+logging:
+  capture: standard
+  keep: {passed: result, failed: full, error: full}
+  budget: {per_run: 2GB, total: 200GB}
+```
+
+Old runs go with `ros2 run swb runs prune --older-than 14`, or shrink with
+`--to result`. The levels: [Results and logs](../reference/results-and-logs.md).

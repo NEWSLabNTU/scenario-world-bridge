@@ -409,23 +409,27 @@ sharing a project.
 2. [x] The user's word on the second design (decisions 10-13), 2026-11-14. Design doc:
    [projects-and-pilots.md](../design/projects-and-pilots.md); package `src/swb` scaffold and
    `swb.config` (8cb4025).
-3. [ ] A2, A7: project file and lock, `project new|check`, `assets fetch|list|check` with the
+3. [x] A2, A7: project file and lock, `project new|check`, `assets fetch|list|check` with the
    read-only cache and `state/`; tests.
-4. [ ] A6: seats (the table, the lock, `seat show`); the stack's processes take their numbers.
-5. [ ] A5: the vehicle side split from the driver; the pilot contract; kinds `autoware`,
+4. [x] A6: seats (the table, the lock, `seat show`); the stack's processes take their numbers.
+5. [x] A5: the vehicle side split from the driver; the pilot contract; kinds `autoware`,
    `carla_basic`, `launch`, `command`, `none` (`simple` with 070 D, `container` later).
 6. [x] A3, A4: `swb.launch.xml` as the stack (fingerprint, lazy pilots, `simulator_start`);
    `ros2 run swb run` for runs and suites (`--start-stack`, `--stop-stack`); `run_one`.
-7. [ ] A8, A8b: `result.json` schema with provenance, `resolved.yaml`, summaries, judges; per-run
+7. [x] A8, A8b: `result.json` schema with provenance, `resolved.yaml`, summaries, judges; per-run
    log slices, the timeline, levels, keep by verdict, budgets, `runs show|why|prune`.
-8. [ ] A9: signal table on first load, `make_world`, the surfaces map, the rough road in the
+8. [x] A9: signal table on first load, `make_world`, the surfaces map, the rough road in the
    package, `/swb/wheels`, `record:=`, the datasets re-uploaded and tagged.
-9. [ ] Port the studies onto it as the proof: an AWF suite, a cooperation batch sharded on two
-   hosts, a Haruna drift run with its own pilot, the golf cart twin as a package project.
+9. [~] Port the studies onto it as the proof: an AWF suite (done, live), a cooperation batch
+   sharded on two hosts (one host done; the second host with swb 241), a Haruna drift run with
+   its own pilot (on hold with the drift work, 2026-11-02), the golf cart twin as a package
+   project (the rig work is another session's, 2026-10-29).
 10. [x] Retire what the design replaces (`ego_launch`, `background_av.launch.xml` on the user
    path, `CARLA_MAPS`/`CARLA_USD` for users), by name.
 11. [x] B: the docs reorganised (B1-B5) (421e60f, fd4b14c).
-12. [ ] B6: the docs check; live runs; fresh readers.
+12. [x] B6: the docs check (`scripts/check_docs.py` in `just test`); live runs on CARLA; three
+   fresh readers (newcomer, adopter, educator), their findings fixed (36288ce). The Isaac live
+   run is with swb 241.
 
 ## Progress and rulings
 
@@ -660,6 +664,21 @@ sharing a project.
   ego_launch:=none` in a project is refused under play_launch's parser too ("ego_launch:= is
   retired (roadmap 076); give a pilot in swb.yaml ..."), not dropped. acb's acceptance.py reads
   no map variable itself.
+- Open after 076's build, each a ruling (2026-11-15):
+  - Isaac live acceptance (`isaac_first_drive`, two scenarios on one stack) and the second
+    host of the shard check: swb 241 runs them; their results go here.
+  - `vehicles:` is checked, not loaded: a project's own car needs its catalog entry and
+    physics generated from its spec and handed to the bridge and world server. Its own phase,
+    with an example of three different cars in one run.
+  - A non-Autoware autopilot on the vehicle interface is documented from code, never run
+    live; the next adopter's project is the test.
+  - The bridge cannot tell two SSv2 clients apart (a stray SSv2 joins a run); an Initialize
+    client id would let it refuse the second.
+  - Preloading the town before a CARLA map switch needs a bridge service (`~/load_map`); until
+    then a switch costs one extra episode.
+  - `logging.levels`/`debug` are refused by name until built; `autoware.setup` is not read.
+  - The asset cache is one per user; a shared cache needs a fetch that does not chmod a
+    directory it does not own.
 
 ## Acceptance
 

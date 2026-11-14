@@ -454,13 +454,14 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "nest_side": "true",
         "pilots": json.dumps(entries),
     }
+    # the world server writes what it makes for a map (CARLA's signal table, Isaac's ruts
+    # and surfaces) into the project's state dir, never into the fetched (read-only) map
     if sim == "carla":
-        # the world server writes what it makes for a map (the signal table) into the
-        # project's state dir, never into the fetched (read-only) map
         args["sim_args"] = f"state_dir:={project / 'state'}"
     if sim == "isaac":
         sided = any(b.sided() for b in bound)
-        args["sim_args"] = f"world:={map_path} ego:={'default' if sided else 'none'}"
+        args["sim_args"] = (f"world:={map_path} ego:={'default' if sided else 'none'}"
+                            f" state_dir:={project / 'state'}")
     for k, v in (stack_args or {}).items():
         args[k] = v
 

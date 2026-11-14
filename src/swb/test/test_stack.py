@@ -141,7 +141,8 @@ def test_isaac_plan(where, maps_hub):
     d = make(where, template="isaac")
     p = stack.plan(project_arg=str(d))
     assert p.launch_args["sim"] == "isaac"
-    assert p.launch_args["sim_args"] == f"world:={d / 'assets' / 'maps' / 'Town01'} ego:=default"
+    assert p.launch_args["sim_args"] == (f"world:={d / 'assets' / 'maps' / 'Town01'} ego:=default"
+                                         f" state_dir:={d / 'state'}")
 
 
 def test_fingerprint_diff_names_parts(where, maps_hub):

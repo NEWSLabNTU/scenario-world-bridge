@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: stable seeds and do6, then C3c (swb 241), U2 on Town03's roundabout in swb (swb 139), S5 on Autoware (swb 118: junction 861 found, Town03's lights not linked in Lanelet2), C6 hidden capability (133); next: N3's follower depth term, S5 and S6 in the arena. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: stable seeds and do6, then C3c (swb 241), U2 on Town03's roundabout in swb (swb 139), S5 on Autoware (swb 118: junction 861 found, Town03's lights not linked in Lanelet2), the arena.py merge-end fix (133); next: N3's follower depth term, S5 and S6 in the arena. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -1506,6 +1506,55 @@ capabilities from `just vehicle-check` instead of `TYPES`.
 Each light policy believes the other's class and limits from a prior and the observed motion, not
 the truth; the type-confusion matrix and misbelief regret per context.
 
+**Results (2026-11-15).** Commits a5c47e8, 363514f, bda6052. Data: NAS `logs/2026 SSv2 on
+CARLA/2026-11-15 coop C6 hidden capability/`.
+
+- **Setup.** Kinematic maps at v_B 12 m/s (1368 cells, 263k runs) and at v_B 6 m/s with the golf
+  cart (1482 cells). Types: the Model 3, an assumed truck-like car, the golf cart; B yielding or
+  holding.
+- **Bar.** A measure counts in a cell if it is ≥ 10 % of the Autoware pair's welfare loss against
+  the optimum, ≥ 0.01, and > 2 se over 8 paired seeds.
+
+Share of cells over the bar, at v_B 12 m/s:
+
+| measure | selfish A | prior-weighted | prosocial A | prior-weighted |
+|---|---|---|---|---|
+| misbelief regret (truth vs class) | 2.7 % | 5.6 % | 2.1 % | 3.2 % |
+| VoI of a capability broadcast | 0 | 0 | 0 | 0 |
+| VoI of a belief over a probing rule | 0 | 0.6 % | 0 | 0.6 % |
+| VoI of probing as a fixed rule | 7.9 % | 14.6 % | 4.2 % | 7.9 % |
+| VoI, truth vs prior only | 9.2 % | 19.6 % | 5.5 % | 10.8 % |
+
+- **What carries the value is B's intent, not capability.** A probe (a 0.12-lane nudge, then the gap
+  check) recovers almost all of it, and a fixed rule with no belief can do that. Mean regret is
+  0.0018; the capability broadcast's value is 0.
+- **No contact in any mode,** even when A acts on a wrong fixed belief.
+- **Type confusion.**
+  - Motion alone never identifies a truck: cars do not show their limits before A commits.
+  - The class cue (box size) is right 96-98 % of the time.
+  - Intent is read right 65 % of the time for yielders and 91-93 % for holders, erring toward
+    "holds", the safe side.
+  - Believing a holder yields costs more (worst cell -0.41) than the reverse; capability misbeliefs
+    cost nothing.
+- **B's side gains nothing from a belief over A** (regret ≤ 0.008).
+- **The arena** (36 cells, 6912 runs): outcomes agree in 99 %; payoffs 84 %, with a steady offset
+  in A's cost of dropping behind. The D6 measures are paired differences, so the offset cancels. The
+  number of cells over the bar agrees: regret 3 against 4 (33 of 36 cells agree), broadcast 0 and
+  0, belief 0 and 0.
+- **Caveats:** cut-in only (the crossing was not run); the truck is assumed (no truck in the spec);
+  the spread of capability within a class is not modelled.
+- **Bug found in arena.py, not yet fixed.** It ends a run at the planned end of the lane change once
+  past the 20 s horizon, then scores got_in = lat ≥ 0.9. With CARLA's steering lag, a merge planned
+  to end after 20 s scores as never in. do6's contexts merge earlier; c6 uses a 1.5 s settle.
+
+**D6, decided by its criterion (2026-11-15, the user to confirm): stop at the findings.**
+- No belief node, and no capability broadcast for the cut-in.
+- Over a probing rule, a belief earns 0-0.6 % of cells, far below the 10 % bar.
+- What would pay is a probe in A's rule set (a fixed rule) and an intent message (B announces yield
+  or hold, a C7-style convention), which takes most of the remaining 2-3 %.
+- P1's ablation is reshaped accordingly: stock, then stock plus probe, then stock plus probe plus an
+  intent message.
+
 ### C7. Conventions
 
 A convention picks one equilibrium for every car: a priority rule, a courtesy band in which B
@@ -1613,7 +1662,7 @@ being carried.
 | | C5 car models | B | pairs from the catalog, measured capabilities | maps per pair; the commitment hypothesis |
 | | C6 hidden capability | B | beliefs, type confusion, misbelief regret, value of information | regret and VoI maps |
 | | C7 conventions | B | a priority rule, a courtesy band for B, a V2X negotiation; each as a correlation device | the part of PoS each recovers |
-| | D6 build the strategy layer? | D | is acting on beliefs worth a node on the car? | build if regret or VoI reaches >= 10 % of stock's welfare loss in a non-trivial share of contexts; else stop at the findings, or recommend a capability broadcast only |
+| | D6 build the strategy layer? | D | is acting on beliefs worth a node on the car? | build if regret or VoI reaches >= 10 % of stock's welfare loss in a non-trivial share of contexts; else stop at the findings, or recommend a capability broadcast only. Decided 2026-11-15 by its criterion (user to confirm): no belief node; a probe rule and an intent message instead |
 | 4 vehicle | P1 strategy layer | B | `interaction_belief`, `interaction_strategy` on Autoware; ablation stock / belief / belief + V2X on the same maps | ablation maps |
 | | D7 deployable? | D | | never worse than stock on contact and on the distributions of 2D TTC, PET and clearance (①), a significant welfare gain, within the message-rate budget: propose it; else keep it as research |
 | 5 cases | E5 left-turn signals | E | can SSv2 give the left turn and the oncoming queue green together on Town05/10 | yes or a workaround |

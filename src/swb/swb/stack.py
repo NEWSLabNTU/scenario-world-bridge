@@ -454,6 +454,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "nest_side": "true",
         "pilots": json.dumps(entries),
     }
+    if sim == "carla":
+        # the world server writes what it makes for a map (the signal table) into the
+        # project's state dir, never into the fetched (read-only) map
+        args["sim_args"] = f"state_dir:={project / 'state'}"
     if sim == "isaac":
         sided = any(b.sided() for b in bound)
         args["sim_args"] = f"world:={map_path} ego:={'default' if sided else 'none'}"
@@ -466,6 +470,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         common.update(carla_host=args["carla_host"], carla_port=args["carla_port"],
                       release_notify_endpoint=f"tcp://127.0.0.1:{s.release_ports[0]}",
                       release_ack_endpoint=f"tcp://127.0.0.1:{s.release_ports[1]}")
+        common["traffic_light_state_path"] = str(
+            project / "state" / map_path.name / "carla" / "traffic_lights.yaml")
 
     pilots = []
     for b in bound:

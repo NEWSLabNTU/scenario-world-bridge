@@ -41,6 +41,7 @@
   <arg name="publish_clock" default="true" description="acb publishes /clock from CARLA in this domain"/>
   <arg name="seed_localization_on_attach" default="true"/>
   <arg name="traffic_light_map_path" default="$(eval &quot;'$(var map_path)/carla/traffic_lights.yaml' if '$(var map_path)' != '' else ''&quot;)" description="the map's CARLA signal table; empty disables V2X signals"/>
+  <arg name="traffic_light_state_path" default="" description="the project's state-dir signal table, written by the world server on first load; read first when it exists"/>
   <arg name="map_origin_path" default="$(eval &quot;'$(var map_path)/carla/map_origin.yaml' if '$(var map_path)' != '' else ''&quot;)" description="CARLA's world origin in the map frame; no file = zero"/>
   <arg name="carla_physics" default="none" description="the spec's carla_physics.yaml; none = the blueprint's own physics"/>
   <arg name="carla_physics_mode" default="verify" description="verify (the world server applied it; swb's case) | apply"/>
@@ -78,6 +79,7 @@
     <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)"/>
     <arg name="ground_truth_range_m" value="$(var ground_truth_range_m)"/>
     <arg name="traffic_light_map_path" value="$(var traffic_light_map_path)"/>
+    <arg name="traffic_light_state_path" value="$(var traffic_light_state_path)"/>
     <arg name="map_origin_path" value="$(var map_origin_path)"/>
     <arg name="control_trace_path" value="$(var control_trace_path)"/>
     <arg name="accel_map_path" value="$(var accel_map_path)"/>

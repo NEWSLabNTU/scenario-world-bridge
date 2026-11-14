@@ -132,6 +132,22 @@ def follow_accel(gap, v, v_lead, cap, v_des):
     return max(-cap.b_max, min(cap.a_max, a))
 
 
+V_FREE = 1e3  # m/s: IDM's desired speed for its interaction term alone
+
+
+def follow_cruise(gap, v, v_lead, cap, v_des):
+    """A follower that regains its speed: IDM's interaction term toward the leader, capped by the
+    car's cruise control toward v_des (gain 1.5 /s, -1 .. a_max), as the arena's cruise.
+
+    follow_accel with v_des = the car's own start speed is IDM's free-road term at a desired speed
+    equal to the leader's: the follower then approaches the leader's speed only asymptotically
+    while the gap grows without bound (12 m/s behind a 12 m/s leader: 11.4 m/s and a 29 m gap
+    after 20 s, 11.6 m/s and 38 m after 40 s), so its lost progress grew with the run's length.
+    This one settles at the leader's speed and IDM's gap S0 + v HEADWAY (074 N3)."""
+    a = follow_accel(gap, v, v_lead, cap, V_FREE)
+    return min(a, max(-1.0, min(cap.a_max, 1.5 * (v_des - v))))
+
+
 def cruise(v, v_des, cap):
     return min(cap.a_max, 0.5 * (v_des - v) / DT) if v < v_des else 0.0
 
@@ -484,6 +500,14 @@ def selftest():
     o_car = simulate(GO, REACT, 4.0, 0.0, 12.0, car, car, HOLD)
     o_weak = simulate(GO, REACT, 4.0, 0.0, 12.0, car, weak, HOLD)
     assert o_weak.contact or o_weak.min_ttc <= o_car.min_ttc
+    # follow_cruise regains the leader's speed and holds IDM's gap; follow_accel at v_des = v0 does not
+    for f, ok in ((follow_cruise, True), (follow_accel, False)):
+        xl, xf, vf = 10.0 + car.length, 0.0, 12.0
+        for _ in range(int(30.0 / DT)):
+            vf += f(xl - car.length - xf, vf, 12.0, car, 12.0) * DT
+            xf += vf * DT
+            xl += 12.0 * DT
+        assert (abs(vf - 12.0) < 0.02 and abs(xl - car.length - xf - (S0 + 12.0 * HEADWAY)) < 0.5) == ok, (f, vf)
     print("selftest ok")
     return 0
 

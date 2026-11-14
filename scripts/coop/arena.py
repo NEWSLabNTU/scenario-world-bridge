@@ -69,6 +69,12 @@ LANE_W = 3.5
 WARMUP = 15.0  # s, to bring a pair to its context
 PEAK_WINDOW = 0.5  # s, over which peak braking is measured
 HORIZON = C1.HORIZON
+LEGACY_FOLLOW = False  # True: the pre-N3 follower (IDM at v_des = its start speed), for re-runs only
+
+
+def follow(gap, v, v_lead, cap, v_des):
+    """A car following another: cutin_game.follow_cruise (it regains its speed; 074 N3)."""
+    return (C1.follow_accel if LEGACY_FOLLOW else C1.follow_cruise)(gap, v, v_lead, cap, v_des)
 
 
 # --- the car's controls, as acb gives them -----------------------------------------------------
@@ -578,9 +584,9 @@ class Pair:
                 self.decide = t
             aa = -C1.A_WAIT_DECEL if gap_behind < want and va > 0.5 * vb_s else 0.0
             if self.decide is not None:
-                aa = C1.follow_accel(gap_behind, va, vb_s, cap, self.va0)
+                aa = follow(gap_behind, va, vb_s, cap, self.va0)
         elif lat > 0.05 and xa < xb_s:
-            aa = C1.follow_accel(gap_behind, va, vb_s, cap, self.va0)
+            aa = follow(gap_behind, va, vb_s, cap, self.va0)
         else:
             aa = max(-1.0, min(cap.a_max, 1.5 * (self.va0 - va)))
         t_prep = self.pa["t_prep"] if self.pa is not None else cap.t_prep
@@ -615,11 +621,11 @@ class Pair:
             b_decel = C1.B_YIELD_DECEL
         if yielding:
             ab = -b_decel if gap_b < C1.S0 + vb * C1.HEADWAY else \
-                C1.follow_accel(gap_b, vb, va_s, cap, self.vb0)
+                follow(gap_b, vb, va_s, cap, self.vb0)
         else:
             ab = max(-1.0, min(cap.a_max, 1.5 * (self.vb0 - vb)))
         if self.in_lane_at is not None and t >= self.in_lane_at + self.react_b and xa_s > xb:
-            ab = min(ab, C1.follow_accel(gap_b, vb, va_s, cap, self.vb0))
+            ab = min(ab, follow(gap_b, vb, va_s, cap, self.vb0))
         A.drive(aa, y_t)
         B.drive(ab, self.yB)
         # --- truth
@@ -666,10 +672,10 @@ class Pair:
         xa, ya, _, _ = self.A.state()
         xb, _, _, _ = self.B.state()
         t = self.ar.t - self.t0  # the run lasts until A's merge is complete (C1.T_MAX at most)
-        free_a, free_b = self.va0 * t, self.vb0 * t  # as a share of free flow over HORIZON (C1)
-        # progress along the route: the arc length covered (measures), not x
-        lost_a = min(1.0, max(0.0, (free_a - self.meas.s[0]) / max(self.va0 * HORIZON, 1.0)))
-        lost_b = min(1.0, max(0.0, (free_b - self.meas.s[1]) / max(self.vb0 * HORIZON, 1.0)))
+        # progress along the route (the arc length, measures), over the fixed window [0, HORIZON]
+        # of every arena study (074 N3); the run's rest counts in risk, comfort and contact
+        lost_a = measures.lost_progress(self.va0, self.meas.s_h[0], HORIZON)
+        lost_b = measures.lost_progress(self.vb0, self.meas.s_h[1], HORIZON)
         got_in = self.lat() >= 0.9
         if self.contact:
             lost_a = lost_b = 1.0

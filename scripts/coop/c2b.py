@@ -205,9 +205,9 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
             break
     T = end["t"] - t0
     va0, vb0 = ta[0]["v"], ta[0]["ov"]
-    da, db = meas.s  # the arc length each car covered until the run's end
-    lost_a = min(1.0, max(0.0, (va0 * T - da) / max(va0 * C1.HORIZON, 1.0)))
-    lost_b = min(1.0, max(0.0, (vb0 * T - db) / max(vb0 * C1.HORIZON, 1.0)))
+    # progress over the fixed window [0, HORIZON], as the arena scores it (074 N3)
+    lost_a = measures.lost_progress(va0, meas.s_h[0], C1.HORIZON)
+    lost_b = measures.lost_progress(vb0, meas.s_h[1], C1.HORIZON)
     # in: A's lane change is complete by its plan and A is in B's lane (the lateral measure on the
     # curve settles near 0.96, so a 0.9 threshold at the end misread a finished merge)
     dec = end.get("decide")

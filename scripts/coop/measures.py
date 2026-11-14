@@ -28,7 +28,8 @@ General risk (any path relation; docs/design/cooperative-driving.md ①), from b
              spec's box (Autoware's vehicle_info), square-cornered, so a shallow overlap at a
              steep yaw need not be a physical touch
   rho        the risk term: the largest shortfall of the four against TAU_REF, H_REF, PET_REF, D_REF
-  s          arc length each car covered (m), for route progress
+  s          arc length each car covered (m) since t = 0, the run's start; s_h the same at
+             t = HORIZON, the arc length route progress is scored on (lost_progress; 074 N3)
   lat_peak   the largest lateral acceleration per car (the velocity vector's slope over WINDOW,
              across the car's heading)
 Latency (event times, s from the run's start; None when the event did not happen)
@@ -52,6 +53,19 @@ A_LAT_MAX = 4.0  # m/s^2, the lateral acceleration comfort is judged against (ab
 W_COMFORT = 0.3
 W_CONTACT = 10.0
 PET_SAMPLE = 0.1  # s between stored footprints for PET
+HORIZON = 20.0  # s: route progress is scored over [0, HORIZON] of the run (design ①, H; 074 N3)
+
+
+def lost_progress(v0, s_h, horizon=HORIZON):
+    """Lost route progress over the fixed window: (v0 H - s(H)) / (v0 H), clipped to [0, 1].
+
+    One window for every study (074 N3): a run may go on past H (until a merge is complete, or
+    for a fixed time), and what happens after H counts in risk, comfort and contact, never in
+    progress, so payoffs scored on runs of different lengths compare. s_h None (a run shorter
+    than H, which only a contact ends, and a contact scores lost = 1 anyway) counts as no progress."""
+    if s_h is None:
+        return 1.0
+    return min(1.0, max(0.0, (v0 * horizon - s_h) / max(v0 * horizon, 1.0)))
 
 
 # --- geometry: a car as an oriented box -----------------------------------------------------------
@@ -192,6 +206,7 @@ class Measures:
         self.pen = 0.0  # m, the deepest overlap of the two footprints
         self.v_touch = None  # m/s, the relative speed when the footprints first touch
         self.s = [0.0, 0.0]
+        self.s_h = [None, None]  # s at t = HORIZON (t as the caller counts it, 0 at the run's start)
         self.lat_peak = [0.0, 0.0]
         self._vv = (deque(), deque())  # (t, vx, vy) over WINDOW
         self._prev_pose = None
@@ -205,11 +220,19 @@ class Measures:
         acceleration; call it with push() at the same t, or alone.
         """
         dt = 0.0 if self._prev_pose is None else t - self._prev_pose[0]
+        th = HORIZON  # the window is [0, H] in the caller's time, t = 0 the run's start
         for k, p in ((0, pa), (1, pb)):
             sp = math.hypot(p[3], p[4])
+            if self._prev_pose is None and t > 0:
+                self.s[k] = sp * min(t, th)  # a first sample after the start (the arena's first tick)
             if self._prev_pose is not None:
                 q = self._prev_pose[1 + k]
+                s_prev = self.s[k]
                 self.s[k] += 0.5 * (sp + math.hypot(q[3], q[4])) * dt
+                if self.s_h[k] is None and t >= th - 1e-9:
+                    # interpolated to H exactly, so 0.05 s ticks and 0.1 s logs agree
+                    f = 1.0 if dt <= 0 else max(0.0, min(1.0, (th - self._prev_pose[0]) / dt))
+                    self.s_h[k] = s_prev + f * (self.s[k] - s_prev)
             h = self._vv[k]
             h.append((t, p[3], p[4]))
             while len(h) > 1 and t - h[1][0] >= WINDOW - 1e-6:
@@ -325,6 +348,7 @@ class Measures:
             r_all = rho(self.ttc2d, self.thw, self.pet, self.clear)
             gen = {"ttc2d": r2(self.ttc2d), "thw": r2(self.thw), "pet": r2(self.pet), "clear": r2(self.clear), "pen": r2(self.pen), "v_touch": r2(self.v_touch),
                    "rho": r2(r_all), "sA": r2(self.s[0]), "sB": r2(self.s[1]),
+                   "sA_h": r2(self.s_h[0]), "sB_h": r2(self.s_h[1]),
                    "latA": r2(self.lat_peak[0]), "latB": r2(self.lat_peak[1])}
         return {**gen, "dracA": r2(self.drac[0]), "dracB": r2(self.drac[1]),
                 "marginA": r2(self.margin[0]), "marginB": r2(self.margin[1]),
@@ -392,6 +416,18 @@ def selftest():
     r5 = m5.result()
     assert r5["clear"] > 0 and 1.25 <= r5["pet"] <= 1.45, r5
     assert abs(r5["sA"] - 10 * 4.95) < 0.1, r5
+    # progress over the fixed window: 10 m/s for 30 s, sampled at 0.05 or 0.1 s, slowing to 8 m/s
+    # from 10 s at 1 m/s^2: s(H) = 100 + 18 + 8 * 8, the same at both rates, whatever follows H
+    for step in (0.05, 0.1):
+        m7, x, t = Measures(), 0.0, 0.0
+        while t < 30.0 + 1e-9:
+            v = 10.0 if t < 10.0 else max(8.0, 10.0 - (t - 10.0))
+            m7.push_poses(t, p(x, 0, vx=v), p(x - 50, 0, vx=10.0))
+            x += v * step
+            t += step
+        assert abs(m7.s_h[0] - (100 + 18 + 8 * 8)) < 0.15, (step, m7.s_h)
+        assert abs(lost_progress(10.0, m7.s_h[0]) - 18 / 200) < 1e-3
+    assert lost_progress(10.0, None) == 1.0
     # a cosine lane change of 3.5 m in 3 s: peak lateral acceleration 3.5 pi^2 / (2 * 9) = 1.92
     m6 = Measures()
     for k in range(120):

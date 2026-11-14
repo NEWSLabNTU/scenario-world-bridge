@@ -334,7 +334,7 @@ class CutInAgent(CarlaBasicAgent):
                 self.log_event("decide_behind", t=t, gap=gap_behind)
             accel = -C1.A_WAIT_DECEL if gap_behind < want and v > 0.5 * vb_s else 0.0
         elif lat > 0.05 and gap_behind > -(self.L + self.Lo) / 2:
-            accel = C1.follow_accel(gap_behind, v, vb_s, cap, self.v0)
+            accel = C1.follow_cruise(gap_behind, v, vb_s, cap, self.v0)
         else:
             accel = max(-1.0, min(cap.a_max, 1.5 * (self.v0 - v)))
         s_lat = 0.0
@@ -357,11 +357,11 @@ class CutInAgent(CarlaBasicAgent):
         react = self.lat_seen is not None and t >= self.lat_seen + self.react and a_ahead and gap_b < pb["react_gap"]
         self.latched = self.latched or ((pre or react) and a_ahead)
         if self.latched and a_ahead:
-            accel = -pb["b_y"] if gap_b < C1.S0 + v * C1.HEADWAY else C1.follow_accel(gap_b, v, va_s, cap, self.v0)
+            accel = -pb["b_y"] if gap_b < C1.S0 + v * C1.HEADWAY else C1.follow_cruise(gap_b, v, va_s, cap, self.v0)
         else:
             accel = max(-1.0, min(cap.a_max, 1.5 * (self.v0 - v)))
         if self.in_lane_at is not None and t >= self.in_lane_at + self.react and along_s > 0:
-            accel = min(accel, C1.follow_accel(gap_b, v, va_s, cap, self.v0))
+            accel = min(accel, C1.follow_cruise(gap_b, v, va_s, cap, self.v0))
         return accel, 0.0
 
     def on_stop(self):

@@ -426,6 +426,22 @@ sharing a project.
 11. [ ] B: the docs reorganised (B1-B5).
 12. [ ] B6: the docs check; live runs; fresh readers.
 
+## Progress and rulings
+
+- Step 4 (seats): 1bec606. Step 7 library (results, slices, timeline, `runs`): 3ea15a9.
+- Step 5 (pilots): `swb_launch/launch/pilots/` (vehicle side, autoware, carla_basic, launch,
+  command) and `stack.launch.py pilots:=`, 5e23d1c-equivalent on main; static checks only (no
+  simulator started). Rulings on its open questions:
+  - **Isaac vehicle side**: the rig lives in swb_isaac_world and publishes on the ego domain
+    only, so on Isaac one pilot with a vehicle side, on the ego domain (Isaac carries one ego
+    today). Per-entity rigs are future work, recorded here, not built in 076.
+  - **CARLA role name**: `hero` for entity `ego`, else the entity name, overridable
+    (`vehicle_name`). Kept; the runner checks it against the scenario's ego when it can.
+  - **Agent lifetime**: the vehicle agent lives in the autoware pilot's launch, so an episode
+    end restarts it with Autoware. Accepted: it registers again in seconds.
+  - `autoware_launch` swaps the profile's Autoware launch; replacing the whole driver is the
+    `launch` kind.
+
 ## Acceptance
 
 - From a clean clone and build, with only the environment file sourced: `project new`,

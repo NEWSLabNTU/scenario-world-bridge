@@ -26,6 +26,10 @@ Run sets (each a list of groups for arena_n; 8 seeds, the two profiles of N2):
   ho_gl   scene b, gl 22 m
   ho_a4   the four-car queue (B, C, D at hf {1, 2} s): ABCD and its six pairs
   pairs   A and B alone, d0 -4..34 m at dv 0, v_B {8, 12, 16}: the pair terms at shifted contexts
+  round 2 (d17fdc3): fit2, ho2_vb, ho2_hf, ho2_tl, ho2_a5, pairs2 (see jobs)
+  ho3_a6  round 3: the six-car queue (B..F at hf {1, 2} s, v_B 12): ABCDEF and its 15 pairs, the
+          window cap's fresh hold-out (`analyze --round 3`: round 2's model, A's predicted loss
+          capped at what the window [0, H] holds, window_cap / cap_u)
 
 Usage:
   scripts/coop/n3_model.py run --set fit,ho_hf,... --ports 2600,2610,2620 --out <dir>
@@ -60,12 +64,14 @@ D0S, DVS = N2.D0S, N2.DVS
 SEEDS = 8
 GROUPS = {"a": ("ABC", ("AB", "AC", "BC")), "b": ("ABL", ("AB", "AL", "BL")),
           "a4": ("ABCD", ("AB", "AC", "AD", "BC", "BD", "CD")),
-          "a5": ("ABCDE", tuple(a + b for i, a in enumerate("ABCDE") for b in "ABCDE"[i + 1:]))}
-QUEUE = {"a": "BC", "a4": "BCD", "a5": "BCDE", "b": "B"}
+          "a5": ("ABCDE", tuple(a + b for i, a in enumerate("ABCDE") for b in "ABCDE"[i + 1:])),
+          "a6": ("ABCDEF", tuple(a + b for i, a in enumerate("ABCDEF") for b in "ABCDEF"[i + 1:]))}
+QUEUE = {"a": "BC", "a4": "BCD", "a5": "BCDE", "a6": "BCDEF", "b": "B"}
 ROUND2_FIT = "fit2"
 ROUND2_HOLDOUT = ("ho2_vb", "ho2_hf", "ho2_tl", "ho2_a5")
 ROUND1 = ("fit", ("ho_hf", "ho_vb", "ho_gl", "ho_a4"), ("pairs",))
 ROUND2 = (ROUND2_FIT, ROUND2_HOLDOUT, ("pairs", "pairs2"))
+ROUND3 = (ROUND2_FIT, ROUND2_HOLDOUT + ("ho3_a6",), ("pairs", "pairs2"))  # round 2 + the window cap
 PAIR_D0S = tuple(float(d) for d in range(-4, 35))
 PAIR_D0S_2 = tuple(float(d) for d in range(-6, 45))
 
@@ -112,6 +118,8 @@ def jobs(name):
         return _ctx_jobs("b", (1.75,), (12.0,), name, time_gap=True)
     if name == "ho2_a5":
         return _ctx_jobs("a5", (1.0, 2.0), (12.0,), name)
+    if name == "ho3_a6":  # 074 N3: the window cap's fresh hold-out, a six-car queue
+        return _ctx_jobs("a6", (1.0, 2.0), (12.0,), name)
     if name == "pairs2":  # the pair table's missing points: v_B 10, 14, and d0 -6..44 m
         have = {(d0, vb) for d0 in PAIR_D0S for vb in (8.0, 12.0, 16.0)}
         return [{"set": name, "scene": "p", "d0": d0, "dv": 0.0, "vb": vb, "pa": pa, "pb": pb, "seed": s,
@@ -195,6 +203,34 @@ def queue_walk(scene, ab, x, pa, vb):
     return keep, extra, skipped
 
 
+def window_cap(ab, pa):
+    """The most route progress A can lose in the window [0, H] while it waits for a slot (074 N3,
+    after round 2): A cruises at v0 until its patience runs out, brakes at A_WAIT_DECEL to its
+    waiting speed v_w (the A-B pair's dec_vA: the speed it drops at) and rolls at v_w at least,
+    until H, however late it can first move. Lost <= 1 - s_wait(H) / (v0 H)."""
+    v0 = max(ab["v0A"], 0.1)
+    vw = min(v0, ab.get("dec_vA") or v0)
+    t0 = min(H, pa["patience"] + (C1.WATCH if pa["use_yield"] else 0.0))
+    tb = min((v0 - vw) / C1.A_WAIT_DECEL, H - t0)
+    s = v0 * t0 + v0 * tb - 0.5 * C1.A_WAIT_DECEL * tb ** 2 + (v0 - C1.A_WAIT_DECEL * tb) * (H - t0 - tb)
+    return max(0.0, 1.0 - s / (v0 * H))
+
+
+def cap_u(scene, car, pr, x, pa, vb):
+    """With WINDOW_CAP: A's utility at the window cap's loss, the floor of its prediction, when A
+    drops and skips at least one slot (the delay composed max-plus down the queue keeps growing,
+    the loss in the fixed window saturates); else None. The prediction is max(model, cap_u)."""
+    if not WINDOW_CAP or car != "A" or scene == "b" or pr["AB"]["a_pos"] == "ahead":
+        return None
+    keep, extra, _ = queue_walk(scene, pr["AB"], x, pa, vb)
+    if not extra:
+        return None
+    _, parts = compose(scene, car, {p: r for p, r in pr.items() if p in keep}, x)
+    if parts["contact"]:
+        return None
+    return with_lost(parts, window_cap(pr["AB"], pa))[0]
+
+
 def compose_v2(scene, car, pr, x, pa, vb):
     """N2's relation-aware composition, unchanged; for a queue of any length (scene a4)."""
     if scene == "b":
@@ -242,6 +278,7 @@ SHIFT_ONLY_CLOSING = True  # L shifts the A-B context only when A closes on it (
 PER_SLOT_FEATURES = True  # the queue residual's features times the number of slots A skips
 LEAD_BRAKE = True  # scene b's lead feature: A's initial IDM braking toward L (round 2), not the
 #                    linear pressure max(0, s* - gl) / s* (round 1)
+WINDOW_CAP = False  # round 3 (after round 2's hold-out): A's predicted loss capped by the window (cap_u)
 TAU_S = 0.5  # s: L shifts the A-B context only if A decides at least this long after it meets L
 
 
@@ -371,6 +408,7 @@ def cells(rows, table, theta=None):
             f = features(scene, car, pr, x, pa, vb, shift(scene, pr, x, vb))
             out.setdefault((tag, scene, d0, dv, x, vb, a, car), []).append(
                 {"seed": seed, "u": g[full][f"u{car}"], "v1": u1, "v2": u2, "n3c": u3, "cls": cls, "f": f,
+                 "ucap": cap_u(scene, car, pr, x, pa, vb),
                  "pos": g[full].get("a_pos"), "pos_ab": pr["AB"].get("a_pos")})
     return out
 
@@ -392,6 +430,8 @@ def judge(cs, model, theta=None):
             p = z[model]
             if theta is not None and z["cls"] in theta:
                 p += sum(c * fi for c, fi in zip(theta[z["cls"]], z["f"]))
+            if model != "v1" and z.get("ucap") is not None:
+                p = max(p, z["ucap"])  # the window cap (round 3)
             return p
         r = st.mean(z["u"] - pred(z) for z in xs)
         cls = mode([z["cls"] for z in xs])
@@ -446,10 +486,12 @@ def contexts_share(res):
 
 
 def set_round(r):
-    """Round 1's frozen model (9ed8d89) or round 2's (all four changes on)."""
-    global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES, LEAD_BRAKE
-    SLOT_AT_DECISION = SHIFT_ONLY_CLOSING = PER_SLOT_FEATURES = LEAD_BRAKE = (r == 2)
-    return ROUND1 if r == 1 else ROUND2
+    """Round 1's frozen model (9ed8d89), round 2's (all four changes on, d17fdc3), or round 3's:
+    round 2's with the window cap, on round 2's data plus the six-car hold-out."""
+    global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES, LEAD_BRAKE, WINDOW_CAP
+    SLOT_AT_DECISION = SHIFT_ONLY_CLOSING = PER_SLOT_FEATURES = LEAD_BRAKE = (r >= 2)
+    WINDOW_CAP = r >= 3
+    return {1: ROUND1, 2: ROUND2, 3: ROUND3}[r]
 
 
 def analyze(out, rnd=2, pair_dirs=()):
@@ -481,7 +523,7 @@ def analyze(out, rnd=2, pair_dirs=()):
             w, n = share(res)
             wc, nc = contexts_share(res)
             line = f"  {label:18s} {w:4d}/{n:<4d} ({100 * w / max(n, 1):3.0f} %)  contexts {wc:3d}/{nc:<3d} ({100 * wc / max(nc, 1):3.0f} %) |"
-            for scene in ("a", "a4", "a5", "b"):
+            for scene in ("a", "a4", "a5", "a6", "b"):
                 for car in GROUPS[scene][0]:
                     ww, nn = share(res, lambda r: r["key"][1] == scene and r["key"][7] == car)
                     if nn:
@@ -610,6 +652,20 @@ def selftest():
     X = [(1.0, a, b) for a in range(3) for b in range(3)]
     th = lstsq(X, [0.5 + 2 * a - b for _, a, b in X], ridge=0.0)
     assert all(abs(t - e) < 1e-9 for t, e in zip(th, (0.5, 2.0, -1.0))), th
+    # the window cap: A at 12 m/s, patience 5 s, braking at 2 m/s^2 to 5 m/s, rolling to H = 20 s
+    ab = {"v0A": 12.0, "dec_vA": 5.0, "a_pos": "behind", "v0B": 12.0, "dec_t": 12.0}
+    s = 12.0 * 5.0 + 0.5 * 17.0 * 3.5 + 5.0 * 11.5
+    assert abs(window_cap(ab, pa) - (1 - s / 240.0)) < 1e-12, window_cap(ab, pa)
+    global WINDOW_CAP
+    pr5 = {p: mk(**{f"rho_{p}": 0.0, "lostE": 0.03, "contactE": 0, "peakE": 0.0, "latE": 0.0, "v0E": 12.0,
+                    "lostD": 0.03, "contactD": 0, "peakD": 0.0, "latD": 0.0, "v0D": 12.0, "dec_vA": 5.0})
+           for p in GROUPS["a5"][1]}
+    assert cap_u("a5", "A", pr5, 2.0, pa, 12.0) is None  # off outside round 3
+    WINDOW_CAP = True
+    uc = cap_u("a5", "A", pr5, 2.0, pa, 12.0)
+    u2 = compose_v2("a5", "A", pr5, 2.0, pa, 12.0)[0]
+    assert uc > u2 + 0.05 and cap_u("a5", "B", pr5, 2.0, pa, 12.0) is None, (uc, u2)
+    WINDOW_CAP = False
     print("n3_model selftest ok")
 
 
@@ -621,7 +677,7 @@ def main():
     ap.add_argument("--port", type=int, default=2600)
     ap.add_argument("--out")
     ap.add_argument("--k", type=int, default=6)
-    ap.add_argument("--round", type=int, default=2, choices=(1, 2), help="analyze: round 1's frozen model or round 2's")
+    ap.add_argument("--round", type=int, default=2, choices=(1, 2, 3), help="analyze: round 1's frozen model, round 2's, or round 2's with the window cap")
     ap.add_argument("--pairs-from", default="", help="analyze: more directories holding pair-table files")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()

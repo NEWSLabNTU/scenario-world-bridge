@@ -1409,8 +1409,16 @@ swb 118, in progress.
   - B decides at its stop line, where its tracker sees only out to about 45 m.
   - Its turn takes about 9 s, so an A unseen at the stop line can arrive mid-turn.
   - In pilot 4, B did not yield and PET was 3.1 s at a lag of 9 s.
+  - **Autoware crawls the 27 m turn at about 2 m/s,** taking 7-9 s to reach A's lane: about twice the
+    3.9 s clear time of the arena's and the model's turner. (Lag here means A's time to the conflict
+    point when B's front crosses its stop line.)
+  - **Pilot at lag 7 s: a collision.** A was beyond the tracker's 45 m view at the stop line and was
+    tracked only once B was mid-turn. At lag 3 s B stopped inside the junction, A passed first, and
+    the clearance was 1.6 m.
+  - The first real-stack contact in this study. It comes from the short view and the slow turn
+    together, not from the gap rule.
 
-  The grid follows.
+  The grid follows: v 10 m/s at lags 2-9 s (plus 3.5, 4.5, 5.5), and v 8 m/s at 3, 5, 7 s.
 
 ### C4. Fit and explain
 

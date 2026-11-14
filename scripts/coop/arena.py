@@ -261,6 +261,35 @@ def xodr_crossings(k, approach, beyond, spacing=450.0):
             '  <header revMajor="1" revMinor="4" name="arena_crossings" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_lane_drop(k, length, x_end, taper):
+    """K parallel roads like xodr(), whose lane -2 ends: full width up to x_end, a cubic taper to zero
+    width at x_end + taper, then lane -1 alone to the road's end. (The ground ends with the lane: a
+    car that keeps its lane past x_end leaves the road within the taper.)"""
+    w = LANE_W
+    c, d = -3 * w / taper ** 2, 2 * w / taper ** 3
+    lane1 = f'<lane id="-1" type="driving" level="false"><width sOffset="0" a="{w}" b="0" c="0" d="0"/></lane>'
+    roads = []
+    for i in range(k):
+        sections = (
+            f'<laneSection s="0"><center><lane id="0" type="none" level="false"/></center><right>{lane1}'
+            f'<lane id="-2" type="driving" level="false"><width sOffset="0" a="{w}" b="0" c="0" d="0"/></lane>'
+            '</right></laneSection>'
+            f'<laneSection s="{x_end}"><center><lane id="0" type="none" level="false"/></center><right>{lane1}'
+            f'<lane id="-2" type="driving" level="false"><width sOffset="0" a="{w}" b="0" c="{c}" d="{d}"/></lane>'
+            '</right></laneSection>'
+            f'<laneSection s="{x_end + taper}"><center><lane id="0" type="none" level="false"/></center><right>{lane1}'
+            '</right></laneSection>')
+        roads.append(f"""
+  <road name="r{i}" length="{length}" id="{i + 1}" junction="-1">
+    <link/>
+    <planView><geometry s="0" x="0" y="{-i * ROAD_GAP}" hdg="0" length="{length}"><line/></geometry></planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes>{sections}</lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_lane_drop" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 class Arena:
     def __init__(self, port, k, world_xodr=None):
         """world_xodr: the OpenDRIVE to generate (default: xodr(k, ROAD_LEN), the parallel roads)."""
@@ -329,7 +358,8 @@ class Arena:
             self.world.apply_settings(s)
         finally:
             for a in self.actors:
-                a.destroy()
+                if a.is_alive:
+                    a.destroy()
 
 
 class Car:

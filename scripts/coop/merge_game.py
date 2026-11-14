@@ -109,21 +109,103 @@ def lane_change_dist(v):
     return max(v, 1.0) * T_LC + END_MARGIN
 
 
+class Rules:
+    """Both cars' rules and safety layers, step by step, on what each sees of the other: the
+    kinematic model and the arena (merge_arena.py) drive by the same object. Positions are fronts
+    along the road (x), x_end the lane's end; A's lateral progress lat (0 its lane, 1 B's) follows
+    a cosine over T_LC from its decision."""
+
+    def __init__(self, ra, rb, x_end, va0, vb0, b_cont="hold"):
+        _, self.timing, self.tau, self.go_y, self.end_mode = ra
+        self.bname, self.band, self.b_y = rb
+        self.x_end, self.va0, self.vb0, self.b_cont = x_end, va0, vb0, b_cont
+        self.decide = None
+        self.dropping = self.forced = self.stopped = False
+        self.lat_seen_at = None
+        self.b_latched = False
+
+    def lat_of(self, t):
+        """A's planned lateral progress and lateral speed (m/s) at t."""
+        if self.decide is None:
+            return 0.0, 0.0
+        u = min(1.0, (t - self.decide) / T_LC)
+        return 0.5 * (1 - math.cos(math.pi * u)), (LANE_W * 0.5 * math.pi / T_LC * math.sin(math.pi * u) if u < 1 else 0.0)
+
+    def step(self, t, xa, va, lat, xb, vb, seen_b, seen_a):
+        """Accelerations (A, B) at t. seen_b: B as A sees it (x, v, a), predicted to now; seen_a: A as
+        B sees it (x, v, lat)."""
+        xb_s, vb_s, ab_s = seen_b
+        xa_s, va_s, lat_s = seen_a
+        rem = self.x_end - xa
+        # --- A's decision
+        if self.decide is None:
+            gap_ahead = (xa - L) - xb_s
+            gap_behind = (xb_s - L) - xa
+            window = self.timing == "early" or rem <= ZIP_T * max(va, 1.0) + END_MARGIN
+            need = BUFFER + vb_s * self.tau + max(0.0, vb_s ** 2 - va ** 2) / (2 * A_REAR)
+            if gap_behind >= S0 + va * HEADWAY:
+                self.decide = t  # behind B: merge into its wake
+            elif window and not self.dropping:
+                if gap_ahead >= need or (self.go_y and ab_s <= -YIELD_SEEN and gap_ahead > -L / 2):
+                    self.decide = t
+            if self.decide is None and rem <= lane_change_dist(va):
+                if self.end_mode == "force" and not self.dropping:
+                    self.decide, self.forced = t, True
+                else:
+                    self.dropping = True
+            if self.decide is None and self.stopped and xb_s - L > xa:  # at rest at the end, B gone past
+                self.decide = t
+        # --- A's longitudinal
+        if self.decide is not None and lat > 0.0 and xa < xb:
+            aa = C1.follow_cruise((xb - L) - xa, va, vb, CAP, self.va0)
+        elif self.dropping and self.decide is None:
+            aa = -C1.A_WAIT_DECEL if va > 0.5 * vb_s or (xb_s - L) - xa < 0 else 0.0
+        else:
+            aa = max(-1.0, min(CAP.a_max, 1.5 * (self.va0 - va)))
+        if (self.decide is None or lat < 0.5) and rem > 0:  # not (half) across yet: brake for the lane's end
+            d = rem - (1.0 if self.decide is None else 0.0)
+            need_e = va * va / (2 * max(d, 0.05))
+            if d <= 0.05:
+                aa = -CAP.b_max if va > 0 else 0.0
+            elif need_e >= BRAKE_LATE:
+                aa = min(aa, -min(CAP.b_max, need_e))
+        # --- B
+        if lat_s > 0.08 and self.lat_seen_at is None:
+            self.lat_seen_at = t
+        a_ahead = xa_s - L > xb - L  # A's rear is ahead of B's rear: A could take the slot ahead
+        gap_b = (xa_s - L) - xb
+        yielding = False
+        if self.bname == "react" and self.lat_seen_at is not None and t >= self.lat_seen_at + REACT and a_ahead:
+            yielding = self.b_cont == "yield"
+        if self.bname.startswith("c"):
+            if (not self.b_latched and t >= REACT and a_ahead and gap_b < self.band and lat_s < 0.5
+                    and (self.x_end - xa_s) <= COURTESY_T * max(va_s, 1.0)):
+                self.b_latched = True
+            yielding = self.b_latched and a_ahead
+        b_dec = self.b_y if self.bname.startswith("c") else C1.B_YIELD_DECEL
+        if yielding:
+            ab = -b_dec if gap_b < S0 + vb * HEADWAY else C1.follow_cruise(gap_b, vb, va_s, CAP, self.vb0)
+        else:
+            ab = max(-1.0, min(CAP.a_max, 1.5 * (self.vb0 - vb)))
+        if lat_s >= 0.5 and xa_s > xb:  # the safety layer: A is in B's lane, ahead
+            ab = min(ab, C1.follow_accel(gap_b, vb, va_s, CAP, self.vb0))
+        return max(-CAP.b_max, min(CAP.a_max, aa)), max(-CAP.b_max, ab)
+
+    def after(self, xa, va):
+        if va < 0.1 and xa < self.x_end and self.decide is None:
+            self.stopped = True
+
+
 def simulate(ra, rb, d_end, d0, dv, vb, b_cont="hold", lags=None):
-    _, timing, tau, go_y, end_mode = ra
-    bname, band, b_y = rb
     va0 = max(0.0, vb + dv)
     xa, xb = d0 + L, 0.0  # fronts
     x_end = xa + d_end
     va, vbb = va0, vb
+    R = Rules(ra, rb, x_end, va0, vb, b_cont)
     act = {k: X.Actuator(lags) if lags else None for k in "AB"}
     hist = deque()  # (t, xa, va, aa, lat, xb, vb, ab)
     aa = ab = 0.0
-    decide = None
-    dropping = forced = stopped = False
     lat = 0.0
-    lat_seen_at = None  # when B first saw A's lane change
-    b_latched = False
     meas = M.Measures(b_max=(CAP.b_max, CAP.b_max))
     vh = {"A": deque(), "B": deque()}
     peak = {"A": 0.0, "B": 0.0}
@@ -136,64 +218,7 @@ def simulate(ra, rb, d_end, d0, dv, vb, b_cont="hold", lags=None):
             hist.popleft()
         sd = next((h for h in reversed(hist) if h[0] <= t - OBS - DECIDE), hist[0])
         age = t - sd[0]
-        xb_s, vb_s, ab_s = sd[5] + sd[6] * age, sd[6], sd[7]  # B as A sees it, predicted to now
-        xa_s, va_s, lat_s = sd[1] + sd[2] * age, sd[2], sd[4]  # A as B sees it
-        rem = x_end - xa  # A's front to the lane's end
-        # --- A's decision
-        if decide is None:
-            gap_ahead = (xa - L) - xb_s
-            gap_behind = (xb_s - L) - xa
-            window = timing == "early" or rem <= ZIP_T * max(va, 1.0) + END_MARGIN
-            need = BUFFER + vb_s * tau + max(0.0, vb_s ** 2 - va ** 2) / (2 * A_REAR)
-            if gap_behind >= S0 + va * HEADWAY:
-                decide = t  # behind B: merge into its wake
-            elif window and not dropping:
-                if gap_ahead >= need or (go_y and ab_s <= -YIELD_SEEN and gap_ahead > -L / 2):
-                    decide = t
-            if decide is None and rem <= lane_change_dist(va):
-                if end_mode == "force" and not dropping:
-                    decide, forced = t, True
-                else:
-                    dropping = True
-            if decide is None and stopped and xb_s - L > xa:  # at rest at the end, B gone past
-                decide = t
-        # --- A's longitudinal
-        if decide is not None and lat > 0.0 and xa < xb:
-            aa = C1.follow_cruise((xb - L) - xa, va, vbb, CAP, va0)
-        elif dropping and decide is None:
-            gap_behind = (xb_s - L) - xa
-            aa = -C1.A_WAIT_DECEL if va > 0.5 * vb_s or gap_behind < 0 else 0.0
-        else:
-            aa = max(-1.0, min(CAP.a_max, 1.5 * (va0 - va)))
-        if (decide is None or lat < 0.5) and rem > 0:  # not (half) across yet: brake for the lane's end
-            d = rem - (1.0 if decide is None else 0.0)
-            need_e = va * va / (2 * max(d, 0.05))
-            if d <= 0.05:
-                aa = -CAP.b_max if va > 0 else 0.0
-            elif need_e >= BRAKE_LATE:
-                aa = min(aa, -min(CAP.b_max, need_e))
-        # --- B
-        if lat_s > 0.08 and lat_seen_at is None:
-            lat_seen_at = t
-        a_ahead = xa_s - L > xb - L  # A's rear is ahead of B's rear: A could take the slot ahead
-        gap_b = (xa_s - L) - xb
-        yielding = False
-        if bname == "react" and lat_seen_at is not None and t >= lat_seen_at + REACT and a_ahead:
-            yielding = b_cont == "yield"
-        if bname.startswith("c"):
-            if (not b_latched and t >= REACT and a_ahead and gap_b < band and lat_s < 0.5
-                    and (x_end - xa_s) <= COURTESY_T * max(va_s, 1.0)):
-                b_latched = True
-            yielding = b_latched and a_ahead
-        b_dec = b_y if bname.startswith("c") else C1.B_YIELD_DECEL
-        if yielding:
-            ab = -b_dec if gap_b < S0 + vbb * HEADWAY else C1.follow_cruise(gap_b, vbb, va_s, CAP, vb)
-        else:
-            ab = max(-1.0, min(CAP.a_max, 1.5 * (vb - vbb)))
-        if lat_s >= 0.5 and xa_s > xb:  # the safety layer: A is in B's lane, ahead
-            ab = min(ab, C1.follow_accel(gap_b, vbb, va_s, CAP, vb))
-        ab = max(-CAP.b_max, ab)
-        aa = max(-CAP.b_max, min(CAP.a_max, aa))
+        aa, ab = R.step(t, xa, va, lat, xb, vbb, (sd[5] + sd[6] * age, sd[6], sd[7]), (sd[1] + sd[2] * age, sd[2], sd[4]))
         if lags:
             aa, ab = act["A"].step(aa), act["B"].step(ab)
         va = max(0.0, va + aa * DT)
@@ -201,16 +226,10 @@ def simulate(ra, rb, d_end, d0, dv, vb, b_cont="hold", lags=None):
         xa += va * DT
         xb += vbb * DT
         t += DT
-        if decide is not None:
-            u = min(1.0, (t - decide) / T_LC)
-            lat = 0.5 * (1 - math.cos(math.pi * u))
-            vy = LANE_W * 0.5 * math.pi / T_LC * math.sin(math.pi * u) if u < 1 else 0.0
-            if u >= 1.0 and math.isinf(t_merge):
-                t_merge = t
-        else:
-            vy = 0.0
-        if va < 0.1 and xa < x_end and decide is None:
-            stopped = True
+        lat, vy = R.lat_of(t)
+        if lat >= 1.0 and math.isinf(t_merge):
+            t_merge = t
+        R.after(xa, va)
         if xa > x_end and lat < 0.5:  # past the end with its centre still in the ending lane
             ran_out = True
         for k, vv in (("A", va), ("B", vbb)):
@@ -234,7 +253,7 @@ def simulate(ra, rb, d_end, d0, dv, vb, b_cont="hold", lags=None):
     lost_a = 1.0 if contact or not merged else M.lost_progress(va0, meas.s_h[0] if meas.s_h[0] is not None else meas.s[0])
     lost_b = 1.0 if contact else M.lost_progress(vb, meas.s_h[1] if meas.s_h[1] is not None else meas.s[1])
     return Outcome((lost_a, lost_b), (peak["A"], peak["B"]), contact, meas.ttc2d, meas.thw, meas.clear,
-                   merged and xa > xb, merged, stopped, forced, ran_out, b_cont if bname == "react" else "", t_merge)
+                   merged and xa > xb, merged, R.stopped, R.forced, ran_out, b_cont if rb[0] == "react" else "", t_merge)
 
 
 def utility(o, who):

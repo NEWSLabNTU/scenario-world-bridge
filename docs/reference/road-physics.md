@@ -29,9 +29,10 @@ ground:
 ```
 
 The world server reads a map's `surfaces.yaml` and `road_detail.yaml` from the project's
-`state/<map>/` first, then from the map directory. The stack does not copy `ground:` into
-`state/` yet (2026-11-15); until it does, put the files there yourself:
-`state/<map>/surfaces.yaml`, `state/<map>/road_detail.yaml`. Without a surface map every
+`state/<map>/` first, then from the map directory. When the stack starts it links the files
+`ground:` names there (`state/<map>/surfaces.yaml`, `state/<map>/road_detail.yaml`); a file
+you put there by hand under a name `ground:` also gives is refused, never replaced, so keep
+your files in the project and name them. Without a surface map every
 wheel runs on asphalt. The server checks each file before Isaac starts, refusing it with
 every problem listed, and reads it again at every world load.
 

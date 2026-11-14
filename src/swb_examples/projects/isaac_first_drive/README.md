@@ -51,9 +51,4 @@ ros2 run swb run scenarios/follow_to_goal.xosc
 
 `project check` prints `project: ok`; each run prints `passed  <run id>  <run directory>`.
 
-Known issue (2026-11-15): Town01's Isaac world file in `carla-town-autoware-maps`
-(`Town01/isaac/world.yaml`) still names its stage by the absolute path of the host that
-made it, not as `${SWB_CARLA_USD}/Town01/Town01_physics.usda`, so the world server cannot
-find the fetched USD town on another host until the dataset is updated.
-
 `assets/`, `state/` and `runs/` are made on each host and are not committed.

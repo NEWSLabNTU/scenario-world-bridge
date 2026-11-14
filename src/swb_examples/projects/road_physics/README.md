@@ -11,8 +11,8 @@ the ground given by the project, not by the map.
 | `scenarios/after_rain.xosc` | the same drive with the whole road moist and the gravel patch turned to dirt by the scenario (`RoadCondition`) |
 
 The ground is a project file: `ground: {Town01: {surfaces: ground/town01.yaml}}` names it
-for the map, for the stack to hand to the world server through the project's `state/`
-(see "Known issues" below), so the fetched map, shared and read-only, is never edited. A scenario sets the road's state
+for the map; the stack links it into the project's `state/Town01/`, where the world server
+reads it, so the fetched map, shared and read-only, is never edited. A scenario sets the road's state
 (wetness, a zone's class or water depth) through OpenSCENARIO's `RoadCondition`; it cannot
 choose the surface map.
 
@@ -58,10 +58,6 @@ wetness and friction): look for `mud_road` and `gravel_patch` in the simulator's
 The rear-drive Model 3 slows in the mud and crosses it; a stop inside fresh wet mud is
 another matter (it barely starts again, and Autoware's longitudinal controller does not
 push harder at low speed), so neither scenario stops there.
-
-Known issues (2026-11-15): the stack does not yet hand `ground:` to the world server, so
-these runs drive on plain asphalt; and Town01's published Isaac world file names its USD
-stage by an absolute path (see `isaac_first_drive`).
 
 ## Exercises
 

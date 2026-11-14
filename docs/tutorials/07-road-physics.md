@@ -68,15 +68,12 @@ by name (`allow_unvalidated: [mud_wet]`).
 
 ## 2. Hand the ground to the world server
 
-The world server reads a map's surface map from the project's `state/<map>/` first. The
-stack does not copy `ground:` there yet (2026-11-15), so do it once:
+The world server reads a map's surface map from the project's `state/<map>/` first. You do
+not put it there: when the stack starts, it links each file `ground:` names into
+`state/<map>/` (`surfaces` as `surfaces.yaml`, `road_detail` as `road_detail.yaml`), so
+`ground/town01.yaml` stays the one file you edit.
 
-```bash
-mkdir -p state/Town01
-cp ground/town01.yaml state/Town01/surfaces.yaml
-```
-
-**Check**: `ls state/Town01/` lists `surfaces.yaml`.
+**Check**: after step 3, `ls -l state/Town01/` shows `surfaces.yaml -> .../ground/town01.yaml`.
 
 ## 3. Bring up the stack
 
@@ -168,14 +165,14 @@ Every class, zone key, road-detail key and `RoadCondition` property:
 
 ## Exercises
 
-1. **Easy.** Make the mud softer: set `mud_road`'s class to `mud_soft` in your
-   `state/Town01/surfaces.yaml`. The map counts from the next scenario. Check:
+1. **Easy.** Make the mud softer: set `mud_road`'s class to `mud_soft` in
+   `ground/town01.yaml`. The map counts from the next scenario. Check:
    `mud_and_gravel.xosc` now ends `failed` on its 180 s timeout, the car stalled in the
    mud, and `/swb/wheels` shows the rear wheels' slip near 1.
 2. **Medium.** Lay the rough gravel road the stages dataset carries over Town01's
-   straight: copy
-   `assets/isaac-road-physics-stages/procedural/spikes/road_town/road_detail.yaml` to
-   `state/Town01/road_detail.yaml` and restart the stack. Check:
+   straight: uncomment `road_detail:` under `ground: Town01:` in `swb.yaml` (it names
+   `assets/isaac-road-physics-stages/procedural/spikes/road_town/road_detail.yaml`) and
+   restart the stack. Check:
    `ros2 run swb_isaac_world road_detail check state/Town01/road_detail.yaml` prints
    `1 corridor(s)` and the corridor's 250 m, and the stack starts again without a
    problem. (Autoware on the rough road is not validated.)
@@ -189,7 +186,7 @@ Every class, zone key, road-detail key and `RoadCondition` property:
 
 | Symptom | Fix |
 |---|---|
-| Every wheel's class is `asphalt` | the world server found no surface map: step 2, then restart the stack |
+| Every wheel's class is `asphalt` | the world server found no surface map: check `ground:` in `swb.yaml` (`ros2 run swb project check`), then restart the stack |
 | The stack is refused, naming `surfaces.yaml` | the file failed its check: run `surfaces check` on it, which lists every problem |
 | `/swb/wheels` shows nothing | the terminal is not on the ego's domain (`eval "$(ros2 run swb seat env 0)"`), or the stack is not up |
 | `mud_and_gravel.xosc` fails, the car stopped in the mud | a stop inside fresh wet mud barely starts again, and Autoware's longitudinal controller does not push harder at low speed; the shipped scenarios do not stop there |

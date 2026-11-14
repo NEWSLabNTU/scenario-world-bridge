@@ -244,6 +244,66 @@ Each run writes `runs/<id>/`:
 Runs are not bit-identical (Autoware and the simulators' GPU physics are not deterministic):
 swb promises the same inputs, records them, and a suite's repetitions measure the spread.
 
+### A8b. Logs per run
+
+User, 2026-11-14: "Think about logging per run as well. User may control the logging verbosity
+in the case they want to save the logs from many repeated runs. Also, the proper logging
+structure helps diagnosing the issues."
+
+The stack outlives its runs, so its processes (world server, bridge, relay, pilots) log
+continuously into the stack's folder, and each run gets a **slice**: the window between the
+run's start and end markers, cut from every process's log, beside the run's own processes
+(SSv2, a per-run pilot). Logs go under the log folder of `host.yaml` (a fast disk: a busy
+spinning disk stalls nodes that log from real-time loops), linked as the project's `runs/`.
+
+```
+<logs>/<project>/
+  stacks/<stack id>/          # one per stack start
+    stack.json                # fingerprint: project, lock, pilots, build, seat, host
+    events.jsonl              # the stack's own events (starts, restarts, map loads)
+    proc/<group>/<process>.log
+  runs/<run id>/
+    result.json  resolved.yaml  junit.xml
+    timeline.jsonl            # one ordered event stream for the run (below)
+    logs/<group>/<process>.log   # this run's slice, or SSv2's own logs
+    record/                   # a rosbag, when the level asks
+    host.json                 # load, GPU memory, disk at start and end
+```
+
+**The timeline** is the diagnosis tool: one JSON line per event, with wall time and simulation
+time, from every group, in order: run start, pilot ready, scenario initialised, engage, goal
+sent, each SSv2 condition, each judge event (collision, red light, off lane, stuck), every
+WARN or ERROR any process logged in the window (with its group and process), restarts, run
+end. Groups: `simulator`, `bridge`, `relay`, `pilot:<entity>`, `scenario`, `judge`.
+
+**Levels**, set in `swb.yaml` (`logging:`), per suite, or per run (`--logs <level>`):
+
+| Level | Keeps | About per run |
+|---|---|---|
+| `result` | `result.json`, `resolved.yaml`, JUnit, the timeline | kilobytes |
+| `standard` (default) | + each process's slice and SSv2's logs | megabytes |
+| `full` | + a rosbag of the key topics (ego state, control, detected objects, `/swb/wheels`), `host.json` samples | hundreds of megabytes |
+| `debug` | + every topic, DEBUG level on the groups named in `debug:` | gigabytes |
+
+**Keep by verdict.** A run is captured at the highest level any outcome asks for, and pruned
+when its verdict is known, so a failure is never missing the logs that explain it:
+
+```yaml
+logging:
+  capture: full                 # what is recorded while the run goes
+  keep: {passed: result, failed: full, error: full}
+  levels: {pilot:ego: warn, bridge: info}    # ROS log levels per group
+  budget: {per_run: 2GB, total: 200GB}       # refuse to start a suite that cannot fit
+```
+
+`ros2 run swb_launch runs list|show|why|prune`:
+- `show <run>`: the timeline, readable;
+- `why <run>`: the first WARN/ERROR and the group it came from, which is also how the verdict
+  tells `error` (the stack's fault) from `failed`;
+- `prune --keep-last 20 --verdict passed`: retention by count, age or verdict.
+
+The suite's `summary.csv` names each run's folder, so a table row leads to its logs.
+
 ### A9. Fewer manual steps, telemetry, datasets
 
 Kept from the first design: the signal table written on first load (into `state/`),
@@ -329,7 +389,8 @@ sharing a project.
    `carla_basic`, `launch`, `command`, `none` (`simple` with 070 D, `container` later).
 6. [ ] A3, A4: `swb.launch.xml` as the stack (fingerprint, lazy pilots, `end_with:=run`);
    `ros2 run swb_launch run` for runs and suites; `run_one`.
-7. [ ] A8: `result.json` schema with provenance, `resolved.yaml`, summaries, judges.
+7. [ ] A8, A8b: `result.json` schema with provenance, `resolved.yaml`, summaries, judges; per-run
+   log slices, the timeline, levels, keep by verdict, budgets, `runs show|why|prune`.
 8. [ ] A9: signal table on first load, `make_world`, the surfaces map, the rough road in the
    package, `/swb/wheels`, `record:=`, the datasets re-uploaded and tagged.
 9. [ ] Port the studies onto it as the proof: an AWF suite, a cooperation batch sharded on two

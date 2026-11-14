@@ -646,6 +646,23 @@ def load_beliefs(entry, sc):
     return res
 
 
+# --- explanations (C4) and the merge-end fix ------------------------------------------------------
+def load_explain(entry, sc):
+    """C4's and the merge-end fix's results, one item per source. kind:
+      c4         c4_fit.py's c4_fit.json: per play set the models' fits (estimate, LR 95 % sets,
+                 cell bootstrap, held-out payoff RMSE and log loss), residuals by region, the
+                 recovery of planted SVO types, the capability/preference confound, the real stack
+      merge_end  merge_end.py's do6_fixed_*.json: do6's final table with the legacy end and the fix
+                 on the same runs, the equilibria of both, the runs whose score moved"""
+    out = []
+    for p in paths(entry):
+        if not os.path.exists(p):
+            raise FileNotFoundError(2, "missing", p)
+        d = json.load(open(p))
+        out.append({"kind": entry["kind"], "label": entry.get("label", os.path.basename(p)), "path": p, "data": d})
+    return {"explain": out}
+
+
 # --- progress ------------------------------------------------------------------------------------
 def load_d2(entry, sc):
     """A D2 share as text ('payoffs inside the arena's 95 % interval: 44 of 48') or a summary.json's
@@ -674,12 +691,12 @@ LOADERS = {k[5:]: v for k, v in globals().items() if k.startswith("load_")}
 def export(sources, out, only=None, log=print):
     cfg = yaml.safe_load(open(sources))
     atlas = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "sources": str(sources), "tiers": cfg["tiers"],
-             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "beliefs": [],
+             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "beliefs": [], "explain": [],
              "notes": cfg.get("notes", [])}
     for sname, sc in cfg["scenarios"].items():
         if only and sname not in only:
             continue
-        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "beliefs", "notes")}
+        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "beliefs", "explain", "notes")}
         S["tiers"] = {}
         S["episodes"] = []
         S["meta"] = []
@@ -698,7 +715,7 @@ def export(sources, out, only=None, log=print):
                 T = S["tiers"].setdefault(tier, {"cells": [], "payoffs": [], "labels": [], "d2": None, "links": [], "items": 0})
                 T["items"] += (len(res.get("episodes", [])) + bool(res.get("meta")) + len(res.get("fitted", []))
                                + sum(bool(res.get(k)) for k in ("ncar_residuals", "ncar_n1", "ncar_n4"))
-                               + len(res.get("conventions", [])) + len(res.get("beliefs", [])))
+                               + len(res.get("conventions", [])) + len(res.get("beliefs", [])) + len(res.get("explain", [])))
                 T["cells"] += res.get("cells", [])
                 T["payoffs"] += res.get("payoffs", [])
                 if res.get("d2"):
@@ -716,6 +733,7 @@ def export(sources, out, only=None, log=print):
                 atlas["fitted"] += res.get("fitted", [])
                 atlas["conventions"] += res.get("conventions", [])
                 atlas["beliefs"] += res.get("beliefs", [])
+                atlas["explain"] += res.get("explain", [])
                 log(f"  [{sname}/{tier}] {name}: {len(res.get('cells', []))} cells, {len(res.get('payoffs', []))} payoff "
                     f"contexts, {len(res.get('episodes', []))} episodes ({time.monotonic() - t0:.1f} s)")
         for tier, T in S["tiers"].items():

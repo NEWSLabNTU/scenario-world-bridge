@@ -665,60 +665,91 @@ def run_fit(a):
         print("confound", true_r, true_phi, best_k, s1, flush=True)
     res["confound"] = conf
 
+    return finish_fit(a, out, T, res, L)
+
+
+def finish_fit(a, out, T, res, L):
     # the real stack
     if a.c3gt or a.c3cp:
         T6 = Tables(load(out / "vb6.jsonl"))
         L.append("\n### The real stack (C3): B = Autoware, A the agent's two rules; B's continuation only\n")
-        L.append("| perception | runs | B braked share | phi_B (svo, A's rule fixed) | LR 95 % phi_B | c_B (kappa) | LR 95 % c_B |")
+        L.append("| perception | runs where A cut in | phi_B | LR 95 % phi_B | c_B (kappa) | LR 95 % c_B | per cell |")
         L.append("|---|---|---|---|---|---|---|")
         res["c3"] = {}
         for name, dirs in (("ground truth (C3a)", a.c3gt), ("CenterPoint (C3b)", a.c3cp)):
             if not dirs:
                 continue
-            rows = []
-            for d in dirs:
-                for r in load(Path(d) / "c3.jsonl"):
-                    if "uA" in r:
-                        rows.append(dict(r, peakB=1.0 if r.get("t_brakeB") is not None and r.get("t_lat") is not None
-                                         and r["t_brakeB"] >= r["t_lat"] - 0.5 else 0.0))
+            rows = [r for d in dirs for r in load(Path(d) / "c3.jsonl") if "uA" in r]
             fr = c3_fit_b(T6, rows)
             res["c3"][name] = fr
-            L.append(f"| {name} | {len(rows)} | {fr['braked']:.2f} | {fr['phi_B']:.0f} | {fr['phi_B_95']} | "
-                     f"{fr['c_B']:.3f} | {fr['c_B_95']} |")
+            L.append(f"| {name} | {fr['runs']} of {len(rows)} | {fr['phi_B']:.0f} | {fr['phi_B_95']} | "
+                     f"{fr['c_B']:.3f} | {fr['c_B_95']} | " + "; ".join(
+                         f"{k}: uB {v['uB_obs']:.3f} (yield {v['uB_yield']:.3f}, hold {v['uB_hold']:.3f})"
+                         + (" unexplained" if v["unexplained"] else "") for k, v in fr["cells"].items()) + " |")
     (out / "c4_fit.json").write_text(json.dumps(res, indent=1, default=float))
     (out / "c4_fit.md").write_text("\n".join(L) + "\n")
     print("\n".join(L))
 
 
-def c3_fit_b(T6, rows):
-    """Autoware's B: A's action is its rule's (A went: the go rows), B's continuation a logit reply;
-    the likelihood of 'B braked' per run against the vb6 tables' react_yield / react_hold rows."""
+def redo_c3(a):
+    """Only the real-stack part, on an existing c4_fit.json / c4_fit.md."""
+    out = Path(a.out)
+    res = json.loads((out / "c4_fit.json").read_text())
+    L = (out / "c4_fit.md").read_text().rstrip("\n").split("\n")
+    k = next((i for i, x in enumerate(L) if x.startswith("### The real stack")), None)
+    if k is not None:
+        L = L[:k - 1] if k and L[k - 1] == "" else L[:k]
+    finish_fit(a, out, None, res, L)
+
+
+def c3_fit_b(T6, rows, clip_u=-2.0):
+    """Autoware's B against the vb6 tables. A's action is its rule's, so only B's continuation is a
+    choice, and only in the runs where A cut in (A ahead, or contact). The C3 logs do not all carry
+    B's braking time, so B's choice is read from its payoff: uB ~ N(p uB(go, yield) + (1 - p)
+    uB(go, hold), sd), sd the cell's spread (at least 0.02), uB clipped at clip_u; p a logit reply,
+    p = sigma(lambda (U'_B(yield) - U'_B(hold) + c)). Profiles of phi_B (c = 0) and of c_B (phi 0),
+    lambda maximized on a grid; and per cell the p that fits best (the cell's revealed yield)."""
     idx = T6.index()
     UA, UB = T6.uA.reshape(-1, 3, 3), T6.uB.reshape(-1, 3, 3)
-    # P(B braked | continuation) from the tables' outcome shares (the go rows)
-    yshare = T6.share.reshape(-1, 3, 3, len(OUTCOMES))
-    ycols = [OUTCOMES.index(o) for o in ("ahead_y", "behind_y", "out_y")]
-    pb_y = yshare[:, 0, 1, ycols].sum(-1) + 0.5 * yshare[:, 0, 1, OUTCOMES.index("contact")]
-    pb_h = yshare[:, 0, 2, ycols].sum(-1) + 0.5 * yshare[:, 0, 2, OUTCOMES.index("contact")]
-    data = [(idx[(float(r["d0"]), float(r["dv"]))], float(r["peakB"]) >= YIELD_PEAK) for r in rows
-            if (float(r["d0"]), float(r["dv"])) in idx]
+    by = collections.defaultdict(list)
+    for r in rows:
+        c = (float(r["d0"]), float(r["dv"]))
+        if c in idx and (int(r.get("ahead", 0)) or int(r.get("contact", 0))):
+            by[idx[c]].append(max(clip_u, float(r["uB"])))
+    cells = sorted(by)
+    yb = np.maximum(UB[:, 0, 1], clip_u)
+    hb = np.maximum(UB[:, 0, 2], clip_u)
 
     def nll_b(phi, c, lam):
         ub = math.cos(math.radians(phi)) * UB[:, 0, :] + math.sin(math.radians(phi)) * UA[:, 0, :]
         py = _sig(lam * (ub[:, 1] - ub[:, 2] + c))
-        pbr = py * pb_y + (1 - py) * pb_h
-        return -sum(math.log(max(1e-12, pbr[i] if y else 1 - pbr[i])) for i, y in data)
-    lam = 50.0
+        v = 0.0
+        for i in cells:
+            xs = np.array(by[i])
+            sd = max(0.02, float(xs.std()))
+            mu = py[i] * yb[i] + (1 - py[i]) * hb[i]
+            v += float((((xs - mu) / sd) ** 2).sum() / 2)
+        return v
+    lams = (5.0, 20.0, 50.0, 200.0, 1000.0)
     phis = np.linspace(-60, 90, 31)
-    cs = np.linspace(-0.3, 0.3, 31)
-    vp = [min(nll_b(p, 0.0, l) for l in (10.0, 50.0, 200.0)) for p in phis]
-    vc = [min(nll_b(0.0, c, l) for l in (10.0, 50.0, 200.0)) for c in cs]
+    cs = np.linspace(-0.5, 0.5, 41)
+    vp = [min(nll_b(p, 0.0, l) for l in lams) for p in phis]
+    vc = [min(nll_b(0.0, c, l) for l in lams) for c in cs]
     ip, ic = int(np.argmin(vp)), int(np.argmin(vc))
     sp = [p for p, v in zip(phis, vp) if v - vp[ip] <= LR95]
     sc = [c for c, v in zip(cs, vc) if v - vc[ic] <= LR95]
-    return {"braked": float(np.mean([y for _, y in data])), "phi_B": float(phis[ip]),
+    per_cell = {}
+    for i in cells:
+        xs = np.array(by[i])
+        d = yb[i] - hb[i]
+        p_rev = float(np.clip((xs.mean() - hb[i]) / d, 0, 1)) if abs(d) > 1e-3 else None
+        per_cell[str(T6.cells[i])] = {"runs": len(xs), "uB_obs": float(xs.mean()), "uB_yield": float(yb[i]),
+                                      "uB_hold": float(hb[i]), "p_yield_revealed": p_rev,
+                                      "unexplained": bool(abs(d) <= 1e-3 and abs(xs.mean() - hb[i]) > 0.05)}
+    return {"runs": int(sum(len(by[i]) for i in cells)), "phi_B": float(phis[ip]),
             "phi_B_95": (float(min(sp)), float(max(sp))), "c_B": float(cs[ic]), "c_B_95": (float(min(sc)), float(max(sc))),
-            "nll_phi": float(vp[ip]), "nll_c": float(vc[ic]), "lam": lam}
+            "nll_phi": float(vp[ip]), "nll_c": float(vc[ic]), "nll_selfish": float(min(nll_b(0.0, 0.0, l) for l in lams)),
+            "cells": per_cell}
 
 
 def selftest():
@@ -779,6 +810,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--collect", action="store_true")
     ap.add_argument("--fit", action="store_true")
+    ap.add_argument("--redo-c3", action="store_true", help="only the real-stack part, on an existing c4_fit.json")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--out")
     ap.add_argument("--do6", help="do6's populations.json (the equilibrium rules)")
@@ -794,6 +826,8 @@ def main():
         collect(a)
     elif a.fit:
         run_fit(a)
+    elif a.redo_c3:
+        redo_c3(a)
     else:
         ap.print_help()
 

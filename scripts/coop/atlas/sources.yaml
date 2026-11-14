@@ -91,6 +91,12 @@ scenarios:
         - loader: fit
           label: B fitted, stop layer (perception)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer/fit_cp_stop_v1/fit.json"
+        - loader: fit
+          label: B fitted to C3a (gt), merge-end fix
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end/fit_gt/fit.json"
+        - loader: fit
+          label: B fitted to C3b (perception), merge-end fix
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end/fit_cp/fit.json"
         - loader: c3
           label: C3b pool (B stop layer study)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer/c3b_pool/c3.jsonl"
@@ -98,6 +104,11 @@ scenarios:
           fixed: {vb: 6.0}
           link: "logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer"
       double_oracle:
+        - loader: double_oracle
+          label: do7 (do6 with the merge-end fix)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end/do7"
+          contexts: [[2, 2], [6, 0], [6, 3], [10, 0], [10, -2], [14, -3]]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end"
         - loader: double_oracle
           label: do4 (S0 utility)
           path: /mnt/p5plus/aeon/coop/s0/do4
@@ -327,6 +338,27 @@ scenarios:
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability/arena/summary.json"
           link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability"
     planned: {swb_light: "not run", swb_autoware: "not run"}
+
+  explain:
+    title: Explanations (C4)
+    explain: true
+    notes:
+      - "C4: the cut-in's measured play explained by five models over C1's 9 profiles, on the arena's tables (v_B 12, 171 cells, 4 seeds, every profile on shared seeds): selfish logit QRE, SVO QRE (phi_A, phi_B), a potential (alpha: the weight of U_B against U_A), level-k (Poisson tau), and the kappa threshold rules (A's belief p0 that B yields against the table's kappa; B's belief q0 and courtesy c_B)."
+      - "Play: the observed outcome per run (A ahead / behind / not in / contact, x B braked). Identifiability: profile likelihood (LR 95 %) and a cell bootstrap; held-out: 5-fold over cells, payoff RMSE (clipped at -2) and log loss per run."
+      - "The merge-end fix (arena.py): do6's final table with the legacy end and the fix on the same runs; do7 and the refits are under the cut-in."
+      - "NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop C4 fit, and .../2026-11-15 coop arena merge end"
+    tiers:
+      arena:
+        - loader: explain
+          kind: c4
+          label: C4 fits (c4_fit.py)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C4 fit/c4_fit.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C4 fit"
+        - loader: explain
+          kind: merge_end
+          label: do6's final table, legacy end against the merge-end fix
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end/do6/do6_fixed_s2_salt0.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end"
 
   ncar:
     title: N cars

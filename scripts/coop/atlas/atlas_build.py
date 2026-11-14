@@ -161,6 +161,7 @@ function scenarioView(sname, S){
     if (S.ncar) return ncarView(s);
     if (S.conventions) return conventionsView(s, S);
     if (S.beliefs) return beliefsView(s, S);
+    if (S.explain) return explainView(s, S);
     classMap(s, sname, S); payoffView(s, sname, S); metaView(s, S); episodeView(s, S);
     if ((S.state_machines || []).length) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, '(5) The rules as state machines'); const g = h('div', {class: 'sm'}, c);
       for (const k of S.state_machines) drawSM(g, k); }
@@ -425,6 +426,47 @@ function beliefsView(s, S){
     }
   }
   if (!Bs.length) h('p', {class: 'muted'}, s, 'No belief results registered.');
+}
+
+// ---------------------------------------------------------------- explanations (C4) and the merge-end fix
+const ivl = v => !v || v[0] === null || v[0] === undefined ? '-' : `[${fmt(v[0], 3)}, ${fmt(v[1], 3)}]`;
+const vec = v => (v || []).map(x => fmt(x, 3)).join(', ');
+function explainView(s, S){
+  const X = A.explain || [];
+  if (S.notes) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, 'Explanations (C4) and the merge-end fix'); const ul = h('ul', {class: 'small'}, c); for (const x of S.notes) h('li', {}, ul, x); }
+  for (const src of X) {
+    const c = h('div', {class: 'card'}, s); h('h2', {}, c, src.label); h('p', {class: 'small muted'}, c, src.path); const d = src.data;
+    if (src.kind === 'c4') {
+      for (const [lab, R] of Object.entries(d)) { if (!R || !R.models) continue;
+        h('h3', {}, c, lab); h('p', {class: 'small'}, c, `Held-out baseline (every cell gets the mean payoff): RMSE ${fmt(R.baseline_rmse, 4)}.`);
+        convTable(c, Object.entries(R.models), [['model', ([m]) => m], ['k', ([, f]) => f.theta.length], ['nll', ([, f]) => fmt(f.nll, 1)], ['AIC', ([, f]) => fmt(f.aic, 1)],
+          ['estimate', ([, f]) => vec(f.theta)], ['LR 95 % per parameter', ([, f]) => (f.lr95 || []).map(ivl).join('; ')],
+          ['bootstrap 95 %', ([, f]) => (f.boot95 || []).map(ivl).join('; ')], ['held-out payoff RMSE', ([, f]) => fmt(f.heldout_rmse, 4)],
+          ['held-out log loss / run', ([, f]) => fmt(f.heldout_logloss, 3)]]); }
+      if (d.regions_eq) { const best = Object.keys(d.regions_eq)[0]; h('h3', {}, c, 'Residuals by region, equilibrium play');
+        const row = h('div', {class: 'row'}, c); const sel = h('select', {}, row); for (const m of Object.keys(d.regions_eq)) h('option', {value: m}, sel, m);
+        const holder = h('div', {}, c); const draw = () => { holder.innerHTML = ''; convTable(holder, Object.entries(d.regions_eq[sel.value]), [['region', ([k]) => k], ['runs', ([, v]) => v.runs],
+          ['log lik / run', ([, v]) => fmt(v.ll_per_run, 3)], ['A ahead observed', ([, v]) => fmt(v.ahead_obs, 2)], ['predicted', ([, v]) => fmt(v.ahead_pred, 2)]]); };
+        sel.value = best; sel.onchange = draw; draw(); }
+      if (d.recovery) { h('h3', {}, c, 'Recovery of planted SVO types (phi_A, phi_B, lambda) on the arena tables');
+        convTable(c, d.recovery, [['planted', r => vec(r.planted)], ['fitted', r => vec(r.fitted)], ['LR 95 % phi_A', r => ivl(r.phi_A)], ['phi_B', r => ivl(r.phi_B)], ['lambda', r => ivl(r.lambda)]]); }
+      if (d.confound) { h('h3', {}, c, "Capability against preference: B's reaction time against phi_B (kinematic tables)");
+        convTable(c, d.confound, [['true (reaction s, phi_B)', r => vec(r.true)], ['joint best', r => vec(r.best)],
+          ['joint 95 % set: reactions', r => [...new Set(r.joint95.map(x => x[0]))].join(', ')], ['phi_B range', r => r.joint95.length ? `${fmt(Math.min(...r.joint95.map(x => x[1])), 0)}..${fmt(Math.max(...r.joint95.map(x => x[1])), 0)}` : '-'],
+          ['fit assuming 1.0 s', r => vec(r.fit_assuming_1s)], ['phi_B 95 % assuming 1.0 s', r => ivl(r.phi_B_95_assuming_1s)]]); }
+      if (d.c3) { h('h3', {}, c, "The real stack: Autoware's B continuation");
+        convTable(c, Object.entries(d.c3), [['perception', ([k]) => k], ['B braked', ([, v]) => fmt(v.braked, 2)], ['phi_B', ([, v]) => fmt(v.phi_B, 0)],
+          ['LR 95 % phi_B', ([, v]) => ivl(v.phi_B_95)], ['c_B (kappa)', ([, v]) => fmt(v.c_B, 3)], ['LR 95 % c_B', ([, v]) => ivl(v.c_B_95)]]); }
+    } else {
+      h('p', {class: 'small'}, c, `do6's final pools re-evaluated on the table's own seeds (${d.seeds} per context, salt ${d.salt}); the legacy end is the shadow score of the same runs.`);
+      for (const [k, lab] of [['eq_do6_table', "do6's table"], ['eq_legacy_shadow', 'legacy end (same runs)'], ['eq_fixed', 'with the fix']]) {
+        const e = (d[k] || [])[0]; h('p', {class: 'small'}, c, `${lab}: ${e ? `A ${JSON.stringify(e.A)} / B ${JSON.stringify(e.B)}, vA ${fmt(e.vA, 4)}, vB ${fmt(e.vB, 4)}, welfare ${fmt(e.welfare, 4)}` : '-'}`); }
+      convTable(c, Object.entries(d.table || {}), [['A | B', ([k]) => k], ['uA do6 / legacy / fixed', ([, v]) => `${fmt(v.do6.uA, 3)} / ${fmt(v.legacy.uA, 3)} / ${fmt(v.fixed.uA, 3)}`],
+        ['uB do6 / legacy / fixed', ([, v]) => `${fmt(v.do6.uB, 3)} / ${fmt(v.legacy.uB, 3)} / ${fmt(v.fixed.uB, 3)}`], ['A ahead (fixed)', ([, v]) => fmt(v.fixed.ahead, 2)]]);
+      h('h3', {}, c, 'Runs whose score moved (A rule | B rule, context, got_in legacy -> fixed)');
+      convTable(c, Object.entries(d.runs_moved || {}), [['runs', ([k]) => k], ['n', ([, v]) => v]]); }
+  }
+  if (!X.length) h('p', {class: 'muted'}, s, 'No explanation results registered.');
 }
 
 // ---------------------------------------------------------------- N cars

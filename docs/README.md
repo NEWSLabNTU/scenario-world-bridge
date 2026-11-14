@@ -5,6 +5,8 @@
 - [README](../README.md) -- what it is, prerequisites, setup, quick start
 - [Getting started on CARLA](getting-started/carla.md) -- start here: install, the TUM maps, a first run, your scenario, Autoware
 - [Getting started on Isaac Sim](getting-started/isaac.md) -- the same on Isaac Sim: install, the asset set, the world server, Autoware, your scenario
+- [Build your own stack](build-your-own-stack.md) -- your scenario, simulator, car, autopilot and more cars, in one launch
+- [ROS domains and DDS](domains-and-dds.md) -- which process lives in which domain, values 0-57, Cyclone, looking into each domain
 - Tutorials, in order:
   1. [First run](tutorials/01-first-run.md) -- both sides up, a starter scenario, its verdict
   2. [Prepare a scenario](tutorials/02-prepare-a-scenario.md) -- poses on the map, a `.xosc` of your own

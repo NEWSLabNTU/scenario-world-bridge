@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic done (chicken only for |Δt| ≤ 0.5 s; a right of way selects only at a fault cost ≥ 1; a tie-break is needed after a mutual stop); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); in progress: E3 (swb 118), the C3a rerun (swb 241), S2 in the arena (swb 139); next: N3, S2 in the arena (swb 139), S1 in the arena, S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic and arena done (chicken only for |Δt| ≤ 0.2 s and a tie costly either way; the arena turns the tie into a war of attrition; D2 not met at the crossing: the kinematic model needs the car's brake lag and start from rest); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); in progress: E3 (swb 118), the C3a rerun (swb 241), N3 (133); next: the crossing's D2 (the kinematic model with the car's lags, swb 139), S1 in the arena, S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -685,42 +685,73 @@ Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout kinematic/`.
 - **Caveats:** coarse grids (gaps beyond 2.5 s untested); O is a single car; IDM's comfortable braking
   is capped at 2 m/s² unless the closing needs more.
 
-### S2. The unsignalled crossing, kinematic (2026-11-14)
+### S2. The unsignalled crossing: kinematic and arena (2026-11-14)
 
-`scripts/coop/crossing_game.py` (c48ce7c, swb 139): the crossing as design ②'s passage game.
+The crossing as design ②'s passage game, by swb 139. The kinematic model is
+`scripts/coop/crossing_game.py` (c48ce7c, corrected in 3163cce); the arena is
+`crossing_arena.py` (3163cce).
 - **Geometry:** two straight roads at right angles, a 3.5 x 3.5 m conflict box Z, Model 3 footprints.
-- **Context:** Δt = t_A^Z − t_B^Z in −4..+4 s, the speed v = 4-14 m/s, the right of way r = none / A / B.
+- **Context:** Δt = t_A^Z − t_B^Z in −4..+4 s, the speed v = 4-14 m/s, the right of way r = none, A
+  or B.
 - **A, the claimant:** gap acceptance with τ ∈ {−∞, 0.5, 1.5, 3, +∞}, patience 2 or 5 s, with or
   without going on a seen yield (17 rules).
 - **B, the holder:** hold; react (sequentially rational); yield with a band of 1, 2 or 4 s and
   patience 2 or 5 s (8 rules).
-- **Delays:** 0.19 s of perception, then 0.5 s to decide; the safety layer brakes after 1.0 s.
-- **Payoffs:** S0's general utility. The car without right of way pays a fault cost when it forces
-  the other: the other slows while it never stopped, the other's safety layer brakes, or PET falls
-  below 1.5 s.
+- **Timing:** 0.19 s of perception, then 0.5 s to decide; the safety layer reacts after 1.0 s.
+- **Payoffs:** S0's general utility, plus a fault cost for the car without right of way when it
+  forces the other.
 
-Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing kinematic/`.
+Data on the NAS: `logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing kinematic/` (the first
+results are kept in `v1-superseded/`) and `.../2026-11-14 coop S2 crossing arena/`.
 
-- **Chicken is a narrow band, |Δt| ≤ 0.5 s, at every speed.** It is fixed in time, not distance:
-  ±7 m at 14 m/s, ±2 m at 4 m/s. Outside the band the nearer car passes first in every equilibrium.
-  The contingent rules leave no mixed-only context.
-- **The wrong equilibrium in the band is costly.** The loss C_worst − C_opt reaches 0.66 at ±0.5 s
-  and 14 m/s, and 0.79 at +0.5 s and 10 m/s, when the farther car goes first. At Δt = 0 it is at most
-  0.26. Outside the band it is under 0.05.
-- **No equilibrium has contact or a war of attrition** (0 of 306). Off equilibrium they are common.
-  At Δt = 0 and v = 10 m/s, 112 of 153 rule pairs end with both cars stopped at their lines. 28 of the
-  30 contacts are restarts after such a stop: both cars' patience runs out together. A tie-break is a
-  design need, as in the cut-in.
-- **A right of way selects one equilibrium only when failing to yield costs ≥ 1**, a whole 20 s
-  horizon of progress. At 0.5 the r = A map equals r = none.
-- **Over-enforcing the rule costs efficiency.** At a fault cost of 2 with r = A, A goes first even
-  when it arrives 3 s after B. The cost C at Δt = +2 s and 10 m/s rises from 0.07 to 1.56. A priority
-  rule belongs in a conflict window (|Δt| ≲ 1 s), not as an absolute order (C7's conventions).
-- **Safety in equilibrium:** the smallest PET is 1.9 s, above the 1.5 s reference. The risk term comes
-  from 2D TTC instead: 1.66 s at Δt = 0 and v = 10 m/s, from late hold-out braking.
-- **Caveats:** the rule grids are small; the fault cost stands in for liability; there is no arena or
-  swb crossing yet (next: the arena on a generated crossing, then a Town01/02 junction with its lights
-  off, U3).
+**The arena corrected the kinematic model.** Its first runs exposed two faults in the rules:
+- a rule compared the other car's 0.69 s old position with its own current one;
+- A's "B clears before I arrive" test used A's current speed.
+
+Both are fixed in 3163cce and the kinematic map was re-run. The first results (chicken for
+|Δt| ≤ 0.5 s, a loss up to 0.79, PET ≥ 1.9 s, a right of way that overrode first-come by up to
+3 s) are superseded.
+
+Kinematic results, corrected:
+- **Chicken only for |Δt| ≤ 0.2 s, at every speed.** Outside that band the nearer car passes first
+  in every equilibrium.
+- **The tie itself is expensive, whoever goes.** In the band the worst equilibrium costs at most
+  0.10 more than the optimum. But near a tie even the optimum costs about 2: one car brakes hard and
+  waits, in every pairing of rules. Away from the band the cost is 0.03-0.2. So a tie calls for
+  avoiding arriving tied (adapting speed on the approach), not for a better choice at the line.
+- **No equilibrium has contact or a war of attrition.** The smallest equilibrium PET is 0.9 s,
+  below the 1.5 s reference, now that A judges gaps on true positions.
+- **Right of way at a tie:** a fault cost of 0.5-1 selects one equilibrium in about half the cells
+  of the band; no swept value up to 8 selects it in the rest, where patience decides.
+- **Enforcement outside a tie is a deadweight cost.** At fault 2 with r = A, B still passes first at
+  Δt = +1..+3 s and pays the fault: C rises by about 2 and the order does not change. A priority
+  rule belongs in a conflict window (|Δt| ≲ 1 s), for this reason.
+
+**In the arena** (K = 8 crossings at grade on a generated world; the spec's Model 3 with acb's
+controls and lags; `crossing_game.Policy` on `arena.Observer`'s perception; 6 A rules × 5 B rules;
+2 × 1350 runs at 10 and 14 m/s, 5 seeds):
+- **D2 is not met.**
+
+  | | v = 10 m/s | v = 14 m/s |
+  |---|---|---|
+  | payoffs inside the arena's intervals | 47 % | 53 % |
+  | outcomes agree | 78 % | 72 % |
+  | classes agree | 5 of 9 cells | 6 of 9 cells |
+
+- **Away from a tie (|Δt| ≥ 0.5 s) the models agree on who goes first:** 11 of 12 cells. The arena's
+  payoffs are 0.02-0.09 lower, because the brake lag makes the yield later and harder and the restart
+  from rest is slower.
+- **At |Δt| ≤ 0.2 s the arena gives a war of attrition** (both cars stop) where the kinematic model
+  gives chicken. Brake lag, a slow start from rest and noisy 10 Hz perception make a mutual stop the
+  stable outcome. The arena's answer is the more physical one, so the near-tie class stays uncertain
+  until the models agree.
+- **Arena-only contact at near-ties**, in 4-5 rule pairs, all a go-on-seen-yield A against a holding
+  B. Noisy speed estimates pass the gap test while both cars brake and restart. Going on a seen
+  yield is unsafe under perception noise at a tie.
+- **Next, to meet D2:**
+  - give the kinematic model the car's brake dead time, lag and acceleration from rest;
+  - define "both stopped" over a band of speed;
+  - compare away from the rules' thresholds (Δt = +1 s is exactly one rule's band).
 
 ### C4. Fit and explain
 
@@ -801,7 +832,7 @@ being carried.
 | | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
 | | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |
 | 6 scenarios | S0 general utility | B | route progress, 2D TTC, PET, clearance, lateral comfort (`docs/design/cooperative-driving.md` ⓪, ①) in `measures.py` and `cutin_game.utility`; C2b, C3a, C3b and the double oracle re-scored offline from the recorded runs; prerequisite for S1-S6 and for N2's pair risk $\rho_{ij}$ | done (22741ab; S0 above): classes and equilibria unchanged; D2 92 %; 14/-3 is a 0.1-8 cm footprint touch, not a near miss, so it still scores as contact (`pen` kept beside it) |
-| | S1-S6 | B | cut-out; unsignalled crossing; lane drop or on-ramp; narrow passage; left turn in the arena and swb; overtaking via the oncoming lane: each as a passage game (relation, Δt, speeds, right of way), kinematic, arena, swb light, swb Autoware | equilibrium maps per relation; Autoware's departures. S1 kinematic done (01bc891), S2 kinematic done (c48ce7c); sections above |
+| | S1-S6 | B | cut-out; unsignalled crossing; lane drop or on-ramp; narrow passage; left turn in the arena and swb; overtaking via the oncoming lane: each as a passage game (relation, Δt, speeds, right of way), kinematic, arena, swb light, swb Autoware | equilibrium maps per relation; Autoware's departures. S1 kinematic done (01bc891), S2 kinematic and arena done (3163cce; D2 not met at the tie); sections above |
 
 Order: stage 1 first. S0 comes before any new relation (S1-S6) and before N2, whose pair terms
 compose $\rho$ per pair; the cut-in's results are re-scored, not re-run. Stage 5 starts after D2 (it needs a trusted arena) and runs beside stages

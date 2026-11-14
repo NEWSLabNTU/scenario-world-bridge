@@ -14,8 +14,8 @@ and carla_pythonapi from the arguments.
 
 Needs CARLA's Python client: the `carla` module importable by the python3 that runs it (the
 CARLA 0.9.16 wheel, pip `carla==0.9.16`, or its PythonAPI/carla/dist egg on PYTHONPATH), and
-the `agents` package from CARLA's PythonAPI/carla: `carla_pythonapi:=<dir>`, default
-$CARLA_DIR/PythonAPI/carla (a host setting).
+the `agents` package from CARLA's PythonAPI/carla: `carla_pythonapi:=<dir>` (swb's stack
+passes <carla.root>/PythonAPI/carla from the host settings), else $CARLA_DIR/PythonAPI/carla.
 
 role_name: the bridge spawns the scenario's ego as `hero` (bridge_config ego.role_name) and an
 agent-driven entity under its own name; the default is hero for entity ego, else the entity.

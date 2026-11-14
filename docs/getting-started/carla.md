@@ -48,7 +48,16 @@ port or another machine, set it in `~/.config/swb/host.yaml`:
 carla: {host: localhost, port: 2000}
 ```
 
-swb does not start CARLA yet: keep it running as above. Its quality level matters when a
+Or let the stack start CARLA for you: give `carla.root` and the stack starts CARLA when
+nothing answers on the port (`carla.start: auto`, the default), waits for it (up to
+`carla.ready_timeout`, 300 s) and stops it with the stack. A CARLA you started yourself
+is used as it is and never stopped:
+
+```yaml
+carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
+```
+
+Its quality level matters when a
 scenario changes towns: at `-quality-level=Low` CARLA 0.9.16 crashes on a town change, so
 keep the default (Epic) unless every run stays on the town CARLA started with.
 

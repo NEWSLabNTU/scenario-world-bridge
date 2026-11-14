@@ -95,15 +95,19 @@ PASS: 16/16 rules
 
 ## 3. Bring up the stack
 
+The BasicAgent pilot needs CARLA's Python `agents` package, which ships with CARLA. Tell
+swb where CARLA is installed, once per host, in `~/.config/swb/host.yaml`:
+
+```yaml
+carla:
+  root: ~/CARLA_0.9.16
+```
+
 ```bash
-CARLA_DIR=~/CARLA_0.9.16 play_launch launch --web-addr 127.0.0.1:8080 \
+play_launch launch --web-addr 127.0.0.1:8080 \
     swb_launch swb.launch.xml \
     map:=Town01
 ```
-
-`CARLA_DIR` in front of the command tells the BasicAgent pilot where CARLA's Python
-`agents` package is; the stack does not pass it on from `carla.root` yet. Keep it out of
-`~/swb.bash`: a `colcon build` with `CARLA_DIR` set fails.
 
 The stack starts the pilots that live with it: both Autowares and the BasicAgent, each
 nested play_launch in its own pilot domain of the seat. `cut_in` is `lifetime: run`: each
@@ -200,7 +204,7 @@ every key.
 
 | Symptom | Fix |
 |---|---|
-| `pilot lead` restarts again and again; its log says `No module named 'agents'` | the stack's terminal lacked `CARLA_DIR` (step 3) |
+| `pilot lead` restarts again and again; its log says `No module named 'agents'` | `carla.root` is missing from `~/.config/swb/host.yaml` (step 3); restart the stack |
 | `swb run: refused: the stack ... was started from another project state: ... differ` | `swb.yaml` (or the lock) changed since the stack started: restart the stack |
 | One Autoware never becomes ready | two Autowares need GPU memory and RAM: close other GPU work; read `runs why` and the pilot's log under the stack's `proc/pilot-<entity>/` |
 | `refused: entity bg_av_1 ... has no pilot in the stack` | the stack started before the pilot was added: restart it |

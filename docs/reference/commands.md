@@ -81,6 +81,9 @@ ros2 run swb run <scenario.xosc | scenario.yaml | directory | suite.yaml> [optio
 | `--capture LEVEL` | record at `result`, `standard`, `full` or `debug` and keep it whatever the verdict |
 | `--timeout S` | SSv2's `global_timeout` (400 s) |
 | `--wait S` | wait up to S for the stack to become ready (default: refuse at once) |
+| `--start-stack` | start the project's stack when none is up (and leave it up) |
+| `--stop-stack` | as `--start-stack`, then stop the stack it started after the runs |
+| `--stack-timeout S` | how long a started stack may take to become ready (default `--wait`, else 1800) |
 | `--ready-timeout S` | how long a run waits for its pilots' readiness (600 s) |
 | `--seat N`, `--project DIR`, `--logs DIR` | instead of the host settings' and the working directory's |
 

@@ -582,6 +582,11 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                       release_notify_endpoint=f"tcp://127.0.0.1:{s.release_ports[0]}",
                       release_ack_endpoint=f"tcp://127.0.0.1:{s.release_ports[1]}")
         # as stack.launch.py: the spec's physics read back when the world server applies it
+        # carla_basic's `agents` package: CARLA's PythonAPI under the host's carla.root
+        root = str(carla.get("root") or "")
+        if root:
+            common["carla_pythonapi"] = os.path.join(os.path.expanduser(root), "PythonAPI",
+                                                     "carla")
         physics = _named(args.get("sim_args")).get("vehicle_physics", "none")
         if physics and physics != "none":
             common.update(carla_physics=physics, carla_physics_mode="verify")

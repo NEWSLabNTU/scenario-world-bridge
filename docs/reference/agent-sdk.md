@@ -299,7 +299,7 @@ How it behaves, so you can write your own the same way (`swb_agent/adapters/carl
   runs the same class over a kinematic stand-in.
 
 Config keys: `carla_host` (localhost), `carla_port` (2000), `role_name` (hero),
-`carla_pythonapi` (default `$CARLA_DIR/PythonAPI/carla`), `target_speed_kmh` (30),
+`carla_pythonapi` (default `<carla.root>/PythonAPI/carla` from the host settings), `target_speed_kmh` (30),
 `ignore_traffic_lights` / `ignore_vehicles` (false: BasicAgent's own hazard stops),
 `find_timeout` (30 s for the vehicle to appear at a reset), `world` (`carla` | `fake`).
 

@@ -36,7 +36,9 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |
 | `carla.host`, `carla.port` | the stack, pilots | where CARLA serves its RPC port |
-| `carla.root` | pilots that use CARLA's Python API (`command` pilots on the SDK's `carla_basic`) | CARLA's install; the `carla_basic` pilot reads `CARLA_DIR` from the stack's environment instead, and the stack does not start CARLA yet |
+| `carla.root` | the stack, pilots | CARLA's install: the `carla_basic` pilot's `agents` package (`<root>/PythonAPI/carla`), and the CARLA the stack starts (`carla.start`) |
+| `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |
+| `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
 | `isaac.root` | not read yet | Isaac's install; the world server reads `ISAAC_ROOT` from the environment ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
 | `autoware.setup` | not read yet | Autoware's `setup.bash`; source it in your environment file |
 | `seats` | the stack, `seat` | the host's seat table ([Several stacks on one host](../how-to/several-stacks.md)) |

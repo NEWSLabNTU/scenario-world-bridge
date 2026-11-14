@@ -200,7 +200,7 @@ result so different autopilots stay comparable.
 A **seat** is one stack's share of a host: the scenario domain, one domain per pilot, SSv2's
 port and its +1/+2, the relay's, the world server's, the web port, the GPU and the log root,
 all derived from one number by a table. swb ships a default table; a host's `host.yaml`
-(or a host-wide `/etc/swb/seats.yaml` an administrator writes) replaces it, since what is free
+(or the host-wide `/etc/swb/host.yaml` an administrator writes) replaces it, since what is free
 differs per host:
 
 ```yaml

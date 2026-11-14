@@ -30,12 +30,16 @@ Run sets (each a list of groups for arena_n; 8 seeds, the two profiles of N2):
   ho3_a6  round 3: the six-car queue (B..F at hf {1, 2} s, v_B 12): ABCDEF and its 15 pairs, the
           window cap's fresh hold-out (`analyze --round 3`: round 2's model, A's predicted loss
           capped at what the window [0, H] holds, window_cap / cap_u)
+  ho4_a7  round 4: the seven-car queue (B..G at hf {1, 1.5} s, v_B 12): ABCDEFG and its 21 pairs,
+          the follower depth term's fresh hold-out (`analyze --round 4`: round 3's model plus
+          DEPTH_TERM, fitted on fit2 by `fit-depth` and frozen in DEPTH_GAIN / DEPTH_LAG)
 
 Usage:
   scripts/coop/n3_model.py run --set fit,ho_hf,... --ports 2600,2610,2620 --out <dir>
   scripts/coop/n3_model.py analyze --out <dir>
   scripts/coop/n3_model.py d2 --port 2600 --out <dir>   # C2b's D2 under the fixed window
   scripts/coop/n3_model.py diagnose --out <dir>  # the post-hoc changes found on the hold-out
+  scripts/coop/n3_model.py fit-depth --out <dir> # round 4: fit the depth term on fit2 (prints it)
   scripts/coop/n3_model.py --selftest
 """
 
@@ -65,13 +69,15 @@ SEEDS = 8
 GROUPS = {"a": ("ABC", ("AB", "AC", "BC")), "b": ("ABL", ("AB", "AL", "BL")),
           "a4": ("ABCD", ("AB", "AC", "AD", "BC", "BD", "CD")),
           "a5": ("ABCDE", tuple(a + b for i, a in enumerate("ABCDE") for b in "ABCDE"[i + 1:])),
-          "a6": ("ABCDEF", tuple(a + b for i, a in enumerate("ABCDEF") for b in "ABCDEF"[i + 1:]))}
-QUEUE = {"a": "BC", "a4": "BCD", "a5": "BCDE", "a6": "BCDEF", "b": "B"}
+          "a6": ("ABCDEF", tuple(a + b for i, a in enumerate("ABCDEF") for b in "ABCDEF"[i + 1:])),
+          "a7": ("ABCDEFG", tuple(a + b for i, a in enumerate("ABCDEFG") for b in "ABCDEFG"[i + 1:]))}
+QUEUE = {"a": "BC", "a4": "BCD", "a5": "BCDE", "a6": "BCDEF", "a7": "BCDEFG", "b": "B"}
 ROUND2_FIT = "fit2"
 ROUND2_HOLDOUT = ("ho2_vb", "ho2_hf", "ho2_tl", "ho2_a5")
 ROUND1 = ("fit", ("ho_hf", "ho_vb", "ho_gl", "ho_a4"), ("pairs",))
 ROUND2 = (ROUND2_FIT, ROUND2_HOLDOUT, ("pairs", "pairs2"))
 ROUND3 = (ROUND2_FIT, ROUND2_HOLDOUT + ("ho3_a6",), ("pairs", "pairs2"))  # round 2 + the window cap
+ROUND4 = (ROUND2_FIT, ROUND2_HOLDOUT + ("ho3_a6", "ho4_a7"), ("pairs", "pairs2"))  # round 3 + the depth term
 PAIR_D0S = tuple(float(d) for d in range(-4, 35))
 PAIR_D0S_2 = tuple(float(d) for d in range(-6, 45))
 
@@ -120,6 +126,8 @@ def jobs(name):
         return _ctx_jobs("a5", (1.0, 2.0), (12.0,), name)
     if name == "ho3_a6":  # 074 N3: the window cap's fresh hold-out, a six-car queue
         return _ctx_jobs("a6", (1.0, 2.0), (12.0,), name)
+    if name == "ho4_a7":  # 074 N3 round 4: the depth term's fresh hold-out, a seven-car queue
+        return _ctx_jobs("a7", (1.0, 1.5), (12.0,), name)
     if name == "pairs2":  # the pair table's missing points: v_B 10, 14, and d0 -6..44 m
         have = {(d0, vb) for d0 in PAIR_D0S for vb in (8.0, 12.0, 16.0)}
         return [{"set": name, "scene": "p", "d0": d0, "dv": 0.0, "vb": vb, "pa": pa, "pb": pb, "seed": s,
@@ -149,14 +157,81 @@ def slack(scene, x, v):
 
 
 def delay(scene, car, pr, x, memo=None):
-    """Car's delay, max-plus down the leader-follower chain of the scene's initial lanes."""
+    """Car's delay, max-plus down the leader-follower chain of the scene's initial lanes. With
+    DEPTH_TERM (round 4) a queue follower adds its own lag to what it passes on (depth_term)."""
     mine = [r for p, r in pr.items() if car in p]
     d = max(r[f"lost{car}"] * H for r in mine)
     lead = lead_of(scene, car)
     if lead is not None and any(lead in p and car in p for p in pr):
         v = next(r for p, r in pr.items() if car in p)[f"v0{car}"]
-        d = max(d, delay(scene, lead, pr, x) - slack(scene, x, v))
+        dl = delay(scene, lead, pr, x)
+        if DEPTH_TERM and scene != "b":
+            g, lam = depth_term(pr.get(lead + car), lead, car, x, v)
+            d = max(d, g * dl - slack(scene, x, v) + lam)
+        else:
+            d = max(d, dl - slack(scene, x, v))
     return d
+
+
+# --- the follower depth term (round 4) -----------------------------------------------------------
+# Round 3's six-car hold-out missed E and F by -0.028 / -0.040 at hf 1 s. The full runs show why
+# (every queue at hf 1 s, v_B 8-16, three to six cars): each follower ends 0.012-0.014 of the
+# window (0.25-0.28 s) further behind than its leader, whatever B does (also at dv -2, where B
+# brakes 0.08 m/s^2), and its own pair run with its leader alone shows the same increment
+# (0.013-0.014). At hf >= 1.5 s both are 0. A follower that starts at IDM's desired gap with no
+# slack brakes on its observer's noise (0.19 s late, the interaction term convex in the gap) and,
+# capped by its cruise at the start speed, never closes the gap again: a lag of its own, added to
+# its leader's, so delay is max-PLUS down a tight queue, where the composition took a max.
+# The other candidate, amplification: IDM's linear string-stability gain, max |G(jw)| of the
+# follower's gap-and-speed feedback with the arena's lags (observer 0.19 s + brake dead time
+# 0.08 s, brake time constant 0.06 s), is 1.000 at every headway 0.8-3 s and v 8-16 m/s for the
+# arena's car (a 3, b 2): string-stable, nothing to amplify. The term is
+#   d_k = max(own_k, g(h) d_{k-1} - slack_k + c lambda_k),  g = 1 + gamma max(0, G_max(h) - 1),
+# lambda_k = H max(0, lost_k - lost_{k-1}) in the pair (k-1, k), measured, not fitted.
+# gamma and c are fitted on fit2 only (fit_depth) and frozen here before ho4_a7 was run.
+DEPTH_TERM = False  # round 4 (after round 3's six-car hold-out)
+# Round 4 also: the per-slot residual (round 2) scales A's features only. It multiplied every
+# queue car's features by the slots A skips, a follower's too, while a follower has one slot of
+# its own: fitted on three-car runs (one slot at most), its follower class extrapolated to k = 5
+# put C..F of the six-car queue at dv -2, hf 1 s 0.021-0.029 too low once the depth term was in
+# (found on ho2_a5 / ho3_a6 before ho4_a7 was run).
+FOLLOWER_PER_SLOT = True
+DEPTH_GAIN = 0.0  # gamma (fit_depth on fit2: not identified, G_max = 1 at every headway; 0)
+DEPTH_LAG = 1.10  # c (fit_depth on fit2: SSE 0.0799 against 0.0846 without the term)
+LAG_TAU = 0.19 + 0.08  # s: the arena's observer delay and the Model 3's brake dead time
+LAG_TP = 0.06  # s: its brake time constant
+
+
+def string_gain(v, h, a=None, b=2.0, tau=LAG_TAU, tp=LAG_TP):
+    """IDM's linear string-stability gain, max over w of |X_f / X_l| (jw), at the equilibrium gap
+    S0 + v h, cutin_game.follow_accel's s* (comfortable braking b = 2, its sqrt(a 2)), the
+    command delayed by tau and lagged by tp. <= 1: a disturbance does not grow down the queue."""
+    import cmath
+    a = C1.TYPES["car"].a_max if a is None else a
+    s_e = C1.S0 + v * h
+    k = 2.0 * a / s_e
+    r = v / (2.0 * math.sqrt(a * b))
+    fs, fvl, fv = k, k * r, -k * (h + r)
+    best = 0.0
+    for i in range(1, 3000):
+        w = 0.003 * i
+        s = 1j * w
+        dl = cmath.exp(-s * tau) / (1.0 + s * tp)
+        best = max(best, abs(dl * (fs + fvl * s) / (s * s + dl * (fs - fv * s))))
+    return best
+
+
+_GAIN = {}
+
+
+def depth_term(pair, lead, car, x, v):
+    """(g, c lambda): the follower's gain on its leader's delay and its own lag (s)."""
+    key = (round(v, 1), x)
+    if key not in _GAIN:
+        _GAIN[key] = string_gain(max(v, 0.5), x)
+    g = 1.0 + DEPTH_GAIN * max(0.0, _GAIN[key] - 1.0)
+    lam = H * max(0.0, pair[f"lost{car}"] - pair[f"lost{lead}"]) if pair else 0.0
+    return g, DEPTH_LAG * lam
 
 
 def compose(scene, car, pr, x):
@@ -171,6 +246,16 @@ def compose(scene, car, pr, x):
     lost = 1.0 if contact else min(1.0, d / H)
     u = measures.utility(lost, rho, peak, C1.TYPES["car"].b_max, lat, contact)
     return u, {"lost": lost, "rho": rho, "peak": peak, "lat": lat, "contact": int(contact)}
+
+
+def compose_v1(scene, car, pr, x):
+    """v1 as N2 specified it: without the depth term in any round."""
+    global DEPTH_TERM
+    keep, DEPTH_TERM = DEPTH_TERM, False
+    try:
+        return compose(scene, car, pr, x)
+    finally:
+        DEPTH_TERM = keep
 
 
 def with_lost(parts, lost):
@@ -367,7 +452,7 @@ def features(scene, car, pr, x, pa, vb, sh):
     gap = C1.S0 + vb * x
     need = pa["buffer"] + v * pa["tau"] + C1.S0 + v * C1.HEADWAY + L_CAR
     f = (1.0, (gap - need) / (v * H), (ab["v0B"] - v) / max(v, 0.1))
-    if PER_SLOT_FEATURES and ab["a_pos"] != "ahead":
+    if PER_SLOT_FEATURES and ab["a_pos"] != "ahead" and (car == "A" or FOLLOWER_PER_SLOT):
         k = max(1, queue_walk(scene, ab, x, pa, vb)[2])
         f = tuple(k * fi for fi in f)
     return f
@@ -402,7 +487,7 @@ def cells(rows, table, theta=None):
         pr = {p: g[p] for p in pairs}
         pa = PA[a]
         for car in full:
-            u1, _ = compose(scene, car, pr, x)
+            u1, _ = compose_v1(scene, car, pr, x)
             u2, _ = compose_v2(scene, car, pr, x, pa, vb)
             u3, _, cls = compose_n3(scene, car, pr, x, pa, vb, table, a, seed)
             f = features(scene, car, pr, x, pa, vb, shift(scene, pr, x, vb))
@@ -486,12 +571,15 @@ def contexts_share(res):
 
 
 def set_round(r):
-    """Round 1's frozen model (9ed8d89), round 2's (all four changes on, d17fdc3), or round 3's:
-    round 2's with the window cap, on round 2's data plus the six-car hold-out."""
-    global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES, LEAD_BRAKE, WINDOW_CAP
+    """Round 1's frozen model (9ed8d89), round 2's (all four changes on, d17fdc3), round 3's:
+    round 2's with the window cap, on round 2's data plus the six-car hold-out, or round 4's:
+    round 3's with the follower depth term, plus the seven-car hold-out."""
+    global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES, LEAD_BRAKE, WINDOW_CAP, DEPTH_TERM, FOLLOWER_PER_SLOT
     SLOT_AT_DECISION = SHIFT_ONLY_CLOSING = PER_SLOT_FEATURES = LEAD_BRAKE = (r >= 2)
     WINDOW_CAP = r >= 3
-    return {1: ROUND1, 2: ROUND2, 3: ROUND3}[r]
+    DEPTH_TERM = r >= 4
+    FOLLOWER_PER_SLOT = r < 4
+    return {1: ROUND1, 2: ROUND2, 3: ROUND3, 4: ROUND4}[r]
 
 
 def analyze(out, rnd=2, pair_dirs=()):
@@ -523,7 +611,7 @@ def analyze(out, rnd=2, pair_dirs=()):
             w, n = share(res)
             wc, nc = contexts_share(res)
             line = f"  {label:18s} {w:4d}/{n:<4d} ({100 * w / max(n, 1):3.0f} %)  contexts {wc:3d}/{nc:<3d} ({100 * wc / max(nc, 1):3.0f} %) |"
-            for scene in ("a", "a4", "a5", "a6", "b"):
+            for scene in ("a", "a4", "a5", "a6", "a7", "b"):
                 for car in GROUPS[scene][0]:
                     ww, nn = share(res, lambda r: r["key"][1] == scene and r["key"][7] == car)
                     if nn:
@@ -616,6 +704,34 @@ def diagnose(out):
     print(txt)
 
 
+def fit_depth(out, pair_dirs=()):
+    """Round 4: gamma and c of the depth term by grid search on fit2's queue followers only (the
+    sum of squared per-cell mean residuals of n3 shift, before the class residual is refitted)."""
+    global DEPTH_GAIN, DEPTH_LAG
+    set_round(4)
+    rows = load(out, (ROUND2_FIT,))
+    table = PairTable(load(out, ("pairs", "pairs2")) + [r for d in pair_dirs for r in load(d, ("pairs", "pairs2"))])
+    fits = []
+    for gam in (0.0, 0.5, 1.0, 2.0):
+        for c in [0.05 * i for i in range(0, 41)]:
+            DEPTH_GAIN, DEPTH_LAG = gam, c
+            cs = cells(rows, table)
+            sse = sum(st.mean(z["u"] - z["n3c"] for z in xs) ** 2 for k, xs in cs.items()
+                      if k[1] != "b" and k[7] not in "AB")
+            fits.append((sse, gam, c))
+    fits.sort()
+    L = [f"depth term on '{ROUND2_FIT}' (followers' SSE of the mean residual; best first):"]
+    L += [f"  gamma {g:.2f}  c {c:.2f}  SSE {e:.6f}" for e, g, c in fits[:8]]
+    g0 = [f for f in fits if f[1] == 0.0 and abs(f[2]) < 1e-9][0]
+    L.append(f"  without the term (c 0): SSE {g0[0]:.6f}")
+    L.append("string gain G_max(h) at v 12: " + ", ".join(f"h {h}: {string_gain(12.0, h):.4f}" for h in (0.8, 1.0, 1.5, 2.0, 3.0)))
+    txt = "\n".join(L)
+    open(os.path.join(out, "n3_fit_depth.txt"), "w").write(txt + "\n")
+    print(txt)
+    set_round(2)
+    DEPTH_GAIN, DEPTH_LAG = 0.0, 1.10
+
+
 def selftest():
     # the queue walk: one slot too short at hf 1 s (gap 14 m), a fitting one at hf 3 s (38 m)
     pa = PA["A_aw_perm"]
@@ -666,18 +782,30 @@ def selftest():
     u2 = compose_v2("a5", "A", pr5, 2.0, pa, 12.0)[0]
     assert uc > u2 + 0.05 and cap_u("a5", "B", pr5, 2.0, pa, 12.0) is None, (uc, u2)
     WINDOW_CAP = False
+    # the depth term: the arena's IDM follower is string-stable at hf 1 s; a tight queue adds the
+    # follower's own lag (its pair's increment) to the leader's delay, a slack queue does not
+    assert abs(string_gain(12.0, 1.0) - 1.0) < 1e-3 and string_gain(12.0, 1.0, tau=0.6) > 1.5
+    global DEPTH_TERM
+    q = {"BC": mk(rho_BC=0.0, lostB=0.005, lostC=0.019), "AB": mk(rho_AB=0.0, lostB=0.02, lostC=0.0, a_pos="ahead"),
+         "AC": mk(rho_AC=0.0, lostC=0.0)}
+    assert abs(delay("a", "C", q, 1.0) - 0.4) < 1e-9  # max(own 0.019 H, 0.02 H - 0): the max
+    DEPTH_TERM = True
+    assert abs(delay("a", "C", q, 1.0) - (0.4 + DEPTH_LAG * 0.28)) < 1e-9  # 0.02 H + c (0.019 - 0.005) H: the plus
+    assert abs(delay("a", "C", q, 2.0) - 0.38) < 1e-9  # slack 1 s: own 0.019 H, unchanged
+    DEPTH_TERM = False
+    assert len(GROUPS["a7"][1]) == 21 and QUEUE["a7"] == "BCDEFG" and len(jobs("ho4_a7")) == 12 * 2 * 2 * 8 * 22
     print("n3_model selftest ok")
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("mode", nargs="?", choices=("run", "analyze", "d2", "diagnose"))
+    ap.add_argument("mode", nargs="?", choices=("run", "analyze", "d2", "diagnose", "fit-depth"))
     ap.add_argument("--set", default="fit")
     ap.add_argument("--ports", default="2600,2610,2620")
     ap.add_argument("--port", type=int, default=2600)
     ap.add_argument("--out")
     ap.add_argument("--k", type=int, default=6)
-    ap.add_argument("--round", type=int, default=2, choices=(1, 2, 3), help="analyze: round 1's frozen model, round 2's, or round 2's with the window cap")
+    ap.add_argument("--round", type=int, default=2, choices=(1, 2, 3, 4), help="analyze: round 1's frozen model, round 2's, round 2's with the window cap, or round 3's with the depth term")
     ap.add_argument("--pairs-from", default="", help="analyze: more directories holding pair-table files")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
@@ -694,6 +822,8 @@ def main():
         d2(a.port, a.out)
     elif a.mode == "diagnose":
         diagnose(a.out)
+    elif a.mode == "fit-depth":
+        fit_depth(a.out, [d for d in a.pairs_from.split(",") if d])
     else:
         analyze(a.out, a.round, [d for d in a.pairs_from.split(",") if d])
 

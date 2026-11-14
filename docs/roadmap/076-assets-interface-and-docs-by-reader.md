@@ -183,14 +183,36 @@ Each pilot declares `lifetime: stack|run` (the cooperation study needed a fresh 
 run), its `ready` check, and its inputs (`sensors`, `map`, `ground_truth`), recorded in the
 result so different autopilots stay comparable.
 
-### A6. Seats: host settings in one number
+### A6. Seats: host settings in one number, kept in a config file
 
-`SWB_SEAT=<n>` (a host setting, never in the project) derives the scenario domain, one
-domain per pilot, SSv2's port and its +1/+2, the relay's, the world server's, the web port,
-the GPU (`SWB_GPU`) and the log root, from one table. A lock per seat names its holder;
-`seat:=auto` takes the first free one. `ros2 run swb_launch seat show` prints a seat's
-numbers and who holds it. Two projects, two students or two checkouts on one host each take
-a seat; nothing else moves by hand.
+A **seat** is one stack's share of a host: the scenario domain, one domain per pilot, SSv2's
+port and its +1/+2, the relay's, the world server's, the web port, the GPU and the log root,
+all derived from one number by one table. A lock per seat names its holder; `seat: auto`
+takes the first free one.
+
+The seat and the other host settings live in **config files, not environment exports**
+(user, 2026-11-14: "I prefer to turn it to a config instead of env exports. Users may forget
+to export env in new terminals"). Every swb command reads them, so a new terminal needs
+nothing exported:
+
+| File | Scope | Holds |
+|---|---|---|
+| `~/.config/swb/host.yaml` | this user on this host | `seat`, `gpu`, CARLA's install and address, Isaac's root, Autoware's setup, the TensorRT runtime, the log root |
+| `<project>/.swb/local.yaml` (git-ignored) | this checkout on this host | overrides, e.g. a second checkout's own seat |
+| launch arguments | one stack or run | `seat:=`, `gpu:=`, ... |
+
+Precedence: argument, then the checkout's file, then the user's file, then the defaults.
+`ros2 run swb_launch seat take <n>|auto` writes the user's file and takes the lock;
+`seat show` lists every seat on the host and its holder; `seat release` frees it. The locks
+live in a host-wide directory every user can write (`/tmp/swb-seats/`).
+
+ROS's own tools still read `ROS_DOMAIN_ID` from the environment. For them:
+`ros2 run swb_launch seat env <pilot|scenario>` prints the three exports (domain, RMW, DDS
+profile) for one group, for `eval` in a terminal that wants to look in; the docs show it once,
+on the domains page.
+
+The environment file shrinks to what only the shell can do: sourcing ROS, Autoware and the
+workspace.
 
 ### A7. Assets: read-only cache, lock, project state
 

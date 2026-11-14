@@ -254,25 +254,26 @@ def pred_kappa(T, p0, q0, c_b, lam):
 
 # parameter vectors: (name, transform to the model's value, inverse, bounds in the model's units)
 def _lam(x):
-    return math.exp(x)
+    return math.exp(min(20.0, max(-20.0, x)))
 
 
 MODELS = {
-    "nash": (pred_nash, [("lambda", _lam, math.log, (0.5, 2000.0))]),
+    "nash": (pred_nash, [("lambda", _lam, math.log, (0.5, 1e5))]),
     "svo": (pred_svo, [("phi_A", float, float, (-60.0, 90.0)), ("phi_B", float, float, (-60.0, 90.0)),
-                       ("lambda", _lam, math.log, (0.5, 2000.0))]),
-    "potential": (pred_potential, [("alpha", float, float, (-90.0, 180.0)), ("lambda", _lam, math.log, (0.5, 2000.0))]),
-    "levelk": (pred_levelk, [("tau", _lam, math.log, (0.05, 20.0)), ("lambda", _lam, math.log, (0.5, 2000.0))]),
+                       ("lambda", _lam, math.log, (0.5, 1e5))]),
+    "potential": (pred_potential, [("alpha", float, float, (-90.0, 180.0)), ("lambda", _lam, math.log, (0.5, 1e5))]),
+    "levelk": (pred_levelk, [("tau", _lam, math.log, (0.05, 20.0)), ("lambda", _lam, math.log, (0.5, 1e5))]),
     "kappa": (pred_kappa, [("p0", lambda x: float(_sig(x)), lambda p: math.log(p / (1 - p)), (0.001, 0.999)),
                            ("q0", lambda x: float(_sig(x)), lambda p: math.log(p / (1 - p)), (0.001, 0.999)),
-                           ("c_B", float, float, (-1.0, 1.0)), ("lambda", _lam, math.log, (0.5, 2000.0))]),
+                           ("c_B", float, float, (-1.0, 1.0)), ("lambda", _lam, math.log, (0.5, 1e5))]),
 }
 STARTS = {
-    "nash": [[20.0], [200.0]],
-    "svo": [[0.0, 0.0, 20.0], [0.0, 30.0, 50.0], [20.0, 0.0, 200.0], [-20.0, 45.0, 100.0]],
-    "potential": [[45.0, 20.0], [0.0, 100.0], [90.0, 50.0]],
-    "levelk": [[1.5, 20.0], [0.5, 100.0], [4.0, 200.0]],
-    "kappa": [[0.5, 0.5, 0.0, 20.0], [0.2, 0.8, 0.0, 100.0], [0.8, 0.5, 0.05, 50.0]],
+    "nash": [[20.0], [200.0], [3000.0]],
+    "svo": [[0.0, 0.0, 20.0], [0.0, 30.0, 50.0], [20.0, 0.0, 200.0], [-20.0, 45.0, 100.0], [0.0, 0.0, 2000.0],
+            [10.0, 10.0, 5000.0]],
+    "potential": [[45.0, 20.0], [0.0, 100.0], [90.0, 50.0], [10.0, 2000.0]],
+    "levelk": [[1.5, 20.0], [0.5, 100.0], [4.0, 200.0], [8.0, 2000.0]],
+    "kappa": [[0.5, 0.5, 0.0, 20.0], [0.2, 0.8, 0.0, 100.0], [0.8, 0.5, 0.05, 50.0], [0.95, 0.05, 0.0, 500.0]],
 }
 
 
@@ -344,6 +345,52 @@ def profile(model, T, Y, theta_hat, v_hat, i, grid):
         out.append((g, min(v, v_hat + 1e9) - v_hat))
     inside = [g for g, d in out if d <= LR95]
     return out, (min(inside), max(inside)) if inside else (None, None)
+
+
+def profile_ci(model, T, Y, theta_hat, v_hat, i, n_bisect=6):
+    """The LR 95 % interval of parameter i: from the estimate, step outward on each side (lambda and
+    the other log-scaled parameters by factors of 2, the rest by growing steps) until the profile
+    rises by LR95 or the bound is reached, then bisect. Returns (lo, hi); a bound means unbounded there."""
+    name, fwd, inv, (lo_b, hi_b) = MODELS[model][1][i]
+    logs = fwd is _lam
+    x0 = inv(theta_hat[i]) if logs else theta_hat[i]
+    lo_x, hi_x = (inv(lo_b), inv(hi_b)) if logs else (lo_b, hi_b)
+    if name in ("p0", "q0"):
+        x0, lo_x, hi_x = theta_hat[i], lo_b, hi_b
+    step0 = 0.35 if logs else max(0.02 * (hi_x - lo_x), 1e-3)
+
+    def dv(x):
+        g = math.exp(x) if logs else x
+        st_ = [g if k == i else theta_hat[k] for k in range(len(theta_hat))]
+        return fit(model, T, Y, fixed={i: g}, starts=[st_])[1] - v_hat
+
+    ends = []
+    for sgn, bound in ((-1, lo_x), (1, hi_x)):
+        inside, step, x = x0, step0, x0
+        out = None
+        while True:
+            x = x0 + sgn * step
+            if (x - bound) * sgn >= 0:
+                if dv(bound) <= LR95:
+                    out = None
+                    inside = bound
+                else:
+                    out = bound
+                break
+            if dv(x) > LR95:
+                out = x
+                break
+            inside = x
+            step *= 2
+        if out is not None:
+            for _ in range(n_bisect):
+                mid = (inside + out) / 2
+                if dv(mid) > LR95:
+                    out = mid
+                else:
+                    inside = mid
+        ends.append(math.exp(inside) if logs else inside)
+    return tuple(ends)
 
 
 def pay_pred(model, T, theta):
@@ -514,13 +561,8 @@ def analyse_play(T, rows, label, L, res, boot=True):
         th, v = fit(m, T, Y)
         spec = MODELS[m][1]
         sets = []
-        for i, (name, _, _, (lo, hi)) in enumerate(spec):
-            if name == "lambda":
-                grid = list(np.geomspace(lo, hi, 10))
-            else:
-                grid = list(np.linspace(lo, hi, 11))
-            _, s = profile(m, T, Y, th, v, i, sorted(set(grid + [th[i]])))
-            sets.append(s)
+        for i in range(len(spec)):
+            sets.append(profile_ci(m, T, Y, th, v, i))
         bs = bootstrap(m, T, rows, B=20, start=th) if boot else [(None, None)] * len(th)
         rmse, logl = heldout(m, T, rows, start=th)
         out[m] = {"theta": th, "nll": v, "aic": 2 * len(th) + 2 * v, "lr95": sets, "boot95": bs,
@@ -588,8 +630,8 @@ def run_fit(a):
         rows = sample_play("svo", T, planted, 4, seed=100 + k)
         Y = obs_counts(T, rows)
         th, v = fit("svo", T, Y)
-        sets = [profile("svo", T, Y, th, v, i, sorted(set(list(np.linspace(-60, 90, 16)) + [th[i]])))[1] for i in (0, 1)]
-        lam_set = profile("svo", T, Y, th, v, 2, sorted(set(list(np.geomspace(0.5, 2000, 13)) + [th[2]])))[1]
+        sets = [profile_ci("svo", T, Y, th, v, i) for i in (0, 1)]
+        lam_set = profile_ci("svo", T, Y, th, v, 2)
         rec.append({"planted": planted, "fitted": th, "phi_A": sets[0], "phi_B": sets[1], "lambda": lam_set})
         L.append(f"| {planted} | {fmt('svo', th)} | {sets[0]} | {sets[1]} | {lam_set} |")
         print("recovery", planted, th, sets, flush=True)
@@ -613,7 +655,7 @@ def run_fit(a):
         best_k = min(grid2, key=grid2.get)
         Y1 = obs_counts(KT[1.0], rows)
         th1, v1 = fit("svo", KT[1.0], Y1)
-        s1 = profile("svo", KT[1.0], Y1, th1, v1, 1, sorted(set(list(np.linspace(-60, 90, 16)) + [th1[1]])))[1]
+        s1 = profile_ci("svo", KT[1.0], Y1, th1, v1, 1)
         conf.append({"true": (true_r, true_phi), "best": best_k, "joint95": inside,
                      "fit_assuming_1s": th1, "phi_B_95_assuming_1s": s1})
         L.append(f"- true B reaction {true_r} s, phi_B {true_phi}: joint best {best_k}; joint 95 % set "
@@ -721,6 +763,8 @@ def selftest():
     th, v = fit("svo", T4, Y)
     _, s = profile("svo", T4, Y, th, v, 1, sorted(set(list(np.arange(31.0, 61.0, 2.0)) + [th[1]])))
     assert s[0] <= 45.0 <= s[1] and abs(th[1] - 45.0) < 20, (th, s)
+    ci = profile_ci("svo", T4, Y, th, v, 1)
+    assert ci[0] <= 45.0 <= ci[1] and ci[1] - ci[0] < 30, ci
     # outcome labels
     assert outcome({"contact": 1}) == "contact"
     assert outcome({"got_in": 1, "ahead": 1, "peakB": 0.8}) == "ahead_y"

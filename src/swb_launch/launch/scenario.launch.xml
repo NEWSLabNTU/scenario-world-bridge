@@ -62,6 +62,10 @@
        with no agent behind the relay (roadmap 037, Isaac before its vehicle bridge); its
        scenario must not use ego autonomy actions (RoutingAction and the like). -->
   <arg name="managed_ego" default="true" description="Whether the concealer drives the ego's Autoware through the agent relay" />
+  <!-- A run's parameter values (roadmap 076, `ros2 run swb run`): JSON {"name": value, ...};
+       SSv2's preprocessor writes each into the scenario's ParameterDeclarations (a name the
+       scenario does not declare is warned about and ignored). Empty: the scenario's own. -->
+  <arg name="override_parameters" default="" description="JSON {name: value} for the scenario's ParameterDeclarations; empty: none" />
   <arg name="clock_source" default="simulator"
        description="SSv2's ROS time: simulator (CARLA time, phase 015), follows_simulation_time (014) or frames (stock); see below" />
 
@@ -155,6 +159,7 @@
     <arg name="global_timeout" value="$(var global_timeout)" />
     <arg name="output_directory" value="$(var output_directory)" />
     <arg name="initialize_duration" value="$(var initialize_duration)" />
+    <arg name="override_parameters" value="$(var override_parameters)" />
   </include>
   </group>
 </launch>

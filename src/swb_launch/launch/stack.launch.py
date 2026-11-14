@@ -55,10 +55,12 @@ Time is synchronous with a scenario: SSv2 steps the world frame by frame through
 (CARLA in synchronous mode, Isaac's world server stepped), at global_real_time_factor
 (scenario_args), as fast as the stack keeps up.
 
-Host settings are the environment's, as for `just`: EGO_ROS_DOMAIN_ID (1),
-SCENARIO_ROS_DOMAIN_ID (9), SSV2_PORT (5555), AGENT_PORT (5560), ISAAC_PORT (5590),
-WORLD_PORT (5591), CARLA_HOST, CARLA_PORT, SWB_LOG_ROOT (the nested launches' logs, default
-./play_log), CYCLONEDDS_URI (default swb_launch's localhost profile), RMW_IMPLEMENTATION.
+Host settings are arguments (swb.launch.xml fills them from the project's seat), else the
+environment's, as for `just`: ego_domain (EGO_ROS_DOMAIN_ID, 1), scenario_domain
+(SCENARIO_ROS_DOMAIN_ID, 9), ssv2_port (SSV2_PORT, 5555), agent_port (AGENT_PORT, 5560),
+world_port (ISAAC_PORT 5590 / WORLD_PORT 5591), carla_host and carla_port (CARLA_HOST,
+CARLA_PORT), log_dir (SWB_LOG_ROOT, the nested launches' logs, default ./play_log);
+CYCLONEDDS_URI (default swb_launch's localhost profile), RMW_IMPLEMENTATION.
 """
 import os
 import shlex
@@ -131,13 +133,14 @@ def include(path, args):
     return IncludeLaunchDescription(AnyLaunchDescriptionSource(path), launch_arguments=args.items())
 
 
-def nested(name, target, args, domain, log_dir, respawn=False, extra=(), required=False):
+def nested(name, target, args, domain, log_dir, respawn=False, extra=(), required=False,
+           env=None):
     """A launch as its own play_launch process: its own lifetime, its own log directory."""
     cmd = ["play_launch", "launch", "--disable-web-ui", "--log-dir", log_dir, *extra, *target]
     cmd += [f"{k}:={v}" for k, v in args.items()]
     return ExecuteProcess(cmd=cmd, name=name, output="screen", respawn=respawn,
                           respawn_delay=5.0 if respawn else 0.0,
-                          additional_env={"ROS_DOMAIN_ID": domain},
+                          additional_env={**(env or {}), "ROS_DOMAIN_ID": str(domain)},
                           on_exit=Shutdown() if required else None)
 
 
@@ -284,6 +287,9 @@ def _stack(context):
     scenario_domain = get("scenario_domain")
     check_domains(ego_domain, scenario_domain)
     ssv2_port, agent_port = get("ssv2_port"), get("agent_port")
+    world_port = get("world_port")
+    carla_host, carla_port = get("carla_host"), get("carla_port")
+    nest_side = get("nest_side") == "true"
     log_root = os.path.abspath(get("log_dir"))
     sim_args = named_args(get("sim_args"), "sim_args")
     swb = get_package_share_directory("swb_launch")
@@ -293,18 +299,19 @@ def _stack(context):
     if sim == "isaac":
         world = os.path.join(get_package_share_directory("swb_isaac_world"), "launch",
                              "swb_isaac_world.launch.xml")
-        endpoint = endpoint or f"tcp://127.0.0.1:{_env('ISAAC_PORT', '5590')}"
-        sim_env = [SetEnvironmentVariable("EGO_ROS_DOMAIN_ID", ego_domain)]
+        port = world_port or _env("ISAAC_PORT", "5590")
+        endpoint = endpoint or f"tcp://127.0.0.1:{port}"
+        # swb_isaac_world.launch.xml reads both from the environment
+        sim_env = {"EGO_ROS_DOMAIN_ID": ego_domain, "ISAAC_PORT": port}
         timeouts = {}
     elif sim == "carla":
         world = os.path.join(get_package_share_directory("swb_carla_world"), "launch",
                              "swb_carla_world.launch.xml")
-        port = _env("WORLD_PORT", "5591")
+        port = world_port or _env("WORLD_PORT", "5591")
         endpoint = endpoint or f"tcp://127.0.0.1:{port}"
         sim_args = {"port": port, "ssv2_port": ssv2_port,
-                    "carla_host": _env("CARLA_HOST", ""), "carla_port": _env("CARLA_PORT", ""),
-                    **sim_args}
-        sim_env = []
+                    "carla_host": carla_host, "carla_port": carla_port, **sim_args}
+        sim_env = {}
         # above CARLA's own watchdogs (carla_simulation.launch.xml)
         timeouts = {"world_request_timeout_seconds": "90", "world_load_timeout_seconds": "300"}
     else:
@@ -315,17 +322,30 @@ def _stack(context):
         if not endpoint:
             raise RuntimeError(f"stack: sim {sim!r}: world_endpoint:= the world server's "
                                "tcp://host:port")
-        sim_env, timeouts = [], {}
-    actions = [GroupAction(scoped=True, actions=[
-        SetEnvironmentVariable("ROS_DOMAIN_ID", ego_domain), *sim_env, include(world, sim_args)])]
+        sim_env, timeouts = {}, {}
+    if nest_side:
+        # the world server as its own play_launch, logging under log_dir/simulator (the stack
+        # of swb.launch.xml: its runs cut slices from there)
+        actions = [nested("simulator", [world], {k: v for k, v in sim_args.items() if v != ""},
+                          ego_domain, os.path.join(log_root, "simulator"), respawn=True,
+                          env=sim_env)]
+    else:
+        actions = [GroupAction(scoped=True, actions=[
+            SetEnvironmentVariable("ROS_DOMAIN_ID", ego_domain),
+            *[SetEnvironmentVariable(k, v) for k, v in sim_env.items()],
+            include(world, sim_args)])]
 
     # --- simulation side
     side = {"world_endpoint": endpoint, "ssv2_port": ssv2_port, "agent_port": agent_port,
             "vehicle_catalogs": get("vehicle_catalogs"), **timeouts,
             **named_args(get("side_args"), "side_args")}
-    actions.append(GroupAction(scoped=True, actions=[
-        SetEnvironmentVariable("ROS_DOMAIN_ID", scenario_domain),
-        include(os.path.join(swb, "launch", "simulation.launch.xml"), side)]))
+    side_launch = os.path.join(swb, "launch", "simulation.launch.xml")
+    if nest_side:
+        actions.append(nested("bridge", [side_launch], {k: v for k, v in side.items() if v != ""},
+                              scenario_domain, os.path.join(log_root, "bridge"), respawn=True))
+    else:
+        actions.append(GroupAction(scoped=True, actions=[
+            SetEnvironmentVariable("ROS_DOMAIN_ID", scenario_domain), include(side_launch, side)]))
 
     # --- ego (the old path; the pilots below succeed it)
     ego_launch = get("ego_launch")
@@ -347,7 +367,7 @@ def _stack(context):
                 context.launch_configurations["vehicle_model"] = "tesla_model3"
             if sim == "carla":
                 # the CARLA world server's sensor-release sockets follow the SSv2 port (+1, +2)
-                preset.update(carla_host=_env("CARLA_HOST", ""), carla_port=_env("CARLA_PORT", ""),
+                preset.update(carla_host=carla_host, carla_port=carla_port,
                               vehicle_model=get("vehicle_model"),
                               release_notify_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 1}",
                               release_ack_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 2}")
@@ -384,7 +404,7 @@ def _stack(context):
         if sim == "carla":
             # as the old ego: the world server's release sockets (SSv2 port + 1, + 2), and the
             # spec's physics read back when the world server applies it (roadmap 074 C3)
-            common.update(carla_host=_env("CARLA_HOST", ""), carla_port=_env("CARLA_PORT", ""),
+            common.update(carla_host=carla_host, carla_port=carla_port,
                           release_notify_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 1}",
                           release_ack_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 2}")
             physics = sim_args.get("vehicle_physics", "none")
@@ -460,7 +480,11 @@ def generate_launch_description():
         arg("scenario_domain", default_value=_env("SCENARIO_ROS_DOMAIN_ID", "9"), description="ROS domain of the bridge, relay and SSv2 (0-57, not ego_domain); default SCENARIO_ROS_DOMAIN_ID, else 9"),
         arg("ssv2_port", default_value=_env("SSV2_PORT", "5555"), description="SSv2's ZMQ port on the bridge; default SSV2_PORT, else 5555"),
         arg("agent_port", default_value=_env("AGENT_PORT", "5560"), description="the agent relay's TCP port; default AGENT_PORT, else 5560"),
-        arg("log_dir", default_value=_env("SWB_LOG_ROOT", "play_log"), description="where the nested launches (ego, agent, scenario) log"),
+        arg("world_port", default_value="", description="the world server's port; empty: WORLD_PORT (CARLA, else 5591) or ISAAC_PORT (Isaac, else 5590)"),
+        arg("carla_host", default_value=_env("CARLA_HOST", ""), description="CARLA's RPC host; default CARLA_HOST, else the world server's own default"),
+        arg("carla_port", default_value=_env("CARLA_PORT", ""), description="CARLA's RPC port; default CARLA_PORT, else the world server's own default"),
+        arg("nest_side", default_value="false", description="true: the world server and the simulation side (bridge, relay) as nested play_launches logging under log_dir/simulator and log_dir/bridge (swb.launch.xml's stack)"),
+        arg("log_dir", default_value=_env("SWB_LOG_ROOT", "play_log"), description="where the nested launches (ego, agent, scenario, pilots; with nest_side the world server and the bridge) log"),
         SetEnvironmentVariable("CYCLONEDDS_URI", dds),
         SetEnvironmentVariable("RMW_IMPLEMENTATION", _env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")),
         OpaqueFunction(function=_stack),

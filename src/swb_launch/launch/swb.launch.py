@@ -1,0 +1,99 @@
+"""The stack of a project (roadmap 076, docs/design/projects-and-pilots.md "The stack"):
+stack.launch.py with the project's settings applied.
+
+    cd my_project
+    play_launch launch --web-addr 127.0.0.1:<seat web port> --log-dir <dir> \\
+        swb_launch swb.launch.xml [project:=<dir>|pkg://<package>] [seat:=<n>|auto] \\
+        [simulator:=carla|isaac] [map:=<map>] [logs:=<dir>] [gpu:=<n>] \\
+        [stack_args:="name:=value ..."]
+
+The logic is swb.stack (importable, tested): it finds the project (project:=, else the
+working directory or the nearest parent with swb.yaml), reads the host settings, picks the
+seat (refusing one another stack holds), runs `project check` (refusing on any problem),
+binds the project's pilots to the entities its scenarios drive from outside, each in a pilot
+domain of the seat, and sets SWB_MAPS, SWB_CARLA_USD and the DDS profile for every process.
+
+What it starts: a keeper (`python3 -m swb.stack keep`, required) that holds the seat's lock
+while the stack is up, writes <logs>/<project>/stacks/<id>/stack.json and links
+<logs>/<project>/seat-<n>-current to it, and marks it ready once every stack pilot is; and
+stack.launch.py with the seat's domains and ports, the world server and the bridge nested
+(nest_side:=true) so that every stack process logs under stacks/<id>/proc/<group>/, where a
+run cuts its slices.
+
+play_launch binds its web UI and opens its log directory before this file is read, so those
+two are the command line's: give --web-addr the seat's web port (`ros2 run swb seat show`;
+this launch and the keeper print it) and --log-dir somewhere outside the project if you mind
+play_log/ there.
+
+CARLA itself is external here (started apart, as before; `simulator_start` is a later key);
+Isaac's world server is part of the stack. stack_args go to stack.launch.py last and win
+(side_args, sim_args, ...).
+"""
+import os
+import shlex
+import sys
+
+from launch import LaunchDescription
+from launch.actions import (DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription,
+                            OpaqueFunction, SetEnvironmentVariable, Shutdown)
+from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
+
+ARGS = {
+    "project": ("", "the project: a directory or pkg://<package>; empty: the working directory's"),
+    "seat": ("", "a seat number or auto; empty: the host settings' seat:"),
+    "simulator": ("", "carla or isaac; empty: the project's simulator:"),
+    "map": ("", "the map the stack's pilots load; empty: the first the project's scenarios name"),
+    "logs": ("", "the log root; empty: the host settings' logs:"),
+    "gpu": ("", "the GPU index; empty: the seat's"),
+    "stack_args": ("", "name:=value ... for stack.launch.py, after swb's own (they win)"),
+}
+
+
+def _stack_module():
+    try:
+        from swb import stack
+    except ImportError:  # a source tree without the swb package installed
+        here = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, os.path.join(here, "..", "..", "swb"))
+        from swb import stack
+    return stack
+
+
+def named_args(text):
+    out = {}
+    for tok in shlex.split(text or ""):
+        name, sep, value = tok.partition(":=")
+        if not sep or not name:
+            raise RuntimeError(f"swb: stack_args: '{tok}' is not name:=value")
+        out[name] = value
+    return out
+
+
+def _swb(context):
+    get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
+    stack = _stack_module()
+    try:
+        plan = stack.plan(project_arg=get("project") or None, seat_arg=get("seat") or None,
+                          simulator=get("simulator") or None, map_name=get("map") or None,
+                          logs=get("logs") or None, gpu=get("gpu") or None,
+                          stack_args=named_args(get("stack_args")))
+    except stack.StackRefused as e:
+        raise RuntimeError(f"swb: the stack is refused (3): {e}") from None
+    stack.write_plan(plan)
+    here = os.path.dirname(os.path.abspath(__file__))
+    print(f"swb: project {plan.project} on seat {plan.seat.index} ({plan.simulator}, map "
+          f"{plan.map}); stack {plan.stack_dir}; web UI port {plan.seat.web_port}", flush=True)
+    actions = [SetEnvironmentVariable(k, v) for k, v in plan.env.items()]
+    actions.append(ExecuteProcess(cmd=["python3", "-m", "swb.stack", "keep", str(plan.stack_dir)],
+                                  name="stack_keeper", output="screen", on_exit=Shutdown()))
+    actions.append(IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(os.path.join(here, "stack.launch.py")),
+        launch_arguments=list(plan.launch_args.items())))
+    return actions
+
+
+def generate_launch_description():
+    return LaunchDescription(
+        [DeclareLaunchArgument(k, default_value=d, description=t) for k, (d, t) in ARGS.items()]
+        + [OpaqueFunction(function=_swb)])

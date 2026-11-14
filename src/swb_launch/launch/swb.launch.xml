@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A project's stack (roadmap 076): swb.launch.py, which applies the project's settings to
+  stack.launch.py. Run it in the project's directory:
+
+    play_launch launch swb_launch swb.launch.xml [project:=<dir>|pkg://<package>] \
+        [seat:=<n>|auto] [simulator:=carla|isaac] [map:=<map>] [logs:=<dir>] [gpu:=<n>] \
+        [stack_args:='name:=value ...']
+
+  play_launch's web UI and log directory are its own options (web-addr and log-dir, each
+  with a double-hyphen prefix, which an XML comment cannot contain): give web-addr the
+  seat's web port, which `ros2 run swb seat show` lists. Runs go against the stack with
+  `ros2 run swb run <scenario|suite>`.
+-->
+<launch>
+  <arg name="project" default="" description="the project: a directory or pkg://&lt;package&gt;; empty: the working directory's"/>
+  <arg name="seat" default="" description="a seat number or auto; empty: the host settings' seat:"/>
+  <arg name="simulator" default="" description="carla or isaac; empty: the project's simulator:"/>
+  <arg name="map" default="" description="the map the stack's pilots load; empty: the first the project's scenarios name"/>
+  <arg name="logs" default="" description="the log root; empty: the host settings' logs:"/>
+  <arg name="gpu" default="" description="the GPU index; empty: the seat's"/>
+  <arg name="stack_args" default="" description="name:=value ... for stack.launch.py, after swb's own (they win)"/>
+
+  <include file="$(find-pkg-share swb_launch)/launch/swb.launch.py">
+    <arg name="project" value="$(var project)"/>
+    <arg name="seat" value="$(var seat)"/>
+    <arg name="simulator" value="$(var simulator)"/>
+    <arg name="map" value="$(var map)"/>
+    <arg name="logs" value="$(var logs)"/>
+    <arg name="gpu" value="$(var gpu)"/>
+    <arg name="stack_args" value="$(var stack_args)"/>
+  </include>
+</launch>

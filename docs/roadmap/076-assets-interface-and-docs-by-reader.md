@@ -441,6 +441,34 @@ sharing a project.
     end restarts it with Autoware. Accepted: it registers again in seconds.
   - `autoware_launch` swaps the profile's Autoware launch; replacing the whole driver is the
     `launch` kind.
+- Step 6 (the stack entry and the runner), first part: `swb_launch swb.launch.xml` (a thin
+  wrapper of `swb.launch.py`, its logic in `swb.stack`), `ros2 run swb run`, `swb.api.run_one`;
+  tests without a simulator (a real keeper process, a stub SSv2 writing a JUnit). Not yet:
+  lazy pilots and their restart on a map change, `end_with:=run`, `simulator_start` (CARLA
+  is external), rosbag capture. Decisions:
+  - **The keeper holds the seat.** play_launch may parse a launch file in a process that does
+    not live as long as the stack, so the launch refuses a taken seat at parse and a required
+    `python3 -m swb.stack keep` process takes the flock, writes its pid into `stack.json`,
+    links `seat-<n>-current`, watches stack pilots' readiness and marks the stack
+    `stopped` when it ends. A run trusts a `stack.json` only while its keeper holds the seat.
+  - **Every stack process logs under `proc/`.** `stack.launch.py nest_side:=true` runs the
+    world server and the simulation side as nested play_launches (`proc/simulator/`,
+    `proc/bridge/`, bridge and relay together), as the pilots already were
+    (`proc/pilot-<entity>/`). The web UI and log directory of the user's own play_launch are
+    its command line's (`--web-addr` the seat's web port, printed at start).
+  - **Seat numbers are arguments.** `stack.launch.py` gained `world_port`, `carla_host`,
+    `carla_port`; swb.launch.py passes every domain and port, never the environment.
+  - **One map per stack.** The stack's pilots load the first map the project's scenarios name
+    (`map:=` picks another); a run on another map is refused, naming the `map:=` to restart with.
+  - **Parameters reach SSv2 as `override_parameters`** (its preprocessor writes them into the
+    scenario's ParameterDeclarations; `scenario.launch.xml` passes it on). A
+    `distribution:` file goes to SSv2 as it is, one run per repetition; this SSv2's
+    preprocessor does not expand ParameterValueDistribution yet (a TODO upstream).
+  - **Run ids** `<time>_<scenario>[_<name>-<value>...]_r<k>`, k from 0, seed `seed + k`.
+    A suite's runs are linked by their id without the time from
+    `<logs>/<project>/suites/<suite>[_shard-i-of-n]/`, which holds `summary.csv` and the merged
+    JUnit; `--resume` skips the links with a result. `--shard i/n` is 1-based.
+  - A pilot with `{param:...}` must be `lifetime: run`; the stack refuses it otherwise.
 
 ## Acceptance
 

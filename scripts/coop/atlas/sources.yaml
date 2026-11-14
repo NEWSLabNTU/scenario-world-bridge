@@ -61,6 +61,13 @@ scenarios:
           fixed: {vb: 12.0}
         - loader: d2
           path: /mnt/p5plus/aeon/coop/s0/d2/d2_compare.txt
+        - loader: c3
+          label: C2b rerun (swb 241)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C2b rerun/run/c2b.jsonl"
+          fixed: {vb: 12.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-14 coop C2b rerun"
+        - loader: d2
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C2b rerun/run/d2_compare.txt"
       swb_autoware:
         - loader: c3
           label: C3a rerun (Autoware B, ground truth)
@@ -79,8 +86,17 @@ scenarios:
           label: B fitted to C3a (gt)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C3a rerun/fit_gt/fit.json"
         - loader: fit
-          label: B fitted, stop layer
+          label: B fitted, stop layer (gt)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer/fit_gt_stop_v1/fit.json"
+        - loader: fit
+          label: B fitted, stop layer (perception)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer/fit_cp_stop_v1/fit.json"
+        - loader: c3
+          label: C3b pool (B stop layer study)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer/c3b_pool/c3.jsonl"
+          b_name: autoware_perception
+          fixed: {vb: 6.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer"
       double_oracle:
         - loader: double_oracle
           label: do4 (S0 utility)
@@ -253,13 +269,20 @@ scenarios:
         - loader: n4
           path: /mnt/p5plus/aeon/coop/n4/runs/n4_cells.jsonl
 
-# E3 (swb 118): Autoware's cruise knobs, B's utility at cell (10, 0) against A_aw_perm / A_eq (seed 0).
-# They live in Autoware's parameter space, not the arena rule's; the atlas lists them beside the
-# parallel coordinates.
+# E3 (swb 118): Autoware's cruise knobs as B variants. B's utility at cell (10, 0), seed 0, against
+# A_aw_perm / A_eq (null: within +-0.01 of stock, not reported per variant). params: the knobs'
+# loaded values (stock where not overridden). Autoware's parameter space, not the arena rule's.
 e3_knobs:
-  - {variant: stock, overrides: "none", uB: [-0.129, -0.139]}
-  - {variant: yield, overrides: "idling_time 4, min_ego_accel_for_rss -0.5, safe_distance_margin 10, max_lat_margin 2", uB: [-0.367, -0.372]}
-  - {variant: idle4, overrides: "idling_time 4", uB: [-0.255, -0.268]}
-  - {variant: rss_soft, overrides: "min_ego_accel_for_rss -0.5", uB: [-0.261, -0.265]}
-  - {variant: margin10, overrides: "safe_distance_margin 10", uB: [-0.171, -0.183]}
-  - {variant: hold, overrides: "idling_time 1, min_ego_accel_for_rss -2.5, safe_distance_margin 2, overlap 1.0, stop_margin 2", uB: [-0.112, -0.095]}
+  - {variant: stock, overrides: "none", uB: [-0.129, -0.139], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: yield, overrides: "idling_time 4, min_ego_accel_for_rss -0.5, safe_distance_margin 10, max_lat_margin 2", uB: [-0.367, -0.372], params: {"idle_s": 4.0, "rss_acc": -0.5, "margin_m": 10.0, "lat_m": 2.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: hold, overrides: "idling_time 1, min_ego_accel_for_rss -2.5, safe_distance_margin 2, overlap 1.0, stop_margin 2", uB: [-0.112, -0.095], params: {"idle_s": 1.0, "rss_acc": -2.5, "margin_m": 2.0, "lat_m": 1.0, "overlap_s": 1.0, "stop_m": 2.0, "cruise_acc": -2.0}}
+  - {variant: idle4, overrides: "idling_time 4", uB: [-0.255, -0.268], params: {"idle_s": 4.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: idle1, overrides: "idling_time 1", uB: [null, null], params: {"idle_s": 1.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: rss_soft, overrides: "min_ego_accel_for_rss -0.5", uB: [-0.261, -0.265], params: {"idle_s": 2.0, "rss_acc": -0.5, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: rss_hard, overrides: "min_ego_accel_for_rss -2.5", uB: [null, null], params: {"idle_s": 2.0, "rss_acc": -2.5, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: margin10, overrides: "safe_distance_margin 10", uB: [-0.171, -0.183], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 10.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: margin2, overrides: "safe_distance_margin 2", uB: [null, null], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 2.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: overlap1, overrides: "ego_obstacle_overlap_time_threshold 1.0", uB: [null, null], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 1.0, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: latmargin2, overrides: "max_lat_margin 2", uB: [null, null], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 2.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -2.0}}
+  - {variant: cruisedecel1, overrides: "min_accel_during_cruise -1", uB: [null, null], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 5.0, "cruise_acc": -1.0}}
+  - {variant: stopmargin2, overrides: "stop_margin 2", uB: [-0.11, -0.122], params: {"idle_s": 2.0, "rss_acc": -1.0, "margin_m": 5.0, "lat_m": 1.0, "overlap_s": 0.2, "stop_m": 2.0, "cruise_acc": -2.0}}

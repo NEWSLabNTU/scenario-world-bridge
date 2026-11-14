@@ -391,23 +391,31 @@ function rulesView(){
         for (const side of ['A', 'B']) { const d = h('div', {}, box); h('h3', {}, d, side === 'A' ? 'A (the merging car)' : 'B (the lane\'s car)');
           const rules = m[side].map(n => ({name: n, p: m.params[n] || {}, w: m.weights[n] || 0, hl: /_aw/.test(n)}));
           if (side === 'B') for (const f of A.fitted || []) if (f.side === 'B') rules.push({name: f.name, p: f.params, w: 0, hl: true, fit: true});
-          const dims = [...new Set(rules.flatMap(r => Object.keys(r.p)))].filter(k => rules.some(r => typeof r.p[k] === 'number'));
-          const W = 520, H = 280, m2 = {l: 30, r: 30, t: 24, b: 30}; const g = svg(d, W, H); const xs = scale(0, Math.max(1, dims.length - 1), m2.l, W - m2.r);
-          const rng = {}; for (const k of dims) { const v = rules.map(r => r.p[k]).filter(v => typeof v === 'number'); rng[k] = [Math.min(...v), Math.max(...v)]; }
-          dims.forEach((k, i) => { el('line', {x1: xs(i), x2: xs(i), y1: m2.t, y2: H - m2.b, class: 'ax'}, g); el('text', {x: xs(i), y: 14, 'text-anchor': 'middle'}, g, k);
-            el('text', {x: xs(i), y: H - m2.b + 12, 'text-anchor': 'middle'}, g, fmt(rng[k][0], 2)); el('text', {x: xs(i), y: m2.t - 2 + 0, 'text-anchor': 'middle', dy: '-0.1em'}, g, ''); el('text', {x: xs(i) + 2, y: m2.t + 10, 'text-anchor': 'start'}, g, fmt(rng[k][1], 2)); });
-          const yv = (k, v) => { const [lo, hi] = rng[k]; return H - m2.b - (hi === lo ? 0.5 : (v - lo) / (hi - lo)) * (H - m2.t - m2.b); };
-          for (const r of rules.sort((a, b) => a.hl - b.hl || a.w - b.w)) { const pts = dims.map((k, i) => typeof r.p[k] === 'number' ? `${xs(i)},${yv(k, r.p[k])}` : null).filter(Boolean);
-            const pl = el('polyline', {points: pts.join(' '), fill: 'none'}, g); pl.style.stroke = r.hl ? (r.fit ? 'var(--good)' : 'var(--warn)') : 'var(--c0)';
-            pl.style.strokeWidth = (1 + 6 * r.w).toFixed(1); pl.style.opacity = r.hl ? 0.95 : (0.25 + 0.75 * r.w).toFixed(2); if (r.fit) pl.style.strokeDasharray = '6 3';
-            tipOn(pl, `${r.name}${r.w ? '  weight ' + fmt(r.w) : ''}\n` + Object.entries(r.p).map(([k, v]) => `${k} ${fmt(v)}`).join('  ')); } } }
+          parcoords(d, rules); } }
       ms.onchange = draw; draw(); }
     if ((A.e3_knobs || []).length) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, 'E3: Autoware\'s cruise knobs as strategies (cell 10, 0)');
       h('p', {class: 'small muted'}, c, 'Autoware\'s parameter space, not the arena rule\'s: B\'s utility at seed 0 against A_aw_perm / A_eq. A stays ahead in every variant.');
       const sc = h('div', {class: 'scroll'}, c); const t = h('table', {}, sc); const hr = h('tr', {}, t); ['variant', 'overrides', 'uB vs A_aw_perm', 'uB vs A_eq'].forEach(x => h('th', {}, hr, x));
-      for (const k of A.e3_knobs) { const tr = h('tr', {}, t); h('td', {}, tr, k.variant); h('td', {}, tr, k.overrides); h('td', {}, tr, fmt(k.uB[0])); h('td', {}, tr, fmt(k.uB[1])); } }
+      for (const k of A.e3_knobs) { const tr = h('tr', {}, t); h('td', {}, tr, k.variant); h('td', {}, tr, k.overrides); h('td', {}, tr, fmt(k.uB[0])); h('td', {}, tr, fmt(k.uB[1])); }
+      const withP = A.e3_knobs.filter(k => k.params); if (withP.length) { h('h3', {}, c, 'The variants as Autoware B rules (parallel coordinates; last axis: uB vs A_aw_perm, missing where within +-0.01 of stock)');
+        const ub = withP.map(k => k.uB[0]).filter(v => v !== null); const mid = withP.find(k => k.variant === 'stock').uB[0];
+        parcoords(h('div', {class: 'scroll'}, c), withP.map(k => ({name: 'Autoware B ' + k.variant, p: {...k.params, uB: k.uB[0] === null ? mid : k.uB[0]}, w: k.variant === 'stock' ? 0.5 : 0,
+          hl: ['stock', 'yield', 'hold'].includes(k.variant), fit: k.variant !== 'stock'})), 760); } }
     const c = h('div', {class: 'card'}, s); h('h2', {}, c, '(5) Rule families as state machines'); const g = h('div', {class: 'sm'}, c); for (const k in SM) drawSM(g, k);
   };
+}
+
+function parcoords(d, rules, W = 520){
+  const dims = [...new Set(rules.flatMap(r => Object.keys(r.p)))].filter(k => rules.some(r => typeof r.p[k] === 'number'));
+  const H = 280, m2 = {l: 30, r: 30, t: 24, b: 30}; const g = svg(d, W, H); const xs = scale(0, Math.max(1, dims.length - 1), m2.l, W - m2.r);
+  const rng = {}; for (const k of dims) { const v = rules.map(r => r.p[k]).filter(v => typeof v === 'number'); rng[k] = [Math.min(...v), Math.max(...v)]; }
+  dims.forEach((k, i) => { el('line', {x1: xs(i), x2: xs(i), y1: m2.t, y2: H - m2.b, class: 'ax'}, g); el('text', {x: xs(i), y: 14, 'text-anchor': 'middle'}, g, k);
+  el('text', {x: xs(i), y: H - m2.b + 12, 'text-anchor': 'middle'}, g, fmt(rng[k][0], 2)); el('text', {x: xs(i), y: m2.t - 2 + 0, 'text-anchor': 'middle', dy: '-0.1em'}, g, ''); el('text', {x: xs(i) + 2, y: m2.t + 10, 'text-anchor': 'start'}, g, fmt(rng[k][1], 2)); });
+  const yv = (k, v) => { const [lo, hi] = rng[k]; return H - m2.b - (hi === lo ? 0.5 : (v - lo) / (hi - lo)) * (H - m2.t - m2.b); };
+  for (const r of rules.sort((a, b) => a.hl - b.hl || a.w - b.w)) { const pts = dims.map((k, i) => typeof r.p[k] === 'number' ? `${xs(i)},${yv(k, r.p[k])}` : null).filter(Boolean);
+  const pl = el('polyline', {points: pts.join(' '), fill: 'none'}, g); pl.style.stroke = r.hl ? (r.fit ? 'var(--good)' : 'var(--warn)') : 'var(--c0)';
+  pl.style.strokeWidth = (1 + 6 * r.w).toFixed(1); pl.style.opacity = r.hl ? 0.95 : (0.25 + 0.75 * r.w).toFixed(2); if (r.fit) pl.style.strokeDasharray = '6 3';
+  tipOn(pl, `${r.name}${r.w ? '  weight ' + fmt(r.w) : ''}\n` + Object.entries(r.p).map(([k, v]) => `${k} ${fmt(v)}`).join('  ')); }
 }
 
 const SM = {

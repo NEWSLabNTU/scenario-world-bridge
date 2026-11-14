@@ -1286,6 +1286,31 @@ not.** Before S4's numbers are used:
 - the arena's lateral tracking on close passes is fixed or measured;
 - the comparison is rerun (swb 139).
 
+**S4's D2, second round** (c381962, swb 139; NAS `.../2026-11-15 coop S4 narrow passage D2/`).
+**Not met.**
+- **The 20 "deadlocks" were collisions, not creep:** 0-3 mm of clearance, an impulse of about
+  12 m/s^2, then both cars stuck. Contact is now detected to within 1 cm; no deadlocks remain, and
+  patience is unchanged.
+- **The swerve around the narrowing was undrivable:** a kinked 10 m taper, 17 m/s^2 lateral at
+  10 m/s. It is now a cosine over 25 m in both the model and the xodr. **This revises the S4
+  kinematic map:** more chicken on A's side, and "the obstacle side yields" now needs a fault cost
+  of 1.
+- A look-ahead of max(3 m, 0.4 v) halves the tracking error, to 0.28-0.31 m from 0.60-0.71 m.
+
+| check | first round | second round |
+|---|---|---|
+| payoffs inside the interval | 21-28 % | 35-38 % |
+| outcomes agree | 74-75 % | 73-78 % |
+| classes agree (of 14) | 6-10 | 8-10 |
+
+Not yet diagnosed: the arena's war band is wider (±0.3 s), and the arena has fewer contacts than
+the model (146 against 249).
+
+**Decision (2026-11-15):** S4 stays qualitative: the war at the tie, the obstacle rule's need for a
+fault, and the restart-crash hazard. Its numbers are not used. The contact deficit is backlogged
+(likely the brake lag stopping the arena cars earlier); it is not worth a third round before
+C7's tie-breaks, which address the same tie.
+
 ### S6. Overtaking via the oncoming lane, kinematic (2026-11-15)
 
 An oppose plus a merge (aa3af10, swb 139; NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop S6

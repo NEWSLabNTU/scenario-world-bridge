@@ -60,7 +60,8 @@ def a_start(v, gap):
         y = 157.0
     return (round(C3.x_at(C3.X_LEFT, y), 2), round(y, 1), -1.5673)
 PERC_R = 2.5
-BAG_TOPICS = S1.BAG_TOPICS
+# S1's topics, and the lidar detector's own timing (lidar_centerpoint or lidar_transfusion, debug/*_ms)
+BAG_TOPICS = S1.BAG_TOPICS + "|^/perception/object_recognition/detection/(centerpoint|transfusion)/lidar_[a-z]+/debug/[a-z_]+_ms$"
 AGENT = []
 
 

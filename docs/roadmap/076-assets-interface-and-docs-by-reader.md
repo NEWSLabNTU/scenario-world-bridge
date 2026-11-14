@@ -507,6 +507,19 @@ sharing a project.
     stage `/mnt/wd/aeon/carla-usd/...`, not `${SWB_CARLA_USD}/...`; both Isaac examples
     need the re-upload of step 8 before they run on another host. No dataset has a tag
     yet, so fetches resolve `main`.
+- Step 8 datasets, 2026-11-15: every public dataset tagged `v2026.11` (the newest tag is what
+  `assets fetch` resolves). `carla-town-autoware-maps`: the Isaac world files name their stage
+  `${SWB_CARLA_USD}/<Town>/<Town>_physics.usda`, the signal tables' `lanelet2_map:` is
+  relative, the READMEs carry no host names or paths. `haruna-tsukuba-courses`: the scenarios'
+  LogicFile is `$(env SWB_MAPS)/<course>`. `carla-0.9.16-isaac-usd`: the export logs' build
+  user and paths replaced, MANIFEST updated. `isaac-road-physics-stages`: README without host
+  paths. Checked: a copy of `first_drive` fetches the tagged commit and `project check`s clean.
+  Older commits in the datasets' history still hold the host paths (not squashed). Not done:
+  a tesla_model3 ego variant of the Haruna scenario.
+- `ground:` (A9): `swb.ground` links a project's per-map surface files into `state/<map>/` at
+  stack start (35bf522). Judges take `{run_dir}`/`{scenario}` and plain programs (exit code),
+  so `physical_verdict` is one (67550bc). `capture: full|debug` records rosbags per pilot
+  domain, `run --capture` (623deec).
 
 ## Acceptance
 

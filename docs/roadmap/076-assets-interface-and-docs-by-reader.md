@@ -584,6 +584,22 @@ sharing a project.
     must be copied over first).
   - note: `--stop-stack` stops only a stack its own command started; shard 2 found shard 1's
     stack up and left it, as designed (shard 1 printed how to stop it).
+- Step 9, the AWF suite (`safety_suite`, `nightly.yaml`), 2026-11-15:
+  - fixed (0f9837c): both AWF scenarios declared the sample car's axles for the ego; the
+    bridge's 2 cm body check refused the spawn. `project check` now refuses such an ego
+    first, naming each value against the catalog (b6cd877).
+  - fixed (9c57947): a TIER IV scenario's ScenarioModifiers run every variant in one SSv2
+    process (UC-ACC: 27, UC-AEB: 9), and SSv2's timeout is per variant; the runner's limit
+    now scales with the count. Before it, 7 ACC variants passed and the runner cut SSv2 off.
+  - fixed (031d462): SIGTERM to `swb run` stops what the run started (seen live: nothing
+    left over, exit 130). SIGINT from a non-interactive shell's `&` is ignored by POSIX,
+    so scripts stop a runner with SIGTERM.
+  - open: the third run errored with the host at load average 139 (other users' jobs).
+    The bridge logged each of SSv2's Initialize and spawn requests twice, the second spawn
+    refused ("an entity of that name exists"), then the variants failed in a chain. That
+    fits a client retrying a reply that took more than its timeout (Initialize took 4 s).
+    To check on a quiet host; if it holds, the bridge should treat a retried request as
+    the same request.
 
 ## Acceptance
 

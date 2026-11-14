@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); next: S0 (the general utility, cut-in results re-scored), then E3, N1-N2, S1-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); next: E3, N1-N2, S1-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -44,8 +44,9 @@ route arc-length progress over the fixed horizon H = 20 s, $\rho_i$ the largest 
 cars in $i$'s conflict set $K_i$ of 2D TTC ($\tau^* = 3$ s), time headway ($h^* = 1$ s), PET
 ($\pi^* = 1.5$ s) and clearance ($d^* = 1$ m), and $c_i$ longitudinal and lateral comfort. On a
 cut-in it reduces to the old terms except where the cars are side by side (clearance, 2D TTC) or
-cross paths (PET). S0 implements it and re-scores C2b and C3; until then the numbers below are the
-follow-case ones.
+cross paths (PET). S0 implemented it and re-scored C1, C2b, C3 and the double oracle (see S0
+below): 3.7 % of C1's cells move class, all on band edges, and the equilibria stay; the numbers
+below are the follow-case ones unless marked.
 
 **Strategies are contingent rules** (since the review below): A goes, waits (drops behind), or
 goes if it sees B yield within a watch window; B pre-yields (courtesy before any signal) or reacts,
@@ -510,6 +511,82 @@ restart on a loaded host, so c3.py now retries such a run with its cause). Data
   outcome classes in these cells and flags the near-miss cell by clearance, not by contact. Next:
   rerun C2a's band and the double oracle with it.
 
+### S0. The general utility (2026-11-14)
+
+**Implemented** (22741ab): `scripts/coop/measures.py` scores a run from both cars' poses as
+oriented boxes (the spec's footprint, 4.79 x 2.163 m): 2D TTC, time headway, PET, body
+clearance, route arc length, peak lateral acceleration, `rho` and `utility` as design ① defines
+them. Contact is now footprint overlap everywhere (C1, the arena, swb's scoring), with the
+overlap depth `pen` and the relative speed at first touch `v_touch` recorded beside it.
+`cutin_game.py`, `arena.py` and `c2b.score` use it; `c2b.score` rebuilds poses from the agents'
+logs and holds the lane tracker's lateral jumps at the east straight's junction end;
+`s0_rescore.py` re-scores recorded swb runs offline. `cutin_agent` logs both yaws, so future
+logs carry the heading; older ones are scored in the lane frame. Data
+`/mnt/p5plus/aeon/coop/s0/`.
+
+- **C1, kinematic map**: 23 of 629 cells change class (3.7 %), all at band edges: 10 M->W, 9
+  G->M, 2 g->G, 2 g->M; no contact cell changes. The cause is the new terms, not a bug: lateral
+  comfort charges every lane change about 0.063 (a 3 s cosine change peaks at 1.83 m/s^2), and the
+  footprint enters B's corridor before lat 0.5, so the go/react cells near the edge see headways
+  of 0.92-0.96 s (rho 0.04-0.08). C1 now takes ~38 s instead of 3 s.
+- **swb, 130 runs re-scored** (C2b, C3a, C3b): the merge order is unchanged in every run. Two
+  contact changes, both explained:
+  - C3a 6/0, 4 runs: the old contacts were false. A had turned off at a junction, 26 m from B,
+    and the old rule projected `along` on A's heading. Removed. The same junction turns (the runs
+    predate the cutin_agent branch fix) leave C3a 2/+2 A_aw_perm at uA -0.31 from a real 4.3 m/s^2
+    lateral peak (A turned at 7.5 m/s); C3b's same cell peaks at ~1 m/s^2. These C3a cells are
+    artefacts of the agent, not of Autoware.
+  - 14/-3 A_aw_perm: the footprints overlap in 6 of 8 C3a/C3b runs (C3a 2/2, c3b_118 1/2,
+    c3b_118_s01 2/2, c3b_241 1/2), 0.1-7.9 cm deep, at 3.3-4.4 m/s relative speed. A has stopped
+    at ~16 degrees of yaw with its front corner in B's footprint while Autoware's B creeps past;
+    B's motion stays smooth, so this is a graze of square-cornered boxes at most, not a visible
+    bump. The 0.2-0.6 m "near miss" of C3 was measured between straight boxes. The two runs
+    without overlap clear by 0.18 m (uA -1.24) and 1.12 m (-0.07).
+- **D2** (C2b's run2 re-scored against the arena under the same utility, `d2/d2_compare.txt`):
+  44 of 48 payoffs inside the arena's 95 % intervals (92 %), outcomes 24/24, as before S0. The
+  four misses are uB at 10/0 (swb -0.09 to -0.105, arena -0.125).
+- **C3's refit** (`c3_fit.py`, `fit_gt/`, `fit_cp/`): ground truth best B_r30_b4_t0.5, error
+  1.58, against 1.61 for B_aw_react (r20, b2.5, t1), the error now dominated by the C3a
+  artefacts above; CenterPoint best B_r20_b2.5_t0.5, 0.164, against 0.191. Before S0 the errors
+  were 5-27, carried by the contact mismatch at 14/-3, which is gone: under the footprint both
+  the arena (contact 0.75) and the real stack touch there. B_AW_REACT stays as it is (within
+  0.03 of the best).
+- **Double oracle, do4** (the same contexts and pools as do3, v_B 12 m/s, `do4/`), 6984 runs,
+  converged in round 1:
+
+| | do3 (follow-case utility) | do4 (general utility) |
+|---|---|---|
+| round 0 equilibrium | A_aw_perm / B_aw | A_aw_perm / B_react |
+| final equilibrium | A2 (tau 0.49 s, buffer 5.65 m, no prepare) / B3 (react_gap 7.5 m, 1.9 m/s^2) | A1 (tau 0.71 s, buffer 4.3 m, no prepare) / B_react (react_gap 10 m, 2.5 m/s^2) |
+| vA, vB, welfare | -0.108, -0.058, -0.165 | -0.148, -0.062, -0.210 |
+| contact, A ahead | 0, 0.5 | 0, 0.5 |
+| rounds, exploitability lower bound | 3, 0.001 | 1, 0.004 |
+| A_aw_perm / B_aw_react | -0.117, -0.008 | -0.156, -0.010 |
+| A_aw_perm / B_aw | -0.116, -0.007 (A ahead 4/12) | -0.153, -0.042 (A ahead 5/12) |
+| exploiting B_aw_react: A's gain, B's value | 0.007, -0.065 | 0.004, -0.068 |
+| exploiting B_aw: B's value | -0.082 | -0.083 |
+| A_aw_cons against its counter | -0.478 | -0.522 |
+
+  The equilibrium class stays: an aggressive A without prepare that gets ahead in half the
+  contexts, against a reacting B, no contact. A's values fall by about 0.04 everywhere it changes
+  lanes (lateral comfort and route arc length), which moves welfare by the same amount and leaves
+  the ranking alone. B_aw against A_aw_perm drops to -0.042 because one of the twelve contexts
+  flips to A ahead, a boundary context; that is also why round 0's B is B_react, which was within
+  0.001 of B_aw in do3. Exploiting the Autoware-like rules gives the same picture as do3.
+
+Verdict against the criterion:
+- **Classes unchanged**: met. C1 moves 3.7 % of cells, all on band edges, for reasons the new
+  terms name; swb's merge order is unchanged in all 130 runs; every contact change is explained
+  (false junction contacts removed, 14/-3 now a touch).
+- **Equilibria unchanged**: met (do4 above).
+- **The 14/-3 near miss scored smoothly by clearance**: not met as stated, and recorded as a
+  finding. Under the footprint it is not a near miss but a shallow touch, 0.1-7.9 cm, in 6 of 8
+  runs, which the arena shows too, so the clearance term has nothing left to smooth: the score
+  still jumps by 10 at contact. Clearance does smooth the runs that stay apart (0.18 m: -1.24;
+  1.1 m: -0.07). `pen` and `v_touch` stay beside the binary contact, so a graze of square boxes
+  can be told from a crash when the cell is analysed.
+- **D2 >= 90 %**: met, 92 %.
+
 ### C4. Fit and explain
 
 Note on identifiability: from 2-3 discrete choices per run, an SVO angle and a capability are
@@ -588,7 +665,7 @@ being carried.
 | | N3 residual model | B | a permutation-invariant residual over the slots, fitted on three-car runs, tested on four | held-out error against the composed model's |
 | | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
 | | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |
-| 6 scenarios | S0 general utility | B | route progress, 2D TTC, PET, clearance, lateral comfort (`docs/design/cooperative-driving.md` ⓪, ①) in `measures.py` and `cutin_game.utility`; C2b, C3a, C3b and the double oracle re-scored offline from the recorded runs; prerequisite for S1-S6 and for N2's pair risk $\rho_{ij}$ | the cut-in's classes and equilibria unchanged; the 14/-3 near miss scored smoothly by clearance instead of jumping at contact; D2's agreement still >= 90 % |
+| 6 scenarios | S0 general utility | B | route progress, 2D TTC, PET, clearance, lateral comfort (`docs/design/cooperative-driving.md` ⓪, ①) in `measures.py` and `cutin_game.utility`; C2b, C3a, C3b and the double oracle re-scored offline from the recorded runs; prerequisite for S1-S6 and for N2's pair risk $\rho_{ij}$ | done (22741ab; S0 above): classes and equilibria unchanged; D2 92 %; 14/-3 is a 0.1-8 cm footprint touch, not a near miss, so it still scores as contact (`pen` kept beside it) |
 | | S1-S6 | B | cut-out; unsignalled crossing; lane drop or on-ramp; narrow passage; left turn in the arena and swb; overtaking via the oncoming lane: each as a passage game (relation, Δt, speeds, right of way), kinematic, arena, swb light, swb Autoware | equilibrium maps per relation; Autoware's departures |
 
 Order: stage 1 first. S0 comes before any new relation (S1-S6) and before N2, whose pair terms

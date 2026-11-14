@@ -163,7 +163,15 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    Names carry no `swb-` prefix (user, 2026-11-14: "If it's not bound to swb, I prefer not to
    add swb- prefix"): the data is Isaac Sim's USD, Autoware's maps and CARLA's packages; only
    small sidecars (`world.yaml`, the vehicle catalogue JSON, `surfaces.yaml`) are swb's formats.
-   Open: the user flips the open ones public.
+   **Public since 2026-11-14** (user: "For those except Shalun and NTU campus map, update
+   licenses and notices on them and make them public"): `carla-0.9.16-isaac-usd`,
+   `haruna-tsukuba-courses`, `carla-town-autoware-maps`, `isaac-road-physics-stages`,
+   `newslab-golfcart-models`, each with a LICENSE and/or NOTICE (CARLA CC BY 4.0 with the
+   trademark note; OSM ODbL and GSI's 加工 credit; TUM's LGPL-3.0 with the GPL-3 text and our
+   modifications listed; Apache-2.0 with Nebula's VLP-32C table credited). The GSI tiles
+   (`raw/dem5a/`, `raw/seamlessphoto/`, the debug mosaic and a stray DEM tile, unmodified
+   server responses) were removed from the courses and its history squashed, so no revision
+   serves them; `raw/jobs.txt` lists their URLs. `shalun-map` and `ntu-campus-maps` stay private.
 
 ## Acceptance
 

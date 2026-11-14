@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), the C2b rerun, then the arena's A abort parity (swb 241), S3 (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic done (a lane drop's deadline makes the merge a coordination game near the end; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), the C2b rerun, then the arena's A abort parity (swb 241), S3 in the arena (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -950,6 +950,41 @@ Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/`.
   with the kinematic model's known offsets (+0.02 progress, +0.015 comfort) where needed. The
   payoff criterion is not relaxed in general: here it fails on an interval floor against a
   deterministic arena, not on behaviour.
+
+### S3. The merge at a lane drop, kinematic (2026-11-15)
+
+`scripts/coop/merge_game.py` (dc0be47, swb 139). Data: NAS `logs/2026 SSv2 on CARLA/2026-11-15
+coop S3 lane drop kinematic/`.
+
+**Scene.** A's lane ends 40, 80 or 160 m ahead, and A must merge into B's lane. The context is
+cutin_game's d0 (-10..30 m) and dv (-3..3 m/s), plus that distance.
+
+**Rules.**
+- A has 16 rules. Each is gap acceptance with τ 0.6 or 1.2 s, merging early or zipper-style
+  (within 6 s of the end), with or without going on a seen yield. At the last point where a 3 s lane
+  change still fits, A either:
+  - drops: falls behind B, with a forced stop at the end if needed; or
+  - forces: changes lanes anyway.
+- B has 4 rules: hold, react, or courtesy (within 20 m and 10 s of the end at 2 m/s^2, or within
+  40 m at 3 m/s^2).
+- Perception is 0.69 s old and predicted to now. Followers use `follow_cruise`.
+- Payoffs are S0's utility over H. A's front passing the end while A is less than halfway across
+  counts as contact.
+
+**Findings.**
+- **The deadline turns the merge into a coordination game near the end.** The band of contexts
+  where both orders are equilibria widens as the end nears, measured in seconds of travel. The worst
+  equilibrium's welfare loss is about 1.0 at 40 m from the end at 12 m/s, and at 80 m at 20 m/s.
+- **It is not strict chicken.** A forcing against a holding B mostly costs B a hard brake; contact
+  follows only in some cells. Mutual courtesy (A drops while B is courteous) is A's worst outcome: a
+  forced stop at the end.
+- **Equilibria:** forced stops in 1-2 cells, and no contact. Off equilibrium, contact comes from
+  forcing against a hold at short ends.
+- **The zipper recovers nothing with two cars** (mean +0.001). It needs a queue: a follower C
+  behind B, which is N2's scene a. What removes the bad equilibrium is a convention on who yields at
+  the end (C7).
+
+Next: the arena on a lane-drop road (swb 139), then the zipper with a queue.
 
 ### C4. Fit and explain
 

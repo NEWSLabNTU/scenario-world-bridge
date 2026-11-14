@@ -822,3 +822,45 @@ def test_an_interrupted_run_stops_ssv2(live, where, monkeypatch):
     else:
         os.kill(pid, signal.SIGKILL)
         raise AssertionError("SSv2 outlived the interrupted run")
+
+
+def test_a_crash_looping_pilot_fails_the_run_fast(where, maps_hub):
+    d = make(where, RUN_PILOT)
+    p, proc = start_stack(d, ready=lambda x: ["false"] if x["entity"] == "follower" else ["true"])
+    deadline = time.time() + 20
+    while json.loads(p.stack_json.read_text()).get("state") != "ready" and time.time() < deadline:
+        time.sleep(0.05)
+    loop = ("import sys, time\n"
+            "for n in range(1, 9):\n"
+            "    print(f'2026-11-15T00:00:0{n}Z  WARN [node:/command_follower] Exited with code 1'"
+            " f' (crash {n} since last healthy run)', flush=True)\n"
+            "    time.sleep(0.2)\n"
+            "time.sleep(60)\n")
+
+    def pilot_cmd(rec, pilot, entry, log_dir):
+        return [sys.executable, "-c", loop]
+    try:
+        t = time.time()
+        r = api.run_one(d, "scenarios/three_pilots.xosc",
+                        {"parameters": {"policy": "push"}, "scenario_command": fake(where),
+                         "pilot_command": pilot_cmd})
+        assert time.time() - t < 40   # not the readiness timeout
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+    assert r.verdict == "error"
+    assert "pilot follower is not coming up: its node /command_follower crashed" in r.reason
+
+
+def test_crash_watch_counts_only_new_lines(tmp_path):
+    log = tmp_path / "console.log"
+    log.write_text("x [node:/a] Exited with code 1 (crash 9 since last healthy run)\n")
+    w = run.CrashWatch(log)
+    assert w.crashing() is None                       # before the watch: not this run's
+    with open(log, "a") as f:
+        f.write("x [node:/b] Exited with code 1 (crash 4 since last healthy run)\n")
+    assert w.crashing() is None
+    with open(log, "a") as f:
+        f.write("x [node:/b] Exited without code (crash 5 since last healthy run)\n")
+    assert w.crashing() == ("/b", 5)
+    assert run.CrashWatch(tmp_path / "none.log").crashing() is None

@@ -574,7 +574,9 @@ sharing a project.
   - acceptance 2 passed: `multi_pilot`'s `four_pilots` (two Autowares, `carla_basic`, a
     `command` agent per run), 99 s, through `run --stop-stack` (the runner started the
     stack and stopped it; nothing left over).
-  - friction: a pilot that crash-loops is found only at the readiness timeout (600 s).
+  - fixed: a pilot that crash-loops was found only at the readiness timeout (600 s); the
+    runner now fails the run once a pilot's node logs its fifth crash since the run began,
+    naming the node and the log directory.
   - acceptance 3, on one host: `suites/cut_in_seeds.yaml` (5 repetitions, seeds 1000-1004)
     as `--shard 1/2 --start-stack` then `--shard 2/2 --stop-stack`, 5/5 passed; the shards'
     run links copied into one directory and `runs summary <dir>` merged them (5 tests, 0

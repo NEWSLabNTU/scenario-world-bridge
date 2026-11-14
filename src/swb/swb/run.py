@@ -547,6 +547,45 @@ def ensure_map(ctx: Context, name: str, timeout: float = SWITCH_TIMEOUT):
     return None
 
 
+CRASH_LIMIT = 5   # a node's crashes, while its pilot is not ready, before the run gives up
+_CRASH = re.compile(r"\[node:(\S+)\] Exited .*\(crash (\d+) since last healthy run\)")
+
+
+def pilot_console(rec: dict, p: dict, logs: Path) -> Path:
+    """Where a pilot's play_launch writes: the run's logs for a per-run pilot, else the
+    stack's proc/."""
+    if p.get("lifetime") == "run":
+        return logs / f"pilot-{p['entity']}" / "console.log"
+    return Path(rec["proc"]) / f"pilot-{p['entity']}" / "console.log"
+
+
+class CrashWatch:
+    """Counts play_launch's "crash N since last healthy run" lines a pilot's console gains
+    after the watch starts (crashes before this run do not count)."""
+
+    def __init__(self, path: Path, limit=CRASH_LIMIT):
+        self.path, self.limit = Path(path), limit
+        try:
+            self.offset = self.path.stat().st_size
+        except OSError:
+            self.offset = 0
+
+    def crashing(self):
+        """``(node, crashes)`` once a node reached the limit, else None."""
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.offset)
+                text = f.read().decode("utf-8", "replace")
+        except OSError:
+            return None
+        worst = None
+        for m in _CRASH.finditer(text):
+            n = int(m.group(2))
+            if n >= self.limit and (worst is None or n > worst[1]):
+                worst = (m.group(1), n)
+        return worst
+
+
 def logging_for(*layers) -> dict:
     """The defaults, then each layer (the project's, the suite's or the call's); a layer's
     ``keep`` replaces the one before it whole (``keep: {}`` keeps everything)."""
@@ -663,15 +702,24 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                                     log_dir / "console.log", cwd=str(project)))
                 run_events.append({"t_wall": time.time(), "event": "pilot.start",
                                    "entity": p["entity"]})
-        # every pilot ready (none waited for when the stack already failed the run)
+        # every pilot ready (none waited for when the stack already failed the run); a pilot
+        # whose node keeps crashing fails the run now, not at the readiness timeout
         deadline = time.time() + ctx.ready_timeout
         waiting = list(pilots) if not infra else []
+        watches = {p["entity"]: CrashWatch(pilot_console(rec, p, logs)) for p in waiting}
         while waiting:
             for p in list(waiting):
                 if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"])):
                     waiting.remove(p)
                     run_events.append({"t_wall": time.time(), "event": "pilot.ready",
                                        "entity": p["entity"]})
+                    continue
+                crashing = watches[p["entity"]].crashing()
+                if crashing:
+                    node, n = crashing
+                    waiting.remove(p)
+                    infra.append(f"pilot {p['entity']} is not coming up: its node {node} crashed"
+                                 f" {n} times (see {watches[p['entity']].path.parent})")
             if waiting and time.time() >= deadline:
                 for p in waiting:
                     infra.append(f"pilot {p['entity']} never became ready "

@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), the C2b rerun, then the arena's A abort parity (swb 241), S1 in the arena (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), the C2b rerun, then the arena's A abort parity (swb 241), S3 (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -826,6 +826,35 @@ Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout kinematic/`.
   occluded objects). E3 and C3 should add a cut-out cell on Town03's west straight.
 - **Caveats:** coarse grids (gaps beyond 2.5 s untested); O is a single car; IDM's comfortable braking
   is capped at 2 m/s² unless the closing needs more.
+
+**Revised and checked in the arena (aa06d45, swb 139).** Data: NAS `.../2026-11-14 coop S1 cutout
+arena/`; the kinematic re-run is in its `kinematic/`; the note is the kinematic folder's
+REVISION.md.
+
+cutout_game's B now follows with the fixed follower (as `follow_cruise`), and progress is scored
+over exactly H. The conclusions hold:
+- without look-through and with a stopped O, no gap up to 2.5 s is safe at 12 m/s and above;
+- no equilibrium has contact;
+- L does not shift risk to B (at most 0.027 with the 3 s lane change, 0.047 with the 5 s one).
+
+Off-equilibrium contacts rose from 0 and 18 to 12 and 60 rule pairs.
+
+In the arena: look-through off, 12 and 20 m/s, O stopped and slow, 3 values of h0, 5 seeds.
+
+| check | 12 m/s | 20 m/s |
+|---|---|---|
+| payoffs inside the arena's interval | 78 % (median gap 0.009) | 60 % |
+| outcomes agree | 90 % | 90 % |
+| B's risk band in the worst equilibrium agrees | 12 of 12 cells (both speeds) | |
+| contact in equilibrium | none on either side | |
+
+- **L's equilibrium timing** differs only in cells where the model has L tied between 6 and 4.5 s.
+- **The arena makes the latest cut-out (2.5 s) worse:** contact at 12 m/s, h0 1.5 s, gap 0.8 s,
+  where the model has risk 0.70. That rule pair is off equilibrium.
+- **D2 for the cut-out, decided (2026-11-14):** as for the crossing, accepted for outcomes and the
+  equilibrium risk band. Payoff levels come from the arena (78 % at 12 m/s, 60 % at 20 m/s). The
+  kinematic model understates the latest cut-out's harm, so its off-equilibrium risk is a lower
+  bound.
 
 ### S2. The unsignalled crossing: kinematic and arena (2026-11-14)
 

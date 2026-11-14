@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: stable seeds and do6, then C3c (swb 241), U2 on Town03's roundabout in swb (swb 139), S5 on Autoware (swb 118: junction 861 found, Town03's lights not linked in Lanelet2), the arena.py merge-end fix (133); next: N3's follower depth term, S5 and S6 in the arena. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: stable seeds and do6, then C3c (swb 241), U2 on Town03's roundabout in swb (swb 139), S5 on Autoware (swb 118: junction 861 found, Town03's lights not linked in Lanelet2),  next: N3's follower depth term, S5 and S6 in the arena. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -1517,6 +1517,67 @@ parameters the data identify.
 
 SVO angles and potential-game weights fitted to C2 and C3; residuals by region.
 
+**Results (2026-11-15).** Commits 8e351bc, d649875, 6b82f6c. Data: NAS `logs/2026 SSv2 on
+CARLA/2026-11-15 coop C4 fit/`.
+
+**New arena data,** with seeded noise shared across profiles:
+- payoff tables for C1's 9 profiles over C2a's grid (171 cells, 6156 runs);
+- what do6's equilibrium and the Autoware-like pair actually did on that grid;
+- tables at C3's 6 cells.
+
+Play is scored on what both cars can see.
+
+Held-out payoff error (5-fold over cells):
+
+| model | equilibrium play | Autoware-like play |
+|---|---|---|
+| table-free baseline | 0.140 | 0.060 |
+| **potential (α)** | **0.111** | **0.046** |
+| κ rules | 0.126 | 0.079 |
+| SVO QRE | 0.20 | 0.080 |
+| selfish QRE | 0.20 | 0.186 |
+| level-k | 0.17 | 0.152 |
+
+- **The rules read as preferences.** Selfish rules read as φ_A ≈ 10°, φ_B ≈ 0°, α ≈ 8°. The
+  Autoware-like rules read as very prosocial (φ_A 66°, φ_B 89°, α 66°): their conservative gap check
+  and prepare phase look like courtesy. In κ terms, the equilibrium A acts as if B always yields
+  (p0 ≈ 1), Autoware's A as if B never does (p0 ≈ 0).
+- **The largest misfit** is where A is close and faster: A gets ahead more often than any model
+  predicts.
+- **Identifiability.**
+  - With SVO types planted on the arena's tables, φ_A is recovered within a few degrees, but φ_B's
+    95 % intervals are 30-60° wide.
+  - B's reaction time is identified. A wrong assumed reaction widens φ_B but does not invent
+    courtesy.
+  - On the real stack, neither φ_B nor a courtesy term is identified. At 10/0 Autoware brakes
+    (uB -0.12) where the arena's yield and hold both cost -0.005: no preference explains it, so it is
+    capability or safety behaviour.
+
+**D5 decided (2026-11-15).**
+- **On the car,** the κ rules stay the decision rule: readable, second on held-out error, parameters
+  identified.
+- **To predict other cars,** carry the potential model: one α (and λ) per class of car. It is best
+  held out on both play sets, with α identified to about ±5°. Read α as a description of a rule
+  family, not a motive.
+- **Not SVO or level-k for prediction.** SVO stays in the arena as a knob for planting
+  preferences.
+- **Departures such as Autoware's braking at 10/0** belong in the car's capability model.
+
+This fits D6: no belief node; the model explains and predicts other cars.
+
+**Also, the arena's merge-end bug, fixed** (f8bb156, a247a77; NAS `.../2026-11-15 coop arena merge
+end/`). A run now continues 1.5 s past the planned end of A's lane change before got_in is scored.
+- Records keep the old scoring beside the new (`*_legacy`), so every impact is a paired difference.
+- Only one old cell was mis-scored: 6/0 with A_aw_perm in C3's refits.
+- do6's table re-scored keeps its equilibrium (welfare -0.174). do7, the rerun with the fix,
+  converged in round 2 to the same class: an aggressive A without a prepare phase against a B that
+  lets it in late and gently (vA -0.136, vB -0.038).
+- The Autoware-like A rules gain: A_aw_perm -0.25 → -0.19, A_aw_cons -0.48 → -0.25.
+- C2b's D2 is unchanged (44 of 48).
+- The refit's best error over the 11 cells without 14/-3 drops to 0.018 (ground truth) and 0.004
+  (CenterPoint). Most of the stop layer's penalty was this bug: 0.097 → 0.047 and 0.067 → 0.016,
+  though it still worsens every fit.
+
 ### C5. Car models
 
 C1-C3 for pairs from the catalog (Model 3, golf cart, a heavier car when one is specified), the
@@ -1678,7 +1739,7 @@ being carried.
 | | D4 where the stack leaves the model | D | residual map against the Autoware-like rule | refit the imitation and rerun C2a; or perception-caused (C3a against C3b): update the perception model; or record as a finding |
 | | C3c | B | A by RTC, then both Autoware | cross-play of two configurations |
 | 3 explain | C4 fit | B | kappa rules, SVO, potential, level-k; identifiability | fitted models, residuals |
-| | D5 which explanation | D | which model the strategy layer carries | held-out payoff error and readability; default the threshold (kappa) rules |
+| | D5 which explanation | D | which model the strategy layer carries | held-out payoff error and readability; default the threshold (kappa) rules. Decided 2026-11-15: κ rules on the car; the potential model (α per class) to predict others |
 | | E4 heavier car | E | is a truck or bus spec available or buildable in `sim_vehicle_spec` | spec or none |
 | | C5 car models | B | pairs from the catalog, measured capabilities | maps per pair; the commitment hypothesis |
 | | C6 hidden capability | B | beliefs, type confusion, misbelief regret, value of information | regret and VoI maps |

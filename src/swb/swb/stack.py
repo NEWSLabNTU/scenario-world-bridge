@@ -50,7 +50,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from swb import config, project as projectmod, results, seat as seatmod
+from swb import config, ground as groundmod, project as projectmod, results, seat as seatmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
@@ -615,8 +615,14 @@ def read_json(path: Path) -> dict:
 
 
 def write_plan(p: Plan) -> Path:
-    """The stack's directory and its stack.json (state starting); nothing is linked yet."""
+    """The stack's directory and its stack.json (state starting); the project's ground files
+    linked into its state dir (Isaac reads them there); nothing else is linked yet."""
     (p.stack_dir / "proc").mkdir(parents=True, exist_ok=True)
+    project = Path(p.record["project"])
+    try:
+        groundmod.apply(project, config.project_settings(project).get("ground"))
+    except groundmod.GroundError as e:
+        raise StackRefused(str(e)) from None
     return write_json(p.stack_json, p.record)
 
 

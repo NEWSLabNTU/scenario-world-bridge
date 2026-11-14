@@ -127,6 +127,22 @@ Inside the data, names not paths: scenarios name maps `$(env SWB_MAPS)/<map>`; a
 `world.yaml`'s `usd:` may use `${SWB_CARLA_USD}`; the stack sets both for every process it
 starts (`SWB_MAPS=<project>/assets/maps`, `SWB_CARLA_USD=<project>/assets/carla-usd`).
 
+### Ground
+
+`ground:` names, per map, the project's own Isaac surface files:
+
+```yaml
+ground:
+  Town01:
+    surfaces: ground/town01.yaml      # the surface map (mud, gravel, wet asphalt)
+    road_detail: ground/rough.yaml    # optional: rocks and ruts on the road
+```
+
+The Isaac world server reads `<state>/<map>/surfaces.yaml` and `road_detail.yaml` over the
+fetched map directory's. When a stack starts, swb links each named file there; a link it made
+that the project no longer names is removed, and a file a user put there by hand is refused,
+never replaced. `project check` reports a named file that is missing.
+
 ## Host settings
 
 Read by `swb.config.host_settings`, highest first: arguments; `<project>/.swb/local.yaml`

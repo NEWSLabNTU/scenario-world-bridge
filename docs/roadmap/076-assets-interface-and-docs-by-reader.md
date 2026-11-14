@@ -500,8 +500,8 @@ sharing a project.
   - The examples ship without `swb.lock` (a lock in a read-only share pins nothing for the
     user); the copy's first fetch writes it, and the copy commits it.
   - `ground:` is per map, `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the
-    project. The stack does not apply it yet: it passes `state_dir` (de38b28), but nothing
-    puts the project's ground file at `state/<map>/surfaces.yaml` yet.
+    project. The stack links them into `state/<map>/` at start (`swb.ground`), where the
+    Isaac world server reads them over the map directory's (`state_dir`, de38b28).
   - `judges:` entries are `{name, run}`; `swb run` runs them since 48475ce.
   - Found: the published `carla-town-autoware-maps` `Town01/isaac/world.yaml` names its
     stage `/mnt/wd/aeon/carla-usd/...`, not `${SWB_CARLA_USD}/...`; both Isaac examples

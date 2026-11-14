@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from swb import assets, budget as budgetmod, config, judges as judgesmod, record as recordmod
+from swb import assets, budget as budgetmod, config, ground as groundmod, judges as judgesmod
+from swb import record as recordmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -184,8 +185,8 @@ def check_schema(settings: dict) -> list:
                              or not all(isinstance(m, str) and m for m in maps)):
         out.append(Finding(pf, "maps: is not a list of map names",
                            "maps: [Town01, Town05] (each under assets/maps/)"))
-    if settings.get("ground") is not None and not isinstance(settings["ground"], dict):
-        out.append(Finding(pf, "ground: is not a mapping", "ground: {<map>: ...}"))
+    for where, msg in groundmod.problems(None, settings.get("ground")):
+        out.append(Finding(pf, f"{where}: {msg}", "ground: {Town01: {surfaces: ground/t.yaml}}"))
     for where, msg in judgesmod.problems(settings.get("judges")):
         out.append(Finding(pf, f"{where}: {msg}",
                            "judges: [{name: comfort, run: [python3, -m, my_judges.comfort]}]"))
@@ -391,6 +392,10 @@ def check_project(path) -> list:
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (project / v).is_file():
             out.append(Finding(config.PROJECT_FILE, f"vehicles: {v}: no such file"))
+    if isinstance(settings.get("ground"), dict):
+        for where, msg in groundmod.problems(project, settings["ground"]):
+            if "is not a file" in msg:
+                out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}"))
     maps = settings.get("maps")
     for m in maps if isinstance(maps, list) else []:
         if isinstance(m, str) and m and not (project / "assets" / "maps" / m).is_dir():

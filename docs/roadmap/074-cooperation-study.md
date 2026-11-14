@@ -1436,6 +1436,33 @@ runs on a generated ring with one entry). It matches the kinematic map:
 **D2 for U2, decided (2026-11-15):** accepted for outcomes and classes, with payoff levels from the
 arena and its offsets.
 
+**Through swb on Town03's roundabout** (b1c0684, swb 139; NAS `.../2026-11-15 coop U2 roundabout
+swb/`; 30 of 30 runs valid). The first scenario besides the cut-in checked on the swb stack.
+
+| check | result |
+|---|---|
+| outcomes agree with the arena | 14 of 15 |
+| outcomes agree with the model | 15 of 15 |
+| payoffs inside the interval | 70 % raw, 88 % after offsets (A -0.014, B -0.012) |
+
+**Found on the way: CARLA 0.9.16 resets tyre friction to 3.5 on every car of the same blueprint
+whenever another one spawns.**
+- `arena.put_physics` is fixed in b1c0684: physics are re-applied after every spawn. With the fix,
+  Town03's arena-vs-model classes are 6/6/6.
+- **Every 074 arena run before b1c0684 had stock tyres on the cars spawned earlier.** The cars' grip
+  (and so their braking and steering) differed from the spec's. The arena's steady payoff offsets
+  against the kinematic models may partly be this.
+- **`swb_carla_world` has the same bug**, not yet fixed. It affects the first agent car, or an ego,
+  whenever a later Model 3 spawns. That includes C2b, C3 with agent cars, two-AV runs, and C3c.
+- Agent cars need `vehicle_physics:=` under `ego_launch:=none`.
+- **Decided (2026-11-15):**
+  - fix `swb_carla_world` (re-apply the spec's physics after every spawn of the same blueprint,
+    and verify it, as acb verifies the ego's);
+  - re-run one canary set per tier with the fix (C2b's D2 cells and do7's final table) and re-open
+    a result only if a class or a D2 verdict changes.
+
+  The tie to the spec makes this a swb bug, the user's to schedule.
+
 ### E5 and S5 on the real stack: first findings (2026-11-15)
 
 swb 118, in progress.

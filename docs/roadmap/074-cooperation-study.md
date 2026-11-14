@@ -470,6 +470,15 @@ Data `/mnt/p5plus/aeon/coop/c3/c3a{,_6_0}/`.
   arena) the fit is the same: five cells with any reacting rule (best B_r20_b2.5_t1), this one
   on the edge.
 
+**Double oracle with the measured Autoware (do3, 2026-11-14).** B's starting pool gained
+B_aw_react (react to the lane change's onset within 20 m, 2.5 m/s^2), 10 512 arena runs at the
+double oracle's contexts (v_B 12 m/s). The Autoware pair is unchanged: A_aw_perm against B_aw_react
+gives uA -0.117, uB -0.008 (against B_aw -0.116, -0.007). The equilibrium is again an aggressive A
+rule (no prepare) against a reacting B, welfare -0.165, no contact, exploitability lower bound
+0.0005. Exploiting B_aw_react: A without prepare (tau 0.63 s, buffer 5.2 m) gains ~0.007 and moves
+B from -0.008 to -0.065, no contact; against B_aw the same counter gives B -0.082. At these
+contexts the onset reaction matters little; C3's differences were at 6 m/s with slow cut-ins.
+
 **C3b, Autoware on its own perception (2026-11-14).** The same cells with CenterPoint
 (`lidar_detection_model:=centerpoint`), run on 118 (GPU 0, seeds 0-3, 48 runs, all valid) and 241
 (GPU 1, the arena's cells; 14 of its 24 runs lost to Autoware staying INITIALIZING after the ego's

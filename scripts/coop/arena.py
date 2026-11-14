@@ -70,6 +70,12 @@ WARMUP = 15.0  # s, to bring a pair to its context
 PEAK_WINDOW = 0.5  # s, over which peak braking is measured
 HORIZON = C1.HORIZON
 LEGACY_FOLLOW = False  # True: the pre-N3 follower (IDM at v_des = its start speed), for re-runs only
+# What each car's observer delays: the other car's position relative to its own, as cutin_agent.py
+# observes `along` (074 A abort parity). Delaying the other's absolute position and comparing it
+# with one's own current position put B a further v_own * delay behind: at 14/-3 (A at 2.3 m/s,
+# B at 5.8) the arena's A saw B draw level about 0.13 s after the agent does, and cut in while
+# swb's A had already braked. True: the old absolute observation, for re-runs only.
+LEGACY_OBS = False
 # B's safety layer: Autoware's obstacle_stop as C3 measured it (074, the C3a/C3b bags). Once A's
 # lane change starts (its predicted path reaches B's), obstacle_stop puts a stop point stop_margin
 # before A (RSS: before where A would stop, braking at stop_rss_dec, when A moves faster than
@@ -625,8 +631,16 @@ class Pair:
         xa, ya, _, va = A.state()
         xb, yb, _, vb = B.state()
         lat = self.lat()
-        sb = self.obs_a.push(t, xb, 0.0, vb)  # A sees B
-        sa = self.obs_b.push(t, xa, lat, va)  # B sees A
+        if LEGACY_OBS:
+            sb = self.obs_a.push(t, xb, 0.0, vb)  # A sees B
+            sa = self.obs_b.push(t, xa, lat, va)  # B sees A
+        else:  # each sees the other's position relative to its own, delayed: as cutin_agent.py
+            sb = self.obs_a.push(t, xb - xa, 0.0, vb)
+            sa = self.obs_b.push(t, xa - xb, lat, va)
+            if sb is not None:
+                sb = (sb[0], xa + sb[1], *sb[2:])
+            if sa is not None:
+                sa = (sa[0], xb + sa[1], *sa[2:])
         job, cap = self.job, C1.TYPES["car"]
         la, lb = A.length, B.length
         # --- A

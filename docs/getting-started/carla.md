@@ -112,6 +112,23 @@ ls $CARLA_MAPS
 
 Run it again whenever you pull: a repair added later reaches maps you already have.
 
+**Or download them repaired.** The same towns with the same repairs are published as
+[carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps)
+(LGPL-3.0), which needs no CARLA install for the repairs:
+
+```bash
+hf download jerry73204/carla-town-autoware-maps \
+    --repo-type dataset \
+    --local-dir ~/carla-maps
+```
+
+Then set `CARLA_MAPS=~/carla-maps` in `~/swb.bash`. (`hf` is Hugging Face's command:
+`pip install -U huggingface_hub`.) It also holds Town05 with its ring road at 110 km/h,
+`town05_ring_110kmh/`. Its `<Town>/carla/traffic_lights.yaml` names the map by a path on
+the machine that made it, so generate the signal table below for each town you drive, which
+replaces it. `download_maps.sh` stays the way to pick up a repair added after the dataset
+was published.
+
 One file per town is CARLA's, not TUM's: which Lanelet2 traffic light is which CARLA light.
 Generate it once per town with CARLA running (start CARLA as in stage 3, Terminal 1, then):
 

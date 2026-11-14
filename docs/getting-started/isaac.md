@@ -8,7 +8,7 @@ scenario names its map, not its simulator.
 | Stage | You get | Time |
 |---|---|---|
 | [1. Install](#1-install) | Isaac Sim and the workspace built, the environment file written | ~1 h, mostly downloads |
-| [2. Assets and a map](#2-assets-and-a-map) | Town01 as an Isaac world, beside its Autoware map | ~20 min, plus the copy |
+| [2. Assets and a map](#2-assets-and-a-map) | Town01 as an Isaac world, beside its Autoware map | ~20 min, plus the download |
 | [3. The stack](#3-the-stack) | Isaac running Town01, Autoware ready to drive | ~15 min the first time |
 | [4. A first scenario](#4-a-first-scenario) | a starter scenario driven by Autoware, passing | ~5 min |
 | [5. Your scenario](#5-your-scenario) | your own goal on your own road | ~15 min |
@@ -107,33 +107,50 @@ domains keep the scenario's side and the ego's Autoware apart;
 ## 2. Assets and a map
 
 **The asset set.** Isaac renders CARLA's content: its towns, vehicles, props and walkers,
-exported from CARLA's editor to USD. The set is about 24 GB, one directory. Request it from
-NEWSLab ([NEWSLabNTU](https://github.com/NEWSLabNTU)); building it yourself takes a CARLA
-editor build (about 150 GB and several hours,
-[Isaac assets](../design/isaac-assets.md#making-a-set)).
-
-NEWSLab members: copy it from the lab NAS,
-`autoveh/dataset/2026-10-23_carla-0.9.16-isaac-usd/`.
-
-Put it at `$CARLA_USD` and check the copy against its manifest:
+exported from CARLA's editor to USD. The set is about 25 GB, one directory, published on
+Hugging Face as
+[carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd)
+(CC BY 4.0). Install the `hf` command (`curl -LsSf https://hf.co/cli/install.sh | bash`,
+or `pip install -U huggingface_hub`) and download it to `$CARLA_USD`:
 
 ```bash
 source ~/swb.bash
-cd ~/scenario-world-bridge
-(cd src/swb_isaac_world && python3 -m swb_isaac_world.asset_set check $CARLA_USD)
+hf download jerry73204/carla-0.9.16-isaac-usd \
+    --repo-type dataset \
+    --local-dir $CARLA_USD
 ```
 
-It lists every missing or changed file and exits non-zero if there is one.
+Run the same command again to resume an interrupted download. Then check the copy against
+its manifest:
+
+```bash
+cd $CARLA_USD
+sha256sum --check --quiet MANIFEST.sha256
+echo $?
+# 0
+```
+
+It prints only the files that are missing or differ.
+[CARLA's assets on Isaac Sim](../tutorials/06-carla-assets-on-isaac.md) says more about
+the set: what it holds, and how to use its vehicles, walkers and props in a scenario.
+
+Building the set yourself instead takes a CARLA editor build (about 150 GB and several
+hours, [Isaac assets](../design/isaac-assets.md#making-a-set)).
 
 **The Autoware map.** As for CARLA: TUM's converted towns, downloaded and repaired by one
 script. Its repairs read CARLA's OpenDRIVE files, which the asset set carries
 (`$CARLA_USD/<Town>/main.xodr`), so no CARLA install is needed:
 
 ```bash
+cd ~/scenario-world-bridge
 SWB_XODR_DIR=$CARLA_USD scripts/download_maps.sh
 ls $CARLA_MAPS
 # Town01  Town02  Town03  Town05  Town10
 ```
+
+The same repaired maps are also published as
+[carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps);
+the tutorial above shows how to use them instead.
 
 **The world file.** One command per town writes the world's collider layer and
 `<map>/isaac/world.yaml`, which tells the world server which USD world goes with that map:
@@ -276,6 +293,11 @@ A second stack on the same machine moves its ports and both domains:
   cars.
 - [Configure the system](../tutorials/04-configure.md): the world server's and the
   bridge's configuration.
+- [CARLA's assets on Isaac Sim](../tutorials/06-carla-assets-on-isaac.md): the other
+  towns, CARLA's vehicles, walkers and props in a scenario, a light Town01, the Mount
+  Haruna course.
+- [Road physics: surfaces, mud and rocks](../tutorials/07-road-physics.md): what the roads
+  are made of.
 - [Build your own stack](../build-your-own-stack.md): your car, your autopilot.
 
 ## Appendix: running the parts in separate terminals

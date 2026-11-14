@@ -80,7 +80,8 @@ Install and build as in a getting-started guide, stage 1
 
 ### The map directory
 
-The maps are fetched and repaired as in the getting-started guides, stage 2. One directory
+The maps are fetched and repaired as in the getting-started guides, stage 2, or downloaded
+already repaired ([Datasets](#datasets)). One directory
 per town, in Autoware's map layout plus CARLA's files, side by side under `CARLA_MAPS`
 (scenarios name their map as `$(env CARLA_MAPS)/<Town>`):
 
@@ -164,6 +165,37 @@ the stack after it: a stack started before keeps the old map.
 For a town aib drives on its own (no SSv2 to command the lights),
 `scripts/generate_signal_groups.py <Town> --port <CARLA port>` writes CARLA's light groups
 to `<map dir>/carla/signal_groups.yaml`.
+
+The repaired towns are also published, ready to use, as the `carla-town-autoware-maps`
+dataset (below). Two of its files name paths on the machine that made them:
+`<Town>/isaac/world.yaml` (`usd:`, absolute or relative to the map directory) and
+`<Town>/carla/traffic_lights.yaml` (regenerate it with `--generate-signal-table`). A repair
+added to `download_maps.sh` after the dataset was published reaches only maps fetched by
+the script.
+
+### Isaac Sim's assets
+
+Isaac renders CARLA's towns, vehicles, props and walkers from a USD export of CARLA
+0.9.16, the asset set, named by two environment variables: `CARLA_USD` (the set's root)
+and `SWB_VEHICLE_USD` (its `vehicles/`). A map's `isaac/world.yaml` names its town's
+`$CARLA_USD/<Town>/<Town>_physics.usda`; `src/swb_isaac_world/scripts/isaac_town.sh <Town>`
+writes it. A scenario entity's `model3d` picks its model by CARLA blueprint id. Download,
+check and use: [CARLA's assets on Isaac Sim](tutorials/06-carla-assets-on-isaac.md); how
+the set is made: [Isaac assets](design/isaac-assets.md).
+
+### Datasets
+
+Published on Hugging Face, each downloaded with
+`hf download jerry73204/<name> --repo-type dataset --local-dir <dir>` (`hf` is Hugging
+Face's command, `pip install -U huggingface_hub`):
+
+| Dataset | What | Licence |
+|---|---|---|
+| [carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd) | the asset set: six CARLA towns, 41 vehicles, 97 props, 52 walkers as USD (`CARLA_USD`) | CC BY 4.0 |
+| [carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps) | the repaired TUM towns (`CARLA_MAPS`), Town05 with a 110 km/h ring, a light Town01 Isaac world from the point cloud | LGPL-3.0 |
+| [haruna-tsukuba-courses](https://huggingface.co/datasets/jerry73204/haruna-tsukuba-courses) | the Mount Haruna mountain road and Tsukuba Circuit: Isaac worlds, Autoware maps, a scenario each | ODbL, GSI |
+| [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages) | Isaac test stages: 13 road surfaces, a proving ground | Apache-2.0 |
+| [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models) | a golf cart for Isaac: body, rig, vehicle spec, catalog entry, RViz mesh | Apache-2.0 |
 
 ## 2. Scenarios
 
@@ -427,7 +459,7 @@ The stack reads these; put them in the environment file
 | `RMW_IMPLEMENTATION` | `rmw_cyclonedds_cpp` (set by the launches) | must be Cyclone in every terminal |
 | `CYCLONEDDS_URI` | swb_launch's localhost profile | the DDS profile; export it after Autoware's setup |
 | `CARLA_MAPS` | none | where the scenarios find `$(env CARLA_MAPS)/<Town>` |
-| `ISAAC_ROOT`, `CARLA_USD`, `SWB_VEHICLE_USD` | none | Isaac Sim and its assets (Isaac guide, stage 1) |
+| `ISAAC_ROOT`, `CARLA_USD`, `SWB_VEHICLE_USD` | none | Isaac Sim and its assets (Isaac guide, stage 1; [Isaac Sim's assets](#isaac-sims-assets)) |
 | `ISAAC_KIT_ARGS` | none | Isaac's own options, e.g. a GPU |
 | `DISPLAY` | the terminal's | RViz, CARLA's or Isaac's window |
 | `SIMULATOR_RESPONSE_TIMEOUT`, `SIMULATOR_INITIALIZE_TIMEOUT` | 90, 300 | SSv2's waits on the bridge, s ([Timeouts](#timeouts)) |

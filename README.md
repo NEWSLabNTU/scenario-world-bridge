@@ -84,10 +84,12 @@ from different specs is refused ([vehicle side](docs/design/vehicle-side.md)).
 | Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer |
 | Build tools | Rust ([rustup](https://rustup.rs/)) and colcon's Rust plugin, `colcon-cargo-ros2` |
 | Hardware | an NVIDIA GPU that runs the simulator beside Autoware. With Isaac Sim, plan for its world server alone holding about 17.5 GB of RAM on Town01 |
-| Maps | an Autoware map (Lanelet2 + point cloud) per CARLA town: one script fetches and repairs them |
+| Maps | an Autoware map (Lanelet2 + point cloud) per CARLA town: one script fetches and repairs them, or download them repaired ([carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps)) |
 
 SSv2 is bundled (a fork, as a submodule). Isaac Sim also needs the CARLA towns and vehicles
-as USD (the asset set). Ask NEWSLab for it.
+as USD, the asset set, about 25 GB:
+[carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd)
+on Hugging Face.
 
 ## Quick start on CARLA
 
@@ -218,7 +220,21 @@ steering against the spec) with no Autoware: see their READMEs.
   2. [run and judge](docs/tutorials/02-run-and-judge.md): suites, verdicts, result files;
   3. [other road users and more AVs](docs/tutorials/03-other-road-users.md);
   4. [configure the system](docs/tutorials/04-configure.md);
-  5. [a demo run and recording](docs/tutorials/05-demo-and-recording.md).
+  5. [a demo run and recording](docs/tutorials/05-demo-and-recording.md);
+  6. [CARLA's assets on Isaac Sim](docs/tutorials/06-carla-assets-on-isaac.md): towns,
+     vehicles, walkers and props, a light Town01, the Mount Haruna course;
+  7. [road physics: surfaces, mud and rocks](docs/tutorials/07-road-physics.md).
+- **Datasets** on Hugging Face:
+  - [carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd):
+    CARLA's towns, vehicles, props and walkers as USD for Isaac Sim;
+  - [carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps):
+    the CARLA towns as repaired Autoware maps;
+  - [haruna-tsukuba-courses](https://huggingface.co/datasets/jerry73204/haruna-tsukuba-courses):
+    Mount Haruna and Tsukuba Circuit as Isaac worlds with Autoware maps;
+  - [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages):
+    Isaac test stages for road surfaces;
+  - [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models):
+    a golf cart for Isaac Sim and RViz.
 - **Reference:**
   - the [User Guide](docs/user-guide.md): launches, their arguments, the environment,
     troubleshooting;

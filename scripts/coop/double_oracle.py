@@ -106,7 +106,10 @@ def worker(port, k, inbox, outbox):
             tag, jobs = msg
             rng = random.Random(zlib.crc32(tag.encode()))  # stable across processes; each job seeds its own
             rows = AR.run_jobs(ar, cars, jobs, rng, args)
-            outbox.put((tag, [{k: r[k] for k in ("uA", "uB", "contact", "ahead", "got_in", "t_run")} for r in rows]))
+            keep = ("uA", "uB", "contact", "ahead", "got_in", "t_run",
+                    # arena.Pair's planned merge end and the legacy end's shadow (074, the merge-end fix), when present
+                    "t_plan", "uA_legacy", "uB_legacy", "got_in_legacy", "ahead_legacy", "peakA", "peakB", "t_lat")
+            outbox.put((tag, [{k: r[k] for k in keep if k in r} for r in rows]))
     finally:
         ar.close()
 

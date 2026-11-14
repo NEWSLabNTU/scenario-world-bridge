@@ -376,7 +376,9 @@ def arena_compare(port, out, seeds=4, obs=None, react_b=None):
     finally:
         ar.close()
     keep = ("d0", "dv", "a", "b", "seed", "d0_real", "dv_real", "uA", "uB", "contact", "ahead", "got_in", "t_run", "ttc",
-            *measures.Measures().result().keys())
+            *measures.Measures().result().keys(),
+            # arena.Pair's merge end (074, the merge-end fix): the planned end and the legacy end's shadow
+            "t_plan", "uA_legacy", "uB_legacy", "got_in_legacy", "ahead_legacy", "contact_legacy", "t_run_legacy")
     with open(os.path.join(out, "arena.jsonl"), "w") as f:
         for r in rows:
             f.write(json.dumps({k: r.get(k) for k in keep}) + "\n")

@@ -76,6 +76,17 @@ LEGACY_FOLLOW = False  # True: the pre-N3 follower (IDM at v_des = its start spe
 # B at 5.8) the arena's A saw B draw level about 0.13 s after the agent does, and cut in while
 # swb's A had already braked. True: the old absolute observation, for re-runs only.
 LEGACY_OBS = False
+# When a run that merges past the horizon ends (074 C6, "Bug found in arena.py"). A run lasts at
+# least HORIZON and, once A has decided, until A's lane change is complete by its plan (decision
+# + prepare + lane change), then got_in is scored on the measured lateral (>= 0.9 of a lane).
+# CARLA's car follows the steering command about 0.6 s late, so a merge planned to end after
+# about HORIZON - 0.6 s was cut at its planned end with A at 0.7-0.85 of a lane and scored as never
+# in (lost_a = 1, uA about -1) although A was completing the merge. The run now goes on
+# MERGE_SETTLE s past the planned end (c6_belief's 1.5 s). True: the old end, for re-runs only.
+# With it off, each record also carries what the old end would have scored (`*_legacy`), so the
+# fix's impact is measured on the same runs.
+LEGACY_MERGE_END = False
+MERGE_SETTLE = 1.5  # s
 # B's safety layer: Autoware's obstacle_stop as C3 measured it (074, the C3a/C3b bags). Once A's
 # lane change starts (its predicted path reaches B's), obstacle_stop puts a stop point stop_margin
 # before A (RSS: before where A would stop, braking at stop_rss_dec, when A moves faster than
@@ -91,6 +102,19 @@ LEGACY_OBS = False
 STOP_DEFAULTS = {"stop": 0, "stop_margin": 5.0, "stop_rss_dec": 1.2, "stop_v_offset": 1.0, "stop_fixed_v": 3.0,
                  "stop_lat_on": 0.03, "stop_on_time": 0.3, "stop_off_time": 1.0, "stop_a_plan": 2.5,
                  "stop_a_strong": 3.4, "stop_jerk": 5.0, "stop_delay": 0.5, "stop_a_start": 0.7}
+
+
+def run_ends(t, t_plan, waiting, contact, settle):
+    """Whether a cut-in run ends at t (s from its start). t_plan: the planned end of A's lane
+    change (None before A decides); waiting: A has not decided but may still (it drops behind or
+    waits for a yield); settle: the time the run goes on past t_plan (0 is the legacy end)."""
+    if contact or t >= C1.T_MAX:
+        return True
+    if t < HORIZON:
+        return False
+    if t_plan is not None:
+        return t >= t_plan + settle
+    return not waiting
 
 
 def follow(gap, v, v_lead, cap, v_des):
@@ -681,6 +705,8 @@ class Pair:
         self.phase = "warmup"
         self.t0 = None
         self.rec = None
+        self.rec_legacy = None  # the record the legacy end (LEGACY_MERGE_END) would have kept
+        self.t_plan = None
 
     # geometry
     def rear(self, car):
@@ -876,9 +902,12 @@ class Pair:
         # merged: A's lane change is complete by its own plan (decision + prepare + lane change),
         # the same rule in the arena, swb (c2b.py) and C1, not a measured lateral threshold
         t_prep = self.pa["t_prep"] if self.pa is not None else cap.t_prep
-        merged = self.decide is not None and t >= self.decide + t_prep + cap.t_lc
+        t_plan = None if self.decide is None else self.decide + t_prep + cap.t_lc
+        self.t_plan = t_plan
         waiting = self.decide is None and (self.dropping or job.get("a") == C1.GO_IF_YIELD or self.pa is not None)
-        if self.contact or t >= C1.T_MAX or (t >= HORIZON and (merged or not waiting and self.decide is None)):
+        if not LEGACY_MERGE_END and self.rec_legacy is None and run_ends(t, t_plan, waiting, self.contact, 0.0):
+            self.rec_legacy = self.record()  # what the old end would have scored, on this same run
+        if run_ends(t, t_plan, waiting, self.contact, 0.0 if LEGACY_MERGE_END else MERGE_SETTLE):
             self.finish()
 
     def stop_layer(self, t, xa_s, lat_s, va_s, xb, vb, la, lb):
@@ -916,6 +945,18 @@ class Pair:
         return self.stop_dec
 
     def finish(self):
+        self.rec = self.record()
+        self.rec["t_plan"] = None if self.t_plan is None else round(self.t_plan, 2)
+        if not LEGACY_MERGE_END:
+            lg = self.rec_legacy or self.rec
+            for k in ("uA", "uB", "got_in", "ahead", "contact", "t_run"):
+                self.rec[f"{k}_legacy"] = lg[k]
+        if getattr(self.args, "trace", False):
+            self.rec["trace"] = self.trace
+        self.phase = "done"
+
+    def record(self):
+        """The run's record as of now (finish() keeps it; the legacy end's shadow is one too)."""
         xa, ya, _, _ = self.A.state()
         xb, _, _, _ = self.B.state()
         t = self.ar.t - self.t0  # the run lasts until A's merge is complete (C1.T_MAX at most)
@@ -934,7 +975,7 @@ class Pair:
                        (self.peak[0], self.peak[1]), got_in and not self.dropping, "",
                        m.clear, m.pet, tuple(m.lat_peak))
         pref, cap = C1.Preference(), C1.TYPES["car"]
-        self.rec = {**self.job, "road": self.road, "d0_real": round(self.d0_real, 2),
+        rec = {**self.job, "road": self.road, "d0_real": round(self.d0_real, 2),
                     "dv_real": round(self.dv_real, 2), "vb_real": round(self.vb0, 2),
                     "react_a": round(self.react_a, 3), "react_b": round(self.react_b, 3),
                     "uA": round(C1.utility(o, 0, cap, pref), 4), "uB": round(C1.utility(o, 1, cap, pref), 4),
@@ -945,9 +986,7 @@ class Pair:
                     "ahead": int(got_in and not self.dropping and xa > xb),  # merged in front of B
                     "peakA": round(self.peak[0], 2), "peakB": round(self.peak[1], 2),
                     "y_end_A": round(ya, 2), "t_run": round(t, 2), **self.meas.result(self.decide)}
-        if getattr(self.args, "trace", False):
-            self.rec["trace"] = self.trace
-        self.phase = "done"
+        return rec
 
 
 B_PROFILES = (C1.PRE_YIELD, "react_yield", "react_hold")

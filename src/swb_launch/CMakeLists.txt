@@ -8,6 +8,8 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+# launch/ installs recursively: launch/pilots/ (roadmap 076 step 5) comes with it.
+
 # `ros2 run swb_launch run_suite`: many scenarios, one verdict each, one suite.junit.xml.
 # `ros2 run swb_launch physical_verdict`: CARLA's contacts as a JUnit testcase (021).
 # `ros2 run swb_launch carla_poses`: poses on CARLA's map as OpenSCENARIO WorldPositions.
@@ -38,6 +40,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_incident_judge test/test_incident_judge.py)
   ament_add_pytest_test(test_ego_ready test/test_ego_ready.py)
   ament_add_pytest_test(test_stack_domains test/test_stack_domains.py)
+  ament_add_pytest_test(test_pilots test/test_pilots.py)
 endif()
 
 ament_package()

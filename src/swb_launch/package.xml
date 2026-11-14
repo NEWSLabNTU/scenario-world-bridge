@@ -13,6 +13,7 @@
   <exec_depend>scenario_agent_relay</exec_depend>
   <exec_depend>acb_bridge</exec_depend>
   <exec_depend>acb_launch</exec_depend>
+  <exec_depend>autoware_sim_profile</exec_depend>
   <exec_depend>swb_agent</exec_depend>
   <exec_depend>scenario_test_runner</exec_depend>
   <!-- stack.launch.py: the world servers, the default autopilots, the vehicle catalog -->

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A pilot's vehicle side for its simulator (docs/design/projects-and-pilots.md, "Pilots"),
+     what the autoware, launch and command pilots include.
+
+     - sim carla: vehicle_side_carla.launch.xml (acb_bridge in this domain). Every argument
+       given here reaches it (launch arguments are global).
+     - sim isaac: nothing. The car's rig (sensors, vehicle interface, /clock) runs inside the
+       Isaac world server (swb_isaac_world, aib's library), which publishes on
+       EGO_ROS_DOMAIN_ID: an Isaac pilot runs in that domain (stack.launch.py refuses another).
+     - any other sim: nothing; that simulator's world server owns its vehicle side.
+-->
+<launch>
+  <arg name="sim" default="carla" description="carla | isaac | a simulator package"/>
+  <group if="$(eval &quot;'$(var sim)' == 'carla'&quot;)">
+    <include file="$(find-pkg-share swb_launch)/launch/pilots/vehicle_side_carla.launch.xml"/>
+  </group>
+</launch>

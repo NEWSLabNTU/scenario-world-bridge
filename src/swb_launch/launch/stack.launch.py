@@ -6,7 +6,7 @@ is a slot.
         [sim_args:="name:=value ..."] [ego_launch:=<path>|"<package> <file>"|none] \\
         [ego_launch_args:="name:=value ..."] [vehicle_model:=...] [spec_hash_file:=...] \\
         [vehicle_catalogs:=...] [scenario:=<path to .xosc>] [scenario_args:="..."] \\
-        [exit_on_scenario_end:=false]
+        [exit_on_scenario_end:=false] [pilots:='<YAML or JSON list>']
 
 The shortcuts for the supported simulators, isaac.launch.xml and carla.launch.xml, fill
 `sim` and `sim_args` from arguments of their own.
@@ -29,6 +29,20 @@ Groups and their ROS domains:
     profile; the vehicle interface and sensors are the world server's); on carla,
     acb_launch carla_simulator.launch.xml (Autoware with acb_bridge, CARLA's vehicle
     bridge). none: no ego.
+- pilots (roadmap 076, docs/design/projects-and-pilots.md "Pilots"): `pilots` is YAML or JSON
+  text, a list `[{entity, kind, domain, <arg>: <value>, args: {...}}, ...]` (or a mapping
+  entity -> {kind, ...}). Each pilot is a nested play_launch of swb_launch's
+  launch/pilots/<kind's file> in its own domain, respawned: autoware (autoware.launch.xml),
+  carla_basic (carla_basic.launch.py), launch (launch.launch.py), command (command.launch.py);
+  none starts nothing (the user's own). Keys other than entity, kind, domain, lifetime and args
+  are launch arguments too (a list is joined as shell words, so `run: [python3, -m, x]`
+  works); `args` wins. Every pilot gets the common contract: entity, relay, map_path, vehicle
+  (vehicle_model, else tesla_model3), sim, use_sim_time, spec_hash_file, and on CARLA
+  carla_host, carla_port, the release endpoints and the physics check. A pilot without
+  `domain` takes ego_domain if free, then the next free one above it. On Isaac the car's rig
+  is the world server's, on ego_domain: a pilot with a vehicle side must run there (one such
+  pilot), and carla_basic is refused. With pilots and no ego_launch the old ego is not
+  started; ego_launch:=<launch> still starts it, in ego_domain, beside the pilots.
 - run (scenario domain): with `spawn` and no scenario, free drive (swb_free_drive: the ego at
   that pose, time stepped synchronously, paced to the wall clock unless realtime:=false; the
   autopilot driven by hand). With `scenario`, SSv2 (scenario.launch.xml) as a nested play_launch:
@@ -127,6 +141,140 @@ def nested(name, target, args, domain, log_dir, respawn=False, extra=(), require
                           on_exit=Shutdown() if required else None)
 
 
+# --- pilots (roadmap 076 step 5) ------------------------------------------------------------
+# kind -> its launch under swb_launch's launch/pilots/; None: nothing to start
+PILOT_KINDS = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.launch.py",
+               "launch": "launch.launch.py", "command": "command.launch.py", "none": None}
+PILOT_KEYS = ("entity", "kind", "domain", "lifetime", "args")
+
+
+def _arg_text(value):
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (list, tuple)):
+        return shlex.join(str(v) for v in value)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def has_vehicle_side(kind, args):
+    """Whether the pilot starts a simulator vehicle side in its domain."""
+    if kind == "autoware":
+        return True
+    if kind == "launch":
+        return args.get("vehicle_side", "true") == "true"
+    if kind == "command":
+        return args.get("vehicle_side", "false") == "true"
+    return False
+
+
+def parse_pilots(text, sim, ego_domain, scenario_domain, ego_taken=False):
+    """`pilots:` as [{entity, kind, domain, args}], domains assigned and checked.
+
+    ego_taken: the old ego (ego_launch) holds ego_domain."""
+    import yaml
+    if not (text or "").strip():
+        return []
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        raise RuntimeError(f"stack: pilots: not YAML or JSON: {e}") from None
+    if raw is None:
+        return []
+    if isinstance(raw, dict):
+        raw = [{"entity": name, **(spec or {})} for name, spec in raw.items()]
+    if not isinstance(raw, list):
+        raise RuntimeError("stack: pilots: a list of {entity, kind, ...} (or entity -> {kind, ...})")
+    pilots, entities = [], set()
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise RuntimeError(f"stack: pilots[{i}]: a mapping, not {item!r}")
+        entity = _arg_text(item.get("entity"))
+        if not entity:
+            raise RuntimeError(f"stack: pilots[{i}]: no entity")
+        if entity in entities:
+            raise RuntimeError(f"stack: pilots: entity {entity!r} twice")
+        entities.add(entity)
+        kind = item.get("kind")
+        if kind not in PILOT_KINDS:
+            raise RuntimeError(f"stack: pilot {entity}: kind {kind!r}: one of "
+                               + ", ".join(PILOT_KINDS))
+        lifetime = item.get("lifetime", "stack")
+        if lifetime != "stack":
+            raise RuntimeError(f"stack: pilot {entity}: lifetime {lifetime!r}: the stack starts "
+                               "lifetime stack pilots only (lifetime run is the run's)")
+        extra = item.get("args") or {}
+        if not isinstance(extra, dict):
+            raise RuntimeError(f"stack: pilot {entity}: args is a mapping of launch arguments")
+        args = {k: _arg_text(v) for k, v in item.items() if k not in PILOT_KEYS}
+        args.update({k: _arg_text(v) for k, v in extra.items()})
+        if kind == "carla_basic" and sim != "carla":
+            raise RuntimeError(f"stack: pilot {entity}: carla_basic drives CARLA only, sim is {sim!r}")
+        if kind == "launch" and not args.get("launch"):
+            raise RuntimeError(f"stack: pilot {entity}: kind launch needs launch: '<pkg> <file>' or a path")
+        if kind == "command" and not args.get("run"):
+            raise RuntimeError(f"stack: pilot {entity}: kind command needs run: [argv...]")
+        domain = item.get("domain")
+        pilots.append({"entity": entity, "kind": kind, "args": args,
+                       "domain": None if domain in (None, "") else _arg_text(domain)})
+
+    used = {int(scenario_domain)}
+    if ego_taken:
+        used.add(int(ego_domain))
+    for p in pilots:  # explicit domains first
+        if p["domain"] is None or p["kind"] == "none":
+            continue
+        try:
+            d = int(p["domain"])
+        except ValueError:
+            raise RuntimeError(f"stack: pilot {p['entity']}: domain {p['domain']!r} is not a number") from None
+        if not 0 <= d <= MAX_DOMAIN:
+            raise RuntimeError(f"stack: pilot {p['entity']}: domain {d}: use 0-{MAX_DOMAIN}")
+        if d in used:
+            raise RuntimeError(f"stack: pilot {p['entity']}: domain {d} is taken (the scenario's, "
+                               "the old ego's or another pilot's)")
+        used.add(d)
+        p["domain"] = str(d)
+    for p in pilots:  # then the rest: ego_domain, then upwards
+        if p["domain"] is not None or p["kind"] == "none":
+            continue
+        d = int(ego_domain)
+        while d in used:
+            d += 1
+        if d > MAX_DOMAIN:
+            raise RuntimeError(f"stack: pilot {p['entity']}: no free domain up to {MAX_DOMAIN}")
+        used.add(d)
+        p["domain"] = str(d)
+    if sim == "isaac":
+        sided = [p for p in pilots if has_vehicle_side(p["kind"], p["args"])]
+        if len(sided) > 1:
+            raise RuntimeError("stack: on Isaac one pilot has a vehicle side (one ego): "
+                               + ", ".join(p["entity"] for p in sided))
+        for p in sided:
+            if p["domain"] != str(ego_domain):
+                raise RuntimeError(
+                    f"stack: pilot {p['entity']}: on Isaac the car's rig is the world server's, "
+                    f"on ego_domain {ego_domain}; this pilot is on {p['domain']}")
+    return pilots
+
+
+def pilot_launches(pilots, pilots_dir, common):
+    """(name, launch path, arguments, domain, ros) per pilot to start. `common` is the contract
+    the stack gives every pilot; the pilot's own arguments override it. Empty values are left
+    out (the launch's default)."""
+    out = []
+    for p in pilots:
+        name = PILOT_KINDS[p["kind"]]
+        if name is None:
+            continue
+        args = {**common, "entity": p["entity"], **p["args"]}
+        args = {k: v for k, v in args.items() if v != ""}
+        ros = p["kind"] != "carla_basic"
+        out.append((f"pilot_{p['entity']}", os.path.join(pilots_dir, name), args, p["domain"], ros))
+    return out
+
+
 def _stack(context):
     get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
     sim = get("sim")
@@ -179,8 +327,13 @@ def _stack(context):
         SetEnvironmentVariable("ROS_DOMAIN_ID", scenario_domain),
         include(os.path.join(swb, "launch", "simulation.launch.xml"), side)]))
 
-    # --- ego
+    # --- ego (the old path; the pilots below succeed it)
     ego_launch = get("ego_launch")
+    pilots_text = get("pilots")
+    if pilots_text.strip() and not ego_launch:
+        ego_launch = "none"
+    pilots = parse_pilots(pilots_text, sim, ego_domain, scenario_domain,
+                          ego_taken=ego_launch != "none")
     if ego_launch != "none":
         if not ego_launch:
             ego_launch = {"isaac": "aib_launch isaac_simulator.launch.xml",
@@ -222,6 +375,27 @@ def _stack(context):
                                                                  "vehicle_agent.launch.xml")],
                                   {k: v for k, v in agent.items() if v}, ego_domain,
                                   os.path.join(log_root, "agent"), respawn=True))
+
+    # --- pilots
+    if pilots:
+        common = {"relay": f"tcp://localhost:{agent_port}", "map_path": get("map_path"),
+                  "vehicle": get("vehicle_model") or "tesla_model3", "sim": sim,
+                  "use_sim_time": "true", "spec_hash_file": get("spec_hash_file")}
+        if sim == "carla":
+            # as the old ego: the world server's release sockets (SSv2 port + 1, + 2), and the
+            # spec's physics read back when the world server applies it (roadmap 074 C3)
+            common.update(carla_host=_env("CARLA_HOST", ""), carla_port=_env("CARLA_PORT", ""),
+                          release_notify_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 1}",
+                          release_ack_endpoint=f"tcp://127.0.0.1:{int(ssv2_port) + 2}")
+            physics = sim_args.get("vehicle_physics", "none")
+            if physics and physics != "none":
+                common.update(carla_physics=physics, carla_physics_mode="verify")
+        for name, path, args, domain, ros in pilot_launches(
+                pilots, os.path.join(swb, "launch", "pilots"), common):
+            extra = ("--container-mode", "isolated", "--composable-respawn", "on-crash") if ros else ()
+            actions.append(nested(name, [path], args, domain,
+                                  os.path.join(log_root, name.replace("pilot_", "pilot-", 1)),
+                                  respawn=True, extra=extra))
 
     # --- run
     scenario = get("scenario")
@@ -274,6 +448,7 @@ def generate_launch_description():
         arg("spec_hash_file", default_value="", description="the agent's spec_hash YAML, instead of vehicle_model's"),
         arg("vehicle_catalogs", default_value="", description="the bridge's extra vehicle catalogs, comma separated"),
         arg("side_args", default_value="", description="name:=value ... for the simulation side's launch (simulation.launch.xml: config_file, weather, gap_trace_dir, ...)"),
+        arg("pilots", default_value="", description="YAML/JSON list of pilots [{entity, kind, domain, <arg>: <value>, args: {...}}], each a nested play_launch of launch/pilots/<kind> in its domain; empty: none (the ego_launch path)"),
         arg("scenario", default_value="", description="an .xosc to run; empty: none"),
         arg("scenario_args", default_value="", description="name:=value ... for scenario.launch.xml (global_timeout, global_real_time_factor, output_directory, ...)"),
         arg("exit_on_scenario_end", default_value="false", description="true: the stack ends with the scenario"),

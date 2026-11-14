@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The autoware pilot (docs/design/projects-and-pilots.md, "Pilots"): the vehicle side, the
+     Autoware profile as the driver, and swb's vehicle agent registering the entity with the
+     relay, all in the pilot's ROS domain.
+
+       ROS_DOMAIN_ID=<pilot domain> play_launch launch swb_launch autoware.launch.xml \
+           entity:=ego relay:=tcp://localhost:5560 map_path:=<map dir> sim:=carla \
+           [vehicle:=tesla_model3] [carla_physics:=<file>] [name:=value ...]
+
+     - vehicle side: vehicle_side.launch.xml (CARLA: acb_bridge; Isaac: the world server's rig,
+       nothing here);
+     - driver: autoware_sim_profile autoware.launch.xml with this car (vehicle, its sensor
+       kit); autoware_launch:= points the profile at another autoware.launch.xml;
+     - agent: vehicle_agent.launch.xml (relay, entity, the car's spec_hash).
+
+     On CARLA this is what stack.launch.py's default ego was (acb_launch
+     carla_simulator.launch.xml plus the vehicle agent), composed here without that file. Every
+     argument not declared here reaches the profile or acb (launch arguments are global):
+     rviz, max_velocity, lidar_detection_model, gpu, the sim_* switches, steering_multiplier, ...
+     acb_bridge is required (on_exit shutdown): an episode change ends the pilot, and its
+     supervisor (the stack's respawn) starts it again.
+-->
+<launch>
+  <arg name="dds_config" default="$(env CYCLONEDDS_URI file://$(find-pkg-share swb_launch)/config/cyclonedds-localhost.xml)" description="CYCLONEDDS_URI for every process this launch starts"/>
+  <set_env name="CYCLONEDDS_URI" value="$(var dds_config)"/>
+  <set_env name="RMW_IMPLEMENTATION" value="$(env RMW_IMPLEMENTATION rmw_cyclonedds_cpp)"/>
+
+  <!-- the common contract -->
+  <arg name="entity" default="ego" description="the scenario entity this pilot drives"/>
+  <arg name="relay" default="none" description="the agent relay, tcp://host:port; none = local mode (goal_poses_file)"/>
+  <arg name="map_path" description="the map directory (lanelet2_map.osm, pointcloud_map.pcd, carla/)"/>
+  <arg name="vehicle" default="tesla_model3" description="the car: its spec name (Autoware's vehicle_model)"/>
+  <arg name="seed" default="0" description="the run's seed (unused by Autoware)"/>
+  <arg name="run_dir" default="" description="the run's directory (unused by Autoware)"/>
+  <arg name="sim" default="carla" description="carla | isaac"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="carla_host" default="localhost"/>
+  <arg name="carla_port" default="2000"/>
+  <arg name="release_notify_endpoint" default="tcp://127.0.0.1:5556" description="swb_carla_world's release PUB socket (ssv2_port + 1)"/>
+  <arg name="release_ack_endpoint" default="tcp://127.0.0.1:5557" description="swb_carla_world's release PULL socket (ssv2_port + 2)"/>
+
+  <!-- autoware's -->
+  <arg name="autoware_launch" default="$(find-pkg-share autoware_launch)/launch/autoware.launch.xml" description="the autoware.launch.xml the profile includes (a fork's)"/>
+  <arg name="sensor_model" default="$(var vehicle)_sensor_kit"/>
+  <arg name="traffic_light_fusion_only" default="true" description="signals from the vehicle side (V2X); no traffic light camera"/>
+  <arg name="publish_ground_truth_objects" default="false"/>
+  <arg name="carla_physics" default="none" description="CARLA: the spec's carla_physics.yaml the world server applied; none = the blueprint's"/>
+  <arg name="carla_physics_mode" default="verify" description="CARLA: verify | apply"/>
+  <arg name="spec_hash_file" default="" description="the agent's spec_hash YAML instead of the vehicle's description package's"/>
+  <arg name="agent_config" default="" description="the vehicle agent's settings (YAML/JSON); empty = defaults"/>
+  <arg name="goal_poses_file" default="" description="local mode's goal when relay is none"/>
+
+  <include file="$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml">
+    <arg name="autoware_launch" value="$(var autoware_launch)"/>
+    <arg name="map_path" value="$(var map_path)"/>
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="vehicle_model" value="$(var vehicle)"/>
+    <arg name="sensor_model" value="$(var sensor_model)"/>
+    <arg name="traffic_light_fusion_only" value="$(var traffic_light_fusion_only)"/>
+    <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)"/>
+  </include>
+
+  <include file="$(find-pkg-share swb_launch)/launch/pilots/vehicle_side.launch.xml">
+    <arg name="sim" value="$(var sim)"/>
+  </include>
+
+  <include file="$(find-pkg-share swb_launch)/launch/vehicle_agent.launch.xml">
+    <arg name="map_path" value="$(var map_path)"/>
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="relay" value="$(eval &quot;'' if '$(var relay)' == 'none' else '$(var relay)'&quot;)"/>
+    <arg name="entity" value="$(var entity)"/>
+    <arg name="vehicle_model" value="$(var vehicle)"/>
+    <arg name="spec_hash_file" value="$(var spec_hash_file)"/>
+    <arg name="agent_config" value="$(var agent_config)"/>
+    <arg name="goal_poses_file" value="$(var goal_poses_file)"/>
+  </include>
+</launch>

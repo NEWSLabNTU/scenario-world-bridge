@@ -123,7 +123,8 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
 ## Steps
 
 1. [x] Audit (2026-11-14), above.
-2. [~] Assets: inventory, NAS copies. 243's and 139's copied 2026-11-14; 118, 133 and 241 asked.
+2. [x] Assets: inventory and NAS copies from 243, 118, 133, 139 and 241 (2026-11-14); inventories
+   in the NAS's `home/aeon/hf-assets/`.
 3. [x] The user's word on the doc set and the asset questions (Decisions).
 4. [x] Launch fixes the docs need (342b3e2, 2026-11-14): package.xml exec_depends on what
    `stack.launch.py` resolves; `carla.launch.xml world_config:=` for the CARLA world server's
@@ -144,7 +145,22 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    broken relative link in the user docs. Not yet run live (step 8).
 8. [ ] Acceptance: every command in the guides run once on a quiet host (CARLA, Isaac);
    one guide followed verbatim by a fresh reader with nothing else.
-9. [ ] Hugging Face: a dataset card per asset family; upload to the user's account (NTU and Shalun unlisted, by the user).
+9. [~] Hugging Face (2026-11-14): seven dataset repos under the user's account, all **private**
+   for the user to review and open (decision: "Create them private first"), each with a card
+   (source, licence, how made, use with swb):
+
+   | Repo (`jerry73204/...`) | Files | Size | Licence |
+   |---|---|---|---|
+   | `swb-carla-0.9.16-isaac-usd` (towns, Town07_Opt, vehicles, props, walkers) | 21829 | 25.5 GB | CC-BY-4.0 |
+   | `swb-touge-courses` (Haruna, Tsukuba; `world.yaml` made relative) | 565 | 0.49 GB | ODbL + GSI |
+   | `swb-carla-town-maps` (TUM towns with swb's repairs, Town05 ring, Town01 point-cloud world) | 53 | 0.73 GB | LGPL-3.0 |
+   | `swb-road-physics-stages` (surfaces, proving ground, 066 procedural stages) | 77 | 2.6 MB | Apache-2.0 |
+   | `newslab-golfcart-models` | 20 | 6 MB | Apache-2.0 |
+   | `swb-shalun-map` (`world.yaml` made relative) | 47 | 0.41 GB | SVL's, private |
+   | `swb-ntu-campus-maps` (twin map with its Isaac world versions, 133's additions, CARLA package) | 6303 | 20.4 GB | vendor scan, private |
+
+   Left out of NTU: the raw 50 m scan tiles (184 GB), the build archive, the proof videos.
+   Open: the user flips the open ones public.
 
 ## Acceptance
 

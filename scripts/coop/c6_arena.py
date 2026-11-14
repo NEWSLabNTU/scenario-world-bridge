@@ -42,11 +42,12 @@ import cutin_game as C1  # noqa: E402
 import measures as M  # noqa: E402
 
 
-def jobs(cells, seeds, vb):
+def jobs(cells, seeds, vb, only_a=None):
+    """c6_belief's jobs for the cells; only_a: A rules to keep (a top-up run for a rule added later)."""
     out = []
     for c in cells:
         for j in K.jobs_for([(c["d0"], c["dv"])], sorted({c["capA"], c["capB"]}), seeds, vb):
-            if j[3] == c["capA"] and j[5] == c["capB"]:
+            if j[3] == c["capA"] and j[5] == c["capB"] and (not only_a or j[4] in only_a):
                 out.append(j)
     return out
 
@@ -97,13 +98,12 @@ def make_pair_class():
             lat = self.lat()
             o, fresh = self.oa.push(t, xb - xa, 0.0, vb)
             fresh = fresh and o is not None
-            if o is not None:
-                self.sb = K.Seen(o.t, xa + o.x, 0.0, o.v, o.acc)
+            # before the first observation arrives, the truth (as arena.Pair)
+            self.sb = K.Seen(o.t, xa + o.x, 0.0, o.v, o.acc) if o is not None else K.Seen(t, xb, 0.0, vb, 0.0)
             o2, _ = self.ob.push(t, xa - xb, lat, va)
-            if o2 is not None:
-                self.sa = K.Seen(o2.t, xb + o2.x, o2.lat, o2.v, o2.acc)
+            self.sa = K.Seen(o2.t, xb + o2.x, o2.lat, o2.v, o2.acc) if o2 is not None else K.Seen(t, xa, lat, va, 0.0)
             aa, s_cmd = self.PA.step(t, xa, va, self.va0, self.sb, lat)
-            self.F.step(t, self.sb, fresh, s_cmd, self.PA.b_brake_seen,
+            self.F.step(t, self.sb, fresh, lat, self.PA.b_brake_seen,
                         (xa - self.cap_a.length / 2) - (self.sb.x + self.cap_b.length / 2), self.cap_b.length)
             ab = self.PB.step(t, xb, vb, self.vb0, self.sa, self.cap_a.length)
             aa = max(-self.cap_a.b_max, min(self.cap_a.a_max, aa))
@@ -118,6 +118,9 @@ def make_pair_class():
                 if t - h[0][0] >= AR.PEAK_WINDOW - 1e-9:
                     self.peak[k] = max(self.peak[k], (h[0][1] - vv) / AR.PEAK_WINDOW)
             self.meas.push_poses(t, A.pose(), B.pose())
+            if getattr(self.args, "trace", False):
+                self.trace.append((round(t, 2), round(xa - self.xa0, 2), round(va, 2), round(xb - self.xa0, 2), round(vb, 2),
+                                   round(s_cmd, 3), round(lat, 3), round(aa, 2), round(ab, 2), self.PA.decide, self.PA.dropping))
             if self.meas.clear <= 0.0:
                 self.contact = True
             if self.contact or t >= C1.T_MAX - 1e-9 or (t >= C1.HORIZON - 1e-9 and (self.PA.merged(t) or t >= 10.0 + C1.HORIZON)):
@@ -127,7 +130,7 @@ def make_pair_class():
             xa, _, _, _ = self.A.state()
             xb, _, _, _ = self.B.state()
             t = self.ar.t - self.t0
-            self.F.step(max(t, K.T_SNAP[-1]), self.sb, False, self.PA.s, self.PA.b_brake_seen)
+            self.F.step(max(t, K.T_SNAP[-1]), self.sb, False, self.lat(), self.PA.b_brake_seen)
             m = self.meas
             lost_a = M.lost_progress(self.va0, m.s_h[0], C1.HORIZON)
             lost_b = M.lost_progress(self.vb0, m.s_h[1], C1.HORIZON)
@@ -154,14 +157,18 @@ def make_pair_class():
                         "maps": json.dumps({f"{k}@{tq:g}": max(range(len(p)), key=lambda i: p[i])
                                             for tq, dd in snaps.items() for k, p in dd.items()}),
                         "d0_real": round(self.d0_real, 2), "dv_real": round(self.dv_real, 2)}
+            if getattr(self.args, "trace", False):
+                self.rec["trace"] = json.dumps(self.trace)
             self.phase = "done"
 
     return C6Pair, AR, carla
 
 
 def run_shard(args):
-    cells = json.load(open(args.cells))
-    work = jobs(cells, args.seeds, args.vb)
+    if args.jobs:  # explicit jobs (a JSON list of c6 job tuples), traced
+        work = [tuple(j) for j in json.load(open(args.jobs))]
+    else:
+        work = jobs(json.load(open(args.cells)), args.seeds, args.vb, args.only_a.split(",") if args.only_a else None)
     i, n = (int(x) for x in args.shard.split("/"))
     work = work[i::n]
     C6Pair, AR, carla = make_pair_class()
@@ -170,8 +177,9 @@ def run_shard(args):
         pass
     a = Args()
     a.obs_delay, a.obs_sigma_x, a.obs_sigma_v, a.reaction_jitter = 0.19, 0.3, 0.2, 0.2
+    a.trace = bool(args.jobs)
     os.makedirs(args.out, exist_ok=True)
-    path = os.path.join(args.out, f"arena_{i}.csv.gz")
+    path = os.path.join(args.out, f"arena_{args.tag}{i}.csv.gz")
     ar = AR.Arena(args.port, args.k)
     t_start = time.monotonic()
     try:
@@ -278,7 +286,8 @@ def analyze(args):
             with gzip.open(os.path.join(args.out, p), "rt") as f:
                 rows += list(csv.DictReader(f))
     rows = parse(rows)
-    kin = parse(kinematic_rows(cells, args.seeds, args.vb, args.procs))
+    have = {r["a"] for r in rows}  # the arena's options (a run made before a rule joined the pool lacks it)
+    kin = [r for r in parse(kinematic_rows(cells, args.seeds, args.vb, args.procs)) if r["a"] in have]
     out = {"runs": len(rows), "d2": d2(rows, kin), "cells": [],
            "intent_likelihood": {"arena": K.calibrate(rows), "kin": K.calibrate(kin)}}
     ctx_err = [abs(float(r["d0_real"]) - r["d0"]) for r in rows]
@@ -337,7 +346,7 @@ def selftest():
     cells = [{"d0": 10.0, "dv": -2.0, "capA": "m3", "capB": "truck"}]
     js = jobs(cells, 2, 12.0)
     assert js and all(j[5] == "truck" and j[3] == "m3" for j in js), js[:3]
-    assert len(js) == 2 * 5 * (6 + 2)
+    assert len(js) == 2 * len(K.A_POOL) * (len(K.B_POOL) + 2)
     # d2 on identical rows agrees everywhere
     rows = parse([K.run_job(j) for j in js[:16]])
     d = d2(rows, rows)
@@ -356,6 +365,9 @@ def main():
     p.add_argument("--seeds", type=int, default=8)
     p.add_argument("--vb", type=float, default=12.0)
     p.add_argument("--procs", type=int, default=12)
+    p.add_argument("--only-a", default="", help="comma-separated A rules: a top-up run")
+    p.add_argument("--jobs", default="", help="a JSON list of c6 job tuples, run with traces")
+    p.add_argument("--tag", default="", help="shard file prefix (arena_<tag><i>.csv.gz)")
     p.add_argument("--analyze", action="store_true")
     p.add_argument("--selftest", action="store_true")
     a = p.parse_args()

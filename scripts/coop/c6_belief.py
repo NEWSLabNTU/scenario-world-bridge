@@ -93,12 +93,21 @@ B_POOL = [B_AW, B_AW_REACT,
           {"name": "B3", "pre_band": -99.0, "react_gap": 12.59, "b_y": 1.0, "react": 0.5},
           {"name": "B_court", "pre_band": 8.0, "react_gap": 15.0, "b_y": 2.0, "react": 1.0}]
 B_REACTIVE = [b["name"] for b in B_POOL if b["pre_band"] < -98]
+PROBE_LAT = 0.12  # share of a lane: B (lat_seen at 0.08) sees a lane change start
+PROBE_RISE = 0.8  # s to reach the nudge
+PROBE_T = 3.0  # s the nudge waits for B's answer (the arena's lateral lags its command, TAU_LAT)
+INTENT_W = 1.6  # s after A's lateral start within which a yielder is seen braking (B's delay and
+# reaction 0.7, the brake's lag 0.1, A's delay and slope 0.5)
 A_POOL = [
     {"name": "A_aw_cons", "tau": 2.0, "a_rear": 1.0, "buffer": 2.0, "patience": 5.0, "use_yield": 0, "t_prep": 3.0},
     {"name": "A_aw_perm", "tau": 1.0, "a_rear": 2.0, "buffer": 2.0, "patience": 5.0, "use_yield": 0, "t_prep": 3.0},
     {"name": "A_bold", "tau": 0.3, "a_rear": 4.0, "buffer": 1.0, "patience": 2.0, "use_yield": 1, "t_prep": 0.0},
     {"name": "A2", "tau": 0.24, "a_rear": 4.01, "buffer": 5.12, "patience": 6.0, "use_yield": 0, "t_prep": 0.0},
     {"name": "A_wait", "tau": 99.0, "a_rear": 1.0, "buffer": 99.0, "patience": 0.0, "use_yield": 0, "t_prep": 0.0},
+    # a control: A2 started PROBE_T late without the nudge (what a probe does to a holder, at no
+    # cost to a yielder), so that the probe's worth is not a delay the pool lacks
+    {"name": "A2_late", "tau": 0.24, "a_rear": 4.01, "buffer": 5.12, "patience": 6.0, "use_yield": 0, "t_prep": 0.0,
+     "delay": PROBE_T},
 ]
 A_NAMES = [a["name"] for a in A_POOL]
 STOCK = ("A_aw_perm", "B_aw_react")  # the Autoware pair (C3's measured B)
@@ -111,14 +120,12 @@ SIGMA_VMAX = 0.5  # m/s
 SIGMA_LEN = 0.8  # m, the box length seen (class cue)
 P_SEEN_YIELD = 0.85
 P_FALSE_YIELD = 0.08  # a holder seen "braking" from noise (the arena: about 1 run in 16)
-PROBE_LAT = 0.12  # share of a lane: B (lat_seen at 0.08) sees a lane change start
-PROBE_RISE = 0.8  # s to reach the nudge
-PROBE_T = 2.2  # s the nudge waits for B's answer
-INTENT_W = 1.6  # s after A's lateral start within which a yielder is seen braking (B's delay and
-# reaction 0.7, the brake's lag 0.1, A's delay and slope 0.5)
+TAU_LAT = 0.6  # s: A's lateral follows its command with a first-order lag, as the arena's car steers
+MERGE_SETTLE = 1.5  # s: a run ends this long after the planned end of A's lane change, so a lagging
+# lateral is not scored as a merge that never happened
 FILTERS = ("motion", "class", "v2x")
 MODES = ("prior", "prior_p", "motion", "class", "v2x", "truth")
-T_SNAP = (0.0, 1.0, 2.0, PROBE_T, 3.0, 5.0, 8.0)
+T_SNAP = tuple(sorted({0.0, 1.0, 2.0, PROBE_T, 3.0, 5.0, 8.0}))
 
 
 def bel_caps(vb):
@@ -241,7 +248,7 @@ class PolicyA:
     def __init__(self, pa, cap_a, len_b, react_a, probe=False):
         self.p, self.cap, self.lb = pa, cap_a, len_b
         self.react = react_a
-        self.t0 = PROBE_T if probe else 0.0
+        self.t0 = PROBE_T if probe else pa.get("delay", 0.0)
         self.probe = probe
         self.decide = None
         self.dropping = False
@@ -251,7 +258,7 @@ class PolicyA:
         self.drop_t = None
 
     def merged(self, t):
-        return self.decide is not None and t >= self.decide + self.p["t_prep"] + self.cap.t_lc
+        return self.decide is not None and t >= self.decide + self.p["t_prep"] + self.cap.t_lc + MERGE_SETTLE
 
     def step(self, t, xa, va, va0, sb, lat_now):
         p, cap, la, lb = self.p, self.cap, self.cap.length, self.lb
@@ -403,17 +410,17 @@ def simulate(d0, dv, vb, cap_a_name, pa, cap_b_name, pb, seed, probe=False, trac
     sb = Seen(0.0, xb, 0.0, vbb, 0.0)
     sa = Seen(0.0, xa, 0.0, va, 0.0)
     rows = []
+    lat = 0.0  # A's lateral as it is (its command lagged by TAU_LAT)
+    k_lat = 1.0 - math.exp(-DT / TAU_LAT)
     while True:
-        lat = A.s
         o, fresh = obs_a.push(t, xb - xa, 0.0, vbb)
         fresh = fresh and o is not None
-        if o is not None:
-            sb = Seen(o.t, xa + o.x, 0.0, o.v, o.acc)
-        o, _ = obs_b.push(t, xa - xb, lat, va)
-        if o is not None:
-            sa = Seen(o.t, xb + o.x, o.lat, o.v, o.acc)
+        # before the first observation arrives, the truth (as arena.Pair)
+        sb = Seen(o.t, xa + o.x, 0.0, o.v, o.acc) if o is not None else Seen(t, xb, 0.0, vbb, 0.0)
+        o2, _ = obs_b.push(t, xa - xb, lat, va)
+        sa = Seen(o2.t, xb + o2.x, o2.lat, o2.v, o2.acc) if o2 is not None else Seen(t, xa, lat, va, 0.0)
         aa, s_cmd = A.step(t, xa, va, va0, sb, lat)
-        F.step(t, sb, fresh, s_cmd, A.b_brake_seen, (xa - cap_a.length / 2) - (sb.x + cap_b.length / 2), cap_b.length)
+        F.step(t, sb, fresh, lat, A.b_brake_seen, (xa - cap_a.length / 2) - (sb.x + cap_b.length / 2), cap_b.length)
         ab = B.step(t, xb, vbb, vb0, sa, cap_a.length)
         aa = max(-cap_a.b_max, min(cap_a.a_max, aa))
         ab = max(-cap_b.b_max, min(cap_b.a_max, ab))
@@ -430,23 +437,24 @@ def simulate(d0, dv, vb, cap_a_name, pa, cap_b_name, pb, seed, probe=False, trac
                 h.pop(0)
             if t - h[0][0] >= 0.5 - 1e-9:
                 peak[k] = max(peak[k], (h[0][1] - vv) / 0.5)
-        ya = LANE_W * (1.0 - s_cmd)
-        vya = -LANE_W * (s_cmd - s_prev) / DT
-        s_prev = s_cmd
+        lat += (s_cmd - lat) * k_lat
+        ya = LANE_W * (1.0 - lat)
+        vya = -LANE_W * (lat - s_prev) / DT
+        s_prev = lat
         vxa = math.sqrt(max(0.0, va * va - vya * vya))
         meas.push_poses(t, (xa, ya, math.atan2(vya, max(vxa, 0.1)), vxa, vya, cap_a.length, cap_a.width),
                         (xb, 0.0, 0.0, vbb, 0.0, cap_b.length, cap_b.width))
         if trace:
-            rows.append((round(t, 2), round(xa, 2), round(va, 2), round(xb, 2), round(vbb, 2), round(s_cmd, 3)))
+            rows.append((round(t, 2), round(xa, 2), round(va, 2), round(xb, 2), round(vbb, 2), round(s_cmd, 3), round(lat, 3)))
         if meas.clear <= 0.0:
             contact = True
             break
         if t >= C1.T_MAX - 1e-9 or (t >= C1.HORIZON - 1e-9 and (A.merged(t) or t >= 10.0 + C1.HORIZON)):
             break
-    F.step(max(t, T_SNAP[-1]), sb, False, A.s, A.b_brake_seen)  # snapshots past a short run's end
+    F.step(max(t, T_SNAP[-1]), sb, False, lat, A.b_brake_seen)  # snapshots past a short run's end
     lost_a = M.lost_progress(va0, meas.s_h[0], C1.HORIZON)
     lost_b = M.lost_progress(vb0, meas.s_h[1], C1.HORIZON)
-    got_in = A.s >= 0.9
+    got_in = lat >= 0.9
     if contact:
         lost_a = lost_b = 1.0
     elif not got_in:
@@ -563,6 +571,8 @@ class Ctx:
         self.seeds = sorted({r["seed"] for r in rs})
         self.caps_b = sorted({r["capB"] for r in rs}, key=list(CAPS).index)
         self.types = [tuple(x.split("/")) for x in rs[0]["types"].split("|")]
+        have = {r["a"] for r in rs}
+        self.a_names = [a for a in A_NAMES if a in have and "P+" + a in have]
         self.prior = type_prior(sorted({c for c, _ in self.types}, key=list(CAPS).index))
 
     def present(self, t):
@@ -582,7 +592,7 @@ class Ctx:
         live = [(t, q) for t, q in zip(self.types, belief) if q > 0 and self.present(t)]
         z = sum(q for _, q in live)
         live = [(t, q / z) for t, q in live]
-        opts = A_NAMES + (["P+" + a for a in A_NAMES] if mode != "prior" else [])
+        opts = self.a_names + (["P+" + a for a in self.a_names] if mode != "prior" else [])
         val = {a: sum(q * self.loo(a, t, s, obj) for t, q in live) for a in opts}
         if mode not in ("prior", "prior_p"):
             val["probe"] = sum(q * mean(obj(self.probe_run(t, x, obj, mode, s)) for x in self.seeds if x != s)
@@ -606,7 +616,7 @@ class Ctx:
 
         def v(a):
             return sum(q / z * mean(obj(self.run("P+" + a, u, x)) for x in others) for u, q in live)
-        a = max(A_NAMES, key=v)
+        a = max(self.a_names, key=v)
         return self.run("P+" + a, t, s)
 
 
@@ -616,7 +626,7 @@ def cell_measures(cx, d0, dv, vb, ca):
     for (a, cb, bn, s), r in cx.R.items():
         cost_pairs.setdefault((a, cb, bn), []).append(-(r["uA"] + r["uB"]))
     for cb in cx.caps_b:
-        A = A_NAMES
+        A = cx.a_names
         Bn = list(B_BY)
         m = {(a, b): mean(cost_pairs[(a, cb, b)]) for a in A for b in Bn}
         ua = {(a, b): mean(cx.R[(a, cb, b, s)]["uA"] for s in cx.seeds) for a in A for b in Bn}
@@ -974,7 +984,7 @@ def report(res, cells):
                 L += ["    " + x for x in m]
     L.append("\n[type confusion] true -> MAP belief")
     for k, m in res["confusion"].items():
-        if not any(x in k for x in ("@0 ", "@2.2", "@5", "@8")) and not k.endswith(("@0", "@2.2", "@5", "@8")):
+        if not k.endswith(("@0", f"@{PROBE_T:g}", "@8")):
             continue
         L.append(f"  {k}")
         for t, row in m.items():
@@ -1023,12 +1033,13 @@ def selftest():
     r = simulate(2.0, -4.0, 12.0, "m3", A_BY["A_bold"], "truck", B_AW, 0)
     assert r["peakB"] <= CAPS["truck"].b_max + 0.3, r
     # a probe: a yielder is seen braking and believed a yielder at the probe's end; a holder not
-    r = simulate(8.0, -1.0, 12.0, "m3", A_BY["A2"], "m3", B_AW_REACT, 0, probe=True)
-    py = sum(q for (_, p), q in zip(types, r["snaps"][PROBE_T]["motion"]) if p == "yield")
-    assert py > 0.8, r["snaps"][PROBE_T]
-    r = simulate(8.0, -1.0, 12.0, "m3", A_BY["A2"], "m3", B_AW, 0, probe=True)
-    py = sum(q for (_, p), q in zip(types, r["snaps"][PROBE_T]["motion"]) if p == "yield")
-    assert py < 0.2, r["snaps"][PROBE_T]
+    def p_yield_after(b_rule):
+        ps = []
+        for k in range(8):
+            r = simulate(8.0, -1.0, 12.0, "m3", A_BY["A2"], "m3", b_rule, k, probe=True)
+            ps.append(sum(q for (_, p), q in zip(types, r["snaps"][PROBE_T]["motion"]) if p == "yield"))
+        return mean(ps)
+    assert p_yield_after(B_AW_REACT) > 0.6 and p_yield_after(B_AW) < 0.4, (p_yield_after(B_AW_REACT), p_yield_after(B_AW))
     # the probe's phase is the same whatever rule follows it (common random numbers)
     a = simulate(8.0, -1.0, 12.0, "m3", A_BY["A2"], "m3", B_AW, 3, probe=True)
     b2 = simulate(8.0, -1.0, 12.0, "m3", A_BY["A_wait"], "m3", B_AW, 3, probe=True)

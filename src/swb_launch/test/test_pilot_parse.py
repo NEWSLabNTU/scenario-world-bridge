@@ -55,6 +55,12 @@ CASES = {
                            ["entity:=ego", "vehicle:=tesla_model3", f"map_path:={MAP}"]),
     "carla_basic": ("carla_basic.launch.py", ["swb_agent"],
                     ["entity:=lead", "relay:=tcp://localhost:5560", f"map_path:={MAP}"]),
+    "simple": ("simple.launch.py", ["swb_agent", "acb_bridge", "tesla_model3_description"],
+               ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
+                "sim:=carla", f"map_path:={MAP}"]),
+    "simple_isaac": ("simple.launch.py", ["swb_agent", "tesla_model3_description"],
+                     ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
+                      "sim:=isaac", f"map_path:={MAP}"]),
     "command": ("command.launch.py", [],
                 ["entity:=npc", "relay:=tcp://localhost:5560", "run:=python3 -c pass"]),
 }

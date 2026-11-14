@@ -69,12 +69,18 @@ STOP_GRACE = 20.0     # SIGINT, then SIGTERM, then SIGKILL
 
 # kind -> its launch under swb_launch's launch/pilots/ (stack.launch.py's PILOT_KINDS)
 PILOT_FILES = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.launch.py",
-               "launch": "launch.launch.py", "command": "command.launch.py", "none": None}
+               "simple": "simple.launch.py", "launch": "launch.launch.py",
+               "command": "command.launch.py", "none": None}
 # project pilot keys that are not launch arguments
 NOT_ARGS = ("kind", "lifetime", "ready", "inputs", "args")
 EGO_READY = ["ros2", "run", "swb_launch", "ego_ready", "--timeout", "10"]
 DEFAULT_VEHICLE = "tesla_model3"
-SIDED_KINDS = ("autoware",)  # kinds that always bring a vehicle side
+SIDED_KINDS = ("autoware", "simple")  # kinds that always bring a vehicle side
+# kinds that drive on the car's true pose: on Isaac the world server's ego config turns aib's
+# ground truth on for them (on CARLA acb always publishes /carla/ground_truth/odom)
+GROUND_TRUTH_KINDS = ("simple",)
+ISAAC_GROUND_TRUTH_TOPIC = "/ground_truth/odom"  # simple_pilot's default on Isaac
+ISAAC_EGO = "isaac_ego.yaml"  # the stack's ego config, in its directory, when it needs one
 
 
 # Launch arguments the project interface replaced (roadmap 076 step 10), each with what to give
@@ -360,13 +366,14 @@ def pilot_entry(b: Bound, project: Path, ctx: dict) -> dict:
     return entry
 
 
-REGISTERED_KINDS = ("carla_basic", "command", "launch")
+REGISTERED_KINDS = ("carla_basic", "simple", "command", "launch")
 
 
 def ready_command(spec: dict, entity: str = None, relay: str = None):
     """The pilot's readiness check as argv, or None when started is ready. By default an
-    autoware pilot is ready when its Autoware is (ego_ready), and a carla_basic, command or
-    launch pilot when its agent has registered the entity with the relay (``registered``):
+    autoware pilot is ready when its Autoware is (ego_ready), and a carla_basic, simple,
+    command or launch pilot when its agent has registered the entity with the relay
+    (``registered``):
     a pilot that crashes at start is never ready, and the run says so."""
     r = spec.get("ready")
     if r in (None, "", "default"):
@@ -395,6 +402,39 @@ def spec_hash_of(vehicle):
         return (yaml.safe_load(p.read_text()) or {}).get("spec_hash")
     except Exception:
         return None
+
+
+def aib_ego_config() -> Path:
+    """aib's default ego config (`config/ego.yaml`, what the Isaac world server's `ego:=default`
+    is): from aib's share, else this workspace's source tree."""
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        p = Path(get_package_share_directory("aib")) / "config" / "ego.yaml"
+        if p.is_file():
+            return p
+    except Exception:
+        pass
+    ws = workspace_root() or Path("/nonexistent")
+    return ws / "src" / "autoware_isaac_bridge" / "src" / "aib" / "config" / "ego.yaml"
+
+
+def isaac_ego_with_ground_truth(base: Path = None) -> dict:
+    """aib's ego config ``base`` (default: aib_ego_config()) with its paths made absolute and
+    the ground truth on (Odometry of base_link in the map on ISAAC_GROUND_TRUTH_TOPIC): the
+    ego config of an Isaac stack whose ego pilot drives on the true pose (GROUND_TRUTH_KINDS)."""
+    import yaml
+    base = Path(base) if base else aib_ego_config()
+    try:
+        doc = yaml.safe_load(base.read_text()) or {}
+    except OSError as e:
+        raise StackRefused(f"aib's ego config {base}: {e.strerror}; a simple pilot on Isaac "
+                           "needs it (aib built and sourced)") from None
+    for key in ("rig", "body"):
+        if doc.get(key):
+            p = Path(os.path.expandvars(str(doc[key])))
+            doc[key] = str(p if p.is_absolute() else (base.parent / p).resolve())
+    doc["ground_truth"] = {**(doc.get("ground_truth") or {}), "topic": ISAAC_GROUND_TRUTH_TOPIC}
+    return doc
 
 
 def swb_launch_share():
@@ -612,10 +652,15 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     # and surfaces) into the project's state dir, never into the fetched (read-only) map
     if sim == "carla":
         args["sim_args"] = f"state_dir:={project / 'state'}"
+    isaac_ego = None
     if sim == "isaac":
-        sided = any(b.sided() for b in bound)
-        args["sim_args"] = (f"world:={map_path} ego:={'default' if sided else 'none'}"
-                            f" state_dir:={project / 'state'}")
+        sided = [b for b in bound if b.sided()]
+        ego = "default" if sided else "none"
+        if any(b.kind in GROUND_TRUTH_KINDS for b in sided):
+            isaac_ego = {"path": str(stack_dir / ISAAC_EGO),
+                         "config": isaac_ego_with_ground_truth()}
+            ego = isaac_ego["path"]
+        args["sim_args"] = f"world:={map_path} ego:={ego} state_dir:={project / 'state'}"
     for k, v in (stack_args or {}).items():
         args[k] = v
 
@@ -658,6 +703,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "simulator_start": carla_run["owner"] if carla_run else simmod.WORLD_SERVER,
         "carla": carla_run,
         "switch": None,
+        "isaac_ego": isaac_ego,
         "fingerprint": fingerprint(project, psettings),
         "autoware_env": autoware_env(host, workspace_root()),
         "seat": numbers,
@@ -711,6 +757,10 @@ def write_plan(p: Plan) -> Path:
         groundmod.apply(project, config.project_settings(project).get("ground"))
     except groundmod.GroundError as e:
         raise StackRefused(str(e)) from None
+    ego = p.record.get("isaac_ego")
+    if ego:  # the Isaac world server's ego config, ground truth on (a simple pilot)
+        import yaml
+        Path(ego["path"]).write_text(yaml.safe_dump(ego["config"], sort_keys=False))
     return write_json(p.stack_json, p.record)
 
 

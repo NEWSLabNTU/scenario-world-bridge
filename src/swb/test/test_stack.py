@@ -290,6 +290,67 @@ def test_pilot_argv_has_the_maps_contract(where, maps_hub):
     assert words["entity"] == "ego" and words["relay"] == "tcp://localhost:5760"
 
 
+SIMPLE_CARLA = """simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: simple, vehicle: tesla_model3, args: {max_speed_kmh: "30"}}
+"""
+
+
+def test_plan_simple_pilot(where, maps_hub):
+    d = make(where, template="carla-first-drive", swb_yaml=SIMPLE_CARLA)
+    rec = stack.plan(project_arg=str(d), map_name="Town01").record
+    ego = rec["pilots"][0]
+    assert (ego["entity"], ego["kind"], ego["domain"]) == ("ego", "simple", 18)
+    # ready when simple_pilot registered the entity with the relay
+    assert ego["ready"][-4:] == ["registered", "--relay", "tcp://localhost:5760", "ego"]
+    argv = stack.pilot_argv(rec, ego, rec["pilot_entries"][0], Path("/l"))
+    assert argv[argv.index("--composable-respawn") + 2].endswith("pilots/simple.launch.py")
+    words = dict(w.split(":=", 1) for w in argv if ":=" in w)
+    assert words["map_path"] == str(d / "assets" / "maps" / "Town01")
+    assert words["sim"] == "carla" and words["max_speed_kmh"] == "30"
+    assert words["carla_port"] and words["release_notify_endpoint"]
+    assert stack.Bound("ego", "ego", {"kind": "simple"}).sided()
+    assert (Path(stack.swb_launch_share()) / "launch" / "pilots" / "simple.launch.py").is_file() \
+        or (LAUNCH / "pilots" / "simple.launch.py").is_file()
+
+
+def test_isaac_plan_simple_pilot_turns_ground_truth_on(where, maps_hub, tmp_path):
+    base = tmp_path / "aib" / "ego.yaml"
+    base.parent.mkdir()
+    base.write_text("rig: tesla_model3.rig.yaml\ndomain: 1\nnode_name: isaac_vehicle\n")
+    d = make(where, template="isaac")
+    text = (d / "swb.yaml").read_text().replace("kind: autoware", "kind: simple")
+    (d / "swb.yaml").write_text(text)
+    real = stack.aib_ego_config
+    stack.aib_ego_config = lambda: base
+    try:
+        p = stack.plan(project_arg=str(d))
+    finally:
+        stack.aib_ego_config = real
+    ego = p.stack_dir / stack.ISAAC_EGO
+    assert p.launch_args["sim_args"] == (f"world:={d / 'assets' / 'maps' / 'Town01'} ego:={ego}"
+                                         f" state_dir:={d / 'state'}")
+    cfg = p.record["isaac_ego"]["config"]
+    assert cfg["ground_truth"] == {"topic": "/ground_truth/odom"}
+    assert cfg["rig"] == str(base.parent / "tesla_model3.rig.yaml")
+    assert cfg["node_name"] == "isaac_vehicle"
+    stack.write_plan(p)
+    assert yaml.safe_load(ego.read_text()) == cfg
+    # one vehicle side on Isaac: two simple pilots are refused
+    s = seat.table(config.DEFAULTS)[0]
+    with pytest.raises(stack.StackRefused, match="one pilot has a vehicle side"):
+        stack.assign_domains([stack.Bound("a", "a", {"kind": "simple"}),
+                              stack.Bound("b", "b", {"kind": "simple"})], s, "isaac")
+
+
+def test_isaac_ego_config_needs_aib(tmp_path):
+    with pytest.raises(stack.StackRefused, match="aib"):
+        stack.isaac_ego_with_ground_truth(tmp_path / "missing.yaml")
+
+
 def test_keeper_refuses_a_held_seat(where, maps_hub):
     d = make(where)
     p = stack.plan(project_arg=str(d))

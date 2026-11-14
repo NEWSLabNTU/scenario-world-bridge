@@ -62,7 +62,7 @@ match one.
 
 | Key | Kinds | |
 |---|---|---|
-| `kind` | all | `autoware`, `carla_basic` (CARLA only), `launch`, `command`, `none` |
+| `kind` | all | `autoware`, `carla_basic` (CARLA only), `simple`, `launch`, `command`, `none` |
 | `vehicle` | all | the car's spec name (`tesla_model3`); must agree with the entity's catalog entry |
 | `args` | all | launch arguments for the pilot's launch (Autoware's profile, your launch); substitutions apply |
 | `lifetime` | all | `stack` (default): started with the stack, serves every run; `run`: started afresh for each run |

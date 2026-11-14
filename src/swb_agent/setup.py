@@ -24,6 +24,7 @@ setup(
             'autoware_agent = swb_agent.adapters.autoware_ros:main',
             'vehicle_agent = swb_agent.adapters.vehicle_agent:main',
             'carla_basic = swb_agent.adapters.carla_basic:main',
+            'simple_pilot = swb_agent.adapters.simple_pilot:main',
         ],
     },
 )

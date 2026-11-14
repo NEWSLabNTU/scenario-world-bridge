@@ -12,7 +12,7 @@ passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-
 ## You will learn
 
 - what a pilot is (a vehicle side plus a driver) and the kinds swb starts:
-  `autoware`, `carla_basic`, `launch`, `command`, `none`;
+  `autoware`, `carla_basic`, `simple`, `launch`, `command`, `none`;
 - to bind scenario entities to pilots in `swb.yaml`, by name or by pattern;
 - to check an agent of your own without a simulator;
 - the difference between a pilot that lives with the stack and one started per run.
@@ -178,6 +178,7 @@ vehicle bridge with the car's sensors and vehicle interface, in the pilot's doma
 |---|---|---|
 | `autoware` | Autoware with swb's profile | swb's vehicle agent |
 | `carla_basic` | CARLA's BasicAgent; no vehicle side (CARLA only) | the SDK's `carla_basic` |
+| `simple` | the SDK's `simple_pilot`: follows the lanes to the goal, ignores traffic | `simple_pilot` itself |
 | `launch` | a launch file of yours, given the pilot contract | swb's vehicle agent, unless `agent: own` |
 | `command` | a program of yours, given `--relay --entity --seed --run-dir` | the program itself |
 | `none` | started by you | yours |

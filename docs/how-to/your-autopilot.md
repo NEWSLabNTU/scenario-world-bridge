@@ -22,6 +22,7 @@ project binds a pilot to its name in `swb.yaml`.
 | Your autopilot | Kind | The scenario side | The vehicle side |
 |---|---|---|---|
 | Autoware, with your launch or parameters | `autoware` | swb's vehicle agent | started ([Your Autoware](your-autoware.md)) |
+| none of your own: lane following to the goal, no Autoware | `simple` | `simple_pilot` itself | started |
 | a ROS 2 launch that serves Autoware's API (`/api/routing/...`, `/api/operation_mode/...`) | `launch` | swb's vehicle agent, through that API | started |
 | a ROS 2 launch with its own way to take a goal | `launch`, `agent: own` | an agent your launch starts (below) | started |
 | a program on swb's agent SDK (Python) | `command` | the program is the agent | only with `args: {vehicle_side: "true"}` |
@@ -112,9 +113,29 @@ For a shipped car, Autoware's own vehicle model file does it:
 Until it arrives, the vehicle bridge logs `Still waiting for Autoware...` every 5 s. On
 Isaac the rig is the world server's and waits for nothing.
 
-No shipped example drives a car through this interface with a non-Autoware autopilot yet
-([Supported and not supported](../reference/limits.md#pilots-and-autopilots)); the
-contract above is the vehicle bridges' own.
+The contract above is the vehicle bridges' own. The shipped example of a non-Autoware
+autopilot on it is `simple_pilot`, the `simple` kind's driver
+([The agent SDK](../reference/agent-sdk.md#the-simple-autopilot-simple_pilot)): it routes
+on the map, publishes `control_cmd` and `gear_cmd`, and reads the true pose and
+`velocity_status`. Its launch, `swb_launch`'s `launch/pilots/simple.launch.py`, starts the
+vehicle side and `robot_state_publisher` as above, without Autoware. Start your own from
+its source (`swb_agent/adapters/simple_pilot.py`).
+
+## The simple pilot
+
+```yaml
+pilots:
+  ego:
+    kind: simple
+    vehicle: tesla_model3
+    args: {max_speed_kmh: "30"}      # also: odom_topic, config (a file of its settings)
+```
+
+It follows the lanes from where the car is to the scenario's goal, keeps the speed limits
+and slows for curves, and stops at the goal; it ignores traffic lights and other road
+users. On Isaac Sim it drives on the world server's ground truth, which the stack turns on
+for it. The [simple_drive](../../src/swb_examples/projects/simple_drive/) example project
+runs it on Town01.
 
 ## A launch file
 
@@ -204,8 +225,9 @@ second, and so on; `scenario` for the bridge's).
 ## Readiness
 
 A run waits for each pilot's readiness before SSv2 starts. `autoware`'s check is
-`ego_ready` (Autoware can take a route); the other kinds are ready when started, unless
-`ready:` names a command that exits 0 when they are:
+`ego_ready` (Autoware can take a route); `carla_basic`, `simple`, `launch` and `command`
+are ready when their agent has registered the entity with the relay, unless `ready:`
+names a command that exits 0 when they are:
 
 ```yaml
     ready: [ros2, run, my_autopilot, is_ready]

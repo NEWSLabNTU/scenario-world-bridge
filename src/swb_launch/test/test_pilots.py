@@ -26,6 +26,7 @@ stack = load(os.path.join(LAUNCH, "stack.launch.py"), "stack_launch")
 carla_basic = load(os.path.join(PILOTS, "carla_basic.launch.py"), "pilot_carla_basic")
 launch_pilot = load(os.path.join(PILOTS, "launch.launch.py"), "pilot_launch")
 command = load(os.path.join(PILOTS, "command.launch.py"), "pilot_command")
+simple = load(os.path.join(PILOTS, "simple.launch.py"), "pilot_simple")
 
 
 def xml_args(name):
@@ -42,7 +43,7 @@ def test_xml_pilots_declare_the_contract(name):
     assert not missing, f"{name} lacks {missing}"
 
 
-@pytest.mark.parametrize("module", [carla_basic, launch_pilot, command])
+@pytest.mark.parametrize("module", [carla_basic, launch_pilot, command, simple])
 def test_python_pilots_declare_the_contract(module):
     assert set(CONTRACT) <= set(module.CONTRACT)
 
@@ -165,6 +166,47 @@ def test_command_evaluates_without_vehicle_side():
     assert [t.perform(_context({})) for t in process.name] == ["command_ego"]
 
 
+def test_simple_config(tmp_path):
+    user = tmp_path / "s.yaml"
+    user.write_text("max_speed_kmh: 20\nlateral_accel: 1.5\nmap_path: /elsewhere\n")
+    values = {"config": str(user), "map_path": "/maps/Town01", "sim": "isaac",
+              "vehicle": "tesla_model3", "use_sim_time": "true", "odom_topic": "",
+              "max_speed_kmh": ""}
+    assert simple.agent_config(values) == {
+        "max_speed_kmh": 20, "lateral_accel": 1.5, "map_path": "/maps/Town01", "sim": "isaac",
+        "vehicle": "tesla_model3", "use_sim_time": True}
+    config = simple.agent_config({**values, "odom_topic": "/gt", "max_speed_kmh": "12"})
+    assert config["odom_topic"] == "/gt" and config["max_speed_kmh"] == 12.0
+
+
+def test_simple_evaluates(tmp_path):
+    defaults = {k: d for k, (d, _) in {**simple.CONTRACT, **simple.EXTRA}.items()}
+    values = {**defaults, "map_path": "/maps/Town01", "run_dir": str(tmp_path)}
+    side, rsp, process = simple._pilot(_context(values))
+    assert type(side).__name__ == "IncludeLaunchDescription"
+    assert type(rsp).__name__ == "Node"
+    assert json.loads((tmp_path / "simple_pilot-ego.json").read_text())["map_path"] == \
+        "/maps/Town01"
+    cmd = [c.perform(_context({})) if hasattr(c, "perform") else c
+           for part in process.cmd for c in part]
+    assert "".join(cmd).replace(" ", "").startswith("ros2runswb_agentsimple_pilot")
+    assert os.path.isfile(simple.XACRO)
+    assert len(simple._pilot(_context({**values, "publish_description": "false"}))) == 2
+    with pytest.raises(RuntimeError, match="map_path"):
+        simple._pilot(_context({**values, "map_path": ""}))
+    with pytest.raises(RuntimeError, match="relay"):
+        simple._pilot(_context({**values, "relay": "none"}))
+
+
+def test_simple_has_a_vehicle_side_and_one_on_isaac():
+    assert stack.has_vehicle_side("simple", {})
+    (p,) = stack.parse_pilots("[{entity: ego, kind: simple}]", "isaac", "1", "9")
+    assert p["domain"] == "1"
+    with pytest.raises(RuntimeError, match="one pilot has a vehicle side"):
+        stack.parse_pilots("[{entity: a, kind: simple}, {entity: b, kind: autoware}]",
+                           "isaac", "1", "9")
+
+
 # --- stack.launch.py's pilots: -----------------------------------------------------------
 def test_no_pilots():
     assert stack.parse_pilots("", "carla", "1", "9") == []
@@ -209,7 +251,7 @@ def test_old_ego_holds_ego_domain():
     ("[{entity: a, kind: autoware, domain: x}]", "not a number"),
     ("[{entity: a, kind: autoware}, {entity: a, kind: none}]", "twice"),
     ("[{kind: autoware}]", "no entity"),
-    ("[{entity: a, kind: simple}]", "kind 'simple'"),
+    ("[{entity: a, kind: container}]", "kind 'container'"),
     ("[{entity: a, kind: autoware, lifetime: run}]", "lifetime 'run'"),
     ("[{entity: a, kind: launch}]", "needs launch"),
     ("[{entity: a, kind: command}]", "needs run"),

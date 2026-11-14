@@ -214,7 +214,19 @@ README's quick start as the entry point. Tutorials 02-04 stay as the next steps.
    rewritten.
 5. [ ] **C.** `colcon build` clean-clone fixes from step 2; `run.launch.xml`; the alias
    retired.
-6. [ ] **D, code.** `simple_pilot` and its tests; `starter/` scenarios.
+6. [~] **D, code.** `simple_pilot` and its tests; `starter/` scenarios.
+   - [x] **`simple_pilot`** (2026-11-15): `swb_agent.adapters.simple_pilot` (console script
+     `simple_pilot`) and `simple_route`: lanelet2 routing in the map frame from lat/lon
+     (TransverseMercator, MGRS, Local, as Autoware and SSv2), pure pursuit on the rear axle,
+     a speed PID with a profile feedforward under min(lane limit, scenario limit,
+     `max_speed_kmh`, curvature), stop at the goal; publishes `control_cmd`, gear DRIVE,
+     indicators and hazards NO_COMMAND at 30 Hz of sim time; pose from the ground truth
+     (`/carla/ground_truth/odom`; Isaac `/ground_truth/odom`, which swb.stack turns on with an
+     ego config of its own). Pilot kind `simple` (`pilots/simple.launch.py`: vehicle side,
+     robot_state_publisher from `config/pilot_vehicle.xacro`, no Autoware), example project
+     `simple_drive`. Tested without a simulator (synthetic maps, Town01 with a kinematic car,
+     `swb-agent check`, `play_launch dump`). Live on CARLA and Isaac: open.
+   - [ ] `starter/` scenarios.
 7. [ ] **B.** 029 steps 2-7 under the new names: local release build, vendored packages,
    guard and `install-deps.sh`, `swb_setup`, CI dry-run on a pre-release tag.
 8. [ ] **D, docs.** The two guides, the README's entry point moved to them.

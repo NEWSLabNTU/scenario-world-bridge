@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- A car description for a pilot without Autoware (the simple pilot, pilots/simple.launch.py),
+     the same as Autoware's tier4_vehicle_launch urdf/vehicle.xacro, the car's
+     <vehicle_model>_description and its <sensor_model>_description, without needing Autoware.
+     CARLA's vehicle bridge waits for it on /robot_description and places the sensors at its
+     frames (/tf_static). No colon-space in these comments (a YAML parse of the value breaks on one).
+
+       xacro pilot_vehicle.xacro vehicle_model:=tesla_model3 sensor_model:=tesla_model3_sensor_kit
+-->
+<robot name="vehicle" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:arg name="vehicle_model" default=""/>
+  <xacro:arg name="sensor_model" default=""/>
+
+  <xacro:property name="vehicle_model_property" value="$(arg vehicle_model)"/>
+  <xacro:include filename="$(find ${vehicle_model_property}_description)/urdf/vehicle.xacro"/>
+
+  <xacro:property name="sensor_model_property" value="$(arg sensor_model)"/>
+  <xacro:include filename="$(find ${sensor_model_property}_description)/urdf/sensors.xacro"/>
+</robot>

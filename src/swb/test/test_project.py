@@ -221,7 +221,7 @@ def test_every_example_scenario_parses():
 
 PROJECTS = EXAMPLES.parent / "projects"
 EXAMPLE_PROJECTS = ["first_drive", "multi_pilot", "safety_suite", "isaac_first_drive",
-                    "road_physics"]
+                    "road_physics", "simple_drive"]
 CATALOG = {"tesla_model3", "drift_mustang"}  # sim_vehicle_spec's catalogs/vehicles.xosc
 
 

@@ -364,7 +364,7 @@ out) and the sensor topics in its domain, whatever the simulator.
 |---|---|---|
 | `autoware` | `autoware_sim_profile autoware.launch.xml` (or `autoware_launch:`) | swb's vehicle agent |
 | `carla_basic` | CARLA's BasicAgent; no vehicle side | `swb_agent carla_basic` |
-| `simple` | `simple_pilot` (pure pursuit, speed PID) | swb's vehicle agent |
+| `simple` | `simple_pilot` (lanelet2 route, pure pursuit, speed PID) on the vehicle interface; the true pose (Isaac: the ego config's ground truth, which the stack turns on) | `swb_agent simple_pilot` (the driver is its own agent) |
 | `launch` | `launch: <pkg> <file>` | swb's vehicle agent unless `agent: own` |
 | `command` | `run: [argv...]`, given `--relay --entity --seed --run-dir` | the program itself |
 | `none` | started by the user | the user's |
@@ -458,5 +458,6 @@ group.
 
 The working examples live in `src/swb_examples/projects/`: `first_drive` (CARLA, one Autoware
 ego), `multi_pilot` (Autoware, `carla_basic`, a `command` agent), `safety_suite` (AWF scenarios
-across towns), `isaac_first_drive`, `road_physics` (Isaac surfaces), and the golf cart twin as
+across towns), `isaac_first_drive`, `road_physics` (Isaac surfaces), `simple_drive` (the
+`simple` pilot, no Autoware), and the golf cart twin as
 a package project in its own repository.

@@ -38,15 +38,17 @@ Groups and their ROS domains:
   text, a list `[{entity, kind, domain, <arg>: <value>, args: {...}}, ...]` (or a mapping
   entity -> {kind, ...}). Each pilot is a nested play_launch of swb_launch's
   launch/pilots/<kind's file> in its own domain, respawned: autoware (autoware.launch.xml),
-  carla_basic (carla_basic.launch.py), launch (launch.launch.py), command (command.launch.py);
-  none starts nothing (the user's own). Keys other than entity, kind, domain, lifetime and args
+  carla_basic (carla_basic.launch.py), simple (simple.launch.py), launch (launch.launch.py),
+  command (command.launch.py); none starts nothing (the user's own). Keys other than entity, kind, domain, lifetime and args
   are launch arguments too (a list is joined as shell words, so `run: [python3, -m, x]`
   works); `args` wins. Every pilot gets the common contract: entity, relay, map_path, vehicle
   (vehicle_model, else tesla_model3), sim, use_sim_time, spec_hash_file, and on CARLA
   carla_host, carla_port, the release endpoints and the physics check. A pilot without
   `domain` takes ego_domain if free, then the next free one above it. On Isaac the car's rig
   is the world server's, on ego_domain: a pilot with a vehicle side must run there (one such
-  pilot), and carla_basic is refused. With pilots and no ego_launch the old ego is not
+  pilot), and carla_basic is refused; a simple pilot there drives on aib's ground truth, which
+  the ego config given in sim_args (ego:=<yaml> with ground_truth on) must turn on (swb.stack
+  writes one). With pilots and no ego_launch the old ego is not
   started; ego_launch:=<launch> still starts it, in ego_domain, beside the pilots (the
   developers' path).
   swb.launch.xml passes no pilots here: its keeper (swb.stack) runs them, so that it can
@@ -155,7 +157,8 @@ def nested(name, target, args, domain, log_dir, respawn=False, extra=(), require
 # --- pilots (roadmap 076 step 5) ------------------------------------------------------------
 # kind -> its launch under swb_launch's launch/pilots/; None: nothing to start
 PILOT_KINDS = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.launch.py",
-               "launch": "launch.launch.py", "command": "command.launch.py", "none": None}
+               "simple": "simple.launch.py", "launch": "launch.launch.py",
+               "command": "command.launch.py", "none": None}
 PILOT_KEYS = ("entity", "kind", "domain", "lifetime", "args")
 
 
@@ -171,7 +174,7 @@ def _arg_text(value):
 
 def has_vehicle_side(kind, args):
     """Whether the pilot starts a simulator vehicle side in its domain."""
-    if kind == "autoware":
+    if kind in ("autoware", "simple"):
         return True
     if kind == "launch":
         return args.get("vehicle_side", "true") == "true"

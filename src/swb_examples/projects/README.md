@@ -9,6 +9,7 @@ useful, suites.
 | [first_drive](first_drive/) | CARLA | one Autoware ego: a drive to a goal, a red light, a pedestrian crossing |
 | [multi_pilot](multi_pilot/) | CARLA | four pilots of four kinds in one run: Autoware, a second Autoware, CARLA's BasicAgent and your own agent cutting in |
 | [safety_suite](safety_suite/) | CARLA | the Autoware Foundation's ACC and AEB use cases as a nightly suite, with an expected failure and a contact judge |
+| [simple_drive](simple_drive/) | CARLA | the ego driven by `simple_pilot`, no Autoware: lane following to a goal, a turn at a corner |
 | [isaac_first_drive](isaac_first_drive/) | Isaac Sim | one Autoware ego on CARLA's Town01 in USD |
 | [road_physics](road_physics/) | Isaac Sim | mud, gravel and a wet road under the ego's wheels |
 

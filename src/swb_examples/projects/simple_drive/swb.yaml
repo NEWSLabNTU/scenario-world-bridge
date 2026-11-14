@@ -1,0 +1,7 @@
+# simple_drive: the ego driven by simple_pilot (no Autoware) on CARLA's Town01.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: simple, vehicle: tesla_model3, inputs: [map, ground_truth]}

@@ -18,8 +18,8 @@ needs to reach the relay's port (default 5560).
 ```
 
 Every pilot of a project is such an agent: `autoware` pilots run swb's vehicle agent,
-`carla_basic` the SDK's BasicAgent adapter, `command` pilots a program of yours on this
-SDK. Which kind to use, and how the stack starts it: [Your autopilot as a
+`carla_basic` the SDK's BasicAgent adapter, `simple` the SDK's `simple_pilot`, `command`
+pilots a program of yours on this SDK. Which kind to use, and how the stack starts it: [Your autopilot as a
 pilot](../how-to/your-autopilot.md). This page is the SDK itself.
 
 The commands below assume the environment file of [Install](../getting-started/install.md)
@@ -304,6 +304,59 @@ Config keys: `carla_host` (localhost), `carla_port` (2000), `role_name` (hero),
 `carla_pythonapi` (default `<carla.root>/PythonAPI/carla` from the host settings), `target_speed_kmh` (30),
 `ignore_traffic_lights` / `ignore_vehicles` (false: BasicAgent's own hazard stops),
 `find_timeout` (30 s for the vehicle to appear at a reset), `world` (`carla` | `fake`).
+
+## The simple autopilot: `simple_pilot`
+
+`swb_agent.adapters.simple_pilot` is a small autopilot of its own, and the SDK's example of
+one that drives through the [vehicle interface](../how-to/your-autopilot.md#the-vehicle-interface)
+instead of a simulator's API. It needs no Autoware and runs on CARLA and Isaac Sim alike.
+It is what the `simple` pilot runs (the `simple_drive` example project).
+
+- **Route.** On a goal it loads the scenario's Lanelet2 map (`map_path`, its
+  `lanelet2_map.osm` placed by the map's `map_projector_info.yaml`, as Autoware and the
+  scenario simulator place it) and routes from the car's lane to the goal's, through the
+  waypoints, along the lanes (lanelet2's routing, lane changes only where no route keeps
+  the lane). A goal on no lane, or against its direction, fails `set_goal` with the reason.
+- **Drive.** Pure pursuit steers the road wheels toward a point ahead on the lanes' centre
+  line; a speed PID holds the lowest of the lane's speed limit, the scenario's limit,
+  `max_speed_kmh` and what each curve ahead allows, and brakes to stop at the goal.
+- **Publish.** `/control/command/control_cmd` (steering, acceleration, target speed), gear
+  `DRIVE`, indicators and hazards `NO_COMMAND`, at `rate_hz` (30) of simulation time.
+- **Pose.** The car's true pose, `odom_topic`: CARLA's `/carla/ground_truth/odom`, Isaac's
+  `/ground_truth/odom` (the stack turns it on for a `simple` pilot). It does not localize.
+- **It ignores traffic.** No traffic lights, no other road users. For a car that obeys the
+  road, use Autoware.
+
+By hand, in the vehicle side's ROS domain, with a `simple_pilot.yaml`:
+
+```yaml
+map_path: /path/to/maps/Town01
+sim: carla
+max_speed_kmh: 30
+```
+
+```bash
+ros2 run swb_agent simple_pilot \
+    --relay tcp://localhost:5560 \
+    --entity ego \
+    --config simple_pilot.yaml
+```
+
+On CARLA the vehicle bridge attaches only once the car's description is published (see
+[What CARLA's vehicle bridge waits for](../how-to/your-autopilot.md#what-carlas-vehicle-bridge-waits-for));
+the `simple` pilot's launch starts it.
+
+Config keys: `map_path`, `sim` (`carla` | `isaac`), `odom_topic` (by `sim`), `vehicle`
+(tesla_model3: its spec gives `wheel_base` and `max_steer_angle`, which the config may set
+itself), `rate_hz` (30), `max_speed_kmh` (50), `default_speed_limit_kmh` (30, for a lane
+without one), `lateral_accel` (2.0 m/s^2 in curves), `accel_max` (1.5), `decel` (2.0),
+`brake_max` (5.0), `kp` (0.8), `ki` (0.15), `lookahead_min` (3.5 m), `lookahead_time`
+(0.6 s), `lookahead_max` (20 m), `arrive_tolerance` (1.0 m), `pose_timeout` (45 s at a
+reset), `route` (`auto` | `lanelet` | `direct`), `world` (`ros` | `fake`).
+
+With `world: fake` (and no map: straight lines between the points) it drives a kinematic
+car without ROS, so `swb-agent check swb_agent.adapters.simple_pilot:SimplePilotAgent
+--config fake.yaml` checks it as above.
 
 ## Checking an agent
 

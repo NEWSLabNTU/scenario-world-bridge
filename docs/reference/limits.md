@@ -76,9 +76,14 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 - **The vehicle interface is Autoware's.** Every autopilot, Autoware or not, drives the car
   through Autoware's control and status messages
   ([Your autopilot, the vehicle interface](../how-to/your-autopilot.md#the-vehicle-interface)).
-- **No shipped example** of a `launch` pilot, or of a non-Autoware autopilot driving a car
-  through the vehicle interface. The shipped non-Autoware pilots (`carla_basic`, the
-  tutorial's `cut_in`) drive CARLA's vehicle directly, without a vehicle side.
+- **No shipped example** of a `launch` pilot. The shipped non-Autoware autopilot on the
+  vehicle interface is `simple_pilot` (the `simple` kind, the `simple_drive` example); the
+  other non-Autoware pilots (`carla_basic`, the tutorial's `cut_in`) drive CARLA's vehicle
+  directly, without a vehicle side.
+- **The `simple` pilot ignores traffic.** It follows the lanes, their speed limits and the
+  curves to the goal, and stops there; it does not stop for traffic lights, vehicles or
+  pedestrians. It drives on the simulator's true pose (it does not localize), changes lanes
+  only where the route cannot keep its lane, and never reverses.
 - **An agent's episode** carries the pose and an episode id; its `scenario`, `map` and
   `parameters` are empty ([The agent SDK](agent-sdk.md)).
 - **The `carla_basic` ego variant** of the tutorials (BasicAgent instead of Autoware) runs

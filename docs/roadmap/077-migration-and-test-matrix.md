@@ -66,8 +66,10 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 4. [ ] Migration, item by item: a project (in `src/swb_examples/projects/` for user-facing
    ones, `scenarios/projects/` for studies), its suite and expectations, run live, compared
    with its reference result; the developer recipe then calls the project.
-5. [ ] A reference non-Autoware autopilot on the vehicle interface (a small ROS 2 node driving
-   through the documented topics), as a `launch` pilot; T2 on CARLA and Isaac.
+5. [~] A reference non-Autoware autopilot on the vehicle interface (a small ROS 2 node driving
+   through the documented topics), as a `launch` pilot; T2 on CARLA and Isaac. Built
+   2026-11-15 as 070 D's `simple_pilot`, its own pilot kind `simple` rather than a `launch`
+   pilot (the driver is its own agent); T0/T1 in place, T2 open.
 6. [ ] T2 matrix live, every cell, on CARLA (this host) and Isaac (an Isaac host).
 7. [ ] T3 suites live; references recorded.
 8. [ ] The developer recipes on the project workflow; what remains of the old paths for

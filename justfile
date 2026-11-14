@@ -273,6 +273,8 @@ test:
     python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py
     # run_suite's discovery and JUnit aggregation (stdlib only, no ROS graph needed)
     python3 -m pytest -q src/swb_launch/test
+    # the user commands (project, assets, seat, stack, run, runs), roadmap 076
+    python3 -m pytest -q src/swb/test
     # The agent SDK and protocol, and the relay against it (roadmap 030)
     python3 -m pytest -q src/swb_agent/test src/scenario_agent_relay/test
     # The world server shell, on a fake world (roadmaps 037, 046; protobuf only), and the Isaac

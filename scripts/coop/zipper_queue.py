@@ -211,6 +211,20 @@ class Out:
     why: str = ""
 
 
+def utilities(contact, merged, v0s, dist, meas, qmeas, peak):
+    """Every car's utility, [A, Q0, ...]: lost progress over H (A's is 1 if it never merged), risk the
+    worst over the pairs it is in (A with each queue car, each queue car with the one ahead), comfort
+    from its peak braking, contact. dist: each car's distance over H; meas[i]: A with Q_i; qmeas[i]:
+    Q_i with Q_{i-1}."""
+    n = len(v0s) - 1
+    lost = [1.0 if contact or (k == 0 and not merged) else M.lost_progress(v0s[k], dist[k]) for k in range(n + 1)]
+    rho = {(0, i + 1): M.rho(m.ttc2d, m.thw, math.inf, m.clear) for i, m in meas.items()}
+    rho.update({(i, i + 1): M.rho(m.ttc2d, m.thw, math.inf, m.clear) for i, m in qmeas.items()})
+    u = [M.utility(lost[k], max([v for (a, b), v in rho.items() if k in (a, b)] + [0.0]), peak[k], CAP.b_max, 0.0, contact)
+         for k in range(n + 1)]
+    return u, lost
+
+
 def simulate(ra, qrule, d_end, d0, dv, vb, hf, n, lags=None):
     va0 = max(0.0, vb + dv)
     xa = d0 + L
@@ -280,23 +294,8 @@ def simulate(ra, qrule, d_end, d0, dv, vb, hf, n, lags=None):
         if t >= HORIZON - 1e-9 and lat >= 1.0 and not math.isinf(t_thru):
             break
     merged = lat >= 1.0
-    lost = []
-    for k, v0 in enumerate([va0] + [vb] * n):
-        if contact or (k == 0 and not merged):
-            lost.append(1.0)
-        else:
-            lost.append(M.lost_progress(v0, s_h[k] if s_h[k] is not None else s[k]))
-    rho = {}
-    for i in range(n):
-        m = meas[i]
-        rho[(0, i + 1)] = M.rho(m.ttc2d, m.thw, math.inf, m.clear)
-    for i in range(1, n):
-        m = qmeas[i]
-        rho[(i, i + 1)] = M.rho(m.ttc2d, m.thw, math.inf, m.clear)
-    u = []
-    for k in range(n + 1):
-        r = max([v for (a, b), v in rho.items() if k in (a, b)] + [0.0])
-        u.append(M.utility(lost[k], r, peak[k], CAP.b_max, 0.0, contact))
+    u, lost = utilities(contact, merged, [va0] + [vb] * n, [s_h[k] if s_h[k] is not None else s[k] for k in range(n + 1)],
+                        meas, qmeas, peak)
     slot = sum(1 for x in xq if x > xa) if merged else -1
     return Out(u, contact, R.stopped, R.forced, merged, slot, t_thru, lost, why)
 

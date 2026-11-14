@@ -346,10 +346,17 @@ def load_arena_runs(entry, sc):
             a, b = fmt.format(num(r[acol]) if entry.get("rule_num") else r[acol]), r[bcol]
             if entry.get("rule_num"):
                 b = fmt.format(num(r[bcol]))
-            by.setdefault(ctx_key(c), {"ctx": c, "u": {}})["u"].setdefault((a, b), []).append(
+            by.setdefault(ctx_key(c), {"ctx": c, "u": {}})["u"].setdefault((a, b, r.get("b_cont") or ""), []).append(
                 (num(r[uac]), num(r[ubc]), num(r.get("contact", 0)) or 0))
     payoffs, cells = [], []
     for k, v in by.items():
+        # B's react continuation (yield or hold, run separately): the one B prefers, as the games choose it
+        best = {}
+        for (a, b, cont), xs in v["u"].items():
+            ubm = st.mean(x[1] for x in xs)
+            if (a, b) not in best or ubm > best[(a, b)][0]:
+                best[(a, b)] = (ubm, xs)
+        v["u"] = {ab: xs for ab, (_, xs) in best.items()}
         ua = {ab: st.mean(x[0] for x in xs) for ab, xs in v["u"].items()}
         ub = {ab: st.mean(x[1] for x in xs) for ab, xs in v["u"].items()}
         acts_a = sorted({a for a, _ in ua})

@@ -224,7 +224,17 @@ scenarios:
           episodes:
             - {ctx: {d0: 0.0, dv: 0.0}, a: z0.6d, b: react}
             - {ctx: {d0: 0.0, dv: 0.0}, a: e0.6d, b: hold}
-    planned: {arena: "S3 arena: swb 139 (pending)", swb_light: "not run", swb_autoware: "not run"}
+      arena:
+        - loader: arena_runs
+          label: S3 arena (swb 139, d7cc573)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop arena/vb12/runs.csv"
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop arena/vb12/summary.json"
+          summary_class: class_arena
+          summary_keys: [d_end, d0, dv]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop arena"
+        - loader: d2
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop arena/vb12/summary.json"
+    planned: {swb_light: "not run", swb_autoware: "not run"}
 
   ncar:
     title: N cars

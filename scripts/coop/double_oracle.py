@@ -23,7 +23,8 @@ the search's exploitability gain, a lower bound.
 
 The Autoware-like rules start in the populations: A_aw_cons (tau 2 s, a_rear 1 m/s^2) and
 A_aw_perm (1 s, 2 m/s^2), each with a 3 s prepare phase; B_aw holds (yields to no cut-in; only
-its safety layer brakes). At the end, each one's best counter-rule is searched and reported.
+its safety layer brakes); B_aw_react is Autoware as C3 measured it on the real stack (it yields
+to a lane change seen within 20 m, braking at 2.5 m/s^2). At the end, each one's best counter-rule is searched and reported.
 
 Usage:
   scripts/coop/double_oracle.py --ports 2600,2610 --out <dir> [--rounds 4] [--k 4]
@@ -51,6 +52,10 @@ A_AW_CONS = {"name": "A_aw_cons", "tau": 2.0, "a_rear": 1.0, "buffer": 2.0, "pat
 A_AW_PERM = {"name": "A_aw_perm", "tau": 1.0, "a_rear": 2.0, "buffer": 2.0, "patience": 5.0, "use_yield": 0, "t_prep": 3.0}
 A_BOLD = {"name": "A_bold", "tau": 0.3, "a_rear": 4.0, "buffer": 1.0, "patience": 2.0, "use_yield": 1, "t_prep": 0.0}
 B_AW = {"name": "B_aw", "pre_band": -99.0, "react_gap": -99.0, "b_y": 2.0}
+# Autoware as C3 measured it (roadmap 074 C3, c3_fit.py): it brakes on the lane change's onset,
+# about 1 s after it (the arena's B reaction, 1.0 s), not once A is in its lane as B_aw does;
+# fitted at v_B 6 m/s on Town03's west straight, under CenterPoint's observer
+B_AW_REACT = {"name": "B_aw_react", "pre_band": -99.0, "react_gap": 20.0, "b_y": 2.5}
 B_COURTEOUS = {"name": "B_court", "pre_band": 8.0, "react_gap": 15.0, "b_y": 2.0}
 B_REACT = {"name": "B_react", "pre_band": -99.0, "react_gap": 10.0, "b_y": 2.5}
 
@@ -228,7 +233,7 @@ def main():
     t0 = time.time()
     try:
         pop_a = [A_AW_CONS, A_AW_PERM, A_BOLD]
-        pop_b = [B_AW, B_COURTEOUS, B_REACT]
+        pop_b = [B_AW, B_AW_REACT, B_COURTEOUS, B_REACT]
         table = pool.evaluate([(a, b) for a in pop_a for b in pop_b])
         found_a, found_b = [], []  # every best response found so far, tried again in later searches
         for rnd in range(args.rounds + 1):
@@ -272,7 +277,7 @@ def main():
             pop_b += new_b
         # the Autoware-like rules, exploited
         expl = {}
-        for side, rule in (("B", A_AW_CONS), ("B", A_AW_PERM), ("A", B_AW)):
+        for side, rule in (("B", A_AW_CONS), ("B", A_AW_PERM), ("A", B_AW), ("A", B_AW_REACT)):
             br, val = search_br(pool, side, [rule], [1.0], rng, f"X_{rule['name']}")
             opp_key = {"A": "uA", "B": "uB"}[side]
             res = pool.evaluate([(br, rule) if side == "A" else (rule, br)])

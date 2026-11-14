@@ -965,5 +965,26 @@ def _main(args, out, stack_command=None) -> int:
                 out.flush()
 
 
+class Terminated(KeyboardInterrupt):
+    """SIGTERM, as an interrupt: the runner's finally blocks stop what it started (its run's
+    pilots and SSv2, a stack it started with --stop-stack) instead of leaving them behind."""
+
+
+def _on_term(signum, frame):
+    raise Terminated()
+
+
+def cli(argv=None) -> int:
+    """The command line: main() with SIGTERM turned into an interrupt."""
+    previous = signal.signal(signal.SIGTERM, _on_term)
+    try:
+        return main(argv)
+    except KeyboardInterrupt:
+        sys.stderr.write("swb run: interrupted; what this run started is stopped\n")
+        return 130
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli())

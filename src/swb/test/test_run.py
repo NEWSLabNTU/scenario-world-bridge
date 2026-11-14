@@ -748,3 +748,38 @@ def test_api_stack_block(where, maps_hub, launcher):
                         {"scenario_command": fake(where), "ready_timeout": 5})
         assert r.verdict == "passed"
     assert _stack_json(where)["state"] == "stopped"
+
+
+def test_sigterm_stops_what_the_runner_started(tmp_path):
+    """SIGTERM is an interrupt: main's finally stops a stack this run started."""
+    marker = tmp_path / "stopped"
+    script = tmp_path / "runner.py"
+    script.write_text(textwrap.dedent(f'''
+        import sys, time, types
+        from swb import run
+        class Started:
+            proc = types.SimpleNamespace(pid=1)
+            seat = 0
+            def stop(self):
+                open({str(marker)!r}, "w").write("yes")
+        def context(*a, **kw):
+            return types.SimpleNamespace(started=Started(), stack={{"map": None}},
+                                         project=None, host={{}})
+        run.context = context
+        run.expand = lambda *a, **k: ([], None)
+        run.order_by_map = lambda specs, m: specs
+        def run_suite(*a, **k):
+            print("running", flush=True)
+            time.sleep(60)
+        run.run_suite = run_suite
+        sys.exit(run.cli(["x.xosc", "--stop-stack"]))
+    '''))
+    env = dict(os.environ, PYTHONPATH=f"{SWB_ROOT}:{os.environ.get('PYTHONPATH', '')}")
+    p = subprocess.Popen([sys.executable, str(script)], env=env, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True)
+    assert p.stdout.readline().strip() == "running"
+    p.send_signal(signal.SIGTERM)
+    out, err = p.communicate(timeout=20)
+    assert p.returncode == 130, err
+    assert marker.read_text() == "yes"
+    assert "stopping the stack this run started" in out and "interrupted" in err

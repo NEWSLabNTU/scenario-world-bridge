@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic done (a lane drop's deadline makes the merge a coordination game near the end; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), the C2b rerun, then the arena's A abort parity (swb 241), S3 in the arena (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic done (a lane drop's deadline makes the merge a coordination game near the end; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: the C2b rerun, then the arena's A abort parity (swb 241), S3 in the arena (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -986,6 +986,53 @@ cutin_game's d0 (-10..30 m) and dv (-3..3 m/s), plus that distance.
 
 Next: the arena on a lane-drop road (swb 139), then the zipper with a queue.
 
+### E3 and D3. Autoware's knobs (2026-11-15)
+
+Run by swb 118 on C3a (Autoware on ground-truth objects) at 9ed8d89, on the Town03 west straight
+at 6 m/s. Cells (6, 0), (10, 0) and (14, -3), both A rules, 13 knob settings, one fresh stack per
+setting; stock and yield were also run at three seeds. Data: NAS `logs/2026 SSv2 on CARLA/
+2026-11-14 coop E3 autoware knobs/`.
+
+- **Stock Autoware is one fixed strategy for A's order and for when B starts braking.** No knob
+  changed A's order in a robust cell, and none moved B's braking onset: 2.1-2.7 s under A_eq,
+  5.1-5.9 s under A_aw_perm.
+- **The cruise-gap knobs move B's payoff after a cut-in, well beyond noise.** At (10, 0), with B
+  behind A:
+
+  | setting | uB A_aw_perm | uB A_eq | Δ against stock |
+  |---|---|---|---|
+  | stock (3 seeds) | -0.125..-0.134 | -0.123..-0.139 | 0 (spread 0.016) |
+  | yield (idling 4 s, RSS -0.5, margin 10 m, lateral margin 2 m; 3 seeds) | -0.348..-0.367 | -0.372..-0.387 | -0.24 |
+  | `idling_time` 4 s | -0.255 | -0.268 | -0.13 |
+  | `min_ego_accel_for_rss` -0.5 | -0.261 | -0.265 | -0.13 |
+  | `safe_distance_margin` 10 m | -0.171 | -0.183 | -0.04 |
+  | hold (idling 1, RSS -2.5, margin 2, ...) | -0.112 | -0.095 | +0.02..+0.04 |
+
+  Yielding is cheap to switch on with any one of the three knobs. Holding is not: stock is already
+  near the tight end.
+- **Where the knobs live:** all are in obstacle_cruise's parameters, under
+  `.../lane_driving/motion_planning/motion_velocity_planner/obstacle_cruise.param.yaml`. They are
+  **load-time only**; just the PID planner's gains and `min_accel_during_cruise` update at run time.
+  So a knob strategy is chosen per stack start.
+- **What does not act here:**
+  - The lane change's rear-car assumptions and RTC never act, because B does not change lanes and
+    RTC is off in every module.
+  - (6, 0) moves under no knob.
+  - (14, -3) is decided by the seed: stock alone flips A's order and touch against no touch, which
+    is the 1 cm edge of the C3a rerun.
+- **Cut-out:** acb's ground-truth objects see through a lead car (within 100 m); CenterPoint sees
+  only what the lidar hits. A real-stack cut-out must run on CenterPoint.
+- **Found on the way:** `c3_run.sh` with several cells in CELLS ran only the first. The fix is in
+  swb 118's report, not pushed yet.
+
+**D3 decided (2026-11-15).**
+- Stock Autoware is one fixed strategy: A's best reply is to stock.
+- Knob settings are strategies too. At least two (stock and yield) move B's outcome measurably, so
+  D3's condition holds and the overlay switch (042) is not needed.
+- Caveats: the knobs move how far B yields back, not who goes first; A's best reply against yield
+  is not computed yet. Next: add B_aw_yield, fitted on the yield setting, to the double oracle's B
+  pool.
+
 ### C4. Fit and explain
 
 Note on identifiability: from 2-3 discrete choices per run, an SVO angle and a capability are
@@ -1039,8 +1086,8 @@ being carried.
 | | C2a arena | B | noise sources, warm-up, maps with intervals, double oracle, exploitability of the Autoware-like rule | maps, equilibria, exploits |
 | | C2b swb check | B | Town05 scenario, light policies on acb's ground truth | sampled cells |
 | | D2 trust the arena | D | do arena and swb agree? | >= 3 cells per region, >= 90 % of swb payoffs inside the arena's 95 % intervals, boundaries within one grid step; else locate and fix (spawn, timing, physics) and repeat; persistent: mass runs through swb itself on parallel pipelines (026), at lower volume |
-| 2 real stack | E3 Autoware knobs | E | which Autoware 1.5 parameters move B between yield and hold (obstacle cruise's idling time and RSS accelerations, lane change's rear-car assumptions, RTC), and whether they change at run time | knob-to-behaviour table |
-| | D3 B's strategies on Autoware | D | what is a strategy of a real stack? | stock Autoware as one fixed strategy first (A's best reply to it); knob settings as strategies where >= 2 settings move outcomes measurably; an overlay switch (042) only if neither works |
+| 2 real stack | E3 Autoware knobs | E | which Autoware 1.5 parameters move B between yield and hold (obstacle cruise's idling time and RSS accelerations, lane change's rear-car assumptions, RTC), and whether they change at run time | knob-to-behaviour table. Done (swb 118; E3 above) |
+| | D3 B's strategies on Autoware | D | what is a strategy of a real stack? | stock Autoware as one fixed strategy first (A's best reply to it); knob settings as strategies where >= 2 settings move outcomes measurably; an overlay switch (042) only if neither works. Decided 2026-11-15: stock as one strategy, plus knob settings (yield) as strategies; no overlay |
 | | C3a, C3b | B | B Autoware with ground-truth objects, then with perception | real-stack maps |
 | | D4 where the stack leaves the model | D | residual map against the Autoware-like rule | refit the imitation and rerun C2a; or perception-caused (C3a against C3b): update the perception model; or record as a finding |
 | | C3c | B | A by RTC, then both Autoware | cross-play of two configurations |

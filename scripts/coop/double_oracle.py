@@ -39,6 +39,7 @@ import os
 import random
 import sys
 import time
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -103,7 +104,7 @@ def worker(port, k, inbox, outbox):
             if msg is None:
                 break
             tag, jobs = msg
-            rng = random.Random(hash(tag) & 0xffffffff)
+            rng = random.Random(zlib.crc32(tag.encode()))  # stable across processes; each job seeds its own
             rows = AR.run_jobs(ar, cars, jobs, rng, args)
             outbox.put((tag, [{k: r[k] for k in ("uA", "uB", "contact", "ahead", "got_in", "t_run")} for r in rows]))
     finally:
@@ -119,28 +120,34 @@ class Pool:
             p.start()
         self.runs = 0
 
-    def evaluate(self, pairs):
-        """{(a_name, b_name): {uA, uB, contact, ahead}} for each (pa, pb), over CONTEXTS x SEEDS."""
+    def evaluate(self, pairs, seeds=SEEDS, salt=0, per_run=False):
+        """{(a_name, b_name): {uA, uB, contact, ahead}} for each (pa, pb), over CONTEXTS x seeds.
+
+        Each run is seeded from its context, seed index and `salt` (crc32), so every rule pair
+        meets the same noise in the same run (common random numbers) and an evaluation repeats
+        exactly; another salt draws fresh seeds. per_run: also {key: {(context, seed): row}}."""
         jobs = []
         for pa, pb in pairs:
-            for (d0, dv), s in itertools.product(CONTEXTS, range(SEEDS)):
+            for (d0, dv), s in itertools.product(CONTEXTS, range(seeds)):
                 jobs.append({"d0": d0, "dv": dv, "vb": 12.0, "pa": pa, "pb": pb, "seed": s,
-                             "key": (pa["name"], pb["name"])})
+                             "rng_seed": zlib.crc32(f"{d0}:{dv}:{s}:{salt}".encode()),
+                             "key": (pa["name"], pb["name"]), "run": ((d0, dv), s)})
         n = len(self.inbox)
         shards = [jobs[i::n] for i in range(n)]
         for i, sh in enumerate(shards):
             self.inbox[i].put((f"{time.time()}-{i}", sh))
-        got = {}
+        got, runs = {}, {}
         for _ in range(n):
             tag, rows = self.outbox.get()
             i = int(tag.rsplit("-", 1)[1])
             for j, r in zip(shards[i], rows):
                 got.setdefault(j["key"], []).append(r)
+                runs.setdefault(j["key"], {})[j["run"]] = r
         self.runs += len(jobs)
         out = {}
         for key, rs in got.items():
             out[key] = {m: sum(float(r[m]) for r in rs) / len(rs) for m in ("uA", "uB", "contact", "ahead")}
-        return out
+        return (out, runs) if per_run else out
 
     def close(self):
         for q in self.inbox:
@@ -219,6 +226,35 @@ def search_br(pool, side, opp, mix, rng, base_name, n_rand=40, n_local=12, extra
     return allc[i], allv[i]
 
 
+VALIDATE_SEEDS = 4  # fresh seeds per context for a best response's check
+
+
+def validate(pool, side, br, own, own_mix, opp, opp_mix, salt):
+    """A searched best response against the incumbent (`side`'s equilibrium mixture), both against
+    the opponent's mixture, on fresh seeds shared by the two (common random numbers): returns
+    (gain, se). The search picks the best of many noisy estimates, so its own gain is biased up
+    (074 do5: 0.018 that the table never showed)."""
+    u = "uA" if side == "A" else "uB"
+    sup_o = [(o, w) for o, w in zip(opp, opp_mix) if w > 1e-6]
+    sup_i = [(r, w) for r, w in zip(own, own_mix) if w > 1e-6]
+    rules = [br] + [r for r, _ in sup_i if r["name"] != br["name"]]
+    pairs = [((r, o) if side == "A" else (o, r)) for r in rules for o, _ in sup_o]
+    _, runs = pool.evaluate(pairs, seeds=VALIDATE_SEEDS, salt=salt, per_run=True)
+    key = lambda r, o: (r["name"], o["name"]) if side == "A" else (o["name"], r["name"])
+    gain, var = 0.0, 0.0
+    for o, wo in sup_o:
+        rb = runs[key(br, o)]
+        d = []
+        for run in rb:
+            inc = sum(wi * float(runs[key(r, o)][run][u]) for r, wi in sup_i)
+            d.append(float(rb[run][u]) - inc)
+        m = sum(d) / len(d)
+        v = sum((x - m) ** 2 for x in d) / max(1, len(d) - 1)
+        gain += wo * m
+        var += wo * wo * v / len(d)
+    return gain, var ** 0.5
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ports", default="2600,2610")
@@ -258,14 +294,26 @@ def main():
             br_b, val_b = search_br(pool, "B", pop_a, P, rng, f"B{rnd + 1}", extra=[x for x in found_b])
             found_a.append(br_a)
             found_b.append(br_b)
+            # the searched gains are biased up (best of many noisy estimates): each best response
+            # is checked against the incumbent on fresh seeds, common to both, and enters the
+            # pool only if its gain there exceeds 2 standard errors
+            ga, sa = validate(pool, "A", br_a, pop_a, P, pop_b, Q, salt=1000 + 2 * rnd)
+            gb, sb = validate(pool, "B", br_b, pop_b, Q, pop_a, P, salt=1001 + 2 * rnd)
             rec.update({"BR_A": br_a, "gain_A": round(val_a - float(va), 4),
-                        "BR_B": br_b, "gain_B": round(val_b - float(vb), 4)})
-            rec["exploitability_lb"] = round(max(0.0, rec["gain_A"]) + max(0.0, rec["gain_B"]), 4)
+                        "gain_A_check": round(ga, 4), "se_A": round(sa, 4),
+                        "BR_B": br_b, "gain_B": round(val_b - float(vb), 4),
+                        "gain_B_check": round(gb, 4), "se_B": round(sb, 4)})
+            keep_a = ga > 2 * sa and ga > 0.0
+            keep_b = gb > 2 * sb and gb > 0.0
+            # exploitability's lower bound from the checked gains (the searched ones, as before,
+            # in exploitability_lb_search)
+            rec["exploitability_lb"] = round(max(0.0, ga) * keep_a + max(0.0, gb) * keep_b, 4)
+            rec["exploitability_lb_search"] = round(max(0.0, rec["gain_A"]) + max(0.0, rec["gain_B"]), 4)
             print(json.dumps(rec), flush=True)
             log.write(json.dumps(rec) + "\n")
             log.flush()
-            new_a = [br_a] if rec["gain_A"] > 0.005 else []
-            new_b = [br_b] if rec["gain_B"] > 0.005 else []
+            new_a = [br_a] if keep_a else []
+            new_b = [br_b] if keep_b else []
             if not new_a and not new_b and rnd >= 1:
                 print("no best response gains: an approximate equilibrium", flush=True)
                 log.write(json.dumps({"round": rnd, "converged": True}) + "\n")

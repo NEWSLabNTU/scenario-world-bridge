@@ -952,7 +952,12 @@ def run_jobs(ar, cars, work, rng, args, tick_wall=None, log=False):
         for r in range(args.k):
             if not queue:
                 break
-            p = Pair(ar, r, cars[r][0], cars[r][1], queue.popleft(), rng, args)
+            job = queue.popleft()
+            # a job may carry its own seed: then its noise (reaction jitter, observers) is its own,
+            # the same for every rule pair in the same context and seed (common random numbers),
+            # and independent of which pairs share the arena with it
+            jr = random.Random(job["rng_seed"]) if "rng_seed" in job else rng
+            p = Pair(ar, r, cars[r][0], cars[r][1], job, jr, args)
             p.place()
             pairs.append(p)
         for _ in range(3):  # let the parked cars settle on the road

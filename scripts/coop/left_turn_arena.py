@@ -125,6 +125,7 @@ class Run:
         self.seen_a = Seen(mk())  # the chain's view of A (s, v)
         self.phase, self.rec = "warmup", None
         self.s = 0.0
+        self.reparked = [False, False]
 
     def cars(self):
         return [self.A] + self.C
@@ -163,7 +164,15 @@ class Run:
         for car, x in zip(self.C, self.x_start):
             err = self.j.c_front(car) - (x + dist)
             self.drive_c(car, max(-4.0, min(3.0, ar_ + 0.6 * err + 1.8 * (vr - car.state()[3]))))
-        self.A.a.apply_control(carla.VehicleControl(brake=1.0, hand_brake=True))
+        # a reused A, teleported back to its line, creeps under full brake (seen at 0.7-1 m/s and 6-9 m
+        # past its line after the 15 s warm-up, 074 S5): put it back at rest on its line twice before the run
+        if not self.reparked[0] and t >= WARMUP - 3.0:
+            self.j.place_a(self.A, 0.0)
+            self.reparked[0] = True
+        if not self.reparked[1] and t >= WARMUP - 1.0:
+            self.j.place_a(self.A, 0.0)
+            self.reparked[1] = True
+        self.A.a.apply_control(carla.VehicleControl(brake=1.0, hand_brake=True, steer=0.0))
         if t >= WARMUP - 1e-9:
             self.start()
 
@@ -180,6 +189,10 @@ class Run:
         self.contact = self.both = False
         self.st_both = 0.0
         self.c1_in = self.a_out = None
+        xa_c, ya_c, _, va0 = self.A.state()
+        xm, ym = self.j.to_m(xa_c, ya_c)
+        self.s = project(0.0, xm, ym)
+        self.a_start = (round(self.s, 3), round(va0, 3), round(math.hypot(xm - T.path(0.0)[0], ym - T.path(0.0)[1]), 3))
         xr = [self.j.c_front(c) for c in self.C]
         self.real = {"x1_real": round(xr[0] - T.XZ_HI, 2), "v1_real": round(self.C[0].state()[3], 2),
                      "h_real": round((xr[1] - xr[0]) / max(self.v, 0.1), 3) if self.n > 1 else ""}
@@ -248,7 +261,8 @@ class Run:
                     "a_went": "" if self.R.started is None else round(self.R.started, 2),
                     "pet": round(pet, 3) if math.isfinite(pet) else "inf",
                     "clear": round(min(m.clear for m in self.meas), 3), "lostA": round(lost[0], 4),
-                    "lat_peakA": round(self.meas[0].lat_peak[0], 2), "cut": int(cut), **self.real, "t_run": round(t, 2)}
+                    "lat_peakA": round(self.meas[0].lat_peak[0], 2), "cut": int(cut), **self.real,
+                    "a_s0": self.a_start[0], "a_v0": self.a_start[1], "a_off0": self.a_start[2], "t_run": round(t, 2)}
         self.park_all()
         self.phase = "done"
 
@@ -269,16 +283,16 @@ def run(args):
         js = [Junction(ar, i) for i in range(args.k)]
 
         def spawn(j, k):
-            if k == 0:
-                x, y, yaw, _ = T.path(0.0)
-                xc, yc = j.to_c(x - 30.0, y)
-                rot = 0.0
-            else:
-                xc, yc = j.to_c(150.0 + 20.0 * k, T.Y_C)
-                rot = 180.0
-            a = ar.world.spawn_actor(ar.bp, carla.Transform(carla.Location(x=xc, y=yc, z=j.z + 0.6), carla.Rotation(yaw=rot)))
-            ar.actors.append(a)
-            return a
+            # far down the main road, clear of every car a run parks: A on its lane, the chain on theirs
+            for tries in range(20):
+                xm = -400.0 - 15.0 * k - 100.0 * tries
+                xc, yc = j.to_c(xm, T.Y_A if k == 0 else T.Y_C)
+                a = ar.world.try_spawn_actor(ar.bp, carla.Transform(carla.Location(x=xc, y=yc, z=j.z + 0.6),
+                                                                    carla.Rotation(yaw=0.0 if k == 0 else 180.0)))
+                if a is not None:
+                    ar.actors.append(a)
+                    return a
+            raise RuntimeError(f"junction {j.i}: no free spawn point for car {k}")
 
         group = []
         for j in js:
@@ -302,7 +316,7 @@ def run(args):
                 job = work.popleft()
                 r = Run(j, cs[0], cs[1:1 + job["n"]], job, rng, args)
                 for k, c in enumerate(cs[1 + job["n"]:]):  # the cars this run does not use: parked out of the way
-                    xc, yc = j.to_c(-300.0 - 10.0 * k, T.Y_C)
+                    xc, yc = j.to_c(-250.0 - 10.0 * k, T.Y_C)
                     c.park(carla.Transform(carla.Location(x=xc, y=yc, z=j.z + 0.3), carla.Rotation(yaw=180)))
                 r.park_all()
                 r.idle = cs[1 + job["n"]:]

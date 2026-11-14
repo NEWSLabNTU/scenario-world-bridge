@@ -890,6 +890,20 @@ In the arena: look-through off, 12 and 20 m/s, O stopped and slow, 3 values of h
   kinematic model understates the latest cut-out's harm, so its off-equilibrium risk is a lower
   bound.
 
+**On the real stack, with CenterPoint** (swb 118; NAS `.../2026-11-15 coop S1 cutout
+autoware/`). Town03's west straight; L a light agent, O a stopped car, B the Autoware ego; 20 runs.
+- **No contact; B always stops 4.9 m short of O.**
+- **Autoware keeps its own gap of 3.3-4.6 s,** so B's headway h0 cannot be set from outside.
+  Autoware sits at a gap the kinematic model calls safe even without look-through.
+- **CenterPoint is limited to about 45-50 m.** With T_L ≤ 3.5 s it sees O 1.5 s after the cut-out
+  starts, about 1 s before L clears the lane. The lidar sees part of O around L, so B's perception is
+  between "look-through off" and "on".
+- **At 6 m/s, uB ≈ -0.44,** against the kinematic model's -0.39 at a 2.5 s gap (look-through on and
+  off are equal at that h0). 8 m/s is clean. 12 m/s reaches speed, but the goal stop confounds it:
+  the straight is too short.
+- **Reading:** Autoware's long following gap is its defence in the cut-out. The risky regime (short
+  gap, high speed) needs a longer straight than Town03 has.
+
 ### S2. The unsignalled crossing: kinematic and arena (2026-11-14)
 
 The crossing as design ②'s passage game, by swb 139. The kinematic model is

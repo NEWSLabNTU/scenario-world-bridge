@@ -730,6 +730,14 @@ and R6 build on it. R5 must show on the same fixtures that the reference's shape
     which holds the contact, plus `flush` and `update`) is 5.2-7.3 ms a frame against 0.9
     flat, the contact 3.7-4.4 of it on this loaded CPU (2.8-2.9 on a quieter one). So the
     budget is the CPU's: the contact, and the bars and the attachments beside it.
+  - **One rock lookup per car** (2026-11-14, swb_isaac_world `8ce8aec`): with no rock within
+    reach of any wheel's samples or footprint, a substep skips the rock reads, tops and
+    footprints (one grid lookup, not six), and the base plane's slopes are solved in closed
+    form instead of `lstsq`. The cProfile of the substep, steady state (one 0.94 s wait for
+    a tile at the start had inflated the height sampling's share before): the contact 0.9 ms,
+    of which the rocks 0.3, the heights 0.26, the plane fit 0.14. Live, three interleaved
+    pairs on the idle GPU (`2026-11-07_066-ab3-*`): 3.28-4.05 ms a frame against 3.75-4.24,
+    about 0.3 ms at the median, inside the spread of a host at load 30-35.
   - **The Autoware ego on a rock road** needs a lanelet map for the corridor; it moves to R7,
     with the ground filter and NDT on rough tiles.
 

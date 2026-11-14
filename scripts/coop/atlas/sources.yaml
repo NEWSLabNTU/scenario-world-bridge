@@ -252,6 +252,53 @@ scenarios:
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop arena/vb12/summary.json"
     planned: {swb_light: "not run", swb_autoware: "not run"}
 
+  conventions:
+    title: Conventions
+    conventions: true
+    notes:
+      - "C7: tie-breaks carried on top of every C2 rule at the crossing (S2) and the narrow passage (S4): none, rB (S2's right of way), bind_fault (the fault binds after a rest), bind (binding priority in behaviour), coin (a signalled fair coin, a correlation device), stagger (the right car's patience shorter)."
+      - "Restart crash: contact after both cars stopped, as a share of the runs where both stopped, over all rule pairs. Gap recovered: (C_worst^none - C_worst^conv) / (C_worst^none - C_best^none), mean over contexts with a gap >= 0.05."
+      - "The zipper under congestion: a lane drop fed on both lanes (20 + 20 cars, headways 1.2 / 1.5 s), conventions none, early, zipper, zipper* (lane 2's best reply), yend."
+      - "NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions"
+    tiers:
+      kinematic:
+        - loader: conventions
+          kind: tiebreak_kin
+          label: Tie-breaks, crossing (kinematic)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/kinematic/cross/tiebreak_cross.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions"
+        - loader: conventions
+          kind: tiebreak_kin
+          label: Tie-breaks, narrow passage (kinematic)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/kinematic/narrow/tiebreak_narrow.json"
+        - loader: conventions
+          kind: stream
+          label: Zipper under congestion (kinematic, 8 draws)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/zipper/kin/stream_kin.json"
+      arena:
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks, crossing arena v 10
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/arena/cross_v10/summary.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks, crossing arena v 14
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/arena/cross_v14/summary.json"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks, narrow passage arena W_n 6
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/arena/narrow_wn6/summary.json"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks, narrow passage arena W_n 30
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/arena/narrow_wn30/summary.json"
+        - loader: conventions
+          kind: stream
+          label: Zipper under congestion (arena, 4 draws)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/zipper/arena/stream_arena.json"
+    planned: {swb_light: "not run", swb_autoware: "not run"}
+
   ncar:
     title: N cars
     ncar: true

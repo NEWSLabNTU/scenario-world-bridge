@@ -382,3 +382,16 @@ def test_retired_args_refused_by_name(where, maps_hub):
     # the stack's own arguments still pass
     p = stack.plan(project_arg=str(d), stack_args={"side_args": "weather:=ClearNoon"})
     assert p.launch_args["side_args"] == "weather:=ClearNoon"
+
+
+def test_seat_carla_port_is_the_stacks(where, maps_hub):
+    d = make(where, maps_hub=maps_hub)
+    sysf = where["tmp"] / "system" / "host.yaml"
+    h = yaml.safe_load(sysf.read_text())
+    h["seats"] = {"carla": {"base": 2000, "stride": 10}}
+    h["carla"] = {"start": "external", "port": 2000}
+    sysf.write_text(yaml.safe_dump(h))
+    p = stack.plan(project_arg=str(d), map_name="Town01")   # seat 2 (the fixture's)
+    assert p.launch_args["carla_port"] == "2020"
+    assert p.record["pilot_contract"]["carla_port"] == "2020"
+    assert stack.seat_of(p.record).carla_port == 2020

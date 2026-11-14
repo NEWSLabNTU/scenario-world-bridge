@@ -185,6 +185,7 @@ Seat `n` of a table:
 | world server port | SSv2 port + 36 |
 | web UI | `web.base + web.stride * n` (+0 stack, +1 the run's scenario) |
 | GPU | `gpus[n]` (or `gpu:`) |
+| CARLA port | `carla.base + carla.stride * n` when the table has `carla:` (stride at least 3: CARLA uses its port and the two after), else the host's `carla.port` |
 
 Every domain must be 0-57 (the localhost Cyclone profile's DomainGain); a table that breaks
 that, or overlaps itself, is refused when read. `seat take` takes an exclusive lock file

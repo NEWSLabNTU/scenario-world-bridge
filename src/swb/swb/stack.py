@@ -579,7 +579,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     ego_domain = s.pilot_domains[0]
     vehicle = next((b.spec.get("vehicle") for b in bound if b.spec.get("vehicle")),
                    DEFAULT_VEHICLE)
-    carla = host.get("carla") or {}
+    carla = dict(host.get("carla") or {})
+    if s.carla_port:
+        carla["port"] = s.carla_port  # the seat table gives each seat its own CARLA
     carla_run = None
     if sim == "carla":
         try:
@@ -733,7 +735,8 @@ def seat_of(record: dict) -> seatmod.Seat:
                         release_ports=tuple(n["release_ports"]), relay_port=n["relay_port"],
                         world_port=n["world_port"], web_port=n["web_port"],
                         web_port_run=n["web_port_run"], gpu=n["gpu"],
-                        lock_dir=record.get("lock_dir") or config.DEFAULTS["seat_locks"])
+                        lock_dir=record.get("lock_dir") or config.DEFAULTS["seat_locks"],
+                        carla_port=n.get("carla_port"))
 
 
 def ros_env(record: dict, domain) -> dict:

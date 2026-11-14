@@ -257,3 +257,16 @@ def test_cyclone_profile_without_ament(monkeypatch):
 def test_bad_argument_exit_code():
     assert seat.main([]) == 3
     assert seat.main(["bogus"]) == 3
+
+
+def test_seat_table_gives_each_seat_a_carla(tmp_path):
+    from swb import config as cfg
+    s = cfg.merge(cfg.DEFAULTS, {"seats": {"count": 3, "carla": {"base": 2000, "stride": 10}}})
+    seats = seat.table(s)
+    assert [x.carla_port for x in seats] == [2000, 2010, 2020]
+    assert seat.table(cfg.DEFAULTS)[0].carla_port is None
+    bad = cfg.merge(cfg.DEFAULTS, {"seats": {"carla": {"base": 5555, "stride": 10}}})
+    with pytest.raises(cfg.ConfigError, match="seats.carla overlaps"):
+        seat.table(bad)
+    with pytest.raises(cfg.ConfigError, match="seats.carla.stride"):
+        seat.table(cfg.merge(cfg.DEFAULTS, {"seats": {"carla": {"base": 2000, "stride": 2}}}))

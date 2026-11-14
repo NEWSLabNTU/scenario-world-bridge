@@ -67,6 +67,7 @@ class Seat:
     web_port_run: int
     gpu: int
     lock_dir: str = field(default=config.DEFAULTS["seat_locks"], repr=False)
+    carla_port: int = None  # seats.carla: this seat's own CARLA; None: the host's carla.port
 
     def numbers(self) -> dict:
         return {
@@ -79,6 +80,7 @@ class Seat:
             "world_port": self.world_port,
             "web_port": self.web_port,
             "web_port_run": self.web_port_run,
+            "carla_port": self.carla_port,
             "gpu": self.gpu,
         }
 
@@ -145,6 +147,22 @@ def table(settings: dict, source: str = None) -> list:
     if clash:
         raise ConfigError(f"{where}: seats.web overlaps seats.ports at port {clash[0]}")
 
+    # seats.carla: {base, stride}: one CARLA per seat (its RPC port and the two after it)
+    carla_t = t.get("carla")
+    c_base = c_stride = None
+    if carla_t is not None:
+        if not isinstance(carla_t, dict):
+            raise ConfigError(f"{where}: seats.carla must be {{base: 2000, stride: 10}}")
+        c_base = _int(carla_t.get("base"), where, "seats.carla.base", 1)
+        c_stride = _int(carla_t.get("stride"), where, "seats.carla.stride", 3)
+        carla_ports = {c_base + c_stride * n + o for n in range(count) for o in range(3)}
+        if max(carla_ports) > MAX_PORT:
+            raise ConfigError(f"{where}: seats.carla: seat {count - 1} reaches port "
+                              f"{max(carla_ports)}, past {MAX_PORT}")
+        hit = sorted(carla_ports & (seat_ports | web_ports))
+        if hit:
+            raise ConfigError(f"{where}: seats.carla overlaps the seat ports at port {hit[0]}")
+
     gpus = t.get("gpus")
     if gpus is not None:
         if not isinstance(gpus, list) or len(gpus) != count:
@@ -167,7 +185,8 @@ def table(settings: dict, source: str = None) -> list:
             index=n, scenario_domain=dom, pilot_domains=list(range(dom + 1, dom + d_stride)),
             ssv2_port=port, release_ports=tuple(port + o for o in RELEASE_OFFSETS),
             relay_port=port + RELAY_OFFSET, world_port=port + WORLD_OFFSET,
-            web_port=web, web_port_run=web + 1, gpu=gpu, lock_dir=lock_dir))
+            web_port=web, web_port_run=web + 1, gpu=gpu, lock_dir=lock_dir,
+            carla_port=(c_base + c_stride * n) if c_base is not None else None))
     return seats
 
 
@@ -418,7 +437,8 @@ def _format_numbers(s: Seat) -> str:
     return (f"seat {s.index}: scenario domain {s.scenario_domain}, pilot domains {pilots}, "
             f"SSv2 {s.ssv2_port} (+{s.release_ports[0]}, {s.release_ports[1]}), "
             f"relay {s.relay_port}, world server {s.world_port}, "
-            f"web {s.web_port} (run {s.web_port_run}), GPU {s.gpu}")
+            f"web {s.web_port} (run {s.web_port_run}), GPU {s.gpu}"
+            + (f", CARLA {s.carla_port}" if s.carla_port else ""))
 
 
 def _project(arg):

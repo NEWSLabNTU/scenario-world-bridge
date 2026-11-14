@@ -20,7 +20,8 @@ Groups and their ROS domains:
     on `world_endpoint`.
   `sim_args` go to that launch.
 - simulation side (scenario domain): the bridge and the agent relay (simulation.launch.xml).
-  `side_args` go to that launch (config_file, weather, gap_trace_dir, npc_motion, ...).
+  `side_args` go to that launch (config_file, weather, gap_trace_dir, npc_motion, state_dir,
+  ...).
 - ego (ego domain): the autopilot's launch and swb's vehicle agent (vehicle_agent.launch.xml),
   as a nested play_launch, respawned. An autopilot stack ends with its episode (a world load,
   a simulator restart: acb_bridge is required), and that must not end the stack; the
@@ -469,7 +470,7 @@ def generate_launch_description():
         arg("vehicle_model", default_value="", description="the agent's vehicle model (its description's spec_hash.yaml)"),
         arg("spec_hash_file", default_value="", description="the agent's spec_hash YAML, instead of vehicle_model's"),
         arg("vehicle_catalogs", default_value="", description="the bridge's extra vehicle catalogs, comma separated"),
-        arg("side_args", default_value="", description="name:=value ... for the simulation side's launch (simulation.launch.xml: config_file, weather, gap_trace_dir, ...)"),
+        arg("side_args", default_value="", description="name:=value ... for the simulation side's launch (simulation.launch.xml: config_file, weather, gap_trace_dir, state_dir, ...)"),
         arg("pilots", default_value="", description="YAML/JSON list of pilots [{entity, kind, domain, <arg>: <value>, args: {...}}], each a nested play_launch of launch/pilots/<kind> in its domain; empty: none (the ego_launch path)"),
         arg("scenario", default_value="", description="an .xosc to run; empty: none"),
         arg("scenario_args", default_value="", description="name:=value ... for scenario.launch.xml (global_timeout, global_real_time_factor, output_directory, ...)"),

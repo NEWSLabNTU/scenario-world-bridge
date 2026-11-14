@@ -48,6 +48,9 @@ def test_plan_multi_pilot(where, maps_hub):
     assert (a["ssv2_port"], a["agent_port"], a["world_port"]) == ("5755", "5760", "5791")
     assert a["ego_launch"] == "none" and a["nest_side"] == "true"
     assert a["map_path"] == "" and "pilots" not in a  # the keeper runs the pilots
+    # the world server writes the signal table into the state dir, the bridge reads it there
+    assert a["sim_args"] == f"state_dir:={d / 'state'}"
+    assert a["side_args"] == f"state_dir:={d / 'state'}"
     assert a["log_dir"] == str(where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "proc")
     pilots = p.record["pilot_entries"]
     assert [(x["entity"], x["kind"], x["domain"]) for x in pilots] == [
@@ -203,6 +206,7 @@ def test_isaac_plan(where, maps_hub):
     assert p.launch_args["sim"] == "isaac"
     assert p.launch_args["sim_args"] == (f"world:={d / 'assets' / 'maps' / 'Town01'} ego:=default"
                                          f" state_dir:={d / 'state'}")
+    assert p.launch_args["side_args"] == f"state_dir:={d / 'state'}"
 
 
 def test_fingerprint_diff_names_parts(where, maps_hub):

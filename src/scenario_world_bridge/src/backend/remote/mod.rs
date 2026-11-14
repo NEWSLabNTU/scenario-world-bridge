@@ -81,7 +81,8 @@ const RELEASE_TIMEOUT: Duration = Duration::from_secs(3);
 #[serde(default, deny_unknown_fields)]
 pub struct WorldFile {
     /// The world, as the server names it: a USD stage (relative to the map directory or
-    /// absolute), a CARLA town. Empty: the server's default. `usd` is its older name.
+    /// absolute, after `${VAR}`, `$VAR` and a leading `~` are expanded), a CARLA town. Empty:
+    /// the server's default. `usd` is its older name.
     #[serde(alias = "usd")]
     pub world: String,
     /// Prims a body rests on (terrain, road surface): contacts with them are not reported.
@@ -116,6 +117,10 @@ impl WorldFile {
             .map_err(|e| eyre::eyre!("read {}: {e}", path.display()))?;
         let mut world: Self = serde_yaml::from_str(&text)
             .map_err(|e| eyre::eyre!("parse {}: {e}", path.display()))?;
+        // Variables and `~` first (`${SWB_CARLA_USD}/Town01/...`), so an expanded path is
+        // never taken for one beside the map.
+        world.world = expand_path(&world.world, |v| std::env::var(v).ok())
+            .map_err(|e| eyre::eyre!("{}: world: {e}", path.display()))?;
         // A world named by a path beside the map is resolved against the map directory.
         if !world.world.is_empty() && Path::new(&world.world).is_relative() {
             let beside = map_dir.join(&world.world);
@@ -125,6 +130,48 @@ impl WorldFile {
         }
         Ok((world, Some(path)))
     }
+}
+
+/// A path with its `${VAR}` and `$VAR` replaced by `var(VAR)` and a leading `~` (alone or
+/// before `/`) by `HOME`. A variable that is unset is an error naming it; a `$` not followed
+/// by a name stays as it is.
+fn expand_path(text: &str, var: impl Fn(&str) -> Option<String>) -> Result<String, String> {
+    let lookup = |name: &str| var(name).ok_or_else(|| format!("${{{name}}} is not set"));
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    if rest == "~" || rest.starts_with("~/") {
+        out.push_str(&lookup("HOME")?);
+        rest = &rest[1..];
+    }
+    let is_name = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    while let Some(i) = rest.find('$') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        if let Some(braced) = after.strip_prefix('{') {
+            let Some(end) = braced.find('}') else {
+                return Err(format!("unclosed ${{ in {text:?}"));
+            };
+            let name = &braced[..end];
+            if name.is_empty() || !name.chars().all(is_name) {
+                return Err(format!("${{{name}}} is not a variable name"));
+            }
+            out.push_str(&lookup(name)?);
+            rest = &braced[end + 1..];
+        } else {
+            let len = after
+                .char_indices()
+                .find(|&(j, c)| !(is_name(c) && !(j == 0 && c.is_ascii_digit())))
+                .map_or(after.len(), |(j, _)| j);
+            if len == 0 {
+                out.push('$');
+            } else {
+                out.push_str(&lookup(&after[..len])?);
+            }
+            rest = &after[len..];
+        }
+    }
+    out.push_str(rest);
+    Ok(out)
 }
 
 /// Physics substeps and their length for an SSv2 step: the fewest steps of at most
@@ -633,6 +680,9 @@ pub struct RemoteBackend {
     /// The vehicle catalog's `{model3d: spec_hash}`: the installed one, read at the first ego
     /// spawn, unless [`RemoteBackend::set_catalog`] gave it (`vehicle_catalogs`).
     catalog_hashes: Option<HashMap<String, String>>,
+    /// The stack's state directory (`state_dir`, roadmap 076 A9): a map's signal table is
+    /// read from `<state_dir>/<map dir name>/` before the map directory.
+    state_dir: Option<PathBuf>,
     /// The drives the last `Apply` carried, by handle, for the tests.
     #[cfg(test)]
     sent: BTreeMap<u32, wire::EntityPose>,
@@ -673,6 +723,7 @@ impl RemoteBackend {
             ego_run: None,
             agent_link: None,
             catalog_hashes: None,
+            state_dir: None,
             #[cfg(test)]
             sent: BTreeMap::new(),
         }
@@ -684,8 +735,19 @@ impl RemoteBackend {
         self.catalog_hashes = Some(hashes);
     }
 
+    /// The stack's state directory (`state_dir`): signal tables are read from it first.
+    pub fn set_state_dir(&mut self, state_dir: Option<PathBuf>) {
+        self.state_dir = state_dir;
+    }
+
     fn offers(&self, c: wire::Capability) -> bool {
         self.server.offers(c)
+    }
+
+    /// The map's signal table, from the state directory first (see [`SignalTable::for_map`]).
+    fn read_signals(&self, map_dir: &Path) -> Result<SignalTable, BackendError> {
+        SignalTable::for_map(map_dir, self.state_dir.as_deref())
+            .map_err(|e| BackendError::Failed(format!("Cannot read the signal table: {e:#}")))
     }
 
     /// The server's name, for messages.
@@ -1355,10 +1417,11 @@ impl SimBackend for RemoteBackend {
             ),
         }
         let map_dir = map_dir_of(Path::new(&episode.lanelet2_map_path));
+        // The table goes in LoadWorld (Isaac finds its lamps by it). CARLA's world server
+        // resolves its own and writes the table during the load when it is missing or stale
+        // (roadmap 076 A9), so it is read again after the load, below.
         let signals = if self.offers(wire::Capability::Signals) {
-            let signals = SignalTable::for_map_dir(&map_dir).map_err(|e| {
-                BackendError::Failed(format!("Cannot read the signal table: {e:#}"))
-            })?;
+            let signals = self.read_signals(&map_dir)?;
             match &signals.path {
                 Some(p) if signals.is_empty() => {
                     tracing::warn!("{} lists no traffic signals", p.display())
@@ -1367,8 +1430,12 @@ impl SimBackend for RemoteBackend {
                     tracing::info!("{} traffic signal(s) from {}", signals.len(), p.display())
                 }
                 None => tracing::info!(
-                    "No {} beside the map: no traffic signals",
-                    signals::TABLE_SUBPATH
+                    "No {} for the map yet{}: none sent with the world load",
+                    signals::TABLE_SUBPATH,
+                    self.state_dir.as_ref().map_or(String::new(), |d| format!(
+                        " (in {} or beside it)",
+                        d.display()
+                    ))
                 ),
             }
             signals
@@ -1406,6 +1473,37 @@ impl SimBackend for RemoteBackend {
         if world_episode != 0 {
             self.world_episode = world_episode;
         }
+        let signals = if self.offers(wire::Capability::Signals) {
+            let after = self.read_signals(&map_dir)?;
+            let (signals, what) = signals::after_load(signals, after);
+            let at = signals
+                .path
+                .as_ref()
+                .map_or(String::new(), |p| p.display().to_string());
+            match what {
+                signals::AfterLoad::Unchanged if signals.path.is_none() => tracing::warn!(
+                    "No {} for the map after the world load: no traffic signals are shown",
+                    signals::TABLE_SUBPATH
+                ),
+                signals::AfterLoad::Unchanged => {}
+                signals::AfterLoad::Written => tracing::info!(
+                    "{} traffic signal(s) from {at}, written by {} at the load",
+                    signals.len(),
+                    self.sim()
+                ),
+                signals::AfterLoad::Rewritten => tracing::info!(
+                    "{} traffic signal(s) from {at}, rewritten at the load",
+                    signals.len()
+                ),
+                signals::AfterLoad::Vanished => tracing::warn!(
+                    "The signal table {at} was gone after the world load; mapping with the one \
+                     read before it"
+                ),
+            }
+            signals
+        } else {
+            signals
+        };
         // The world server shows every signal green until SSv2 commands it.
         self.signal_colours = signals
             .entries

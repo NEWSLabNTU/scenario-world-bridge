@@ -862,7 +862,51 @@ fn a_world_file_names_the_world_beside_the_map() {
     std::fs::write(dir.join("carla/world.yaml"), "world: Town10HD\n").unwrap();
     let (w, _) = WorldFile::for_map("carla", &map).unwrap();
     assert_eq!(w.world, "Town10HD");
+    // A variable is expanded before the path is resolved: absolute after expansion, it is
+    // not joined to the map directory.
+    std::fs::write(dir.join("isaac/world.yaml"), "usd: ${HOME}/w.usd\n").unwrap();
+    let (w, _) = WorldFile::for_map("isaac", &map).unwrap();
+    assert_eq!(w.world, format!("{}/w.usd", std::env::var("HOME").unwrap()));
+    // An unset one is an error naming it.
+    std::fs::write(
+        dir.join("isaac/world.yaml"),
+        "world: ${SWB_TEST_SURELY_UNSET_VAR}/Town01/x.usd\n",
+    )
+    .unwrap();
+    let e = WorldFile::for_map("isaac", &map).unwrap_err().to_string();
+    assert!(e.contains("SWB_TEST_SURELY_UNSET_VAR"), "{e}");
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_world_path_expands_variables_and_home() {
+    let var = |name: &str| match name {
+        "SWB_CARLA_USD" => Some("/data/carla-usd".to_string()),
+        "HOME" => Some("/home/u".to_string()),
+        "REL" => Some("worlds".to_string()),
+        _ => None,
+    };
+    let x = |s: &str| expand_path(s, var);
+    assert_eq!(
+        x("${SWB_CARLA_USD}/Town01/Town01.usd").unwrap(),
+        "/data/carla-usd/Town01/Town01.usd"
+    );
+    assert_eq!(x("$SWB_CARLA_USD/T.usd").unwrap(), "/data/carla-usd/T.usd");
+    assert_eq!(x("~/w.usd").unwrap(), "/home/u/w.usd");
+    assert_eq!(x("~").unwrap(), "/home/u");
+    // `~` elsewhere, a `$` before no name, and plain names stay as they are.
+    assert_eq!(x("a~b/~c").unwrap(), "a~b/~c");
+    assert_eq!(x("cost$/x$").unwrap(), "cost$/x$");
+    assert_eq!(x("$1x").unwrap(), "$1x");
+    assert_eq!(x("Town10HD").unwrap(), "Town10HD");
+    assert_eq!(x("").unwrap(), "");
+    // A relative expansion stays relative (resolved against the map dir afterwards).
+    assert_eq!(x("$REL/f.usd").unwrap(), "worlds/f.usd");
+    // Unset: an error naming the variable, in either spelling.
+    assert!(x("${NOPE}/a").unwrap_err().contains("NOPE"));
+    assert!(x("$NOPE/a").unwrap_err().contains("NOPE"));
+    assert!(x("${SWB_CARLA_USD").is_err());
+    assert!(x("${}/a").is_err());
 }
 
 #[test]
@@ -1053,6 +1097,87 @@ fn signal_changes_go_to_the_world_server_by_opendrive_id() {
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0][0].opendrive_id, "377");
     assert_eq!(sent[0][0].colour, wire::Colour::Red as i32);
+}
+
+/// A town's first load with a state dir (roadmap 076 A9): no table before LoadWorld, so none
+/// is sent; the CARLA-like server writes `<state_dir>/<map>/traffic_lights.yaml` during the
+/// load, and the bridge maps SSv2's signals with it. The next load sends it.
+#[test]
+fn a_table_the_world_server_writes_at_the_first_load_is_used() {
+    use crate::proto::simulation_api_schema::{traffic_light, TrafficLight};
+    let base = std::env::temp_dir().join(format!("swb-first-load-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let map = base.join("maps/Town01");
+    let state = base.join("state");
+    std::fs::create_dir_all(&map).unwrap();
+    let written = state.join("Town01/traffic_lights.yaml");
+    let sent_with_load = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let set = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (loads, sets, dest) = (sent_with_load.clone(), set.clone(), written.clone());
+    let mut inner = honest_with(CARLA_LIKE, "one");
+    let endpoint = server(Box::new(move |req| {
+        match &req.request {
+            Some(wire::request::Request::LoadWorld(l)) => {
+                loads.lock().unwrap().push(l.signals.len());
+                std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+                std::fs::write(
+                    &dest,
+                    "signals:\n- way_id: 43763\n  regulatory_element_ids: [43856]\n  \
+                     opendrive_id: '377'\n",
+                )
+                .unwrap();
+            }
+            Some(wire::request::Request::SetSignals(s)) => {
+                sets.lock().unwrap().push(s.states.clone())
+            }
+            _ => {}
+        }
+        inner(req)
+    }));
+    let mut b = backend(&endpoint);
+    b.set_state_dir(Some(state.clone()));
+    let ep = Episode {
+        lanelet2_map_path: map.join("lanelet2_map.osm").to_string_lossy().into_owned(),
+        ..episode()
+    };
+    b.initialize(&ep).unwrap();
+    assert_eq!(b.signals.path.as_deref(), Some(written.as_path()));
+    let red = TrafficSignal {
+        id: 43763,
+        traffic_light_status: vec![TrafficLight {
+            color: traffic_light::Color::Red as i32,
+            shape: traffic_light::Shape::Circle as i32,
+            status: traffic_light::Status::SolidOn as i32,
+            confidence: 1.0,
+        }],
+        ..Default::default()
+    };
+    b.update_traffic_lights(std::slice::from_ref(&red)).unwrap();
+    assert_eq!(set.lock().unwrap()[0][0].opendrive_id, "377");
+    assert!(b.unmapped_signals.is_empty());
+    // The second load finds it before the load and sends it.
+    b.initialize(&ep).unwrap();
+    assert_eq!(*sent_with_load.lock().unwrap(), vec![0, 1]);
+    std::fs::remove_dir_all(&base).unwrap();
+}
+
+/// A server without signals (an Isaac world with none offered) reads no table, before or
+/// after the load, even with a state dir that has one.
+#[test]
+fn a_server_without_signals_reads_no_table() {
+    let base = std::env::temp_dir().join(format!("swb-no-signals-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(base.join("state/Town01")).unwrap();
+    std::fs::write(
+        base.join("state/Town01/traffic_lights.yaml"),
+        "signals:\n- way_id: 1\n  opendrive_id: '2'\n",
+    )
+    .unwrap();
+    let mut b = backend(&server(honest_with(&[wire::Capability::Contacts], "one")));
+    b.set_state_dir(Some(base.join("state")));
+    b.initialize(&episode()).unwrap();
+    assert!(b.signals.is_empty() && b.signals.path.is_none());
+    std::fs::remove_dir_all(&base).unwrap();
 }
 
 #[test]

@@ -58,11 +58,20 @@ fn main() -> Result<()> {
         backend::remote::spec_check::listed_catalogs(&config_file, params.get("vehicle_catalogs"))?;
     let catalog = backend::remote::spec_check::load_listed(&vehicle_catalogs)?;
 
+    let state_dir = params
+        .get("state_dir")
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from);
+
     tracing::info!("scenario bridge starting");
     tracing::info!("  World server: {}", config.world.endpoint);
     tracing::info!("  SSv2:   tcp://*:{ssv2_port}");
     tracing::info!("  Config: {}", config_file.display());
     tracing::info!("  Ego role_name: {}", config.ego.role_name);
+    if let Some(dir) = &state_dir {
+        tracing::info!("  State dir (signal tables): {}", dir.display());
+    }
     tracing::info!(
         "  Agent relay (controller `agent`): {}",
         config.agent_relay()
@@ -94,6 +103,9 @@ fn main() -> Result<()> {
     if let Some(catalog) = catalog {
         remote.set_catalog(catalog);
     }
+    // The stack's state directory (roadmap 076 A9): a map's signal table is read from
+    // <state_dir>/<map dir name>/ first, where the CARLA world server writes it.
+    remote.set_state_dir(state_dir);
     let mut backend: Box<dyn SimBackend> = Box::new(remote);
     backend.before_serving();
     let coord = coordinator::Coordinator::new(backend);

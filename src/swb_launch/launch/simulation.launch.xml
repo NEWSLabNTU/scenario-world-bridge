@@ -8,7 +8,7 @@
   sides in any domain.
 
     play_launch launch FLAGS swb_launch simulation.launch.xml world_endpoint:=tcp://127.0.0.1:5591 \
-        [config_file:=...] [ssv2_port:=5555] [agent_port:=5560] [weather:=ClearNoon] [gap_trace_dir:=DIR]
+        [config_file:=...] [ssv2_port:=5555] [agent_port:=5560] [weather:=ClearNoon] [gap_trace_dir:=DIR] [state_dir:=DIR]
 
     FLAGS are the play_launch option web-addr 127.0.0.1:<SWB_WEB_PORT+4> (8084)
     (each with a double-hyphen prefix, which an XML comment cannot contain);
@@ -33,6 +33,8 @@
        description="where each ego run's contacts are written for physical_verdict (roadmap 021); 'off' disables; empty keeps the config file's (default ~/.ros/swb/contacts)"/>
   <arg name="vehicle_catalogs" default=""
        description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
+  <arg name="state_dir" default=""
+       description="the stack's state directory: the bridge reads a map's signal table from &lt;state_dir&gt;/&lt;map dir name&gt;/ first (the CARLA world server's state_dir); empty = the map directory only"/>
 
   <include file="$(find-pkg-share scenario_world_bridge)/launch/bridge.launch.xml">
     <arg name="world_endpoint" value="$(var world_endpoint)"/>
@@ -46,6 +48,7 @@
     <arg name="contact_report_dir" value="$(var contact_report_dir)"/>
     <arg name="gap_trace_dir" value="$(var gap_trace_dir)"/>
     <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
+    <arg name="state_dir" value="$(var state_dir)"/>
     <!-- Entities with controller `agent` are driven through this same relay. -->
     <arg name="agent_relay" value="tcp://localhost:$(var agent_port)"/>
   </include>

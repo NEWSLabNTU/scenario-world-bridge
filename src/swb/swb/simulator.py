@@ -114,9 +114,29 @@ def launcher(root) -> Path:
     return Path(str(root)).expanduser() / LAUNCHER
 
 
+ENGINE = Path("CarlaUE4") / "Binaries" / "Linux" / "CarlaUE4-Linux-Shipping"
+
+
 def carla_argv(root, port, quality=QUALITY) -> list:
-    return [str(launcher(root)), f"-carla-rpc-port={int(port)}", "-nosound", "-RenderOffScreen",
-            f"-quality-level={quality}"]
+    """CARLA's engine itself where the install has it (what CarlaUE4.sh runs, but as the
+    keeper's own child, so the parent-death signal reaches it), else the launcher script."""
+    root = Path(str(root)).expanduser()
+    flags = [f"-carla-rpc-port={int(port)}", "-nosound", "-RenderOffScreen",
+             f"-quality-level={quality}"]
+    engine = root / ENGINE
+    if engine.is_file():
+        return [str(engine), "CarlaUE4", *flags]
+    return [str(launcher(root)), *flags]
+
+
+def _die_with_parent():
+    """SIGTERM to this process when its parent (the keeper) dies, even by SIGKILL. The
+    signal follows the thread that forked, so start CARLA from the keeper's main thread."""
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+    except OSError:
+        pass
 
 
 def carla_env(base=None) -> dict:
@@ -217,7 +237,8 @@ class Carla:
                 self.proc = subprocess.Popen(argv, env=carla_env(), stdout=fh,
                                              stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                              cwd=str(root) if root else None,
-                                             start_new_session=True)
+                                             start_new_session=True,
+                                             preexec_fn=_die_with_parent)
             finally:
                 fh.close()
         self.t_start = time.time()

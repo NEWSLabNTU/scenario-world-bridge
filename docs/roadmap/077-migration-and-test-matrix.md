@@ -130,3 +130,10 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
     `town for Town02: loaded`, acb_bridge starting once on Town02, the bridge's `Map 'Town02'
     is already loaded` at Initialize, no `episode changed` warning), and two
     `scenario_test_runner`s against one bridge (the second's error names the first).
+- A CARLA the stack starts now ends with it (2026-11-15). Seen live: stopping a simple_drive
+  stack left its CARLA serving port 2000, because `CarlaUE4.sh` runs the engine as its own
+  child (not `exec`) and nothing signalled it when the keeper died. The keeper now runs the
+  engine binary itself (`CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping CarlaUE4 ...`, the
+  script only where the binary is missing) with a parent-death signal (SIGTERM), so it ends
+  even when play_launch SIGKILLs the keeper. Test: a stand-in CARLA outliving a SIGKILLed
+  keeper fails test_simulator.py.

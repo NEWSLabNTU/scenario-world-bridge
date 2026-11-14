@@ -343,3 +343,48 @@ def test_isaac_records_its_world_server(where, maps_hub):
     assets.fetch(d, out=lambda s: None)
     p = stack.plan(project_arg=str(d))
     assert p.record["simulator_start"] == "world_server" and p.record["carla"] is None
+
+
+def test_carla_argv_runs_the_engine_itself(tmp_path):
+    root = tmp_path / "CARLA_0.9.16"
+    (root / "CarlaUE4" / "Binaries" / "Linux").mkdir(parents=True)
+    (root / "CarlaUE4.sh").write_text("#!/bin/sh\n")
+    assert sim.carla_argv(root, 2000)[0].endswith("CarlaUE4.sh")   # no engine: the script
+    (root / sim.ENGINE).write_text("")
+    argv = sim.carla_argv(root, 2010)
+    assert argv[:2] == [str(root / sim.ENGINE), "CarlaUE4"]
+    assert "-carla-rpc-port=2010" in argv
+
+
+def test_a_started_carla_dies_with_a_killed_keeper(tmp_path):
+    """The keeper SIGKILLed: its CARLA still gets SIGTERM (the parent-death signal)."""
+    import subprocess as sp
+    pidfile = tmp_path / "carla.pid"
+    script = tmp_path / "keeper.py"
+    script.write_text(textwrap.dedent(f"""
+        import subprocess, sys, time
+        from swb import simulator
+        subprocess.Popen([sys.executable, "-c",
+                          "import os, time; open({str(pidfile)!r}, 'w').write(str(os.getpid())); time.sleep(120)"],
+                         start_new_session=True, preexec_fn=simulator._die_with_parent)
+        time.sleep(120)
+    """))
+    root = str(Path(sim.__file__).resolve().parents[1])
+    keeper = sp.Popen([sys.executable, str(script)],
+                      env=dict(os.environ, PYTHONPATH=root + os.pathsep + os.environ.get("PYTHONPATH", "")))
+    deadline = time.time() + 15
+    while not (pidfile.exists() and pidfile.read_text()) and time.time() < deadline:
+        time.sleep(0.05)
+    assert pidfile.exists(), "the stand-in CARLA never started"
+    child = int(pidfile.read_text())
+    keeper.kill()
+    keeper.wait()
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        try:
+            os.kill(child, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.05)
+    os.kill(child, 9)
+    raise AssertionError("the started CARLA outlived its SIGKILLed keeper")

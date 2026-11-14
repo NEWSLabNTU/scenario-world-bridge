@@ -1,5 +1,10 @@
 # swb_examples: starter scenarios
 
+**Example projects.** `projects/` holds working projects for `ros2 run swb` (first drive,
+several pilots, a safety suite, Isaac Sim, road physics); start from
+[projects/README.md](projects/README.md). The scenarios below are the older, stand-alone
+set.
+
 Scenarios that run on the scenario-world-bridge pipeline as installed, no clone needed.
 Every file names its map as `$(env CARLA_MAPS)/<Town>`, so `CARLA_MAPS` must point at the
 directory of converted towns (the TUM carla-autoware-bridge pack; see the getting-started

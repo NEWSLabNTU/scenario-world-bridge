@@ -489,6 +489,24 @@ sharing a project.
   - Not yet: loading the new town before the pilots restart (the world server loads it on
     SSv2's Initialize, so CARLA's vehicle stacks start once on the old town and once more on
     the new).
+- Step 9 preparation (2026-11-15): the working examples in `src/swb_examples/projects/`
+  (`first_drive`, `multi_pilot`, `safety_suite`, `isaac_first_drive`, `road_physics`),
+  installed to swb_examples' share and copied with `project new <dir> --from
+  pkg://swb_examples/projects/<name>` (`find_project` takes `pkg://<package>/<dir>`).
+  swb_agent's command line takes `--seed` and `--run-dir` (`Agent.seed`, `Agent.run_dir`),
+  which every `command` pilot is given. Each example fetches from the real datasets (the
+  USD set cut to two files) and `project check`s clean; a test does the same against the
+  fake Hub. None has run on a live stack. Rulings:
+  - The examples ship without `swb.lock` (a lock in a read-only share pins nothing for the
+    user); the copy's first fetch writes it, and the copy commits it.
+  - `ground:` is per map, `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the
+    project. The stack does not apply it yet: it passes `state_dir` (de38b28), but nothing
+    puts the project's ground file at `state/<map>/surfaces.yaml` yet.
+  - `judges:` entries are `{name, run}`; `swb run` runs them since 48475ce.
+  - Found: the published `carla-town-autoware-maps` `Town01/isaac/world.yaml` names its
+    stage `/mnt/wd/aeon/carla-usd/...`, not `${SWB_CARLA_USD}/...`; both Isaac examples
+    need the re-upload of step 8 before they run on another host. No dataset has a tag
+    yet, so fetches resolve `main`.
 
 ## Acceptance
 

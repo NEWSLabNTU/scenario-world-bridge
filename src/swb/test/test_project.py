@@ -213,3 +213,111 @@ def test_every_example_scenario_parses():
     assert [e.name for e in two.entities if e.external] == ["ego", "bg_av_1"]
     awf = next(f for f in files if f.suffix == ".yaml")
     assert [e.name for e in project.read_scenario(awf).entities if e.external] == ["ego"]
+
+
+# --- the example projects (src/swb_examples/projects) and `new --from` -----------------------
+
+PROJECTS = EXAMPLES.parent / "projects"
+EXAMPLE_PROJECTS = ["first_drive", "multi_pilot", "safety_suite", "isaac_first_drive",
+                    "road_physics"]
+CATALOG = {"tesla_model3", "drift_mustang"}  # sim_vehicle_spec's catalogs/vehicles.xosc
+
+
+@pytest.fixture
+def examples_hub(maps_hub):
+    """maps_hub plus the road physics stages, as far as the examples take them."""
+    maps_hub.commit("jerry73204/isaac-road-physics-stages",
+                    {"procedural/spikes/road_town/road_detail.yaml": "corridors: []\n",
+                     "procedural/spikes/road_town/surfaces.yaml": "zones: []\n",
+                     "materials_ground.usda": "#usda 1.0\n", "README.md": "# stages\n"},
+                    manifest=True)
+    return maps_hub
+
+
+@pytest.mark.skipif(not PROJECTS.is_dir(), reason="swb_examples not here")
+def test_every_example_project_is_tested():
+    assert sorted(p.name for p in PROJECTS.iterdir() if p.is_dir()) == sorted(EXAMPLE_PROJECTS)
+
+
+@pytest.mark.skipif(not PROJECTS.is_dir(), reason="swb_examples not here")
+@pytest.mark.parametrize("name", EXAMPLE_PROJECTS)
+def test_example_projects_check_clean_after_fetch(host, examples_hub, name):
+    src = PROJECTS / name
+    assert not (src / "swb.lock").exists(), "the examples ship without a lock"
+    d = host["tmp"] / name
+    assert project.main(["new", str(d), "--from", str(src)]) == 0
+    assert (d / ".gitignore").read_text().split()[-4:] == ["assets/", "state/", "runs/", ".swb/"]
+    assert (d / "README.md").is_file()
+    files = project._scenarios_in(d / "scenarios")
+    assert files
+    for f in files:
+        sc = project.read_scenario(f)
+        assert sc.logic_file.startswith(project.MAPS_PREFIX), f
+        for e in sc.entities:
+            assert e.catalog_entry in (None, *CATALOG), (f, e.name, e.catalog_entry)
+    assert project.main(["check", str(d)]) == 3  # nothing fetched yet: refused
+    assets.fetch(d, out=lambda s: None)
+    assert (d / "swb.lock").is_file()
+    assert project.check_project(d) == []
+
+
+def test_new_from_copies_a_project_without_host_state(tmp_path):
+    src = tmp_path / "src"
+    for rel, text in {"swb.yaml": BASE, ".gitignore": "assets/\n", "swb.lock": "version: 1\n",
+                      "scenarios/drive.xosc": DRIVE, "pilots/me.py": "print(1)\n",
+                      "assets/maps/Town01/x": "", "state/Town01/y": "",
+                      "runs/r/result.json": "", ".swb/local.yaml": "seat: 3\n",
+                      "pilots/__pycache__/me.pyc": ""}.items():
+        (src / rel).parent.mkdir(parents=True, exist_ok=True)
+        (src / rel).write_text(text)
+    (src / "pilots" / "me.py").chmod(0o555)  # read-only and executable, as installed
+    dest = project.copy_project(src, tmp_path / "copy")
+    got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
+    assert got == [".gitignore", "pilots/me.py", "scenarios/drive.xosc", "swb.lock", "swb.yaml"]
+    mode = (dest / "pilots" / "me.py").stat().st_mode
+    assert mode & 0o200 and mode & 0o100  # the user's own: writable, still executable
+
+
+def test_new_from_follows_links(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "swb.yaml").write_text(BASE)
+    src = tmp_path / "share"
+    src.mkdir()
+    (src / "swb.yaml").symlink_to(real / "swb.yaml")  # a --symlink-install share
+    dest = project.copy_project(src, tmp_path / "copy")
+    assert not (dest / "swb.yaml").is_symlink()
+    assert (dest / "swb.yaml").read_text() == BASE
+
+
+def test_new_from_refuses(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "swb.yaml").write_text(BASE)
+    with pytest.raises(ConfigError, match="no swb.yaml"):
+        project.copy_project(tmp_path / "nothing", tmp_path / "a")
+    (tmp_path / "full").mkdir()
+    (tmp_path / "full" / "f").write_text("")
+    assert project.main(["new", str(tmp_path / "full"), "--from", str(src)]) == 3
+    with pytest.raises(ConfigError, match="inside the project"):
+        project.copy_project(src, src / "sub")
+    with pytest.raises(SystemExit):  # one or the other
+        project.main(["new", str(tmp_path / "b"), "--from", str(src), "--template", "isaac"])
+
+
+def test_new_from_an_installed_package(tmp_path, monkeypatch):
+    import sys
+    import types
+    share = tmp_path / "share" / "swb_examples"
+    (share / "projects" / "first_drive").mkdir(parents=True)
+    (share / "projects" / "first_drive" / "swb.yaml").write_text(BASE)
+    fake = types.ModuleType("ament_index_python.packages")
+    fake.get_package_share_directory = lambda pkg: str(tmp_path / "share" / pkg)
+    monkeypatch.setitem(sys.modules, "ament_index_python", types.ModuleType("ament_index_python"))
+    monkeypatch.setitem(sys.modules, "ament_index_python.packages", fake)
+    dest = tmp_path / "mine"
+    assert project.main(["new", str(dest), "--from",
+                         "pkg://swb_examples/projects/first_drive"]) == 0
+    assert (dest / "swb.yaml").read_text() == BASE
+    with pytest.raises(ConfigError, match="installs no swb.yaml"):
+        project.source_project("pkg://swb_examples/projects/nope")

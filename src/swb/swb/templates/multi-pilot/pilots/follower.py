@@ -1,10 +1,10 @@
 """follower: a pilot of kind `command`, an agent on the swb_agent SDK.
 
 swb starts it as `python3 pilots/follower.py --relay <url> --entity follower --seed <n>
---run-dir <dir>`. It registers with the relay for its entity and is told the scenario's
-goal; fill in the hooks with your autopilot.
+--run-dir <dir>` (the SDK's options: ``self.entity``, ``self.seed``, ``self.run_dir``). It
+registers with the relay for its entity and is told the scenario's goal; fill in the hooks
+with your autopilot.
 """
-import argparse
 import sys
 
 import swb_agent
@@ -28,15 +28,9 @@ class Follower(swb_agent.Agent):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--relay")
-    parser.add_argument("--entity", default="follower")
-    parser.add_argument("--seed")
-    parser.add_argument("--run-dir")
-    args, rest = parser.parse_known_args(sys.argv[1:] if argv is None else argv)
-    sdk = ["--entity", args.entity] + (["--relay", args.relay] if args.relay else [])
-    swb_agent.main(Follower, sdk + rest)
+    # --relay, --entity, --seed and --run-dir: self.entity, self.seed, self.run_dir
+    return swb_agent.main(Follower, argv)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

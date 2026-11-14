@@ -153,3 +153,24 @@ def test_parse_relay():
     assert swb_agent.parse_relay("h") == ("h", 5560)
     with pytest.raises(ValueError):
         swb_agent.parse_relay("udp://h:1")
+
+
+def test_a_command_pilots_arguments_reach_the_agent(tmp_path):
+    # what swb's command pilot appends (swb_launch pilots/command.launch.py)
+    argv = ["--relay", "tcp://localhost:5565", "--entity", "cut_in", "--seed", "1002",
+            "--run-dir", str(tmp_path)]
+    args, config = swb_agent.parse_args(Minimal, argv)
+    assert args.relay == "tcp://localhost:5565"
+    agent = Minimal(config)
+    assert (agent.entity, agent.seed, agent.run_dir) == ("cut_in", 1002, str(tmp_path))
+
+
+def test_seed_and_run_dir_are_optional():
+    _, config = swb_agent.parse_args(Minimal, [])
+    agent = Minimal(config)
+    assert (agent.entity, agent.seed, agent.run_dir) == ("ego", None, None)
+
+
+def test_a_bad_seed_is_a_usage_error():
+    with pytest.raises(SystemExit):
+        swb_agent.parse_args(Minimal, ["--seed", "soon"])

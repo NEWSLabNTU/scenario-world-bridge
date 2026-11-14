@@ -66,6 +66,9 @@ class Agent:
     def __init__(self, config=None):
         self.config = dict(config or {})
         self.entity = self.config.get("entity", "ego")
+        #: The run's seed and directory (``--seed``, ``--run-dir``); None when not given.
+        self.seed = self.config.get("seed")
+        self.run_dir = self.config.get("run_dir")
         self.log = logging.getLogger(f"swb_agent.{type(self).__name__}")
         self.episode: Episode | None = None  # the current one, set before on_reset
         self._lock = threading.Lock()

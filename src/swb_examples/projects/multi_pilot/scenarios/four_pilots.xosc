@@ -1,0 +1,221 @@
+<?xml version="1.0"?>
+<!--
+	Town01, the T junction at x = 325..341, y = -143.6..-120.5 (ROS map frame), and the road
+	west of it (lanelet 6583 westbound, y -131.4..-127.4; lanelet 5230 eastbound beside it).
+	Four externally driven vehicles (controller `agent` or `Autoware`), each bound to a pilot
+	by name in swb.yaml:
+
+	  ego      Autoware (pilot kind autoware): southbound on the north arm from y = -80,
+	           turns right at the junction, west to x = 145.
+	  lead     CARLA's BasicAgent (pilot kind carla_basic): westbound ahead, x = 250 to 110.
+	  bg_av_1  a second Autoware (pilot kind autoware, its own domain): eastbound in the
+	           oncoming lane, x = 130 to 300.
+	  cut_in   pilots/cut_in.py (pilot kind command): waits at the south arm's stop line,
+	           and when the ego is within its trigger distance turns left into the ego's road
+	           just ahead of it, then west to x = 125.
+
+	Success when the ego and bg_av_1 have reached their goals (each ReachPositionCondition
+	latches a parameter); the ego touching any of the other three, or 300 s, fails.
+-->
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-11-15T00:00:00+00:00" description="Town01: four pilots of four kinds, a car cutting in at a junction" revMajor="1" revMinor="2" />
+	<ParameterDeclarations>
+		<ParameterDeclaration name="ego_arrived" parameterType="integer" value="0" />
+		<ParameterDeclaration name="bg_av_1_arrived" parameterType="integer" value="0" />
+	</ParameterDeclarations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork>
+		<LogicFile filepath="$(env SWB_MAPS)/Town01" />
+	</RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController>
+				<Controller name="Autoware">
+					<Properties>
+						<Property name="maxJerk" value="1.5" />
+						<Property name="minJerk" value="-1.5" />
+					</Properties>
+				</Controller>
+			</ObjectController>
+		</ScenarioObject>
+		<ScenarioObject name="lead">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="agent"><Properties /></Controller></ObjectController>
+		</ScenarioObject>
+		<ScenarioObject name="bg_av_1">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="agent"><Properties /></Controller></ObjectController>
+		</ScenarioObject>
+		<ScenarioObject name="cut_in">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="agent"><Properties /></Controller></ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init>
+			<Actions>
+				<Private entityRef="ego">
+					<PrivateAction><TeleportAction><Position><WorldPosition x="334.7" y="-80.0" z="0.3" h="-1.5708" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+					<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="145.0" y="-129.45" z="0.0" h="3.14159" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+				</Private>
+				<Private entityRef="lead">
+					<PrivateAction><TeleportAction><Position><WorldPosition x="250.0" y="-129.45" z="0.3" h="3.14159" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+					<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="110.0" y="-129.45" z="0.0" h="3.14159" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+				</Private>
+				<Private entityRef="bg_av_1">
+					<PrivateAction><TeleportAction><Position><WorldPosition x="130.0" y="-133.45" z="0.3" h="0" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+					<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="300.0" y="-133.45" z="0.0" h="0" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+				</Private>
+				<Private entityRef="cut_in">
+					<PrivateAction><TeleportAction><Position><WorldPosition x="338.7" y="-148.0" z="0.3" h="1.5708" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+					<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="125.0" y="-129.45" z="0.0" h="3.14159" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+				</Private>
+			</Actions>
+		</Init>
+		<Story name="four_pilots">
+			<Act name="drive_act">
+				<ManeuverGroup maximumExecutionCount="1" name="judges">
+					<Actors selectTriggeringEntities="false">
+						<EntityRef entityRef="ego" />
+						<EntityRef entityRef="bg_av_1" />
+					</Actors>
+					<Maneuver name="end_conditions">
+						<Event name="ego_at_goal" priority="parallel">
+							<Action name="mark_ego_arrived">
+								<GlobalAction><ParameterAction parameterRef="ego_arrived"><SetAction value="1" /></ParameterAction></GlobalAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="ego_reached_goal" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities>
+											<EntityCondition>
+												<ReachPositionCondition tolerance="5.0">
+													<Position><WorldPosition x="145.0" y="-129.45" z="0.0" h="0" p="0" r="0" /></Position>
+												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="bg_av_1_at_goal" priority="parallel">
+							<Action name="mark_bg_av_1_arrived">
+								<GlobalAction><ParameterAction parameterRef="bg_av_1_arrived"><SetAction value="1" /></ParameterAction></GlobalAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="bg_av_1_reached_goal" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="bg_av_1" /></TriggeringEntities>
+											<EntityCondition>
+												<ReachPositionCondition tolerance="5.0">
+													<Position><WorldPosition x="300.0" y="-133.45" z="0.0" h="0" p="0" r="0" /></Position>
+												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="success" priority="parallel">
+							<Action name="exit_success">
+								<UserDefinedAction><CustomCommandAction type="exitSuccess" /></UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="ego_arrived_set" delay="0" conditionEdge="none">
+										<ByValueCondition><ParameterCondition parameterRef="ego_arrived" value="1" rule="equalTo" /></ByValueCondition>
+									</Condition>
+									<Condition name="bg_av_1_arrived_set" delay="0" conditionEdge="none">
+										<ByValueCondition><ParameterCondition parameterRef="bg_av_1_arrived" value="1" rule="equalTo" /></ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="collision" priority="parallel">
+							<Action name="exit_failure_collision">
+								<UserDefinedAction><CustomCommandAction type="exitFailure" /></UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="ego_hits_cut_in" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities>
+											<EntityCondition><CollisionCondition><EntityRef entityRef="cut_in" /></CollisionCondition></EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+								<ConditionGroup>
+									<Condition name="ego_hits_lead" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities>
+											<EntityCondition><CollisionCondition><EntityRef entityRef="lead" /></CollisionCondition></EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+								<ConditionGroup>
+									<Condition name="ego_hits_bg_av_1" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities>
+											<EntityCondition><CollisionCondition><EntityRef entityRef="bg_av_1" /></CollisionCondition></EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="timeout" priority="parallel">
+							<Action name="exit_failure">
+								<UserDefinedAction><CustomCommandAction type="exitFailure" /></UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="timeout_condition" delay="0" conditionEdge="none">
+										<ByValueCondition><SimulationTimeCondition value="300" rule="greaterThan" /></ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<StartTrigger>
+					<ConditionGroup>
+						<Condition name="start" delay="0" conditionEdge="none">
+							<ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan" /></ByValueCondition>
+						</Condition>
+					</ConditionGroup>
+				</StartTrigger>
+			</Act>
+		</Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

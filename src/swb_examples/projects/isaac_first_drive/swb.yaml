@@ -1,0 +1,9 @@
+# isaac_first_drive: one Autoware ego on Isaac Sim, in CARLA's Town01 as USD.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]               # the Autoware map and Town01's Isaac world file
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]     # the town and the cars in USD: several GB of the 25.5
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}

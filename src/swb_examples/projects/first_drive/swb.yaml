@@ -1,0 +1,7 @@
+# first_drive: one Autoware ego on CARLA's Town01, three scenarios.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}

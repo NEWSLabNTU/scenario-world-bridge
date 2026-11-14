@@ -26,6 +26,8 @@ TEMPLATES = Path(__file__).resolve().parent / "templates"
 DEFAULT_TEMPLATE = "carla-first-drive"
 # a template's files whose names a package cannot carry as they are
 RENAMES = {"gitignore": ".gitignore"}
+# what `new --from` leaves behind: made on each host, never part of a project's source
+NOT_COPIED = ("assets", "state", "runs", ".swb")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges")
 REQUIRED = ("simulator", "pilots", "assets")
@@ -418,9 +420,7 @@ def new_project(dest: Path, template: str = DEFAULT_TEMPLATE) -> Path:
     src = TEMPLATES / template
     if not src.is_dir():
         raise config.ConfigError(f"no template {template} (fix: one of {', '.join(templates())})")
-    dest = Path(dest).expanduser()
-    if dest.exists() and (not dest.is_dir() or any(dest.iterdir())):
-        raise config.ConfigError(f"{dest}: exists and is not empty (fix: a new directory)")
+    dest = _empty_dest(dest)
     dest.mkdir(parents=True, exist_ok=True)
     name = dest.resolve().name
     for f in sorted(src.rglob("*")):
@@ -436,25 +436,78 @@ def new_project(dest: Path, template: str = DEFAULT_TEMPLATE) -> Path:
     return dest
 
 
+def _empty_dest(dest: Path) -> Path:
+    dest = Path(dest).expanduser()
+    if dest.exists() and (not dest.is_dir() or any(dest.iterdir())):
+        raise config.ConfigError(f"{dest}: exists and is not empty (fix: a new directory)")
+    return dest
+
+
+def source_project(src) -> Path:
+    """The project directory ``src`` names: a directory, or ``pkg://<package>[/<subdir>]``
+    (an installed example: ``pkg://swb_examples/projects/first_drive``)."""
+    src = str(src)
+    if src.startswith("pkg://"):
+        return config.find_project(src)
+    p = Path(src).expanduser()
+    if not (p / config.PROJECT_FILE).is_file():
+        raise config.ConfigError(f"{p}: no {config.PROJECT_FILE} (fix: a project directory,"
+                                 " e.g. pkg://swb_examples/projects/first_drive)")
+    return p.resolve()
+
+
+def copy_project(src, dest: Path) -> Path:
+    """A copy of the project ``src`` (e.g. an installed, read-only example) in the new
+    directory ``dest``: its files, without what each host makes (assets/, state/, runs/,
+    .swb/). The copies are the user's own: writable, symlinks followed."""
+    root = source_project(src)
+    dest = _empty_dest(dest)
+    full = dest.resolve()
+    if full == root or root in full.parents:
+        raise config.ConfigError(f"{dest}: inside the project it copies (fix: another directory)")
+    files = []
+    for f in sorted(root.rglob("*")):
+        rel = f.relative_to(root)
+        if rel.parts[0] in NOT_COPIED or "__pycache__" in rel.parts or not f.is_file():
+            continue
+        files.append(rel)
+    dest.mkdir(parents=True, exist_ok=True)
+    for rel in files:
+        out = dest / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / rel, out)
+        out.chmod(((root / rel).stat().st_mode & 0o777) | 0o600)
+    return dest
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="ros2 run swb project",
                                      description="Make a starter project, or check one.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("new", help="write a starter project into a new directory")
     n.add_argument("dir")
-    n.add_argument("--template", default=DEFAULT_TEMPLATE,
-                   help=f"one of {', '.join(templates())} (default {DEFAULT_TEMPLATE})")
+    how = n.add_mutually_exclusive_group()
+    how.add_argument("--template", default=None,
+                     help=f"one of {', '.join(templates())} (default {DEFAULT_TEMPLATE})")
+    how.add_argument("--from", dest="source", metavar="PROJECT",
+                     help="copy this project instead (a directory or pkg://<package>/<dir>,"
+                          " e.g. an installed example), without assets/, state/, runs/")
     c = sub.add_parser("check", help="validate the project against its scenarios and assets")
     c.add_argument("dir", nargs="?")
     add_project_option(c)
     args = parser.parse_args(ros_args(sys.argv[1:] if argv is None else argv))
     if args.cmd == "new":
         try:
-            dest = new_project(Path(args.dir), args.template)
+            if args.source:
+                dest = copy_project(args.source, Path(args.dir))
+                what = f"a copy of {args.source}"
+            else:
+                dest = new_project(Path(args.dir), args.template or DEFAULT_TEMPLATE)
+                what = args.template or DEFAULT_TEMPLATE
         except config.ConfigError as e:
             print(f"problem: {e}", file=sys.stderr)
             return REFUSED
-        print(f"wrote {dest} ({args.template}); next: cd {args.dir} && {FETCH}")
+        print(f"wrote {dest} ({what}); next: cd {args.dir} && {FETCH}")
         return 0
     findings = check_project(args.dir or args.project)
     for f in findings:

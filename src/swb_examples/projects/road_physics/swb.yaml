@@ -1,0 +1,16 @@
+# road_physics: one Autoware ego on Isaac Sim over mud, gravel and a wet road on Town01.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+  - dataset: isaac-road-physics-stages            # 2.6 MB; this project takes 1 kB of it
+    take: [procedural/spikes/road_town]           # Town01's rough gravel road, for an exercise
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+ground:                                           # per map: this project's surface files
+  Town01:
+    surfaces: ground/town01.yaml
+    # the rough road, for an exercise (not validated under Autoware):
+    # road_detail: assets/isaac-road-physics-stages/procedural/spikes/road_town/road_detail.yaml

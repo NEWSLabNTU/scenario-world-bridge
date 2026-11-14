@@ -1,0 +1,2 @@
+# The three scenarios, one run each, in one table (summary.csv and a merged JUnit).
+scenarios: [scenarios/]

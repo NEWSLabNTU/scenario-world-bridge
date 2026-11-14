@@ -1,0 +1,10 @@
+# Every use case under scenarios/awf/, once a night. Each YAML expands to its variants inside
+# one run (UC-ACC-001-0001: 27, about 35 min; UC-AEB-001-0001: 9, about 11 min), and each
+# variant is one testcase of the run's JUnit.
+#
+# On the ego's default detector (clustering) both pass every variant (2026-10-10: 27/27,
+# 9/9), so nothing is expected to fail; a failure is news. A run the stack could not judge
+# (error) is retried once before it counts.
+scenarios: [scenarios/awf/]
+retry: {on: error, times: 1}
+expect: {}

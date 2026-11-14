@@ -1,0 +1,15 @@
+# multi_pilot: four pilots of four kinds in one scenario on CARLA's Town01.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+  bg_av_*: {kind: autoware, vehicle: tesla_model3}   # a second Autoware, its own domain
+  lead: {kind: carla_basic}                          # CARLA's BasicAgent
+  cut_in:                                            # your own program: pilots/cut_in.py
+    kind: command
+    run: [python3, pilots/cut_in.py, --trigger-m, "40"]
+    lifetime: run                                    # a fresh process, --seed and --run-dir per run
+logging:
+  keep: {passed: standard, failed: full, error: full}   # standard keeps logs/, cut_in.json

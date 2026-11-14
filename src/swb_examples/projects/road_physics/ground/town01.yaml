@@ -1,0 +1,20 @@
+# road_physics: Town01's ground for this project (swb.yaml `ground:`), the surface map of
+# docs/tutorials/07-road-physics.md. The scenarios' route (x 190.8 -> 120 along y -130,
+# heading -x) crosses, in order: a wet stretch, 12.8 m of wet mud (a soil zone on the grid,
+# with its own ground, so it ruts), then a gravel patch, before its goal.
+# mud_wet's soil parameters are a stand-in (fitted pull, sinkage outside tolerance), so the
+# map opts in by name.
+allow_unvalidated: [mud_wet]
+defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
+zones:
+  - id: wet_stretch
+    wetness: wetWithPuddles
+    polygon: [[160.0, -134.0], [175.0, -134.0], [175.0, -126.0], [160.0, -126.0]]
+  - id: mud_road
+    class: mud_wet
+    soil: grid
+    ground_z: 0.0                 # whole 1.6 m tiles: x 91..99 x 1.6, y -84..-80 x 1.6
+    polygon: [[145.6, -134.4], [158.4, -134.4], [158.4, -128.0], [145.6, -128.0]]
+  - id: gravel_patch
+    class: gravel
+    polygon: [[128.0, -134.0], [144.0, -134.0], [144.0, -126.0], [128.0, -126.0]]

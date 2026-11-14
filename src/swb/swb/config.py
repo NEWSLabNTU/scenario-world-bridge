@@ -80,11 +80,13 @@ def read_yaml(path: Path) -> dict:
 
 def find_project(start: Path = None) -> Path:
     """The project directory: ``start`` (default the working directory) or the nearest parent
-    holding swb.yaml. A ``pkg://<name>`` start is a ROS package's share directory."""
+    holding swb.yaml. A ``pkg://<name>[/<subdir>]`` start is a ROS package's share directory,
+or a directory in it (``pkg://swb_examples/projects/first_drive``)."""
     start = str(start) if start is not None else os.getcwd()
     if start.startswith("pkg://"):
         from ament_index_python.packages import get_package_share_directory
-        root = Path(get_package_share_directory(start[len("pkg://"):]))
+        pkg, _, sub = start[len("pkg://"):].partition("/")
+        root = Path(get_package_share_directory(pkg)) / sub
         if not (root / PROJECT_FILE).is_file():
             raise ConfigError(f"{start}: the package installs no {PROJECT_FILE}")
         return root

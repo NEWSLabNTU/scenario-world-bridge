@@ -151,15 +151,18 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
 
    | Repo (`jerry73204/...`) | Files | Size | Licence |
    |---|---|---|---|
-   | `swb-carla-0.9.16-isaac-usd` (towns, Town07_Opt, vehicles, props, walkers) | 21829 | 25.5 GB | CC-BY-4.0 |
-   | `swb-touge-courses` (Haruna, Tsukuba; `world.yaml` made relative) | 565 | 0.49 GB | ODbL + GSI |
-   | `swb-carla-town-maps` (TUM towns with swb's repairs, Town05 ring, Town01 point-cloud world) | 53 | 0.73 GB | LGPL-3.0 |
-   | `swb-road-physics-stages` (surfaces, proving ground, 066 procedural stages) | 77 | 2.6 MB | Apache-2.0 |
+   | `carla-0.9.16-isaac-usd` (towns, Town07_Opt, vehicles, props, walkers) | 21829 | 25.5 GB | CC-BY-4.0 |
+   | `haruna-tsukuba-courses` (Haruna, Tsukuba; `world.yaml` made relative) | 565 | 0.49 GB | ODbL + GSI |
+   | `carla-town-autoware-maps` (TUM towns with swb's repairs, Town05 ring, Town01 point-cloud world) | 53 | 0.73 GB | LGPL-3.0 |
+   | `isaac-road-physics-stages` (surfaces, proving ground, 066 procedural stages) | 77 | 2.6 MB | Apache-2.0 |
    | `newslab-golfcart-models` | 20 | 6 MB | Apache-2.0 |
-   | `swb-shalun-map` (`world.yaml` made relative) | 47 | 0.41 GB | SVL's, private |
-   | `swb-ntu-campus-maps` (twin map with its Isaac world versions, 133's additions, CARLA package) | 6303 | 20.4 GB | vendor scan, private |
+   | `shalun-map` (`world.yaml` made relative) | 47 | 0.41 GB | SVL's, private |
+   | `ntu-campus-maps` (twin map with its Isaac world versions, 133's additions, CARLA package) | 6303 | 20.4 GB | vendor scan, private |
 
    Left out of NTU: the raw 50 m scan tiles (184 GB), the build archive, the proof videos.
+   Names carry no `swb-` prefix (user, 2026-11-14: "If it's not bound to swb, I prefer not to
+   add swb- prefix"): the data is Isaac Sim's USD, Autoware's maps and CARLA's packages; only
+   small sidecars (`world.yaml`, the vehicle catalogue JSON, `surfaces.yaml`) are swb's formats.
    Open: the user flips the open ones public.
 
 ## Acceptance

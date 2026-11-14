@@ -143,6 +143,10 @@ fetched map directory's. When a stack starts, swb links each named file there; a
 that the project no longer names is removed, and a file a user put there by hand is refused,
 never replaced. `project check` reports a named file that is missing.
 
+`ros2 run swb assets prune [--dry-run]` removes the cache's commits that no project's
+`swb.lock` names (fetch records each project in `<cache>/projects.json`); the cache is
+read-only, so a plain `rm -r` fails.
+
 ## Host settings
 
 Read by `swb.config.host_settings`, highest first: arguments; `<project>/.swb/local.yaml`

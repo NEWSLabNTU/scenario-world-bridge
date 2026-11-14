@@ -293,3 +293,23 @@ def test_root_docs_are_not_held_to_the_manifest(host, hub):
     p = project(host["tmp"], "simulator: carla\npilots: {}\nassets: [{dataset: s}]\n")
     assets.fetch(p, out=lambda s: None)
     assert assets.check(p) == []
+
+
+def test_prune_keeps_what_a_lock_names(host, maps_hub):
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    cdir = host["cache"] / "datasets" / MAPS / commit
+    stale = host["cache"] / "datasets" / MAPS / ("0" * 40)
+    (stale / "Town01").mkdir(parents=True)
+    (stale / "Town01" / "f").write_text("x")
+    os.chmod(stale / "Town01" / "f", 0o444)
+    os.chmod(stale / "Town01", 0o555)
+    out = []
+    assert assets.prune(host["cache"], dry_run=True, out=out.append) == [stale]
+    assert stale.exists() and "would free" in out[-1]
+    assert assets.prune(host["cache"], out=out.append) == [stale]
+    assert not stale.exists() and cdir.is_dir()
+    # the project gone: its commit goes too
+    (p / "swb.lock").unlink()
+    assert assets.prune(host["cache"], out=out.append) == [cdir]

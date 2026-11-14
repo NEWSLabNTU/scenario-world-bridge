@@ -1,4 +1,4 @@
-"""``ros2 run swb assets fetch|list|check``: a project's assets, by name, from a read-only cache.
+"""``ros2 run swb assets fetch|list|check|prune``: a project's assets, by name, from a read-only cache.
 
 docs/design/projects-and-pilots.md, "Assets". A dataset is a Hugging Face dataset (namespace
 ``jerry73204`` unless ``repo:`` names another). ``fetch``:
@@ -15,6 +15,10 @@ docs/design/projects-and-pilots.md, "Assets". A dataset is a Hugging Face datase
 5. links ``<project>/assets/``: every map directory (one holding ``lanelet2_map.osm``) as
    ``assets/maps/<map>``, the CARLA USD set as ``assets/carla-usd``, any other dataset as
    ``assets/<dataset>``; a ``path:`` asset as ``assets/maps/<as>`` (a map) or ``assets/<as>``.
+
+``prune`` removes from the cache every commit no project uses: fetch records each project in
+``<cache>/projects.json``, and a commit is kept while a recorded project's ``swb.lock`` names
+it (a project directory that is gone, or has no lock, no longer counts).
 
 The Hub is reached through huggingface_hub when it is installed and the host setting
 ``hub_url`` is the public Hub; otherwise over plain HTTPS (urllib), against ``hub_url``.
@@ -544,7 +548,81 @@ def fetch(project: Path, update=False, hub=None, out=print) -> dict:
     if not path.is_file() or path.read_text() != text:
         path.write_text(text)
         out(f"{config.LOCK_FILE} written")
+    if lock["datasets"]:
+        register(cache, project)
     return lock
+
+
+PROJECTS_FILE = "projects.json"
+
+
+def _projects(cache) -> list:
+    try:
+        data = json.loads((Path(cache) / PROJECTS_FILE).read_text())
+        return [str(x) for x in data] if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def register(cache, project: Path):
+    """Record ``project`` as a user of the cache (for ``prune``)."""
+    cache = Path(cache)
+    known = _projects(cache)
+    me = str(Path(project).resolve())
+    if me not in known:
+        cache.mkdir(parents=True, exist_ok=True)
+        tmp = cache / (PROJECTS_FILE + ".tmp")
+        tmp.write_text(json.dumps(sorted(known + [me]), indent=1) + "\n")
+        tmp.replace(cache / PROJECTS_FILE)
+
+
+def _tree_size(root: Path) -> int:
+    return sum(f.stat().st_size for f in Path(root).rglob("*") if f.is_file()
+               and not f.is_symlink())
+
+
+def prune(cache, dry_run=False, out=print) -> list:
+    """Remove the cache's commits no recorded project's lock names; the removed dirs."""
+    cache = Path(cache)
+    used, alive = set(), []
+    for proj in _projects(cache):
+        try:
+            lock = read_lock(Path(proj)) if Path(proj).is_dir() else {}
+        except (AssetError, config.ConfigError):
+            lock = {}
+        if not lock.get("datasets"):
+            continue
+        alive.append(proj)
+        for e in lock["datasets"].values():
+            if e.get("repo") and e.get("commit"):
+                used.add((e["repo"], e["commit"]))
+    removed, freed = [], 0
+    root = cache / "datasets"
+    for cdir in sorted(root.glob("*/*/*")) if root.is_dir() else []:
+        if not cdir.is_dir():
+            continue
+        repo = f"{cdir.parent.parent.name}/{cdir.parent.name}"
+        if (repo, cdir.name) in used:
+            continue
+        size = _tree_size(cdir)
+        freed += size
+        removed.append(cdir)
+        out(f"{'would remove' if dry_run else 'removed'} {repo}@{cdir.name[:12]} "
+            f"({size / 1024 ** 2:.1f} MB)")
+        if not dry_run:
+            _set_tree_mode(cdir, True)
+            for f in cdir.rglob("*"):
+                if f.is_file() and not f.is_symlink():
+                    os.chmod(f, 0o644)
+            shutil.rmtree(cdir)
+    if not dry_run:
+        tmp = cache / (PROJECTS_FILE + ".tmp")
+        if cache.is_dir():
+            tmp.write_text(json.dumps(sorted(alive), indent=1) + "\n")
+            tmp.replace(cache / PROJECTS_FILE)
+    out(f"{'would free' if dry_run else 'freed'} {freed / 1024 ** 2:.1f} MB; "
+        f"{len(alive)} project(s) keep {len(used)} commit(s)")
+    return removed
 
 
 def check(project: Path, settings: dict = None) -> list:
@@ -640,9 +718,14 @@ def main(argv=None):
                    help="resolve every dataset's revision again instead of keeping the lock's")
     ls = sub.add_parser("list", help="the known datasets and what this project has fetched")
     c = sub.add_parser("check", help="re-hash the linked files against swb.lock")
+    pr = sub.add_parser("prune", help="remove cached commits no project's swb.lock names")
+    pr.add_argument("--dry-run", action="store_true", help="say what would go, remove nothing")
     add_project_option(parser, f, ls, c)
     args = parser.parse_args(ros_args(sys.argv[1:] if argv is None else argv))
     try:
+        if args.cmd == "prune":
+            prune(config.host_settings()["cache"], dry_run=args.dry_run)
+            return 0
         if args.cmd == "list":
             try:
                 project = config.find_project(args.project)

@@ -61,7 +61,7 @@ from swb import world as worldmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
-STARTING, READY, STOPPED = "starting", "ready", "stopped"
+STARTING, READY, STOPPING, STOPPED = "starting", "ready", "stopping", "stopped"
 STACK_JSON = "stack.json"
 EVENTS = "events.jsonl"
 SWITCH_REQUEST = "switch-request.json"
@@ -1349,6 +1349,12 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                     return 0
             time.sleep(0.1)
     finally:
+        if not once or code:
+            # said first: play_launch gives the keeper seconds before SIGKILL, less than the
+            # pilots' grace, and a record left saying ready outlives the stack
+            rec["state"] = STOPPING
+            write_json(path, rec)
+            event(stack_dir, "stack.stopping")
         pilots.stop_all(rec)
         if carla is not None:
             carla.stop()   # the stack's own CARLA only; an external one is never touched

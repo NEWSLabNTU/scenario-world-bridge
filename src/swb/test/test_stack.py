@@ -653,3 +653,25 @@ def test_weather_that_never_takes_fails_the_stack(where, maps_hub):
     rec = json.loads(p.stack_json.read_text())
     assert code == 2 and rec["state"] == "stopped" and rec["weather"]["state"] == "failed"
     assert "unknown parameter cloudy" in rec["error"]
+
+
+def test_a_stopping_keeper_says_so_before_its_pilots_stop(where, maps_hub, monkeypatch):
+    """play_launch gives the keeper seconds before SIGKILL, less than the pilots' grace: the
+    record must not still say ready while the pilots stop."""
+    d = make(where)
+    (d / "swb.yaml").write_text(MULTI + "world: {weather: {cloudy: 30}}\n")
+    p = stack.plan(project_arg=str(d))
+    stack.write_plan(p)
+    seen = []
+    real = stack.Pilots.stop_all
+
+    def stop_all(self, rec=None):
+        seen.append(json.loads(p.stack_json.read_text())["state"])
+        return real(self, rec)
+    monkeypatch.setattr(stack.Pilots, "stop_all", stop_all)
+    monkeypatch.setattr(stack, "WEATHER_RETRY", 0.01)
+    monkeypatch.setattr(stack, "WEATHER_DEADLINE", 0.05)
+    assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                      weather_call=lambda rec: (False, "no")) == 2
+    assert seen == ["stopping"]
+    assert json.loads(p.stack_json.read_text())["state"] == "stopped"

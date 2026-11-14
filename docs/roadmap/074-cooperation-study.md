@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), Autoware's stop layer for the arena (swb 241), S1 in the arena (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); in progress: E3 (swb 118), the C2b rerun, then the arena's A abort parity (swb 241), S1 in the arena (swb 139); next: N4 (133), S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -607,6 +607,34 @@ rerun/`.
   braking on a car inside its path. No gap-or-reaction parameter of the yield rule reproduces it.
   Next: identify which module braked, and how hard, from the bags, then give the arena's B that
   safety layer (swb 241).
+- **Autoware's last-moment brake is obstacle_stop** (7b34f1c, swb 241; NAS `logs/2026 SSv2 on
+  CARLA/2026-11-14 coop B stop layer/`). How it acts:
+  - It raises STOP at the onset of A's lane change: A 0.1-0.25 m out of its lane, moving sideways at
+    0.23-0.37 m/s.
+  - It puts a stop point 5 m before A, adjusted by RSS. At 14/-3 that point is already behind B, so
+    the PID's strong stop takes over: a ramp at about -4.8 m/s^3 to -3.4 m/s^2, held to standstill in
+    1.9-2.15 s over about 8 m.
+  - The command moves 0.2-0.3 s after the factor, and B's speed about 0.8 s after it.
+  - There was no AEB and no abort, and MRM stayed normal.
+
+  It is now an arena B safety layer (`arena.STOP_DEFAULTS`, B rule key `stop`, off by default;
+  `c3_fit.py FIT_STOP=1`). It does not end the arena's contact at 14/-3. Refit error with the layer
+  on, against without:
+
+  | perception | best rule | with the layer | without |
+  |---|---|---|---|
+  | ground truth | B_r12_b2.5_t1_s | 11.66 | 11.55 |
+  | CenterPoint (C3b, S0-rescored) | B_r30_b2.5_t0.5_s | 0.122 | 0.055 |
+- **The contact at 14/-3 comes from the arena's A, not its B.**
+  - In swb, B passes A's centre while it brakes. Then the agent's A brakes at -7 m/s^2 and stops
+    0.23 of a lane into B's lane: a 1 cm miss on ground truth, and a footprint touch in 3 of 4
+    CenterPoint runs.
+  - In the arena, B brakes earlier and never passes A, so the arena's A keeps cutting in to 0.23 and
+    touches.
+
+  So the arena's A and `cutin_agent`'s A differ in how they abort or hold a lane change that B
+  answers by braking. That parity gap, not B's model, is what D4 has left at this cell. Next: align
+  the arena's A with the agent's abort and hold logic, then refit (swb 241, after the C2b rerun).
 
 ### N1, N2. Conflict sets and three-car composition (2026-11-14)
 

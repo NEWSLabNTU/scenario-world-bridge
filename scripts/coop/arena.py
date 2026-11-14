@@ -296,6 +296,29 @@ def xodr_lane_drop(k, length, x_end, taper):
             '  <header revMajor="1" revMinor="4" name="arena_lane_drop" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_two_way(k, length, shoulder=1.5):
+    """K parallel two-way roads: lane -1 along +x, lane +1 along -x, and a driveable strip of
+    `shoulder` m outside each (lanes -2 and +2), for a car that moves right."""
+    full = f'<width sOffset="0" a="{LANE_W}" b="0" c="0" d="0"/>'
+    sh = f'<width sOffset="0" a="{shoulder}" b="0" c="0" d="0"/>'
+    lanes = (f'<laneSection s="0"><left><lane id="2" type="driving" level="false">{sh}</lane>'
+             f'<lane id="1" type="driving" level="false">{full}</lane></left>'
+             '<center><lane id="0" type="none" level="false"/></center>'
+             f'<right><lane id="-1" type="driving" level="false">{full}</lane>'
+             f'<lane id="-2" type="driving" level="false">{sh}</lane></right></laneSection>')
+    roads = []
+    for i in range(k):
+        roads.append(f"""
+  <road name="w{i}" length="{length}" id="{i + 1}" junction="-1">
+    <link/>
+    <planView><geometry s="0" x="0" y="{-i * ROAD_GAP}" hdg="0" length="{length}"><line/></geometry></planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes>{lanes}</lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_two_way" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 def xodr_narrow(k, length, x0, wn, taper):
     """K parallel two-way roads (lane -1 along +x, lane +1 along -x) whose lane -1 is closed over
     [x0, x0 + wn]: a cubic taper to zero width over the taper before x0, no lane -1 over the closure,

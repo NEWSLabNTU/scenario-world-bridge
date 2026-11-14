@@ -118,6 +118,10 @@ class RulesA:
         self.state = "behind"  # behind -> out -> pass -> back -> done | abort -> behind_done
         self.u = 0.0
         self.aborted = self.passed = False
+        # the commit point: A's front relative to L's front (m) when its predicted margin first went
+        # negative during the pass (None: never). Over 0: the danger showed only past L's front, where
+        # an abort can no longer drop back (074 S6)
+        self.neg_rel = None
 
     def lateral(self, dt):
         if self.state == "out":
@@ -135,7 +139,10 @@ class RulesA:
             if self.name == "go" or predict_margin(xa, va, 0.0, xl, xb, vb) >= self.tau:
                 self.state = "out"
         elif self.state in ("out", "pass"):
-            if self.abort_ok and xa < xl and predict_margin(xa, va, lat, xl, xb, vb) < 0.0:
+            m = predict_margin(xa, va, lat, xl, xb, vb)
+            if m < 0.0 and self.neg_rel is None:
+                self.neg_rel = xa - xl
+            if self.abort_ok and xa < xl and m < 0.0:
                 self.state, self.aborted = "abort", True
             elif xa - L >= xl + RET_GAP:
                 self.state, self.passed = "back", True
@@ -192,6 +199,7 @@ class Out:
     who: str  # contact partner ("B", "L") or ""
     o_lost: tuple
     clear_ab: float
+    neg_rel: float | None = None  # RulesA.neg_rel
 
 
 def simulate(ra, rb, g, vb, tm, lags=None, bias=0.0):
@@ -261,7 +269,7 @@ def simulate(ra, rb, g, vb, tm, lags=None, bias=0.0):
     ua = M.utility(lost[0], max(r_ab, r_al), peak[0], CAP.b_max, 0.0, contact)
     ub = M.utility(lost[1], r_ab, peak[1], CAP.b_max, 0.0, contact)
     return Out((ua, ub), contact, A.passed and not contact, A.aborted, B.t_trig is not None and rb in ("brake", "right", "brakeright"),
-               who, lost, mab.clear)
+               who, lost, mab.clear, A.neg_rel)
 
 
 def context(job):

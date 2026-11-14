@@ -24,9 +24,9 @@ What `swb.yaml` sets:
 - `logging.keep`: a passed run keeps its result only; a failed or errored one keeps its
   logs and its recording, for `ros2 run swb runs why`.
 - `judges`: `physical_verdict` joins CARLA's own contact reports into the run's JUnit, so an
-  ego that touched something SSv2 did not see fails. `ros2 run swb run` does not run judges
-  yet; run it by hand on a run directory:
-  `ros2 run swb_launch physical_verdict runs/<id>/junit.xml --scenario <the scenario>`.
+  ego that touched something SSv2 did not see fails. `ros2 run swb run` runs it after each
+  passed or failed run; its verdict is in `runs/<id>/judges/physical_verdict.json`, on the
+  run's line and in the suite's `summary.csv`, beside the scenario's own.
 
 ## Hardware
 

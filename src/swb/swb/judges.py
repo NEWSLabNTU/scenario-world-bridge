@@ -9,12 +9,15 @@ docs/design/projects-and-pilots.md, "Results". A project lists them in ``swb.yam
         on: [passed, failed]             # verdicts it runs for (default: passed, failed)
         timeout: 120                     # s
 
-A judge is given the run directory as its last argument (and as ``SWB_RUN_DIR``), runs in the
-project directory, and prints one JSON object on stdout. swb writes it, with the judge's
-name, version, exit code and duration, to ``judges/<name>.json``. A ``verdict`` key in it
+A judge is given the run directory as its last argument, or where ``{run_dir}`` stands in
+``run`` (``{scenario}``: the run's scenario file; either one means nothing is appended), and
+as ``SWB_RUN_DIR``. It runs in the project directory and prints one JSON object on stdout, or
+nothing in particular: then its exit code (0 passed, 1 failed) is its verdict and its last
+line the message. swb writes the record, with the judge's name, version, exit code and
+duration, to ``judges/<name>.json``. A ``verdict`` key in it
 (``passed`` or ``failed``) is the judge's own verdict; it is recorded beside the run's, never in
 place of it: scoring stays with the judges, and a third-party evaluator reads the same files.
-A judge that exits other than 0 or 1, prints no JSON object, or overruns its timeout records
+A judge that exits other than 0 or 1, prints JSON that is not an object, or overruns records
 ``verdict: error`` with the reason; the run itself is unaffected.
 """
 import json
@@ -22,6 +25,8 @@ import os
 import subprocess
 import time
 from pathlib import Path
+
+import yaml
 
 from swb import results
 
@@ -81,7 +86,12 @@ def _record(j, verdict, message="", code=None, started=None, data=None) -> dict:
 def run_one(j: dict, run_dir: Path, project: Path, env=None) -> dict:
     """Run one judge over ``run_dir``; its record (also written to ``judges/<name>.json``)."""
     run_dir = Path(run_dir)
-    argv = [str(a) for a in j["run"]] + [str(run_dir)]
+    sub = {"run_dir": str(run_dir), "scenario": _scenario_path(run_dir)}
+    argv = [str(a) for a in j["run"]]
+    if any("{run_dir}" in a or "{scenario}" in a for a in argv):
+        argv = [_substitute(a, sub) for a in argv]
+    else:
+        argv.append(str(run_dir))
     e = dict(os.environ if env is None else env)
     e["SWB_RUN_DIR"] = str(run_dir)
     started = time.time()
@@ -100,13 +110,18 @@ def run_one(j: dict, run_dir: Path, project: Path, env=None) -> dict:
             if not isinstance(data, dict):
                 data, message = None, "printed JSON that is not an object"
         except json.JSONDecodeError:
-            message = "printed no JSON object on stdout"
+            pass
         if p.returncode not in (0, 1):
             tail = (p.stderr or "").strip().splitlines()[-1:] or [""]
             rec = _record(j, results.ERROR, f"exit {p.returncode}: {tail[0][:200]}".rstrip(": "),
                           p.returncode, started, data)
         elif data is None:
-            rec = _record(j, results.ERROR, message, p.returncode, started)
+            # a plain program (no JSON): its exit code is its verdict, its last line the message
+            last = (p.stdout or "").strip().splitlines()[-1:] or [""]
+            v = results.PASSED if p.returncode == 0 else results.FAILED
+            if message:
+                v = results.ERROR
+            rec = _record(j, v, message or last[0][:300], p.returncode, started)
         else:
             v = data.get("verdict")
             if v is None:
@@ -122,6 +137,21 @@ def run_one(j: dict, run_dir: Path, project: Path, env=None) -> dict:
     out.mkdir(exist_ok=True)
     (out / f"{j['name']}.json").write_text(json.dumps(rec, indent=2) + "\n")
     return rec
+
+
+def _scenario_path(run_dir: Path) -> str:
+    """The run's scenario file, from its ``resolved.yaml``; empty when there is none."""
+    try:
+        r = yaml.safe_load((Path(run_dir) / "resolved.yaml").read_text()) or {}
+        return str((r.get("scenario") or {}).get("path") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def _substitute(arg: str, sub: dict) -> str:
+    for k, v in sub.items():
+        arg = arg.replace("{" + k + "}", v)
+    return arg
 
 
 def run_all(judges, run_dir: Path, project: Path, verdict: str, env=None) -> list:

@@ -51,12 +51,17 @@ def test_judge_verdicts(tmp_path):
     r = judges.run_one(crash, d, tmp_path)
     assert r["verdict"] == "error" and "exit 4: boom" in r["message"]
     assert (d / "logs" / "judge" / "c.log").read_text() == "boom\n"
-    silent = judge(tmp_path, "pass", "s")
-    assert judges.run_one(silent, d, tmp_path)["message"] == "printed no JSON object on stdout"
+    plain = judge(tmp_path, "import sys; print('one contact'); sys.exit(1)", "s")
+    r = judges.run_one(plain, d, tmp_path)
+    assert r["verdict"] == "failed" and r["message"] == "one contact"
+    (d / "resolved.yaml").write_text("scenario: {path: /p/s.xosc}\n")
+    sub = judge(tmp_path, "import sys, json; print(json.dumps({'a': sys.argv[1:]}))", "u")
+    sub["run"] += ["{run_dir}/junit.xml", "--scenario", "{scenario}"]
+    assert judges.run_one(sub, d, tmp_path)["a"] == [f"{d}/junit.xml", "--scenario", "/p/s.xosc"]
     slow = judge(tmp_path, "import time; time.sleep(5)", "t", timeout=0.2)
     assert "did not end" in judges.run_one(slow, d, tmp_path)["message"]
-    assert judges.summary(d) == {"c": "error", "f": "failed", "o": "failed", "s": "error",
-                                 "t": "error"}
+    assert judges.summary(d) == {"c": "error", "f": "failed", "o": "failed", "s": "failed",
+                                 "t": "error", "u": "passed"}
 
 
 def test_run_all_filters_by_verdict_and_appends_timeline(tmp_path):

@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic and arena done (chicken only for |Δt| ≤ 0.2 s and a tie costly either way; the arena turns the tie into a war of attrition; D2 not met at the crossing: the kinematic model needs the car's brake lag and start from rest); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); in progress: E3 (swb 118), the C3a rerun (swb 241), N3 second round (133); next: N4, the crossing's D2 (the kinematic model with the car's lags, swb 139), S1 in the arena, S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic and arena done (chicken only for |Δt| ≤ 0.2 s and a tie costly either way; the arena turns the tie into a war of attrition; D2 not met at the crossing: the kinematic model needs the car's brake lag and start from rest); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); in progress: E3 (swb 118), N3 second round (133), Autoware's stop layer for the arena (swb 241); next: N4, the crossing's D2 (the kinematic model with the car's lags, swb 139), S1 in the arena, S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -586,6 +586,27 @@ Verdict against the criterion:
   1.1 m: -0.07). `pen` and `v_touch` stay beside the binary contact, so a graze of square boxes
   can be told from a crash when the cell is analysed.
 - **D2 >= 90 %**: met, 92 %.
+
+### C3a rerun with the fixed agent (2026-11-14)
+
+Run by swb 241 at eacaae0, which includes the branch fix and S0. Autoware ran on ground-truth
+objects at 6 m/s: 48 runs (6 cells, 2 A rules, 4 seeds), all clean. A stays on the west straight
+through the scored window in every run. Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop C3a
+rerun/`.
+
+- **The old junction-turn artefacts are gone.** 2/+2 A_aw_perm now scores uA -0.037; the old runs
+  scored -0.31.
+- **14/-3 A_aw_perm is a near miss, not a touch, on ground truth.** There is no contact and no
+  footprint overlap in 4 of 4 runs. The smallest clearance is 0.01 m, rho is 0.49, and uA and uB are
+  -0.77 and -0.72. On CenterPoint (C3b) the footprints touched in 4 of 6 runs, by 0.1-8 cm.
+  Autoware stops within centimetres when it sees exact objects.
+- **The arena makes contact there under every B rule** (3 of 4 seeds, uA -9.0), so the
+  ground-truth refit is flat: error 11.54-11.57 for all 18 rules. Over the other 11 cells the best
+  rules are b_y 2.5 m/s^2 at 0.5 s (error 0.09), and B_aw_react scores 0.13.
+- **Finding:** the arena's B lacks Autoware's last-moment stop: obstacle stop and emergency
+  braking on a car inside its path. No gap-or-reaction parameter of the yield rule reproduces it.
+  Next: identify which module braked, and how hard, from the bags, then give the arena's B that
+  safety layer (swb 241).
 
 ### N1, N2. Conflict sets and three-car composition (2026-11-14)
 

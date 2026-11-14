@@ -81,6 +81,8 @@ DECIDE = 0.5  # s, from a seen change to a rule's decision
 REACT = 1.0  # s, the safety layer's reaction (Autoware's assumption for a rear car)
 BRAKE_LATE = 2.5  # m/s^2: a car holding out brakes for the stop line only when it needs this much
 YIELD_SEEN = 0.5  # m/s^2: braking the other takes as a yield
+PET_SAMPLE = DT  # s: PET from footprints every tick, not measures' 0.1 s (one step was 0.067 of risk)
+WAIT_V = 0.5  # m/s: "both stopped" is both below this, before Z, for 0.5 s (a band, not standstill)
 PEAK_W = 0.5  # s, the window of the arena's peak braking (arena.PEAK_WINDOW)
 FAULT = 0.5  # the cost of failing to yield, for the car without right of way
 FAULTS = (0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0)  # swept for the smallest that makes the rule hold
@@ -244,21 +246,57 @@ class Policy:
             self.stopped_since = None
 
 
+def car_lags():
+    """The spec's command lags (carla_physics.yaml's command_lags), as the arena applies them."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src/sim_vehicle_spec/generated/tesla_model3/carla_physics.yaml")
+    out = {"brake_dead_time": 0.0, "brake_time_constant": 0.0, "motor_time_constant": 0.0}
+    for line in open(path):
+        if line.startswith("command_lags:"):
+            for part in line.split("{", 1)[1].rstrip().rstrip("}").split(","):
+                k, v = part.split(":")
+                out[k.strip()] = float(v)
+    return out
+
+
+class Actuator:
+    """The car's response to a commanded acceleration, as acb's pedal lag gives it (arena.PedalLag):
+    braking after a dead time and a first-order lag, drive after a first-order lag. The pedal maps
+    do not bind within the rules' limits (A_MAX 3, B_MAX 7: the map reaches 4.9 and 9.6 m/s^2)."""
+
+    def __init__(self, lags):
+        self.dead, self.tb, self.tm = lags["brake_dead_time"], lags["brake_time_constant"], lags["motor_time_constant"]
+        self.queue = []
+        self.brake = self.drive = 0.0
+
+    def step(self, a_cmd):
+        self.queue.append(max(0.0, -a_cmd))
+        n = int(round(self.dead / DT))
+        req = self.queue[-1 - n] if len(self.queue) > n else 0.0
+        if len(self.queue) > n + 1:
+            self.queue.pop(0)
+        lag = lambda x, target, tau: target if tau <= 0 else x + (target - x) * (1 - math.exp(-DT / tau))  # noqa: E731
+        self.brake = lag(self.brake, req, self.tb)
+        self.drive = lag(self.drive, max(0.0, a_cmd), self.tm)
+        return self.drive - self.brake
+
+
 class Car:
-    def __init__(self, u0, v0):
+    def __init__(self, u0, v0, lags=None):
         self.u, self.v, self.v0, self.u0 = u0, v0, v0, u0
+        self.act = Actuator(lags) if lags else None
         self.a = 0.0
         self.peak = 0.0
         self.peak_w = 0.0
         self.vh = []  # (t, v) over the last PEAK_W s
 
 
-def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None):
-    """One run: A's rule ra, B's rule rb; b_cont is B's continuation under react."""
+def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
+    """One run: A's rule ra, B's rule rb; b_cont is B's continuation under react; lags: the car's
+    command lags (car_lags()), None for an ideal car."""
     ta, tb = T_MEAN + dt_ctx / 2, T_MEAN - dt_ctx / 2
-    A, B = Car(-va * ta, va), Car(-vb * tb, vb)
+    A, B = Car(-va * ta, va, lags), Car(-vb * tb, vb, lags)
     pa_, pb_ = Policy("A", ra, va), Policy("B", rb, vb, b_cont)
-    meas = M.Measures(b_max=(B_MAX, B_MAX))
+    meas = M.Measures(b_max=(B_MAX, B_MAX), pet_sample=PET_SAMPLE)
     seen_in: dict = {"A": None, "B": None}  # when each body was first in Z
     stopped_both = 0.0
     both_stopped = False
@@ -269,6 +307,9 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None):
         pb_.perceive(t, A.u, A.v, A.a)
         A.a = pa_.step(t, A.u, A.v)
         B.a = pb_.step(t, B.u, B.v)
+        for me in (A, B):
+            if me.act is not None:
+                me.a = me.act.step(me.a)
         for me, pol in ((A, pa_), (B, pb_)):
             me.peak = max(me.peak, -me.a)
             me.v = max(0.0, me.v + me.a * DT)
@@ -285,7 +326,7 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None):
         for name, me in (("A", A), ("B", B)):
             if me.u >= 0 and seen_in[name] is None:
                 seen_in[name] = t
-        if A.v < 0.1 and B.v < 0.1 and A.u < 0 and B.u < 0:
+        if A.v < WAIT_V and B.v < WAIT_V and A.u < 0 and B.u < 0:
             stopped_both += DT
             both_stopped = both_stopped or stopped_both >= 0.5
         else:
@@ -296,14 +337,12 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None):
         if meas.clear <= 0.0:
             contact = True
             break
-        if A.u >= EXIT + 2 and B.u >= EXIT + 2:
+        if A.u >= EXIT + 2 and B.u >= EXIT + 2 and t >= HORIZON - 1e-9:
             break
+    # progress over exactly HORIZON (measures.lost_progress, 074 N3); a car that never left Z: all lost
     lost = []
-    for me in (A, B):
-        if contact or me.u < EXIT:
-            lost.append(1.0)
-        else:
-            lost.append(min(1.0, max(0.0, (me.v0 * t - (me.u - me.u0)) / max(me.v0 * HORIZON, 1.0))))
+    for k, me in enumerate((A, B)):
+        lost.append(1.0 if contact or me.u < EXIT else M.lost_progress(me.v0, meas.s_h[k]))
     first = ""
     if seen_in["A"] is not None or seen_in["B"] is not None:
         ta_in = seen_in["A"] if seen_in["A"] is not None else INF
@@ -353,16 +392,16 @@ def solve(ja, jb, a_acts, b_acts):
     return pure, mixed
 
 
-def outcomes(dt_ctx, va, vb):
+def outcomes(dt_ctx, va, vb, lags=None):
     """Every rule pair's run; B's react continuation is chosen per right of way in play()."""
     outs = {}
     for ra in A_RULES:
         for rb in B_RULES:
             if rb[0] == "react":
                 for c in ("yield", "hold"):
-                    outs[(ra[0], f"react:{c}")] = simulate(ra, rb, dt_ctx, va, vb, c)
+                    outs[(ra[0], f"react:{c}")] = simulate(ra, rb, dt_ctx, va, vb, c, lags=lags)
             else:
-                outs[(ra[0], rb[0])] = simulate(ra, rb, dt_ctx, va, vb)
+                outs[(ra[0], rb[0])] = simulate(ra, rb, dt_ctx, va, vb, lags=lags)
     return outs
 
 
@@ -408,7 +447,8 @@ def welfare(res, ua, ub, pure, mixed):
 def _context(job):
     dt_ctx, v, vb = job[:3]
     fault = job[3] if len(job) > 3 else FAULT
-    outs = outcomes(dt_ctx, v, vb if vb is not None else v)
+    lags = job[4] if len(job) > 4 else None
+    outs = outcomes(dt_ctx, v, vb if vb is not None else v, lags)
     rows = []
     for r in ("none", "A", "B"):
         res, ua, ub, pure, mixed = play(outs, r, fault)
@@ -439,7 +479,8 @@ def run_map(args):
     n = int(round(2 * args.dt_max / args.dt_step))
     dts = [round(-args.dt_max + args.dt_step * i, 3) for i in range(n + 1)]
     vs = [float(x) for x in args.v.split(",")]
-    jobs = [(d, v, args.vb, args.fault) for v in vs for d in dts]
+    lags = car_lags() if args.car_lags else None
+    jobs = [(d, v, args.vb, args.fault, lags) for v in vs for d in dts]
     with Pool(args.jobs) as pool:
         rows = [row for rs in pool.map(_context, jobs) for row in rs]
     os.makedirs(args.out, exist_ok=True)
@@ -457,7 +498,8 @@ def run_map(args):
             w.writerow({k: fmt(v) for k, v in row.items()})
     lab = {(row["r"], row["dt"], row["v"]): row for row in rows}
     lines = [f"# crossing equilibrium map (kinematic): {len(A_RULES)} A rules x {len(B_RULES)} B rules"
-             + (f", vB = {args.vb} m/s" if args.vb is not None else ", vA = vB = v") + f", fault {args.fault:g}",
+             + (f", vB = {args.vb} m/s" if args.vb is not None else ", vA = vB = v") + f", fault {args.fault:g}"
+             + (", the car's command lags" if args.car_lags else ", an ideal car"),
              f"# columns: dt = t_A^Z - t_B^Z from {dts[0]} to {dts[-1]} s, step {args.dt_step:g} (dt > 0: B nearer)",
              "# A / B: that car passes first in every equilibrium   C: chicken (both orders are equilibria)",
              "# W: war of attrition (an equilibrium with both stopped)   !: contact in equilibrium",
@@ -546,7 +588,9 @@ def selftest():
     assert utility(o, 0, "B") <= utility(o, 0, "none") and utility(o, 0, "A") == utility(o, 0, "none")
     # right of way to A at dt = 0: every pure equilibrium lets A through first
     rows = {row["r"]: row for row in _context((0.0, 10.0, None))}
-    assert rows["none"]["class"] == "C", rows["none"]  # chicken at a tie, without a rule
+    # at a tie, without a rule, both orders are equilibria: chicken, or a war of attrition when the
+    # pair slows below WAIT_V first
+    assert rows["none"]["class"] in ("C", "W") and rows["none"]["firsts"] == "AB", rows["none"]
     # A clearly nearer: A first, and a right of way to A needs no enforcement there
     rows = {row["r"]: row for row in _context((-1.0, 10.0, None))}
     assert rows["none"]["class"] == "A" and rows["A"]["fault_min"] == 0.0, rows
@@ -561,6 +605,7 @@ def main():
     p.add_argument("--vb", type=float, default=None, help="fix B's speed (m/s); default: B as fast as A")
     p.add_argument("--dt-max", type=float, default=4.0, help="dt from -dt_max to dt_max (s)")
     p.add_argument("--dt-step", type=float, default=0.5)
+    p.add_argument("--car-lags", action="store_true", help="the car's brake dead time and lags (carla_physics.yaml)")
     p.add_argument("--jobs", type=int, default=8)
     p.add_argument("--fault", type=float, default=FAULT, help="cost of failing to yield (classes and welfare)")
     p.add_argument("--selftest", action="store_true")

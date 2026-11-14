@@ -183,7 +183,8 @@ def utility(lost, risk, peak_lon, b_max, peak_lat=0.0, contact=False, a_lat_max=
 
 
 class Measures:
-    def __init__(self, b_max=(9.6, 9.6), ttc_ref=TTC_REF):
+    def __init__(self, b_max=(9.6, 9.6), ttc_ref=TTC_REF, pet_sample=PET_SAMPLE):
+        """pet_sample: seconds between the footprints PET is found from, its resolution."""
         self.b_max = b_max
         self.ttc_ref = ttc_ref
         self.t_prev = None
@@ -210,7 +211,8 @@ class Measures:
         self.lat_peak = [0.0, 0.0]
         self._vv = (deque(), deque())  # (t, vx, vy) over WINDOW
         self._prev_pose = None
-        self._fp = ([], [])  # (t, centre x, y, yaw, corners) every PET_SAMPLE s
+        self.pet_sample = pet_sample
+        self._fp = ([], [])  # (t, centre x, y, yaw, corners) every pet_sample s
         self._fp_t = -1.0
 
     def push_poses(self, t, pa, pb):
@@ -258,7 +260,7 @@ class Measures:
             h = headway(pf, pl)
             if h is not None:
                 self.thw = min(self.thw, h)
-        if t - self._fp_t >= PET_SAMPLE - 1e-6:
+        if t - self._fp_t >= self.pet_sample - 1e-6:
             self._fp_t = t
             self._fp[0].append((t, pa[0], pa[1], pa[2], ca, math.hypot(pa[5], pa[6]) / 2))
             self._fp[1].append((t, pb[0], pb[1], pb[2], cb, math.hypot(pb[5], pb[6]) / 2))

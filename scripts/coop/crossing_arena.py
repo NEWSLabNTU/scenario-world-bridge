@@ -12,7 +12,9 @@ v * (T_MEAN + dt / 2) and B's v * (T_MEAN - dt / 2) before the box when the run 
 kinematic model. The run is scored like crossing_game.simulate: lost progress, the risk from
 measures.push_poses on the cars' true poses, peak braking (speed drop over 0.5 s, arena.py's),
 contact; who entered the box first, whether both stopped. The kinematic side of the comparison
-is scored the same way (its peak braking from the speed drop over 0.5 s too).
+is scored the same way (its peak braking from the speed drop over 0.5 s too), with the car's
+command lags (crossing_game.car_lags, --ideal-car for none). Both sides run to H and score
+progress over exactly H; "both stopped" is both below crossing_game.WAIT_V for 0.5 s.
 
 Then, per cell, the game on a subset of the rules (A_SUB x B_SUB) is solved on the arena's mean
 payoffs and on the kinematic model's, and compared on D2's yardstick: each kinematic payoff
@@ -167,7 +169,7 @@ class Run:
         self.t0 = self.x.ar.t
         self.u0 = {k: self.x.u(k, c) for k, c in (("A", self.A), ("B", self.B))}
         self.v0 = {k: c.state()[3] for k, c in (("A", self.A), ("B", self.B))}
-        self.meas = M.Measures(b_max=(G.B_MAX, G.B_MAX))
+        self.meas = M.Measures(b_max=(G.B_MAX, G.B_MAX), pet_sample=G.PET_SAMPLE)
         self.vhist = {"A": deque(), "B": deque()}
         self.peak = {"A": 0.0, "B": 0.0}
         self.seen_in = {"A": None, "B": None}
@@ -195,7 +197,7 @@ class Run:
             if u >= 0 and self.seen_in[k] is None:
                 self.seen_in[k] = t
         (ua, va), (ub, vb) = st_["A"], st_["B"]
-        if va < 0.1 and vb < 0.1 and ua < 0 and ub < 0:
+        if va < G.WAIT_V and vb < G.WAIT_V and ua < 0 and ub < 0:
             self.stopped_both += AR.DT
             self.both_stopped = self.both_stopped or self.stopped_both >= 0.5
         else:
@@ -203,7 +205,7 @@ class Run:
         self.meas.push_poses(t, self.A.pose(), self.B.pose())
         if self.meas.clear <= 0.0:
             self.contact = True
-        if self.contact or t >= G.T_MAX or (ua >= G.EXIT + 2 and ub >= G.EXIT + 2):
+        if self.contact or t >= G.T_MAX or (ua >= G.EXIT + 2 and ub >= G.EXIT + 2 and t >= G.HORIZON - 1e-9):
             self.finish(t, st_)
 
     def finish(self, t, st_):
@@ -213,8 +215,7 @@ class Run:
             if self.contact or u < G.EXIT:
                 lost.append(1.0)
             else:
-                v0 = self.v0[k]
-                lost.append(min(1.0, max(0.0, (v0 * t - self.meas.s["AB".index(k)]) / max(v0 * G.HORIZON, 1.0))))
+                lost.append(M.lost_progress(self.v0[k], self.meas.s_h["AB".index(k)]))  # over exactly H (074 N3)
         ta = self.seen_in["A"] if self.seen_in["A"] is not None else math.inf
         tb = self.seen_in["B"] if self.seen_in["B"] is not None else math.inf
         first = "" if math.isinf(ta) and math.isinf(tb) else ("A" if ta < tb else "B")
@@ -319,7 +320,7 @@ def compare(args, rows):
     lines, inside, total, agree, n_out = [], 0, 0, 0, 0
     summary: dict = {"cells": []}
     for dt in [float(x) for x in args.dts.split(",")]:
-        kin = G.outcomes(dt, args.v, args.v)
+        kin = G.outcomes(dt, args.v, args.v, G.car_lags() if args.car_lags else None)
         # the arena's mean outcome per pair as a payoff table, and the kinematic model's, on the subset
         ja_ar, jb_ar, ja_k, jb_k, res_k, res_ar = {}, {}, {}, {}, {}, {}
         for a in A_SUB:
@@ -391,7 +392,10 @@ def main():
     p.add_argument("--seeds", type=int, default=3)
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--v", type=float, default=10.0)
-    p.add_argument("--dts", default="-2,-1,-0.5,0,0.5,1,2")
+    # off the rules' thresholds: B's bands are 1, 2 and 4 s, so no cell at |dt| = 1 or 2
+    p.add_argument("--dts", default="-1.5,-0.7,-0.3,-0.1,0,0.1,0.3,0.7,1.5")
+    p.add_argument("--ideal-car", dest="car_lags", action="store_false",
+                   help="compare against crossing_game without the car's command lags")
     p.add_argument("--obs-delay", type=float, default=G.OBS)
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)

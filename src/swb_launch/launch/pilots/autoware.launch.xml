@@ -49,16 +49,8 @@
   <arg name="spec_hash_file" default="" description="the agent's spec_hash YAML instead of the vehicle's description package's"/>
   <arg name="agent_config" default="" description="the vehicle agent's settings (YAML/JSON); empty = defaults"/>
   <arg name="goal_poses_file" default="" description="local mode's goal when relay is none"/>
+  <arg name="rviz" default="false" description="Autoware's RViz (a display is needed; the pilot's `rviz: true`)"/>
 
-  <include file="$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml">
-    <arg name="autoware_launch" value="$(var autoware_launch)"/>
-    <arg name="map_path" value="$(var map_path)"/>
-    <arg name="use_sim_time" value="$(var use_sim_time)"/>
-    <arg name="vehicle_model" value="$(var vehicle)"/>
-    <arg name="sensor_model" value="$(var sensor_model)"/>
-    <arg name="traffic_light_fusion_only" value="$(var traffic_light_fusion_only)"/>
-    <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)"/>
-  </include>
 
   <include file="$(find-pkg-share swb_launch)/launch/pilots/vehicle_side.launch.xml">
     <arg name="sim" value="$(var sim)"/>
@@ -74,4 +66,21 @@
     <arg name="agent_config" value="$(var agent_config)"/>
     <arg name="goal_poses_file" value="$(var goal_poses_file)"/>
   </include>
+
+  <!-- last: it sets Autoware's `vehicle` switch, which would reach the includes after it -->
+  <group>
+  <include file="$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml">
+    <arg name="autoware_launch" value="$(var autoware_launch)"/>
+    <arg name="map_path" value="$(var map_path)"/>
+    <arg name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="vehicle_model" value="$(var vehicle)"/>
+    <!-- Autoware's own `vehicle` is a switch (launch the vehicle interface); ours is the car's
+         name, and launch arguments are global, so the include gets its switch back -->
+    <arg name="vehicle" value="true"/>
+    <arg name="rviz" value="$(var rviz)"/>
+    <arg name="sensor_model" value="$(var sensor_model)"/>
+    <arg name="traffic_light_fusion_only" value="$(var traffic_light_fusion_only)"/>
+    <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)"/>
+  </include>
+  </group>
 </launch>

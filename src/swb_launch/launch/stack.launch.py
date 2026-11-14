@@ -488,7 +488,10 @@ def generate_launch_description():
         arg("carla_port", default_value=_env("CARLA_PORT", ""), description="CARLA's RPC port; default CARLA_PORT, else the world server's own default"),
         arg("nest_side", default_value="false", description="true: the world server and the simulation side (bridge, relay) as nested play_launches logging under log_dir/simulator and log_dir/bridge (swb.launch.xml's stack)"),
         arg("log_dir", default_value=_env("SWB_LOG_ROOT", "play_log"), description="where the nested launches (ego, agent, scenario, pilots; with nest_side the world server and the bridge) log"),
-        SetEnvironmentVariable("CYCLONEDDS_URI", dds),
+        # an argument, not the environment: swb.launch.py's SetEnvironmentVariable is not in
+        # os.environ when this file is read, and a sourced Autoware exports its own profile
+        arg("dds_config", default_value=dds, description="CYCLONEDDS_URI for every process of the stack; default the environment's, else swb_launch's localhost profile"),
+        SetEnvironmentVariable("CYCLONEDDS_URI", LaunchConfiguration("dds_config")),
         SetEnvironmentVariable("RMW_IMPLEMENTATION", _env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")),
         OpaqueFunction(function=_stack),
     ])

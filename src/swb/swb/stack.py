@@ -526,6 +526,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "map_path": str(map_path or ""),
         "vehicle_model": vehicle,
         "nest_side": "true",
+        # every stack process on the profile the runs use (a sourced Autoware exports its own)
+        "dds_config": f"file://{seatmod.cyclone_profile()}",
         # the bridge reads a map's signal table from the same state dir first (both
         # simulators: an Isaac world finds its lamps by the table CARLA's server wrote)
         "side_args": f"state_dir:={project / 'state'}",

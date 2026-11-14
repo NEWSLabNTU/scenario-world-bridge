@@ -67,10 +67,16 @@ def test_autoware_composes_profile_vehicle_side_and_agent():
     args, root = xml_args("autoware.launch.xml")
     assert "autoware_launch" in args
     includes = [i.get("file") for i in root.iter("include")]
+    # the profile last: it sets Autoware's `vehicle` switch (launch arguments are global),
+    # which must not reach the vehicle side and the agent, where `vehicle` is the car
     assert includes == [
-        "$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml",
         "$(find-pkg-share swb_launch)/launch/pilots/vehicle_side.launch.xml",
-        "$(find-pkg-share swb_launch)/launch/vehicle_agent.launch.xml"]
+        "$(find-pkg-share swb_launch)/launch/vehicle_agent.launch.xml",
+        "$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml"]
+    profile = root.findall(".//include")[-1]
+    passed = {a.get("name"): a.get("value") for a in profile.findall("arg")}
+    assert passed["vehicle"] == "true" and passed["vehicle_model"] == "$(var vehicle)"
+    assert args["rviz"].get("default") == "false"
     assert "acb_launch carla_simulator" not in ET.tostring(root, encoding="unicode")
 
 

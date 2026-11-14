@@ -357,7 +357,7 @@ ROS_DOMAIN_ID=2 play_launch launch \
 
 Each Autoware is about 90 processes and several GB of GPU memory: on one GPU, the ego and
 one background AV beside CARLA is the comfortable limit. Scripted cars and pedestrians cost
-almost nothing ([Tutorial 5](tutorials/05-other-road-users.md)). Isaac carries one ego
+almost nothing ([Tutorial 5](tutorials/03-other-road-users.md)). Isaac carries one ego
 only.
 
 ## 9. Judge
@@ -375,7 +375,7 @@ ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
 
 Read `~/swb_results/2026-11-14/suite.junit.xml`; the exit status is 0 only if every test
 passed. `--physical-verdict` adds CARLA's contacts as a test per scenario.
-[Tutorial 3](tutorials/03-run-and-judge.md) explains both verdicts.
+[Tutorial 3](tutorials/02-run-and-judge.md) explains both verdicts.
 
 ## 10. Two stacks on one host
 

@@ -4,7 +4,7 @@ An **agent** connects an autopilot to the scenarios run on scenario-world-bridge
 scenario simulator (SSv2) never talks to your autopilot directly: it talks to the **agent
 relay** on the simulation side, and the relay talks to the agent registered under the
 scenario entity's name (`ego`, `bg_av_1`, ...), over plain TCP. The agent turns the
-relay's commands -- reset, drive to a goal, keep under a speed limit, stop -- into whatever
+relay's commands (reset, drive to a goal, keep under a speed limit, stop) into whatever
 your autopilot understands, and reports back what the autopilot is doing.
 
 Every agent is a Python class, `swb_agent.Agent`, in your own project. Nothing in this
@@ -17,8 +17,51 @@ needs to reach the relay's port (default 5560).
    └──── agent relay :5560 ◀──── TCP ────▶ your agent (swb_agent.Agent)
 ```
 
-The Autoware vehicle side shipped with this project (`just ego-av`) is such an agent
-already; this page is for driving with something else, or with Autoware in another way.
+The stack's default ego (Autoware with swb's vehicle agent) is such an agent already; this
+page is for driving with something else, or with Autoware in another way.
+
+The commands below assume the environment file of
+[Build your own stack](build-your-own-stack.md#1-the-environment-file) is sourced, so
+`ros2 run swb_agent ...` finds the SDK's commands. (After `source install/setup.bash` the
+bare `swb-agent` is not on `PATH`: colcon installs it under `lib/swb_agent`.)
+
+## With the stack
+
+The stack (`carla.launch.xml`, `isaac.launch.xml`) starts the ego's autopilot and swb's
+vehicle agent beside it. To drive the ego with your own agent instead:
+
+| Your agent | Stack arguments |
+|---|---|
+| runs on its own (a Python agent, `ros_adapter`) | `ego_launch:=none`, then start the agent yourself |
+| is started by a launch file of yours, which also starts its agent | `ego_launch:='<package> <file>'` `agent:=false` |
+| is a launch of yours that serves Autoware's API (swb's vehicle agent drives it) | `ego_launch:='<package> <file>'` |
+
+For example, on CARLA with no ego launch:
+
+```bash
+play_launch launch --web-addr 127.0.0.1:8084 \
+    swb_launch carla.launch.xml \
+    map_path:=$CARLA_MAPS/Town01 \
+    ego_launch:=none
+```
+
+```bash
+python3 -m my_pilot \
+    --relay tcp://localhost:${AGENT_PORT:-5560} \
+    --entity ego
+```
+
+`ros2 launch` takes the same arguments as `play_launch launch`; play_launch must still be
+installed, because the stack starts the ego and the scenario as play_launch processes of
+their own. A launch given as `ego_launch` runs in the ego domain and is restarted when it
+exits. More: [Build your own stack, section 7](build-your-own-stack.md#7-your-autopilot).
+
+**Domains and DDS for ROS agents.** The agent reaches the relay over TCP, so its ROS
+domain does not matter to swb. A ROS agent (`ros_adapter`, `AutowareAgent`, your node) must
+however share a domain, the RMW and `CYCLONEDDS_URI` with the autopilot it drives: run
+both from the environment file, in the ego domain (`ROS_DOMAIN_ID=${EGO_ROS_DOMAIN_ID:-1}`)
+or a domain of their own, never the scenario domain. Why, and the 0 to 57 limit:
+[ROS domains and DDS](domains-and-dds.md).
 
 ## Three ways to write one
 
@@ -28,16 +71,17 @@ already; this page is for driving with something else, or with Autoware in anoth
 | **`ros_adapter` + YAML** | a ROS 2 autopilot whose steps are single topics, services and states | `agent.yaml` only |
 | **A subclass of ours** | the YAML covers most of it but one step needs code | a `RosAdapter` subclass overriding that hook |
 
-All three are `swb_agent.Agent` subclasses, and `swb-agent check` tests any of them.
+All three are `swb_agent.Agent` subclasses, and `ros2 run swb_agent swb-agent check` tests
+any of them.
 
 ## Your own class
 
 Start from a skeleton that already passes the conformance check:
 
 ```bash
-swb-agent new my-pilot          # or: ros2 run swb_agent swb-agent new my-pilot
+ros2 run swb_agent swb-agent new my-pilot
 cd my-pilot
-swb-agent check my_pilot.agent:MyPilotAgent
+ros2 run swb_agent swb-agent check my_pilot.agent:MyPilotAgent
 ```
 
 `my_pilot/agent.py`:
@@ -46,7 +90,7 @@ swb-agent check my_pilot.agent:MyPilotAgent
 import swb_agent
 
 class MyPilotAgent(swb_agent.Agent):
-    def on_reset(self, ep):             # a scenario starts: forget the last one, get ready
+    def on_reset(self, ep):             # a scenario starts: forget the last one
         self.autopilot.relocalize(ep.pose)
 
     def on_goal(self, goal, waypoints): # drive to goal through waypoints
@@ -63,11 +107,16 @@ if __name__ == "__main__":
     swb_agent.main(MyPilotAgent)
 ```
 
-Run it, with the simulation side up (`just run`):
+Run it with the stack up and `ego_launch:=none` (above):
 
 ```bash
-python -m my_pilot --relay tcp://sim-host:5560 --entity ego --config agent.yaml
+python3 -m my_pilot \
+    --relay tcp://localhost:${AGENT_PORT:-5560} \
+    --entity ego \
+    --config agent.yaml
 ```
+
+On CARLA the agent may run on another host: give `--relay` the stack's host.
 
 ### Hooks
 
@@ -84,9 +133,9 @@ time, on one thread; do not block in one for longer than its command allows (bel
 | `on_stop()` | the scenario disengages the vehicle | stop, hold until the next goal | 2.5 s |
 | `on_clear_goal()` | the route is cleared | drop the goal (default: `on_stop`) | 2.5 s |
 | `on_episode_end(ep, result)` | `run_suite` reports the verdict (`result["passed"]`, `["failures"]`) | nothing; for logs, bags, learning | 2.5 s |
-| `on_restart()` | a restart is asked for (capability `restart`) | restart the autopilot in place | -- |
-| `on_cooperate(module, command, uuid)`, `on_cooperate_auto(module, enable)` | the scenario drives Autoware's RTC | -- | 2.5 s |
-| `close()` | the agent shuts down | release what it holds | -- |
+| `on_restart()` | a restart is asked for (capability `restart`) | restart the autopilot in place | |
+| `on_cooperate(module, command, uuid)`, `on_cooperate_auto(module, enable)` | the scenario drives Autoware's RTC | | 2.5 s |
+| `close()` | the agent shuts down | release what it holds | |
 
 Poses are dictionaries `{x, y, z, qx, qy, qz, qw}` in the map frame (the same frame as the
 scenario's Lanelet2 map). `ep` (`swb_agent.Episode`) carries `pose` and, from the relay,
@@ -105,7 +154,7 @@ change:
 self.report(swb_agent.ARRIVED)                       # phase
 self.report(pose={"x": ..., "y": ..., ...})          # the autopilot's own pose estimate
 self.report(fault=swb_agent.MINIMAL_RISK_MANEUVER, fault_behavior="EMERGENCY_STOP")
-self.report(detail="waiting for localization")       # free text, shown in the relay's log
+self.report(detail="waiting for localization")       # free text, in the relay's log
 ```
 
 | Phase | Means | Set by |
@@ -134,12 +183,13 @@ and talking to an older relay (protocol v1) when that is what it finds.
 When each step of your autopilot is one topic or one service, no Python is needed:
 
 ```bash
-ros2 run swb_agent ros_adapter --config agent.yaml
+ROS_DOMAIN_ID=${EGO_ROS_DOMAIN_ID:-1} ros2 run swb_agent ros_adapter \
+    --config agent.yaml
 ```
 
 ```yaml
 entity: ego
-relay: tcp://sim-host:5560
+relay: tcp://localhost:5560
 goal:        {publish: /planning/goal, type: geometry_msgs/msg/PoseStamped, from: goal}
 speed_limit: {publish: /planning/max_velocity, type: std_msgs/msg/Float32, from: mps,
               "null": 1000.0}
@@ -191,29 +241,36 @@ Any class can get a ROS node the same way: mix in `swb_agent.ros.RosNode` and ca
 
 ## Autoware: `AutowareAgent`
 
-The Autoware vehicle side (`just ego-av`) runs `swb_agent.adapters.autoware.AutowareAgent`:
+The stack's default ego runs `swb_agent.adapters.autoware.AutowareAgent` (through
+`vehicle_agent.launch.xml`):
 Autoware's ADAPI as an agent. At a reset it stops, drops the route, waits for Autoware's
 services, then re-localizes at the scenario's pose (two fresh LiDAR scans, initialize
 localization, wait until the estimate agrees within 1 m / 0.2 rad); on a goal it sets the
-route and engages once Autoware offers autonomous mode. Without acb:
+route and engages once Autoware offers autonomous mode. On its own, beside an Autoware you
+started yourself in the ego domain:
 
 ```bash
-ros2 run swb_agent autoware_agent --relay tcp://sim-host:5560 --entity ego --config agent.yaml
+ROS_DOMAIN_ID=${EGO_ROS_DOMAIN_ID:-1} ros2 run swb_agent autoware_agent \
+    --relay tcp://localhost:${AGENT_PORT:-5560} \
+    --entity ego \
+    --config agent.yaml
 ```
 
 `agent.yaml` takes `use_sim_time` (true for a simulator) and the bounds: `ready_timeout`
 (60 s), `scan_wait` (10), `scans_required` (2), `converge_timeout` (30),
 `initialize_attempts` (5), `engage_retry` (3), `settle` (2). An initialize
 found unavailable (Autoware's services restarting mid-reset, e.g. a healer restarting a hung
-ADAPI container) is not an attempt: the agent waits for the services, up to `ready_timeout`. Under `just ego-av` the same
-file is `agent_config:=agent.yaml`. Each step is a method to override in a subclass:
+ADAPI container) is not an attempt: the agent waits for the services, up to
+`ready_timeout`. `swb_launch vehicle_agent.launch.xml` takes the same file as
+`agent_config:=agent.yaml`. Each step is a method to override in a subclass:
 
 ```python
 from swb_agent.adapters.autoware import AutowareAgent
 
 class TrustTeleport(AutowareAgent):
-    def relocalize(self, pose):          # e.g. a simulator that places the vehicle exactly
-        ...                              # also: wait_ready(timeout), set_route(...), engage()
+    # e.g. a simulator that places the vehicle exactly
+    def relocalize(self, pose):
+        ...  # also: wait_ready(timeout), set_route(...), engage()
 ```
 
 ## Tutorial: a scenario driven by CARLA's BasicAgent
@@ -222,25 +279,39 @@ The SDK ships a complete agent that needs no autopilot at all: `swb_agent.adapte
 drives the scenario's vehicle with CARLA's own `BasicAgent` (PythonAPI `agents` package).
 It is the quickest way to see a scenario run end to end, and a worked example of an agent.
 
-You need the simulation side up (CARLA and `just run`) and CARLA's Python API: the `carla`
-package and the PythonAPI's `agents` directory with its requirements (`networkx`, `shapely`).
-Do **not** start `just ego-av`: this agent is the ego's driver.
+You need CARLA, the stack started with `ego_launch:=none` (this agent is the ego's driver;
+see [With the stack](#with-the-stack)), and CARLA's Python API: the `carla` package and the
+PythonAPI's `agents` directory with its requirements (`pip install carla==0.9.16 networkx
+shapely`).
 
 `carla_basic.yaml`:
 
 ```yaml
-carla_pythonapi: /path/to/CARLA_0.9.16/PythonAPI/carla   # where `agents/` is
-target_speed_kmh: 30                                    # when the scenario sets no limit
+# where `agents/` is
+carla_pythonapi: /path/to/CARLA_0.9.16/PythonAPI/carla
+# when the scenario sets no limit
+target_speed_kmh: 30
 ```
 
-```bash
-# 1. the agent, as entity `ego` (any host that reaches CARLA and the relay)
-python3 -m swb_agent.adapters.carla_basic --relay tcp://localhost:5560 --entity ego \
-    --config carla_basic.yaml
+The agent, as entity `ego` (any host that reaches CARLA and the relay):
 
-# 2. the scenarios (another terminal)
-ros2 run swb_launch run_suite src/swb_examples/scenarios/basic/town01_ego_drive.xosc \
-    src/swb_examples/scenarios/basic/town01_traffic_light.xosc --output /tmp/results
+```bash
+ros2 run swb_agent carla_basic \
+    --relay tcp://localhost:${AGENT_PORT:-5560} \
+    --entity ego \
+    --config carla_basic.yaml
+```
+
+The scenarios, in another terminal:
+
+```bash
+S=$(ros2 pkg prefix --share swb_examples)/scenarios
+ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
+    $S/basic/town01_ego_drive.xosc \
+    $S/basic/town01_traffic_light.xosc \
+    --output /tmp/results \
+    --relay tcp://localhost:${AGENT_PORT:-5560} \
+    -- port:=${SSV2_PORT:-5555}
 ```
 
 The agent logs each command: `reset` (it finds the vehicle the bridge spawned, by its CARLA
@@ -256,13 +327,19 @@ How it behaves, so you can write your own the same way (`swb_agent/adapters/carl
   server waits for its subscribers, so a slow callback would slow the whole simulation.
 - **It does not outlive the server.** When CARLA stops answering, it exits with status 3; a
   CARLA client left connected to a dead server can hang the next one on the same port. Run
-  it under `swb-agent supervise` or anything that starts it again.
+  it under `ros2 run swb_agent swb-agent supervise` or anything that starts it again.
 - **Reset** finds the vehicle again (a new actor every scenario), drops the route and
   brakes; **goal** plans and drives; **speed limit** sets BasicAgent's target speed;
   **stop** brakes and holds; `ARRIVED` when BasicAgent's route is done.
-- **Checked without CARLA**: `swb-agent check swb_agent.adapters.carla_basic:CarlaBasicAgent
-  --config fake.yaml`, where `fake.yaml` is `world: fake`, runs the same class over a
-  kinematic stand-in.
+- **Checked without CARLA**: with a `fake.yaml` that holds `world: fake`,
+
+  ```bash
+  ros2 run swb_agent swb-agent check \
+      swb_agent.adapters.carla_basic:CarlaBasicAgent \
+      --config fake.yaml
+  ```
+
+  runs the same class over a kinematic stand-in.
 
 Config keys: `carla_host` (localhost), `carla_port` (2000), `role_name` (hero),
 `carla_pythonapi` (default `$CARLA_DIR/PythonAPI/carla`), `target_speed_kmh` (30),
@@ -271,13 +348,13 @@ Config keys: `carla_host` (localhost), `carla_port` (2000), `role_name` (hero),
 
 ## Checking an agent
 
-`swb-agent check` runs your class against a fake relay -- no CARLA, no SSv2, no autopilot
-beyond what your class starts -- through a scripted episode: register, reset, goal, speed
+`ros2 run swb_agent swb-agent check` runs your class against a fake relay (no CARLA, no
+SSv2, no autopilot beyond what your class starts) through a scripted episode: register, reset, goal, speed
 limit, stop, episode end, a second reset, a dropped connection. It prints each rule with
 what it saw and exits non-zero on a failure:
 
 ```
-$ swb-agent check my_pilot.agent:MyPilotAgent
+$ ros2 run swb_agent swb-agent check my_pilot.agent:MyPilotAgent
   PASS  registers within 5 s
   ...
   FAIL  reset: IDLE before the reply -- phase INITIALIZING
@@ -286,7 +363,8 @@ FAIL: 14/16 rules
 ```
 
 `--config agent.yaml` passes a config, `--reset-timeout S` (30) bounds the reset, `-v`
-shows the SDK's log. A file works as well as a module: `swb-agent check agent.py:MyAgent`.
+shows the SDK's log. A file works as well as a module:
+`ros2 run swb_agent swb-agent check agent.py:MyAgent`.
 Passing the check means the agent follows the protocol; whether it drives well is the
 scenarios' to say.
 
@@ -314,8 +392,8 @@ A restart needs someone to do it: a **supervisor**, or an agent that restarts it
 (`on_restart`, capability `restart`). Given explicitly, a policy other than `never` with
 neither is refused when the suite starts; left at the default, the suite runs without
 restarts and says so. After a restart `run_suite` waits (`--restart-timeout`, 300 s) for
-the agent to register again before the next scenario. Each scenario's result -- its
-summary line and `<results>/suite.json` -- records its reset (episode, status, seconds)
+the agent to register again before the next scenario. Each scenario's result (its
+summary line and `<results>/suite.json`) records its reset (episode, status, seconds)
 and whether it ran on a restarted agent; `run_suite` also sends the agent each verdict
 (`on_episode_end`).
 
@@ -323,23 +401,26 @@ and whether it ran on a restarted agent; `run_suite` also sends the agent each v
 [run_suite] restarting 'ego': reset ego-1-1792545605 FAILED (timed out)
 [run_suite] restart OK in 2 s: group 1121799 started; the agent registers when ready
 [run_suite] FAIL a_town01_ego_drive: 0/1 passed in 133 s [reset FAILED 60.0 s] -- ...
-[run_suite] PASS b_town01_ego_drive: 1/1 passed in 20 s [reset OK 0.5 s] [restarted agent]
+[run_suite] PASS b_town01_ego_drive: 1/1 passed in 20 s [reset OK 0.5 s]
+    [restarted agent]
 ```
 
 ### `swb-agent supervise`
 
 ```bash
-swb-agent supervise --entity ego \
-    --autopilot "ros2 launch my_stack bringup.launch.py" \
-    --agent "python3 -m my_pilot --relay tcp://sim-host:5560 --entity ego" \
-    [--relay tcp://sim-host:5560] [--grace 10]
+ros2 run swb_agent swb-agent supervise \
+    --entity ego \
+    --autopilot "play_launch launch my_stack bringup.launch.py" \
+    --agent "python3 -m my_pilot --relay tcp://localhost:5560 --entity ego" \
+    --relay tcp://localhost:5560 \
+    --grace 10
 ```
 
 The supervisor starts the autopilot and the agent (`--autopilot` is optional: an agent that
 is its own autopilot, such as the CARLA reference agent, needs only `--agent`) in one
 process group of its own, and registers with the relay as the entity's supervisor. On a
-restart it stops the whole group -- SIGTERM, then SIGKILL after `--grace` seconds, by
-process group, never by name -- and starts it again; it answers the relay once the new
+restart it stops the whole group (SIGTERM, then SIGKILL after `--grace` seconds, by
+process group, never by name) and starts it again; it answers the relay once the new
 group runs, and the restart is ready when the agent registers. It also starts the group
 again when the agent exits on its own (at most every `--respawn-delay`, 10 s), and stops
 it when the supervisor itself is stopped. Run it where the autopilot runs.
@@ -347,8 +428,8 @@ it when the supervisor itself is stopped. Run it where the autopilot runs.
 ## Compatibility
 
 The protocol is versioned. Agents written with this SDK speak v2 and fall back to v1 on an
-older relay; the relay serves v1 agents unchanged, giving them the v1 sequence -- `stop`,
-`clear_goal`, `teleported(pose)` -- instead of `reset`. An
+older relay; the relay serves v1 agents unchanged, giving them the v1 sequence (`stop`,
+`clear_goal`, `teleported(pose)`) instead of `reset`. An
 agent without `on_reset` is treated the same way by the SDK. The protocol itself, for
 writing an agent in another language: [design/user-workflow.md, "The agent protocol
 (I3)"](design/user-workflow.md#the-agent-protocol-i3).

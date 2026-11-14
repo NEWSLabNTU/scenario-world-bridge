@@ -1,19 +1,46 @@
 # swb_examples: starter scenarios
 
-Scenarios that run on the scenario-world-bridge pipeline as installed, no clone needed:
+Scenarios that run on the scenario-world-bridge pipeline as installed, no clone needed.
+Every file names its map as `$(env CARLA_MAPS)/<Town>`, so `CARLA_MAPS` must point at the
+directory of converted towns (the TUM carla-autoware-bridge pack; see the getting-started
+guides, stage 2).
+
+Start the stack first (CARLA running; every scenario with an ego drives in Town01), and
+wait until its Autoware is ready:
 
 ```bash
-SCENARIOS=$(ros2 pkg prefix swb_examples)/share/swb_examples/scenarios
-export CARLA_MAPS=/path/to/maps          # holds Town01/, Town02/ (lanelet2_map.osm, pointcloud_map.pcd, ...)
-ros2 run swb_launch run_suite $SCENARIOS/basic --output ~/swb_results/basic
+play_launch launch --web-addr 127.0.0.1:8084 \
+    swb_launch carla.launch.xml \
+    map_path:=$CARLA_MAPS/Town01
+ROS_DOMAIN_ID=${EGO_ROS_DOMAIN_ID:-1} ros2 run swb_launch ego_ready --timeout 600
 ```
 
-Every file names its map as `$(env CARLA_MAPS)/<Town>`, so `CARLA_MAPS` must point at the
-directory of converted towns (the TUM carla-autoware-bridge pack; see the user guide). Run a
-single one with `play_launch launch --web-addr 127.0.0.1:8081 swb_launch scenario.launch.xml scenario:=$SCENARIOS/basic/town01_ego_drive.xosc
-output_directory:=<dir>`. All of them assume the simulation side (CARLA,
-`simulation.launch.xml`) and the ego's vehicle side are up, as for any scenario; every one
-with an ego drives in Town01, so start the vehicle side with `map_path:=$CARLA_MAPS/Town01`.
+Then, in another terminal, one scenario:
+
+```bash
+S=$(ros2 pkg prefix --share swb_examples)/scenarios
+ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} play_launch launch \
+    --web-addr 127.0.0.1:8081 \
+    swb_launch scenario.launch.xml \
+    scenario:=$S/basic/town01_ego_drive.xosc \
+    port:=${SSV2_PORT:-5555} \
+    output_directory:=/tmp/ego_drive
+```
+
+or a whole directory, one verdict each, merged into `suite.junit.xml`:
+
+```bash
+ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
+    $S/basic \
+    --output ~/swb_results/basic \
+    --relay tcp://localhost:${AGENT_PORT:-5560} \
+    -- port:=${SSV2_PORT:-5555}
+```
+
+`ros2 launch` takes the same arguments as `play_launch launch`, but play_launch must still
+be installed: the stack starts its parts as play_launch processes of their own. Both
+commands assume the environment file of
+[Build your own stack](../../docs/build-your-own-stack.md#1-the-environment-file).
 
 Times are wall-clock on the development host (32 cores, one RTX GPU, CARLA 0.9.16 at Epic
 quality), ego stack already running, measured by `run_suite` on 2026-10-10. They include
@@ -37,73 +64,88 @@ SSv2 start-up and the ego's engage, which is most of a short scenario.
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
-| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a vehicle side registered as `bg_av_1` with the agent relay (in this repo: `just bg-av`, or `just two-av` for the whole thing). |
+| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a background AV launch registered as `bg_av_1` with the agent relay ([Build your own stack, more cars](../../docs/build-your-own-stack.md#8-more-cars)). |
 
 ## tutorial/ -- the worked example of the tutorials
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
-| `town01_follow_to_goal.xosc` | Town01 | The ego drives 80 m to a goal behind a slower SSv2-driven car (`leadSpeed`, 4 m/s) and must not touch it. Every pose comes from `ros2 run swb_launch carla_poses`; written step by step in [Tutorial 2](../../docs/tutorials/02-prepare-a-scenario.md). |
+| `town01_follow_to_goal.xosc` | Town01 | The ego drives 80 m to a goal behind a slower SSv2-driven car (`leadSpeed`, 4 m/s) and must not touch it. Every pose comes from `ros2 run swb_launch carla_poses`; written step by step in [Prepare a scenario](../../docs/tutorials/01-prepare-a-scenario.md). |
 
-## isaac/ -- Isaac Sim (roadmaps 037, 038)
+## isaac/ -- Isaac Sim
 
-**Autoware on Isaac (038).** The starter `basic/town01_ego_drive.xosc` runs on Isaac
-unchanged: the world server's ego is a PhysX vehicle with acb's sensors and vehicle
-interface on domain 1, and `just ego-isaac` is `just ego-av` without acb_bridge. The world is
-Town01's point-cloud map as voxels, generated once per host:
-
-```bash
-just isaac-msgs && just isaac-world-gen # once: Autoware's messages for Isaac, the Town01 world
-just scenario basic/town01_ego_drive.xosc sim:=isaac   # starts what is missing, then runs
-```
-
-`sim:=isaac` brings up the stack (`just run sim:=isaac`, one play_launch, web 8084: the
-world server, swb on it and the ego's Autoware, nested), waits for each part, and leaves it
-up for the next run; a cold host takes about 8 minutes before the scenario starts. `just acceptance <xosc> 3
-sim:=isaac` scores runs with acb's checks and limits from one bag of the ego's domain
-(`scripts/acceptance_bag.py`); `just e2e <xosc> sim:=isaac` also stops the stacks it
-started. To start it by hand (`just run sim:=isaac world:=data/carla-autoware-bridge/Town01`)
-or its parts apart (DISPLAY=:8 and `follow:=true` to watch on VNC):
+**Autoware on Isaac.** The starter `basic/town01_ego_drive.xosc` runs on Isaac unchanged:
+the world server's ego is a PhysX vehicle with its own sensors and vehicle interface in the
+ego domain, and Autoware drives it as on CARLA, without acb_bridge. Make Town01's world file
+once ([Getting started on Isaac Sim](../../docs/getting-started/isaac.md), stage 2), then
+start the stack and run the scenario against it as above:
 
 ```bash
-just isaac-world world:=data/carla-autoware-bridge/Town01 &  # world server; `just isaac-health` says when it answers
-ROS_DOMAIN_ID=9 play_launch launch swb_launch isaac_simulation.launch.xml &   # swb on it: bridge + relay
-just ego-isaac &                          # Autoware, domain 1
-ros2 run swb_launch run_suite basic/town01_ego_drive.xosc --output <dir>
+play_launch launch --web-addr 127.0.0.1:8084 \
+    swb_launch isaac.launch.xml \
+    world:=$CARLA_MAPS/Town01/isaac/world.yaml \
+    map_path:=$CARLA_MAPS/Town01
 ```
+
+The stack is one play_launch: the world server, the bridge and relay on it, and the ego's
+Autoware, nested. A cold host takes several minutes before Autoware is ready (`ego_ready`).
+`render:=headless` runs Isaac without a window; `follow:=true` makes its viewport chase the
+ego.
 
 Scenarios needing traffic lights, `simulator_autopilot` or `agent` vehicles are refused on
-Isaac (037), as is a second ego.
+Isaac, as is a second ego.
 
-**Without Autoware (037).** The scenarios below have an ego no Autoware drives, a kinematic
-box SSv2 poses or leaves standing, so they need the world server without the ego vehicle
-(`ego:=none`, which keeps 037's box: a kinematic NPC shoving a dynamic ego breaks SSv2's motion
-limits) and run with `managed_ego:=false` and no agent pre-flight:
+**Without Autoware.** The scenarios below have an ego no Autoware drives, a kinematic box
+SSv2 poses or leaves standing, so they need the world server without the ego vehicle
+(`ego:=none`: a kinematic NPC shoving a dynamic ego breaks SSv2's motion limits) and run
+with `managed_ego:=false` and no agent pre-flight:
 
 ```bash
-just run sim:=isaac ego:=none ego_launch:=none &   # the world server (kinematic ego) and swb on it
-ros2 run swb_launch run_suite isaac/ --output <dir> --no-preflight -- managed_ego:=false
+play_launch launch --web-addr 127.0.0.1:8084 \
+    swb_launch isaac.launch.xml \
+    world:=$CARLA_MAPS/Town01/isaac/world.yaml \
+    ego:=none \
+    ego_launch:=none
+```
+
+```bash
+S=$(ros2 pkg prefix --share swb_examples)/scenarios
+ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
+    $S/isaac \
+    --output ~/swb_results/isaac \
+    --no-preflight \
+    -- port:=${SSV2_PORT:-5555} managed_ego:=false
 ```
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
 | `town01_rear_contact.xosc` | Town01 | `basic/town01_rear_contact.xosc` with a standing ego: a blind NPC runs into its back; SSv2 sees the collision and Isaac reports the contact (every frame until the exit, the bodies being kinematic). |
 
-Scenarios with no ego and no lights run on Isaac unchanged, e.g. the repo's
+Scenarios with no ego and no lights run on Isaac unchanged, e.g. the repository's
 `scenarios/bench/town01_npc_20.xosc` (and with the pre-flight, which has nothing to check).
 
-## demo/incidents/ -- the demo tour's incident templates (roadmap 033)
+## demo/incidents/ -- the demo tour's incident templates
 
 Generated by `scripts/gen_demo_incidents.py` from `scripts/demo_town01_sites.yaml` (edit
-those, not the files). Each puts the ego on the 033 tour's route C far enough before its
-trigger to arrive the way the tour does, and routes it through to a nearby goal; the incident
-starts when the ego arrives, its actors are added then and deleted when it is over, and a
-watchdog clears them if the ego stands still too long (logged as degraded). Timed for the
-tour's 40 km/h on CenterPoint with the [042](../../docs/roadmap/042-autoware-overlay.md)
-overlay: `just ego-av max_velocity:=11.11 lidar_detection_model:=centerpoint
-use_multi_channel_tracker_merger:=false` (acb issue 028; at the default
-15 km/h they still run, but the actors' timing no longer meets the ego). Judge a run with
-`ros2 run swb_launch incident_judge` (gap trace plus a log of `/simulation/context`).
+those, not the files). Each puts the ego on the demo tour's route far enough before its
+trigger to arrive the way the tour does, and routes it through to a nearby goal; the
+incident starts when the ego arrives, its actors are added then and deleted when it is
+over, and a watchdog clears them if the ego stands still too long (logged as degraded).
+They are timed for the tour's 40 km/h on CenterPoint with the Autoware overlay
+([User Guide](../../docs/user-guide.md#your-own-autoware)); start the stack with:
+
+```bash
+EGO="max_velocity:=11.11 lidar_detection_model:=centerpoint"
+EGO="$EGO use_multi_channel_tracker_merger:=false"
+play_launch launch --web-addr 127.0.0.1:8084 \
+    swb_launch carla.launch.xml \
+    map_path:=$CARLA_MAPS/Town01 \
+    ego_launch_args:="$EGO"
+```
+
+At the default 15 km/h they still run, but the actors' timing no longer meets the ego.
+Judge a run with `ros2 run swb_launch incident_judge` (gap trace plus a log of
+`/simulation/context`).
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
@@ -112,9 +154,9 @@ use_multi_channel_tracker_merger:=false` (acb issue 028; at the default
 | `town01_i3_red_light.xosc` | Town01 | Signal 43757 turns red 75 m before the ego reaches it; the ego stops at the line and goes on green (green 8 s after it stands). |
 | `town01_i4_blocked_lane.xosc` | Town01 | A broken-down car stands in the ego's lane with oncoming traffic; the ego waits behind it until it is cleared 12 s later (the staged watchdog), then proceeds. |
 | `town01_i5_cross_turn.xosc` | Town01 | Two cars cross the junction the ego turns left into; the ego yields, then turns. |
-| `town01_i6_cyclist_inside.xosc` | Town01 | A cyclist comes up on the inside as the ego brakes for a right turn; the ego waits for it (`blind_spot`, which needs CenterPoint's BICYCLE label and the 042 fix). The repo's `scenarios/demo/` keeps the step 4b version as 042's reproducer. |
-| `town01_i7_cut_in.xosc` | Town01 | Roadmap 025's cut-in template, not on the tour: a car parked on the shoulder pulls out into the ego's lane 20 m ahead of it; the ego slows and follows. Not yet run against the live stack. |
-| `town01_i8_rear_approach.xosc` | Town01 | Roadmap 025's rear-approach template, not on the tour: incident 3's red light, with a car closing from behind at 12 m/s as the ego brakes; SSv2 stops it behind the ego. Not yet run against the live stack. |
+| `town01_i6_cyclist_inside.xosc` | Town01 | A cyclist comes up on the inside as the ego brakes for a right turn; the ego waits for it (`blind_spot`, which needs CenterPoint's BICYCLE label and the overlay's fix). |
+| `town01_i7_cut_in.xosc` | Town01 | A cut-in template, not on the tour: a car parked on the shoulder pulls out into the ego's lane 20 m ahead of it; the ego slows and follows. Not yet run against the live stack. |
+| `town01_i8_rear_approach.xosc` | Town01 | A rear-approach template, not on the tour: incident 3's red light, with a car closing from behind at 12 m/s as the ego brakes; SSv2 stops it behind the ego. Not yet run against the live stack. |
 
 ## awf/ -- AWF ODD use cases
 
@@ -152,8 +194,8 @@ Per file:
 - Both: the ego's vehicle placeholders, which the AWF evaluator fills with its own vehicle's,
   set to this project's ego (`tesla_model3`, CARLA's `vehicle.tesla.model3`):
   `__ego_dimensions_length__/width__/height__` 4 / 2 / 1.5 -> 4.792 / 2.163 / 1.488,
-  `__ego_center_x__` 0 -> 1.415 (box centre ahead of the rear axle, the ego's origin; 1.532
-  until roadmap 050 measured the rear axle at -1.386 from CARLA's actor origin),
+  `__ego_center_x__` 0 -> 1.415 (box centre ahead of the rear axle, the ego's origin; the
+  rear axle is at -1.386 m from CARLA's actor origin),
   `__ego_center_z__` 0 -> 0.744. The bridge places the CARLA car by the declared box centre
   (`origin_offset_of` in `coordinator.rs`), so the upstream box, centred on the rear axle,
   spawned the car 1.39 m behind the pose SSv2 initialized Autoware's localization at; the

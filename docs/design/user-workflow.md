@@ -4,6 +4,11 @@ How a user sets up and runs a scenario, how the scenario reaches the vehicles in
 which interfaces let the simulator and the autopilot be swapped.
 Status: **design, decisions taken 2026-10-08** (UX campaign). Roadmap: 017.
 
+> This is a design record, not a user guide. Some parts describe the system as it stood
+> when it was written. To run scenarios, read
+> [Build your own stack](../build-your-own-stack.md) and the
+> [User Guide](../user-guide.md).
+
 ## Goals
 
 1. **Users run ROS tools.** `ros2 run`, and `play_launch launch` in place of `ros2 launch`.
@@ -265,7 +270,9 @@ reset that fails or times out is the default trigger. *Implemented* (030 step 8)
   `swb_agent.adapters.autoware.AutowareAgent` (ROS-free logic behind an `AutopilotPort`,
   tested against a fake Autoware; the ADAPI port in `autoware_ros.py`), and acb's node only
   runs it with acb's parameters. Without `relay` it drives once to `goal_poses_file` (local
-  mode).
+  mode). *Since then* `acb_pilot` is gone: the vehicle agent is swb_agent's `vehicle_agent`
+  (`ros2 run swb_agent vehicle_agent`), which `swb_launch vehicle_agent.launch.xml` starts
+  beside the autopilot (`relay:=`, `entity:=`, `vehicle_model:=`).
 - **acb_bridge** is the CARLA vehicle bridge (I5): sensors, vehicle interface, `/clock`,
   traffic signals for one CARLA vehicle, found by `role_name`.
 - Packages for Autoware users: `acb_launch` (`carla_simulator.launch.xml`: the Autoware
@@ -277,8 +284,10 @@ reset that fails or times out is the default trigger. *Implemented* (030 step 8)
 
 ## Simulation side
 
-- **swb** (CARLA's SSv2 adapter, I1) becomes a ROS node: params `carla_host`, `carla_port`,
-  `ssv2_port`, `config_file`, `weather`; `bridge.launch.xml` with `respawn="true"`.
+- **swb** (CARLA's SSv2 adapter, I1) becomes a ROS node: params `ssv2_port`, `config_file`,
+  `weather`; `bridge.launch.xml` with `respawn="true"`. (Written with `carla_host` and
+  `carla_port`; since roadmap 046 the bridge knows no simulator: it takes `world_endpoint`,
+  and CARLA's host and port are the CARLA world server's, `swb_carla_world`.)
   `config_file` (default: the installed `bridge_config.yaml`) replaced `CSB_CONFIG_DIR`,
   which is now refused; the node declares the file it loaded as a read-only parameter. It serves
   the world-configuration services `/scenario_world_bridge/set_weather` and `/scenario_world_bridge/get_weather`
@@ -328,8 +337,8 @@ protocol (`simulation_api_schema.proto`) and keeps the scenario standard:
 swb (`autopilot.rs`, `coordinator.rs`):
 
 - Spawn: physics on, parked, `swb_entity:<name>` role like every entity (reaped the same
-  way); one Traffic Manager per swb process (port and seed in `bridge.yaml`
-  `traffic_manager`), created at the first such spawn, synchronous whenever the world is.
+  way); one Traffic Manager per swb process (port and seed: now `traffic_manager` in the
+  CARLA world server's `swb_carla_world.yaml`), created at the first such spawn, synchronous whenever the world is.
   **LibCarla ticks a synchronous Traffic Manager inside `world.tick()`** (verified on
   0.9.16: a registered vehicle drives with world ticks alone, no `synchronous_tick`), so swb
   remains the only ticker.
@@ -406,8 +415,8 @@ at every `Initialize` and invisible to SSv2. They are now scenario entities:
   - Status: `UpdateEntityStatus` returns CARLA's pose, entity-frame twist and acceleration
     for it -- the ego's and `simulator_autopilot`'s readback -- and never teleports it.
 - **Vehicle side**: `swb_launch background_av.launch.xml entity:=<name> relay:=...` is the
-  acb CARLA profile with the agent registered as `<name>` and `vehicle_name` = `<name>`;
-  `just bg-av` runs it in domain 2.
+  acb CARLA profile with the agent registered as `<name>` and `vehicle_name` = `<name>`,
+  run in a domain of its own (2 for the first).
 - **Speed**: an absolute `SpeedAction` is the agent's speed *limit*, not a target: the
   autopilot drives its own profile under it.
 
@@ -462,7 +471,7 @@ Remaining couplings, accepted:
 <map dir>/      lanelet2_map.osm  pointcloud_map.pcd  pointcloud_map_metadata.yaml
                 map_config.yaml   map_projector_info.yaml
                 carla/traffic_lights.yaml        # simulator-specific, generated with the map
-<scenario dir>/ bridge.yaml        # optional: CARLA host/port, blueprint mapping
+<scenario dir>/ bridge.yaml        # optional: the bridge's settings, blueprint mapping
                 <name>.xosc        # LogicFile filepath = <map dir>; entities and controllers
 ```
 
@@ -471,25 +480,28 @@ Background vehicles are entities in the `.xosc`, not entries in `bridge.yaml`
 
 ## A session
 
+As designed, a session was CARLA, a long-lived simulation side in the scenario domain, one
+vehicle side per autonomous vehicle in a domain of its own, and scenarios run against them.
+Today all but CARLA and the scenarios are one launch (domains: ego 1, scenario 9):
+
 ```bash
-# CARLA (vendor binary; documented flags: -RenderOffScreen, Epic, NVIDIA Vulkan ICD)
-./CarlaUE4.sh -RenderOffScreen
+# CARLA (vendor binary)
+./CarlaUE4.sh -RenderOffScreen -nosound -carla-rpc-port=2000
 
-# Simulation side, long-lived (scenario domain)
-play_launch launch scenario_world_bridge bridge.launch.xml config_file:=<scenario dir>/bridge.yaml
-play_launch launch scenario_agent_relay relay.launch.xml
+# The stack: CARLA's world server, the bridge, the relay, Autoware and its vehicle agent
+play_launch launch swb_launch carla.launch.xml \
+    map_path:=<map dir> \
+    side_args:="config_file:=<scenario dir>/bridge.yaml"
 
-# Vehicle side, any domain, any order
-ROS_DOMAIN_ID=7 play_launch launch acb_launch carla_simulator.launch.xml \
-    autoware_launch:=<their autoware.launch.xml> map_path:=<map dir> \
-    vehicle_name:=hero entity:=ego relay:=tcp://<sim host>:5560
 # ... and one per background AV (an entity with controller `agent`)
-ROS_DOMAIN_ID=8 play_launch launch acb_launch carla_simulator.launch.xml \
-    autoware_launch:=<their autoware.launch.xml> map_path:=<map dir> \
-    vehicle_name:=bg_av_1 entity:=bg_av_1 relay:=tcp://<sim host>:5560
+ROS_DOMAIN_ID=2 play_launch launch swb_launch background_av.launch.xml \
+    entity:=bg_av_1 \
+    map_path:=<map dir> \
+    relay:=tcp://localhost:5560
 
-# A scenario; exits on its own; repeat
-play_launch launch swb_launch scenario.launch.xml scenario:=<scenario dir>/<name>.xosc
+# A scenario, in the scenario domain; exits on its own; repeat
+ROS_DOMAIN_ID=9 play_launch launch swb_launch scenario.launch.xml \
+    scenario:=<scenario dir>/<name>.xosc
 ```
 
 ## Migration (roadmap 017)

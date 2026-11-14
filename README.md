@@ -68,7 +68,7 @@ traffic light. For someone who already writes SSv2 scenarios:
   ([acb](https://github.com/NEWSLabNTU/autoware_carla_bridge) for CARLA,
   [aib](https://github.com/NEWSLabNTU/autoware_isaac_bridge) for Isaac Sim). The vehicle bridge
   publishes the sensors, the vehicle status and the clock, and drives the car from Autoware's
-  commands. It runs in its own ROS domain, and can run on another host.
+  commands. It runs in a ROS domain of its own; on CARLA it may run on another host.
 
 The car is described once, in a vehicle spec. The simulators' physics and sensors, SSv2's
 catalog and Autoware's vehicle packages are generated from it, and a run whose parts came
@@ -80,105 +80,158 @@ from different specs is refused ([vehicle side](docs/design/vehicle-side.md)).
 |---|---|
 | OS, ROS | Ubuntu 22.04, [ROS 2 Humble](https://docs.ros.org/en/humble/Installation.html) |
 | Autoware | [1.5.0](https://autowarefoundation.github.io/autoware-documentation/main/installation/): the binary packages in `/opt/autoware/1.5.0`, or your own build of that release |
-| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (packaged release) with its Python API (`pip install carla==0.9.16`), or Isaac Sim 6.1 (pip install) |
-| Tools | [just](https://github.com/casey/just), [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer (`pip install 'play_launch>=0.30.0'`) |
+| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (packaged release), or Isaac Sim 6.1 (pip install) |
+| Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer |
+| Build tools | Rust ([rustup](https://rustup.rs/)) and colcon's Rust plugin, `colcon-cargo-ros2` |
 | Hardware | an NVIDIA GPU that runs the simulator beside Autoware. With Isaac Sim, plan for its world server alone holding about 17.5 GB of RAM on Town01 |
-| Maps | an Autoware map (Lanelet2 + point cloud) per CARLA town: `just download-maps` fetches them |
+| Maps | an Autoware map (Lanelet2 + point cloud) per CARLA town: one script fetches and repairs them |
 
 SSv2 is bundled (a fork, as a submodule). Isaac Sim also needs the CARLA towns and vehicles
 as USD (the asset set). Ask NEWSLab for it.
 
 ## Quick start on CARLA
 
+Commands use `play_launch launch`. `ros2 launch` takes the same arguments, but play_launch
+must still be installed: the stack starts the autopilot, the vehicle agent and the scenario
+as play_launch processes of their own.
+
+**Install and build** (Rust and the tools first, then the workspace):
+
 ```bash
-git clone --recurse-submodules https://github.com/NEWSLabNTU/scenario-world-bridge.git
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+sudo apt install libz3-dev ros-humble-rclcpp-components ros-humble-class-loader
+pip install colcon-cargo-ros2 'play_launch>=0.30.0'
+
+git clone --recurse-submodules \
+    https://github.com/NEWSLabNTU/scenario-world-bridge.git
 cd scenario-world-bridge
-pip install 'play_launch>=0.30.0' carla==0.9.16
-just setup             # Rust, colcon's Rust plugin, rosdep (asks for sudo), dev tools
-just build             # colcon build into install/
-just download-maps     # the converted CARLA towns, into data/carla-autoware-bridge
-source install/setup.bash && ros2 run autoware_sim_profile setup_autoware_data   # once
-
-# CARLA's install, if it is not ~/Downloads/CARLA_0.9.16 (or put the line in .env)
-export CARLA_DIR=/path/to/CARLA_0.9.16
-
-just scenario src/swb_examples/scenarios/basic/town01_ego_drive.xosc
-cat /tmp/scenario_test_runner/result.junit.xml        # the verdict
+source /opt/ros/humble/setup.bash
+source /opt/autoware/1.5.0/setup.bash
+rosdep install --from-paths src --ignore-src -y
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
+colcon build \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release \
+    --cargo-args --release
+source install/setup.bash
+ros2 run autoware_sim_profile setup_autoware_data
 ```
 
-`just scenario` starts what is not running yet: CARLA, then the stack (the world server, the
-bridge, the relay and Autoware). It waits for each, runs the scenario, and leaves them up for
-the next one. The first start takes several minutes: CARLA, then Autoware's ~90 processes.
-[Getting started on CARLA](docs/getting-started/carla.md) walks through every step, with what
-to expect at each.
+**The environment file.** Every terminal starts by sourcing it, say `~/swb.bash`:
 
-**On Isaac Sim** the same scenarios run with `sim:=isaac`, once Isaac Sim, its message
-bindings (`just isaac-msgs`) and the asset set are installed:
+```bash
+source /opt/autoware/1.5.0/setup.bash
+source ~/scenario-world-bridge/install/setup.bash
+export CARLA_MAPS=~/scenario-world-bridge/data/carla-autoware-bridge
+
+# one DDS for every process, exported after Autoware's setup
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+SWB_SHARE=$(ros2 pkg prefix --share swb_launch)
+export CYCLONEDDS_URI=file://$SWB_SHARE/config/cyclonedds-localhost.xml
+
+# the domains (these are the defaults; any two different values from 0 to 57)
+export EGO_ROS_DOMAIN_ID=1
+export SCENARIO_ROS_DOMAIN_ID=9
+```
+
+**The maps**, read from CARLA's OpenDRIVE files (here CARLA is in `~/CARLA_0.9.16`):
+
+```bash
+source ~/swb.bash
+cd ~/scenario-world-bridge
+SWB_XODR_DIR=~/CARLA_0.9.16/CarlaUE4/Content/Carla/Maps/OpenDrive \
+    scripts/download_maps.sh
+```
+
+**CARLA**, in a terminal of its own; it stays up between runs. It serves its port after one
+to three minutes (`ss -lnt | grep ':2000 '`):
+
+```bash
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json \
+    ~/CARLA_0.9.16/CarlaUE4.sh \
+    -RenderOffScreen \
+    -nosound \
+    -carla-rpc-port=2000
+```
+
+Once per town, with CARLA up, write the traffic-light table:
+
+```bash
+ros2 run swb_carla_world swb_carla_world \
+    --generate-signal-table $CARLA_MAPS/Town01 \
+    --ros-args -p carla_port:=2000 -p port:=5599
+```
+
+**One scenario, start to verdict.** The stack starts CARLA's world server, the bridge, the
+agent relay, Autoware on CARLA and the scenario, and ends when the scenario ends:
+
+```bash
+S=$(ros2 pkg prefix --share swb_examples)/scenarios
+ARGS="output_directory:=/tmp/quick_start initialize_duration:=600 global_timeout:=900"
+play_launch launch --web-addr 127.0.0.1:8084 \
+    swb_launch carla.launch.xml \
+    map_path:=$CARLA_MAPS/Town01 \
+    scenario:=$S/basic/town01_ego_drive.xosc \
+    scenario_args:="$ARGS" \
+    exit_on_scenario_end:=true
+cat /tmp/quick_start/scenario_test_runner/result.junit.xml
+```
+
+`failures="0" errors="0"` in the JUnit file means it passed. The first start builds
+Autoware's TensorRT engines, which takes minutes; the longer `initialize_duration` and
+`global_timeout` give it that time. The web UI at `http://127.0.0.1:8084` shows every
+process and its log.
+
+[Getting started on CARLA](docs/getting-started/carla.md) walks through the same steps with
+what to expect at each, and keeps the stack up between scenarios.
+
+**On Isaac Sim** the same scenarios run with `isaac.launch.xml`, once Isaac Sim, its message
+bindings and the asset set are installed:
 [Getting started on Isaac Sim](docs/getting-started/isaac.md).
 
-## Everyday commands
-
-```bash
-just scenario <file.xosc> [sim:=isaac] [output_directory:=<dir>]   # one scenario, its verdict
-just run [sim:=isaac] [map_path:=<map>]   # the stack alone, long-lived (play_launch web UI on :8084)
-just run spawn:=x,y,z,yaw map_path:=<map> ego_launch_args:=rviz:=true   # free drive: goal, AUTO in RViz
-just world-health [sim:=isaac]            # is the world server up and ready?
-just carla-start                          # CARLA alone (just scenario starts it itself)
-just two-av                               # two Autoware vehicles in one scenario (CARLA up)
-just demo-tour                            # six incidents in one five-minute drive (CARLA up)
-ros2 run swb_launch run_suite <xosc...> --output <dir> --physical-verdict
-    # a suite, against the running stack: scenarios on its town
-```
-
-Ctrl-C on `just run`, or stopping its play_launch, ends the whole stack. It runs the installed
-binaries, so restart it after `just build`. Host settings, such as
-ports, ROS domains, displays and install paths, go in `.env`; the
-[User Guide](docs/user-guide.md) lists them. Each part can also run on its own (CARLA,
-Autoware, the bridge, as four `ros2 launch` terminals): see
-[Tutorial 1](docs/tutorials/01-first-run.md).
-
 **Without a scenario runner.** acb and aib also run Autoware on CARLA or Isaac Sim with no
-SSv2 at all: on CARLA you set the scene up with any CARLA client, on Isaac Sim aib's runner
-opens the world, and you drive.
-`just vehicle-check` in either one checks the car itself (topics, frames, then acceleration,
-braking and steering against the spec) with no Autoware.
+SSv2 at all, and check the car itself (topics, frames, then acceleration, braking and
+steering against the spec) with no Autoware: see their READMEs.
 
 ## Make it yours
 
 | You want to | Start at |
 |---|---|
-| write your own scenario | [Tutorial 2](docs/tutorials/02-prepare-a-scenario.md), [Writing scenarios](docs/design/scenario-authoring.md) |
-| add pedestrians, obstacles, other cars, more Autoware vehicles | [Tutorial 5](docs/tutorials/05-other-road-users.md) |
-| run your own Autoware (your launch, your build) | [Tutorial 6](docs/tutorials/06-configure.md), [User Guide: your own Autoware](docs/user-guide.md#your-own-autoware) |
-| test your own car: its spec, catalog entry and Autoware launch (`ego_launch:=`, `vehicle_catalogs:=`, `spec_hash_file:=`) | [Tutorial 7](docs/tutorials/07-the-stack.md), [Tutorial 6: another car](docs/tutorials/06-configure.md#another-car) |
-| drive with another autopilot than Autoware | [Writing an agent](docs/agent-interface.md) |
-| add another simulator | [Tutorial 7](docs/tutorials/07-the-stack.md), [User Guide: another simulator](docs/user-guide.md#another-simulator); a world server passes `swb_world_check conformance` |
+| write your own scenario | [Prepare a scenario](docs/tutorials/01-prepare-a-scenario.md), [Writing scenarios](docs/design/scenario-authoring.md) |
+| run many scenarios and judge them | [Run and judge](docs/tutorials/02-run-and-judge.md) |
+| add pedestrians, obstacles, other cars, more Autoware vehicles | [Other road users and more AVs](docs/tutorials/03-other-road-users.md), [Build your own stack: more cars](docs/build-your-own-stack.md#8-more-cars) |
+| test your own car: its spec, catalog entry and Autoware packages | [Build your own stack: the vehicle](docs/build-your-own-stack.md#6-the-vehicle) |
+| run your own Autoware, or another autopilot | [Build your own stack: your autopilot](docs/build-your-own-stack.md#7-your-autopilot), [Writing an agent](docs/agent-interface.md) |
+| change the weather, the bridge's or the world server's settings | [Configure the system](docs/tutorials/04-configure.md) |
+| add another simulator | [Build your own stack: the simulator](docs/build-your-own-stack.md#3-the-simulator), [User Guide: another simulator](docs/user-guide.md#another-simulator) |
+| run the parts in other ROS domains, or two stacks on one host | [ROS domains and DDS](docs/domains-and-dds.md) |
 
 ## Learn more
 
-- **Getting started**, from install to your own scenario: [CARLA](docs/getting-started/carla.md),
-  [Isaac Sim](docs/getting-started/isaac.md).
+- **Getting started**, from install to your own scenario:
+  [CARLA](docs/getting-started/carla.md), [Isaac Sim](docs/getting-started/isaac.md).
+- **[Build your own stack](docs/build-your-own-stack.md)**: your scenario, simulator, car,
+  autopilot and more cars, in one launch.
+- **[ROS domains and DDS](docs/domains-and-dds.md)**: which process runs in which domain,
+  and how to look into each.
 - **Tutorials:**
-  1. [first run](docs/tutorials/01-first-run.md);
-  2. [prepare a scenario](docs/tutorials/02-prepare-a-scenario.md);
-  3. [run and judge](docs/tutorials/03-run-and-judge.md): suites, verdicts, result files;
-  4. [demo run](docs/tutorials/04-demo-run.md): two Autoware vehicles, screencasts;
-  5. [other road users](docs/tutorials/05-other-road-users.md);
-  6. [configure](docs/tutorials/06-configure.md);
-  7. [the whole stack in one launch](docs/tutorials/07-the-stack.md).
+  1. [prepare a scenario](docs/tutorials/01-prepare-a-scenario.md);
+  2. [run and judge](docs/tutorials/02-run-and-judge.md): suites, verdicts, result files;
+  3. [other road users and more AVs](docs/tutorials/03-other-road-users.md);
+  4. [configure the system](docs/tutorials/04-configure.md);
+  5. [a demo run and recording](docs/tutorials/05-demo-and-recording.md).
 - **Reference:**
-  - the [User Guide](docs/user-guide.md): install, maps, running, weather, troubleshooting;
+  - the [User Guide](docs/user-guide.md): launches, their arguments, the environment,
+    troubleshooting;
+  - [Writing an agent](docs/agent-interface.md),
+    [Writing scenarios](docs/design/scenario-authoring.md);
   - [all documentation](docs/README.md).
-- **Developers:**
-  - the [Developer Guide](docs/development.md): building with `just`, tests, the
-    repositories this one pins as submodules, how a request flows;
-  - the [design documents](docs/design/);
-  - the [roadmap](docs/roadmap/README.md).
 
-**Other CARLA versions.** CARLA 0.9.16 is tested. 0.9.14 and 0.9.15 build
-(`CARLA_VERSION=0.9.15 just build`, with that release's CARLA, maps and `carla` wheel) but
-are untested; the bridges refuse a server of another
-version than they were built for. 0.10 is not supported yet.
+**Other CARLA versions.** CARLA 0.9.16 is tested. 0.9.14 and 0.9.15 build (set
+`CARLA_VERSION=0.9.15` in front of `colcon build`, with that release's CARLA, maps and
+`carla` wheel) but are untested; the bridges refuse a server of another version than they
+were built for. 0.10 is not supported yet.
+
+Developing scenario-world-bridge itself: the [Developer Guide](docs/development.md).
 
 ## Related projects
 

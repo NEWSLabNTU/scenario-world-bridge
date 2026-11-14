@@ -132,9 +132,16 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    both print the message); `demo.launch.xml` and the `carla_scenario.launch.xml` alias
    deleted; every argument of `carla.launch.xml`, `isaac.launch.xml` and
    `carla_simulation.launch.xml` described.
-5. [ ] "Domains and DDS" and "Build your own stack".
-6. [ ] README and the two getting-started guides onto the stack, no `just`.
-7. [ ] Tutorials renumbered and fixed; reference docs fixed; the index.
+5. [x] "Domains and DDS" and "Build your own stack" (8ae5110, 2026-11-14).
+6. [x] README and the two getting-started guides onto the stack, no `just` (2026-11-14):
+   the quick start is one `carla.launch.xml scenario:=... exit_on_scenario_end:=true`; the
+   four-terminal form is each guide's appendix; swb_examples' README too.
+7. [x] Tutorials renumbered and fixed; reference docs fixed; the index (2026-11-14): five
+   tutorials on the stack (first-run and the-stack retired into the guides), the user guide
+   as the launch and environment reference, the agent guide's `ros2 run swb_agent swb-agent`
+   and "With the stack", scenario-authoring's config homes, user-workflow marked a design
+   record. Checked: no `just` recipe, no code line over 88 columns, no dash characters, no
+   broken relative link in the user docs. Not yet run live (step 8).
 8. [ ] Acceptance: every command in the guides run once on a quiet host (CARLA, Isaac);
    one guide followed verbatim by a fresh reader with nothing else.
 9. [ ] Hugging Face: a dataset card per asset family; upload to the user's account (NTU and Shalun unlisted, by the user).

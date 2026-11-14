@@ -2,7 +2,11 @@
 
 Scenarios are standard OpenSCENARIO 1.x files run by scenario_simulator_v2 (SSv2). This page
 covers what is specific to running them in CARLA through scenario-world-bridge. Workflow:
-[../user-guide.md](../user-guide.md); architecture: [user-workflow.md](user-workflow.md).
+[Build your own stack](../build-your-own-stack.md) and the [tutorials](../tutorials/);
+reference: [../user-guide.md](../user-guide.md); architecture:
+[user-workflow.md](user-workflow.md). On Isaac Sim the same files run as far as the
+simulator can drive them: no `simulator_autopilot`, and one ego only
+([Tutorial 3, section 5](../tutorials/03-other-road-users.md#5-on-isaac-sim)).
 
 ## The map
 
@@ -14,13 +18,15 @@ Autoware gets as `map_path` -- by path:
 <LogicFile filepath="$(env CARLA_MAPS)/Town01"/>   <!-- the repo's examples -->
 ```
 
-The directory's name is the CARLA town (or an alias in `bridge_config.yaml`'s `map_alias`);
+The directory's name is the CARLA town (or an alias in the CARLA world server's
+`swb_carla_world.yaml`, key `map_alias`, given to the stack as `world_config:=`);
 the bridge loads that town if CARLA holds another. The scenario file itself is never
 modified.
 
 ## The ego
 
-The entity whose `ObjectController` has the property `isEgo=true`. Its Autoware runs on the
+The entity whose controller is named `Autoware`, or has the property `isEgo=true` (SSv2
+accepts either; the shipped scenarios name it `Autoware`). Its Autoware runs on the
 vehicle side, possibly in another ROS domain or on another host; the scenario reaches it
 through the agent relay, so everything SSv2 offers for an ego works as usual:
 
@@ -42,7 +48,7 @@ measured box and axles, from `src/swb_carla_world/swb_carla_world/config/bluepri
 (`scripts/measure_blueprint_boxes.py`): for the Model 3, `Center` (1.415, 0, 0.744),
 `Dimensions` 4.792 x 2.163 x 1.488, axles 3.004 m apart, track 1.667, wheel diameter 0.74.
 `scripts/scenario_vehicle.py <blueprint>` prints them, the generators use it, and
-`scripts/check_scenario_vehicles.py` (in `just test`) fails on a named vehicle that declares
+`scripts/check_scenario_vehicles.py` (in the developers' tests) fails on a named vehicle that declares
 anything else, within 2 cm. A deliberate mismatch carries
 `<Property name="swb.box_exempt" value="why" />` in the vehicle's `Properties`. The world
 server lines the declared box up with CARLA's: a declared box equal to its body's measured
@@ -77,7 +83,9 @@ is the only marker:
     <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
     <SpeedActionTarget><AbsoluteTargetSpeed value="8.0"/></SpeedActionTarget>
   </SpeedAction></LongitudinalAction></PrivateAction>
-  <PrivateAction><RoutingAction><AcquirePositionAction> ...goal... </AcquirePositionAction></RoutingAction></PrivateAction>
+  <PrivateAction><RoutingAction>
+    <AcquirePositionAction> ...goal... </AcquirePositionAction>
+  </RoutingAction></PrivateAction>
 </Private>
 ```
 
@@ -101,7 +109,8 @@ What happens:
   the vehicle really is. Declare a `Performance` that fits the driver: Traffic Manager
   accelerates at about 5.2 m/s² from rest (the example declares 10).
 - **Repeatability.** Traffic Manager runs synchronously, ticked with the world, and is
-  reseeded at every scenario start (`traffic_manager.seed` in `bridge.yaml`): the same
+  reseeded at every scenario start (`traffic_manager.seed` in the CARLA world server's
+  `swb_carla_world.yaml`, given to the stack as `world_config:=`): the same
   scenario on the same CARLA drives the same way.
 
 Not supported -- each is an explicit scenario error, not a silent no-op:
@@ -137,11 +146,14 @@ scenario entities: conditions, distances and `CollisionCondition` see them.
 ...
 <Private entityRef="bg_av_1">
   <PrivateAction><TeleportAction> ...start... </TeleportAction></PrivateAction>
-  <PrivateAction><RoutingAction><AcquirePositionAction> ...goal... </AcquirePositionAction></RoutingAction></PrivateAction>
+  <PrivateAction><RoutingAction>
+    <AcquirePositionAction> ...goal... </AcquirePositionAction>
+  </RoutingAction></PrivateAction>
 </Private>
 ```
 
-Example: `src/swb_examples/scenarios/multi_av/town01_two_av.xosc` (the ego and `bg_av_1` in one lane; `just two-av`).
+Example: `src/swb_examples/scenarios/multi_av/town01_two_av.xosc` (the ego and `bg_av_1` in
+one lane; run in [Tutorial 3](../tutorials/03-other-road-users.md)).
 
 The entity's name is the link to its vehicle side: start one per such entity, with
 `entity:=<name>` (and `vehicle_name:=<name>`, the default in `swb_launch
@@ -149,9 +161,13 @@ background_av.launch.xml`) and the simulation side's relay, in a ROS domain of i
 
 ```bash
 ROS_DOMAIN_ID=2 play_launch launch \
-    --container-mode isolated --composable-respawn on-crash --web-addr 127.0.0.1:8083 \
+    --container-mode isolated \
+    --composable-respawn on-crash \
+    --web-addr 127.0.0.1:8083 \
     swb_launch background_av.launch.xml \
-    entity:=bg_av_1 map_path:=<map dir> relay:=tcp://<simulation host>:5560
+    entity:=bg_av_1 \
+    map_path:=<map dir> \
+    relay:=tcp://<simulation host>:5560
 ```
 
 What happens:

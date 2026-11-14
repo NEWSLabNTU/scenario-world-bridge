@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-	Tutorial 2 (docs/tutorials/02-prepare-a-scenario.md): the ego drives 80 m to a goal on
+	Tutorial 1 (docs/tutorials/01-prepare-a-scenario.md): the ego drives 80 m to a goal on
 	Town01 behind a slower car. Every position comes from `ros2 run swb_launch carla_poses`,
 	subcommand `ahead 2` (spawn point 2, road 4, westbound) with distance 0 (start), 20 (the
 	lead car) and 80 (the goal).

@@ -50,6 +50,8 @@ A_SUB = ("g1.5", "g2.5", "g3.5", "g5", "g8", "ginf", "g2.5c")
 B_SUB = G.B_RULES
 CELLS = [(n, 1.5, tb) for n in (1, 3) for tb in (1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0)]
 RIGHTS = (("none", 0.0), ("B", 1.0), ("B", 2.0))
+LANES = None  # with --lanes: (A's path, the ring, the frame, the lanes' JSON)
+LANES_TOWN = "Town03"
 
 
 class Ring:
@@ -88,6 +90,24 @@ class Ring:
         circ = 2 * math.pi * G.R_RING
         sc += circ * round((s_prev - G.L / 2 - sc) / circ)
         return sc + G.L / 2
+
+
+class LanesRing(Ring):
+    """Ring on a real roundabout's lanes (roundabout_town03: Town03's, CARLA's own map)."""
+
+    def __init__(self, ar, frame, z):
+        self.ar, self.i, self.fr, self.z = ar, 0, frame, z
+
+    def to_c(self, x, y):
+        return self.fr.to_c(x, y)
+
+    def to_m(self, xc, yc):
+        return self.fr.to_m(xc, yc)
+
+    def park(self, car, pose):
+        x, y, yaw, _ = pose
+        xc, yc = self.to_c(x, y)
+        car.park(carla.Transform(carla.Location(x=xc, y=yc, z=self.z + 0.3), carla.Rotation(yaw=math.degrees(self.fr.yaw_c(yaw)))))
 
 
 def a_project(s_guess, x, y):
@@ -241,9 +261,9 @@ class Run:
             if t - hq[0][0] >= AR.PEAK_WINDOW - 1e-9:
                 self.peaks[k] = max(self.peaks[k], (hq[0][1] - vv) / AR.PEAK_WINDOW)
         ka = -G.a_path(self.s)[3]  # CARLA's y is flipped: every curvature changes sign
-        kq = -1.0 / G.R_RING
         pa = self.A.pose()
         for i in range(self.n):
+            kq = -G.ring(self.sq[i] - G.L / 2)[3]  # 1/R on the model's ring; the lane's own on real lanes
             self.meas[i].push_poses(t, pa, self.Q[i].pose(), kappa=(ka, kq))
         if any(m.clear <= CONTACT_EPS for m in self.meas):
             self.contact = True
@@ -289,11 +309,14 @@ def run(args):
     work = deque(jobs(args))
     n_all = len(work)
     n_max = max(n for n, _, _ in CELLS)
-    xs = G.CE[1] - G.APPROACH
-    ar = AR.Arena(args.port, args.k, AR.xodr_roundabout(args.k, SPACING, G.R_RING, G.X_APP, xs, G.APPROACH, G.R_ENTRY, G.ARC_LEN))
+    if args.lanes:
+        ar = AR.Arena(args.port, 1, town=LANES_TOWN)
+    else:
+        xs = G.CE[1] - G.APPROACH
+        ar = AR.Arena(args.port, args.k, AR.xodr_roundabout(args.k, SPACING, G.R_RING, G.X_APP, xs, G.APPROACH, G.R_ENTRY, G.ARC_LEN))
     rows, t_start, replaced, redone = [], time.monotonic(), 0, 0
     try:
-        rgs = [Ring(ar, i) for i in range(args.k)]
+        rgs = [LanesRing(ar, LANES[2], LANES[3]["z"])] if args.lanes else [Ring(ar, i) for i in range(args.k)]
 
         def spawn(rg, k):
             for tries in range(20):
@@ -302,8 +325,9 @@ def run(args):
                 else:
                     x, y, yaw, _ = G.ring(G.SZ1 + 15.0 + 12.0 * k + 3.0 * tries)
                 xc, yc = rg.to_c(x, y)
+                yaw_c = math.degrees(rg.fr.yaw_c(yaw)) if args.lanes else -math.degrees(yaw)
                 a = ar.world.try_spawn_actor(ar.bp, carla.Transform(carla.Location(x=xc, y=yc, z=rg.z + 0.6),
-                                                                    carla.Rotation(yaw=-math.degrees(yaw))))
+                                                                    carla.Rotation(yaw=yaw_c)))
                 if a is not None:
                     ar.actors.append(a)
                     return a
@@ -441,6 +465,7 @@ def compare(args, rows):
 
 
 def main():
+    global WARMUP, CELLS, LANES
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--out", required=True)
@@ -452,7 +477,18 @@ def main():
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
     p.add_argument("--compare-only", action="store_true")
+    p.add_argument("--lanes", help="a real roundabout's lanes (roundabout_town03.py's JSON), on its town in this CARLA")
+    p.add_argument("--warmup", type=float, default=WARMUP, help="the ring cars' warm-up (s)")
+    p.add_argument("--cells", help="n:tb,... instead of the default cells (h 1.5)")
     args = p.parse_args()
+    WARMUP = args.warmup
+    if args.cells:
+        CELLS = [(int(c.split(":")[0]), 1.5, float(c.split(":")[1])) for c in args.cells.split(",")]
+    if args.lanes:
+        import roundabout_town03 as T
+
+        geom = T.load(args.lanes)
+        LANES = (*T.install(geom, G), geom)
     if args.compare_only:
         rows = list(csv.DictReader(open(os.path.join(args.out, "runs.csv"))))
         wall = None

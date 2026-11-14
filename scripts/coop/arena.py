@@ -438,8 +438,9 @@ def xodr_narrow(k, length, x0, wn, taper):
 
 
 class Arena:
-    def __init__(self, port, k, world_xodr=None):
-        """world_xodr: the OpenDRIVE to generate (default: xodr(k, ROAD_LEN), the parallel roads)."""
+    def __init__(self, port, k, world_xodr=None, town=None):
+        """world_xodr: the OpenDRIVE to generate (default: xodr(k, ROAD_LEN), the parallel roads); town: a
+        CARLA map instead (kept if it is loaded already)."""
         self.client = carla.Client("localhost", port)
         self.client.set_timeout(120.0)
         w = self.client.get_world()
@@ -448,7 +449,10 @@ class Arena:
         params = carla.OpendriveGenerationParameters(
             vertex_distance=2.0, max_road_length=50.0, wall_height=0.0, additional_width=0.6,
             smooth_junctions=True, enable_mesh_visibility=True)
-        self.world = self.client.generate_opendrive_world(world_xodr or xodr(k, ROAD_LEN), params)
+        if town:
+            self.world = w if w.get_map().name.endswith(town) else self.client.load_world(town)
+        else:
+            self.world = self.client.generate_opendrive_world(world_xodr or xodr(k, ROAD_LEN), params)
         s = self.world.get_settings()
         s.synchronous_mode = True
         s.fixed_delta_seconds = DT
@@ -480,11 +484,24 @@ class Arena:
         return a
 
     def put_physics(self, actors):
+        """The spec's physics on `actors` -- and again on every other live car of the blueprint: CARLA 0.9.16
+        puts the blueprint's own tire friction (3.5) back on every vehicle of a blueprint when another one of
+        it spawns (074 U2 swb; the rest of the physics stays), so until this every car spawned before the
+        last spawn ran on the blueprint's tires."""
+        ids = {a.id for a in actors}
+        others = [a for a in self.world.get_actors().filter(self.doc["blueprint"]) if a.id not in ids]
+        every = list(actors)
+        for a in others:
+            try:  # a car destroyed this tick is still listed
+                carla_physics.apply(a, self.doc)
+                every.append(a)
+            except RuntimeError:
+                pass
         for a in actors:
             carla_physics.apply(a, self.doc)
         for _ in range(5):
             self.tick()
-        for a in actors:
+        for a in every:
             off = carla_physics.differences(a, self.doc)
             if off:
                 raise RuntimeError(f"physics did not take on {a.id}: {off}")

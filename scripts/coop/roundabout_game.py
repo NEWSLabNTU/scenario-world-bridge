@@ -69,12 +69,17 @@ def ring(s):
     return R_RING * math.cos(phi), R_RING * math.sin(phi), phi + math.pi / 2, 1.0 / R_RING
 
 
-H_JOIN = PHI_JOIN + math.pi / 2  # the ring's heading at the join
-PJ = (R_RING * math.cos(PHI_JOIN), R_RING * math.sin(PHI_JOIN))
-CE = (PJ[0] + R_ENTRY * math.sin(H_JOIN), PJ[1] - R_ENTRY * math.cos(H_JOIN))  # the entry arc's centre (A turns right)
-X_APP = CE[0] - R_ENTRY  # the approach line (heading +y)
-ARC_LEN = R_ENTRY * (math.pi / 2 - H_JOIN)  # from heading +y clockwise to the ring's heading at the join
-S_JOIN_RING = R_RING * PHI_JOIN  # the ring's arc length at the join
+def _derived():
+    global H_JOIN, PJ, CE, X_APP, ARC_LEN, S_JOIN_RING
+    H_JOIN = PHI_JOIN + math.pi / 2  # the ring's heading at the join
+    PJ = (R_RING * math.cos(PHI_JOIN), R_RING * math.sin(PHI_JOIN))
+    CE = (PJ[0] + R_ENTRY * math.sin(H_JOIN), PJ[1] - R_ENTRY * math.cos(H_JOIN))  # the entry arc's centre (A turns right)
+    X_APP = CE[0] - R_ENTRY  # the approach line (heading +y)
+    ARC_LEN = R_ENTRY * (math.pi / 2 - H_JOIN)  # from heading +y clockwise to the ring's heading at the join
+    S_JOIN_RING = R_RING * PHI_JOIN  # the ring's arc length at the join
+
+
+_derived()
 
 
 def a_path(s):
@@ -93,18 +98,25 @@ def a_ring_s(s):
         return None
     x, y, _, _ = a_path(s)
     phi = math.atan2(y, x)
-    while phi < PHI_JOIN - math.pi:
-        phi += 2 * math.pi
+    # unwrapped to the turn A has made since joining: past 180 degrees a bare angle jumps back a whole ring
+    # (074 U2 swb: at R 18 A crosses it within a run; until then B lost A as the car ahead there)
+    est = PHI_JOIN + (s - A_JOINED) / R_RING
+    phi += 2 * math.pi * round((est - phi) / (2 * math.pi))
     return R_RING * phi
 
 
-def _geometry():
-    band_lo, band_hi = R_RING - W_CAR / 2, R_RING + W_CAR / 2
+def zone_from_path(path_fn, s_max, r_ring=None):
+    """A's arc length where its box (turned along path_fn) first reaches the circulating band and
+    where it has joined (in the lane, along it), and the ring's arc-length stretch its box covers in
+    between; path_fn(s) -> (x, y, yaw, ...) with the ring centred at the origin. For this model's own
+    path and for a real lane's polyline (074 U2 swb)."""
+    r_ring = R_RING if r_ring is None else r_ring
+    band_lo, band_hi = r_ring - W_CAR / 2, r_ring + W_CAR / 2
     a_in = a_joined = None
     phis = []
     s = 0.0
-    while s < APPROACH + ARC_LEN + 20.0:
-        x, y, yaw, _ = a_path(s)
+    while s < s_max:
+        x, y, yaw = path_fn(s)[:3]
         cs = M.corners(x, y, yaw, L, W_CAR)
         rs = [math.hypot(cx, cy) for cx, cy in cs]
         in_band = min(rs) < band_hi and max(rs) > band_lo
@@ -112,17 +124,38 @@ def _geometry():
             a_in = s
         if a_in is not None and a_joined is None:
             phis += [math.atan2(cy, cx) for cx, cy in cs]
-            if abs(math.hypot(x, y) - R_RING) < 0.3 and abs(math.atan2(math.sin(yaw - (math.atan2(y, x) + math.pi / 2)),
+            if abs(math.hypot(x, y) - r_ring) < 0.3 and abs(math.atan2(math.sin(yaw - (math.atan2(y, x) + math.pi / 2)),
                                                                      math.cos(yaw - (math.atan2(y, x) + math.pi / 2)))) < 0.05:
                 a_joined = s
         s += 0.01
-    sz0, sz1 = R_RING * min(phis), R_RING * max(phis)
+    sz0, sz1 = r_ring * min(phis), r_ring * max(phis)
     return a_in, a_joined, sz0, sz1
 
 
-A_IN, A_JOINED, SZ0, SZ1 = _geometry()
-S_YIELD = A_IN - 1.0  # A's centre's arc length at its yield line: its box 1 m (along its path) short of the band
-S_CREEP = A_IN - 0.3
+def _zone():
+    global A_IN, A_JOINED, SZ0, SZ1, S_YIELD, S_CREEP
+    A_IN, A_JOINED, SZ0, SZ1 = zone_from_path(a_path, APPROACH + ARC_LEN + 20.0)
+    S_YIELD = A_IN - 1.0  # A's centre's arc length at its yield line: its box 1 m (along its path) short of the band
+    S_CREEP = A_IN - 0.3
+
+
+_zone()
+
+GEOMETRIES = {
+    "model": (18.0, 12.0, -60.0),
+    # Town03's roundabout, its outer lane and the entry from road 25 (lane -3, connector 1577), fitted
+    # (074 U2 swb): the lane's centre line at r 23.3-24.0 m, the entry turning 40-46 degrees right
+    "town03": (23.7, 15.5, -46.5),
+}
+
+
+def set_geometry(name_or_params):
+    """Ring radius, entry arc radius and join angle (degrees): one of GEOMETRIES or a tuple."""
+    global R_RING, R_ENTRY, PHI_JOIN
+    r_ring, r_entry, phi = GEOMETRIES[name_or_params] if isinstance(name_or_params, str) else name_or_params
+    R_RING, R_ENTRY, PHI_JOIN = r_ring, r_entry, math.radians(phi)
+    _derived()
+    _zone()
 
 
 @dataclass
@@ -397,7 +430,8 @@ def run_map(args):
         for r in rows:
             w.writerow({k: fmt(v) for k, v in r.items()})
     by = {(r["subset"], r["n"], r["h"], r["tb"]): r for r in rows}
-    lines = [f"# roundabout entry (kinematic): ring R {R_RING:g} m at {args.v:g} m/s, entry arc R {R_ENTRY:g} m; A's yield line "
+    where = f"entry arc R {R_ENTRY:g} m" if not args.lanes else f"the lanes of {os.path.basename(args.lanes)}"
+    lines = [f"# roundabout entry (kinematic): ring R {R_RING:g} m at {args.v:g} m/s, {where}; A's yield line "
              f"{A_IN - S_YIELD:.1f} m short of the band; the stretch on the ring {SZ1 - SZ0:.1f} m; "
              + ("the car's command lags" if lags else "an ideal car"),
              "# class per tb (B's time to the stretch at t = 0): A joins ahead of B in every equilibrium, B behind, C both (chicken),",
@@ -462,8 +496,15 @@ def main():
     p.add_argument("--car-lags", action="store_true")
     p.add_argument("--fault", type=float, default=FAULT, help="A's cost for forcing B under row_B")
     p.add_argument("--jobs", type=int, default=16)
+    p.add_argument("--geom", default="model", choices=sorted(GEOMETRIES), help="the ring and entry geometry")
+    p.add_argument("--lanes", help="instead: a real roundabout's lanes (roundabout_town03.py's JSON)")
     p.add_argument("--selftest", action="store_true")
     a = p.parse_args()
+    set_geometry(a.geom)
+    if a.lanes:
+        import roundabout_town03
+
+        roundabout_town03.install(roundabout_town03.load(a.lanes), sys.modules[__name__])
     return selftest() if a.selftest else run_map(a)
 
 

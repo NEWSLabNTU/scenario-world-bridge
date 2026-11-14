@@ -121,7 +121,10 @@ $$U_i = -\ell_i - \rho_i - c_i - 10\cdot\mathbf 1[\text{contact}]$$
   clearance (the smooth term near contact, which C3 showed is needed). References $\tau^* = 3$ s,
   $h^* = 1$ s, $\pi^* = 1.5$ s, $d^* = 1$ m.
 - **Comfort** from both directions:
-  $c_i = 0.3\left(\dfrac{a^{\text{lon,peak}}_i}{b^{\max}_i}\right)^2 + 0.3\left(\dfrac{a^{\text{lat,peak}}_i}{a^{\text{lat,max}}_i}\right)^2$.
+  $c_i = 0.3\left(\dfrac{a^{\text{lon,peak}}_i}{b^{\max}_i}\right)^2 + 0.3\left(\dfrac{a^{\text{lat,peak}}_i}{a^{\text{lat,max}}_i}\right)^2$. The lateral peak counts only what the
+  car adds to its route: $a^{\text{lat}}_i - v_i^2\kappa_i(s)$, with $\kappa_i(s)$ the route's own curvature
+  at the car's position. The road's bends are the same under every strategy, so they are not part
+  of the game (C2b rerun, 2026-11-15: Town03's curve inside the 20 s window charged both cars 0.04).
 - **Contact**: the two footprints overlap. A footprint is the spec's box (Autoware's
   `vehicle_info`: 4.79 x 2.163 m for the Model 3), oriented by the car's yaw; the depth of the
   deepest overlap is recorded beside it, since a square-cornered box at a steep yaw touches before

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>swb</name>
+  <version>0.1.0</version>
+  <description>
+    scenario-world-bridge's user commands: `ros2 run swb project|assets|seat|run|runs`.
+    Projects (swb.yaml), assets fetched by name into a read-only cache with a lock file,
+    seats (a stack's share of a host) from config files, runs and suites against a
+    long-lived stack, and their results.
+  </description>
+  <maintainer email="maintainer@example.com">Maintainer</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

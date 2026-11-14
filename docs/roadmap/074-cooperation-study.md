@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: stable seeds and do6, then C3c (swb 241), S5 in the arena (swb 139), S5 on Autoware (swb 118: junction 861 found, Town03's lights not linked in Lanelet2), C7 conventions (133); next: N3's follower depth term, S5 and S6 in the arena. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: stable seeds and do6, then C3c (swb 241), U2, the roundabout entry (swb 139), S5 on Autoware (swb 118: junction 861 found, Town03's lights not linked in Lanelet2), C7 conventions (133); next: N3's follower depth term, S5 and S6 in the arena. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -1365,6 +1365,37 @@ The misses are only at the band's edges.
 
 **D2 for S6, decided (2026-11-15):** accepted for outcomes (96 %) and classes. Payoff levels come
 from the arena.
+
+### S5. The unprotected left turn in the arena (2026-11-15)
+
+swb 139 (7fa16fb, 65cfc12; NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn arena/`;
+378 runs).
+
+**U1's model was rebuilt** as `left_turn_queue.py`, with S2's fixes: true arc geometry, predicted
+perception, the car's lags, and the general utility. **The rebuilt model's classes differ from U1's**
+in 5 of 15 cells:
+- With true geometry A needs about 3.9 s to clear the conflict point.
+- So the yield equilibrium (the queue lets A go) appears only from three oncoming cars.
+- Holding stays the welfare optimum everywhere; yielding costs 1.2-2.8 times as much.
+
+U1's kinematic map above is superseded for numbers.
+
+**The arena matches the revised model:**
+
+| check | result |
+|---|---|
+| classes | 9 of 9 |
+| outcomes | 108 of 108, excluding gaps of exactly 3.0 s |
+| payoffs inside the interval | 55 % raw, 78 % after constant offsets (A -0.028, C1 -0.007) |
+
+- The 18 outcome misses all sit at the first oncoming car's 3 s arrival, a threshold cell.
+- PET in yield equilibria is 1.65-1.7 s (model 1.55 s), just above the 1.5 s reference.
+- For the real stack: hold equilibria at gaps of 3.5-6 s. A gap of 3 s or less is unsafe against a
+  holding first car.
+- Arena fix: a reused A crept at its line after being teleported. It is now re-parked.
+
+**D2 for S5, decided (2026-11-15):** accepted for classes and outcomes. Payoff levels come from the
+arena, with the constant offsets.
 
 ### E5 and S5 on the real stack: first findings (2026-11-15)
 

@@ -74,6 +74,11 @@
   <!-- Signal state comes from acb (CARLA's lights, roadmap 015), so traffic light recognition
        runs fusion-only and the camera that only fed it is not spawned. false brings both back. -->
   <arg name="traffic_light_fusion_only" default="true" description="signals from acb only; no traffic light camera"/>
+  <!-- As ego_av.launch.xml passes them (roadmap 074 C3c: both cars Autoware): the profile's speed
+       limit, and CARLA's actors as perception output instead of the LiDAR pipeline. -->
+  <arg name="max_velocity" default="4.17" description="Autoware max_vel, m/s (the profile's default, upstream's 15 km/h)"/>
+  <arg name="publish_ground_truth_objects" default="false" />
+  <arg name="ground_truth_range_m" default="100.0" />
 
   <include file="$(find-pkg-share acb_launch)/launch/carla_simulator.launch.xml">
     <!-- The vehicle agent (roadmap 051): swb_agent's vehicle_agent beside the profile, which
@@ -87,6 +92,9 @@
     <arg name="rviz_config" value="$(var rviz_config)" />
     <arg name="lidar_detection_model" value="$(var lidar_detection_model)" />
     <arg name="occupancy_grid_map_method" value="$(var occupancy_grid_map_method)" />
+    <arg name="max_velocity" value="$(var max_velocity)" />
+    <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)" />
+    <arg name="ground_truth_range_m" value="$(var ground_truth_range_m)" />
     <!-- The vehicle agent (vehicle_agent.launch.xml): registers with the relay as `entity`. -->
     <arg name="relay" value="$(eval '&quot;&quot; if &quot;$(var relay)&quot; == &quot;none&quot; else &quot;$(var relay)&quot;')" />
     <arg name="entity" value="$(var entity)" />

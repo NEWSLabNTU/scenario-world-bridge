@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -64,7 +65,10 @@ def test_plan_multi_pilot(where, maps_hub):
     assert "CUDA_VISIBLE_DEVICES" not in p.env
     r = p.record
     assert r["ports"]["web"] == 8100 and r["domains"]["pilots"]["lead"] == 20
-    assert r["pilots"][0]["ready"] == stack.EGO_READY and r["pilots"][1]["ready"] is None
+    assert r["pilots"][0]["ready"] == stack.EGO_READY
+    # a carla_basic pilot is ready when its agent registered the entity with the relay
+    assert r["pilots"][1]["ready"][-4:] == ["registered", "--relay", "tcp://localhost:5760",
+                                           r["pilots"][1]["entity"]]
     assert r["fingerprint"]["swb_yaml"].startswith("sha256:")
     assert r["pilot_contract"]["release_notify_endpoint"] == "tcp://127.0.0.1:5756"
 
@@ -327,3 +331,30 @@ def test_carla_root_gives_carla_basic_its_agents(where, maps_hub):
     p = stack.plan(project_arg=str(d), map_name="Town01")
     assert p.record["pilot_contract"]["carla_pythonapi"] == str(
         where["tmp"] / "CARLA_0.9.16" / "PythonAPI" / "carla")
+
+
+def test_registered_asks_the_relay():
+    import socket
+    import sys as _sys
+    root = Path(__file__).resolve().parents[2]
+    for sub in ("swb_agent", "scenario_agent_relay"):
+        _sys.path.insert(0, str(root / sub))
+    server = pytest.importorskip("scenario_agent_relay.server")
+    P = pytest.importorskip("swb_agent.protocol")
+    relay = server.AgentServer(host="127.0.0.1", port=0)
+    relay.start()
+    url = f"tcp://127.0.0.1:{relay.port}"
+    try:
+        assert not stack.is_registered(url, "cut_in")
+        agent = socket.create_connection(("127.0.0.1", relay.port), timeout=5)
+        agent.sendall(P.encode(P.register("cut_in", agent="test")))
+        deadline = time.time() + 5
+        while time.time() < deadline and not stack.is_registered(url, "cut_in"):
+            time.sleep(0.1)
+        assert stack.is_registered(url, "cut_in")
+        assert stack.main(["registered", "--relay", url, "cut_in"]) == 0
+        assert stack.main(["registered", "--relay", url, "lead"]) == 1
+        agent.close()
+    finally:
+        relay.stop()
+    assert not stack.is_registered("tcp://127.0.0.1:1", "cut_in")

@@ -337,11 +337,23 @@ def pilot_entry(b: Bound, project: Path, ctx: dict) -> dict:
     return entry
 
 
-def ready_command(spec: dict):
-    """The pilot's readiness check as argv, or None when started is ready."""
+REGISTERED_KINDS = ("carla_basic", "command", "launch")
+
+
+def ready_command(spec: dict, entity: str = None, relay: str = None):
+    """The pilot's readiness check as argv, or None when started is ready. By default an
+    autoware pilot is ready when its Autoware is (ego_ready), and a carla_basic, command or
+    launch pilot when its agent has registered the entity with the relay (``registered``):
+    a pilot that crashes at start is never ready, and the run says so."""
     r = spec.get("ready")
     if r in (None, "", "default"):
-        return list(EGO_READY) if spec.get("kind") == "autoware" else None
+        if spec.get("kind") == "autoware":
+            return list(EGO_READY)
+        if spec.get("kind") in REGISTERED_KINDS and entity and relay:
+            return [sys.executable, "-m", "swb.stack", "registered", "--relay", relay, entity]
+        return None
+    if r == "registered":
+        return [sys.executable, "-m", "swb.stack", "registered", "--relay", relay, entity]
     if r in ("started", False, "none"):
         return None
     if isinstance(r, list):
@@ -597,7 +609,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         pilots.append({"entity": b.entity, "key": b.key, "kind": b.kind, "lifetime": b.lifetime,
                        "domain": b.domain, "vehicle": b.spec.get("vehicle"),
                        "inputs": b.spec.get("inputs") or [],
-                       "ready": ready_command(b.spec), "spec": b.spec,
+                       "ready": ready_command(b.spec, b.entity,
+                                              f"tcp://localhost:{s.relay_port}"),
+                       "spec": b.spec,
                        "ready_at": None})
     numbers = s.numbers()
     record = {
@@ -697,6 +711,20 @@ def ros_env(record: dict, domain) -> dict:
     env.update(record.get("env") or {})
     env["ROS_DOMAIN_ID"] = str(domain)
     return env
+
+
+def is_registered(relay: str, entity: str, timeout=5.0) -> bool:
+    """An agent has registered ``entity`` with the relay at ``relay`` (tcp://host:port)."""
+    try:
+        from swb_agent.commander import Commander, CommanderError
+    except ImportError:
+        return False
+    try:
+        with Commander(relay, name="swb-ready", timeout=timeout) as c:
+            reply = c.query(entity)
+    except (CommanderError, OSError, ValueError):
+        return False
+    return bool((reply or {}).get("registered"))
 
 
 def check_ready(cmd, env, timeout=60) -> bool:
@@ -1052,7 +1080,13 @@ def main(argv=None) -> int:
     k.add_argument("--respawn-delay", type=float, default=RESPAWN_DELAY)
     k.add_argument("--pilot-wrap", metavar="PROGRAM",
                    help="run each pilot's command line under PROGRAM (tests, debugging)")
+    r = sub.add_parser("registered", help="exit 0 when an agent has registered ENTITY with "
+                       "the relay (a pilot's default readiness)")
+    r.add_argument("entity")
+    r.add_argument("--relay", required=True, help="tcp://host:port")
     a = ap.parse_args(argv)
+    if a.cmd == "registered":
+        return 0 if is_registered(a.relay, a.entity) else 1
     if a.cmd == "keep":
         _die_with_parent()
         command = None

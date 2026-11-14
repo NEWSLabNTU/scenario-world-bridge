@@ -15,6 +15,9 @@
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rosidl_runtime_py</exec_depend>
+  <!-- CARLA's agents package (the carla_basic adapter) imports both -->
+  <exec_depend>python3-shapely</exec_depend>
+  <exec_depend>python3-networkx</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
   <test_depend>geometry_msgs</test_depend>

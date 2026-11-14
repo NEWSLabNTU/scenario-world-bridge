@@ -707,6 +707,9 @@ class Pair:
         self.rec = None
         self.rec_legacy = None  # the record the legacy end (LEGACY_MERGE_END) would have kept
         self.t_plan = None
+        # each car's capability for its rules and its utility (074 C5): None is C1.TYPES["car"],
+        # as every study before C5 ran
+        self.cap_a = self.cap_b = None
 
     # geometry
     def rear(self, car):
@@ -768,8 +771,7 @@ class Pair:
         self.stop_cond_since = self.stop_clear_since = None
         self.stop_active = False
         self.stop_dec = 0.0  # the safety layer's deceleration now (jerk limited)
-        b = C1.TYPES["car"].b_max
-        self.meas = measures.Measures(b_max=(b, b))
+        self.meas = measures.Measures(b_max=((self.cap_a or C1.TYPES["car"]).b_max, (self.cap_b or C1.TYPES["car"]).b_max))
 
     def step_run(self):
         t = self.ar.t - self.t0
@@ -787,7 +789,8 @@ class Pair:
                 sb = (sb[0], xa + sb[1], *sb[2:])
             if sa is not None:
                 sa = (sa[0], xb + sa[1], *sa[2:])
-        job, cap = self.job, C1.TYPES["car"]
+        job, cap = self.job, self.cap_a or C1.TYPES["car"]  # cap: A's, cap_b: B's (074 C5)
+        cap_b = self.cap_b or C1.TYPES["car"]
         la, lb = A.length, B.length
         # --- A
         if sb is not None:
@@ -858,11 +861,11 @@ class Pair:
             b_decel = C1.B_YIELD_DECEL
         if yielding:
             ab = -b_decel if gap_b < C1.S0 + vb * C1.HEADWAY else \
-                follow(gap_b, vb, va_s, cap, self.vb0)
+                follow(gap_b, vb, va_s, cap_b, self.vb0)
         else:
-            ab = max(-1.0, min(cap.a_max, 1.5 * (self.vb0 - vb)))
+            ab = max(-1.0, min(cap_b.a_max, 1.5 * (self.vb0 - vb)))
         if self.in_lane_at is not None and t >= self.in_lane_at + self.react_b and xa_s > xb:
-            ab = min(ab, follow(gap_b, vb, va_s, cap, self.vb0))
+            ab = min(ab, follow(gap_b, vb, va_s, cap_b, self.vb0))
         if self.pb is not None and self.pb.get("stop", STOP_DEFAULTS["stop"]):
             ab = min(ab, -self.stop_layer(t, xa_s, lat_s, va_s, xb, vb, la, lb))
         A.drive(aa, y_t)
@@ -974,11 +977,12 @@ class Pair:
         o = C1.Outcome((lost_a, lost_b), m.ttc2d, m.thw, self.contact,
                        (self.peak[0], self.peak[1]), got_in and not self.dropping, "",
                        m.clear, m.pet, tuple(m.lat_peak))
-        pref, cap = C1.Preference(), C1.TYPES["car"]
+        pref, cap = C1.Preference(), self.cap_a or C1.TYPES["car"]
+        cap_b = self.cap_b or C1.TYPES["car"]
         rec = {**self.job, "road": self.road, "d0_real": round(self.d0_real, 2),
                     "dv_real": round(self.dv_real, 2), "vb_real": round(self.vb0, 2),
                     "react_a": round(self.react_a, 3), "react_b": round(self.react_b, 3),
-                    "uA": round(C1.utility(o, 0, cap, pref), 4), "uB": round(C1.utility(o, 1, cap, pref), 4),
+                    "uA": round(C1.utility(o, 0, cap, pref), 4), "uB": round(C1.utility(o, 1, cap_b, pref), 4),
                     "lostA": round(lost_a, 4), "lostB": round(lost_b, 4),
                     "ttc": round(self.min_ttc, 3) if math.isfinite(self.min_ttc) else "inf",
                     "thw": round(self.min_thw, 3) if math.isfinite(self.min_thw) else "inf",

@@ -47,6 +47,14 @@ import narrow_game as N  # noqa: E402
 ROAD_LEN, X0 = 1100.0, 520.0
 WARMUP = XA.WARMUP
 SUB = ("go", "t0.5p2", "t1.5yp5", "tinfp2", "flash", "yb2p5")
+# CARLA's collision shape reaches past the bounding box: every run whose boxes came within 1 cm braked
+# at over 8 m/s^2 against each other and stood stuck (074 S4 D2: the 20 "deadlocks"). Contact is a
+# clearance of at most this
+CONTACT_EPS = 0.01
+# A's pure-pursuit look-ahead, max(LOOK_MIN, LOOK_GAIN v). arena.Car.drive's max(6, 0.7 v) left A up
+# to 0.60-0.71 m off the swerve at 6-10 m/s; this one 0.28-0.31 m (mean 0.08); max(2.5, 0.3 v) oscillates
+# at 10 m/s (074 S4 D2)
+LOOK_MIN, LOOK_GAIN = 3.0, 0.4
 
 
 class Passage:
@@ -84,8 +92,15 @@ class Passage:
 
     def drive(self, k, car, a):
         if k == "A":
-            x, _, _, v = car.state()
-            car.drive(a, self.y_a(x + max(6.0, 0.7 * v)))  # the path's point at pure pursuit's look-ahead
+            x, y, yaw, v = car.state()
+            look = max(LOOK_MIN, LOOK_GAIN * v)
+            th, br = car.lon.command(a, v)
+            th, br = car.lag.step(th, br, self.ar.t)
+            # pure pursuit on the path's point one look-ahead on (arena.Car.drive, with its look-ahead a parameter)
+            alpha = math.atan2(self.y_a(x + look) - y, look) - yaw
+            angle = math.atan2(2 * car.wheelbase * math.sin(alpha), look)
+            self.ar.pending.append(carla.command.ApplyVehicleControl(car.a.id, carla.VehicleControl(
+                throttle=th, brake=br, steer=car.steering.command(angle))))
         else:
             car.drive_line(a, (0.0, self.y["B"]), (-1.0, 0.0))
 
@@ -168,7 +183,7 @@ class Run:
         else:
             self.stopped_both = 0.0
         self.meas.push_poses(t, self.A.pose(), self.B.pose())
-        if self.meas.clear <= 0.0:
+        if self.meas.clear <= CONTACT_EPS:
             self.contact = True
             self.restart = self.both_stopped
         if self.contact or t >= X.T_MAX - 1e-9 or (ua >= self.exit + N.TAPER and ub >= self.exit + N.TAPER and t >= X.HORIZON - 1e-9):
@@ -359,6 +374,11 @@ def compare(args, rows):
     return lines, summary
 
 
+def set_look(look_min, look_gain):
+    global LOOK_MIN, LOOK_GAIN
+    LOOK_MIN, LOOK_GAIN = look_min, look_gain
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--port", type=int, required=True)
@@ -372,8 +392,12 @@ def main():
     p.add_argument("--obs-delay", type=float, default=X.OBS)
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
+    p.add_argument("--look-min", type=float, default=LOOK_MIN)
+    p.add_argument("--look-gain", type=float, default=LOOK_GAIN)
     p.add_argument("--compare-only", action="store_true")
     args = p.parse_args()
+    set_look(args.look_min, args.look_gain)
+
     if args.compare_only:
         rows = list(csv.DictReader(open(os.path.join(args.out, "runs.csv"))))
         wall = None

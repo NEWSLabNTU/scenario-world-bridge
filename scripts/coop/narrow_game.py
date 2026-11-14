@@ -2,7 +2,7 @@
 """Roadmap 074 S4: the narrow passage, the first "oppose" relation, as a passage game in a kinematic model.
 
 A two-way road narrowed to one lane over W_n metres: an obstacle (a parked car, roadworks, a bridge)
-closes A's lane, so A swerves into B's lane over TAPER m before it and back after it; A and B
+closes A's lane, so A swerves into B's lane over TAPER m before it and back after it (a cosine); A and B
 approach from opposite ends and only one fits at a time. The conflict zone Z is the stretch where
 A's box overlaps B's lane: the obstacle plus Z_PAD m of each taper. Each car's u is its front's
 distance past its own end of Z. The context is
@@ -56,8 +56,28 @@ import measures as M  # noqa: E402
 DT, HORIZON, T_MAX = X.DT, X.HORIZON, X.T_MAX
 L, W_CAR = X.L, X.W_CAR
 LANE_W = 3.5
-TAPER = 10.0  # m, A's swerve into B's lane before the obstacle, and back after it
-Z_PAD = TAPER * (1.0 - (LANE_W - W_CAR) / LANE_W)  # m of each taper where A's box is in B's lane
+# m, A's swerve into B's lane before the obstacle and back after it: a cosine, whose peak lateral
+# acceleration 1.75 v^2 pi^2 / TAPER^2 is 2.8 m/s^2 at 10 m/s (10 m gave 17: 074 S4 D2)
+TAPER = 25.0
+
+
+def _z_pad():
+    """Where the zone starts before the obstacle: A's front when A's box (turned along its swerve) first
+    reaches B's box laterally. d is A's centre's distance before the obstacle; the zone's pad is the
+    front's, d - L / 2 (the same at the far end, for A's rear, by symmetry)."""
+    b_edge = LANE_W / 2 - W_CAR / 2
+    n = 2000
+    for i in range(n + 1):
+        d = TAPER * (1 - i / n)
+        u = 1 - d / TAPER
+        y = -LANE_W / 2 + LANE_W * 0.5 * (1 - math.cos(math.pi * u))
+        h = math.atan(LANE_W * 0.5 * math.pi / TAPER * math.sin(math.pi * u))
+        if y + L / 2 * abs(math.sin(h)) + W_CAR / 2 * math.cos(h) >= b_edge:
+            return d - L / 2
+    return -L / 2
+
+
+Z_PAD = _z_pad()
 INF = math.inf
 FAULT, FAULTS = X.FAULT, X.FAULTS
 FLASH = ("react", None, None)  # crossing_game's react, continued with a yield: the courtesy flash
@@ -83,16 +103,16 @@ class Out:
 
 def lat_a(xc, wz):
     """A's lateral position (B's lane at +LANE_W/2, A's at -LANE_W/2) at its centre's x; Z is [0, wz]."""
-    x0, x1 = Z_PAD - TAPER, wz - Z_PAD  # taper start; the obstacle's far end
+    x0, x1 = Z_PAD - TAPER, wz - Z_PAD  # the swerve's start and the obstacle's far end (A's centre's x)
     if xc <= x0 or xc >= x1 + TAPER:
         return -LANE_W / 2
     if xc < Z_PAD:
-        f = (xc - x0) / TAPER
+        u = (xc - x0) / TAPER
     elif xc <= x1:
-        f = 1.0
+        u = 1.0
     else:
-        f = 1.0 - (xc - x1) / TAPER
-    return -LANE_W / 2 + LANE_W * f
+        u = 1.0 - (xc - x1) / TAPER
+    return -LANE_W / 2 + LANE_W * 0.5 * (1.0 - math.cos(math.pi * u))
 
 
 def simulate(na, nb, dt_ctx, va, vb, wn, lags=None, trace=None):
@@ -260,8 +280,14 @@ def run_map(args):
 
 
 def selftest():
-    assert abs(Z_PAD - 6.18) < 0.01, Z_PAD
-    assert lat_a(-50, 30) == -LANE_W / 2 and lat_a(15, 30) == LANE_W / 2
+    assert 13.5 < Z_PAD < 14.5, Z_PAD
+    wz = 30 + 2 * Z_PAD
+    assert lat_a(-50, wz) == -LANE_W / 2 and abs(lat_a(Z_PAD + 15, wz) - LANE_W / 2) < 1e-9
+    # at the zone's entry (A's front at 0, its centre at -L/2), A's turned box just reaches B's
+    u = 1 - (Z_PAD + L / 2) / TAPER
+    h = math.atan(LANE_W * 0.5 * math.pi / TAPER * math.sin(math.pi * u))
+    edge = lat_a(-L / 2, wz) + L / 2 * abs(math.sin(h)) + W_CAR / 2 * math.cos(h)
+    assert abs(edge - (LANE_W / 2 - W_CAR / 2)) < 0.01, edge
     # both go at a tie on a long passage: head-on contact
     o = simulate("go", "go", 0.0, 8.0, 8.0, 30.0)
     assert o.o.contact, o

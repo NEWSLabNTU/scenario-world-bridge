@@ -110,7 +110,7 @@ Four layers, each one reported:
 $$U_i = -\ell_i - \rho_i - c_i - 10\cdot\mathbf 1[\text{contact}]$$
 
 - **Progress** along the car's own route, so a turn or a ring counts as a straight does:
-  $\ell_i = \dfrac{v_{i,0}\,T - \Delta s_i}{v_{i,0}\,H}$, $\Delta s_i$ the arc length covered, $H = 20$ s.
+  $\ell_i = \dfrac{v_{i,0}\,H - \Delta s_i(H)}{v_{i,0}\,H}$, $\Delta s_i(H)$ the arc length covered in the first $H = 20$ s of the run (a fixed window: risk, comfort and contact still count over the whole run; N3).
 - **Risk**, the worst shortfall over the cars in its conflict set and over the measures that fit
   their relation:
   $$\rho_i = \max_{j \in K_i}\max\left(\frac{(\tau^* - \min_t \mathrm{TTC}^{2D}_{ij})^+}{\tau^*},\ \frac{(h^* - \min_t h_{ij})^+}{h^*},\ \frac{(\pi^* - \mathrm{PET}_{ij})^+}{\pi^*},\ \frac{(d^* - \min_t d_{ij})^+}{d^*}\right)$$

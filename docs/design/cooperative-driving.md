@@ -46,6 +46,45 @@ the steps and results in `docs/roadmap/074-cooperation-study.md`.
    Autoware stacks; the arena is fast and trusted only where it agrees with swb (D2).
 5. **A decision is explained by its inputs:** the belief, the candidates' payoffs, the threshold.
 
+## ⓪ The scenario space
+
+Before the formulas: which encounters must the design cover? The standard pre-crash typologies
+list them: NHTSA's 37 pre-crash scenarios (Najm et al. 2007, DOT HS 810 767) [M], Euro NCAP's
+car-to-car AEB and lane-support tests (car-to-car rear stationary, moving, braking; turn across
+path; crossing straight; head-on; cut-in, cut-out) [M], ISO 34502:2022's scenario-based safety
+evaluation [M]. Read for the game, they reduce to **how the two cars' paths relate**. Each car
+has a route, a path with arc length $s$; a pair's **relation** fixes where they can meet (the
+conflict zone $Z$), what the outcome is (who passes $Z$ first), and which risk measure applies.
+
+| relation | paths | conflict zone $Z$ | outcome | scenarios |
+|---|---|---|---|---|
+| **follow** | the same path, one behind the other | the whole path | the gap kept | car following ("chasing"), lead brakes (stationary, moving, braking lead), stop-and-go |
+| **merge** | two paths join at a point | the joined path from the merge point on | who is ahead after it | cut-in, on-ramp, lane drop and zipper, merging out of a T-junction, entering a roundabout |
+| **cross** | two paths intersect | the crossing box | who passes the box first | straight crossing paths, left turn across path (opposite or lateral direction), right turn into path, 4-way stop, a pedestrian or scooter crossing |
+| **oppose** | the same stretch, opposite directions | the shared stretch | who enters it first (the other waits) | a narrow road or a single-lane passage, overtaking through the oncoming lane, an obstacle in one lane |
+| **diverge** | two paths split | none between the pair | none; it reveals a third car | cut-out (the lead leaves its lane and reveals a stopped car), exits |
+
+Some encounters are sequences of these: the left turn is a cross (with the oncoming car) followed
+by a merge (into the target road); overtaking is a merge out, an oppose, then a merge back; a
+cut-in is a merge that becomes a follow. Head-on drift and running a red light are faults, not
+games: they belong to the safety layer, and the design treats them only as type uncertainty
+(a car that may not stop).
+
+**What each scenario needs, and what swb has:**
+
+| scenario | relation | game when rules are symmetric | arena | swb site | status |
+|---|---|---|---|---|---|
+| following, lead brakes | follow | none: one-sided reaction; a chain externality down a queue | parallel road (exists) | Town03 east straight (E2) | timing measured (E2) |
+| cut-in | merge | sequential leader-follower; chicken only under a commitment | parallel road (exists) | Town03 west straight | C1-C3 done |
+| cut-out | diverge + follow | one-sided reaction to a revealed obstacle | parallel road + a stopped car | west straight | open |
+| on-ramp, lane drop, zipper | merge with a deadline | war of attrition: the lane's end forces a decision | a lane that ends (to add) | none on Autoware's maps yet (E7) | open (D9) |
+| T-junction exit, roundabout entry | merge into priority traffic | gap acceptance against a stream; chain | a junction, a ring (to add) | Town01/02 T-junctions; Town03 roundabout (U2) | open |
+| straight crossing, unsignalled | cross | chicken without a priority rule; a priority rule selects one equilibrium | a crossing (to add) | Town01/02 junctions with the lights off (E6) | open (U3) |
+| left turn across oncoming | cross, then merge | gap acceptance against a queue; coordination for short queues | a junction (to add) | Town05/10 (E5) | kinematic done (U1) |
+| narrow road, single-lane passage | oppose | war of attrition; a convention (who is nearer the passing place) selects | a two-way road with a narrow stretch (to add) | none yet | open |
+| overtaking via the oncoming lane | merge, oppose, merge | a timing game against the oncoming gap | a two-way road (to add) | Town01/02 two-lane roads | open |
+| pedestrian or scooter crossing | cross with a vulnerable road user | courtesy and attrition; capability types differ most | a crossing with a walker | night market, scooters: later phase | open |
+
 ## ① Scoring: from a run to a payoff
 
 Four layers, each one reported:
@@ -66,8 +105,25 @@ Four layers, each one reported:
 | comfort | peak braking and peak jerk over 0.5 s windows |
 | latency | event times (A's lateral move, each car's first braking, A's decision) and the reaction times between them |
 
-**Utility** (today's weights): $U_i = -\text{lost}_i - \text{risk}_i - 0.3\,(\text{peak}_i/b_{max})^2 - 10\cdot\text{contact}$,
-with $\text{risk} = \max$ of the TTC and headway shortfalls against 3 s and 1 s.
+**Utility**, the same function for every scenario:
+
+$$U_i = -\ell_i - \rho_i - c_i - 10\cdot\mathbf 1[\text{contact}]$$
+
+- **Progress** along the car's own route, so a turn or a ring counts as a straight does:
+  $\ell_i = \dfrac{v_{i,0}\,T - \Delta s_i}{v_{i,0}\,H}$, $\Delta s_i$ the arc length covered, $H = 20$ s.
+- **Risk**, the worst shortfall over the cars in its conflict set and over the measures that fit
+  their relation:
+  $$\rho_i = \max_{j \in K_i}\max\left(\frac{(\tau^* - \min_t \mathrm{TTC}^{2D}_{ij})^+}{\tau^*},\ \frac{(h^* - \min_t h_{ij})^+}{h^*},\ \frac{(\pi^* - \mathrm{PET}_{ij})^+}{\pi^*},\ \frac{(d^* - \min_t d_{ij})^+}{d^*}\right)$$
+  with $\mathrm{TTC}^{2D}_{ij}$ the first time the two bodies would touch at constant velocity
+  (it is $g/\Delta v$ for a follow, uses the closing speed $v_i + v_j$ for an oppose, and turns
+  positive during a merge before the lanes are shared), $h_{ij}$ the time headway while one follows
+  the other, $\mathrm{PET}_{ij}$ the post-encroachment time at a cross's box, and $d_{ij}$ the body
+  clearance (the smooth term near contact, which C3 showed is needed). References $\tau^* = 3$ s,
+  $h^* = 1$ s, $\pi^* = 1.5$ s, $d^* = 1$ m.
+- **Comfort** from both directions:
+  $c_i = 0.3\left(\dfrac{a^{\text{lon,peak}}_i}{b^{\max}_i}\right)^2 + 0.3\left(\dfrac{a^{\text{lat,peak}}_i}{a^{\text{lat,max}}_i}\right)^2$.
+- **Contact** as before. Today's code implements the follow case of $\rho$ (TTC and headway in a
+  shared lane) and longitudinal comfort; the rest is the revision (step S0 below).
 
 **Rules that make scores comparable** (learned the hard way, D2: 71 % → 92 %):
 - defined over *time*, never over samples (0.05 s arena ticks and 0.1 s swb logs must agree);
@@ -84,6 +140,28 @@ from a lead's braking to Autoware's command), Autoware's 3 s lane-change prepare
 lag: they enter the game as the car's type, and their cost appears in the outcome.
 
 ## ② The two-car game: the unit everything is built from
+
+**One game for every relation: the passage game.** A pair meets at a conflict zone $Z$; the
+outcome is the order of passage; the context is where each car stands relative to $Z$:
+
+$$c = \bigl(\text{relation},\ \Delta t = t^Z_A - t^Z_B,\ v_A,\ v_B,\ \text{right of way } r,\ \text{geometry}\bigr),\qquad t^Z_i = \frac{s^Z_i - s_i}{v_i}$$
+
+The car that must claim $Z$ (the one cutting in, turning, entering, overtaking) plays a **gap
+acceptance** rule that generalizes the cut-in's:
+
+$$\text{go} \iff t^{Z,\text{in}}_B - t^{Z,\text{out}}_A \;\ge\; \tau_{\text{acc}} + \frac{(v_B^2 - v_A^2)^+}{2\,a_{\text{rear}}\,v_B}\quad(\text{merge}),\qquad
+t^{Z,\text{in}}_B - t^{Z,\text{out}}_A \;\ge\; \tau_{\text{acc}}\quad(\text{cross, oppose})$$
+
+with a patience, an option to go on a seen yield, and a prepare time; the car that holds $Z$ plays
+a **yield** rule: yield within a band before any move is seen, or on the claimant's onset within a
+reaction gap, at a chosen deceleration (C3 measured Autoware's: onset + 1.0 s). The relation
+fixes the game's shape: a merge is sequential (the holder sees the move), a cross or an oppose is
+close to simultaneous when $|\Delta t|$ is small and no right of way applies (chicken, or a war of
+attrition when both can wait), and a right-of-way rule or a convention selects one equilibrium.
+The cut-in below is the merge instance; the left turn (U1) the cross instance.
+
+**The cut-in, in this form:**
+
 
 - **Type** $t = (\theta, \varphi)$: capability $\theta$ (braking, acceleration, lag, size, reaction,
   prepare time) and preference $\varphi$. Own type known; the other's private.
@@ -201,5 +279,21 @@ value of information, measured on deployment code at deployment rates.
   change's onset (1.0 s, perception adds 0.1-0.45 s); a slow cut-in 14 m ahead is a near miss
   (0.2-0.6 m clearance) that the arena grazes. Bugs found and fixed on the way: the ego's pedal maps
   under the spec's physics, acb's ground-truth headings, the agent at junctions.
-- Next: C2a and the double oracle with the refitted imitation, N1-N2 (conflict-set sizes, three-car
-  composition), E3 (Autoware's knobs as rules).
+- Next: the scenario plan below; N1-N2 (conflict-set sizes, three-car composition) and E3
+  (Autoware's knobs as rules) beside it.
+
+**The scenario plan** (roadmap 074, S0-S6), one relation at a time, each through the same ladder:
+kinematic game, arena (with the geometry it needs), swb with a light agent, swb with Autoware.
+
+| step | what | needs |
+|---|---|---|
+| S0 | the general utility: route progress, $\mathrm{TTC}^{2D}$, PET, clearance, lateral comfort, in `measures.py` and the utility; re-score C2b and C3 with it (the cut-in must keep its classes, and the near-miss cell becomes smooth) | offline, on recorded poses |
+| S1 | cut-out: the lead leaves its lane and reveals a stopped car | the parallel road plus a parked car; Autoware's reaction (E2's numbers) |
+| S2 | cross: straight crossing at an unsignalled junction, with and without a priority rule | an arena crossing; Town01/02 junctions with the lights off (E6) |
+| S3 | merge with a deadline: a lane drop or an on-ramp (war of attrition) | an arena lane end; a site on Autoware's maps (E7) |
+| S4 | oppose: a narrow passage, who waits | an arena two-way road with a narrow stretch |
+| S5 | the left turn in the arena and swb (U1's kinematic results first) | an arena junction; Town05/10 (E5) |
+| S6 | overtaking via the oncoming lane: merge, oppose, merge | a two-way arena road; Town01/02 |
+
+Each step reports the equilibrium map over $(\Delta t, v_A, v_B, r)$, the welfare loss against the
+optimum, and where Autoware departs from its imitation.

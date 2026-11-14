@@ -94,6 +94,10 @@ TYPES = {
     # (4.7 m/s^2 mean), full braking peaks at 9.6 m/s^2 (7.4 mean from 12 m/s with the lags).
     "carla_model3": Capability(4.79, a_max=4.7, b_max=9.6, v_max=30.0, reaction=1.0, t_prep=0.0, t_lc=3.0),
     "golfcart": Capability(2.4, a_max=1.5, b_max=4.0, v_max=6.9, reaction=1.0, t_prep=0.0, t_lc=3.0),
+    # A heavier, slower car (074 C6; no truck is specified in sim_vehicle_spec yet, E4): a box
+    # truck's length and width, braking 4.5 m/s^2, slow acceleration, a longer lane change.
+    "truck_like": Capability(8.0, a_max=1.5, b_max=4.5, v_max=25.0, reaction=1.0, t_prep=0.0, t_lc=4.0,
+                             width=2.5),
 }
 
 GO, WAIT, GO_IF_YIELD = "go", "wait", "go_if_yield"

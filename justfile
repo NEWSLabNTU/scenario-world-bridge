@@ -33,9 +33,13 @@ export SWB_WEB_PORT := env_var_or_default('SWB_WEB_PORT', '8080')
 isaac_port := env_var_or_default('ISAAC_PORT', '5590')
 world_port := env_var_or_default('WORLD_PORT', '5591')
 data_dir := env_var_or_default('DATA_DIR', justfile_directory() + '/data')
-# The converted CARLA maps, one directory per town; the repo's scenarios name theirs as
-# $(env CARLA_MAPS)/<Town>.
+# The converted CARLA maps, one directory per town: the developers' maps (a host setting,
+# CARLA_MAPS). The repo's own scenarios (scenarios/) name theirs as $(env CARLA_MAPS)/<Town>,
+# swb_examples' as a project's do, $(env SWB_MAPS)/<Town> (roadmap 076 step 10). A project's
+# stack sets SWB_MAPS to its assets/maps; every recipe here sets it to this directory, so the
+# same example file runs under both.
 maps_dir := env_var_or_default('CARLA_MAPS', data_dir + '/carla-autoware-bridge')
+export SWB_MAPS := maps_dir
 project := justfile_directory()
 # Where every stack's play_launch logs go, <log root>/<kind>/<time>/. A host setting: keep it
 # on a disk whose fsync latency cannot stall a node (CLAUDE.md, "The log disk can stall a
@@ -1507,15 +1511,15 @@ scenario scenario_file *args:
         port:={{ssv2_port}} "${timeout_args[@]}"
 
 
-# The map directory a scenario names (its LogicFile, $(env CARLA_MAPS) and any other $(env VAR)
-# expanded); the
-# default map when it names none.
+# The map directory a scenario names (its LogicFile, $(env CARLA_MAPS), $(env SWB_MAPS) and any
+# other $(env VAR) expanded); the default map when it names none.
 _scenario-map scenario_file:
     #!/usr/bin/env bash
     maps="{{maps_dir}}"
     f=$(grep -oE 'LogicFile filepath="[^"]*"|filepath: *.*' "{{scenario_file}}" | head -1 \
         | sed -E 's/^LogicFile filepath="//; s/"$//; s/^filepath: *//')
     f="${f//\$(env CARLA_MAPS)/$maps}"
+    f="${f//\$(env SWB_MAPS)/$maps}"
     # any other $(env VAR), as SSv2 expands it (062's open-data maps: $(env SWB_OPEN_MAPS))
     while [[ $f =~ \$\(env\ ([A-Za-z_][A-Za-z0-9_]*)\) ]]; do
         v="${BASH_REMATCH[1]}"

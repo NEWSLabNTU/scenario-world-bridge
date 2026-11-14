@@ -57,6 +57,7 @@ SUITE_KEYS = ("scenarios", "parameters", "distribution", "repetitions", "seed", 
               "retry", "pilot_args", "logging")
 EXTERNAL_CONTROLLERS = ("agent", "autoware")
 MAPS_PREFIX = "$(env SWB_MAPS)/"
+RETIRED_MAPS_PREFIX = "$(env CARLA_MAPS)/"  # the developers' maps (the justfile), not a project's
 FETCH = assets.FETCH
 
 
@@ -466,8 +467,11 @@ def check_scenario(project: Path, sc: Scenario, settings: dict) -> list:
                            f'<LogicFile filepath="{MAPS_PREFIX}<map>"/>'))
     elif not lf.startswith(MAPS_PREFIX):
         tail = re.sub(r"^\$\(env [A-Z_]+\)/", "", lf).rstrip("/").split("/")[-1]
-        out.append(Finding(rel, f"LogicFile {lf} does not name a project map",
-                           f'filepath="{MAPS_PREFIX}{tail}"'))
+        what = f"LogicFile {lf} does not name a project map"
+        if lf.startswith(RETIRED_MAPS_PREFIX):
+            # retired for projects (roadmap 076 step 10): the developers' map directory
+            what += " (CARLA_MAPS is the developers' map directory, not the project's)"
+        out.append(Finding(rel, what, f'filepath="{MAPS_PREFIX}{tail}"'))
     else:
         name = lf[len(MAPS_PREFIX):].strip("/")
         if not (project / "assets" / "maps" / name).is_dir():

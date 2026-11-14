@@ -9,7 +9,10 @@ is a slot.
         [exit_on_scenario_end:=false] [pilots:='<YAML or JSON list>']
 
 The shortcuts for the supported simulators, isaac.launch.xml and carla.launch.xml, fill
-`sim` and `sim_args` from arguments of their own.
+`sim` and `sim_args` from arguments of their own. Those and the `ego_launch` path below are
+the developers' (`just run`); a project's stack is swb.launch.xml, whose keeper runs its pilots
+and which refuses ego_launch, ego_launch_args, agent and map_path by name (roadmap 076 step
+10). Another simulator here takes `pilots:` (no default autopilot).
 
 Groups and their ROS domains:
 - sim (ego domain): the world server.
@@ -30,7 +33,7 @@ Groups and their ROS domains:
   - Default ego_launch: on isaac, aib_launch isaac_simulator.launch.xml (aib's Autoware
     profile; the vehicle interface and sensors are the world server's); on carla,
     acb_launch carla_simulator.launch.xml (Autoware with acb_bridge, CARLA's vehicle
-    bridge). none: no ego.
+    bridge); another simulator has none, so no ego starts (give `pilots`). none: no ego.
 - pilots (roadmap 076, docs/design/projects-and-pilots.md "Pilots"): `pilots` is YAML or JSON
   text, a list `[{entity, kind, domain, <arg>: <value>, args: {...}}, ...]` (or a mapping
   entity -> {kind, ...}). Each pilot is a nested play_launch of swb_launch's
@@ -44,7 +47,8 @@ Groups and their ROS domains:
   `domain` takes ego_domain if free, then the next free one above it. On Isaac the car's rig
   is the world server's, on ego_domain: a pilot with a vehicle side must run there (one such
   pilot), and carla_basic is refused. With pilots and no ego_launch the old ego is not
-  started; ego_launch:=<launch> still starts it, in ego_domain, beside the pilots.
+  started; ego_launch:=<launch> still starts it, in ego_domain, beside the pilots (the
+  developers' path).
   swb.launch.xml passes no pilots here: its keeper (swb.stack) runs them, so that it can
   restart them with another map_path when a run is on another map.
 - run (scenario domain): with `spawn` and no scenario, free drive (swb_free_drive: the ego at
@@ -358,13 +362,13 @@ def _stack(context):
         ego_launch = "none"
     pilots = parse_pilots(pilots_text, sim, ego_domain, scenario_domain,
                           ego_taken=ego_launch != "none")
+    if not ego_launch and sim not in PRESETS:
+        # another simulator has no default autopilot: its vehicles come from `pilots`
+        ego_launch = "none"
     if ego_launch != "none":
         if not ego_launch:
             ego_launch = {"isaac": "aib_launch isaac_simulator.launch.xml",
-                          "carla": "acb_launch carla_simulator.launch.xml"}.get(sim)
-            if not ego_launch:
-                raise RuntimeError(f"stack: sim {sim!r} has no default autopilot: ego_launch:= "
-                                   "your launch, or none")
+                          "carla": "acb_launch carla_simulator.launch.xml"}[sim]
             # the preset's Autoware: its map, and on CARLA the server it drives
             preset = {"map_path": get("map_path")}
             if not get("vehicle_model"):
@@ -463,7 +467,7 @@ def generate_launch_description():
         arg("sim", default_value="", description="isaac, carla, or a package with launch/world.launch.xml"),
         arg("sim_args", default_value="", description="name:=value ... for the world server's launch"),
         arg("world_endpoint", default_value="", description="the world server's tcp://host:port; empty: the preset's"),
-        arg("ego_launch", default_value="", description="the autopilot's launch: a path or '<package> <file>'; empty: the sim's default; none: no ego"),
+        arg("ego_launch", default_value="", description="the developers' autopilot launch (just run): a path or '<package> <file>'; empty: the sim's default (carla, isaac; another sim: none); none: no ego. A project gives pilots"),
         arg("ego_launch_args", default_value="", description="name:=value ... for ego_launch"),
         arg("agent", default_value="true", description="start swb's vehicle agent beside the autopilot (false: ego_launch has its own)"),
         arg("entity", default_value="ego", description="the scenario entity the ego is"),

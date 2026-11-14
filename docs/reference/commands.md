@@ -59,6 +59,10 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 | `gpu` | the seat's | the GPU index (`CUDA_VISIBLE_DEVICES`) |
 | `stack_args` | empty | `name:=value ...` for the lower-level `stack.launch.py`, after swb's own (they win): `side_args`, `sim_args`, `vehicle_catalogs` |
 
+`ego_launch`, `ego_launch_args`, `agent` and `map_path` are refused by name, given directly
+or in `stack_args`: who drives each entity is the project's pilots in `swb.yaml` ([Project
+file](project-file.md)), and the map is `map:=`.
+
 play_launch binds its web UI and opens its own log directory (`./play_log/`) before the
 launch file is read, so `--web-addr` (the seat's web port, `seat show`) and `--log-dir`
 are its command line's. `ros2 launch swb_launch swb.launch.xml` takes the same arguments,

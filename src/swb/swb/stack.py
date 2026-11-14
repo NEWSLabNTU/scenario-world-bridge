@@ -77,6 +77,29 @@ DEFAULT_VEHICLE = "tesla_model3"
 SIDED_KINDS = ("autoware",)  # kinds that always bring a vehicle side
 
 
+# Launch arguments the project interface replaced (roadmap 076 step 10), each with what to give
+# instead. Refused by name, never aliased (as autoware_sim_profile's check_launch_args does for
+# the profile's renamed arguments): a launch drops an undeclared name without a word, and as
+# stack_args they would start an ego beside the keeper's pilots or move the stack's map under
+# it. stack.launch.py keeps ego_launch, ego_launch_args and agent for the developers' `just
+# run` (carla.launch.xml, isaac.launch.xml); a project never reaches them.
+RETIRED_ARGS = {
+    "ego_launch": "a pilot in swb.yaml: `pilots: {ego: {kind: autoware}}`; your own launch "
+                  "as `kind: launch` with `launch: <package> <file>`; none as `kind: none`",
+    "ego_launch_args": "the pilot's `args:` in swb.yaml "
+                       "(`pilots: {ego: {kind: autoware, args: {max_velocity: 11.11}}}`)",
+    "agent": "`agent: own` on a `kind: launch` pilot in swb.yaml",
+    "map_path": "map:=<map>, one of the project's maps (assets/maps/<map>)",
+}
+
+
+def retired_args(names) -> list:
+    """One line per retired launch argument among ``names``: what to give instead."""
+    return [f"{n}:= is retired (roadmap 076); give {RETIRED_ARGS[n]}. The stack is "
+            f"`play_launch launch swb_launch swb.launch.xml` in the project"
+            for n in sorted(set(names)) if n in RETIRED_ARGS]
+
+
 class StackRefused(RuntimeError):
     """The stack must not start; ``findings`` (when from ``project check``) say why."""
 
@@ -469,6 +492,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
          stack_args=None, check=projectmod.check_project, now=None, simulator_start=None,
          probe=simmod.probe) -> Plan:
     """Everything the stack is, before anything starts; StackRefused says why it must not."""
+    retired = retired_args(stack_args or {})
+    if retired:
+        raise StackRefused("stack_args: " + "; ".join(retired))
     try:
         project = config.find_project(project_arg or None)
     except ConfigError as e:

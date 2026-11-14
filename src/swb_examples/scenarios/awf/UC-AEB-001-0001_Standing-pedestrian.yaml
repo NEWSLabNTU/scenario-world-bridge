@@ -4,7 +4,7 @@
 #         scenarios/UC-AEB-001-0001_Standing-pedestrian.yaml at commit b258e781fdd487b866c3ecc2912e41239b47fef2
 # Copyright the Autoware Foundation contributors; licensed under the Apache License 2.0
 # (http://www.apache.org/licenses/LICENSE-2.0). Modified by scenario-world-bridge:
-#   - RoadNetwork/LogicFile: maps/Town01.osm -> $(env CARLA_MAPS)/Town01 (our converted
+#   - RoadNetwork/LogicFile: maps/Town01.osm -> $(env SWB_MAPS)/Town01 (our converted
 #     Town01, the TUM carla-autoware-bridge pack); SceneGraphFile (maps/dummy.pcd) dropped,
 #     as in this repo's other scenarios.
 #   - laneId 1071 -> 5230 everywhere, s and offset unchanged. AWF's Town01.osm and ours share
@@ -75,7 +75,7 @@ OpenSCENARIO:
     CatalogLocation: []
   RoadNetwork:
     LogicFile:
-      filepath: $(env CARLA_MAPS)/Town01
+      filepath: $(env SWB_MAPS)/Town01
     TrafficSignals:
       TrafficSignalController: []
   Entities:

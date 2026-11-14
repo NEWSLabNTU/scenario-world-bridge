@@ -355,7 +355,8 @@ def preflight(scenario: Path, relay: str, ego_entity: str = "ego") -> Optional[s
         return None
     return (f"pre-flight: no vehicle agent registered with the relay {relay} as "
             f"{', '.join(repr(e) for e in missing)}; start that vehicle side "
-            f"(swb_launch ego_av.launch.xml, or background_av.launch.xml entity:={missing[0]}, "
+            f"(in a project: a pilot for it in swb.yaml, `ros2 run swb run`; developers: "
+            f"swb_launch ego_av.launch.xml, or background_av.launch.xml entity:={missing[0]}, "
             f"with relay:={relay}) "
             f"and wait until it has registered, or check it for exited nodes")
 

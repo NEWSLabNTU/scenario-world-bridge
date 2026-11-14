@@ -422,7 +422,7 @@ sharing a project.
    package, `/swb/wheels`, `record:=`, the datasets re-uploaded and tagged.
 9. [ ] Port the studies onto it as the proof: an AWF suite, a cooperation batch sharded on two
    hosts, a Haruna drift run with its own pilot, the golf cart twin as a package project.
-10. [ ] Retire what the design replaces (`ego_launch`, `background_av.launch.xml` on the user
+10. [x] Retire what the design replaces (`ego_launch`, `background_av.launch.xml` on the user
    path, `CARLA_MAPS`/`CARLA_USD` for users), by name.
 11. [ ] B: the docs reorganised (B1-B5).
 12. [ ] B6: the docs check; live runs; fresh readers.
@@ -610,6 +610,52 @@ sharing a project.
   - open: the bridge cannot tell two SSv2 clients apart on its REP socket; a stray SSv2
     from outside swb would do the same. A per-scenario client id in Initialize would let it
     refuse the second one.
+- Step 10 (retire by name), 2026-11-15. Inventory (grep of src/swb_launch, src/swb,
+  src/swb_examples, docs outside design/ and roadmap/, README.md, justfile, scripts/), then
+  rulings. The user's path is `swb.launch.xml` and `ros2 run swb`; the justfile and what it
+  runs (`just run`, `ego-av`, `bg-av`, `two-av`, `demo-tour`, `scenario`, `e2e`,
+  `acceptance`, the study scripts) are the developers'. Static checks only; no simulator.
+  - **Retired, refused by name** (`swb.stack.RETIRED_ARGS`, the pattern of the profile's
+    `check_launch_args`): `ego_launch`, `ego_launch_args`, `agent` and `map_path` given to
+    `swb.launch.xml` (read from the launch configurations, where an undeclared name would
+    otherwise be dropped without a word) or in its `stack_args` (where they would start an
+    ego beside the keeper's pilots or move the stack's map under the keeper). The refusal
+    names the replacement: a pilot in `swb.yaml` (`kind: autoware`, `kind: launch` with
+    `launch:`, `kind: none`), the pilot's `args:`, `agent: own`, `map:=`.
+  - **Kept for developers**: `ego_launch`, `ego_launch_args` and `agent` on
+    `stack.launch.py`, `carla.launch.xml` and `isaac.launch.xml`, which `just run` drives
+    (its default Autoware ego, `ego_launch:=none` from `two-av`, `demo-tour`,
+    `scripts/stack_up.bash`, `run_050_set.sh`, the coop scripts). Their headers now say they
+    are the developers'. Not renamed: a rename would be a second retirement of the same
+    plumbing for no user. A simulator other than carla and isaac on `stack.launch.py` (the
+    "your simulator" how-to) now starts no ego instead of asking for `ego_launch:=`; its
+    vehicles come from `pilots:=`.
+  - **`background_av.launch.xml`**: kept for `just bg-av` and `just two-av`, its header
+    pointing a project at `bg_av_*: {kind: autoware}`. No user doc or example pointed at it;
+    the one example comment that named `just bg-av` (`multi_av/town01_two_av.xosc`) names the
+    pilot now. `run_suite`'s pre-flight message names the pilot first, the launch files for
+    developers.
+  - **`CARLA_MAPS` for users**: every scenario under `src/swb_examples/scenarios/`
+    names `$(env SWB_MAPS)/<Town>` (25 files), as do the demo generators (`gen_demo_incidents.py`,
+    `gen_demo_tour.py`; regenerating gives the same files). A test holds every example to it.
+    Tutorial 3 copies the autopilot scenario without its `sed` step. swb_examples' README
+    runs its library in a project (copy into `scenarios/`, `ros2 run swb run`) instead of
+    `carla.launch.xml map_path:=$CARLA_MAPS/...`, `run_suite` and `ego_launch_args:=`; its
+    Isaac standing-ego scenario is marked as not runnable in a project yet (SSv2's
+    `managed_ego:=false` is not a `swb run` setting). `project check` names `$(env
+    CARLA_MAPS)` as the developers' directory when a scenario still uses it.
+  - **`CARLA_MAPS` kept for developers**: the justfile's map directory (a host setting), and
+    the repository's own `scenarios/` (bench, gap, surfaces, coop, carla0100) and the study
+    generators keep `$(env CARLA_MAPS)`. The justfile exports `SWB_MAPS` as the same directory
+    for every recipe, and `_scenario-map` expands both, so `just scenario`, `e2e`, `two-av`,
+    `demo-tour` and `acceptance` run the moved examples unchanged.
+  - **`CARLA_USD`**: no launch file in swb_launch reads it; the stack sets `SWB_CARLA_USD`. It
+    stays the developers' host setting for `just isaac-assets` and `scripts/open_maps/`, and
+    swb_isaac_world (a submodule, not changed) reads it when `SWB_CARLA_USD` is unset, which is
+    what `just run sim:=isaac` and `just isaac-world` rely on. No user doc names it.
+  - Not verified live: play_launch's own parser (not ROS launch's) handing an undeclared
+    `ego_launch:=` to `swb.launch.py`'s launch configurations; the refusal is tested with ROS
+    launch's context.
 
 ## Acceptance
 

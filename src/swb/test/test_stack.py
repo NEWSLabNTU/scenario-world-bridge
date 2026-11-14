@@ -367,3 +367,18 @@ def test_isaac_root_reaches_the_world_server(where, maps_hub):
     h["isaac"] = {"root": str(where["tmp"] / "isaac-sim")}
     sysf.write_text(yaml.safe_dump(h))
     assert stack.plan(project_arg=str(d)).env["ISAAC_ROOT"] == str(where["tmp"] / "isaac-sim")
+
+
+def test_retired_args_refused_by_name(where, maps_hub):
+    """roadmap 076 step 10: the old stack's arguments are refused, naming what replaced them."""
+    assert stack.retired_args(["side_args", "seat"]) == []
+    [line] = stack.retired_args(["ego_launch"])
+    assert line.startswith("ego_launch:= is retired") and "pilots:" in line
+    assert "swb.launch.xml" in line
+    d = make(where)
+    for name in ("ego_launch", "ego_launch_args", "agent", "map_path"):
+        with pytest.raises(stack.StackRefused, match=f"stack_args: {name}:= is retired"):
+            stack.plan(project_arg=str(d), stack_args={name: "x"})
+    # the stack's own arguments still pass
+    p = stack.plan(project_arg=str(d), stack_args={"side_args": "weather:=ClearNoon"})
+    assert p.launch_args["side_args"] == "weather:=ClearNoon"

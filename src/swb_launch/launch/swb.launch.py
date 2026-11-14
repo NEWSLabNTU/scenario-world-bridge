@@ -39,6 +39,10 @@ refused. A started CARLA belongs to the keeper: logged to proc/simulator/carla.l
 (carla.ready_timeout, 300 s) before the pilots start and the stack is ready, and stopped with
 the stack. Isaac's world server starts Isaac. stack_args go to stack.launch.py last and win
 (side_args, sim_args, ...).
+
+The old stack's arguments are refused by name, given here or in stack_args, with what replaced
+them (swb.stack.RETIRED_ARGS, roadmap 076 step 10): ego_launch, ego_launch_args and agent (the
+project's pilots in swb.yaml) and map_path (map:=).
 """
 import os
 import shlex
@@ -85,6 +89,11 @@ def named_args(text):
 def _swb(context):
     get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
     stack = _stack_module()
+    # the old stack's arguments (carla.launch.xml's ego_launch, ...), which a launch would
+    # drop without a word: refused by name, with what replaced them (roadmap 076 step 10)
+    retired = stack.retired_args(n for n in context.launch_configurations if n not in ARGS)
+    if retired:
+        raise RuntimeError("swb: the stack is refused (3): " + "; ".join(retired))
     try:
         plan = stack.plan(project_arg=get("project") or None, seat_arg=get("seat") or None,
                           simulator=get("simulator") or None, map_name=get("map") or None,

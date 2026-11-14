@@ -49,6 +49,10 @@ play_launch launch --web-addr 127.0.0.1:8080 \
     sim:=my_simulator
 ```
 
+It starts no autopilot of its own. Who drives each entity is `pilots:=`, the same mapping as
+a project's `pilots:` in YAML or JSON, e.g. `pilots:='{ego: {kind: launch, launch: my_pkg
+drive.launch.xml}}'` ([Project file](../reference/project-file.md)).
+
 The project's stack, `swb.launch.xml`, starts `carla` and `isaac` only today (2026-11-15),
 so a third simulator runs without projects, seats and `swb run`: its scenarios go to
 `scenario.launch.xml` directly. The vehicle under test needs a vehicle side of its own:

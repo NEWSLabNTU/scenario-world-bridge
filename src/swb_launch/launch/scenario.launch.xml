@@ -18,7 +18,9 @@
   (`ros2 run swb_launch run_suite` does this per scenario).
 
   The scenario file is read, never modified (SSv2 preprocesses a copy in its output dir).
-  It names its map directory in RoadNetwork/LogicFile, e.g. "$(env CARLA_MAPS)/Town01".
+  It names its map directory in RoadNetwork/LogicFile, e.g. "$(env SWB_MAPS)/Town01": a
+  project's stack sets SWB_MAPS to the project's assets/maps (the justfile's recipes to the
+  developers' map directory, CARLA_MAPS).
 -->
 <launch>
   <!-- One DDS transport for every process of a run (roadmap 070, frictions 8 and 14): Cyclone

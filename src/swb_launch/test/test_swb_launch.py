@@ -48,3 +48,27 @@ def test_stack_takes_the_plans_arguments():
 
 def test_named_args():
     assert swb.named_args("a:=1 'b:=x y'") == {"a": "1", "b": "x y"}
+
+
+def test_retired_arguments_are_refused_by_name():
+    """roadmap 076 step 10: ego_launch and the rest, given to swb.launch.xml, are refused
+    before anything is planned, naming what replaced them."""
+    import pytest
+    from launch import LaunchContext
+    context = LaunchContext()
+    for name, (default, _) in swb.ARGS.items():
+        context.launch_configurations[name] = default
+    context.launch_configurations["ego_launch"] = "none"
+    context.launch_configurations["ego_launch_args"] = "rviz:=true"
+    with pytest.raises(RuntimeError) as e:
+        swb._swb(context)
+    msg = str(e.value)
+    assert "ego_launch:= is retired" in msg and "ego_launch_args:= is retired" in msg
+    assert "swb.yaml" in msg
+
+
+def test_another_simulator_starts_no_ego():
+    """stack.launch.py: a simulator without a default autopilot starts no ego (pilots drive)."""
+    import inspect
+    src = inspect.getsource(stack._stack)
+    assert "sim not in PRESETS" in src and "ego_launch:= your launch" not in src

@@ -109,6 +109,7 @@ def test_old_map_variable(host):
     [f] = scenario_checks(d)
     assert f.file == "scenarios/a.xosc"
     assert "does not name a project map" in f.what and "$(env SWB_MAPS)/Town01" in f.fix
+    assert "CARLA_MAPS is the developers' map directory" in f.what
 
 
 def test_map_not_fetched_is_refused(host):
@@ -130,7 +131,7 @@ TWO_AV = (EXAMPLES / "multi_av" / "town01_two_av.xosc")
 
 @pytest.mark.skipif(not TWO_AV.is_file(), reason="swb_examples not here")
 def test_patterns_and_isaac_limit(host):
-    text = TWO_AV.read_text().replace("CARLA_MAPS", "SWB_MAPS")
+    text = TWO_AV.read_text()
     pilots = "pilots:\n  ego: {kind: autoware}\n  bg_av_*: {kind: autoware}\n"
     d = make(host["tmp"], "simulator: carla\nassets: []\n" + pilots, {"two.xosc": text})
     assert scenario_checks(d) == []
@@ -208,7 +209,8 @@ def test_every_example_scenario_parses():
     assert len(files) > 10
     for f in files:
         sc = project.read_scenario(f)
-        assert sc.logic_file, f
+        # every example names its map as a project's scenarios do (roadmap 076 step 10)
+        assert sc.logic_file and sc.logic_file.startswith(project.MAPS_PREFIX), f
     two = project.read_scenario(TWO_AV)
     assert [e.name for e in two.entities if e.external] == ["ego", "bg_av_1"]
     awf = next(f for f in files if f.suffix == ".yaml")

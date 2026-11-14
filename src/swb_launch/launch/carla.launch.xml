@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
+  The developers' shortcut (`just run sim:=carla`, docs/development.md). A project's stack
+  is swb.launch.xml, which gives no ego_launch: its pilots, in swb.yaml, drive the
+  entities, and the old arguments are refused there by name (roadmap 076 step 10).
+
   The whole stack on CARLA (roadmap 073): stack.launch.py with sim:=carla and the CARLA world
   server's arguments of its own. CARLA itself runs apart and long-lived (CarlaUE4.sh),
   always synchronous under swb: the world server steps it, frame by frame.

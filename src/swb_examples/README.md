@@ -1,54 +1,31 @@
-# swb_examples: starter scenarios
+# swb_examples: example projects and a scenario library
 
-**Example projects.** `projects/` holds working projects for `ros2 run swb` (first drive,
-several pilots, a safety suite, Isaac Sim, road physics); start from
-[projects/README.md](projects/README.md). The scenarios below are the older, stand-alone
-set.
+**Example projects.** `projects/` holds working scenario-world-bridge projects for `ros2 run
+swb` (first drive, several pilots, a safety suite, Isaac Sim, road physics); start from
+[projects/README.md](projects/README.md).
 
-Scenarios that run on the scenario-world-bridge pipeline as installed, no clone needed.
-Every file names its map as `$(env CARLA_MAPS)/<Town>`, so `CARLA_MAPS` must point at the
-directory of converted towns (the TUM carla-autoware-bridge pack; see the getting-started
-guides, stage 2).
-
-Start the stack first (CARLA running; every scenario with an ego drives in Town01), and
-wait until its Autoware is ready:
+**The scenario library.** `scenarios/` holds more scenarios, grouped below. Each names its
+map as a project's scenarios do, `$(env SWB_MAPS)/<Town>`, so it runs in any project that
+fetched that town: copy it into the project's `scenarios/` and run it there. In a copy of
+`first_drive` (Town01, an Autoware ego), with its stack up ([Tutorial
+1](../../docs/tutorials/01-first-drive.md)):
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8084 \
-    swb_launch carla.launch.xml \
-    map_path:=$CARLA_MAPS/Town01
-ROS_DOMAIN_ID=${EGO_ROS_DOMAIN_ID:-1} ros2 run swb_launch ego_ready --timeout 600
-```
-
-Then, in another terminal, one scenario:
-
-```bash
+cd ~/first_drive
 S=$(ros2 pkg prefix --share swb_examples)/scenarios
-ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} play_launch launch \
-    --web-addr 127.0.0.1:8081 \
-    swb_launch scenario.launch.xml \
-    scenario:=$S/basic/town01_ego_drive.xosc \
-    port:=${SSV2_PORT:-5555} \
-    output_directory:=/tmp/ego_drive
+cp $S/basic/town01_ego_drive.xosc scenarios/
+ros2 run swb project check
+ros2 run swb run scenarios/town01_ego_drive.xosc
 ```
 
-or a whole directory, one verdict each, merged into `suite.junit.xml`:
-
-```bash
-ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
-    $S/basic \
-    --output ~/swb_results/basic \
-    --relay tcp://localhost:${AGENT_PORT:-5560} \
-    -- port:=${SSV2_PORT:-5555}
-```
-
-`ros2 launch` takes the same arguments as `play_launch launch`, but play_launch must still
-be installed: the stack starts its parts as play_launch processes of their own. Both
-commands assume the environment file of
-[Install](../../docs/getting-started/install.md#the-environment-file).
+Without a stack up, `ros2 run swb run <scenario> --stop-stack` starts one for the run and
+stops it afterwards. A scenario on another town needs that town among the project's assets
+(`take: [Town01, Town02]` in `swb.yaml`, then `ros2 run swb assets fetch`). Who drives each
+entity is the project's `pilots:` in `swb.yaml`; `project check` names an entity that has
+none.
 
 Times are wall-clock on the development host (32 cores, one RTX GPU, CARLA 0.9.16 at Epic
-quality), ego stack already running, measured by `run_suite` on 2026-10-10. They include
+quality), the ego's Autoware already running, measured on 2026-10-10. They include
 SSv2 start-up and the ego's engage, which is most of a short scenario.
 
 ## basic/ -- this project's own scenarios
@@ -63,13 +40,15 @@ SSv2 start-up and the ego's engage, which is most of a short scenario.
 | `town01_traffic_light.xosc` | Town01 | The ego stops at an SSv2-commanded red light, then proceeds on green. | 187 s |
 | `town02_episode_change.xosc` | Town02 | No entities: makes swb load Town02 (world reload, new episode). Succeeds after 5 s of simulation time; the next Town01 scenario loads Town01 back. | 71 s |
 
-`run_suite` runs a directory in sorted order, so the Town02 scenario runs last in `basic/`.
+A suite over the directory (`scenarios: [scenarios/basic/]`) runs it in sorted order, so the
+Town02 scenario runs last; the project needs Town02 for it, and each other
+`town*_ego_drive.xosc` file its own town.
 
 ## multi_av/ -- needs a second vehicle side
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
-| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a background AV launch registered as `bg_av_1` with the agent relay ([Tutorial 4, several pilots](../../docs/tutorials/04-several-pilots.md)). |
+| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a pilot for `bg_av_1` beside the ego's, `bg_av_*: {kind: autoware}` in `swb.yaml`, as the `multi_pilot` project has ([Tutorial 4, several pilots](../../docs/tutorials/04-several-pilots.md)). |
 
 ## tutorial/ -- the worked example of the tutorials
 
@@ -79,55 +58,22 @@ SSv2 start-up and the ego's engage, which is most of a short scenario.
 
 ## isaac/ -- Isaac Sim
 
-**Autoware on Isaac.** The starter `basic/town01_ego_drive.xosc` runs on Isaac unchanged:
-the world server's ego is a PhysX vehicle with its own sensors and vehicle interface in the
-ego domain, and Autoware drives it as on CARLA, without acb_bridge. Make Town01's world file
-once ([Getting started on Isaac Sim](../../docs/getting-started/isaac.md), stage 2), then
-start the stack and run the scenario against it as above:
+**Autoware on Isaac.** The starter `basic/town01_ego_drive.xosc` runs on Isaac unchanged,
+in a copy of the `isaac_first_drive` project: the world server's ego is a PhysX vehicle with
+its own sensors and vehicle interface, and Autoware drives it as on CARLA, without
+acb_bridge. Scenarios needing traffic lights, `simulator_autopilot` or `agent` vehicles are
+refused on Isaac, as is a second ego.
 
-```bash
-play_launch launch --web-addr 127.0.0.1:8084 \
-    swb_launch isaac.launch.xml \
-    world:=$CARLA_MAPS/Town01/isaac/world.yaml \
-    map_path:=$CARLA_MAPS/Town01
-```
-
-The stack is one play_launch: the world server, the bridge and relay on it, and the ego's
-Autoware, nested. A cold host takes several minutes before Autoware is ready (`ego_ready`).
-`render:=headless` runs Isaac without a window; `follow:=true` makes its viewport chase the
-ego.
-
-Scenarios needing traffic lights, `simulator_autopilot` or `agent` vehicles are refused on
-Isaac, as is a second ego.
-
-**Without Autoware.** The scenarios below have an ego no Autoware drives, a kinematic box
-SSv2 poses or leaves standing, so they need the world server without the ego vehicle
-(`ego:=none`: a kinematic NPC shoving a dynamic ego breaks SSv2's motion limits) and run
-with `managed_ego:=false` and no agent pre-flight:
-
-```bash
-play_launch launch --web-addr 127.0.0.1:8084 \
-    swb_launch isaac.launch.xml \
-    world:=$CARLA_MAPS/Town01/isaac/world.yaml \
-    ego:=none \
-    ego_launch:=none
-```
-
-```bash
-S=$(ros2 pkg prefix --share swb_examples)/scenarios
-ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} ros2 run swb_launch run_suite \
-    $S/isaac \
-    --output ~/swb_results/isaac \
-    --no-preflight \
-    -- port:=${SSV2_PORT:-5555} managed_ego:=false
-```
+**Without Autoware.** The scenario below has an ego no Autoware drives, a kinematic box SSv2
+poses or leaves standing. It needs the world server without the ego vehicle (a kinematic NPC
+shoving a dynamic ego breaks SSv2's motion limits) and SSv2 with `managed_ego:=false`, which
+`ros2 run swb run` does not pass, so it does not run in a project yet (2026-11-15).
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
 | `town01_rear_contact.xosc` | Town01 | `basic/town01_rear_contact.xosc` with a standing ego: a blind NPC runs into its back; SSv2 sees the collision and Isaac reports the contact (every frame until the exit, the bodies being kinematic). |
 
-Scenarios with no ego and no lights run on Isaac unchanged, e.g. the repository's
-`scenarios/bench/town01_npc_20.xosc` (and with the pre-flight, which has nothing to check).
+Scenarios with no ego and no lights run on Isaac unchanged.
 
 ## demo/incidents/ -- the demo tour's incident templates
 
@@ -137,15 +83,16 @@ trigger to arrive the way the tour does, and routes it through to a nearby goal;
 incident starts when the ego arrives, its actors are added then and deleted when it is
 over, and a watchdog clears them if the ego stands still too long (logged as degraded).
 They are timed for the tour's 40 km/h on CenterPoint with the Autoware overlay
-([Your Autoware](../../docs/how-to/your-autoware.md#fixes-autoware-150-lacks)); start the stack with:
+([Your Autoware](../../docs/how-to/your-autoware.md#fixes-autoware-150-lacks)); give the
+ego's pilot those arguments in `swb.yaml`, then restart the stack:
 
-```bash
-EGO="max_velocity:=11.11 lidar_detection_model:=centerpoint"
-EGO="$EGO use_multi_channel_tracker_merger:=false"
-play_launch launch --web-addr 127.0.0.1:8084 \
-    swb_launch carla.launch.xml \
-    map_path:=$CARLA_MAPS/Town01 \
-    ego_launch_args:="$EGO"
+```yaml
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    args: {max_velocity: "11.11", lidar_detection_model: centerpoint,
+           use_multi_channel_tracker_merger: "false"}
 ```
 
 At the default 15 km/h they still run, but the actors' timing no longer meets the ego.
@@ -179,7 +126,7 @@ and each combination is one testcase in the verdict.
 ### Map adaptation
 
 The use cases are written for AWF's own `scenarios/maps/Town01.osm` (124 lanelets, ids from
-1000 up). Our Town01 (`$CARLA_MAPS/Town01/lanelet2_map.osm`, the TUM conversion, 300
+1000 up). Our Town01 (`assets/maps/Town01/lanelet2_map.osm` in a project, the TUM conversion, 300
 lanelets) shares **no lanelet ids** with it. Both scenarios use one lanelet only:
 
 | AWF lanelet | Our lanelet | Geometry |
@@ -194,7 +141,7 @@ Per file:
 - `UC-AEB-001-0001_Standing-pedestrian.yaml`: `laneId 1071 -> 5230` in all 7
   `LanePosition`s (ego start s 5 and goal s 130, pedestrian s 100); `s` and `offset`
   unchanged.
-- Both: `LogicFile` `maps/Town01.osm -> $(env CARLA_MAPS)/Town01`; `SceneGraphFile`
+- Both: `LogicFile` `maps/Town01.osm -> $(env SWB_MAPS)/Town01`; `SceneGraphFile`
   (`maps/dummy.pcd`) removed, as in this project's other scenarios.
 - Both: the ego's vehicle placeholders, which the AWF evaluator fills with its own vehicle's,
   set to this project's ego (`tesla_model3`, CARLA's `vehicle.tesla.model3`):
@@ -209,7 +156,8 @@ Per file:
 
 ### Results on the CARLA pipeline
 
-Run 2026-10-10 with `run_suite` over `awf/`, CARLA 0.9.16 Town01, the ego stack on defaults:
+Run 2026-10-10 over `awf/`, CARLA 0.9.16 Town01, the ego's Autoware on defaults (the
+`safety_suite` project runs them as a suite):
 
 | Scenario | Result | Time |
 | --- | --- | --- |

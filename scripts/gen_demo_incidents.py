@@ -589,7 +589,7 @@ def template(i, sites):
 	<FileHeader author="scenario-world-bridge" date="2026-10-14T00:00:00+00:00" description="{desc}" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>{decls}</ParameterDeclarations>
 	<CatalogLocations />
-	<RoadNetwork><LogicFile filepath="$(env CARLA_MAPS)/Town01" /></RoadNetwork>
+	<RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town01" /></RoadNetwork>
 	<Entities>
 		{ego_object()}
 		{"".join(entities)}

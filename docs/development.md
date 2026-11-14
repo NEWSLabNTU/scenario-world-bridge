@@ -47,6 +47,18 @@ permanent in `.env` or `.envrc`. The recipes refuse to run while one of the envi
 variables that used to carry a project setting is set, naming the argument that replaced it
 (`scripts/just_lib.bash`).
 
+These recipes are the developers' path, beside a project's (`swb.launch.xml`, `ros2 run swb
+run`). Three things live only here (roadmap 076 step 10): `ego_launch` and `ego_launch_args`
+of `just run` (`carla.launch.xml`, `isaac.launch.xml`, `stack.launch.py`), which a project
+replaces with pilots in `swb.yaml` and `swb.launch.xml` refuses by name; `just bg-av`
+(`background_av.launch.xml`), which a project replaces with a pilot `bg_av_*: {kind:
+autoware}`; and `CARLA_MAPS`, the developers' map directory. Every recipe exports `SWB_MAPS`
+as `CARLA_MAPS` too, so swb_examples' scenarios, which name their maps `$(env
+SWB_MAPS)/<Town>` as a project's do, run under `just scenario` unchanged; the repository's
+own `scenarios/` still name `$(env CARLA_MAPS)`. `CARLA_USD` stays the host setting of the
+USD tooling (`just isaac-assets`), and the Isaac world server reads it when `SWB_CARLA_USD`,
+which a project's stack sets, is not set.
+
 ### Rules that cost hours when broken
 
 - **Always `just build`**, never a bare `colcon build`: it adds `--symlink-install` and

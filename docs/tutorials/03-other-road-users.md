@@ -132,15 +132,14 @@ green; the run passes in about three minutes.
 
 ## 3. A car the simulator drives
 
-The starter for this one is older and names its map another way; copy it and point its
-`LogicFile` at the project's maps:
+This one comes from the scenario library of the workspace; copy it under a shorter name:
 
 ```bash
 cp $E/scenarios/basic/town01_simulator_autopilot.xosc scenarios/autopilot.xosc
-sed -i \
-    's|filepath="[^"]*Town01"|filepath="$(env SWB_MAPS)/Town01"|' \
-    scenarios/autopilot.xosc
 ```
+
+Its `LogicFile` is `$(env SWB_MAPS)/Town01`, as in every scenario of a project: the stack
+sets `SWB_MAPS` to the project's `assets/maps`.
 
 It has, beside the ego, one scripted car (`npc_route`) and one whose controller is
 `simulator_autopilot`:
@@ -198,7 +197,7 @@ of road user: [Writing scenarios](../design/scenario-authoring.md).
 
 | Symptom | Fix |
 |---|---|
-| `project check`: `LogicFile ... does not name a project map` | the `sed` line of step 3, or set the `LogicFile` by hand |
+| `project check`: `LogicFile ... does not name a project map` | a scenario from elsewhere names its map another way: set its `LogicFile` to `$(env SWB_MAPS)/Town01` |
 | The light never changes; the bridge's log says `Cannot read the signal table` | the world server could not write `state/Town01/traffic_lights.yaml`: check the project directory is writable |
 | `simulator_autopilot` refused | the stack is on Isaac Sim, which has no driver of its own |
 | The pedestrian run fails within 1 m | Autoware did not see the walker in time: look at `runs why pedestrian_crossing` and at perception in `runs/<id>/logs/pilot-ego/` |

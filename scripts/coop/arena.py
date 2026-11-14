@@ -219,8 +219,36 @@ def xodr(k, length):
             '  <header revMajor="1" revMinor="4" name="arena" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_crossings(k, approach, beyond, spacing=450.0):
+    """K crossings at grade, one per pair: road a<i> one lane along +x and road b<i> one lane
+    along +y (OpenDRIVE), crossing at (i * spacing, -i * spacing) with no junction (the two
+    road meshes overlap there, flat). Each road starts `approach` m before its crossing and ends
+    `beyond` m after it; spacing > approach + beyond keeps a road from meeting another pair's."""
+    lane = (f'<right><lane id="-1" type="driving" level="false"><width sOffset="0" a="{LANE_W}" b="0" c="0" d="0"/>'
+            '</lane></right>')
+    roads = []
+    length = approach + beyond
+    for i in range(k):
+        cx, cy = i * spacing, -i * spacing
+        for j, (name, x0, y0, hdg) in enumerate(((f"a{i}", cx - approach, cy + LANE_W / 2, 0.0),
+                                                 (f"b{i}", cx - LANE_W / 2, cy - approach, math.pi / 2))):
+            roads.append(f"""
+  <road name="{name}" length="{length}" id="{2 * i + j + 1}" junction="-1">
+    <link/>
+    <planView><geometry s="0" x="{x0}" y="{y0}" hdg="{hdg}" length="{length}"><line/></geometry></planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes><laneSection s="0">
+      <center><lane id="0" type="none" level="false"/></center>
+      {lane}
+    </laneSection></lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_crossings" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 class Arena:
-    def __init__(self, port, k):
+    def __init__(self, port, k, world_xodr=None):
+        """world_xodr: the OpenDRIVE to generate (default: xodr(k, ROAD_LEN), the parallel roads)."""
         self.client = carla.Client("localhost", port)
         self.client.set_timeout(120.0)
         w = self.client.get_world()
@@ -229,7 +257,7 @@ class Arena:
         params = carla.OpendriveGenerationParameters(
             vertex_distance=2.0, max_road_length=50.0, wall_height=0.0, additional_width=0.6,
             smooth_junctions=True, enable_mesh_visibility=True)
-        self.world = self.client.generate_opendrive_world(xodr(k, ROAD_LEN), params)
+        self.world = self.client.generate_opendrive_world(world_xodr or xodr(k, ROAD_LEN), params)
         s = self.world.get_settings()
         s.synchronous_mode = True
         s.fixed_delta_seconds = DT
@@ -295,8 +323,9 @@ class Car:
         self.a = actor
         pc = actor.get_physics_control()
         wheels = pc.wheels
-        wb = abs(wheels[0].position.x - wheels[2].position.x) / 100.0
-        track = abs(wheels[0].position.y - wheels[1].position.y) / 100.0
+        # world positions (cm): distances, so that any heading works
+        wb = math.hypot(wheels[0].position.x - wheels[2].position.x, wheels[0].position.y - wheels[2].position.y) / 100.0
+        track = math.hypot(wheels[0].position.x - wheels[1].position.x, wheels[0].position.y - wheels[1].position.y) / 100.0
         self.wheelbase = wb
         self.steering = Steering(math.radians(wheels[0].max_steer_angle), track / wb)
         self.lon = Longitudinal()

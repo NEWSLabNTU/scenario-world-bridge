@@ -13,7 +13,7 @@ Strategies are contingent rules, not trajectories:
 
   A (the claimant) gap acceptance with threshold tau: go iff
        t_B^{Z,in} - t_A^{Z,out} >= tau  (A clears Z tau s before B arrives), or
-       t_A^{Z,in} - t_B^{Z,out} >= tau  (B has cleared Z tau s before A arrives),
+       t_A^{Z,in} - t_B^{Z,out} >= tau  (B has cleared Z tau s before A, going now, arrives),
      judged from B as A sees it (OBS + DECIDE s old) at B's seen speed, A's own exit at full drive.
      Otherwise A holds out at its speed and brakes for the stop line only when it must
      (at >= BRAKE_LATE m/s^2). Options: patience P (stopped for P s, A goes anyway) and
@@ -49,7 +49,7 @@ Map classes per (dt, v, r):
   M      only mixed equilibria;  ?  none
 
 Usage:
-  scripts/coop/crossing_game.py --out <dir> [--v 4,6,...] [--vb V] [--fault F] [--jobs N]
+  scripts/coop/crossing_game.py --out <dir> [--v 4,6,...] [--vb V] [--fault F] [--dt-max 4] [--dt-step 0.5] [--jobs N]
   scripts/coop/crossing_game.py --selftest
 """
 
@@ -81,6 +81,7 @@ DECIDE = 0.5  # s, from a seen change to a rule's decision
 REACT = 1.0  # s, the safety layer's reaction (Autoware's assumption for a rear car)
 BRAKE_LATE = 2.5  # m/s^2: a car holding out brakes for the stop line only when it needs this much
 YIELD_SEEN = 0.5  # m/s^2: braking the other takes as a yield
+PEAK_W = 0.5  # s, the window of the arena's peak braking (arena.PEAK_WINDOW)
 FAULT = 0.5  # the cost of failing to yield, for the car without right of way
 FAULTS = (0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0)  # swept for the smallest that makes the rule hold
 
@@ -129,117 +130,157 @@ class Outcome:
     b_cont: str = ""
     shield: tuple = (False, False)  # each car's safety layer had to brake
     stopped: tuple = (False, False)  # each car came to rest before Z
+    peak_w: tuple = (0.0, 0.0)  # peak braking as the arena measures it: the speed drop over PEAK_W s
+
+
+def hold_out(u, v):
+    """Keep going, brake for the stop line only when it needs at least BRAKE_LATE."""
+    d = STOP - u
+    if d <= 0.05 and u < 0:
+        return -B_MAX if v > 0 else 0.0
+    if u < STOP:
+        need = v * v / (2 * max(d, 0.05))
+        if need >= BRAKE_LATE:
+            return -min(B_MAX, need)
+    return 0.0
+
+
+def drive(v, v0):
+    return min(A_MAX, (v0 - v) / DT) if v < v0 else 0.0
+
+
+class Policy:
+    """One car's rule and safety layer, on what it perceives of the other car.
+
+    The kinematic model feeds it the truth; the arena (crossing_arena.py) its perception model.
+    perceive() takes the other's (u, v, a) stamped with when it was true; the rules use what was
+    true OBS + DECIDE s ago, the safety layer what was true REACT s ago, each predicted to now at
+    the seen speed (so the delays hide changes of speed, not distance). u is the distance of the
+    front past Z's near edge along the car's own road.
+    """
+
+    def __init__(self, role, rule, v0, b_cont="hold"):
+        self.role, self.v0, self.b_cont = role, v0, b_cont
+        self.decided = self.rested = self.shield = self.react_done = False
+        self.stopped_since: float | None = None
+        if role == "A":
+            self.name, self.tau, self.go_y, self.pat = rule
+            self.committed = self.name == "go"
+        else:
+            self.name, self.band, self.pat = rule
+            self.committed = self.name in ("hold", "react")
+        self.hist = []
+
+    def perceive(self, stamp, ou, ov, oa):
+        self.hist.append((stamp, ou, ov, oa))
+
+    def _seen(self, t, age, first=True):
+        for h in reversed(self.hist):
+            if h[0] <= t - age:
+                return h
+        return self.hist[0] if first and self.hist else None
+
+    def step(self, t, u, v):
+        """The acceleration this car commands at t."""
+        sd = self._seen(t, OBS + DECIDE)
+        if sd is not None:
+            # where the other is now, predicted from what was seen at its seen speed (a tracker's
+            # constant-velocity prediction): an old position against this car's current one would
+            # make every gap look larger by the delay (074 S2 arena)
+            ou, ov, oa = sd[1] + sd[2] * (t - sd[0]), sd[2], sd[3]
+            if self.role == "A" and not self.committed:
+                ok_first = t_in(ou, ov) - t_cover(EXIT - u, v, self.v0) >= self.tau
+                # A's arrival if it goes now (from its speed, at full drive), not at its current speed:
+                # a nearly stopped A would otherwise see itself arriving late and go (074 S2 arena)
+                ok_second = ou >= EXIT or (t_cover(-u, v, self.v0) - t_out(ou, ov) >= self.tau)
+                test = ok_first or ok_second
+                if not self.decided or self.go_y:
+                    self.committed = test
+                    self.decided = True
+                elif ou >= EXIT:
+                    self.committed = True
+                if self.stopped_since is not None and t - self.stopped_since >= self.pat:
+                    self.committed = True
+            if self.role == "B":
+                if self.name == "react" and not self.react_done and t >= OBS + DECIDE:
+                    self.react_done = True
+                    if oa > -YIELD_SEEN and self.b_cont == "yield":
+                        self.committed = False
+                        self.band, self.pat = INF, PATIENCE[0]
+                if not self.committed and t >= OBS + DECIDE:
+                    if not self.decided:  # the band test, once: inside it B yields until A has cleared Z
+                        self.decided = True
+                        self.committed = abs(t_in(ou, ov) - t_in(u, max(v, 0.1))) >= self.band and ou < 0
+                    if ou >= EXIT or (self.stopped_since is not None and t - self.stopped_since >= self.pat):
+                        self.committed = True
+        a = drive(v, self.v0) if self.committed else hold_out(u, v)
+        sr = self._seen(t, REACT, first=False)
+        if sr is None or u >= 0:
+            return a
+        ou, ov = sr[1] + sr[2] * (t - sr[0]), sr[2]
+        in_box = 0 <= ou < EXIT
+        # the other is about to enter Z first, before this car could clear it
+        closing = (ou < 0 and ov > 0.5 and t_in(ou, ov) < 2.0
+                   and t_in(ou, ov) <= t_in(u, max(v, 0.5)) + 0.3
+                   and t_in(ou, ov) < t_cover(EXIT - u, v, self.v0))
+        if in_box or closing:
+            need = v * v / (2 * max(-u - 0.3, 0.05))
+            if need > 0.3:
+                planned = a
+                a = min(a, -min(B_MAX, need))
+                # forced: harder than the car's own plan by more than a comfortable margin
+                self.shield = self.shield or (v > 0.5 and planned - a > 1.0 and need > BRAKE_LATE + 1.0)
+            elif a > 0 and u > STOP - 1.0:
+                a = min(a, 0.0)
+        return a
+
+    def after(self, t, u, v):
+        """Bookkeeping once the car has moved: stops (patience) and whether it came to rest."""
+        if v < 0.1:
+            if self.stopped_since is None:
+                self.stopped_since = t
+                self.rested = self.rested or u < 0
+        else:
+            self.stopped_since = None
 
 
 class Car:
     def __init__(self, u0, v0):
-        self.u, self.v, self.v0 = u0, v0, v0
-        self.u0 = u0
-        self.committed = False
-        self.decided = False
-        self.stopped_since: float | None = None
+        self.u, self.v, self.v0, self.u0 = u0, v0, v0, u0
         self.a = 0.0
         self.peak = 0.0
-        self.t_in = None
-        self.shield = False
-        self.rested = False
-
-    def hold_out(self):
-        """Keep going, brake for the stop line only when it needs at least BRAKE_LATE."""
-        d = STOP - self.u
-        if d <= 0.05 and self.u < 0:
-            return -B_MAX if self.v > 0 else 0.0
-        if self.u < STOP:
-            need = self.v * self.v / (2 * max(d, 0.05))
-            if need >= BRAKE_LATE:
-                return -min(B_MAX, need)
-        return 0.0
-
-    def drive(self):
-        return min(A_MAX, (self.v0 - self.v) / DT) if self.v < self.v0 else 0.0
+        self.peak_w = 0.0
+        self.vh = []  # (t, v) over the last PEAK_W s
 
 
 def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None):
     """One run: A's rule ra, B's rule rb; b_cont is B's continuation under react."""
     ta, tb = T_MEAN + dt_ctx / 2, T_MEAN - dt_ctx / 2
     A, B = Car(-va * ta, va), Car(-vb * tb, vb)
-    _, tau, go_y, pat_a = ra
-    bname, band, pat_b = rb
-    if ra[0] == "go":
-        A.committed = True
-    if bname in ("hold", "react"):
-        B.committed = True
-    hist = []
+    pa_, pb_ = Policy("A", ra, va), Policy("B", rb, vb, b_cont)
     meas = M.Measures(b_max=(B_MAX, B_MAX))
     seen_in: dict = {"A": None, "B": None}  # when each body was first in Z
     stopped_both = 0.0
     both_stopped = False
     contact = False
-    react_done = False
     t = 0.0
     while t < T_MAX - 1e-9:
-        hist.append((t, A.u, A.v, A.a, B.u, B.v, B.a))
-        sd = next((h for h in reversed(hist) if h[0] <= t - OBS - DECIDE), hist[0])  # rules see this
-        # --- A's rule
-        if not A.committed:
-            bu, bv = sd[4], sd[5]
-            ok_first = t_in(bu, bv) - t_cover(EXIT - A.u, A.v, A.v0) >= tau
-            ok_second = bu >= EXIT or (t_in(A.u, max(A.v, 0.1)) - t_out(bu, bv) >= tau)
-            test = ok_first or ok_second
-            if not A.decided or go_y:
-                A.committed = test
-                A.decided = True
-            elif bu >= EXIT:
-                A.committed = True
-            if A.stopped_since is not None and t - A.stopped_since >= pat_a:
-                A.committed = True
-        # --- B's rule
-        if bname == "react" and not react_done and t >= OBS + DECIDE:
-            react_done = True
-            if sd[3] > -YIELD_SEEN and b_cont == "yield":
-                B.committed = False
-                band, pat_b = INF, PATIENCE[0]
-        if not B.committed and t >= OBS + DECIDE:
-            au, av = sd[1], sd[2]
-            if not B.decided:  # the band test, once: inside it B yields until A has cleared Z
-                B.decided = True
-                B.committed = abs(t_in(au, av) - t_in(B.u, max(B.v, 0.1))) >= band and au < 0
-            if au >= EXIT or (B.stopped_since is not None and t - B.stopped_since >= pat_b):
-                B.committed = True
-        # --- accelerations, then the safety layers
-        sr = next((h for h in reversed(hist) if h[0] <= t - REACT), None)
-        for me, other_u_i in ((A, 4), (B, 1)):
-            me.a = me.drive() if me.committed else me.hold_out()
-            if sr is None or me.u >= 0:
-                continue
-            ou, ov = sr[other_u_i], sr[other_u_i + 1]
-            in_box = 0 <= ou < EXIT
-            # the other is about to enter Z first, before this car could clear it
-            closing = (ou < 0 and ov > 0.5 and t_in(ou, ov) < 2.0
-                       and t_in(ou, ov) <= t_in(me.u, max(me.v, 0.5)) + 0.3
-                       and t_in(ou, ov) < t_cover(EXIT - me.u, me.v, me.v0))
-            if in_box or closing:
-                d = -me.u - 0.3
-                need = me.v * me.v / (2 * max(d, 0.05))
-                if need > 0.3:
-                    planned = me.a
-                    me.a = min(me.a, -min(B_MAX, need))
-                    # forced: harder than the car's own plan by more than a comfortable margin
-                    me.shield = me.shield or (me.v > 0.5 and planned - me.a > 1.0 and need > BRAKE_LATE + 1.0)
-                elif me.a > 0 and me.u > STOP - 1.0:
-                    me.a = min(me.a, 0.0)
-        for me in (A, B):
+        pa_.perceive(t, B.u, B.v, B.a)
+        pb_.perceive(t, A.u, A.v, A.a)
+        A.a = pa_.step(t, A.u, A.v)
+        B.a = pb_.step(t, B.u, B.v)
+        for me, pol in ((A, pa_), (B, pb_)):
             me.peak = max(me.peak, -me.a)
             me.v = max(0.0, me.v + me.a * DT)
             me.u += me.v * DT
-            if me.v < 0.1:
-                if me.stopped_since is None:
-                    me.stopped_since = t
-                    me.rested = me.rested or me.u < 0
-            else:
-                me.stopped_since = None
+            pol.after(t, me.u, me.v)
+            me.vh.append((t, me.v))
+            while t - me.vh[0][0] > PEAK_W + 1e-9:
+                me.vh.pop(0)
+            if t - me.vh[0][0] >= PEAK_W - 1e-9:
+                me.peak_w = max(me.peak_w, (me.vh[0][1] - me.v) / PEAK_W)
         if trace is not None:
-            trace.append((round(t, 2), A.u, A.v, A.a, A.committed, B.u, B.v, B.a, B.committed))
+            trace.append((round(t, 2), A.u, A.v, A.a, pa_.committed, B.u, B.v, B.a, pb_.committed))
         t += DT
         for name, me in (("A", A), ("B", B)):
             if me.u >= 0 and seen_in[name] is None:
@@ -270,7 +311,8 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None):
         first = "A" if ta_in < tb_in else "B"
     pet = meas._pet()
     return Outcome(tuple(lost), (A.peak, B.peak), contact, meas.ttc2d, meas.thw, pet, meas.clear, first,
-                   both_stopped, b_cont if bname == "react" else "", (A.shield, B.shield), (A.rested, B.rested))
+                   both_stopped, b_cont if rb[0] == "react" else "", (pa_.shield, pb_.shield), (pa_.rested, pb_.rested),
+                   (A.peak_w, B.peak_w))
 
 
 def utility(o, who, r="none", fault=FAULT):
@@ -394,7 +436,8 @@ def _context(job):
 
 
 def run_map(args):
-    dts = [round(-4.0 + 0.5 * i, 2) for i in range(17)]
+    n = int(round(2 * args.dt_max / args.dt_step))
+    dts = [round(-args.dt_max + args.dt_step * i, 3) for i in range(n + 1)]
     vs = [float(x) for x in args.v.split(",")]
     jobs = [(d, v, args.vb, args.fault) for v in vs for d in dts]
     with Pool(args.jobs) as pool:
@@ -415,7 +458,7 @@ def run_map(args):
     lab = {(row["r"], row["dt"], row["v"]): row for row in rows}
     lines = [f"# crossing equilibrium map (kinematic): {len(A_RULES)} A rules x {len(B_RULES)} B rules"
              + (f", vB = {args.vb} m/s" if args.vb is not None else ", vA = vB = v") + f", fault {args.fault:g}",
-             f"# columns: dt = t_A^Z - t_B^Z from {dts[0]} to {dts[-1]} s, step 0.5 (dt > 0: B nearer)",
+             f"# columns: dt = t_A^Z - t_B^Z from {dts[0]} to {dts[-1]} s, step {args.dt_step:g} (dt > 0: B nearer)",
              "# A / B: that car passes first in every equilibrium   C: chicken (both orders are equilibria)",
              "# W: war of attrition (an equilibrium with both stopped)   !: contact in equilibrium",
              "# M: mixed equilibria only   ?: none"]
@@ -458,7 +501,7 @@ def plot(out, dts, vs, lab):
              "mixed only", "contact in equilibrium", "none"]
     colours = ["#2a9d8f", "#457b9d", "#e9c46a", "#6a4c93", "#f4a261", "#e63946", "#999999"]
     fig, axes = plt.subplots(1, 3, figsize=(14, 3.8), sharey=True)
-    step = 0.5
+    step = (dts[1] - dts[0]) if len(dts) > 1 else 0.5
     for ax, r in zip(axes, ("none", "A", "B")):
         z = [[order.index(lab[(r, d, v)]["class"]) for d in dts] for v in vs]
         dv = (vs[1] - vs[0]) if len(vs) > 1 else 1.0
@@ -504,7 +547,9 @@ def selftest():
     # right of way to A at dt = 0: every pure equilibrium lets A through first
     rows = {row["r"]: row for row in _context((0.0, 10.0, None))}
     assert rows["none"]["class"] == "C", rows["none"]  # chicken at a tie, without a rule
-    assert rows["A"]["fault_min"] is not None and rows["B"]["fault_min"] is not None, rows
+    # A clearly nearer: A first, and a right of way to A needs no enforcement there
+    rows = {row["r"]: row for row in _context((-1.0, 10.0, None))}
+    assert rows["none"]["class"] == "A" and rows["A"]["fault_min"] == 0.0, rows
     print("selftest ok")
     return 0
 
@@ -514,6 +559,8 @@ def main():
     p.add_argument("--out", default="crossing_out")
     p.add_argument("--v", default="5,8,11,14", help="speeds (m/s), comma-separated")
     p.add_argument("--vb", type=float, default=None, help="fix B's speed (m/s); default: B as fast as A")
+    p.add_argument("--dt-max", type=float, default=4.0, help="dt from -dt_max to dt_max (s)")
+    p.add_argument("--dt-step", type=float, default=0.5)
     p.add_argument("--jobs", type=int, default=8)
     p.add_argument("--fault", type=float, default=FAULT, help="cost of failing to yield (classes and welfare)")
     p.add_argument("--selftest", action="store_true")

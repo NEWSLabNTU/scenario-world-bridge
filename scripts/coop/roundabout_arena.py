@@ -144,6 +144,7 @@ class Run:
         self.s = G.S_YIELD
         self.sq = list(self.sq_start)
         self.reparked = [False, False]
+        self.bad = False
 
     def cars(self):
         return [self.A] + self.Q
@@ -188,6 +189,12 @@ class Run:
             self.start()
 
     def start(self):
+        # a warm-up that missed its context (a stuck ring car; B off its speed or its arrival, seen at tb 6): redo
+        sq0 = self.rg.ring_s(self.Q[0], self.sq[0])
+        tb_now = (G.SZ0 - sq0) / max(self.Q[0].state()[3], 0.1)
+        if any(abs(c.state()[3] - self.v) > 0.1 * self.v for c in self.Q) or abs(tb_now - self.job["tb"]) > 0.2:
+            self.bad, self.phase, self.rec = True, "done", None
+            return
         self.phase = "run"
         self.t0 = self.rg.ar.t
         mk = lambda: M.Measures(b_max=(G.CAP.b_max, G.CAP.b_max), pet_sample=X.PET_SAMPLE)  # noqa: E731
@@ -284,7 +291,7 @@ def run(args):
     n_max = max(n for n, _, _ in CELLS)
     xs = G.CE[1] - G.APPROACH
     ar = AR.Arena(args.port, args.k, AR.xodr_roundabout(args.k, SPACING, G.R_RING, G.X_APP, xs, G.APPROACH, G.R_ENTRY, G.ARC_LEN))
-    rows, t_start, replaced = [], time.monotonic(), 0
+    rows, t_start, replaced, redone = [], time.monotonic(), 0, 0
     try:
         rgs = [Ring(ar, i) for i in range(args.k)]
 
@@ -324,10 +331,18 @@ def run(args):
                 job = work.popleft()
                 r = Run(rg, cs[0], cs[1:1 + job["n"]], job, rng, args)
                 r.idle = cs[1 + job["n"]:]
-                for k, c in enumerate(r.idle):  # cars this run does not use: on the entry road, behind A
+                # every car of the group to its own spot on the entry road first: parking straight onto the new
+                # context's ring positions put a car onto one still standing at the last context's, and CARLA
+                # leaves cars that touched stuck (074 U2; S3)
+                for k, c in enumerate(cs):
                     rg.park(c, G.a_path(3.0 + 8.0 * k))
-                r.park_all()
                 runs.append(r)
+            ar.tick()
+            for r in runs:
+                for k, c in enumerate(r.idle):  # cars this run does not use: on the entry road, behind A
+                    rg_ = r.rg
+                    rg_.park(c, G.a_path(3.0 + 8.0 * k))
+                r.park_all()
             for _ in range(3):
                 for r in runs:
                     for c in r.cars() + r.idle:
@@ -347,8 +362,14 @@ def run(args):
                         for c in r.cars():
                             c.a.apply_control(carla.VehicleControl(brake=1.0, hand_brake=True))
                 ar.tick()
-            rows += [r.rec for r in runs]
-            print(f"  {len(rows)}/{n_all} runs, {time.monotonic() - t_start:.0f} s, {replaced} cars replaced", flush=True)
+            for r in runs:
+                if r.bad:  # a ring car short of its speed after the warm-up: fresh cars, and the job again
+                    for c in r.cars():
+                        c.dirty = True
+                    work.appendleft(r.job)
+                    redone += 1
+            rows += [r.rec for r in runs if not r.bad]
+            print(f"  {len(rows)}/{n_all} runs, {time.monotonic() - t_start:.0f} s, {replaced} cars replaced, {redone} redone", flush=True)
     finally:
         ar.close()
     os.makedirs(args.out, exist_ok=True)

@@ -60,6 +60,28 @@ def x_at(lane_x, y):
     return round(lane_x + DRIFT * (y - 124.0), 2)
 
 
+def on_straight(port, d0, dv):
+    """074: each car's route over the warm-up and the horizon must stay on the west straight.
+    B (the ego) starts at the straight's start and A beside or ahead of it, so there is no room to
+    move the starts back (the junction at y 124): returns the metres the worst one falls short
+    (0: it fits)."""
+    import carla
+    import route
+
+    cmap = carla.Client("localhost", port)
+    cmap.set_timeout(60.0)
+    cmap = cmap.get_world().get_map()
+    r0 = d0 - dv * WARMUP
+    ya = min(round(Y_EGO - (r0 + L), 2), 117.0)
+    t = WARMUP + C1.HORIZON
+    short = 0.0
+    for x, y, need in ((x_at(X_LEFT, Y_EGO), Y_EGO, VB * t + L / 2),
+                       (x_at(X_RIGHT, ya), ya, max(VB, VB + dv) * t + L / 2)):
+        ahead, _ = route.straight(cmap, x, -y)  # CARLA's y = -y
+        short = max(short, need - ahead)
+    return max(0.0, short)
+
+
 def scenario(path, d0, dv):
     r0 = d0 - dv * WARMUP  # A's rear ahead of B's front at the warm-up's start
     ya = round(Y_EGO - (r0 + L), 2)  # ahead is -y
@@ -186,6 +208,10 @@ def run_one(out, d0, dv, pa, seed, port, relay):
                 n += 1
             (rd / old).rename(rd / f"{old}.failed{n}")
     xosc = rd / "c3.xosc"
+    short = on_straight(port, d0, dv)
+    if short > 0:
+        print(f"WARNING: {tag}: the route over warm-up + horizon leaves the straight by {short:.0f} m",
+              file=sys.stderr, flush=True)
     scenario(xosc, d0, dv)
     if not restart_ego():
         return {"d0": d0, "dv": dv, "a": pa["name"], "b": "autoware", "seed": seed, "error": "ego not ready"}
@@ -210,7 +236,8 @@ def run_one(out, d0, dv, pa, seed, port, relay):
         except ProcessLookupError:
             pass
         p.wait(timeout=30)
-    res = {"d0": d0, "dv": dv, "a": pa["name"], "b": "autoware", "seed": seed, "scenario_rc": r.returncode}
+    res = {"d0": d0, "dv": dv, "a": pa["name"], "b": "autoware", "seed": seed, "scenario_rc": r.returncode,
+           "off_straight": round(short, 1)}
     log = rd / "coop_a.jsonl"
     if log.exists():
         res.update(c2b.score(log, log, d0, dv, pa["t_prep"]))

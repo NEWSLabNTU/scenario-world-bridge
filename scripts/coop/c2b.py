@@ -46,10 +46,32 @@ def xy(entity, y):
     return round(LANES[entity] + 0.025 * (y - 16.7), 2), round(y, 2)
 
 
-def scenario(path, d0, dv):
+def starts(d0, dv, shift=0.0):
+    """The cars' start y (the scenario's frame: ahead is +y), the start moved `shift` m back."""
     r0 = d0 - dv * WARMUP  # A's rear ahead of B's front at the warm-up's start
-    yb = 24.0 + max(0.0, -(r0 + L))
-    ya = yb + r0 + L
+    yb = 24.0 + max(0.0, -(r0 + L)) - shift
+    return yb + r0 + L, yb
+
+
+def on_straight(port, d0, dv):
+    """074: the scored window on geometry the arena also has. Each car's route over the warm-up
+    and the horizon (its speed x (WARMUP + HORIZON)) must stay on the east straight; returns the
+    shift back that makes it fit and the metres it still falls short (CARLA's map, its y = -y)."""
+    import carla
+    import route
+
+    cmap = carla.Client("localhost", port)
+    cmap.set_timeout(60.0)
+    cmap = cmap.get_world().get_map()
+    ya, yb = starts(d0, dv)
+    t = WARMUP + C1.HORIZON
+    cars = [(xy("coop_a", ya)[0], -ya, max(VB, VB + dv) * t + L / 2),
+            (xy("coop_b", yb)[0], -yb, VB * t + L / 2)]
+    return route.fit_on_straight(cmap, cars)
+
+
+def scenario(path, d0, dv, shift=0.0):
+    ya, yb = starts(d0, dv, shift)
     pos = lambda e, y: f'<WorldPosition x="{xy(e, y)[0]}" y="{xy(e, y)[1]}" z="0.3" h="{H:.4f}" p="0" r="0" />'
     goal = lambda e: f'<WorldPosition x="{xy(e, 134.0)[0]}" y="134.0" z="0.0" h="{H:.4f}" p="0" r="0" />'
     ent = lambda e: f'''		<ScenarioObject name="{e}">
@@ -238,7 +260,11 @@ def run_one(out, d0, dv, pa, pb, seed, port, relay):
     rd = Path(out) / tag
     rd.mkdir(parents=True, exist_ok=True)
     xosc = rd / "c2b.xosc"
-    scenario(xosc, d0, dv)
+    shift, short = on_straight(port, d0, dv)
+    if short > 0:
+        print(f"WARNING: {tag}: the route over warm-up + horizon leaves the straight by {short:.0f} m "
+              f"(start moved back {shift:.0f} m, as far as it goes)", file=sys.stderr, flush=True)
+    scenario(xosc, d0, dv, shift)
     procs = []
     for ent, other, side, rule in (("coop_a", "coop_b", "A", pa), ("coop_b", "coop_a", "B", pb)):
         cfg = {"entity": ent, "other": other, "side": side, "d0": d0, "dv": dv, "vb": VB, "warmup": WARMUP,
@@ -258,7 +284,8 @@ def run_one(out, d0, dv, pa, pb, seed, port, relay):
         except ProcessLookupError:
             pass
         p.wait(timeout=20)
-    res = {"d0": d0, "dv": dv, "a": pa["name"], "b": pb["name"], "seed": seed, "scenario_exit": r.returncode}
+    res = {"d0": d0, "dv": dv, "a": pa["name"], "b": pb["name"], "seed": seed, "scenario_exit": r.returncode,
+           "start_shift": round(shift, 1), "off_straight": round(short, 1)}
     try:
         res.update(score(rd / "coop_a.jsonl", rd / "coop_b.jsonl", d0, dv, pa["t_prep"]))
     except Exception as e:  # noqa: BLE001 -- recorded with the run

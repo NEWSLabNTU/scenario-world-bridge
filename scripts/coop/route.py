@@ -46,3 +46,37 @@ def kappa_at(cmap, x, y, z=0.0, span=5.0):
 
     wp = cmap.get_waypoint(carla.Location(x=x, y=y, z=z))
     return 0.0 if wp is None else lane_kappa(wp, span)
+
+
+def straight(cmap, x, y, tol=3.0, step=2.0, max_len=800.0):
+    """How far the lane at (x, y) runs straight ahead and behind (m): until its heading leaves
+    the heading at (x, y) by more than `tol` degrees (a curve, or a lane shift)."""
+    import carla
+
+    wp0 = cmap.get_waypoint(carla.Location(x=x, y=y))
+    ref = wp0.transform.rotation.yaw
+    out = []
+    for forward in (True, False):
+        wp, s = wp0, 0.0
+        while s < max_len:
+            cands = wp.next(step) if forward else wp.previous(step)
+            if not cands:
+                break
+            wp = min(cands, key=lambda w: _yaw_off(w, ref))
+            if _yaw_off(wp, ref) > tol:
+                break
+            s += step
+        out.append(s)
+    return out[0], out[1]
+
+
+def fit_on_straight(cmap, cars, margin=5.0):
+    """cars: [(x, y, need)] in CARLA's frame, need the metres each must drive. Returns
+    (shift, short): how far to move every start back along the road so that each car's need fits
+    ahead of it (limited by the straight behind them), and by how much the worst one still falls
+    short (0: it fits)."""
+    ahead, behind = zip(*(straight(cmap, x, y) for x, y, _ in cars))
+    want = max(0.0, max(need - a for (_, _, need), a in zip(cars, ahead)))
+    room = max(0.0, min(behind) - margin)
+    shift = min(want, room)
+    return shift, want - shift

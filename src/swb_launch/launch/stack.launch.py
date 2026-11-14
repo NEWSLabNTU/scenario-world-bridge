@@ -14,7 +14,7 @@ The shortcuts for the supported simulators, isaac.launch.xml and carla.launch.xm
 Groups and their ROS domains:
 - sim (ego domain): the world server.
   - isaac: swb_isaac_world.launch.xml.
-  - carla: swb_carla_world.launch.xml; CARLA itself runs apart (`just carla-start`).
+  - carla: swb_carla_world.launch.xml; CARLA itself runs apart (CarlaUE4.sh).
   - <package>: that package's launch/world.launch.xml, which starts a world server speaking
     swb_world.proto (docs/design/simulator-interface-split.md; swb_world_check conformance)
     on `world_endpoint`.
@@ -76,6 +76,31 @@ def named_args(text, what):
     return out
 
 
+# swb_launch's localhost Cyclone profile sets DomainGain 1000: a domain's ports start at
+# 7400 + 1000 * id, so 58 and up need ports past 65535 and every node dies at start with
+# "failed to create domain" (roadmap 070, friction 15). Fast DDS (an unset RMW) allows 232.
+MAX_DOMAIN = 57
+
+
+def check_domains(ego, scenario):
+    """Refuse domains the stack cannot run in, before anything starts."""
+    ids = {}
+    for name, text in (("ego_domain (EGO_ROS_DOMAIN_ID)", ego),
+                       ("scenario_domain (SCENARIO_ROS_DOMAIN_ID)", scenario)):
+        try:
+            ids[name] = int(text)
+        except ValueError:
+            raise RuntimeError(f"stack: {name} is {text!r}, not a number") from None
+        if not 0 <= ids[name] <= MAX_DOMAIN:
+            raise RuntimeError(
+                f"stack: {name} is {ids[name]}: use 0-{MAX_DOMAIN} (the localhost Cyclone "
+                "profile's DomainGain 1000 puts higher domains' ports past 65535)")
+    if len(set(ids.values())) == 1:
+        raise RuntimeError(
+            f"stack: ego_domain and scenario_domain are both {ego}: the autopilot's ADAPI and "
+            "the relay's would meet; give them different domains")
+
+
 def launch_target(spec, what):
     """A launch file as play_launch takes it: a path, or "<package> <file>"."""
     parts = shlex.split(spec)
@@ -109,6 +134,7 @@ def _stack(context):
         raise RuntimeError("stack: sim:= isaac, carla or a package of yours with launch/world.launch.xml")
     ego_domain = get("ego_domain")
     scenario_domain = get("scenario_domain")
+    check_domains(ego_domain, scenario_domain)
     ssv2_port, agent_port = get("ssv2_port"), get("agent_port")
     log_root = os.path.abspath(get("log_dir"))
     sim_args = named_args(get("sim_args"), "sim_args")
@@ -255,10 +281,10 @@ def generate_launch_description():
         arg("vehicle", default_value="", description="free drive: the ego's entry in the (first) vehicle catalog; empty: vehicle_model"),
         arg("realtime", default_value="true", description="free drive: pace the synchronous steps to the wall clock; false: as fast as the stack keeps up"),
         arg("frame_rate", default_value="20", description="free drive: steps per simulated second"),
-        arg("ego_domain", default_value=_env("EGO_ROS_DOMAIN_ID", "1")),
-        arg("scenario_domain", default_value=_env("SCENARIO_ROS_DOMAIN_ID", "9")),
-        arg("ssv2_port", default_value=_env("SSV2_PORT", "5555")),
-        arg("agent_port", default_value=_env("AGENT_PORT", "5560")),
+        arg("ego_domain", default_value=_env("EGO_ROS_DOMAIN_ID", "1"), description="ROS domain of the simulator's world server and the ego (0-57); default EGO_ROS_DOMAIN_ID, else 1"),
+        arg("scenario_domain", default_value=_env("SCENARIO_ROS_DOMAIN_ID", "9"), description="ROS domain of the bridge, relay and SSv2 (0-57, not ego_domain); default SCENARIO_ROS_DOMAIN_ID, else 9"),
+        arg("ssv2_port", default_value=_env("SSV2_PORT", "5555"), description="SSv2's ZMQ port on the bridge; default SSV2_PORT, else 5555"),
+        arg("agent_port", default_value=_env("AGENT_PORT", "5560"), description="the agent relay's TCP port; default AGENT_PORT, else 5560"),
         arg("log_dir", default_value=_env("SWB_LOG_ROOT", "play_log"), description="where the nested launches (ego, agent, scenario) log"),
         SetEnvironmentVariable("CYCLONEDDS_URI", dds),
         SetEnvironmentVariable("RMW_IMPLEMENTATION", _env("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")),

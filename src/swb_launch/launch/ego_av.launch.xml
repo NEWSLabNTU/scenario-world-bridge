@@ -32,7 +32,7 @@
     docs/user-guide.md section 4 says why.
 
     `just ego-av` and the user guide start acb_launch carla_simulator.launch.xml directly;
-    this file keeps the CPU-only perception defaults for demo.launch.xml.
+    this file keeps CPU-only perception defaults.
 
     Start this BEFORE the scenario launch and wait for Autoware's ADAPI to come up: the
     concealer's constructor queues a ChangeToStop call with a 180 s service timeout, so

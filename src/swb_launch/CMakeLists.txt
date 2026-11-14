@@ -37,6 +37,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_gap_oracle test/test_gap_oracle.py)
   ament_add_pytest_test(test_incident_judge test/test_incident_judge.py)
   ament_add_pytest_test(test_ego_ready test/test_ego_ready.py)
+  ament_add_pytest_test(test_stack_domains test/test_stack_domains.py)
 endif()
 
 ament_package()

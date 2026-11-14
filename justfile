@@ -1395,15 +1395,15 @@ bg-av *args: _require-carla
 # it was tracked down, and the only visible hint was a duplicate `Address already in use` on
 # the web UI port.
 #
-# Matching is deliberately narrow. `carla_scenario.launch.xml` belongs to this recipe, so
-# `just ego-av` (ego_av.launch.xml, its own web port) is never touched -- killing the ego
-# stack here would be far worse than the problem being fixed.
+# Matching is deliberately narrow: only SSv2's own processes, so `just ego-av`
+# (ego_av.launch.xml, its own web port) is never touched -- killing the ego stack here
+# would be far worse than the problem being fixed.
 _clear-stale-scenario:
     #!/usr/bin/env bash
     set -u
     stale=0
-    for pat in "carla_scenario.launch.xml" "openscenario_interpreter_node" \
-               "openscenario_preprocessor" "scenario_test_runner"; do
+    for pat in "openscenario_interpreter_node" "openscenario_preprocessor" \
+               "scenario_test_runner"; do
         for pid in $(pgrep -f "$pat" 2>/dev/null || true); do
             # Never the shell doing the killing, nor its parents: pgrep -f matches full
             # command lines, and a shell's own line usually contains the pattern it was
@@ -1531,7 +1531,8 @@ _scenario-has-ego scenario_file:
 # and left), the scenario, its verdict, then the stacks this run started are stopped
 # (keep_stacks:=true leaves them; CARLA itself, a long-lived unit, is never stopped here).
 # output_directory:=<dir> (default $SWB_LOG_ROOT/e2e/<time>) gets the scenario's output.
-# swb_launch demo.launch.xml is the one-launch version of the same on CARLA, for a first try.
+# swb_launch carla.launch.xml scenario:=<xosc> exit_on_scenario_end:=true is the one-launch
+# version of the same on CARLA.
 #
 # Usage: just e2e [xosc] [map] [sim:=carla|isaac] [worlds:=..] [keep_stacks:=true] [output_directory:=<dir>]
 [positional-arguments]

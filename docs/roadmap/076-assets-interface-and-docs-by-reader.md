@@ -5,8 +5,8 @@ the data, finds it and runs it. No absolute paths to edit, no symlinks to make, 
 scripts, no internal knowledge. The docs are organised by what the reader is doing, each fact
 lives in one place, and every command in them has run.
 
-**Status**: planned, 2026-11-14; second design after a use-case study the same day (A). Nothing
-retires before this design is settled (user, 2026-11-14).
+**Status**: in progress, 2026-11-14: design settled (A, and the design doc); building steps 3-7.
+Old paths retire in the last step (user, 2026-11-14).
 
 **Source**: user, 2026-11-14: "I would fix the gaps on swb and assets sides for the best of user
 experience. That is, the swb will have proper interface with work with these assets without
@@ -405,7 +405,9 @@ sharing a project.
 ## Steps
 
 1. [x] First design; use-case study (076-study/); second design (A), 2026-11-14.
-2. [ ] The user's word on the second design.
+2. [x] The user's word on the second design (decisions 10-13), 2026-11-14. Design doc:
+   [projects-and-pilots.md](../design/projects-and-pilots.md); package `src/swb` scaffold and
+   `swb.config` (8cb4025).
 3. [ ] A2, A7: project file and lock, `project new|check`, `assets fetch|list|check` with the
    read-only cache and `state/`; tests.
 4. [ ] A6: seats (the table, the lock, `seat show`); the stack's processes take their numbers.

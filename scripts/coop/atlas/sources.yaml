@@ -1,0 +1,255 @@
+# Roadmap 074, the strategy atlas: every result the atlas shows, by scenario and tier.
+#
+# Adding a result is adding an entry under its scenario's tier: a `loader` (atlas_export.py's
+# load_<loader>), its `path` (a file, a glob, or a list; ~ is expanded) and the loader's options.
+# A scenario names its context axes (the first two are the class map's x and y), its facets
+# (further context columns, chosen in the page), its class legend and its rules.
+#
+# Tiers, in the order the progress grid shows them:
+tiers: [kinematic, arena, swb_light, swb_autoware, double_oracle]
+
+notes:
+  - "swb tiers play one fixed pair (B is swb's light rule or Autoware): their class is the pair's outcome (g A ahead, W A behind, ! contact, C mixed over seeds), not an equilibrium."
+  - "Arena payoffs are means over seeds; arena classes come from the study's own analysis (arena_game.classify, the D2 summaries)."
+  - "Kinematic payoffs outside the cut-in are re-simulated for the listed contexts (cached); episodes are re-simulated with the games' simulate() or read from the swb agent's log."
+
+scenarios:
+  cutin:
+    title: Cut-in
+    axes: [d0, dv]
+    facets: [vb]
+    labels: {d0: "d0 (m), A's rear ahead of B's front", dv: "dv = v_A - v_B (m/s)", vb: "v_B (m/s)"}
+    legend:
+      W: "A drops behind B"
+      G: "A goes, B yields"
+      g: "A goes, B holds"
+      Y: "A waits for B's yield, then goes"
+      y: "A goes after a yield-free watch"
+      C: "equilibria with different outcomes (coordination)"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+    rules:
+      A: [go, wait, go_if_yield]
+      B: [pre_yield, react]
+    state_machines: [cutin_A, cutin_B, arena_A, arena_B]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: C1 (vb 12)
+          path: /mnt/p5plus/aeon/coop/c1/vb12/cutin_map.csv
+          fixed: {vb: 12.0}
+          payoff_cols: true
+          # regenerate: python3 scripts/coop/cutin_game.py --out /mnt/p5plus/aeon/coop/c1/vb12
+        - loader: kinematic_resim
+          game: cutin
+          fixed: {vb: 12.0}
+          episodes:
+            - {ctx: {d0: 6.0, dv: 0.0}, a: go, b: react, cont: yield}
+            - {ctx: {d0: 6.0, dv: 0.0}, a: wait, b: react}
+            - {ctx: {d0: 10.0, dv: 0.0}, a: go, b: react, cont: hold}
+            - {ctx: {d0: 2.0, dv: 2.0}, a: go, b: react, cont: hold}
+            - {ctx: {d0: 14.0, dv: -3.0}, a: go_if_yield, b: react, cont: yield}
+      arena:
+        - loader: arena_cutin
+          label: C2a grid (2 seeds x 2)
+          path: [/mnt/p5plus/aeon/coop/c2a/grid2/s0/runs.csv, /mnt/p5plus/aeon/coop/c2a/grid2/s1/runs.csv]
+          fixed: {vb: 12.0}
+      swb_light:
+        - loader: c3
+          label: C2b / D2 (A_eq vs B_eq, A_aw_perm vs B_aw)
+          path: /mnt/p5plus/aeon/coop/s0/d2/c2b.jsonl
+          fixed: {vb: 12.0}
+        - loader: d2
+          path: /mnt/p5plus/aeon/coop/s0/d2/d2_compare.txt
+      swb_autoware:
+        - loader: c3
+          label: C3a rerun (Autoware B, ground truth)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C3a rerun/c3.jsonl"
+          b_name: autoware
+          fixed: {vb: 6.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-14 coop C3a rerun"
+          episode_dirs: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C3a rerun"]
+          max_episodes: 12
+        - loader: c3
+          label: C3b (Autoware B, perception)
+          path: /mnt/p5plus/aeon/coop/s0/c3/c3b/c3.jsonl
+          b_name: autoware_perception
+          fixed: {vb: 6.0}
+        - loader: fit
+          label: B fitted to C3a (gt)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C3a rerun/fit_gt/fit.json"
+        - loader: fit
+          label: B fitted, stop layer
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop B stop layer/fit_gt_stop_v1/fit.json"
+      double_oracle:
+        - loader: double_oracle
+          label: do4 (S0 utility)
+          path: /mnt/p5plus/aeon/coop/s0/do4
+          contexts: [[2, 2], [6, 0], [6, 3], [10, 0], [10, -2], [14, -3]]
+        - loader: double_oracle
+          label: do3
+          path: /mnt/p5plus/aeon/coop/c2a/do3
+
+  crossing:
+    title: Unsignalled crossing
+    axes: [dt, v]
+    facets: [r]
+    labels: {dt: "dt = t_A - t_B arrival (s)", v: "speed (m/s)", r: "right of way"}
+    legend:
+      A: "A crosses first"
+      B: "B crosses first"
+      W: "both wait (deadlock band)"
+      C: "equilibria with different orders"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    rules:
+      A: [go, t0.5p2, t0.5yp2, t1.5p2, t1.5yp5, tinfp2, tinfp5]
+      B: [hold, react, yb1p2, yb4p5]
+    state_machines: [crossing_A, crossing_B]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: S2 kinematic (equal speeds, fault 0.5)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing kinematic/equal_fault0.5/crossing_map.csv"
+        - loader: kinematic_resim
+          game: crossing
+          fixed: {r: none}
+          contexts:
+            - {dt: -1.5, v: 10.0}
+            - {dt: -0.3, v: 10.0}
+            - {dt: 0.0, v: 10.0}
+            - {dt: 0.3, v: 10.0}
+            - {dt: 1.5, v: 10.0}
+            - {dt: 0.0, v: 14.0}
+          episodes:
+            - {ctx: {dt: 0.0, v: 10.0}, a: t0.5yp2, b: yb1p2}
+            - {ctx: {dt: -0.3, v: 10.0}, a: go, b: react}
+            - {ctx: {dt: 0.3, v: 10.0}, a: tinfp2, b: hold}
+      arena:
+        - loader: arena_runs
+          label: S2 arena, D2 round 2
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v10/runs.csv",
+                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v14/runs.csv"]
+          fixed: {r: none}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+        - loader: d2
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v10/summary.json",
+                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v14/summary.json"]
+    planned: {swb_light: "S2 swb light: not run", swb_autoware: "not run"}
+
+  cutout:
+    title: Cut-out
+    axes: [h0, v]
+    facets: [O, look, adj, t_lc]
+    labels: {h0: "B's time headway to L (s)", v: "speed (m/s)", O: "the revealed obstacle", look: "B looks past L", adj: "adjacent lane", t_lc: "L's lane change (s)"}
+    legend:
+      ".": "equilibrium safe (B's risk < 0.2)"
+      "+": "equilibrium risky (0.2-0.5)"
+      "#": "equilibrium dangerous (risk >= 0.5)"
+      "!": "an equilibrium has contact"
+      "?": "no pure equilibrium"
+    rules:
+      A: ["6", "4.5", "3.5", "2.5"]
+      B: ["0.8", "1.5", "2.5"]
+    state_machines: [cutout_L, cutout_B]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: S1 kinematic (t_lc 3 s)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout kinematic/tlc3/cutout_map.csv"
+          class_fn: cutout_cell
+        - loader: kinematic_resim
+          game: cutout
+          fixed: {look: "off", adj: same, t_lc: 3.0}
+          contexts:
+            - {h0: 0.9, v: 12.0, O: stopped}
+            - {h0: 1.5, v: 12.0, O: stopped}
+            - {h0: 0.9, v: 12.0, O: slow}
+            - {h0: 3.0, v: 12.0, O: slow}
+          episodes:
+            - {ctx: {h0: 0.9, v: 12.0, O: stopped}, a: "2.5", b: "0.8"}
+            - {ctx: {h0: 0.9, v: 12.0, O: stopped}, a: "6", b: "2.5"}
+      arena:
+        - loader: arena_runs
+          label: S1 arena (v 12, 20)
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout arena/v12/runs.csv",
+                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout arena/v20/runs.csv"]
+          a_col: t_l
+          b_col: t_b
+          ua_col: uL
+          ub_col: uB
+          rule_num: true
+          rule_fmt: "{:g}"
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout arena/v*/summary.json"
+          summary_class: arena
+          summary_split: true
+          summary_keys: [h0, O]
+        - loader: d2
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout arena/v12/summary.json",
+                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S1 cutout arena/v20/summary.json"]
+    planned: {swb_light: "not run", swb_autoware: "not run"}
+
+  lanedrop:
+    title: Lane drop
+    axes: [d0, dv]
+    facets: [d_end, vb]
+    labels: {d0: "d0 (m)", dv: "dv (m/s)", d_end: "distance to the lane's end (m)", vb: "v_B (m/s)"}
+    legend:
+      A: "A merges ahead of B"
+      B: "A merges behind B"
+      C: "equilibria with different orders"
+      S: "an equilibrium stops A at the end"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+    rules:
+      A: [e0.6d, e0.6yd, e1.2d, z0.6d, z0.6yd, z1.2d, z1.2yd]
+      B: [hold, react, c20, c40]
+    state_machines: [merge_A, merge_B]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: S3 kinematic (v_B 12, 20)
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop kinematic/vb12/merge_map.csv",
+                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S3 lane drop kinematic/vb20/merge_map.csv"]
+        - loader: kinematic_resim
+          game: merge
+          fixed: {d_end: 80.0, vb: 12.0}
+          contexts:
+            - {d0: -5.0, dv: 0.0}
+            - {d0: 0.0, dv: 0.0}
+            - {d0: 5.0, dv: 0.0}
+          episodes:
+            - {ctx: {d0: 0.0, dv: 0.0}, a: z0.6d, b: react}
+            - {ctx: {d0: 0.0, dv: 0.0}, a: e0.6d, b: hold}
+    planned: {arena: "S3 arena: swb 139 (pending)", swb_light: "not run", swb_autoware: "not run"}
+
+  ncar:
+    title: N cars
+    ncar: true
+    state_machines: [arena_A, follower]
+    tiers:
+      arena:
+        - loader: n3_cells
+          label: N3 round 2 (model d17fdc3)
+          path: /mnt/p5plus/aeon/coop/n3b/runs/n3_cells_r2.jsonl
+        - loader: n3_cells
+          label: N3 round 3 (window cap, 5c73c33)
+          path: /mnt/p5plus/aeon/coop/n3c/runs/n3_cells_r3.jsonl
+        - loader: n1_sizes
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop N1 N2/n1/n1_sizes.json"
+        - loader: n4
+          path: /mnt/p5plus/aeon/coop/n4/runs/n4_cells.jsonl
+
+# E3 (swb 118): Autoware's cruise knobs, B's utility at cell (10, 0) against A_aw_perm / A_eq (seed 0).
+# They live in Autoware's parameter space, not the arena rule's; the atlas lists them beside the
+# parallel coordinates.
+e3_knobs:
+  - {variant: stock, overrides: "none", uB: [-0.129, -0.139]}
+  - {variant: yield, overrides: "idling_time 4, min_ego_accel_for_rss -0.5, safe_distance_margin 10, max_lat_margin 2", uB: [-0.367, -0.372]}
+  - {variant: idle4, overrides: "idling_time 4", uB: [-0.255, -0.268]}
+  - {variant: rss_soft, overrides: "min_ego_accel_for_rss -0.5", uB: [-0.261, -0.265]}
+  - {variant: margin10, overrides: "safe_distance_margin 10", uB: [-0.171, -0.183]}
+  - {variant: hold, overrides: "idling_time 1, min_ego_accel_for_rss -2.5, safe_distance_margin 2, overlap 1.0, stop_margin 2", uB: [-0.112, -0.095]}

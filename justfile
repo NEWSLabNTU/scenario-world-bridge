@@ -1613,6 +1613,22 @@ prune-logs *args:
     exec python3 "{{project}}/scripts/prune_logs.py" --root "$SWB_LOG_ROOT" --dest "$dest" \
         --days "$days" "${dry[@]}"
 
+# Roadmap 074's strategy atlas: every result in scripts/coop/atlas/sources.yaml -> atlas.json -> one atlas.html
+# (out:=<dir>, default play_log/atlas; only:=cutin,crossing for some scenarios)
+[positional-arguments]
+coop-atlas *args:
+    #!/usr/bin/env bash
+    set -e
+    out="{{project}}/play_log/atlas"; only=""
+    for a in "$@"; do
+        case "$a" in
+            out:=?*) out="${a#*:=}" ;;
+            only:=?*) only="${a#*:=}" ;;
+            *) echo "coop-atlas: unknown argument '$a' (out:=DIR, only:=SCENARIOS)" >&2; exit 2 ;;
+        esac
+    done
+    exec python3 "{{project}}/scripts/coop/atlas/atlas.py" --out "$out" ${only:+--only "$only"}
+
 # Download pre-converted CARLA maps for Autoware (present ones: apply any newer repairs)
 download-maps:
     "{{project}}/scripts/download_maps.sh"

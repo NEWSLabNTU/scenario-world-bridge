@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from swb import assets, config
+from swb import assets, budget as budgetmod, config, judges as judgesmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -179,8 +179,9 @@ def check_schema(settings: dict) -> list:
                            "vehicles: [vehicles/my_car.yaml]"))
     if settings.get("ground") is not None and not isinstance(settings["ground"], dict):
         out.append(Finding(pf, "ground: is not a mapping", "ground: {<map>: ...}"))
-    if settings.get("judges") is not None and not isinstance(settings["judges"], list):
-        out.append(Finding(pf, "judges: is not a list"))
+    for where, msg in judgesmod.problems(settings.get("judges")):
+        out.append(Finding(pf, f"{where}: {msg}",
+                           "judges: [{name: comfort, run: [python3, -m, my_judges.comfort]}]"))
     out += _check_logging(pf, "logging", settings.get("logging"))
     return out
 
@@ -242,6 +243,8 @@ def _check_logging(file, where, lg) -> list:
     if lg.get("capture") is not None and lg["capture"] not in LEVELS:
         out.append(Finding(file, f"{where}.capture: {lg['capture']} is not a level",
                            f"one of {', '.join(LEVELS)}"))
+    for msg in budgetmod.problems(lg.get("budget")):
+        out.append(Finding(file, f"{where}.budget: {msg}", "budget: {per_run: 2GB, total: 200GB}"))
     keep = lg.get("keep")
     if keep is not None:
         if not isinstance(keep, dict):

@@ -469,6 +469,10 @@ sharing a project.
     `<logs>/<project>/suites/<suite>[_shard-i-of-n]/`, which holds `summary.csv` and the merged
     JUnit; `--resume` skips the links with a result. `--shard i/n` is 1-based.
   - A pilot with `{param:...}` must be `lifetime: run`; the stack refuses it otherwise.
+- Step 7 remainder (judges, budget), 2026-11-15: `swb.judges` and `swb.budget`. Ruling: **a
+  judge's verdict sits beside the run's, never replaces it** (the run's verdict is SSv2's;
+  "scoring stays outside"); a certification gate reads `judges/` or `summary.csv`'s `judges`
+  column. Retries are not budgeted (they replace a run that `keep` prunes).
 
 ## Acceptance
 

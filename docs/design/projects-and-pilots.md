@@ -278,8 +278,26 @@ Event types (fixed names): `collision.vehicle`, `collision.pedestrian`, `collisi
 `red_light`, `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`. The verdict
 is `error` when the run cannot be judged for the stack's fault (a world server or bridge
 error, a pilot that never became ready, SSv2 ending on an infrastructure error), `failed` when
-SSv2 failed the scenario, `passed` otherwise. Judges are versioned programs given the run
-directory; their outputs go to `judges/<name>.json`.
+SSv2 failed the scenario, `passed` otherwise.
+
+**Judges** are versioned programs over a finished run, listed in `swb.yaml`:
+
+```yaml
+judges:
+  - name: comfort                     # writes judges/comfort.json
+    run: [python3, -m, my_judges.comfort]
+    version: "1"
+    on: [passed, failed]              # the default; error runs are not judged
+    timeout: 120                      # s
+```
+
+A judge gets the run directory as its last argument (and `SWB_RUN_DIR`), runs in the project
+directory and prints one JSON object. swb adds `name`, `version`, `exit_code`, `duration_s`
+and a `verdict`: the object's own `verdict` if it has one, else `passed` for exit 0 and
+`failed` for exit 1; any other exit, no JSON object or a timeout is `error`, with the reason
+in `message`. A judge's verdict is recorded beside the run's (the run line, `summary.csv`'s
+`judges` column, a `judge` event in the timeline), never in place of it: the run's verdict
+stays SSv2's, and the scoring stays with the judges.
 
 ## Logs
 
@@ -301,7 +319,9 @@ WARN or above in any slice.
 Levels: `result` (result, resolved, JUnit, timeline), `standard` (+ slices, SSv2's logs),
 `full` (+ a rosbag of the key topics, `host.json` samples), `debug` (+ every topic, DEBUG on
 `logging.debug:` groups). `capture` records; `keep` prunes per verdict after it is known;
-`budget` refuses a suite that cannot fit. `runs why <id>` prints the first WARN/ERROR with its
+`budget` (`{per_run: 2GB, total: 200GB}`) refuses a run or suite that cannot fit: `per_run`
+times the runs to go must be free on the log disk and, with `total`, fit beside what the runs
+directory already holds. `runs why <id>` prints the first WARN/ERROR with its
 group.
 
 ## Examples

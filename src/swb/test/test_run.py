@@ -330,3 +330,47 @@ def test_run_pilot_started_and_stopped(where, maps_hub):
     assert words["relay"] == "tcp://localhost:5660"
     assert words["run_dir"].endswith(r.run_id)
     assert r.pilots["follower"]["lifetime"] == "run"
+
+
+JUDGED = """simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+  lead: {kind: carla_basic}
+  follower: {kind: command, run: [python3, pilots/follower.py]}
+judges:
+  - {name: gap, version: "2", run: [python3, judge.py]}
+logging: {keep: {passed: result}, budget: {per_run: 1KB}}
+"""
+
+
+def test_judges_run_and_budget_refuses(where, maps_hub, monkeypatch):
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    d = make(where, JUDGED)
+    (d / "judge.py").write_text(
+        "import json, sys\n"
+        "r = json.load(open(sys.argv[1] + '/result.json'))\n"
+        "print(json.dumps({'verdict': 'failed', 'run_verdict': r['verdict']}))\n")
+    p, proc = start_stack(d)
+    try:
+        out = io.StringIO()
+        assert run.main(["scenarios/three_pilots.xosc", "--project", str(d)], out=out) == 0
+        assert "judges: gap=failed" in out.getvalue()
+        run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+        rec = json.loads((run_dir / "judges" / "gap.json").read_text())
+        assert rec["run_verdict"] == "passed" and rec["version"] == "2"
+        # the run's verdict is the scenario's; the judge's sits beside it
+        assert results.RunResult.read(run_dir / "result.json").verdict == "passed"
+        assert any(e.get("group") == "judge" for e in timeline.read(run_dir / "timeline.jsonl"))
+        # a suite larger than the budget's total is refused before any run
+        (d / "suites").mkdir()
+        (d / "suites" / "big.yaml").write_text(yaml.safe_dump({
+            "scenarios": ["scenarios/three_pilots.xosc"], "repetitions": 3,
+            "logging": {"budget": {"per_run": "1GB", "total": "2GB"}}}))
+        assert run.main(["suites/big.yaml", "--project", str(d)]) == 3
+        assert len(list((where["tmp"] / "logs" / "proj" / "runs").iterdir())) == 1
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)

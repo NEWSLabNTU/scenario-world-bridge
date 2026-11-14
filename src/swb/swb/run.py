@@ -37,8 +37,8 @@ from pathlib import Path
 
 import yaml
 
-from swb import config, project as projectmod, results, runs as runsmod, slices, stack as stackmod
-from swb import timeline
+from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
+from swb import runs as runsmod, slices, stack as stackmod, timeline
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -586,6 +586,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
         provenance=prov)
     result.write(run_dir / "result.json")
+    judgesmod.run_all(config.project_settings(project).get("judges"), run_dir, project, verdict)
     if capture == "result":
         runsmod.downgrade(run_dir, "result")
     runsmod.apply_keep(run_dir, verdict, lg.get("keep") or {})
@@ -603,7 +604,9 @@ def outcome(result: results.RunResult, expect=None) -> int:
 def line(result: results.RunResult, run_dir: Path, expect=None) -> str:
     tag = result.verdict + (f" (expected {expect})" if expect else "")
     why = f"  {result.reason}" if result.reason else ""
-    return f"{tag:<8} {result.run_id}  {run_dir}{why}"
+    judged = judgesmod.summary(run_dir)
+    jud = ("  judges: " + " ".join(f"{k}={v}" for k, v in judged.items())) if judged else ""
+    return f"{tag:<8} {result.run_id}  {run_dir}{jud}{why}"
 
 
 # --- the command ----------------------------------------------------------------------------
@@ -651,6 +654,16 @@ def run_suite(ctx: Context, specs, suite_dir: Path = None, resume=False, retry=N
                 done[link.name] = link
             else:
                 link.unlink()
+    todo = [sp for sp in specs if sp.key not in done]
+    if todo:
+        lg = logging_for(config.project_settings(ctx.project).get("logging"), todo[0].logging)
+        try:
+            # retries are not budgeted: they replace a run whose logs keep prunes
+            problem = budgetmod.check(lg.get("budget"), len(todo), ctx.runs_root)
+        except ValueError as e:
+            problem = f"logging.budget: {e}"
+        if problem:
+            raise Refused(problem)
     for spec in specs:
         if spec.key in done:
             r = runsmod.load(done[spec.key]) or {}

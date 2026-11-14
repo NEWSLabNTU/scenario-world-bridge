@@ -14,7 +14,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from swb import config, results, timeline
+from swb import config, judges, results, timeline
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
 
@@ -276,7 +276,7 @@ def _params(r):
 
 
 SUMMARY_FIELDS = ("run_id", "scenario", "params", "repetition", "seed", "verdict", "reason",
-                  "duration", "path")
+                  "duration", "judges", "path")
 
 
 def summarize(run_root: Path) -> tuple:
@@ -295,7 +295,8 @@ def summarize(run_root: Path) -> tuple:
             w.writerow([r.get("run_id", d.name), sc.get("file", ""), _params(r),
                         sc.get("repetition", ""), "" if sc.get("seed") is None else sc["seed"],
                         r.get("verdict", ""), r.get("reason", ""),
-                        "" if dur is None else dur, str(d)])
+                        "" if dur is None else dur,
+                        " ".join(f"{k}={v}" for k, v in judges.summary(d).items()), str(d)])
             suite = _junit_suite(d, r)
             for k in totals:
                 totals[k] += int(suite.get(k, 0))

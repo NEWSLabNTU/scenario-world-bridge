@@ -812,14 +812,25 @@ def is_registered(relay: str, entity: str, timeout=5.0) -> bool:
     return bool((reply or {}).get("registered"))
 
 
-def check_ready(cmd, env, timeout=60) -> bool:
+def check_ready(cmd, env, timeout=60, why: list = None) -> bool:
+    """The readiness check passed. With ``why``, its last output line (the reason it gives
+    for not being ready) replaces ``why``'s contents."""
     if not cmd:
         return True
     try:
-        return subprocess.run(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              timeout=timeout).returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+        p = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        reason, ok = f"its check did not answer in {timeout} s", False
+    except (OSError, subprocess.SubprocessError) as e:
+        reason, ok = f"its check did not run: {e}", False
+    else:
+        ok = p.returncode == 0
+        lines = [l.strip() for l in (p.stdout + "\n" + p.stderr).splitlines()
+                 if l.strip() and "[ros2run]" not in l and "deprecated element" not in l]
+        reason = lines[-1] if lines else f"its check exited {p.returncode}"
+    if why is not None:
+        why[:] = [reason]
+    return ok
 
 
 # --- pilot processes ------------------------------------------------------------------------

@@ -14,6 +14,14 @@ ws="$1" setup="$2" overlay="$3" overlay_on="$4" ndt="$5" trt="$6"
 shift 6
 [ "$1" = "--" ] && shift
 
+# The stack's DDS settings win: Autoware's setup.bash sets its own CYCLONEDDS_URI (and RMW),
+# and a pilot on another profile than the stack's is never discovered (seen 2026-11-15: ego_ready
+# found nothing on /api/operation_mode/state for 600 s).
+keep_dds=()
+for v in CYCLONEDDS_URI RMW_IMPLEMENTATION ROS_DOMAIN_ID; do
+    [ -n "${!v+x}" ] && keep_dds+=("$v=${!v}")
+done
+
 # shellcheck disable=SC1090
 source "$setup"
 source "$ws/scripts/autoware_overlay.bash"
@@ -29,4 +37,5 @@ fi
 source "$ws/install/setup.bash"
 source "$ws/scripts/autoware_tensorrt.bash"
 swb_tensorrt_source "${trt:-$ws/third_party/tensorrt/lib}"
+for kv in "${keep_dds[@]}"; do export "$kv"; done
 exec "$@"

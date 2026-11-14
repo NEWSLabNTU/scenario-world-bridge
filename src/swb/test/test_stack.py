@@ -484,10 +484,26 @@ def test_autoware_pilot_runs_in_the_autoware_environment(where, maps_hub, tmp_pa
     (ws / "scripts" / "autoware_tensorrt.bash").write_text(
         "swb_tensorrt_source() { export LD_LIBRARY_PATH=\"$1:$LD_LIBRARY_PATH\"; }\n")
     setup = tmp_path / "aw.bash"
-    setup.write_text("export AW_SOURCED=1\n")
+    setup.write_text("export AW_SOURCED=1 CYCLONEDDS_URI=file:///opt/aw.xml\n")
     import subprocess as sp
     out = sp.run(["bash", str(stack.AUTOWARE_ENV), str(ws), str(setup), "", "false", "", "",
                   "--", "bash", "-c", "echo $AW_SOURCED $SWB_WS_SOURCED $OVERLAY_ARGS "
                   "${LD_LIBRARY_PATH%%:*}"], capture_output=True, text=True).stdout.split()
     assert out == ["1", "1", f"{ws}/third_party/autoware_overlay", "false",
                    f"{ws}/third_party/tensorrt/lib"]
+    # the stack's DDS profile survives Autoware's setup (which sets its own)
+    env = dict(os.environ, CYCLONEDDS_URI="file:///stack.xml", ROS_DOMAIN_ID="7")
+    out = sp.run(["bash", str(stack.AUTOWARE_ENV), str(ws), str(setup), "", "false", "", "",
+                  "--", "bash", "-c", "echo $CYCLONEDDS_URI $ROS_DOMAIN_ID"],
+                 capture_output=True, text=True, env=env).stdout.split()
+    assert out == ["file:///stack.xml", "7"]
+
+
+def test_check_ready_keeps_the_checks_reason():
+    import sys as _sys
+    why = []
+    cmd = [_sys.executable, "-c", "print('[ego-health] not ready: nothing publishes /x'); "
+           "import sys; sys.exit(1)"]
+    assert not stack.check_ready(cmd, dict(os.environ), why=why)
+    assert why == ["[ego-health] not ready: nothing publishes /x"]
+    assert stack.check_ready([_sys.executable, "-c", "pass"], dict(os.environ), why=why)

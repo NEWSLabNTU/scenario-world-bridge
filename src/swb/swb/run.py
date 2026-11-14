@@ -753,9 +753,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         deadline = time.time() + ctx.ready_timeout
         waiting = list(pilots) if not infra else []
         watches = {p["entity"]: CrashWatch(pilot_console(rec, p, logs)) for p in waiting}
+        why = {p["entity"]: [] for p in waiting}
         while waiting:
             for p in list(waiting):
-                if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"])):
+                if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
+                                        why=why[p["entity"]]):
                     waiting.remove(p)
                     run_events.append({"t_wall": time.time(), "event": "pilot.ready",
                                        "entity": p["entity"]})
@@ -768,8 +770,10 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                                  f" {n} times (see {watches[p['entity']].path.parent})")
             if waiting and time.time() >= deadline:
                 for p in waiting:
+                    last = why[p["entity"]]
                     infra.append(f"pilot {p['entity']} never became ready "
-                                 f"({ctx.ready_timeout:.0f} s)")
+                                 f"({ctx.ready_timeout:.0f} s)"
+                                 + (f": {last[0]}" if last else ""))
                 break
             if waiting:
                 time.sleep(2.0)

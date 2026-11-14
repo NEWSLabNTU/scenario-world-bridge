@@ -137,3 +137,9 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
   script only where the binary is missing) with a parent-death signal (SIGTERM), so it ends
   even when play_launch SIGKILLs the keeper. Test: a stand-in CARLA outliving a SIGKILLed
   keeper fails test_simulator.py.
+- G1 regression, found live (2026-11-15): Autoware's `setup.bash` sets its own
+  `CYCLONEDDS_URI`, so an autoware pilot under the prelude ran on Autoware's DDS profile, not
+  the stack's. `ego_ready` (on the stack's) saw nothing on `/api/operation_mode/state` and
+  both scenarios of a map-switch suite ended "pilot ego never became ready (600 s)". The
+  prelude now restores the stack's `CYCLONEDDS_URI`, `RMW_IMPLEMENTATION` and `ROS_DOMAIN_ID`
+  after every setup, and a readiness timeout now names the check's last reason.

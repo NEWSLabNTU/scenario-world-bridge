@@ -114,8 +114,8 @@ def t_in(u, v):
     return 0.0 if u >= 0 else (-u / v if v > 0.1 else INF)
 
 
-def t_out(u, v):
-    return (EXIT - u) / v if v > 0.1 else (0.0 if u >= EXIT else INF)
+def t_out(u, v, exit_=EXIT):
+    return (exit_ - u) / v if v > 0.1 else (0.0 if u >= exit_ else INF)
 
 
 @dataclass
@@ -161,8 +161,9 @@ class Policy:
     front past Z's near edge along the car's own road.
     """
 
-    def __init__(self, role, rule, v0, b_cont="hold"):
+    def __init__(self, role, rule, v0, b_cont="hold", exit_=EXIT):
         self.role, self.v0, self.b_cont = role, v0, b_cont
+        self.exit = exit_  # the front's distance past the zone's near edge when the rear leaves it
         self.decided = self.rested = self.shield = self.react_done = False
         self.stopped_since: float | None = None
         if role == "A":
@@ -191,15 +192,15 @@ class Policy:
             # make every gap look larger by the delay (074 S2 arena)
             ou, ov, oa = sd[1] + sd[2] * (t - sd[0]), sd[2], sd[3]
             if self.role == "A" and not self.committed:
-                ok_first = t_in(ou, ov) - t_cover(EXIT - u, v, self.v0) >= self.tau
+                ok_first = t_in(ou, ov) - t_cover(self.exit - u, v, self.v0) >= self.tau
                 # A's arrival if it goes now (from its speed, at full drive), not at its current speed:
                 # a nearly stopped A would otherwise see itself arriving late and go (074 S2 arena)
-                ok_second = ou >= EXIT or (t_cover(-u, v, self.v0) - t_out(ou, ov) >= self.tau)
+                ok_second = ou >= self.exit or (t_cover(-u, v, self.v0) - t_out(ou, ov, self.exit) >= self.tau)
                 test = ok_first or ok_second
                 if not self.decided or self.go_y:
                     self.committed = test
                     self.decided = True
-                elif ou >= EXIT:
+                elif ou >= self.exit:
                     self.committed = True
                 if self.stopped_since is not None and t - self.stopped_since >= self.pat:
                     self.committed = True
@@ -213,18 +214,18 @@ class Policy:
                     if not self.decided:  # the band test, once: inside it B yields until A has cleared Z
                         self.decided = True
                         self.committed = abs(t_in(ou, ov) - t_in(u, max(v, 0.1))) >= self.band and ou < 0
-                    if ou >= EXIT or (self.stopped_since is not None and t - self.stopped_since >= self.pat):
+                    if ou >= self.exit or (self.stopped_since is not None and t - self.stopped_since >= self.pat):
                         self.committed = True
         a = drive(v, self.v0) if self.committed else hold_out(u, v)
         sr = self._seen(t, REACT, first=False)
         if sr is None or u >= 0:
             return a
         ou, ov = sr[1] + sr[2] * (t - sr[0]), sr[2]
-        in_box = 0 <= ou < EXIT
+        in_box = 0 <= ou < self.exit
         # the other is about to enter Z first, before this car could clear it
         closing = (ou < 0 and ov > 0.5 and t_in(ou, ov) < 2.0
                    and t_in(ou, ov) <= t_in(u, max(v, 0.5)) + 0.3
-                   and t_in(ou, ov) < t_cover(EXIT - u, v, self.v0))
+                   and t_in(ou, ov) < t_cover(self.exit - u, v, self.v0))
         if in_box or closing:
             need = v * v / (2 * max(-u - 0.3, 0.05))
             if need > 0.3:

@@ -296,6 +296,38 @@ def xodr_lane_drop(k, length, x_end, taper):
             '  <header revMajor="1" revMinor="4" name="arena_lane_drop" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_narrow(k, length, x0, wn, taper):
+    """K parallel two-way roads (lane -1 along +x, lane +1 along -x) whose lane -1 is closed over
+    [x0, x0 + wn]: a cubic taper to zero width over the taper before x0, no lane -1 over the closure,
+    a cubic taper back to full width after it (a parked car, roadworks or a bridge on A's side)."""
+    w = LANE_W
+    c, d = -3 * w / taper ** 2, 2 * w / taper ** 3
+    full = f'<width sOffset="0" a="{w}" b="0" c="0" d="0"/>'
+    left = f'<left><lane id="1" type="driving" level="false">{full}</lane></left>'
+    centre = '<center><lane id="0" type="none" level="false"/></center>'
+
+    def sec(s, right):
+        return f'<laneSection s="{s}">{left}{centre}{right}</laneSection>'
+
+    lane_r = lambda width: f'<right><lane id="-1" type="driving" level="false">{width}</lane></right>'  # noqa: E731
+    sections = (sec(0, lane_r(full))
+                + sec(x0 - taper, lane_r(f'<width sOffset="0" a="{w}" b="0" c="{c}" d="{d}"/>'))
+                + sec(x0, "")
+                + sec(x0 + wn, lane_r(f'<width sOffset="0" a="0" b="0" c="{-c}" d="{-d}"/>'))
+                + sec(x0 + wn + taper, lane_r(full)))
+    roads = []
+    for i in range(k):
+        roads.append(f"""
+  <road name="n{i}" length="{length}" id="{i + 1}" junction="-1">
+    <link/>
+    <planView><geometry s="0" x="0" y="{-i * ROAD_GAP}" hdg="0" length="{length}"><line/></geometry></planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes>{sections}</lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_narrow" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 class Arena:
     def __init__(self, port, k, world_xodr=None):
         """world_xodr: the OpenDRIVE to generate (default: xodr(k, ROAD_LEN), the parallel roads)."""

@@ -59,18 +59,26 @@ PA = N2.PA
 D0S, DVS = N2.D0S, N2.DVS
 SEEDS = 8
 GROUPS = {"a": ("ABC", ("AB", "AC", "BC")), "b": ("ABL", ("AB", "AL", "BL")),
-          "a4": ("ABCD", ("AB", "AC", "AD", "BC", "BD", "CD"))}
-QUEUE = {"a": "BC", "a4": "BCD", "b": "B"}
+          "a4": ("ABCD", ("AB", "AC", "AD", "BC", "BD", "CD")),
+          "a5": ("ABCDE", tuple(a + b for i, a in enumerate("ABCDE") for b in "ABCDE"[i + 1:]))}
+QUEUE = {"a": "BC", "a4": "BCD", "a5": "BCDE", "b": "B"}
+ROUND2_FIT = "fit2"
+ROUND2_HOLDOUT = ("ho2_vb", "ho2_hf", "ho2_tl", "ho2_a5")
+ROUND1 = ("fit", ("ho_hf", "ho_vb", "ho_gl", "ho_a4"), ("pairs",))
+ROUND2 = (ROUND2_FIT, ROUND2_HOLDOUT, ("pairs", "pairs2"))
 PAIR_D0S = tuple(float(d) for d in range(-4, 35))
+PAIR_D0S_2 = tuple(float(d) for d in range(-6, 45))
 
 
-def _ctx_jobs(scene, xs, vbs, tag):
+def _ctx_jobs(scene, xs, vbs, tag, time_gap=False):
+    """time_gap (scene b): xs are L's gaps in time, gl = x v_B (round 2), recorded as tl."""
     full, pairs = GROUPS[scene]
     key = "gl" if scene == "b" else "hf"
     out = []
     for (d0, dv, x, vb), (pa, pb), s in itertools.product(itertools.product(D0S, DVS, xs, vbs), PROFILES, range(SEEDS)):
+        extra = {"gl": round(x * vb, 2), "tl": x} if time_gap else {key: x}
         for roles in (full, *pairs):
-            out.append({"set": tag, "scene": scene, "d0": d0, "dv": dv, key: x, "vb": vb, "pa": pa, "pb": pb,
+            out.append({"set": tag, "scene": scene, "d0": d0, "dv": dv, **extra, "vb": vb, "pa": pa, "pb": pb,
                         "seed": s, "roles": roles, "trace": False})
     return out
 
@@ -90,6 +98,26 @@ def jobs(name):
         return [{"set": name, "scene": "p", "d0": d0, "dv": 0.0, "vb": vb, "pa": pa, "pb": pb, "seed": s,
                  "roles": "AB", "trace": False}
                 for d0, vb, (pa, pb), s in itertools.product(PAIR_D0S, (8.0, 12.0, 16.0), PROFILES, range(SEEDS))]
+    # round 2 (074 N3): headways 1-3 s, L's gap 1-2.5 s in time, v_B 8/12/16; hold-outs at v_B 10/14,
+    # headway 2.5 s, L's gap 1.75 s, a five-car queue
+    if name == "fit2":
+        return (_ctx_jobs("a", (1.0, 2.0, 3.0), (8.0, 12.0, 16.0), name)
+                + _ctx_jobs("b", (1.0, 1.25, 1.5, 2.5), (8.0, 12.0, 16.0), name, time_gap=True))
+    if name == "ho2_vb":
+        return (_ctx_jobs("a", (1.0, 2.0), (10.0, 14.0), name)
+                + _ctx_jobs("b", (1.25, 2.5), (10.0, 14.0), name, time_gap=True))
+    if name == "ho2_hf":
+        return _ctx_jobs("a", (2.5,), (12.0,), name)
+    if name == "ho2_tl":
+        return _ctx_jobs("b", (1.75,), (12.0,), name, time_gap=True)
+    if name == "ho2_a5":
+        return _ctx_jobs("a5", (1.0, 2.0), (12.0,), name)
+    if name == "pairs2":  # the pair table's missing points: v_B 10, 14, and d0 -6..44 m
+        have = {(d0, vb) for d0 in PAIR_D0S for vb in (8.0, 12.0, 16.0)}
+        return [{"set": name, "scene": "p", "d0": d0, "dv": 0.0, "vb": vb, "pa": pa, "pb": pb, "seed": s,
+                 "roles": "AB", "trace": False}
+                for d0, vb, (pa, pb), s in itertools.product(PAIR_D0S_2, (8.0, 10.0, 12.0, 14.0, 16.0), PROFILES, range(SEEDS))
+                if (d0, vb) not in have]
     raise SystemExit(f"unknown set {name}")
 
 
@@ -206,12 +234,14 @@ class PairTable:
         return out
 
 
-# Post-hoc changes found on the hold-out (074 N3, after the frozen model 9ed8d89 was scored):
-# off by default, so `analyze` reproduces the frozen model; `diagnose` scores each.
-SLOT_AT_DECISION = False  # the slot test at A's speed when it drops (the AB pair's dec_vA), with
+# Changes found on round 1's hold-out (after its frozen model 9ed8d89 was scored): round 2's model,
+# on by default; set_round(1) switches all four off to reproduce round 1.
+SLOT_AT_DECISION = True  # the slot test at A's speed when it drops (the AB pair's dec_vA), with
 #                           the kinematic term of A's gap check, instead of at A's start speed
-SHIFT_ONLY_CLOSING = False  # L shifts the A-B context only when A closes on it (dv > 0)
-PER_SLOT_FEATURES = False  # the queue residual's features times the number of slots A skips
+SHIFT_ONLY_CLOSING = True  # L shifts the A-B context only when A closes on it (dv > 0)
+PER_SLOT_FEATURES = True  # the queue residual's features times the number of slots A skips
+LEAD_BRAKE = True  # scene b's lead feature: A's initial IDM braking toward L (round 2), not the
+#                    linear pressure max(0, s* - gl) / s* (round 1)
 TAU_S = 0.5  # s: L shifts the A-B context only if A decides at least this long after it meets L
 
 
@@ -289,8 +319,12 @@ def features(scene, car, pr, x, pa, vb, sh):
     ab = pr["AB"]
     v = ab["v0A"]
     if scene == "b":
-        gm = g_meet(v, v - ab["v0B"])
-        press = max(0.0, gm - x) / gm  # how far inside L's braking gap A starts
+        if LEAD_BRAKE:  # A's braking toward L at the start, as a share of b_max
+            cap = C1.TYPES["car"]
+            press = max(0.0, -C1.follow_accel(x, v, ab["v0B"], cap, C1.V_FREE)) / cap.b_max
+        else:
+            gm = g_meet(v, v - ab["v0B"])
+            press = max(0.0, gm - x) / gm  # how far inside L's braking gap A starts
         need = pa["buffer"] + ab["v0B"] * pa["tau"]  # A's gap check against B at dv >= 0
         return (1.0, press, press * (ab["d0"] - need) / need)  # ... and how far short of its check
     gap = C1.S0 + vb * x
@@ -411,19 +445,27 @@ def contexts_share(res):
     return sum(all(v) for v in ctx.values()), len(ctx)
 
 
-def analyze(out):
-    names = ("fit", "ho_hf", "ho_vb", "ho_gl", "ho_a4")
+def set_round(r):
+    """Round 1's frozen model (9ed8d89) or round 2's (all four changes on)."""
+    global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES, LEAD_BRAKE
+    SLOT_AT_DECISION = SHIFT_ONLY_CLOSING = PER_SLOT_FEATURES = LEAD_BRAKE = (r == 2)
+    return ROUND1 if r == 1 else ROUND2
+
+
+def analyze(out, rnd=2, pair_dirs=()):
+    fit_name, ho_names, pair_names = set_round(rnd)
+    names = (fit_name, *ho_names)
     rows = load(out, names)
-    table = PairTable(load(out, ("pairs",)))
+    table = PairTable(load(out, pair_names) + [r for d in pair_dirs for r in load(d, pair_names)])
     cs = cells(rows, table)
-    fit = {k: v for k, v in cs.items() if k[0] == "fit"}
+    fit = {k: v for k, v in cs.items() if k[0] == fit_name}
     theta = fit_residual(fit)
     L = []
     p = L.append
     p(f"N3: {len(rows)} group runs, {len(cs)} (set, scene, context, profile, car) cells, "
       f"pair table {sum(len(g) for g in table.t.values())} runs")
     p("")
-    p("residual model, per class (theta: constant, then the class's features; fitted on 'fit' only):")
+    p(f"round {rnd}; residual model, per class (theta: constant, then the class's features; fitted on '{fit_name}' only):")
     for cls in sorted(theta):
         p(f"  {cls:22s} " + " ".join(f"{c:+.4f}" for c in theta[cls]))
     p("")
@@ -439,7 +481,7 @@ def analyze(out):
             w, n = share(res)
             wc, nc = contexts_share(res)
             line = f"  {label:18s} {w:4d}/{n:<4d} ({100 * w / max(n, 1):3.0f} %)  contexts {wc:3d}/{nc:<3d} ({100 * wc / max(nc, 1):3.0f} %) |"
-            for scene in ("a", "a4", "b"):
+            for scene in ("a", "a4", "a5", "b"):
                 for car in GROUPS[scene][0]:
                     ww, nn = share(res, lambda r: r["key"][1] == scene and r["key"][7] == car)
                     if nn:
@@ -447,29 +489,31 @@ def analyze(out):
             p(line)
             summary[(tag, label)] = {"cells": [w, n], "contexts": [wc, nc], "res": res}
         p("")
-    ho = [t for t in names if t != "fit"]
-    p("held-out, pooled (every set but 'fit'):")
+    ho = list(ho_names)
+    p(f"held-out, pooled (every set but '{fit_name}'):")
     for label, m, th in models:
         res = [r for t in ho if (t, label) in summary for r in summary[(t, label)]["res"]]
         w, n = share(res)
         wc, nc = contexts_share(res)
         p(f"  {label:18s} {w:4d}/{n:<4d} ({100 * w / max(n, 1):3.0f} %)  contexts {wc:3d}/{nc:<3d} ({100 * wc / max(nc, 1):3.0f} %)")
     p("")
-    p("misses of n3 shift+residual (set scene d0 dv x vB profile car: U | r tol | class | A's slot / AB pair's):")
+    p("misses of n3 shift+residual (set scene d0 dv x vB profile car: U | r tol | class | A's slot / AB pair's;")
+    p("  x: hf in s for a queue, gl in m for a lead; '*': a lead inside L's following gap S0 + v_B 1 s)")
     for tag in names:
         for r in summary.get((tag, "n3 shift+residual"), {}).get("res", []):
             if not r["within"]:
                 t, scene, d0, dv, x, vb, a, car = r["key"]
-                p(f"  {t:6s} {scene:2s} {d0:4.0f} {dv:+3.0f} {x:4.1f} {vb:4.0f} {a:11s} {car}: {r['u']:+.3f} | "
+                inside = "*" if scene == "b" and x < C1.S0 + vb * C1.HEADWAY else " "
+                p(f"  {t:6s} {scene:2s} {d0:4.0f} {dv:+3.0f} {x:4.1f}{inside}{vb:4.0f} {a:11s} {car}: {r['u']:+.3f} | "
                   f"{r['r']:+.3f} {r['tol']:.3f} | {r['cls']} | {r['pos']}/{r['pos_ab']}")
     txt = "\n".join(L)
-    open(os.path.join(out, "n3_summary.txt"), "w").write(txt + "\n")
-    with open(os.path.join(out, "n3_cells.jsonl"), "w") as f:
+    open(os.path.join(out, f"n3_summary_r{rnd}.txt"), "w").write(txt + "\n")
+    with open(os.path.join(out, f"n3_cells_r{rnd}.jsonl"), "w") as f:
         for (tag, label), v in summary.items():
             for r in v["res"]:
                 f.write(json.dumps({"set": tag, "model": label, **{k: r[k] for k in ("r", "tol", "within", "cls", "u", "pos", "pos_ab")},
                                     "key": r["key"]}) + "\n")
-    json.dump({k: v for k, v in theta.items()}, open(os.path.join(out, "n3_theta.json"), "w"), indent=1)
+    json.dump({k: v for k, v in theta.items()}, open(os.path.join(out, f"n3_theta_r{rnd}.json"), "w"), indent=1)
     print(txt)
 
 
@@ -502,8 +546,9 @@ def d2(port, out, swb_runs="/mnt/p5plus/aeon/coop/c2b/run2"):
 
 
 def diagnose(out):
-    """The frozen model and each post-hoc change, refitted on 'fit' and scored on every set."""
+    """Round 1: the frozen model and each post-hoc change, refitted on 'fit' and scored on every set."""
     global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES
+    set_round(1)  # round 1's data and lead feature
     names = ("fit", "ho_hf", "ho_vb", "ho_gl", "ho_a4")
     rows = load(out, names)
     table = PairTable(load(out, ("pairs",)))
@@ -523,7 +568,7 @@ def diagnose(out):
         w, n = share(pool)
         wc, nc = contexts_share(pool)
         L.append(line + f" | held-out {w}/{n} ({100 * w / n:.0f} %), contexts {wc}/{nc} ({100 * wc / nc:.0f} %)")
-    SLOT_AT_DECISION = SHIFT_ONLY_CLOSING = PER_SLOT_FEATURES = False
+    set_round(2)
     txt = "\n".join(L)
     open(os.path.join(out, "n3_diagnose.txt"), "w").write(txt + "\n")
     print(txt)
@@ -538,6 +583,13 @@ def selftest():
     need = C1.S0 + 12.0 * C1.HEADWAY + L_CAR + pa["buffer"] + 12.0 * pa["tau"]
     keep, extra, k = queue_walk("a", ab, (need - C1.S0) / 12.0 + 0.01, pa, 12.0)
     assert k == 0 and extra == 0.0 and "AC" in keep
+    # round 2: the slot at A's speed when it drops: at 5.3 m/s its check needs ~48 m, a 38 m slot is short
+    assert queue_walk("a", dict(ab, dec_vA=5.3), 3.0, PA["A1_s0l22_2"], 12.0)[2] == 1
+    assert queue_walk("a", dict(ab, dec_vA=5.3), 4.0, PA["A1_s0l22_2"], 12.0)[2] == 0
+    # round 2's lead feature: no braking outside IDM's gap, some inside it
+    f_out = features("b", "A", {"AB": {"v0A": 12.0, "v0B": 12.0, "d0": 6.0, "a_pos": "ahead"}}, 30.0, pa, 12.0, None)
+    f_in = features("b", "A", {"AB": {"v0A": 14.0, "v0B": 12.0, "d0": 6.0, "a_pos": "ahead"}}, 12.0, pa, 12.0, None)
+    assert f_out[1] == 0.0 and 0.0 < f_in[1] <= 1.0, (f_out, f_in)
     keep, extra, k = queue_walk("a", dict(ab, a_pos="ahead"), 1.0, pa, 12.0)
     assert keep == {"AB", "BC"} and extra == 0.0
     # v2 matches n2.compose_v2 on a three-car scene
@@ -569,6 +621,8 @@ def main():
     ap.add_argument("--port", type=int, default=2600)
     ap.add_argument("--out")
     ap.add_argument("--k", type=int, default=6)
+    ap.add_argument("--round", type=int, default=2, choices=(1, 2), help="analyze: round 1's frozen model or round 2's")
+    ap.add_argument("--pairs-from", default="", help="analyze: more directories holding pair-table files")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
@@ -585,7 +639,7 @@ def main():
     elif a.mode == "diagnose":
         diagnose(a.out)
     else:
-        analyze(a.out)
+        analyze(a.out, a.round, [d for d in a.pairs_from.split(",") if d])
 
 
 if __name__ == "__main__":

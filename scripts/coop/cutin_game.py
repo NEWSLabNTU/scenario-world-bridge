@@ -148,6 +148,13 @@ def follow_cruise(gap, v, v_lead, cap, v_des):
     return min(a, max(-1.0, min(cap.a_max, 1.5 * (v_des - v))))
 
 
+FOLLOW_CRUISE = False  # C1's followers: follow_accel (False, as C1 was built) or follow_cruise
+
+
+def _follow(gap, v, v_lead, cap, v_des):
+    return (follow_cruise if FOLLOW_CRUISE else follow_accel)(gap, v, v_lead, cap, v_des)
+
+
 def cruise(v, v_des, cap):
     return min(cap.a_max, 0.5 * (v_des - v) / DT) if v < v_des else 0.0
 
@@ -185,9 +192,9 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
                 decide = t
             aa = -A_WAIT_DECEL if gap_behind < S0 + vbb * HEADWAY and va > 0.5 * vbb else 0.0
             if decide is not None:
-                aa = follow_accel(gap_behind, va, vbb, cap_a, va0)
+                aa = _follow(gap_behind, va, vbb, cap_a, va0)
         elif lat > 0.0 and xa < xb:
-            aa = follow_accel((xb - cap_b.length) - xa, va, vbb, cap_a, va0)
+            aa = _follow((xb - cap_b.length) - xa, va, vbb, cap_a, va0)
         else:
             aa = cruise(va, va0, cap_a)
         # --- B
@@ -204,11 +211,11 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
                 and t >= lat_seen + cap_b.reaction and a_ahead):
             yielding = True
         if yielding:
-            ab = -B_YIELD_DECEL if gap_b < S0 + vbb * HEADWAY else follow_accel(gap_b, vbb, va, cap_b, vb0)
+            ab = -B_YIELD_DECEL if gap_b < S0 + vbb * HEADWAY else _follow(gap_b, vbb, va, cap_b, vb0)
         else:
             ab = cruise(vbb, vb0, cap_b)
         if in_lane_at is not None and t >= in_lane_at + cap_b.reaction and xa > xb:
-            ab = min(ab, follow_accel(gap_b, vbb, va, cap_b, vb0))  # the safety layer
+            ab = min(ab, _follow(gap_b, vbb, va, cap_b, vb0))  # the safety layer
         if ab <= -YIELD_SEEN and b_prev_a > -YIELD_SEEN and b_brake_seen is None:
             b_brake_seen = t
         b_prev_a = ab

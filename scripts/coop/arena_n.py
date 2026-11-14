@@ -7,6 +7,7 @@ arena.py's cut-in (A in lane -2 wants into B's lane -1) with one more car on the
            ahead of B, or, if A drops back, in the B-C slot or behind C
   scene b  L leads A in A's own lane -2, `gl` m ahead of A's front, at B's speed
   scene a4 scene a with a fourth car: D follows C at the same headway hf (074 N3's four-car queue)
+  scene a5 and a fifth: E follows D at hf (074 N3 round 2's hold-out)
   scene p  A and B alone (074 N3's table of pair terms at shifted contexts)
 
 A group runs any subset of the scene's cars ("ABC", "AB", "AC", "BC", "ABL", "AL", "BL", "ABCD", ...) from
@@ -60,12 +61,12 @@ T_RUN = C1.T_MAX  # s after the warm-up (40 s: a four-car queue decides late); p
 HORIZON = C1.HORIZON
 V_FREE = 1e3  # IDM's desired speed for the interaction term only (cruise caps the speed)
 TRACE_DT = 0.1  # s between recorded poses (N1's conflict sets)
-ROLES = "ABCLD"
-QUEUE = "BCD"  # lane -1, front to back
-LANES = {"A": -2, "B": -1, "C": -1, "L": -2, "D": -1}
+ROLES = "ABCLDE"
+QUEUE = "BCDE"  # lane -1, front to back
+LANES = {"A": -2, "B": -1, "C": -1, "L": -2, "D": -1, "E": -1}
 AR.ROAD_LEN = 1500.0  # v_B 16 m/s: a warm-up and T_RUN reach ~900 m; absent cars wait past that
-PARK_X = {"A": 1460.0, "B": 1430.0, "C": 1400.0, "L": 1370.0, "D": 1340.0}  # where an absent car waits
-X_MAX = PARK_X["D"] - 20.0  # a present car past this could reach a parked one: the run is refused
+PARK_X = {"A": 1460.0, "B": 1430.0, "C": 1400.0, "L": 1370.0, "D": 1340.0, "E": 1310.0}  # where an absent car waits
+X_MAX = PARK_X["E"] - 20.0  # a present car past this could reach a parked one: the run is refused
 
 
 def setup_cars(ar, k, roles=ROLES):
@@ -93,10 +94,11 @@ class Group:
         self.ln = cars["B"].length
         jit = args.reaction_jitter
         cap = C1.TYPES["car"]
-        self.react = {r: cap.reaction + _rng(job, "react", r).uniform(-jit, jit) for r in "ABCD"}
+        self.react = {r: cap.reaction + _rng(job, "react", r).uniform(-jit, jit) for r in "ABCDE"}
         self.obs = {}
         pairs = [("A", "B"), ("A", "C"), ("A", "L"), ("B", "A"), ("C", "B"), ("C", "A"),
-                 ("A", "D"), ("C", "D"), ("D", "A"), ("D", "B"), ("D", "C")]
+                 ("A", "D"), ("C", "D"), ("D", "A"), ("D", "B"), ("D", "C"),
+                 ("A", "E"), ("E", "A"), ("E", "B"), ("E", "C"), ("E", "D")]
         for v, u in pairs:
             if v in self.roles and u in self.roles:
                 self.obs[v + u] = AR.Observer(args.obs_delay, args.obs_sigma_x, args.obs_sigma_v, _rng(job, "obs", v, u))
@@ -110,9 +112,10 @@ class Group:
         la = lb = lc = ll = self.ln  # every car is the spec's Model 3
         rA = j["d0"] - j["dv"] * max(0.0, W - t)
         off = {"B": (0.0, 0.0), "A": (lb / 2 + rA + la / 2, j["dv"] if t < W else 0.0)}
-        if j["scene"] in ("a", "a4"):
+        if j["scene"] in ("a", "a4", "a5"):
             off["C"] = (-(lb / 2 + self.gap_c0 + lc / 2), 0.0)
             off["D"] = (off["C"][0] - (lc / 2 + self.gap_c0 + self.ln / 2), 0.0)
+            off["E"] = (off["D"][0] - (self.ln + self.gap_c0), 0.0)
         elif j["scene"] == "b":
             g = j["gl"] + j["dv"] * max(0.0, W - t)
             gr = -j["dv"] if t < W else 0.0
@@ -315,7 +318,7 @@ class Group:
                     ab = min(ab, AR.follow(gap_b, vb, va_s, cap, self.v0["B"]))
             acc["B"] = ab
         # --- the followers, C and D: the nearest car ahead in lane -1
-        for f in ("C", "D"):
+        for f in ("C", "D", "E"):
             if f not in cs:
                 continue
             xc, _, _, vc = st[f]

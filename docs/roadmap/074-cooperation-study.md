@@ -698,6 +698,17 @@ rerun/`.
     `Pool.worker` seeded its runs from `hash(tag)`, which Python randomises per process.
 - **Decided (2026-11-15):** seeds become stable (crc32 of the tag). Every best response found by
   search is re-evaluated on fresh seeds before it enters the pool. Then rerun as do6 (swb 241).
+- **do6 converged** (f4e7672, swb 241; NAS `.../2026-11-15 coop do6/`).
+  - Each run is seeded with crc32(context:seed:salt) and gets its own generator, so every rule pair
+    sees the same noise.
+  - A searched best response enters the pool only if, on 4 fresh shared seeds per context, its gain
+    over the incumbent mixture exceeds 2 standard errors. The search had overstated gains by
+    0.03-0.06.
+  - Converged in round 3, with an exploitability lower bound of 0.
+  - Equilibrium: A2 (τ 0.24, a_rear 4.0, buffer 5.1, no prepare) against B3 (react gap 12.6 m, b_y 1.0):
+    vA -0.137, vB -0.038, no contact, A ahead in half the contexts. **It is the same class as do4 and
+    do5:** an aggressive A without a prepare phase, against a B that lets it in late and gently.
+  - CARLA still flips about 1 context in 12 between repeat evaluations.
 
 ### N1, N2. Conflict sets and three-car composition (2026-11-14)
 

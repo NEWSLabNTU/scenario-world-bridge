@@ -1,18 +1,20 @@
-"""Test support: `swb` importable from the repository root (before a colcon install), and a fake
-Hugging Face Hub (http.server on localhost) with host settings pointing at it."""
-import sys
-from pathlib import Path
+"""Test support for swb.
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
+Makes `swb` importable from the repository root before a colcon install, and serves a fake
+Hugging Face Hub (http.server on localhost) with host settings pointing at it.
+"""
 import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from pathlib import Path
+import sys
 import threading
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 class FakeHub:

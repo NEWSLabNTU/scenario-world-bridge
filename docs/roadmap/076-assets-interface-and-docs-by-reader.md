@@ -562,6 +562,28 @@ sharing a project.
     for developers; a tree hash would keep it right and spare that restart.
   - friction: play_launch warns `dds-env-split` for the stack's nested sides, whose domains
     differ on purpose.
+  - fixed (2604f0f): the fingerprint's build is the tree of `src/` (plus a hash of its
+    uncommitted changes), so a commit of the same code or a docs edit no longer refuses runs.
+  - acceptance 1 passed: `first_drive`'s `drive_to_goal` passed (51 s), then `suites/all.yaml`
+    3/3 on the same stack (drive_to_goal, pedestrian_crossing, red_light).
+  - fixed (8017844): `carla_basic` takes CARLA's `agents` from the host's `carla.root`.
+  - fixed (2b4028e): a `carla_basic`, `command` or `launch` pilot is ready only when its
+    agent registered the entity with the relay; a pilot crashing at start (CARLA's `agents`
+    import `shapely`, missing on the host) had counted as ready, and SSv2 failed on "no
+    agent registered". `swb_agent` declares python3-shapely and python3-networkx.
+  - acceptance 2 passed: `multi_pilot`'s `four_pilots` (two Autowares, `carla_basic`, a
+    `command` agent per run), 99 s, through `run --stop-stack` (the runner started the
+    stack and stopped it; nothing left over).
+  - friction: a pilot that crash-loops is found only at the readiness timeout (600 s).
+  - acceptance 3, on one host: `suites/cut_in_seeds.yaml` (5 repetitions, seeds 1000-1004)
+    as `--shard 1/2 --start-stack` then `--shard 2/2 --stop-stack`, 5/5 passed; the shards'
+    run links copied into one directory and `runs summary <dir>` merged them (5 tests, 0
+    failures, 0 errors). Each seed drew another cut-in gap (39.2 to 43.0 m), recorded in
+    the run's `cut_in.json`. Infrastructure faults showed as `error` (the runs above), never
+    `failed`. Not yet: two real hosts (the links name local paths; a second host's runs
+    must be copied over first).
+  - note: `--stop-stack` stops only a stack its own command started; shard 2 found shard 1's
+    stack up and left it, as designed (shard 1 printed how to stop it).
 
 ## Acceptance
 

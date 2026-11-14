@@ -66,10 +66,10 @@ def a_profile(s0_time):
     return s
 
 
-def simulate(G, c1, n, h, v):
+def simulate(G, c1, n, h, v, t_first=3.0):
     """One run: A with threshold G, C1's response c1 ('hold'/'yield'), n cars at headway h."""
-    # oncoming positions: distance to the conflict zone's near edge; car 0 first at 3 s away
-    x = [v * (3.0 + i * h) for i in range(n)]
+    # oncoming positions: distance to the conflict zone's near edge; car 0 first at t_first s away
+    x = [v * (t_first + i * h) for i in range(n)]
     vel = [v] * n
     a_start = None
     hist = []  # what A sees, delayed: (t, positions, speeds)
@@ -160,7 +160,7 @@ def simulate(G, c1, n, h, v):
     for i in range(n):
         # each oncoming car's progress against free flow over the run
         free = v * t
-        dist = v * (3.0 + i * h) - x[i]
+        dist = v * (t_first + i * h) - x[i]
         lost.append(max(0.0, (free - dist) / max(free, 1.0)))
     if contact:
         a_delay = T_MAX

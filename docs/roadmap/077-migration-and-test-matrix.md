@@ -143,3 +143,36 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
   both scenarios of a map-switch suite ended "pilot ego never became ready (600 s)". The
   prelude now restores the stack's `CYCLONEDDS_URI`, `RMW_IMPLEMENTATION` and `ROS_DOMAIN_ID`
   after every setup, and a readiness timeout now names the check's last reason.
+
+
+Step 3, gaps G2, G3, G6, G10, G12, G23 (2026-11-15; tests without a simulator, live checks
+open):
+
+- **G2, gap trace per run.** The bridge reads `gap_trace_dir` (and `contact_report_dir`)
+  once, at start, and has no service to move them, so the ruling is **per stack**: the stack
+  points both at `stacks/<id>/episodes/`, and each run moves the files that appeared during
+  it (one per `Initialize`, closed when SSv2 despawns everything at the end) into
+  `runs/<id>/gap_trace/` and `contacts/` (`swb.episodes`). On with `logging.gap_trace: true`
+  (swb.yaml only) or a judge's `needs: [gap_trace]`. `python3 -m swb.gap oracle|incident`
+  runs gap_oracle and incident_judge as judges over the run directory.
+- **G3, SSv2 run settings.** `ssv2:` (`global_timeout`, `frame_rate`,
+  `global_real_time_factor`, `initialize_duration`, `managed_ego`) in swb.yaml, a suite, a
+  suite item (`{path, ssv2}`), `--timeout`/`run_one`; each layer replaces the keys it names.
+  `managed_ego: false` hands SSv2's ego to no pilot (check and run).
+- **G10, world config.** `world:` (`weather` preset or parameters, `npc_motion`,
+  `contact_report_dir`, `config_file`, `world_config_file`) merged by name with swb's side
+  and sim arguments; swb's own names are refused, in swb.yaml and in `stack_args`, which now
+  merges instead of replacing. Weather parameters: the keeper's `set_weather` before ready.
+- **G6, Isaac options.** `isaac:` (`ego`, `render`, `follow`, `physics_hz`, `preload`,
+  `wheels_topic`) to the Isaac world server beside swb's `world`/`ego`/`state_dir`; a
+  preloaded map is one the stack may switch its pilots to.
+- **G12, profile arguments.** `project check` (so the plan) runs the profile's own
+  `check_launch_args` `problems()` over each autoware pilot's `args` and the suites'
+  `pilot_args`; the table stays the profile's.
+- **G23, bench metrics.** `frame_*`/`tick_*` metrics from the bridge's 200-frame "Frame
+  budget" windows in the run's slice; the whole-run line belongs to the next run's slice
+  and is left out.
+
+Open, live: a gap trace through a real bridge into a run (CARLA), weather parameters
+through `set_weather`, an Isaac switch to a preloaded world, `managed_ego: false` on
+Isaac's rear contact (inventory row 18).

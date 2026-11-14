@@ -888,3 +888,110 @@ def test_one_run_at_a_time_per_stack(live, where):
         holder.wait()
     r = api.run_one(d, "scenarios/three_pilots.xosc", {"scenario_command": fake(where)})
     assert r.verdict == "passed"   # the turn is free once its holder is gone
+
+
+# --- roadmap 077: SSv2's run settings, the gap trace per run, the frame budget --------------
+
+def test_scenario_argv_takes_the_run_settings():
+    rec = {"ports": {"ssv2": 5655}, "pilots": []}
+    spec = run.RunSpec(Path("/p/s.xosc"), timeout=900,
+                       ssv2={"frame_rate": 100, "managed_ego": False,
+                             "global_real_time_factor": 0.5, "global_timeout": 300})
+    argv = run.scenario_argv(rec, spec, Path("/r"), Path("/p/s.xosc"))
+    assert "frame_rate:=100" in argv and "managed_ego:=false" in argv
+    assert "global_real_time_factor:=0.5" in argv
+    assert "global_timeout:=900" in argv and "global_timeout:=300" not in argv  # timeout wins
+
+
+def test_suite_and_item_settings(tmp_path):
+    (tmp_path / "scenarios").mkdir()
+    for n in ("a.xosc", "b.xosc"):
+        (tmp_path / "scenarios" / n).write_text("<OpenSCENARIO/>")
+    (tmp_path / "s.yaml").write_text(yaml.safe_dump({
+        "ssv2": {"global_timeout": 600, "frame_rate": 20},
+        "scenarios": ["scenarios/a.xosc",
+                      {"path": "scenarios/b.xosc", "ssv2": {"frame_rate": 100,
+                                                           "managed_ego": False}}]}))
+    specs, _ = run.expand(tmp_path / "s.yaml", tmp_path)
+    by = {s.scenario.name: s.ssv2 for s in specs}
+    assert by == {"a.xosc": {"global_timeout": 600, "frame_rate": 20},
+                  "b.xosc": {"global_timeout": 600, "frame_rate": 100, "managed_ego": False}}
+    (tmp_path / "s.yaml").write_text("scenarios: [{path: scenarios/a.xosc, ssv2: {fast: 1}}]\n")
+    with pytest.raises(run.Refused, match="unknown key fast"):
+        run.expand(tmp_path / "s.yaml", tmp_path)
+
+
+FAKE_SSV2_TRACED = textwrap.dedent('''\
+    import json, sys
+    from pathlib import Path
+    run_dir, proc, traces, contacts, trace = (Path(a) for a in sys.argv[1:6])
+    window = ("2026-11-15T00:00:{s:02d}.000000Z  INFO carla_scenario_bridge::zmq_server: Frame "
+              "budget, last 200 frames: 200 frames, p50/p95/max ms: processing {p}, tick "
+              "1.0/2.0/3.0, UpdateEntityStatus 0.1/0.1/0.1; entities 3/3/3; processing > 25 ms: "
+              "0, tick > 100 ms: 0")
+    err = proc / "bridge" / "2026-11-15_00-00-00" / "node" / "scenario_world_bridge" / "err"
+    with open(err, "a") as f:
+        f.write(window.format(s=1, p="0.2/0.3/0.4") + "\\n")
+        f.write(window.format(s=2, p="0.2/1.8/2.5") + "\\n")
+    (traces / "20261115T000000Z_7.jsonl").write_text(trace.read_text())
+    (contacts / "20261115T000000Z_e7.json").write_text(json.dumps({"contacts": []}))
+    j = run_dir / "logs" / "ssv2" / "scenario_test_runner" / "result.junit.xml"
+    j.parent.mkdir(parents=True, exist_ok=True)
+    j.write_text('<testsuites><testsuite name="s"><testcase name="three_pilots"/>'
+                 '</testsuite></testsuites>')
+''')
+
+
+def test_gap_trace_per_run_judged_and_frame_metrics(where, maps_hub, monkeypatch):
+    """G2 and G23: the bridge's trace and contact report of a run land in its directory, a
+    gap_oracle judge reads the trace there, and the frame budget becomes metrics."""
+    from test_settings import trace_text
+    monkeypatch.setenv("PYTHONPATH", f"{SWB_ROOT}:{os.environ.get('PYTHONPATH', '')}")
+    d = make(where, (project.TEMPLATES / "multi-pilot" / "swb.yaml").read_text()
+             + "judges:\n  - {name: gap, run: [python3, -m, swb.gap, oracle],"
+               " needs: [gap_trace]}\nlogging: {keep: {}}\n")
+    (where["tmp"] / "fake_traced.py").write_text(FAKE_SSV2_TRACED)
+    (where["tmp"] / "trace.jsonl").write_text(trace_text())
+    p, proc = start_stack(d)
+
+    def cmd(rec, spec, run_dir, scenario):
+        e = rec["episodes"]
+        return [sys.executable, str(where["tmp"] / "fake_traced.py"), str(run_dir), rec["proc"],
+                e["gap_trace"], e["contacts"], str(where["tmp"] / "trace.jsonl")]
+    try:
+        r = api.run_one(d, "scenarios/three_pilots.xosc",
+                        {"scenario_command": cmd, "ready_timeout": 5})
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+    run_dir = where["tmp"] / "logs" / "proj" / "runs" / r.run_id
+    assert r.verdict == "passed", r.reason
+    assert [x.name for x in (run_dir / "gap_trace").glob("*.jsonl")] == [
+        "20261115T000000Z_7.jsonl"]
+    assert (run_dir / "contacts" / "20261115T000000Z_e7.json").is_file()
+    assert not list(Path(p.record["episodes"]["gap_trace"]).iterdir())   # moved, not copied
+    judged = json.loads((run_dir / "judges" / "gap.json").read_text())
+    assert judged["verdict"] == "passed" and judged["traces"][0]["g4"] == "agree"
+    m = results.RunResult.read(run_dir / "result.json").metrics
+    assert (m["frame_windows"], m["frame_count"], m["frame_p95_ms"], m["frame_max_ms"]) == \
+        (2, 400, 1.8, 2.5)
+    events = [e["event"] for e in timeline.read(run_dir / "timeline.jsonl")]
+    assert "gap_trace.collected" in events and "contacts.collected" in events
+
+
+def test_managed_ego_false_hands_the_ego_to_no_pilot(live, where):
+    d, _ = live
+    seen = []
+
+    def cmd(rec, spec, run_dir, scenario):
+        seen.append(spec.ssv2)
+        return fake(where)(rec, spec, run_dir, scenario)
+    r = api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"scenario_command": cmd, "ready_timeout": 5, "logging": {"keep": {}},
+                     "ssv2": {"managed_ego": False, "frame_rate": 100}})
+    assert r.verdict == "passed"
+    assert seen == [{"managed_ego": False, "frame_rate": 100}]
+    run_dir = where["tmp"] / "logs" / "proj" / "runs" / r.run_id
+    resolved = yaml.safe_load((run_dir / "resolved.yaml").read_text())
+    assert set(resolved["pilots"]) == {"lead", "follower"}   # no ego: SSv2 drives it not
+    assert set(results.RunResult.read(run_dir / "result.json").pilots) == {"lead", "follower"}

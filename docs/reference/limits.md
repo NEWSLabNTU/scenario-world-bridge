@@ -42,8 +42,9 @@ What the bridge does with a scenario file, on either simulator unless named:
   ignored for a `simulator_autopilot` car (the simulator owns its pose).
 - **Isaac Sim** runs the same files as far as it can drive them: `simulator_autopilot` is
   refused (Isaac has no driver of its own), only one entity can have a pilot (the ego), the
-  `carla_basic` pilot is CARLA only, and an Isaac stack serves one world: a scenario on
-  another map needs the stack restarted with that `map:=`.
+  `carla_basic` pilot is CARLA only, and an Isaac stack serves the worlds it loaded at
+  start: a scenario on another map needs the stack restarted with that `map:=`, or the map
+  in `isaac.preload`.
 - **Road physics (Isaac).** A scenario sets the road's state (wetness, a zone's surface
   class); it cannot choose the surface map. Autoware on the rough gravel road is not
   validated. On CARLA a `RoadCondition` only scales tire friction; zones, soil, ruts and
@@ -57,9 +58,16 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 - **`vehicles:` is checked, not loaded.** `project check` refuses a listed spec file that
   does not exist, but the stack does not load it: give the bridge your catalog and the
   world server your physics through `stack_args` ([Your car](../how-to/your-car.md)).
-- **No project keys for the bridge's and the world servers' config files.** They go through
-  `stack_args` ([Configure the stack](../how-to/configure.md)). The `stack_args` lines in
-  those pages have not been run through play_launch's own argument parser on a live stack.
+- **The bridge's trace and contact directories are the stack's, not a run's.** The bridge
+  reads them once, at start; each run takes the files the bridge wrote during it
+  (`gap_trace/`, `contacts/`). `logging.gap_trace` is therefore `swb.yaml`'s, not a
+  suite's, and a change needs the stack restarted.
+- **Weather parameters are set once per stack.** A world server restarted after the stack
+  was ready keeps a preset (the bridge's `weather`) but not parameters set through the
+  service; restart the stack, or set them again with `set_weather`
+  ([Configure the stack](../how-to/configure.md#the-weather)).
+- **Frame metrics come from the bridge's 200-frame reports.** The last frames of a run,
+  fewer than 200, are in none, so a short run has no frame metrics.
 - **`logging.levels` and `logging.debug` are refused.** Per-process ROS log levels are not
   built; give a pilot its own (for example `args: {log_level: warn}`) where its launch takes
   one. `capture: debug` records every topic.

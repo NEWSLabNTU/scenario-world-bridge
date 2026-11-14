@@ -51,7 +51,10 @@ def test_plan_multi_pilot(where, maps_hub):
     assert a["map_path"] == "" and "pilots" not in a  # the keeper runs the pilots
     # the world server writes the signal table into the state dir, the bridge reads it there
     assert a["sim_args"] == f"state_dir:={d / 'state'}"
-    assert a["side_args"] == f"state_dir:={d / 'state'}"
+    contacts = where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "episodes" / "contacts"
+    # each run's contact reports: the bridge writes them under the stack, the run moves them
+    assert a["side_args"] == f"state_dir:={d / 'state'} contact_report_dir:={contacts}"
+    assert p.record["episodes"] == {"gap_trace": None, "contacts": str(contacts)}
     assert a["log_dir"] == str(where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "proc")
     pilots = p.record["pilot_entries"]
     assert [(x["entity"], x["kind"], x["domain"]) for x in pilots] == [
@@ -210,7 +213,7 @@ def test_isaac_plan(where, maps_hub):
     assert p.launch_args["sim"] == "isaac"
     assert p.launch_args["sim_args"] == (f"world:={d / 'assets' / 'maps' / 'Town01'} ego:=default"
                                          f" state_dir:={d / 'state'}")
-    assert p.launch_args["side_args"] == f"state_dir:={d / 'state'}"
+    assert p.launch_args["side_args"].startswith(f"state_dir:={d / 'state'} contact_report_dir:=")
 
 
 def test_fingerprint_diff_names_parts(where, maps_hub):
@@ -443,7 +446,8 @@ def test_retired_args_refused_by_name(where, maps_hub):
             stack.plan(project_arg=str(d), stack_args={name: "x"})
     # the stack's own arguments still pass
     p = stack.plan(project_arg=str(d), stack_args={"side_args": "weather:=ClearNoon"})
-    assert p.launch_args["side_args"] == "weather:=ClearNoon"
+    side = stack._named(p.launch_args["side_args"])
+    assert side["weather"] == "ClearNoon" and side["state_dir"] == str(d / "state")
 
 
 def test_seat_carla_port_is_the_stacks(where, maps_hub):
@@ -507,3 +511,145 @@ def test_check_ready_keeps_the_checks_reason():
     assert not stack.check_ready(cmd, dict(os.environ), why=why)
     assert why == ["[ego-health] not ready: nothing publishes /x"]
     assert stack.check_ready([_sys.executable, "-c", "pass"], dict(os.environ), why=why)
+
+
+
+
+# --- roadmap 077: world:, isaac:, the gap trace, the weather --------------------------------
+
+MULTI = (project.TEMPLATES / "multi-pilot" / "swb.yaml").read_text()
+
+
+def test_world_reaches_the_side_beside_swbs(where, maps_hub):
+    """G10: world: goes to the bridge and the world server, merged with swb's own arguments;
+    stack_args merge too, and a name swb owns is refused."""
+    d = make(where)
+    (d / "config").mkdir()
+    (d / "config" / "bridge.yaml").write_text("{}\n")
+    (d / "config" / "carla.yaml").write_text("{}\n")
+    (d / "swb.yaml").write_text(MULTI + "world:\n  weather: {preset: WetNoon, cloudiness: 30}\n"
+                                "  npc_motion: kinematic\n  config_file: config/bridge.yaml\n"
+                                "  world_config_file: config/carla.yaml\n"
+                                "logging: {gap_trace: true}\n")
+    p = stack.plan(project_arg=str(d))
+    side, sim = stack._named(p.launch_args["side_args"]), stack._named(p.launch_args["sim_args"])
+    stack_dir = where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id
+    assert side == {"state_dir": str(d / "state"),
+                    "gap_trace_dir": str(stack_dir / "episodes" / "gap_trace"),
+                    "contact_report_dir": str(stack_dir / "episodes" / "contacts"),
+                    "weather": "WetNoon", "npc_motion": "kinematic",
+                    "config_file": str((d / "config" / "bridge.yaml").resolve())}
+    assert sim == {"state_dir": str(d / "state"),
+                   "config_file": str((d / "config" / "carla.yaml").resolve())}
+    assert p.record["weather"] == {"parameters": {"cloudiness": 30.0}, "state": "pending"}
+    stack.write_plan(p)
+    assert (stack_dir / "episodes" / "gap_trace").is_dir()
+    # stack_args: merged by name, the developer's value wins; swb's own names are refused
+    p = stack.plan(project_arg=str(d), stack_args={"side_args": "weather:=ClearNoon",
+                                                   "sim_args": "vehicle_physics:=/p.yaml"})
+    assert stack._named(p.launch_args["side_args"])["weather"] == "ClearNoon"
+    assert stack._named(p.launch_args["sim_args"]) == {
+        "state_dir": str(d / "state"), "config_file": str((d / "config" / "carla.yaml").resolve()),
+        "vehicle_physics": "/p.yaml"}
+    assert p.record["pilot_contract"]["carla_physics"] == "/p.yaml"
+    for args, name in (({"side_args": "state_dir:=/elsewhere"}, "state_dir"),
+                       ({"side_args": "gap_trace_dir:=/t"}, "gap_trace_dir"),
+                       ({"sim_args": "port:=1"}, "port")):
+        with pytest.raises(stack.StackRefused, match=f"{name}:= is swb's"):
+            stack.plan(project_arg=str(d), stack_args=args)
+    # contact_report_dir of the user's: theirs, not collected per run
+    (d / "swb.yaml").write_text(MULTI + "world: {contact_report_dir: off}\n")
+    p = stack.plan(project_arg=str(d))
+    assert stack._named(p.launch_args["side_args"])["contact_report_dir"] == "off"
+    assert p.record["episodes"] == {"gap_trace": None, "contacts": None}
+
+
+def test_a_judge_that_needs_the_trace_turns_it_on(where, maps_hub):
+    d = make(where)
+    (d / "swb.yaml").write_text(MULTI + "judges:\n  - {name: gap, run: [python3, -m, swb.gap,"
+                                " oracle], needs: [gap_trace]}\n")
+    p = stack.plan(project_arg=str(d))
+    assert p.record["episodes"]["gap_trace"].endswith("episodes/gap_trace")
+    assert "gap_trace_dir:=" in p.launch_args["side_args"]
+
+
+ISAAC = """simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01, Town05]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+isaac: {ego: config/ego_lockstep.yaml, render: headless, follow: false, physics_hz: 240,
+        preload: [Town05], wheels_topic: false}
+"""
+
+
+def test_isaac_options_and_preload(where, maps_hub):
+    """G6: isaac: reaches the world server beside swb's world, ego and state_dir; a preloaded
+    map is one the stack can switch to."""
+    d = make(where, template="isaac")
+    (d / "config").mkdir()
+    (d / "config" / "ego_lockstep.yaml").write_text("lockstep: true\n")
+    (d / "swb.yaml").write_text(ISAAC)
+    assets.fetch(d, out=lambda s: None)
+    p = stack.plan(project_arg=str(d))
+    sim = stack._named(p.launch_args["sim_args"])
+    maps = d / "assets" / "maps"
+    assert sim == {"world": f"{maps / 'Town01'},{maps / 'Town05'}",
+                   "ego": str((d / "config" / "ego_lockstep.yaml").resolve()),
+                   "state_dir": str(d / "state"), "render": "headless", "physics_hz": "240",
+                   "follow": "false", "wheels_topic": "false"}
+    assert p.record["maps"] == ["Town01", "Town05"] and p.record["preload"] == ["Town05"]
+    assert stack.switch_problem(p.record, "Town05") is None
+    rec = dict(p.record, preload=[])
+    assert "add Town05 to isaac.preload" in stack.switch_problem(rec, "Town05")
+    with pytest.raises(stack.StackRefused, match="world:= is swb's"):
+        stack.plan(project_arg=str(d), stack_args={"sim_args": "world:=/other"})
+    # the developers' ego:= still wins over isaac.ego
+    p = stack.plan(project_arg=str(d), stack_args={"sim_args": "ego:=none"})
+    assert stack._named(p.launch_args["sim_args"])["ego"] == "none"
+
+
+def test_keeper_sets_the_weather_before_ready(where, maps_hub):
+    d = make(where)
+    (d / "swb.yaml").write_text(MULTI + "world: {weather: {cloudiness: 30}}\n")
+    p = stack.plan(project_arg=str(d))
+    stack.write_plan(p)
+    answers = iter([(None, "waiting for service"), (False, "no world server yet"),
+                    (True, "ok")])
+    calls = []
+
+    def call(rec):
+        calls.append(rec["weather"]["parameters"])
+        return next(answers)
+    old = stack.WEATHER_RETRY
+    stack.WEATHER_RETRY = 0.01
+    try:
+        assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                          weather_call=call) == 0
+    finally:
+        stack.WEATHER_RETRY = old
+    rec = json.loads(p.stack_json.read_text())
+    assert rec["state"] == "ready" and len(calls) == 3
+    assert rec["weather"]["state"] == "applied" and rec["weather"]["attempts"] == 3
+    ev = [json.loads(l)["event"] for l in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+    assert ev.index("weather.applied") < ev.index("stack.ready")
+
+
+def test_weather_that_never_takes_fails_the_stack(where, maps_hub):
+    d = make(where)
+    (d / "swb.yaml").write_text(MULTI + "world: {weather: {cloudy: 30}}\n")
+    p = stack.plan(project_arg=str(d))
+    stack.write_plan(p)
+    old = stack.WEATHER_RETRY, stack.WEATHER_DEADLINE
+    stack.WEATHER_RETRY, stack.WEATHER_DEADLINE = 0.01, 0.05
+    try:
+        code = stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                          weather_call=lambda rec: (False, "unknown parameter cloudy"))
+    finally:
+        stack.WEATHER_RETRY, stack.WEATHER_DEADLINE = old
+    rec = json.loads(p.stack_json.read_text())
+    assert code == 2 and rec["state"] == "stopped" and rec["weather"]["state"] == "failed"
+    assert "unknown parameter cloudy" in rec["error"]

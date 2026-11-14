@@ -29,15 +29,14 @@ named twice, and the two must agree (`project check` says so when they do not):
 
 On CARLA, the car's physics come from its spec only when the world server is given its
 `carla_physics.yaml`; without it, CARLA's blueprint keeps its own mass, engine and tyres.
-Pass it through the stack, beside the state directory the stack sets itself (both, or the
-signal tables lose their place):
+Pass it through the stack; it is merged with what the stack gives the world server itself
+(the state directory, the ports):
 
 ```bash
 G=$(ros2 pkg prefix --share sim_vehicle_spec)/generated
 play_launch launch --web-addr 127.0.0.1:8080 \
     swb_launch swb.launch.xml \
-    stack_args:="sim_args:='state_dir:=$PWD/state \
-vehicle_physics:=$G/drift_mustang/carla_physics.yaml'"
+    stack_args:="sim_args:='vehicle_physics:=$G/drift_mustang/carla_physics.yaml'"
 ```
 
 The pilot's vehicle bridge then reads the physics back from CARLA and checks them against
@@ -76,7 +75,7 @@ Give the bridge your catalog, and the world server your physics, through `stack_
 play_launch launch --web-addr 127.0.0.1:8080 \
     swb_launch swb.launch.xml \
     stack_args:="vehicle_catalogs:=$PWD/catalogs/vehicles.xosc \
-sim_args:='state_dir:=$PWD/state vehicle_physics:=$PWD/carla/carla_physics.yaml'"
+sim_args:='vehicle_physics:=$PWD/carla/carla_physics.yaml'"
 ```
 
 **With Autoware**, the car also needs its own Autoware packages, `<car>_description` (with

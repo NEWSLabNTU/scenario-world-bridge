@@ -37,6 +37,7 @@ Exit codes: 0 every run as expected (passed, or the suite's ``expect``), 1 a sce
 2 an infrastructure error, 3 refused.
 """
 import argparse
+import dataclasses
 import fcntl
 import itertools
 import json
@@ -54,6 +55,7 @@ import yaml
 
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
 from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
+from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -91,6 +93,7 @@ class RunSpec:
     logging: dict = field(default_factory=dict)
     distribution: bool = False
     timeout: float = None
+    ssv2: dict = field(default_factory=dict)   # the suite's and its item's (swb.ssv2)
 
     @property
     def key(self) -> str:
@@ -172,21 +175,27 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
     if bad:
         raise Refused(f"{target}: unknown key {bad[0]} (use only {', '.join(projectmod.SUITE_KEYS)})")
     base = target.parent
-    listed = suite.get("scenarios") or []
-    listed = [listed] if isinstance(listed, str) else list(listed)
+    items, bad = projectmod.suite_items(suite.get("scenarios") or [])
+    if bad:
+        raise Refused(f"{target}: {bad[0]}")
+    probs = ssv2mod.problems(suite.get("ssv2"))
+    if probs:
+        raise Refused(f"{target}: {probs[0][0]}: {probs[0][1]}")
+    listed = [path for path, _ in items]
+    own_ssv2 = {}
     dists = suite.get("distribution") or []
     dists = [dists] if isinstance(dists, str) else list(dists)
     if not listed and not dists:
         raise Refused(f"{target}: no scenarios: or distribution:")
     files = []
-    for item in listed:
+    for item, own in items:
         p = _resolve(item, project, base)
-        if p.is_dir():
-            files += projectmod._scenarios_in(p)
-        elif p.is_file():
-            files.append(p)
-        else:
+        found = projectmod._scenarios_in(p) if p.is_dir() else [p] if p.is_file() else None
+        if found is None:
             raise Refused(f"{target}: scenario {item}: no such file or directory")
+        files += found
+        for f in found:
+            own_ssv2[str(f)] = ssv2mod.merge(suite.get("ssv2"), own)
     reps = repeat or suite.get("repetitions") or 1
     if not isinstance(reps, int) or reps < 1:
         raise Refused(f"{target}: repetitions must be a positive integer, not {reps!r}")
@@ -208,7 +217,8 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
         for combo in combos:
             for k in range(reps):
                 specs.append(RunSpec(f, combo, k, None if seed is None else seed + k,
-                                     _expect_for(expect, project, f), pilot_args, logging))
+                                     _expect_for(expect, project, f), pilot_args, logging,
+                                     ssv2=dict(own_ssv2.get(str(f), {}))))
     for d in dists:
         p = _resolve(d, project, base)
         if not p.is_file():
@@ -216,7 +226,7 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
         for k in range(reps):
             specs.append(RunSpec(p, {}, k, None if seed is None else seed + k,
                                  _expect_for(expect, project, p), pilot_args, logging,
-                                 distribution=True))
+                                 distribution=True, ssv2=ssv2mod.merge(suite.get("ssv2"))))
     return specs, suite
 
 
@@ -424,8 +434,10 @@ def new_run_dir(root: Path, key: str) -> Path:
 def scenario_argv(rec: dict, spec: RunSpec, run_dir: Path, scenario: Path) -> list:
     """SSv2 as a nested play_launch of scenario.launch.xml, for this run."""
     args = {"scenario": str(scenario), "port": str(rec["ports"]["ssv2"]),
-            "output_directory": str(run_dir / "logs" / "ssv2"),
-            "global_timeout": str(int(spec.timeout or DEFAULT_TIMEOUT))}
+            "output_directory": str(run_dir / "logs" / "ssv2")}
+    # the run settings (swb.ssv2: swb.yaml's, the suite's, the item's, the call's)
+    args.update(ssv2mod.launch_args(spec.ssv2 or {}))
+    args["global_timeout"] = str(int(spec.timeout or DEFAULT_TIMEOUT))
     ego = next((p for p in rec.get("pilots", []) if p["entity"] == "ego"), None)
     if ego and ego.get("vehicle"):
         args["vehicle_model"] = ego["vehicle"]
@@ -648,7 +660,16 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     """One run, end to end, into its own run directory."""
     take_turn(ctx)
     rec, project = ctx.stack, ctx.project
-    lg = logging_for(config.project_settings(project).get("logging"), spec.logging)
+    psettings = config.project_settings(project)
+    lg = logging_for(psettings.get("logging"), spec.logging)
+    # SSv2's run settings: swb.yaml's ssv2:, then the spec's (suite, item, call), then
+    # --timeout / overrides["timeout"]
+    settings = ssv2mod.merge(psettings.get("ssv2"), spec.ssv2)
+    if spec.timeout:
+        settings["global_timeout"] = spec.timeout
+    spec = dataclasses.replace(spec, ssv2=settings,
+                               timeout=settings.get("global_timeout") or spec.timeout)
+    managed = ssv2mod.managed(settings)
     sc_rel = _rel(project, spec.scenario)
     infra, events, run_events = [], [], []
 
@@ -663,8 +684,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     if sc is not None and sc.distribution_of is None:
         by_entity = {p["entity"]: p for p in rec.get("pilots", [])}
         for ent in sc.entities:
-            if not ent.external:
-                continue
+            if not ent.external or (ent.ego and not managed):
+                continue   # managed_ego: false: SSv2 hands its ego to no pilot
             p = by_entity.get(ent.name)
             if p is None:
                 raise Refused(f"entity {ent.name} of {sc_rel} has no pilot in the stack "
@@ -672,6 +693,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             pilots.append(p)
     else:
         pilots = list(rec.get("pilots", []))
+        if not managed:
+            pilots = [p for p in pilots if p["entity"] != "ego"]
 
     # the stack's pilots on the scenario's map (a switch when they are on another)
     m = scenario_map(spec.scenario, sc) if sc is not None else None
@@ -727,7 +750,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                                  "domain": p["domain"]} for p in pilots},
         "run_pilots": {p["entity"]: e for p, e in run_pilots},
         "logging": lg,
-        "ssv2": {"argv": ssv2_argv, "variants": variants,
+        "ssv2": {"argv": ssv2_argv, "variants": variants, "settings": settings,
                  "timeout_s": (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN},
         "env": {**(rec.get("env") or {}), "ROS_DOMAIN_ID": str(rec["domains"]["scenario"])},
     }
@@ -780,6 +803,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
 
         proc_dir = Path(rec["proc"])
         mark0 = slices.LogMark.take(proc_dir)
+        episodes = episodesmod.Mark.take(rec.get("episodes") or {})
         t_start = time.time()
         if not infra:
             for name, domain, rargv in recordmod.plan(run_dir, capture, pilots,
@@ -823,6 +847,12 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
 
     if capture != "result":
         slices.cut(mark0, mark1, logs)
+    # the bridge's gap traces and contact reports of this run, into its directory
+    if ssv2 is not None:
+        for kind, moved in episodesmod.collect(episodes, run_dir).items():
+            run_events.append({"t_wall": time.time(), "event": f"{kind}.collected",
+                               "files": [m.name for m in moved]})
+    frame_metrics = framesmod.from_marks(mark0, mark1)
     junit_src = logs / "ssv2" / JUNIT
     junit = run_dir / "junit.xml"
     if junit_src.is_file():
@@ -849,7 +879,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                   "repetition": spec.repetition, "seed": spec.seed},
         ssv2=results.ssv2_block(junit if junit.is_file() else None),
         events=events,
-        metrics={"duration_s": round(t_end - t_start, 3)},
+        metrics={"duration_s": round(t_end - t_start, 3), **frame_metrics},
         pilots={p["entity"]: {"kind": p["kind"], "vehicle": p.get("vehicle"),
                               "inputs": p.get("inputs") or [],
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},

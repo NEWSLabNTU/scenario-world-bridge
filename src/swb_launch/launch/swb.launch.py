@@ -37,8 +37,10 @@ uses the one that answers otherwise; start always starts it (refused when the po
 external never starts or stops it. A port held by something that is not CARLA's RPC server is
 refused. A started CARLA belongs to the keeper: logged to proc/simulator/carla.log, waited for
 (carla.ready_timeout, 300 s) before the pilots start and the stack is ready, and stopped with
-the stack. Isaac's world server starts Isaac. stack_args go to stack.launch.py last and win
-(side_args, sim_args, ...).
+the stack. Isaac's world server starts Isaac. stack_args go to stack.launch.py last and win;
+their side_args and sim_args are merged by name with what swb and the project's world: and
+isaac: give (swb.world), and a name swb sets itself (state_dir, gap_trace_dir,
+contact_report_dir, the ports, Isaac's world) is refused with what to give instead.
 
 The old stack's arguments are refused by name, given here or in stack_args, with what replaced
 them (swb.stack.RETIRED_ARGS, roadmap 076 step 10): ego_launch, ego_launch_args and agent (the
@@ -62,7 +64,7 @@ ARGS = {
     "map": ("", "the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"),
     "logs": ("", "the log root; empty: the host settings' logs:"),
     "gpu": ("", "the GPU index; empty: the seat's"),
-    "stack_args": ("", "name:=value ... for stack.launch.py, after swb's own (they win)"),
+    "stack_args": ("", "name:=value ... for stack.launch.py, after swb's own (they win); side_args and sim_args merge by name with swb's, whose own names are refused"),
 }
 
 

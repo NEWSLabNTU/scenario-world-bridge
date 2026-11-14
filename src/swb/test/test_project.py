@@ -374,3 +374,76 @@ def test_logging_keys_not_built_are_refused_by_name():
     f = project._check_logging("swb.yaml", "logging", {"levels": {"bridge": "info"},
                                                        "debug": ["bridge"], "capture": "full"})
     assert len(f) == 2 and "not built yet" in str(f[0]) and "not built yet" in str(f[1])
+
+
+# --- roadmap 077 gaps: world, isaac, ssv2, gap trace, the profile's arguments ---------------
+
+def test_world_isaac_ssv2_keys_checked(host):
+    d = make(host["tmp"], BASE + "world: {weather: ClearNoon, npc_motion: fast, state_dir: /x,"
+             " config_file: gone.yaml}\nisaac: {render: headless}\n"
+             "ssv2: {frame_rate: 0, managed_ego: maybe}\n"
+             "logging: {gap_trace: yes please}\n"
+             "judges: [{name: g, run: [x], needs: [video]}]\n")
+    w = whats(scenario_checks(d))
+    assert "world.npc_motion: 'fast' is not one of tracked, kinematic" in w
+    assert any(x.startswith("world: state_dir is swb's") for x in w)
+    assert "world.config_file: gone.yaml: no such file" in w
+    assert "isaac: is for simulator: isaac, this project's is carla" in w
+    assert "ssv2.frame_rate: 0 is not a positive number" in w
+    assert "ssv2.managed_ego: 'maybe' is not true or false" in w
+    assert "logging.gap_trace: 'yes please' is not true or false" in w
+    assert "judges[0]: needs: a list of gap_trace" in w
+    clean = make(host["tmp"], BASE + "world: {weather: {preset: ClearNoon, cloudiness: 30}}\n"
+                 "ssv2: {global_timeout: 900, frame_rate: 100}\nlogging: {gap_trace: true}\n")
+    assert scenario_checks(clean) == []
+
+
+def test_suite_items_and_managed_ego(host):
+    """A suite's scenario may carry its own run settings; with managed_ego: false its ego
+    needs no pilot."""
+    d = make(host["tmp"], "simulator: carla\nassets: []\npilots: {other: {kind: none}}\n")
+    (d / "suites").mkdir()
+    (d / "suites" / "s.yaml").write_text(
+        "ssv2: {global_timeout: 600}\n"
+        "scenarios: [{path: scenarios/drive.xosc, ssv2: {managed_ego: false}}]\n")
+    assert scenario_checks(d) == []
+    assert project.unmanaged_scenarios(d, project.config.project_settings(d)) == {
+        (d / "scenarios" / "drive.xosc").resolve()}
+    # managed (the default): the ego needs its pilot
+    (d / "suites" / "s.yaml").write_text("scenarios: [{path: scenarios/drive.xosc}]\n")
+    assert whats(scenario_checks(d)) == ["entity ego (controller Autoware) has no pilot"]
+    # swb.yaml's ssv2 covers every scenario
+    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {other: {kind: none}}\n"
+                                "ssv2: {managed_ego: false}\n")
+    assert scenario_checks(d) == []
+    (d / "suites" / "s.yaml").write_text(
+        "scenarios: [{file: scenarios/drive.xosc}, {path: scenarios/drive.xosc, "
+        "ssv2: {frame_rate: fast}}]\nlogging: {gap_trace: true}\n")
+    w = whats(scenario_checks(d))
+    assert "scenarios[0]: unknown key file (use only path, ssv2)" in w
+    assert "scenarios[0]: path: is required (a file or a directory)" in w
+    assert "scenarios[1].ssv2.frame_rate: 'fast' is not a positive number" in w
+    assert any(x.startswith("logging.gap_trace: the stack records the gap trace") for x in w)
+
+
+PROFILE = (Path(__file__).resolve().parents[2] / "autoware_sim_vehicle" / "autoware_sim_profile"
+           / "scripts" / "check_launch_args")
+
+
+@pytest.mark.skipif(not PROFILE.is_file(), reason="autoware_sim_vehicle not checked out")
+def test_profile_arguments_refused_at_check(host):
+    """G12: what the Autoware profile refuses at start is refused by project check."""
+    d = make(host["tmp"], "simulator: carla\nassets: []\npilots:\n"
+             "  ego: {kind: autoware, args: {carla_control: false, ndt: '{param:ndt}'}}\n")
+    w = whats(scenario_checks(d))
+    assert w == ["pilots.ego.args: carla_control:= was renamed; pass sim_control:=false instead"]
+    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots:\n"
+                                "  ego: {kind: autoware, args: {ndt: cuda}}\n")
+    (d / "suites").mkdir()
+    (d / "suites" / "s.yaml").write_text(
+        "scenarios: [scenarios/drive.xosc]\n"
+        "pilot_args: {ego: {localization_error_monitor_param_path: /x.yaml}, other: {ndt: x}}\n")
+    [f] = scenario_checks(d)
+    assert f.file == "suites/s.yaml"
+    assert f.what.startswith("pilot_args.ego: localization_error_monitor_param_path:= does not"
+                             " reach ndt:=cuda")

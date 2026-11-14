@@ -57,7 +57,7 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 | `map` | CARLA: the first run's map; Isaac: the first map of the project's | the map the stack's pilots start on |
 | `logs` | the host settings' `logs:` | the log root |
 | `gpu` | the seat's | the GPU index (`CUDA_VISIBLE_DEVICES`) |
-| `stack_args` | empty | `name:=value ...` for the lower-level `stack.launch.py`, after swb's own (they win): `side_args`, `sim_args`, `vehicle_catalogs` |
+| `stack_args` | empty | `name:=value ...` for the lower-level `stack.launch.py`: `side_args` and `sim_args` are merged by name with what the stack and `swb.yaml` give (yours win; a name the stack sets itself is refused), the rest (`vehicle_catalogs`, ...) after swb's own |
 
 `ego_launch`, `ego_launch_args`, `agent` and `map_path` are refused by name, given directly
 or in `stack_args`: who drives each entity is the project's pilots in `swb.yaml` ([Project

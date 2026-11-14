@@ -70,6 +70,9 @@ vehicles: [vehicles/my_car.yaml]        # own cars: specs (sim_vehicle_spec form
 ground: {}                              # Isaac: per map, surface classes (see "Ground")
 logging: {capture: standard, keep: {passed: result, failed: full, error: full}}
 judges: []                              # post-run programs over result.json
+world: {}                               # the simulation side (see "World settings")
+isaac: {}                               # Isaac's world server (see "World settings")
+ssv2: {}                                # SSv2's run settings (see "Run settings")
 ```
 
 Keys not listed are refused by name (`project check`). `simulator`, `pilots` and `assets` are
@@ -86,7 +89,14 @@ to fix the order; without it the stack serves the maps its scenarios name.
    pilot; every pilot kind is valid for the simulator (`carla_basic`: CARLA only);
 4. every car named by a scenario or pilot is in a catalog the stack loads, and its spec hash
    agrees;
-5. simulator limits (Isaac: one ego, no background AV).
+5. simulator limits (Isaac: one ego, no background AV);
+6. `world:`, `isaac:`, `ssv2:` and their files (below); every `autoware` pilot's `args`,
+   and a suite's `pilot_args` over them, against the Autoware profile's own
+   `check_launch_args` (`swb.profile`: the profile's `problems()` loaded from its installed
+   script, else this workspace's source; the table stays the profile's). A value holding a
+   run substitution is left out. So a renamed argument, an `ndt:` outside its choices or a
+   pair that cannot work (`ndt: none` with a diagnostic graph judging NDT) is refused before
+   the stack starts, not found in a pilot's log.
 
 ## Assets
 
@@ -211,6 +221,50 @@ settings applied):
    and ports, the pids, the maps, and `state: ready` once every stack pilot is ready; and
    links `<logs>/<project name>/seat-<n>-current` to it.
 
+### World settings
+
+`world:` goes to the simulation side (`side_args` of stack.launch.py: the bridge) and, for
+`world_config_file`, to CARLA's world server (`sim_args`); `isaac:` to Isaac's world server
+(`sim_args`). Both are merged by name with what the stack gives those launches itself, never
+in place of it (`swb.world`):
+
+| Launch | swb's own (refused in `world:`, `isaac:` and `stack_args`) | the project's |
+|---|---|---|
+| bridge (`side_args`) | `state_dir`, `gap_trace_dir`, `contact_report_dir` (unless `world.contact_report_dir`), `world_endpoint`, `ssv2_port`, `agent_port` | `weather` (a preset), `npc_motion`, `config_file`, `contact_report_dir` |
+| CARLA world server | `state_dir`, `port`, `ssv2_port`, `carla_host`, `carla_port` | `config_file` (`world.world_config_file`) |
+| Isaac world server | `world`, `state_dir` | `ego` (default: by the pilots' vehicle side), `render`, `follow`, `physics_hz`, `wheels_topic`; `preload` appends maps to `world` |
+
+`stack_args` (the developers') merges the same way and wins over `swb.yaml`; it used to
+replace the stack's whole `side_args`/`sim_args` text, `state_dir` with it. Weather
+parameters (`world.weather` as a mapping) are not a launch argument: the keeper calls the
+bridge's `set_weather` once the simulator is up and before the stack is ready, again every
+5 s while the bridge does not answer or answers `success: false` (it may not hold the world
+server yet), and fails the stack (exit 2, the message in `stack.json`'s `error`) after
+600 s. A world server restarted later keeps the preset (the bridge's argument) but not the
+parameters. Isaac has no weather service, so `world.weather` is refused on Isaac.
+
+`isaac.preload` names maps the world server loads at start beside the stack's first
+(`world:=<first>,<preload...>`); they join the stack's maps, and a run on one moves the
+pilots there as a CARLA switch does, where a map not loaded is refused.
+
+### Episode files: the gap trace and the contact reports
+
+The bridge writes one gap trace per `Initialize` (`gap_trace_dir`) and one contact report
+per ego run (`contact_report_dir`). Both directories are bridge parameters read once, at
+start; the bridge has no service to move them, and a long-lived stack serves many runs.
+**Ruling (077, G2)**: the directories are the stack's, `stacks/<id>/episodes/gap_trace/`
+and `.../contacts/`, and each run takes its own files by time: the names that appeared
+between its start and its end (one SSv2 process; SSv2 despawns every entity at the
+scenario's end, which closes the trace and writes the report before SSv2 exits). The runner
+waits up to 5 s for a trace's `end` line and for the files to stop growing, then moves them
+into `runs/<id>/gap_trace/` and `runs/<id>/contacts/` (a rename, same inode, so a writer
+still holding the file finishes into the run's copy). The gap trace is on when
+`logging.gap_trace: true` or a judge `needs: [gap_trace]`; since the stack records it for
+every run or for none, it is `swb.yaml`'s, and a suite's `logging.gap_trace` is refused by
+name. Contact reports are always collected unless `world.contact_report_dir` names another
+place (`off`, or a directory of the user's, not cut per run). `keep`: `contacts/` at
+`result`, `gap_trace/` at `standard`.
+
 ### The simulator
 
 On CARLA, `simulator_start` decides whether the stack starts CARLA: the launch's
@@ -290,7 +344,7 @@ another map means a pilot restart with another `map_path`.
   extra episode. A load that outlasts the keeper's 120 s goes on in the bridge; SSv2's
   Initialize waits behind it.
 - **What is refused (3)**: a map that is not fetched, one not among the stack's maps, another
-  map on Isaac. A switch the keeper could not do, or did not answer, is the run's `error`.
+  map on Isaac unless it is in `isaac.preload`. A switch the keeper could not do, or did not answer, is the run's `error`.
 
 A run on the stack's current map restarts nothing.
 
@@ -360,6 +414,26 @@ logging: {capture: full, keep: {passed: result}}
 Pilots receive per-run values by substitution in their `args`/`run`: `{run_dir}`, `{seed}`,
 `{run_id}`, `{param:<name>}`.
 
+A `scenarios:` item may be a mapping, `{path: <file or directory>, ssv2: {...}}`: run
+settings for that item's runs.
+
+### Run settings
+
+`ssv2:` (`swb.ssv2`) is what a run hands `scenario.launch.xml` besides the scenario:
+`global_timeout`, `frame_rate` (`global_frame_rate`; 100 for a 10 ms step),
+`global_real_time_factor`, `initialize_duration`, `managed_ego`. Layers, each replacing the
+keys it names: `swb.yaml`'s `ssv2:`, the suite's, the suite item's, then the call's
+(`--timeout`, `run_one(..., {"ssv2": {...}, "timeout": s})`). `resolved.yaml` records the
+result (`ssv2.settings`). The runner's own wait is `global_timeout` times the scenario's
+variants plus 120 s.
+
+`managed_ego: false` is SSv2's switch for an ego the concealer does not drive (it stands,
+or the scenario moves it): no pilot is handed SSv2's ego (the entity with `isEgo` or the
+controller `Autoware`), so `project check` asks for none for a scenario some layer runs
+unmanaged, and the run neither requires nor waits for one. On Isaac a project whose pilots
+have no vehicle side gets the world server's `ego:=none` (a kinematic box) unless
+`isaac.ego` names a rig (a standing ego with its sensors, roadmap 037's rear contact).
+
 ## Pilots
 
 A pilot = **vehicle side** + **driver** (+ the agent registering the entity with the relay).
@@ -409,6 +483,16 @@ The launch contract every `launch` pilot receives: `entity`, `relay`, `map_path`
 }
 ```
 
+Metrics: `duration_s`, and the bridge's frame budget (`swb.frames`) from its slice of the
+bridge's log (read from the stack's files between the run's marks, so at every capture
+level). The bridge logs one INFO line per 200 frames ("Frame budget, last 200 frames: ...",
+p50/p95/max of its processing and of the world's tick); its whole-run line is logged at the
+next `Initialize`, so it is the previous run's and is left out. `frame_p50_ms` is the
+frame-weighted median of the windows' p50s; `frame_p95_ms`/`frame_max_ms` the largest
+window's (an upper bound on the run's); `tick_*` the same for the tick; `frame_windows`,
+`frame_count`, `frames_over_budget`, `ticks_over_budget`. A run's last partial window is
+not logged, so a run under 200 frames has no frame metrics.
+
 Event types (fixed names): `collision.vehicle`, `collision.pedestrian`, `collision.static`,
 `red_light`, `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`. The verdict
 is `error` when the run cannot be judged for the stack's fault (a world server or bridge
@@ -424,7 +508,14 @@ judges:
     version: "1"
     on: [passed, failed]              # the default; error runs are not judged
     timeout: 120                      # s
+    needs: [gap_trace]                # the stack records the gap trace (above)
 ```
+
+`python3 -m swb.gap oracle` and `python3 -m swb.gap incident --incident N --context <log>`
+are the gap tools as judges: they find the run's traces in `gap_trace/` and run
+`gap_oracle` (verdict `failed` on a G4 disagreement class, `--fail-on never` for data only)
+or `incident_judge` (which also needs a `/simulation/context` state log; nothing in the
+workflow records one yet), and a run without a trace is the judge's `error`.
 
 A judge gets the run directory as its last argument (and `SWB_RUN_DIR`), runs in the project
 directory and prints one JSON object. swb adds `name`, `version`, `exit_code`, `duration_s`
@@ -441,6 +532,7 @@ stays SSv2's, and the scoring stays with the judges.
   stacks/<stack id>/stack.json  events.jsonl  proc/<group>/<process>.log
   runs/<run id>/   result.json resolved.yaml junit.xml timeline.jsonl
                    logs/<group>/<process>.log   record/   host.json
+                   gap_trace/<time>_<episode>.jsonl   contacts/<time>_e<episode>.json
 ```
 
 `<project>/runs` links to `<logs>/<project name>/runs`. Groups: `simulator`, `bridge`,

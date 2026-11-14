@@ -21,8 +21,9 @@ EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
 # What each level keeps in a run directory; each level keeps the one below it too.
 LEVELS = ("result", "standard", "full", "debug")
 LEVEL_KEEPS = {
-    "result": {"result.json", "resolved.yaml", "junit.xml", "timeline.jsonl", "judges"},
-    "standard": {"logs"},
+    "result": {"result.json", "resolved.yaml", "junit.xml", "timeline.jsonl", "judges",
+               "contacts"},
+    "standard": {"logs", "gap_trace"},
     "full": {"record", "host.json"},
     "debug": None,  # everything
 }

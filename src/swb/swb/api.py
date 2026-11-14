@@ -11,9 +11,9 @@ stopped, unready or different stack, and returns the run's ``RunResult`` (also w
 
 ``overrides``: ``parameters`` (name -> value), ``repetition``, ``seed``, ``pilot_args``
 (entity -> launch arguments for its ``lifetime: run`` pilot), ``logging`` (``capture``,
-``keep``), ``timeout`` (SSv2's global_timeout, s), ``seat``, ``logs``, ``wait`` (s to wait for
-the stack to be ready), ``ready_timeout``, ``expect``, ``start_stack`` (true: start the
-project's stack when none is up, as ``--start-stack``, and leave it up), ``stack_timeout``;
+``keep``), ``timeout`` (SSv2's global_timeout, s), ``ssv2`` (run settings, swb.ssv2: over
+swb.yaml's), ``seat``, ``logs``, ``wait`` (s to wait for the stack to be ready),
+``ready_timeout``, ``expect``, ``start_stack`` (true: start the project's stack when none is up, as ``--start-stack``, and leave it up), ``stack_timeout``;
 and for tests ``scenario_command`` / ``pilot_command`` / ``stack_command`` (callables
 returning the argv to start instead of play_launch).
 
@@ -31,7 +31,8 @@ from swb import run as runmod
 from swb.results import RunResult  # noqa: F401  (the return type)
 from swb.run import Refused, StackFailed  # noqa: F401
 
-SPEC_KEYS = ("parameters", "repetition", "seed", "pilot_args", "logging", "timeout", "expect")
+SPEC_KEYS = ("parameters", "repetition", "seed", "pilot_args", "logging", "timeout", "expect",
+             "ssv2")
 CONTEXT_KEYS = ("ready_timeout", "scenario_command", "pilot_command", "workspace", "out")
 STACK_KEYS = ("start_stack", "stack_command", "stack_timeout")
 
@@ -58,7 +59,8 @@ def run_one(project, scenario, overrides=None) -> RunResult:
         raise Refused(f"{path}: no such scenario")
     spec = runmod.RunSpec(path, dict(o.get("parameters") or {}), int(o.get("repetition") or 0),
                           o.get("seed"), o.get("expect"), o.get("pilot_args") or {},
-                          o.get("logging") or {}, timeout=o.get("timeout"))
+                          o.get("logging") or {}, timeout=o.get("timeout"),
+                          ssv2=dict(o.get("ssv2") or {}))
     try:
         return runmod.run_spec(ctx, spec)
     finally:

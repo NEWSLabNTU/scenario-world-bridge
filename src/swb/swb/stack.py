@@ -56,7 +56,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from swb import config, ground as groundmod, project as projectmod, results, seat as seatmod
-from swb import simulator as simmod
+from swb import episodes as episodesmod, judges as judgesmod, simulator as simmod
+from swb import world as worldmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
@@ -65,6 +66,9 @@ STACK_JSON = "stack.json"
 EVENTS = "events.jsonl"
 SWITCH_REQUEST = "switch-request.json"
 SWITCHING, DONE, FAILED = "switching", "done", "failed"
+WEATHER_PENDING, WEATHER_APPLIED, WEATHER_FAILED = "pending", "applied", "failed"
+WEATHER_RETRY = 5.0       # s between set_weather attempts while the bridge does not serve it
+WEATHER_DEADLINE = 600.0  # s of attempts after the simulator is up before the stack fails
 RESPAWN_DELAY = 5.0   # as stack.launch.py's nested launches
 STOP_GRACE = 20.0     # SIGINT, then SIGTERM, then SIGKILL
 
@@ -480,9 +484,10 @@ def switch_problem(rec: dict, name: str):
     if not map_dir(rec["project"], name).is_dir():
         return (f"map {name} is not fetched ({map_dir(rec['project'], name)}); "
                 f"{projectmod.FETCH}")
-    if rec.get("simulator") == "isaac":
+    if rec.get("simulator") == "isaac" and name not in (rec.get("preload") or []):
         return (f"the scenario is on map {name}, the stack's Isaac world on {rec.get('map')} "
-                f"(the world server loads it at start): restart the stack with map:={name}")
+                f"(the world server loads its worlds at start): restart the stack with "
+                f"map:={name}, or add {name} to isaac.preload in swb.yaml")
     if name not in (rec.get("maps") or []):
         return (f"map {name} is not one of the stack's maps ({', '.join(rec.get('maps') or [])});"
                 " add it to maps: in swb.yaml and restart the stack")
@@ -579,6 +584,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     maps = served_maps(psettings, scenarios)
     if map_name and map_name not in maps:
         maps.append(map_name)
+    world = psettings.get("world") if isinstance(psettings.get("world"), dict) else {}
+    isaac = psettings.get("isaac") if isinstance(psettings.get("isaac"), dict) else {}
+    preload = [str(m) for m in (isaac.get("preload") or [])] if sim == "isaac" else []
+    maps += [m for m in preload if m not in maps]
     if not maps:
         raise StackRefused("no scenario names a map ($(env SWB_MAPS)/<map>); give map:= "
                            "or maps: in swb.yaml")
@@ -645,14 +654,24 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "nest_side": "true",
         # every stack process on the profile the runs use (a sourced Autoware exports its own)
         "dds_config": f"file://{seatmod.cyclone_profile()}",
-        # the bridge reads a map's signal table from the same state dir first (both
-        # simulators: an Isaac world finds its lamps by the table CARLA's server wrote)
-        "side_args": f"state_dir:={project / 'state'}",
     }
+    # the bridge reads a map's signal table from the same state dir first (both simulators:
+    # an Isaac world finds its lamps by the table CARLA's server wrote); the gap trace and
+    # the contact reports go to the stack's episodes/, which each run empties into its own
+    # directory (swb.episodes: the bridge reads both directories once, at start)
+    gap_trace = bool((psettings.get("logging") or {}).get("gap_trace")) or \
+        "gap_trace" in judgesmod.needed(psettings.get("judges"))
+    contacts = worldmod.contacts_mode(world)
+    episode_dirs = episodesmod.stack_dirs(stack_dir, gap_trace, contacts is None)
+    side = {"state_dir": str(project / "state")}
+    if episode_dirs[episodesmod.GAP_TRACE]:
+        side["gap_trace_dir"] = episode_dirs[episodesmod.GAP_TRACE]
+    if episode_dirs[episodesmod.CONTACTS]:
+        side["contact_report_dir"] = episode_dirs[episodesmod.CONTACTS]
+    side.update(worldmod.side_args(project, world))
     # the world server writes what it makes for a map (CARLA's signal table, Isaac's ruts
     # and surfaces) into the project's state dir, never into the fetched (read-only) map
-    if sim == "carla":
-        args["sim_args"] = f"state_dir:={project / 'state'}"
+    sim_side = {"state_dir": str(project / "state")}
     isaac_ego = None
     if sim == "isaac":
         sided = [b for b in bound if b.sided()]
@@ -661,8 +680,23 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             isaac_ego = {"path": str(stack_dir / ISAAC_EGO),
                          "config": isaac_ego_with_ground_truth()}
             ego = isaac_ego["path"]
-        args["sim_args"] = f"world:={map_path} ego:={ego} state_dir:={project / 'state'}"
-    for k, v in (stack_args or {}).items():
+        first = [str(map_path)] + [str(map_dir(project, m)) for m in preload if m != chosen]
+        sim_side = {"world": ",".join(first), "ego": ego, **sim_side}
+    sim_side.update(worldmod.sim_args(project, sim, world, isaac))
+    # stack_args (the developers'): side_args and sim_args merge into swb's, by name; a name
+    # swb owns is refused (they used to replace swb's whole text, state_dir with it)
+    user = dict(stack_args or {})
+    try:
+        side = worldmod.merge_user(side, worldmod.named(user.pop("side_args", ""), "side_args"),
+                                   worldmod.SIDE_OWNED, "stack_args side_args")
+        sim_side = worldmod.merge_user(sim_side,
+                                       worldmod.named(user.pop("sim_args", ""), "sim_args"),
+                                       worldmod.SIM_OWNED.get(sim, {}), "stack_args sim_args")
+    except ValueError as e:
+        raise StackRefused(str(e)) from None
+    args["side_args"] = worldmod.joined(side)
+    args["sim_args"] = worldmod.joined(sim_side)
+    for k, v in user.items():
         args[k] = v
 
     common = {"relay": f"tcp://localhost:{s.relay_port}", "vehicle": vehicle, "sim": sim,
@@ -701,6 +735,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "map": chosen,
         "map_path": str(map_path) if map_path else None,
         "maps": maps,
+        "preload": preload,
+        "episodes": episode_dirs,
+        "weather": ({"parameters": worldmod.weather_parameters(world), "state": WEATHER_PENDING}
+                    if worldmod.weather_parameters(world) else None),
         "simulator_start": carla_run["owner"] if carla_run else simmod.WORLD_SERVER,
         "carla": carla_run,
         "switch": None,
@@ -753,6 +791,9 @@ def write_plan(p: Plan) -> Path:
     """The stack's directory and its stack.json (state starting); the project's ground files
     linked into its state dir (Isaac reads them there); nothing else is linked yet."""
     (p.stack_dir / "proc").mkdir(parents=True, exist_ok=True)
+    for d in (p.record.get("episodes") or {}).values():
+        if d:
+            Path(d).mkdir(parents=True, exist_ok=True)
     project = Path(p.record["project"])
     try:
         groundmod.apply(project, config.project_settings(project).get("ground"))
@@ -1127,6 +1168,56 @@ def _die_with_parent():
         pass
 
 
+def set_weather(rec: dict, timeout: float = 20.0):
+    """The bridge's set_weather with the project's weather parameters, in the scenario
+    domain: ``(ok, message)``, ok None when the bridge did not answer (not up yet)."""
+    w = rec.get("weather") or {}
+    argv = worldmod.weather_argv(w.get("parameters") or {})
+    try:
+        p = subprocess.run(argv, env=ros_env(rec, rec["domains"]["scenario"]),
+                           capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return None, str(e) or "no answer"
+    return worldmod.weather_answer(p.stdout)
+
+
+class Weather:
+    """The project's weather parameters, set once the bridge answers (before the stack is
+    ready). A preset needs none of this: it is the bridge's ``weather`` argument."""
+
+    def __init__(self, rec, call=None):
+        self.call = call or set_weather
+        self.next = 0.0
+        self.since = None
+
+    def pending(self, rec) -> bool:
+        w = rec.get("weather")
+        return bool(w) and w.get("state") == WEATHER_PENDING
+
+    def step(self, rec) -> bool:
+        """One attempt when due; True when the record changed. A bridge that answers
+        ``success: false`` is asked again (it may not hold the world server yet) until
+        WEATHER_DEADLINE; then the weather is ``failed`` and the stack with it."""
+        now = time.time()
+        if not self.pending(rec) or now < self.next:
+            return False
+        self.since = self.since or now
+        ok, msg = self.call(rec)
+        w = rec["weather"]
+        w["attempts"] = int(w.get("attempts") or 0) + 1
+        if ok:
+            w.update(state=WEATHER_APPLIED, applied_at=iso_now(), message=msg)
+            return True
+        w["message"] = msg
+        if now - self.since >= WEATHER_DEADLINE:
+            w["state"] = WEATHER_FAILED
+            rec["error"] = (f"the weather parameters were not set within {WEATHER_DEADLINE:.0f}"
+                            f" s: {msg or 'the bridge did not answer'} (world.weather in "
+                            "swb.yaml: the world server's parameter names)")
+        self.next = now + WEATHER_RETRY
+        return True
+
+
 def _waiting(rec):
     if not rec.get("map"):
         return []
@@ -1135,12 +1226,14 @@ def _waiting(rec):
 
 
 def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
-         respawn_delay=RESPAWN_DELAY) -> int:
+         respawn_delay=RESPAWN_DELAY, weather_call=None) -> int:
     """Hold the seat for the stack in ``stack_dir``; run its pilots on the stack's map and
-    move them to another on request; mark it ready, and stopped at the end.
+    move them to another on request; set the project's weather parameters; mark it ready,
+    and stopped at the end.
 
     ``once``: return right after the stack is ready (tests). ``pilot_command``:
-    ``(rec, pilot, entry, log_dir) -> argv`` in place of ``pilot_argv`` (tests)."""
+    ``(rec, pilot, entry, log_dir) -> argv`` in place of ``pilot_argv`` (tests).
+    ``weather_call``: ``(rec) -> (ok, message)`` in place of ``set_weather`` (tests)."""
     stack_dir = Path(stack_dir)
     path = stack_dir / STACK_JSON
     rec = read_json(path)
@@ -1173,6 +1266,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
           f"web UI: pass --web-addr 127.0.0.1:{s.web_port}; pilots on "
           f"{rec.get('map') or 'the first run' + chr(39) + 's map'}", flush=True)
     pilots = Pilots(stack_dir, pilot_command, respawn_delay)
+    weather = Weather(rec, weather_call)
     carla = None
     code = 0
     try:
@@ -1234,7 +1328,18 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                 write_json(path, rec)
                 next_check = time.time() + poll
                 waiting = _waiting(rec)
-            if not waiting and sim_ready and rec.get("state") != READY:
+            if sim_ready and weather.step(rec):
+                write_json(path, rec)
+                w = rec["weather"]
+                if w["state"] == WEATHER_APPLIED:
+                    event(stack_dir, "weather.applied", parameters=w["parameters"])
+                    print(f"swb stack: weather parameters set ({w['parameters']})", flush=True)
+                elif w["state"] == WEATHER_FAILED:
+                    print(f"swb stack: {rec['error']}", file=sys.stderr, flush=True)
+                    code = 2
+                    break
+            if not waiting and sim_ready and rec.get("state") != READY \
+                    and not weather.pending(rec):
                 rec["state"] = READY
                 rec["ready_at"] = iso_now()
                 write_json(path, rec)

@@ -8,12 +8,19 @@ Isaac's world server, and the weather. It assumes a project with a working stack
 
 ## Where settings live
 
-| Part | Its settings | Given to the stack as |
+| Part | Its settings | In `swb.yaml` |
 |---|---|---|
-| The bridge (SSv2's side) | `bridge_config.yaml` | `stack_args:="side_args:='...'"` |
-| CARLA's world server | `swb_carla_world.yaml` | `stack_args:="sim_args:='...'"` |
-| Isaac's world server | its launch arguments | `stack_args:="sim_args:='...'"` |
-| The weather | ROS services on the bridge | at run time (below) |
+| The bridge (SSv2's side) | `bridge_config.yaml` | `world:` (`npc_motion`, `weather`, `config_file`, `contact_report_dir`) |
+| CARLA's world server | `swb_carla_world.yaml` | `world: {world_config_file: ...}` |
+| Isaac's world server | its launch arguments | `isaac:` |
+| The weather | the bridge's `weather`, ROS services | `world: {weather: ...}`, or at run time (below) |
+| SSv2 | its run settings | `ssv2:`, and per suite ([Run settings](../reference/project-file.md#run-settings)) |
+
+Every key: [The project file](../reference/project-file.md#world). The stack gives these to
+the bridge and the world servers beside its own settings (the state directory, the
+seat's ports, the per-run trace and contact directories), never in their place. A change in
+`swb.yaml` needs the stack restarted; a run refuses a stack started from another
+`swb.yaml`.
 
 For the two files, a launch argument of the same name wins over the file, and the file
 over the built-in default. Each refuses a key that belongs to the other, naming where it
@@ -26,28 +33,25 @@ cp $(ros2 pkg prefix --share scenario_world_bridge)/config/bridge_config.yaml co
 cp $(ros2 pkg prefix --share swb_carla_world)/config/swb_carla_world.yaml config/
 ```
 
-`stack_args` replaces what the stack gives that launch itself, so repeat the project's
-state directory in it, as below. There are no project keys for these files
-([Supported and not supported](../reference/limits.md#projects)), which also says how far
-the `stack_args` lines here have been run.
+`stack_args:="side_args:='...' sim_args:='...'"` on the stack still reaches the same
+launches, for a try without editing `swb.yaml`: its names are merged with the stack's,
+and a name the stack sets itself (`state_dir`, `gap_trace_dir`, `contact_report_dir`, the
+ports, Isaac's `world`) is refused with what to give instead.
 
 ## The bridge
 
-For example, exact NPC poses instead of physics-tracked ones, and each run's contacts in a
-directory of the project's:
+For example, exact NPC poses instead of physics-tracked ones, and the bridge's other
+settings from the project's copy of its file:
 
 ```yaml
-# config/bridge_config.yaml (changed lines)
-npc_motion: kinematic          # tracked (default): physics bodies following SSv2
-contact_report_dir: /tmp/swb_contacts
+# swb.yaml (added)
+world:
+  npc_motion: kinematic          # tracked (default): physics bodies following SSv2
+  config_file: config/bridge_config.yaml
 ```
 
-```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
-    stack_args:="side_args:='state_dir:=$PWD/state \
-config_file:=$PWD/config/bridge_config.yaml'"
-```
+Each run's contact reports land in its own directory (`contacts/`); give
+`world: {contact_report_dir: off}` for none.
 
 Check what the running bridge loaded:
 
@@ -61,8 +65,8 @@ ros2 param get /scenario_world_bridge config_file
 | `npc_motion` | `tracked`: NPCs are physics bodies driven toward SSv2's pose (within 0.2 m p95, snapped back past 0.5 m or 5 degrees): real velocities, walk cycles, physical contacts; `kinematic`: teleported each frame, exact but weightless, the cheapest |
 | `blueprint_map` | SSv2 asset names to simulator models (`sample_vehicle: "vehicle.tesla.model3"`) |
 | `weather` | a weather preset applied at connect and after every map load |
-| `contact_report_dir` | each ego run's contacts as JSON, for the `physical_verdict` judge; `off` for none |
-| `gap_trace_dir` | a per-frame trace of both worlds' poses, for diagnosis |
+| `contact_report_dir` | the stack's (each run's in `contacts/`); set it in `world:` instead |
+| `gap_trace_dir` | the stack's: `logging: {gap_trace: true}` puts each run's trace of both worlds' poses in its `gap_trace/`, for the `swb.gap` judges ([Judges](../reference/project-file.md#judges)) |
 
 An NPC that drives into the ego keeps pushing as long as SSv2 commands it on: make it
 brake once the collision is seen.
@@ -79,11 +83,10 @@ traffic_manager:
 spectator: follow          # CARLA's window looks down on the ego (off by default)
 ```
 
-```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
-    stack_args:="sim_args:='state_dir:=$PWD/state \
-config_file:=$PWD/config/swb_carla_world.yaml'"
+```yaml
+# swb.yaml (added)
+world:
+  world_config_file: config/swb_carla_world.yaml
 ```
 
 CARLA's host and port come from the host settings (`carla:`), which win over the file.
@@ -94,15 +97,25 @@ for a restarted CARLA, 120 s).
 
 ## Isaac's world server
 
-On Isaac `sim_args` carries the world server's launch arguments; the stack sets `world`,
-`ego` and `state_dir` itself, so repeat them:
+On Isaac `isaac:` in `swb.yaml` carries the world server's options; the stack sets the
+world (the stack's map, then `preload`) and the state directory itself:
 
-| Argument | What it does |
+```yaml
+# swb.yaml (added)
+isaac:
+  render: headless
+  physics_hz: 240
+  ego: config/ego_lockstep.yaml      # your own ego config
+  preload: [Town05]                  # a run on Town05 moves the pilots, no restart
+```
+
+| Key | What it does |
 |---|---|
 | `render` | `auto` (a window when `DISPLAY` is set), `window` or `headless` |
 | `follow` | `true`: no UI, the viewport chases the ego; `editor`: the chase with the editor UI |
 | `physics_hz` | the physics rate (default 60) |
-| `ego` | `default` (aib's Model 3 with Autoware's sensors), `none`, or your own aib ego config |
+| `ego` | `default` (the Model 3 with Autoware's sensors), `none`, or your own ego config |
+| `preload` | more maps loaded at start (each takes minutes and memory) |
 | `wheels_topic` | `true` (default): publish `/swb/wheels` |
 
 Isaac's own options go in `ISAAC_KIT_ARGS` ([Getting started on Isaac
@@ -110,8 +123,15 @@ Sim](../getting-started/isaac.md)).
 
 ## The weather
 
-The weather is the world server's, set through ROS services on the bridge, in the
-scenario domain, by preset or by the simulator's parameter names:
+The weather is the world server's. A project names it in `swb.yaml`, a preset or
+parameters by the simulator's names; the stack sets it before it is ready:
+
+```yaml
+world:
+  weather: {preset: WetSunset, fog_density: 30}
+```
+
+At run time it is set through ROS services on the bridge, in the scenario domain:
 
 ```bash
 eval "$(ros2 run swb seat env scenario)"
@@ -139,7 +159,7 @@ rain; there is no weather service.
 
 | Wait | Default | Where |
 |---|---|---|
-| One scenario (each variant) | 400 s | `ros2 run swb run --timeout` |
+| One scenario (each variant) | 400 s | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `ros2 run swb run --timeout` |
 | A run's pilots to become ready | 600 s | `ros2 run swb run --ready-timeout` |
 | The stack to become ready | none (refuse at once) | `ros2 run swb run --wait` |
 | A map switch of the pilots | 180 s | fixed |

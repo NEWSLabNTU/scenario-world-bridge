@@ -33,6 +33,8 @@ every stack pilot is). A run refuses a stack whose fingerprint is not the projec
 | `junit.xml` | result | SSv2's verdict as JUnit |
 | `timeline.jsonl` | result | one event per line, by wall time (below) |
 | `judges/<name>.json` | result | each judge's record |
+| `contacts/` | result | the bridge's contact report for each ego run of the scenario (CARLA's collision sensor), unless `world.contact_report_dir` is set |
+| `gap_trace/` | standard | with `logging.gap_trace: true`: the bridge's gap trace for each episode of the run (SSv2's world and the simulator's, frame by frame), and the gap judges' findings beside it |
 | `logs/<group>/` | standard | every stack process's log for the time of the run (a slice), SSv2's own logs (`logs/ssv2/`), `lifetime: run` pilots' logs |
 | `record/<entity>/` | full | a rosbag of the pilot's key topics, from the moment every pilot is ready until SSv2 ends |
 | `host.json` | full | samples of the host's load |
@@ -70,6 +72,21 @@ Schema `swb.result/1`:
 
 Event types: `collision.vehicle`, `collision.pedestrian`, `collision.static`, `red_light`,
 `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`.
+
+Metrics: `duration_s` (from SSv2's start to its end), and the bridge's frame budget for the
+run. The bridge reports its time per frame every 200 frames (10 s at 20 Hz); a run's
+metrics are those reports':
+
+| Metric | |
+|---|---|
+| `frame_windows`, `frame_count` | the reports, and the frames they cover |
+| `frame_p50_ms` | the bridge's own time per frame: the median of the reports' medians, weighted by frames |
+| `frame_p95_ms`, `frame_max_ms` | the largest report's 95th percentile and maximum: never below the run's own |
+| `tick_p50_ms`, `tick_p95_ms`, `tick_max_ms` | the same for the simulator's step |
+| `frames_over_budget`, `ticks_over_budget` | frames over 25 ms of the bridge's time, steps over 100 ms |
+
+The last frames of a run, fewer than 200, are in no report, so a run shorter than one
+report has no frame metrics (they are absent, not zero).
 
 ## The timeline
 

@@ -8,6 +8,7 @@ docs/design/projects-and-pilots.md, "Results". A project lists them in ``swb.yam
         version: "1"                     # recorded with the output
         on: [passed, failed]             # verdicts it runs for (default: passed, failed)
         timeout: 120                     # s
+        needs: [gap_trace]               # what the stack must record for it (below)
 
 A judge is given the run directory as its last argument, or where ``{run_dir}`` stands in
 ``run`` (``{scenario}``: the run's scenario file; either one means nothing is appended), and
@@ -17,6 +18,11 @@ line the message. swb writes the record, with the judge's name, version, exit co
 duration, to ``judges/<name>.json``. A ``verdict`` key in it
 (``passed`` or ``failed``) is the judge's own verdict; it is recorded beside the run's, never in
 place of it: scoring stays with the judges, and a third-party evaluator reads the same files.
+``needs`` names what the judge reads that a stack records only on request: ``gap_trace``
+turns the bridge's gap trace on for the project's stack (as ``logging.gap_trace: true``), each
+run's in ``gap_trace/`` (swb.episodes; ``python3 -m swb.gap`` runs gap_oracle and
+incident_judge as judges).
+
 A judge that exits other than 0 or 1, prints JSON that is not an object, or overruns records
 ``verdict: error`` with the reason; the run itself is unaffected.
 """
@@ -32,7 +38,8 @@ from swb import results
 
 DEFAULT_ON = (results.PASSED, results.FAILED)
 DEFAULT_TIMEOUT = 120.0
-KEYS = ("name", "run", "version", "on", "timeout")
+KEYS = ("name", "run", "version", "on", "timeout", "needs")
+NEEDS = ("gap_trace",)
 JUDGE_VERDICTS = (results.PASSED, results.FAILED, results.ERROR)
 
 
@@ -67,9 +74,22 @@ def problems(judges) -> list:
                                      or any(v not in results.VERDICTS for v in on))
         if bad_on:
             out.append((w, f"on: a list of verdicts ({', '.join(results.VERDICTS)})"))
+        needs = j.get("needs")
+        if needs is not None and (not isinstance(needs, list)
+                                  or any(n not in NEEDS for n in needs)):
+            out.append((w, f"needs: a list of {', '.join(NEEDS)}"))
         t = j.get("timeout")
         if t is not None and (isinstance(t, bool) or not isinstance(t, (int, float)) or t <= 0):
             out.append((w, "timeout: a positive number of seconds"))
+    return out
+
+
+def needed(judges) -> set:
+    """What the project's judges need recorded (``needs:``)."""
+    out = set()
+    for j in judges if isinstance(judges, list) else []:
+        if isinstance(j, dict) and isinstance(j.get("needs"), list):
+            out |= {n for n in j["needs"] if n in NEEDS}
     return out
 
 

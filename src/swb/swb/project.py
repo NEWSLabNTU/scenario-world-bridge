@@ -20,7 +20,7 @@ from pathlib import Path
 import yaml
 
 from swb import assets, budget as budgetmod, config, ground as groundmod, judges as judgesmod
-from swb import record as recordmod
+from swb import profile as profilemod, record as recordmod, ssv2 as ssv2mod, world as worldmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -30,7 +30,8 @@ RENAMES = {"gitignore": ".gitignore"}
 # what `new --from` leaves behind: made on each host, never part of a project's source
 NOT_COPIED = ("assets", "state", "runs", ".swb")
 
-TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges")
+TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
+            "world", "isaac", "ssv2")
 REQUIRED = ("simulator", "pilots", "assets")
 SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
@@ -47,14 +48,18 @@ LIFETIMES = ("stack", "run")
 INPUTS = ("sensors", "map", "ground_truth")
 LEVELS = ("result", "standard", "full", "debug")
 VERDICTS = ("passed", "failed", "error")
-LOGGING_KEYS = ("capture", "keep", "budget", "topics")
+LOGGING_KEYS = ("capture", "keep", "budget", "topics", "gap_trace")
+# logging keys the stack acts on, so swb.yaml's only (a suite runs against a stack as it is)
+STACK_LOGGING = {"gap_trace": "the stack records the gap trace for every run or none: "
+                              "logging.gap_trace: true in swb.yaml, then restart the stack"}
 # designed, not built: refused by name rather than accepted and ignored
 LOGGING_NOT_YET = {"levels": "per-process ROS log levels are not built yet; give a pilot its"
                              " own (e.g. args: {log_level: warn}) where its launch takes one",
                    "debug": "DEBUG on named groups is not built yet; capture: debug records"
                             " every topic"}
 SUITE_KEYS = ("scenarios", "parameters", "distribution", "repetitions", "seed", "expect",
-              "retry", "pilot_args", "logging")
+              "retry", "pilot_args", "logging", "ssv2")
+SUITE_ITEM_KEYS = ("path", "ssv2")  # a scenarios: item as a mapping
 EXTERNAL_CONTROLLERS = ("agent", "autoware")
 MAPS_PREFIX = "$(env SWB_MAPS)/"
 RETIRED_MAPS_PREFIX = "$(env CARLA_MAPS)/"  # the developers' maps (the justfile), not a project's
@@ -68,6 +73,12 @@ class Entity:
     properties: dict = field(default_factory=dict)
     catalog_entry: str = None
     geometry: dict = field(default_factory=dict)  # an inline Vehicle's numeric axles and box
+
+    @property
+    def ego(self) -> bool:
+        """SSv2's ego: what ``managed_ego`` is about (the concealer's Autoware)."""
+        return (self.controller.lower() == "autoware"
+                or str(self.properties.get("isEgo", "")).lower() == "true")
 
     @property
     def external(self) -> bool:
@@ -307,7 +318,11 @@ def check_schema(settings: dict) -> list:
     for where, msg in judgesmod.problems(settings.get("judges")):
         out.append(Finding(pf, f"{where}: {msg}",
                            "judges: [{name: comfort, run: [python3, -m, my_judges.comfort]}]"))
-    out += _check_logging(pf, "logging", settings.get("logging"))
+    out += _check_logging(pf, "logging", settings.get("logging"), stack=True)
+    for where, msg in worldmod.problems(settings, sim if isinstance(sim, str) else ""):
+        out.append(Finding(pf, f"{where}: {msg}"))
+    for where, msg in ssv2mod.problems(settings.get("ssv2")):
+        out.append(Finding(pf, f"{where}: {msg}", "ssv2: {global_timeout: 600, frame_rate: 20}"))
     return out
 
 
@@ -355,14 +370,16 @@ def _check_pilot(name, p, sim) -> list:
     return out
 
 
-def _check_logging(file, where, lg) -> list:
+def _check_logging(file, where, lg, stack=False) -> list:
     if lg is None:
         return []
     if not isinstance(lg, dict):
         return [Finding(file, f"{where}: is not a mapping")]
     out = []
     for k in lg:
-        if k in LOGGING_NOT_YET:
+        if k in STACK_LOGGING and not stack:
+            out.append(Finding(file, f"{where}.{k}: {STACK_LOGGING[k]}", f"remove {k}:"))
+        elif k in LOGGING_NOT_YET:
             out.append(Finding(file, f"{where}.{k}: {LOGGING_NOT_YET[k]}", f"remove {k}:"))
         elif k not in LOGGING_KEYS:
             out.append(Finding(file, f"{where}: unknown key {k}",
@@ -370,6 +387,8 @@ def _check_logging(file, where, lg) -> list:
     if lg.get("capture") is not None and lg["capture"] not in LEVELS:
         out.append(Finding(file, f"{where}.capture: {lg['capture']} is not a level",
                            f"one of {', '.join(LEVELS)}"))
+    if stack and lg.get("gap_trace") is not None and not isinstance(lg["gap_trace"], bool):
+        out.append(Finding(file, f"{where}.gap_trace: {lg['gap_trace']!r} is not true or false"))
     for msg in recordmod.topics_problems(lg.get("topics")):
         out.append(Finding(file, f"{where}.{msg}", "topics: [/localization/kinematic_state]"))
     for msg in budgetmod.problems(lg.get("budget")):
@@ -400,6 +419,95 @@ def pilot_for(pilots: dict, entity: str):
     return None
 
 
+def suite_items(listed):
+    """A suite's ``scenarios:`` as ``([(path, ssv2 settings)], problems)``: each item a path,
+    or a mapping ``{path: <file or directory>, ssv2: {...}}`` (run settings for its runs)."""
+    if listed is None:
+        return [], []
+    if isinstance(listed, str):
+        listed = [listed]
+    if not isinstance(listed, list):
+        return [], ["scenarios: is not a list"]
+    out, bad = [], []
+    for i, item in enumerate(listed):
+        if isinstance(item, dict):
+            unknown = [k for k in item if k not in SUITE_ITEM_KEYS]
+            if unknown:
+                bad.append(f"scenarios[{i}]: unknown key {unknown[0]} (use only "
+                           f"{', '.join(SUITE_ITEM_KEYS)})")
+            if not isinstance(item.get("path"), str) or not item["path"]:
+                bad.append(f"scenarios[{i}]: path: is required (a file or a directory)")
+                continue
+            probs = ssv2mod.problems(item.get("ssv2"), f"scenarios[{i}].ssv2")
+            bad += [f"{w}: {m}" for w, m in probs]
+            out.append((item["path"], dict(item.get("ssv2") or {}) if not probs else {}))
+        else:
+            out.append((str(item), {}))
+    return out, bad
+
+
+def unmanaged_scenarios(project: Path, settings: dict) -> set:
+    """The scenario files some layer runs with ``managed_ego: false`` (swb.yaml's ``ssv2:``
+    makes it every one); their ego needs no pilot."""
+    base = ssv2mod.merge(settings.get("ssv2") if isinstance(settings.get("ssv2"), dict) else {})
+    out = set()
+    sdir = project / "scenarios"
+    if not ssv2mod.managed(base) and sdir.is_dir():
+        out |= {p.resolve() for p in _scenarios_in(sdir)}
+    for suite in sorted((project / "suites").glob("*.y*ml")) if (project / "suites").is_dir() \
+            else []:
+        try:
+            data = config.read_yaml(suite)
+        except config.ConfigError:
+            continue
+        top = data.get("ssv2") if isinstance(data.get("ssv2"), dict) else {}
+        items, _ = suite_items(data.get("scenarios"))
+        for path, own in items:
+            if ssv2mod.managed(ssv2mod.merge(base, top, own)):
+                continue
+            p = project / path
+            if not p.exists() and (suite.parent / path).exists():
+                p = suite.parent / path
+            files = _scenarios_in(p) if p.is_dir() else [p] if p.is_file() else []
+            out |= {f.resolve() for f in files}
+    return out
+
+
+def profile_problems(project: Path, settings: dict) -> list:
+    """The Autoware profile's refusals (check_launch_args) of each ``autoware`` pilot's
+    ``args``, and of a suite's ``pilot_args`` over them (swb.profile)."""
+    pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
+    out = []
+    for key, p in pilots.items():
+        if not isinstance(p, dict) or p.get("kind") != "autoware" or \
+                not isinstance(p.get("args") or {}, dict):
+            continue
+        for msg in profilemod.arg_problems(p.get("args") or {}, project):
+            out.append(Finding(config.PROJECT_FILE, f"pilots.{key}.args: {msg}",
+                               "the Autoware profile refuses it at start (check_launch_args)"))
+    sdir = project / "suites"
+    for suite in sorted(sdir.glob("*.y*ml")) if sdir.is_dir() else []:
+        try:
+            data = config.read_yaml(suite)
+        except config.ConfigError:
+            continue
+        pa = data.get("pilot_args")
+        for entity, extra in (pa.items() if isinstance(pa, dict) else []):
+            key = pilot_for(pilots, str(entity))
+            p = pilots.get(key) if key is not None else None
+            if not isinstance(p, dict) or p.get("kind") != "autoware" or \
+                    not isinstance(extra, dict):
+                continue
+            merged = {**(p.get("args") if isinstance(p.get("args"), dict) else {}), **extra}
+            own = set(profilemod.arg_problems(p.get("args") or {}, project))
+            for msg in profilemod.arg_problems(merged, project):
+                if msg not in own:
+                    out.append(Finding(_rel(project, suite), f"pilot_args.{entity}: {msg}",
+                                       "the Autoware profile refuses it at start"
+                                       " (check_launch_args)"))
+    return out
+
+
 def collect_scenarios(project: Path):
     """``(scenario files, findings)``: scenarios/ and every suite's scenarios."""
     files, findings = [], []
@@ -419,9 +527,11 @@ def collect_scenarios(project: Path):
                 findings.append(Finding(rel, f"unknown key {k}",
                                         f"use only {', '.join(SUITE_KEYS)}"))
         findings += _check_logging(rel, "logging", data.get("logging"))
-        listed = data.get("scenarios") or []
-        if isinstance(listed, str):
-            listed = [listed]
+        for where, msg in ssv2mod.problems(data.get("ssv2")):
+            findings.append(Finding(rel, f"{where}: {msg}"))
+        items, bad = suite_items(data.get("scenarios"))
+        findings += [Finding(rel, msg) for msg in bad]
+        listed = [path for path, _ in items]
         if data.get("distribution"):
             listed = list(listed) + [data["distribution"]]
         for item in listed:
@@ -451,7 +561,9 @@ def _map_fix(name, settings):
             f" then {FETCH}")
 
 
-def check_scenario(project: Path, sc: Scenario, settings: dict) -> list:
+def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = True) -> list:
+    """``managed``: False when the scenario runs with ``managed_ego: false`` (its ego needs
+    no pilot)."""
     rel = _rel(project, sc.path)
     out = []
     if sc.distribution_of is not None:
@@ -483,6 +595,8 @@ def check_scenario(project: Path, sc: Scenario, settings: dict) -> list:
     for ent in external:
         key = pilot_for(pilots, ent.name)
         how = f"controller {ent.controller}" if ent.controller else "isEgo"
+        if key is None and not managed and ent.ego:
+            continue   # managed_ego: false, SSv2 hands its ego to nobody
         if key is None:
             out.append(Finding(rel, f"entity {ent.name} ({how}) has no pilot",
                                f"pilots: {{{ent.name}: {{kind: autoware}}}} in"
@@ -532,17 +646,25 @@ def check_project(path) -> list:
         if isinstance(m, str) and m and not (project / "assets" / "maps" / m).is_dir():
             out.append(Finding(config.PROJECT_FILE, f"maps: {m} is not fetched (assets/maps/{m})",
                                _map_fix(m, settings), refused=True))
+    sim = settings.get("simulator") if isinstance(settings.get("simulator"), str) else ""
+    shape = set(worldmod.problems(settings, sim))
+    for where, msg in worldmod.problems(settings, sim, project):
+        if (where, msg) not in shape:   # the files (check_schema reported the rest)
+            out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}",
+                               refused="not fetched" in msg))
+    out += profile_problems(project, settings)
     files, found = collect_scenarios(project)
     out += found
     if not files:
         out.append(Finding("scenarios/", "no scenario", "add one, e.g. scenarios/drive.xosc"))
+    unmanaged = unmanaged_scenarios(project, settings)
     for f in files:
         try:
             sc = read_scenario(f)
         except (ValueError, OSError) as e:
             out.append(Finding(_rel(project, f), str(e)))
             continue
-        out += check_scenario(project, sc, settings)
+        out += check_scenario(project, sc, settings, managed=f.resolve() not in unmanaged)
     return out
 
 

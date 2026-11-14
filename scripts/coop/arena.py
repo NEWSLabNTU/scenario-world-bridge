@@ -319,6 +319,30 @@ def xodr_two_way(k, length, shoulder=1.5):
             '  <header revMajor="1" revMinor="4" name="arena_two_way" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_left_turn(k, length, x_side, side_len, gap):
+    """K junctions at grade, `gap` m apart: a two-way main road along +x (lane -1 along +x, lane +1
+    along -x, OpenDRIVE y = -i * gap) and a two-lane side road leaving its left side along +y, its
+    reference line at x = x_side (its lane -1, toward +y, centred LANE_W / 2 to the right of it, at
+    +x). No junction: the two meshes overlap where they meet, flat, as xodr_crossings's."""
+    full = f'<width sOffset="0" a="{LANE_W}" b="0" c="0" d="0"/>'
+    two = (f'<laneSection s="0"><left><lane id="1" type="driving" level="false">{full}</lane></left>'
+           '<center><lane id="0" type="none" level="false"/></center>'
+           f'<right><lane id="-1" type="driving" level="false">{full}</lane></right></laneSection>')
+    roads = []
+    for i in range(k):
+        y0 = -i * gap
+        for j, (name, x0, yy, hdg, ln) in enumerate(((f"m{i}", 0.0, y0, 0.0, length), (f"s{i}", x_side, y0, math.pi / 2, side_len))):
+            roads.append(f"""
+  <road name="{name}" length="{ln}" id="{2 * i + j + 1}" junction="-1">
+    <link/>
+    <planView><geometry s="0" x="{x0}" y="{yy}" hdg="{hdg}" length="{ln}"><line/></geometry></planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes>{two}</lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_left_turn" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 def xodr_narrow(k, length, x0, wn, taper):
     """K parallel two-way roads (lane -1 along +x, lane +1 along -x) whose lane -1 is closed over
     [x0, x0 + wn]: a cubic taper to zero width over the taper before x0, no lane -1 over the closure,

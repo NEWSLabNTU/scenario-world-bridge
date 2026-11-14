@@ -299,6 +299,35 @@ scenarios:
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/zipper/arena/stream_arena.json"
     planned: {swb_light: "not run", swb_autoware: "not run"}
 
+  beliefs:
+    title: Beliefs (C6)
+    beliefs: true
+    notes:
+      - "C6: the cut-in with car types. B's capability m3 (the Model 3 as CARLA measured it) or truck (truck_like: 8 m, 4.5 m/s^2 braking, 1.5 drive, a 4 s lane change), the golf cart at v_B 6; B's preference a yielder (B_aw_react) or a holder (B_aw); A's rules do6's pool and A_wait, or a probe (a 0.12-lane nudge held 3 s) then a rule."
+      - "A's belief over B's type: a class prior (25 % trucks, even on intent), capability evidence as soft bounds on the observer's 1 s slopes, intent evidence after A's lateral start when a yielder would brake, the class cue from B's box (filter class). Modes: prior (no probe), prior_p (probe rules as fixed rules, no belief), motion, class, v2x (capability given), truth."
+      - "Measures in the chooser's objective (selfish: U_A; prosocial: welfare), per context x A's capability x B's true type, against the stock loss (A_aw_perm vs B_aw_react minus the optimum over every rule pair). Bar: >= 10 % of it, >= 0.01, > 2 se over 8 paired seeds."
+      - "NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability"
+    tiers:
+      kinematic:
+        - loader: beliefs
+          kind: kin
+          label: C6 kinematic, v_B 12 (Model 3, truck)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability/kinematic/vb12/c6_summary.json"
+          cells: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability/kinematic/vb12/c6_cells.jsonl"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability"
+        - loader: beliefs
+          kind: kin
+          label: C6 kinematic, v_B 6 (Model 3, truck, golf cart)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability/kinematic/vb6/c6_summary.json"
+          cells: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability/kinematic/vb6/c6_cells.jsonl"
+      arena:
+        - loader: beliefs
+          kind: arena
+          label: C6 arena, 36 cells (14 context-capability pairs where the kinematic model says a measure reaches the bar, 4 controls)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability/arena/summary.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability"
+    planned: {swb_light: "not run", swb_autoware: "not run"}
+
   ncar:
     title: N cars
     ncar: true

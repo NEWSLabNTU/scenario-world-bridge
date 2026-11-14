@@ -78,6 +78,16 @@ def _fixture(d):
     json.dump({"zipper|1.2": {"rate_vpm": 30.0, "t_last": 80.0, "queue_max": 120.0, "queue_mean": 70.0, "delay": 18.0,
                               "delay_l1": 9.0, "delay_l2": 30.0, "forced": 2.0, "hard": 3.0, "contact": 0.0, "rules": "z0.6yd"}},
               open(d / "zs.json", "w"))
+    hit = {"hit": 1, "cells": 2, "share": 0.5}
+    m = {"mean": 0.01, "max": 0.02, "welfare_mean": 0.0, "vs_stock": hit, "vs_worst_eq": hit, "prior_weighted_vs_stock": hit}
+    json.dump({"selfish": {"regret_class": m, "C": {"prior": 0.1, "truth": 0.09}}, "prosocial": {"regret_class": m, "C": {}},
+               "L_stock_mean": 0.04, "L_worst_mean": 0.06, "by_type": {}, "confusion": {"probe class@0": {"m3/hold": {"m3/hold": 1.0}}},
+               "assumed": {"s | A m3 | assumed m3/hold | true m3/hold": {"dU": 0.0, "dC": 0.0, "contact": 0.0, "worst_dU": 0.0}}},
+              open(d / "c6_summary.json", "w"))
+    with open(d / "c6_cells.jsonl", "w") as f:
+        for d0 in (2.0, 4.0):
+            f.write(json.dumps({"d0": d0, "dv": 0.0, "vb": 12.0, "capA": "m3", "true": "m3/hold", "L_stock": 0.05,
+                                "L_worst": 0.06, "s_regret_class": 0.01 * d0, "s_regret_class_se": 0.001}) + "\n")
     src = {
         "tiers": ["kinematic", "arena", "swb_autoware", "double_oracle"],
         "scenarios": {
@@ -93,6 +103,9 @@ def _fixture(d):
             "conventions": {"title": "Conventions", "conventions": True, "notes": ["fixture"],
                             "tiers": {"kinematic": [{"loader": "conventions", "kind": "tiebreak_kin", "path": str(d / "tb.json")},
                                                     {"loader": "conventions", "kind": "stream", "path": str(d / "zs.json")}]}},
+            "beliefs": {"title": "Beliefs", "beliefs": True, "notes": ["fixture"],
+                        "tiers": {"kinematic": [{"loader": "beliefs", "kind": "kin", "path": str(d / "c6_summary.json"),
+                                                 "cells": str(d / "c6_cells.jsonl")}]}},
             "ncar": {"title": "N cars", "ncar": True, "tiers": {"arena": [{"loader": "n3_cells", "path": str(d / "n3_cells.jsonl")},
                                                                           {"loader": "n4", "path": str(d / "missing.jsonl")}]}},
         },
@@ -122,6 +135,8 @@ def selftest():
         assert len(atlas["ncar"]["ncar_residuals"][0]["cells"]) == 2
         assert [c["kind"] for c in atlas["conventions"]] == ["tiebreak_kin", "stream"], atlas["conventions"]
         assert atlas["conventions"][0]["rows"][0]["conv"] == "none" and atlas["conventions"][1]["rows"][0]["hm"] == 1.2
+        assert atlas["beliefs"][0]["kind"] == "kin" and len(atlas["beliefs"][0]["cells"]) == 2, atlas["beliefs"]
+        assert atlas["beliefs"][0]["cells"][1]["regret_class"] == 0.04
         n = atlas_build.build(os.path.join(out, "atlas.json"), os.path.join(out, "atlas.html"))
         html = open(os.path.join(out, "atlas.html")).read()
         assert n < atlas_build.MAX_BYTES and "<title>Strategy atlas</title>" in html

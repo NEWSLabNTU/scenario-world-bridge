@@ -597,6 +597,55 @@ def load_conventions(entry, sc):
     return {"conventions": out}
 
 
+def load_beliefs(entry, sc):
+    """C6's results. kind:
+      kin    c6_belief.py's c6_summary.json (path) and c6_cells.jsonl (cells): the D6 measures per
+             objective, by type, the type-confusion matrix, acting on a fixed belief, and per cell
+             the measures against the stock loss (the maps)
+      arena  c6_arena.py's summary.json: D2 against the kinematic model, the measures side by side"""
+    out = []
+    for p in paths(entry):
+        if not os.path.exists(p):
+            raise FileNotFoundError(2, "missing", p)
+        d = json.load(open(p))
+        item = {"kind": entry["kind"], "label": entry.get("label", os.path.basename(p)), "path": p}
+        if entry["kind"] == "kin":
+            keep = ("regret_class", "regret_motion", "voi_v2x", "voi_class", "voi_belief", "voi_probe", "voi_all_p", "voi_all")
+            item["summary"] = {o: {k: d[o][k] for k in keep if k in d[o]} for o in ("selfish", "prosocial")}
+            item["C"] = {o: d[o].get("C") for o in ("selfish", "prosocial")}
+            item["L_stock_mean"], item["L_worst_mean"] = d.get("L_stock_mean"), d.get("L_worst_mean")
+            item["by_type"] = d.get("by_type", {})
+            want = entry.get("confusion", ["probe motion@0", "probe class@0", "probe motion@3", "probe class@3", "probe_informative class@3",
+                                           "A_aw_perm class@5", "A_aw_perm motion@8"])
+            item["confusion"] = {k: v for k, v in d.get("confusion", {}).items() if k in want}
+            item["assumed"] = {k[4:]: v for k, v in d.get("assumed", {}).items() if k.startswith("s |")}
+            item["b_side"] = d.get("b_side")
+            cells = []
+            cp = os.path.expanduser(entry["cells"]) if entry.get("cells") else None
+            if cp and os.path.exists(cp):
+                for c in read_jsonl(cp):
+                    e = {k: c.get(k) for k in ("d0", "dv", "vb", "capA", "true", "L_stock", "L_worst")}
+                    for k in keep:
+                        e[k] = c.get("s_" + k)
+                        e[k + "_se"] = c.get("s_" + k + "_se")
+                        e["p_" + k] = c.get("p_" + k)
+                    e["picks"] = c.get("s_picks")
+                    cells.append(e)
+            item["cells"] = cells
+        else:
+            item.update({k: d.get(k) for k in ("runs", "d2", "context_error", "compare", "bar_agree", "bar_arena", "bar_kin",
+                                                "n_compare")})
+            if item["d2"]:
+                item["d2"] = {k: v for k, v in item["d2"].items() if k != "misses"}
+        out.append(item)
+    res = {"beliefs": out}
+    d2s = [i["d2"] for i in out if i["kind"] == "arena" and i.get("d2")]
+    if d2s:  # the progress grid's D2: payoffs inside the arena's intervals
+        w, n = sum(d["payoffs_inside"] for d in d2s), sum(d["payoffs"] for d in d2s)
+        res["d2"] = {"within": w, "n": n, "share": w / n if n else None}
+    return res
+
+
 # --- progress ------------------------------------------------------------------------------------
 def load_d2(entry, sc):
     """A D2 share as text ('payoffs inside the arena's 95 % interval: 44 of 48') or a summary.json's
@@ -625,11 +674,12 @@ LOADERS = {k[5:]: v for k, v in globals().items() if k.startswith("load_")}
 def export(sources, out, only=None, log=print):
     cfg = yaml.safe_load(open(sources))
     atlas = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "sources": str(sources), "tiers": cfg["tiers"],
-             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "notes": cfg.get("notes", [])}
+             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "beliefs": [],
+             "notes": cfg.get("notes", [])}
     for sname, sc in cfg["scenarios"].items():
         if only and sname not in only:
             continue
-        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "notes")}
+        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "beliefs", "notes")}
         S["tiers"] = {}
         S["episodes"] = []
         S["meta"] = []
@@ -648,7 +698,7 @@ def export(sources, out, only=None, log=print):
                 T = S["tiers"].setdefault(tier, {"cells": [], "payoffs": [], "labels": [], "d2": None, "links": [], "items": 0})
                 T["items"] += (len(res.get("episodes", [])) + bool(res.get("meta")) + len(res.get("fitted", []))
                                + sum(bool(res.get(k)) for k in ("ncar_residuals", "ncar_n1", "ncar_n4"))
-                               + len(res.get("conventions", [])))
+                               + len(res.get("conventions", [])) + len(res.get("beliefs", [])))
                 T["cells"] += res.get("cells", [])
                 T["payoffs"] += res.get("payoffs", [])
                 if res.get("d2"):
@@ -665,6 +715,7 @@ def export(sources, out, only=None, log=print):
                         atlas["ncar"].setdefault(k, []).append(res[k]) if k == "ncar_residuals" else atlas["ncar"].__setitem__(k, res[k])
                 atlas["fitted"] += res.get("fitted", [])
                 atlas["conventions"] += res.get("conventions", [])
+                atlas["beliefs"] += res.get("beliefs", [])
                 log(f"  [{sname}/{tier}] {name}: {len(res.get('cells', []))} cells, {len(res.get('payoffs', []))} payoff "
                     f"contexts, {len(res.get('episodes', []))} episodes ({time.monotonic() - t0:.1f} s)")
         for tier, T in S["tiers"].items():

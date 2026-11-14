@@ -160,6 +160,7 @@ function scenarioView(sname, S){
   views[sname].render = () => {
     if (S.ncar) return ncarView(s);
     if (S.conventions) return conventionsView(s, S);
+    if (S.beliefs) return beliefsView(s, S);
     classMap(s, sname, S); payoffView(s, sname, S); metaView(s, S); episodeView(s, S);
     if ((S.state_machines || []).length) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, '(5) The rules as state machines'); const g = h('div', {class: 'sm'}, c);
       for (const k of S.state_machines) drawSM(g, k); }
@@ -358,6 +359,72 @@ function conventionsView(s, S){
         ['forced stops', r => fmt(r.forced, 2)], ['hard brakes', r => fmt(r.hard, 1)], ['contacts', r => fmt(r.contact, 2)], ['lane 2 rule', r => r.rules]]); }
   }
   if (!C.length) h('p', {class: 'muted'}, s, 'No convention results registered.');
+}
+
+// ---------------------------------------------------------------- beliefs (C6)
+const B_KEYS = [['regret_class', 'misbelief regret: truth - class (perception)'], ['regret_motion', 'misbelief regret: truth - motion only'],
+  ['voi_v2x', 'VoI of a capability broadcast: v2x - class'], ['voi_class', 'the class cue: class - motion'],
+  ['voi_belief', 'beliefs over a probing rule: motion - prior with probe rules'], ['voi_probe', 'probing as a rule: prior with probe rules - prior'],
+  ['voi_all_p', 'VoI against the prior with probe rules: truth - prior_p'], ['voi_all', 'VoI against the prior only: truth - prior']];
+function barHit(c, k){ const v = c[k], e = c[k + '_se'] || 0, L = c.L_stock || 0; return v !== null && v >= 0.01 && v > 2 * e && v >= 0.1 * Math.max(L, 0); }
+function beliefMap(parent, cells, key){
+  const d0s = [...new Set(cells.map(c => c.d0))].sort((a, b) => a - b), dvs = [...new Set(cells.map(c => c.dv))].sort((a, b) => b - a);
+  const cw = 16, ch = 14, m = {l: 40, t: 8, r: 8, b: 30}; const W = m.l + cw * d0s.length + m.r, H = m.t + ch * dvs.length + m.b;
+  const g = svg(parent, W, H); const by = {}; for (const c of cells) by[c.d0 + '|' + c.dv] = c;
+  dvs.forEach((dv, j) => { el('text', {x: m.l - 4, y: m.t + j * ch + 11, 'text-anchor': 'end'}, g, fmt(dv, 1));
+    d0s.forEach((d0, i) => { const c = by[d0 + '|' + dv]; if (!c) return; const v = c[key] || 0, L = Math.max(c.L_stock || 0, 0.01);
+      const r = Math.max(0, Math.min(1, v / L)); const rect = el('rect', {x: m.l + i * cw, y: m.t + j * ch, width: cw - 1, height: ch - 1}, g);
+      rect.style.fill = v < 0.01 ? 'var(--grid)' : `color-mix(in srgb, var(--bad) ${Math.round(100 * r)}%, var(--warn))`;
+      if (barHit(c, key)) { rect.style.stroke = 'var(--ink)'; rect.style.strokeWidth = 1.5; }
+      tipOn(rect, () => `d0 ${d0}, dv ${dv}: ${key} ${fmt(c[key], 4)} (se ${fmt(c[key + '_se'], 4)}), stock loss ${fmt(c.L_stock, 4)}, worst-eq loss ${fmt(c.L_worst, 4)}; picks ${JSON.stringify(c.picks || {})}`); }); });
+  d0s.forEach((d0, i) => { if (i % 2 === 0) el('text', {x: m.l + i * cw + cw / 2, y: H - m.b + 12, 'text-anchor': 'middle'}, g, fmt(d0, 0)); });
+  el('text', {x: m.l + cw * d0s.length / 2, y: H - 4, 'text-anchor': 'middle'}, g, 'd0 (m)');
+}
+function beliefsView(s, S){
+  const Bs = A.beliefs || [];
+  if (S.notes) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, 'Hidden capability (C6)'); const ul = h('ul', {class: 'small'}, c); for (const x of S.notes) h('li', {}, ul, x); }
+  for (const src of Bs) {
+    const c = h('div', {class: 'card'}, s); h('h2', {}, c, src.label); h('p', {class: 'small muted'}, c, src.path);
+    if (src.kind === 'kin') {
+      h('p', {class: 'small'}, c, `Stock (Autoware pair) loss against the optimum, mean ${fmt(src.L_stock_mean, 4)}; worst equilibrium's ${fmt(src.L_worst_mean, 4)}. ` +
+        'Bar: a measure >= 10 % of the stock loss, >= 0.01 and > 2 se over paired seeds.');
+      for (const o of ['selfish', 'prosocial']) { h('h3', {}, c, (o === 'selfish' ? 'A chooses by its own utility' : 'A chooses by welfare') +
+          ' - mean welfare cost per mode: ' + Object.entries(src.C[o] || {}).map(([k, v]) => `${k} ${fmt(v, 3)}`).join(', '));
+        convTable(c, B_KEYS.filter(([k]) => src.summary[o][k]), [['measure', ([k, lab]) => lab], ['mean', ([k]) => fmt(src.summary[o][k].mean, 4)],
+          ['max', ([k]) => fmt(src.summary[o][k].max, 4)], ['welfare change', ([k]) => fmt(src.summary[o][k].welfare_mean, 4)],
+          ['cells over the bar (stock)', ([k]) => { const v = src.summary[o][k].vs_stock; return `${v.hit}/${v.cells} (${pct(v.share)})`; }],
+          ['(worst eq.)', ([k]) => { const v = src.summary[o][k].vs_worst_eq; return `${v.hit}/${v.cells} (${pct(v.share)})`; }],
+          ['prior-weighted contexts', ([k]) => { const v = src.summary[o][k].prior_weighted_vs_stock; return `${v.hit}/${v.cells} (${pct(v.share)})`; }]]); }
+      if (src.cells && src.cells.length) {
+        h('h3', {}, c, 'Map: the measure as a share of the stock loss per context (outlined: over the bar)');
+        const row = h('div', {class: 'row'}, c); const selK = h('select', {}, row); for (const [k, lab] of B_KEYS) h('option', {value: k}, selK, lab);
+        const combos = [...new Set(src.cells.map(x => `A ${x.capA} | B ${x.true} | vB ${x.vb}`))]; const selC = h('select', {}, row); for (const k of combos) h('option', {value: k}, selC, k);
+        const holder = h('div', {}, c); const draw = () => { holder.innerHTML = ''; const [ca, tr, vb] = selC.value.split(' | ').map(x => x.split(' ').pop());
+          beliefMap(holder, src.cells.filter(x => x.capA === ca && x.true === tr && String(x.vb) === vb), selK.value); };
+        selK.onchange = draw; selC.onchange = draw; draw(); }
+      h('h3', {}, c, 'By type (A chooses by its own utility)');
+      convTable(c, Object.entries(src.by_type), [['A | B true', ([k]) => k], ['stock loss', ([, e]) => fmt(e.L_stock, 3)],
+        ['C prior / prior_p / class / truth', ([, e]) => ['prior', 'prior_p', 'class', 'truth'].map(m => fmt((e.s_C || {})[m], 3)).join(' / ')],
+        ['regret (class)', ([, e]) => `${fmt(e.s_regret_class, 4)} (${e.s_regret_class_hit})`], ['VoI v2x', ([, e]) => `${fmt(e.s_voi_v2x, 4)} (${e.s_voi_v2x_hit})`],
+        ['beliefs over probe rule', ([, e]) => `${fmt(e.s_voi_belief, 4)} (${e.s_voi_belief_hit})`], ['probe rule', ([, e]) => `${fmt(e.s_voi_probe, 4)} (${e.s_voi_probe_hit})`],
+        ['contact truth / class / prior', ([, e]) => ['truth', 'class', 'prior'].map(m => fmt((e.s_contact || {})[m], 3)).join(' / ')]]);
+      for (const [k, m] of Object.entries(src.confusion || {})) { h('h3', {}, c, 'Type confusion, true -> believed (MAP): ' + k);
+        const bel = [...new Set(Object.values(m).flatMap(r => Object.keys(r)))].sort();
+        convTable(c, Object.entries(m), [['true', ([t]) => t], ...bel.map(b => [b, ([, r]) => r[b] === undefined ? '' : pct(r[b])])]); }
+      h('h3', {}, c, 'Acting on a fixed belief: own utility and welfare against the right belief');
+      convTable(c, Object.entries(src.assumed || {}), [['A | assumed | true', ([k]) => k], ['dU (own)', ([, v]) => fmt(v.dU, 4)],
+        ['worst cell dU', ([, v]) => fmt(v.worst_dU, 3)], ['dC (welfare)', ([, v]) => fmt(v.dC, 4)], ['contact', ([, v]) => fmt(v.contact, 3)]]);
+      if (src.b_side) h('p', {class: 'small'}, c, "B's choice of reaction under a belief over A's capability and rule: " + JSON.stringify(src.b_side));
+    } else {
+      const d = src.d2 || {}; h('p', {class: 'small'}, c, `D2: payoffs inside the arena's interval ${d.payoffs_inside}/${d.payoffs} (${pct(d.share)}), ` +
+        `outcomes ${d.outcomes_agree}/${d.outcomes} (${pct(d.outcome_share)}); ${src.runs} arena runs; context error ${JSON.stringify(src.context_error)}`);
+      h('p', {class: 'small'}, c, 'Cells over the bar, arena / kinematic (agree): ' + Object.keys(src.bar_agree || {}).map(k => `${k} ${src.bar_arena[k]}/${src.bar_kin[k]} (${src.bar_agree[k]} of ${src.n_compare})`).join(', '));
+      convTable(c, src.compare || [], [['d0', r => fmt(r.d0, 1)], ['dv', r => fmt(r.dv, 1)], ['A', r => r.capA], ['B true', r => r.true],
+        ['stock loss', r => r.L_stock.map(x => fmt(x, 3)).join(' / ')], ['regret (class)', r => r.s_regret_class.map(x => fmt(x, 3)).join(' / ')],
+        ['VoI v2x', r => r.s_voi_v2x.map(x => fmt(x, 3)).join(' / ')], ['VoI all', r => r.s_voi_all.map(x => fmt(x, 3)).join(' / ')]]);
+    }
+  }
+  if (!Bs.length) h('p', {class: 'muted'}, s, 'No belief results registered.');
 }
 
 // ---------------------------------------------------------------- N cars

@@ -254,7 +254,7 @@ TEMPLATE = """<?xml version="1.0"?>
 	<ParameterDeclarations />
 	<CatalogLocations />
 	<RoadNetwork>
-		<LogicFile filepath="$(env CARLA_MAPS)/Town01" />
+		<LogicFile filepath="$(env SWB_MAPS)/Town01" />
 	</RoadNetwork>
 	<Entities>
 {entities}	</Entities>

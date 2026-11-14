@@ -4,7 +4,7 @@
 	<ParameterDeclarations>
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
-	<RoadNetwork><LogicFile filepath="$(env CARLA_MAPS)/Town01" /></RoadNetwork>
+	<RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town01" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">
 			<CatalogReference catalogName="vehicles" entryName="tesla_model3">

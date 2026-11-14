@@ -80,7 +80,7 @@ PY
 )
 echo "check vmax ${VMAX:-none} (limit $VB)" | tee "$OUT/check.log"
 if python3 -c "import sys; sys.exit(0 if 0.5 < float('${VMAX:-99}') < $VB + 0.6 else 1)"; then
-    in_env python3 scripts/coop/c3.py --out "$OUT" --carla-port $PORT --seeds ${SEEDS:-2} --seed0 ${SEED0:-0} ${ONLY:+--only $ONLY} ${CELLS:+--cells "$CELLS"} > "$OUT/stdout.log" 2>&1
+    in_env python3 scripts/coop/c3.py --out "$OUT" --carla-port $PORT --seeds ${SEEDS:-2} --seed0 ${SEED0:-0} ${ONLY:+--only $ONLY} ${CELLS:+--cells "'$CELLS'"} > "$OUT/stdout.log" 2>&1
 else
     echo "check failed: not running C3" | tee -a "$OUT/check.log"
 fi

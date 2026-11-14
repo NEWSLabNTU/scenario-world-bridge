@@ -3,6 +3,7 @@ against a stack whose keeper is real and whose SSv2 is a stub writing a JUnit.""
 import io
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -615,3 +616,135 @@ def test_record_plan():
     assert [(n, a[-1]) for n, _, a in dbg] == [("ego", "-a"), ("scenario", "-a")]
     assert recordmod.plan(Path("/r"), "standard", pilots, 9) == []
     assert recordmod.topics_problems(["no_slash"]) and not recordmod.topics_problems(["/a"])
+
+
+# --- a stack the runner starts --------------------------------------------------------------
+
+# swb.launch.xml in miniature, as the runner's stack_command: the plan (its pilots ready at
+# once, run through fake_pilot.py), stack.json, then the keeper in this process
+FAKE_LAUNCH = textwrap.dedent('''\
+    import sys
+    from swb import stack
+    fake_pilot, pilots_out = sys.argv[1], sys.argv[2]
+    words = dict(w.split(":=", 1) for w in sys.argv[3:] if ":=" in w)
+    try:
+        p = stack.plan(project_arg=words["project"], seat_arg=words.get("seat"),
+                       logs=words.get("logs"), map_name="Town01")
+    except stack.StackRefused as e:
+        print(f"swb: the stack is refused (3): {e}", flush=True)
+        sys.exit(1)
+    for x in p.record["pilots"]:
+        x["ready"] = ["true"]
+    stack.write_plan(p)
+    # the bridge's log, which fake_ssv2.py writes to
+    (p.stack_dir / "proc" / "bridge" / "2026-11-15_00-00-00" / "node"
+     / "scenario_world_bridge").mkdir(parents=True)
+    wrap = [sys.executable, fake_pilot, pilots_out]
+    def cmd(rec, pl, entry, log_dir):
+        argv = stack.pilot_argv(rec, pl, entry, log_dir)
+        return wrap + argv if argv else None
+    sys.exit(stack.keep(p.stack_dir, poll=0.05, pilot_command=cmd))
+''')
+
+
+@pytest.fixture
+def launcher(where, monkeypatch):
+    """The runner's stack command, and the argv it was given."""
+    script = where["tmp"] / "fake_launch.py"
+    script.write_text(FAKE_LAUNCH)
+    monkeypatch.setenv("PYTHONPATH", f"{SWB_ROOT}:{os.environ.get('PYTHONPATH', '')}")
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    calls = []
+
+    def cmd(project, host, seat, log_dir):
+        real = run.stack_argv(project, host, seat, log_dir)
+        calls.append(real)
+        return [sys.executable, str(script), str(where["tmp"] / "fake_pilot.py"),
+                str(where["tmp"] / "pilots")] + [w for w in real if ":=" in w]
+    yield cmd, calls
+    # a stack a failed test left up (its keeper is the fake launch, a session leader)
+    for f in (where["tmp"] / "logs" / "proj").glob("seat-*-current/stack.json"):
+        rec = json.loads(f.read_text())
+        if run.stack_alive(rec):
+            os.killpg(rec["pid"], signal.SIGKILL)
+
+
+def _stack_json(where):
+    link = where["tmp"] / "logs" / "proj" / "seat-1-current" / "stack.json"
+    return json.loads(link.read_text())
+
+
+def test_stop_stack_starts_runs_and_stops(where, maps_hub, launcher):
+    d = make(where)
+    cmd, calls = launcher
+    out = io.StringIO()
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--stop-stack",
+                     "--ready-timeout", "5"], out=out, stack_command=cmd) == 0
+    text = out.getvalue()
+    assert "stack    starting on seat 1" in text and text.splitlines()[1].startswith("passed")
+    assert "stopping the stack this run started" in text
+    # the stack as the user starts it: play_launch of swb.launch.xml, web UI on the seat's port
+    assert calls[0][:4] == ["play_launch", "launch", "--web-addr", "127.0.0.1:8090"]
+    assert calls[0][6:9] == ["swb_launch", "swb.launch.xml", f"project:={d}"]
+    assert "seat:=1" in calls[0] and f"logs:={where['tmp'] / 'logs'}" in calls[0]
+    rec = _stack_json(where)
+    assert rec["state"] == "stopped" and not run.stack_alive(rec)
+    console = next((where["tmp"] / "logs" / "proj" / "stack-launches").iterdir()) / "console.log"
+    assert console.is_file()
+
+
+def test_start_stack_leaves_it_up_and_reuses_a_live_one(where, maps_hub, launcher):
+    d = make(where)
+    cmd, calls = launcher
+    out = io.StringIO()
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack",
+                     "--ready-timeout", "5"], out=out, stack_command=cmd) == 0
+    m = re.search(r"left up \(pid (\d+), seat 1\); stop it with: kill -INT -(\d+)",
+                  out.getvalue())
+    assert m and m.group(1) == m.group(2)
+    pid = int(m.group(1))
+    try:
+        rec = _stack_json(where)
+        assert run.stack_alive(rec)
+        # the next --stop-stack uses it and leaves it: it did not start it
+        out = io.StringIO()
+        assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--stop-stack",
+                         "--ready-timeout", "5"], out=out, stack_command=cmd) == 0
+        assert len(calls) == 1 and "stack " not in out.getvalue()
+        assert run.stack_alive(_stack_json(where))
+    finally:
+        os.killpg(pid, signal.SIGINT)
+        deadline = time.time() + 20
+        while time.time() < deadline and run.stack_alive(_stack_json(where)):
+            time.sleep(0.05)
+    assert _stack_json(where)["state"] == "stopped"
+
+
+def test_a_started_stack_that_fails(where, maps_hub, launcher, capsys):
+    d = make(where)
+    refusing = lambda *a: [sys.executable, "-c",  # noqa: E731
+                           "print('swb: the stack is refused (3): project check found problems')"
+                           "; raise SystemExit(1)"]
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack"],
+                    stack_command=refusing) == 3
+    assert "project check found problems" in capsys.readouterr().err
+    dying = lambda *a: [sys.executable, "-c", "raise SystemExit(4)"]  # noqa: E731
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack"],
+                    stack_command=dying) == 2
+    assert "the stack ended (4) before it was ready" in capsys.readouterr().err
+    slow = lambda *a: [sys.executable, "-c", "import time; time.sleep(60)"]  # noqa: E731
+    t0 = time.time()
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack",
+                     "--stack-timeout", "1"], stack_command=slow) == 2
+    assert "not ready within 1 s" in capsys.readouterr().err and time.time() - t0 < 30
+
+
+def test_api_stack_block(where, maps_hub, launcher):
+    d = make(where)
+    cmd, _ = launcher
+    with api.stack(d, stack_command=cmd, out=io.StringIO()) as ctx:
+        assert ctx.started is not None and run.stack_alive(ctx.stack)
+        r = api.run_one(d, "scenarios/three_pilots.xosc",
+                        {"scenario_command": fake(where), "ready_timeout": 5})
+        assert r.verdict == "passed"
+    assert _stack_json(where)["state"] == "stopped"

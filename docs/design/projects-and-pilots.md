@@ -38,8 +38,8 @@ All in the ament_python package `swb`; the stack is a launch file in `swb_launch
 | `ros2 run swb project check [<dir>]` | validates the project against its scenarios and assets |
 | `ros2 run swb assets fetch\|list\|check` | assets into the cache, the lock, links into `assets/` |
 | `ros2 run swb seat take <n>\|auto`, `show`, `release`, `env <group>` | seats |
-| `play_launch launch swb_launch swb.launch.xml [project:=] [seat:=] ...` | the stack |
-| `ros2 run swb run <scenario.xosc\|suite.yaml> [--repeat N] [--shard i/n] [--resume] [--logs L]` | runs and suites against the stack |
+| `play_launch launch swb_launch swb.launch.xml [project:=] [seat:=] [simulator_start:=] ...` | the stack |
+| `ros2 run swb run <scenario.xosc\|suite.yaml> [--repeat N] [--shard i/n] [--resume] [--logs L] [--start-stack\|--stop-stack]` | runs and suites against the stack |
 | `ros2 run swb runs list\|show\|why\|prune\|summary` | results and logs |
 
 Exit codes (`run`, `project check`, `assets check`): 0 success, 1 a scenario failed or a
@@ -158,7 +158,8 @@ seat: 2                                  # or auto
 gpu: 0                                   # overrides the seat table's
 logs: ~/swb-logs                         # on a fast disk
 cache: ~/.cache/swb
-carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
+carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000,
+        start: auto, ready_timeout: 300}      # see The simulator, below
 isaac: {root: ~/isaac-sim}
 autoware: {setup: /opt/autoware/1.5.0/setup.bash}
 seats:                                   # the host's table (often in /etc/swb/host.yaml)
@@ -201,14 +202,47 @@ settings applied):
 2. runs `project check`; refuses (3) on a problem;
 3. sets `SWB_MAPS`, `SWB_CARLA_USD`, the DDS profile and the seat's numbers;
 4. starts the simulator side (on CARLA, CARLA itself when `carla.root` is set and nothing
-   serves `carla.port`; `simulator_start: external` never starts it), the bridge and the relay
-   in the scenario domain;
+   serves `carla.port`; below), the bridge and the relay in the scenario domain;
 5. starts pilots: `lifetime: stack` pilots for the stack's map (below), `lifetime: run` ones
    per run; each in its own domain;
 6. writes `<logs>/<project name>/stacks/<stack id>/stack.json`: the fingerprint (hashes of
    swb.yaml and swb.lock, the pilots, the workspace's build commits), the seat, the domains
    and ports, the pids, the maps, and `state: ready` once every stack pilot is ready; and
    links `<logs>/<project name>/seat-<n>-current` to it.
+
+### The simulator
+
+On CARLA, `simulator_start` decides whether the stack starts CARLA: the launch's
+`simulator_start:=`, else the host settings' `carla.start`, else `auto` (`swb.simulator`).
+The plan decides, before anything starts:
+
+| `simulator_start` | Nothing on `carla.host:carla.port` | CARLA answers there | Something else answers |
+|---|---|---|---|
+| `auto` | started, when `carla.root` is set and the host is this one; else external | external | refused (3) |
+| `start` | started (refused without `carla.root`, its `CarlaUE4.sh`, or on another host) | refused (3) | refused (3) |
+| `external` | external | external | external |
+
+"Answers" is one msgpack-rpc call, `version`, over a plain socket (what
+`carla.Client.get_server_version` sends): no carla module, nothing changed on the server.
+`external` and `auto` without a root probe nothing.
+
+A started CARLA is the keeper's child: `CarlaUE4.sh -carla-rpc-port=<port> -nosound
+-RenderOffScreen -quality-level=Epic` in `carla.root`, in its own session, `VK_ICD_FILENAMES`
+pinned to the NVIDIA ICD when unset, its output in `proc/simulator/carla.log` (so runs slice
+it). The keeper waits for its RPC (`carla.ready_timeout`, 300 s) before it starts pilots or
+calls the stack ready; a CARLA that ends first, or does not serve in time, fails the stack
+(the keeper exits 2, the launch with it). One that dies after it was ready is started again
+5 s later, and the stack is `starting` until it serves. The keeper stops it on its way out:
+SIGINT, SIGTERM, then SIGKILL to its process group, by pid. An external CARLA is never
+started or stopped. Quality is Epic, never Low: Low crashes on a town change.
+
+stack.json records `simulator_start` (`started`, `external`, or `world_server` on Isaac,
+whose world server starts Isaac) and, on CARLA, `carla` (mode, host, port, pid, log, state,
+version, restarts, error).
+
+A keeper killed with SIGKILL leaves a CARLA it started running (the launcher runs the engine
+as its child, which does not inherit the keeper's death signal); the next stack then finds it
+answering and uses it as external.
 
 ### Maps and the keeper
 
@@ -237,6 +271,15 @@ another map means a pilot restart with another `map_path`.
   Initialize (which ends the CARLA vehicle stacks once more; the keeper respawns them, and
   SSv2 waits for the ego's agent). A file, not a socket: the keeper already polls, a request
   survives a slow keeper, and stack.json stays the one record a run reads.
+- **The town is not loaded before the pilots restart.** Only the world server's owner (the
+  bridge) may send `LoadWorld`, and neither the bridge nor the world server offers another
+  way in: the bridge's services are the weather's, and a probe `Hello` changes nothing. So a
+  switch costs one extra episode on CARLA: the pilots start on the old town and end at the
+  load. The clean way is a bridge service (`~/load_map`, a new `swb_interfaces` service,
+  sent to the bridge's world thread as `set_weather` is, and answered after its `LoadWorld`),
+  which needs no protocol change; the keeper would call it before it starts the pilots, and
+  SSv2's Initialize then finds the town loaded (the CARLA world server does not reload a
+  loaded town, so the episode stays).
 - **What is refused (3)**: a map that is not fetched, one not among the stack's maps, another
   map on Isaac. A switch the keeper could not do, or did not answer, is the run's `error`.
 
@@ -264,6 +307,25 @@ A run on the stack's current map restarts nothing.
    host takes the same share.
 
 `swb.api.run_one(project, scenario, overrides) -> RunResult` does step 3 from Python.
+
+**A stack for the runs.** `--start-stack` starts the project's stack when none is up (step 1
+finds none): play_launch of `swb_launch swb.launch.xml project:=<dir> seat:=<n> logs:=<root>`,
+on the first free seat, web UI on its port, in its own session, its console in
+`<logs>/<project>/stack-launches/<time>/`; the runner waits for it to be ready
+(`--stack-timeout`, else `--wait` when given, else 1800 s: a first Autoware start can build
+TensorRT engines for minutes), runs, and leaves it up, printing how to stop it. `--stop-stack`
+does the same and stops the stack it started after the runs, whatever their verdict (SIGINT
+to its process group, then SIGTERM and SIGKILL; the keeper stops the pilots and a CARLA it
+started on the way out), which is the old `just e2e`. A stack that was up already is used and
+never stopped; one whose fingerprint differs is refused, as always, not replaced. A started
+stack that the launch refuses is refused (3); one that ends or times out before it is ready
+is an error (2), and the runner stops it. From Python: `run_one(..., {"start_stack": True})`
+starts and keeps one; `with swb.api.stack(project) as ctx:` holds one for a block and stops
+it at the end if the block started it.
+
+Two flags, not a launch argument (`end_with:=run`): the runner knows when the runs are over
+and whether it started the stack; the launch knows neither, and a stack that ends with one
+run cannot serve a suite or a second `run`.
 
 ### Suites
 

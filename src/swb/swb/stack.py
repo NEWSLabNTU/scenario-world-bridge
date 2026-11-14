@@ -32,8 +32,12 @@ in stack.json (``map``, ``map_path``, the pilots' contract), starts them again w
 error}``). The run then waits for its pilots' readiness as every run does; the world server
 loads the town on SSv2's Initialize.
 
-Not in this step: the simulator's own start (``simulator_start``: CARLA is external, as
-before; Isaac's world server is part of the stack), ``end_with:=run``.
+The simulator (swb.simulator): on CARLA, ``simulator_start`` (``auto``, ``start``,
+``external``) decides at the plan whether the stack starts CARLA itself; a started CARLA is
+the keeper's child, waited for (its RPC) before the pilots start and the stack is ready, and
+stopped with the stack. An external CARLA is never started or stopped. On Isaac the world
+server starts Isaac. stack.json records which (``simulator_start``: ``started``,
+``external``, ``world_server``; ``carla``: the details).
 """
 import argparse
 import ctypes
@@ -51,6 +55,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from swb import config, ground as groundmod, project as projectmod, results, seat as seatmod
+from swb import simulator as simmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
@@ -449,7 +454,8 @@ def current_link(logs: str, name: str, index: int) -> Path:
 
 
 def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=None, gpu=None,
-         stack_args=None, check=projectmod.check_project, now=None) -> Plan:
+         stack_args=None, check=projectmod.check_project, now=None, simulator_start=None,
+         probe=simmod.probe) -> Plan:
     """Everything the stack is, before anything starts; StackRefused says why it must not."""
     try:
         project = config.find_project(project_arg or None)
@@ -477,6 +483,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     sim = simulator or psettings.get("simulator")
     if sim not in projectmod.SIMULATORS:
         raise StackRefused(f"simulator {sim!r}: this stack starts carla or isaac")
+    if simulator_start not in (None, "") and simulator_start not in simmod.MODES:
+        raise StackRefused(f"simulator_start {simulator_start!r}: one of "
+                           + ", ".join(simmod.MODES))
 
     try:
         source = seatmod.seats_source(project)
@@ -529,6 +538,12 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     vehicle = next((b.spec.get("vehicle") for b in bound if b.spec.get("vehicle")),
                    DEFAULT_VEHICLE)
     carla = host.get("carla") or {}
+    carla_run = None
+    if sim == "carla":
+        try:
+            carla_run = simmod.decide(carla, simulator_start or None, probe)
+        except simmod.SimulatorRefused as e:
+            raise StackRefused(str(e)) from None
     args = {
         "sim": sim,
         "ego_launch": "none",
@@ -589,6 +604,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "map": chosen,
         "map_path": str(map_path) if map_path else None,
         "maps": maps,
+        "simulator_start": carla_run["owner"] if carla_run else simmod.WORLD_SERVER,
+        "carla": carla_run,
         "switch": None,
         "fingerprint": fingerprint(project, psettings),
         "seat": numbers,
@@ -935,12 +952,48 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
           f"web UI: pass --web-addr 127.0.0.1:{s.web_port}; pilots on "
           f"{rec.get('map') or 'the first run' + chr(39) + 's map'}", flush=True)
     pilots = Pilots(stack_dir, pilot_command, respawn_delay)
+    carla = None
+    code = 0
     try:
-        if rec.get("map"):
-            pilots.start_all(rec)
+        if rec.get("simulator_start") == simmod.STARTED:
+            carla = simmod.Carla(rec["carla"], rec["proc"], respawn_delay=respawn_delay,
+                                 events=lambda n, **kw: event(stack_dir, n, **kw))
+            c = rec["carla"]
+            # the plan saw the port free; something may have taken it since
+            taken, _v = simmod.probe(c["host"], c["port"])
+            if taken != simmod.FREE:
+                c.update(state=simmod.FAILED, error=f"{c['host']}:{c['port']} was taken after "
+                         "the plan (another CARLA?); restart the stack")
+                carla = None
+            else:
+                carla.start()
+                print(f"swb stack: CARLA started on {c['host']}:{c['port']} (pid {c['pid']}, "
+                      f"log {c['log']}); waiting for its RPC, up to {c['ready_timeout']:.0f} s",
+                      flush=True)
             write_json(path, rec)
+        pilots_on = False
         next_check = 0.0
         while not stop["now"]:
+            if carla is not None and carla.poll():
+                write_json(path, rec)
+                if carla.ready:
+                    print(f"swb stack: CARLA serves RPC ({rec['carla'].get('version')})",
+                          flush=True)
+            c = rec.get("carla") or {}
+            if rec.get("simulator_start") == simmod.STARTED and c.get("state") == simmod.FAILED:
+                rec["error"] = c.get("error")
+                print(f"swb stack: {c.get('error')}", file=sys.stderr, flush=True)
+                code = 2
+                break
+            sim_ready = carla is None or carla.ready
+            if not sim_ready and rec.get("state") == READY:
+                rec["state"] = STARTING   # a started CARLA died; respawned, waited for again
+                write_json(path, rec)
+            if not pilots_on and sim_ready:
+                pilots_on = True
+                if rec.get("map") and not pilots.procs:
+                    pilots.start_all(rec)
+                    write_json(path, rec)
             req = read_request(stack_dir)
             if req is not None and req["id"] != (rec.get("switch") or {}).get("id"):
                 switch_map(stack_dir, rec, req, pilots)
@@ -948,7 +1001,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
             if pilots.supervise(rec):
                 write_json(path, rec)
             waiting = _waiting(rec)
-            if waiting and time.time() >= next_check:
+            if waiting and pilots_on and time.time() >= next_check:
                 for p in waiting:
                     if stop["now"]:
                         break
@@ -960,7 +1013,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                 write_json(path, rec)
                 next_check = time.time() + poll
                 waiting = _waiting(rec)
-            if not waiting and rec.get("state") != READY:
+            if not waiting and sim_ready and rec.get("state") != READY:
                 rec["state"] = READY
                 rec["ready_at"] = iso_now()
                 write_json(path, rec)
@@ -971,7 +1024,10 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
             time.sleep(0.1)
     finally:
         pilots.stop_all(rec)
-        if not once:
+        if carla is not None:
+            carla.stop()   # the stack's own CARLA only; an external one is never touched
+            write_json(path, rec)
+        if not once or code:
             rec["state"] = STOPPED
             rec["stopped"] = iso_now()
             write_json(path, rec)
@@ -979,7 +1035,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
         lock.release()
         for sig, h in previous.items():
             signal.signal(sig, h)
-    return 0
+    return code
 
 
 def main(argv=None) -> int:

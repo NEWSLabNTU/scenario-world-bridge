@@ -150,7 +150,8 @@ play_launch launch swb_launch swb.launch.xml           # the stack: stays up
   world load ends a vehicle side by design).
 - It records a **fingerprint** (the project file and lock, the pilots, the build's commits);
   runs refuse a stack whose fingerprint differs from their project's, saying what differs.
-- `end_with:=run` makes it one-shot (scripts, CI): start, one run or suite, stop.
+- One-shot (scripts, CI): `ros2 run swb run <x> --stop-stack` starts a stack when none is up,
+  runs one scenario or suite, and stops it; `--start-stack` leaves it up.
 
 ### A4. Runs, suites, and the primitive under them
 
@@ -413,8 +414,8 @@ sharing a project.
 4. [ ] A6: seats (the table, the lock, `seat show`); the stack's processes take their numbers.
 5. [ ] A5: the vehicle side split from the driver; the pilot contract; kinds `autoware`,
    `carla_basic`, `launch`, `command`, `none` (`simple` with 070 D, `container` later).
-6. [ ] A3, A4: `swb.launch.xml` as the stack (fingerprint, lazy pilots, `end_with:=run`);
-   `ros2 run swb run` for runs and suites; `run_one`.
+6. [x] A3, A4: `swb.launch.xml` as the stack (fingerprint, lazy pilots, `simulator_start`);
+   `ros2 run swb run` for runs and suites (`--start-stack`, `--stop-stack`); `run_one`.
 7. [ ] A8, A8b: `result.json` schema with provenance, `resolved.yaml`, summaries, judges; per-run
    log slices, the timeline, levels, keep by verdict, budgets, `runs show|why|prune`.
 8. [ ] A9: signal table on first load, `make_world`, the surfaces map, the rough road in the
@@ -489,6 +490,36 @@ sharing a project.
   - Not yet: loading the new town before the pilots restart (the world server loads it on
     SSv2's Initialize, so CARLA's vehicle stacks start once on the old town and once more on
     the new).
+- Step 6 remainder (2026-11-15): `simulator_start`, the runner's own stack, and the town
+  before a switch. Tests without a simulator: a fake `CarlaUE4.sh` (a shell launcher with a
+  Python child answering msgpack-rpc `version`), a fake swb.launch.xml running the real
+  keeper. No real CARLA was started. Rulings:
+  - **`simulator_start:=auto|start|external`** is its own launch argument (`simulator:=` is
+    already carla or isaac), defaulting to the host settings' `carla.start` (`auto`). The plan
+    decides, so a refusal comes before anything starts: `auto` starts CARLA when `carla.root`
+    is set, `carla.host` is this host and nothing answers on `carla.port`, and uses a CARLA
+    that answers; `start` refuses a held port; a port held by something that is not CARLA's
+    RPC server is refused in both. `external`, and `auto` without a root, probe nothing.
+  - **The keeper owns a started CARLA**, not the launch: it already outlives the launch's
+    parse, holds the seat and runs the pilots, and it can hold them back until CARLA serves.
+    It waits for the RPC (`carla.ready_timeout`, 300 s; a failure is exit 2, the stack
+    stopped), restarts a CARLA that dies after it was ready, and stops it by process group on
+    the way out. The seat table gives CARLA no port: `carla.port` of the host settings is
+    the one, and two seats on one host share one CARLA or set `carla.port` apart in
+    `.swb/local.yaml`.
+  - **`--start-stack` and `--stop-stack` on `ros2 run swb run`**, not `end_with:=run` on the
+    launch: the runner knows when its runs are over and whether it started the stack.
+    `--stop-stack` implies starting one; a stack already up is never stopped. `swb.api`:
+    `run_one(..., {"start_stack": True})` and `with swb.api.stack(project):`.
+  - **No town preload yet.** `LoadWorld` is the owner's (the bridge's) alone; the world
+    protocol has no other way in (a probe `Hello` changes nothing) and the bridge's ROS
+    services are the weather's. A clean path needs no protocol change: a bridge service
+    (`~/load_map`, a new `swb_interfaces` service handed to the world thread as `set_weather`
+    is) that the keeper calls before restarting the pilots, after which SSv2's Initialize
+    finds the town loaded (the CARLA world server skips a loaded town, so the episode stays).
+    It needs a new interface package entry and a Rust build, so it is left for a step that
+    builds; until then a switch on CARLA costs one extra episode (the pilots start on the old
+    town and end at the load).
 - Step 9 preparation (2026-11-15): the working examples in `src/swb_examples/projects/`
   (`first_drive`, `multi_pilot`, `safety_suite`, `isaac_first_drive`, `road_physics`),
   installed to swb_examples' share and copied with `project new <dir> --from

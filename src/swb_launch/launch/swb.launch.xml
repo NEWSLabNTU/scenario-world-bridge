@@ -4,8 +4,12 @@
   stack.launch.py. Run it in the project's directory:
 
     play_launch launch swb_launch swb.launch.xml [project:=<dir>|pkg://<package>] \
-        [seat:=<n>|auto] [simulator:=carla|isaac] [map:=<map>] [logs:=<dir>] [gpu:=<n>] \
-        [stack_args:='name:=value ...']
+        [seat:=<n>|auto] [simulator:=carla|isaac] [simulator_start:=auto|start|external] \
+        [map:=<map>] [logs:=<dir>] [gpu:=<n>] [stack_args:='name:=value ...']
+
+  On CARLA the stack starts CARLA itself (carla.root of the host settings) when nothing
+  answers on its port (simulator_start auto, the default), always (start), or never
+  (external); a CARLA it started is stopped with it.
 
   play_launch's web UI and log directory are its own options (web-addr and log-dir, each
   with a double-hyphen prefix, which an XML comment cannot contain): give web-addr the
@@ -16,6 +20,7 @@
   <arg name="project" default="" description="the project: a directory or pkg://&lt;package&gt;; empty: the working directory's"/>
   <arg name="seat" default="" description="a seat number or auto; empty: the host settings' seat:"/>
   <arg name="simulator" default="" description="carla or isaac; empty: the project's simulator:"/>
+  <arg name="simulator_start" default="" description="auto, start or external: whether the stack starts CARLA itself; empty: the host settings' carla.start (auto)"/>
   <arg name="map" default="" description="the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"/>
   <arg name="logs" default="" description="the log root; empty: the host settings' logs:"/>
   <arg name="gpu" default="" description="the GPU index; empty: the seat's"/>
@@ -25,6 +30,7 @@
     <arg name="project" value="$(var project)"/>
     <arg name="seat" value="$(var seat)"/>
     <arg name="simulator" value="$(var simulator)"/>
+    <arg name="simulator_start" value="$(var simulator_start)"/>
     <arg name="map" value="$(var map)"/>
     <arg name="logs" value="$(var logs)"/>
     <arg name="gpu" value="$(var gpu)"/>

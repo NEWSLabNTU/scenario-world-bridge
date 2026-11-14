@@ -1,0 +1,305 @@
+"""The simulator under a stack: CARLA started by the stack, or one running already.
+
+docs/design/projects-and-pilots.md, "The stack". On CARLA ``simulator_start`` (the launch's
+``simulator_start:=``, else the host settings' ``carla.start``, else ``auto``) decides:
+
+- ``external``: never start CARLA, never stop it; the stack uses whatever serves
+  ``carla.host:carla.port`` (the world server waits for it, as before).
+- ``start``: start CARLA from ``carla.root``; refused when something already holds the port
+  (a second CARLA on a held port crashes), when ``carla.root`` has no ``CarlaUE4.sh``, or
+  when ``carla.host`` is not this host.
+- ``auto``: ``start`` when ``carla.root`` is set, ``carla.host`` is this host and nothing
+  answers on the port; else ``external``. A port that answers, but not as CARLA's RPC
+  server, is refused either way.
+
+"Answers as CARLA" is one msgpack-rpc call, ``version`` (what ``carla.Client.
+get_server_version`` sends), over a plain socket: no carla module, nothing changed on the
+server, no tick.
+
+A started CARLA is the stack's: the keeper (swb.stack) starts it in its own session
+(``CarlaUE4.sh -carla-rpc-port=<port> -nosound -RenderOffScreen -quality-level=Epic``,
+``VK_ICD_FILENAMES`` pinned to the NVIDIA ICD when unset), logs it to
+``<stack>/proc/simulator/carla.log``, waits for its RPC (``carla.ready_timeout``, 300 s)
+before it starts pilots or calls the stack ready, starts it again when it dies after it was
+ready, and stops its process group on the way out (SIGINT, SIGTERM, SIGKILL; by pid, never by
+name). On Isaac the world server starts Isaac itself; the stack only records that.
+"""
+import os
+import shlex
+import signal
+import socket
+import subprocess
+import time
+from pathlib import Path
+
+MODES = ("auto", "start", "external")
+STARTED, EXTERNAL, WORLD_SERVER = "started", "external", "world_server"
+STARTING, READY, FAILED, STOPPED = "starting", "ready", "failed", "stopped"
+FREE, CARLA, OTHER = "free", "carla", "other"
+LAUNCHER = "CarlaUE4.sh"
+NVIDIA_ICD = "/usr/share/vulkan/icd.d/nvidia_icd.json"
+DEFAULT_READY_TIMEOUT = 300.0
+QUALITY = "Epic"   # Low segfaults on a town change (CLAUDE.md, carla-simulator/carla#4940)
+RESPAWN_DELAY = 5.0
+PROBE_EVERY = 1.0
+LOG = Path("simulator") / "carla.log"
+
+# msgpack-rpc request [0, 1, "version", []]
+_VERSION_REQUEST = bytes([0x94, 0x00, 0x01, 0xa7]) + b"version" + bytes([0x90])
+
+
+class SimulatorRefused(RuntimeError):
+    """The simulator cannot be started or used as asked; the message says why."""
+
+
+def probe(host, port, timeout=3.0):
+    """``(FREE | CARLA | OTHER, version or None)`` for ``host:port``."""
+    try:
+        s = socket.create_connection((host, int(port)), timeout=timeout)
+    except socket.timeout:
+        return OTHER, None       # something swallows the connection: not ours to start over
+    except OSError:
+        return FREE, None        # refused, unreachable: nothing answers
+    try:
+        s.settimeout(timeout)
+        s.sendall(_VERSION_REQUEST)
+        data = b""
+        while len(data) < 4:
+            chunk = s.recv(256)
+            if not chunk:
+                break
+            data += chunk
+        # a reply [1, 1, error, result]: fixarray 4, type 1, msgid 1
+        if len(data) >= 3 and data[0] == 0x94 and data[1] == 0x01 and data[2] == 0x01:
+            if len(data) < 16:
+                try:
+                    data += s.recv(256)
+                except OSError:
+                    pass
+            return CARLA, _version(data)
+        return OTHER, None
+    except OSError:
+        return OTHER, None
+    finally:
+        s.close()
+
+
+def _version(data: bytes):
+    """The result string of a msgpack-rpc reply whose error is nil, else None."""
+    if len(data) < 5 or data[3] != 0xc0:
+        return None
+    b, rest = data[4], data[5:]
+    if 0xa0 <= b <= 0xbf:
+        n = b & 0x1f
+    elif b == 0xd9 and rest:
+        n, rest = rest[0], rest[1:]
+    else:
+        return None
+    return rest[:n].decode("utf-8", "replace") if len(rest) >= n else None
+
+
+def is_local(host) -> bool:
+    host = str(host or "localhost")
+    if host in ("localhost", "::1", socket.gethostname(), socket.getfqdn()) \
+            or host.startswith("127."):
+        return True
+    try:
+        addr = socket.gethostbyname(host)
+    except OSError:
+        return False
+    return addr.startswith("127.")
+
+
+def launcher(root) -> Path:
+    return Path(str(root)).expanduser() / LAUNCHER
+
+
+def carla_argv(root, port, quality=QUALITY) -> list:
+    return [str(launcher(root)), f"-carla-rpc-port={int(port)}", "-nosound", "-RenderOffScreen",
+            f"-quality-level={quality}"]
+
+
+def carla_env(base=None) -> dict:
+    env = dict(os.environ if base is None else base)
+    if not env.get("VK_ICD_FILENAMES") and os.path.isfile(NVIDIA_ICD):
+        env["VK_ICD_FILENAMES"] = NVIDIA_ICD
+    return env
+
+
+def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
+    """The stack's CARLA as stack.json records it (``carla``), or SimulatorRefused.
+
+    ``owner`` is ``started`` (the stack starts it) or ``external``."""
+    carla = dict(carla or {})
+    mode = (mode or carla.get("start") or "auto")
+    if mode not in MODES:
+        raise SimulatorRefused(f"simulator_start {mode!r}: one of {', '.join(MODES)}")
+    host = str(carla.get("host") or "localhost")
+    port = int(carla.get("port") or 2000)
+    root = str(carla.get("root") or "")
+    try:
+        ready_timeout = float(carla.get("ready_timeout") or DEFAULT_READY_TIMEOUT)
+    except (TypeError, ValueError):
+        raise SimulatorRefused(f"carla.ready_timeout {carla.get('ready_timeout')!r}: "
+                               "seconds") from None
+    out = {"mode": mode, "owner": EXTERNAL, "host": host, "port": port, "root": root or None,
+           "ready_timeout": ready_timeout, "version": None, "state": None, "pid": None,
+           "log": None, "argv": None, "started_at": None, "ready_at": None, "restarts": 0,
+           "error": None}
+    if mode == "external":
+        return out
+    wants = mode == "start" or (root and is_local(host))
+    if not wants:
+        return out       # auto without a root, or a remote CARLA: whatever serves there
+    state, version = probe_fn(host, port)
+    where = f"{host}:{port}"
+    if state == OTHER:
+        raise SimulatorRefused(
+            f"{where} is taken by something that is not CARLA's RPC server; free it, or set "
+            "carla.port (host settings) to CARLA's")
+    if state == CARLA:
+        if mode == "start":
+            raise SimulatorRefused(
+                f"CARLA {version or ''} already serves {where}; simulator_start:=external (or "
+                "auto) uses it, a second CARLA on a held port crashes".replace("  ", " "))
+        out["version"] = version
+        return out
+    if not is_local(host):
+        raise SimulatorRefused(f"simulator_start:=start but carla.host {host} is not this "
+                               "host: start CARLA there, or set carla.host: localhost")
+    if not root:
+        raise SimulatorRefused("simulator_start:=start but carla.root is not set (host "
+                               "settings: carla: {root: <CARLA_0.9.16 directory>})")
+    if not launcher(root).is_file():
+        raise SimulatorRefused(f"carla.root {root}: no {LAUNCHER} there")
+    out.update(owner=STARTED, argv=carla_argv(root, port))
+    return out
+
+
+class Carla:
+    """A CARLA the stack started: its process, readiness, respawn and stop.
+
+    ``rec`` is stack.json's ``carla`` block; it is updated in place."""
+
+    def __init__(self, rec: dict, proc_dir, probe_fn=probe, start=None, events=None,
+                 respawn_delay=RESPAWN_DELAY):
+        self.rec = rec
+        self.proc_dir = Path(proc_dir)
+        self.probe = probe_fn
+        self._start_process = start
+        self.events = events or (lambda name, **kw: None)
+        self.respawn_delay = respawn_delay
+        self.proc = None
+        self.t_start = None
+        self.next_probe = 0.0
+        self.due = None
+
+    @property
+    def ready(self) -> bool:
+        return self.rec.get("state") == READY
+
+    @property
+    def failed(self) -> bool:
+        return self.rec.get("state") == FAILED
+
+    def start(self):
+        log = self.proc_dir / LOG
+        log.parent.mkdir(parents=True, exist_ok=True)
+        argv = list(self.rec.get("argv") or carla_argv(self.rec["root"], self.rec["port"]))
+        root = launcher(self.rec["root"]).parent if self.rec.get("root") else None
+        with open(log, "ab") as fh:
+            fh.write(f"# swb stack: {shlex.join(argv)}\n".encode())
+        if self._start_process is not None:
+            self.proc = self._start_process(argv, carla_env(), log, root)
+        else:
+            fh = open(log, "ab")
+            try:
+                self.proc = subprocess.Popen(argv, env=carla_env(), stdout=fh,
+                                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                             cwd=str(root) if root else None,
+                                             start_new_session=True)
+            finally:
+                fh.close()
+        self.t_start = time.time()
+        self.next_probe = 0.0
+        self.due = None
+        self.rec.update(state=STARTING, pid=self.proc.pid, log=str(log),
+                        started_at=_iso(), ready_at=None, error=None)
+        self.events("carla.start", pid=self.proc.pid, port=self.rec["port"])
+
+    def poll(self) -> bool:
+        """Readiness, death and respawn; True when ``rec`` changed."""
+        now = time.time()
+        if self.due is not None:
+            if now < self.due:
+                return False
+            self.start()
+            return True
+        if self.proc is None or self.failed:
+            return False
+        code = self.proc.poll()
+        if code is not None:
+            _kill_group(self.proc.pid, signal.SIGKILL)  # what the launcher left of it
+            if self.rec.get("state") == READY:
+                self.rec.update(state=STARTING, pid=None, ready_at=None,
+                                restarts=int(self.rec.get("restarts") or 0) + 1)
+                self.events("carla.exit", code=code)
+                self.due = now + self.respawn_delay
+                self.proc = None
+                return True
+            self.rec.update(state=FAILED, pid=None,
+                            error=f"CARLA exited ({code}) before it served RPC on "
+                                  f"{self.rec['host']}:{self.rec['port']}; see {self.rec['log']}")
+            self.events("carla.failed", code=code)
+            self.proc = None
+            return True
+        if self.rec.get("state") == STARTING and now >= self.next_probe:
+            self.next_probe = now + PROBE_EVERY
+            state, version = self.probe(self.rec["host"], self.rec["port"])
+            if state == CARLA:
+                self.rec.update(state=READY, ready_at=_iso(), version=version,
+                                ready_after_s=round(now - self.t_start, 1))
+                self.events("carla.ready", after_s=round(now - self.t_start, 1))
+                return True
+            if now - self.t_start >= float(self.rec.get("ready_timeout")
+                                           or DEFAULT_READY_TIMEOUT):
+                self.stop()
+                self.rec.update(state=FAILED,
+                                error=f"CARLA did not serve RPC on {self.rec['host']}:"
+                                      f"{self.rec['port']} within "
+                                      f"{float(self.rec['ready_timeout']):.0f} s "
+                                      "(carla.ready_timeout); see " + str(self.rec['log']))
+                self.events("carla.failed", error="ready timeout")
+                return True
+        return False
+
+    def stop(self, grace=20.0):
+        """Its process group: SIGINT, SIGTERM, SIGKILL; the pid it started, nothing else."""
+        self.due = None
+        proc, self.proc = self.proc, None
+        if proc is None:
+            return
+        live = proc.poll() is None
+        for sig, wait in ((signal.SIGINT, grace), (signal.SIGTERM, 10.0), (signal.SIGKILL, 5.0)):
+            if not live:
+                break
+            _kill_group(proc.pid, sig)
+            deadline = time.time() + wait
+            while time.time() < deadline and proc.poll() is None:
+                time.sleep(0.05)
+            live = proc.poll() is None
+        _kill_group(proc.pid, signal.SIGKILL)  # the Shipping binary under the launcher's shell
+        self.rec.update(state=STOPPED, pid=None)
+        self.events("carla.stop", pid=proc.pid)
+
+
+def _kill_group(pgid, sig):
+    try:
+        os.killpg(pgid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _iso():
+    import datetime
+    return datetime.datetime.now().astimezone().isoformat(timespec="seconds")

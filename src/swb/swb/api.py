@@ -12,26 +12,45 @@ stopped, unready or different stack, and returns the run's ``RunResult`` (also w
 ``overrides``: ``parameters`` (name -> value), ``repetition``, ``seed``, ``pilot_args``
 (entity -> launch arguments for its ``lifetime: run`` pilot), ``logging`` (``capture``,
 ``keep``), ``timeout`` (SSv2's global_timeout, s), ``seat``, ``logs``, ``wait`` (s to wait for
-the stack to be ready), ``ready_timeout``, ``expect``; and for tests ``scenario_command`` /
-``pilot_command`` (callables returning the argv to start instead of play_launch).
+the stack to be ready), ``ready_timeout``, ``expect``, ``start_stack`` (true: start the
+project's stack when none is up, as ``--start-stack``, and leave it up), ``stack_timeout``;
+and for tests ``scenario_command`` / ``pilot_command`` / ``stack_command`` (callables
+returning the argv to start instead of play_launch).
+
+A search that wants a stack only for its own lifetime holds one with ``stack()``:
+
+    with stack("~/my_project") as s:      # started when none is up
+        for x in candidates:
+            run_one(s.project, "scenarios/cut_in.xosc", {"parameters": x})
+    # stopped here if this block started it (as --stop-stack), else left as it was
 """
+import contextlib
 from pathlib import Path
 
 from swb import run as runmod
 from swb.results import RunResult  # noqa: F401  (the return type)
-from swb.run import Refused  # noqa: F401
+from swb.run import Refused, StackFailed  # noqa: F401
 
 SPEC_KEYS = ("parameters", "repetition", "seed", "pilot_args", "logging", "timeout", "expect")
 CONTEXT_KEYS = ("ready_timeout", "scenario_command", "pilot_command", "workspace", "out")
+STACK_KEYS = ("start_stack", "stack_command", "stack_timeout")
+
+
+def _context(project, o):
+    return runmod.context(str(Path(project).expanduser()), o.get("seat"), o.get("logs"),
+                          o.get("wait") or 0.0, start=bool(o.get("start_stack")),
+                          stack_command=o.get("stack_command"),
+                          stack_timeout=o.get("stack_timeout"),
+                          **{k: o[k] for k in CONTEXT_KEYS if k in o})
 
 
 def run_one(project, scenario, overrides=None) -> RunResult:
     o = dict(overrides or {})
-    unknown = [k for k in o if k not in SPEC_KEYS + CONTEXT_KEYS + ("seat", "logs", "wait")]
+    unknown = [k for k in o
+               if k not in SPEC_KEYS + CONTEXT_KEYS + STACK_KEYS + ("seat", "logs", "wait")]
     if unknown:
         raise ValueError(f"run_one: unknown override {unknown[0]!r}")
-    ctx = runmod.context(str(Path(project).expanduser()), o.get("seat"), o.get("logs"),
-                         o.get("wait") or 0.0, **{k: o[k] for k in CONTEXT_KEYS if k in o})
+    ctx = _context(project, o)
     path = Path(scenario).expanduser()
     if not path.is_absolute():
         path = (ctx.project / path).resolve()
@@ -41,3 +60,16 @@ def run_one(project, scenario, overrides=None) -> RunResult:
                           o.get("seed"), o.get("expect"), o.get("pilot_args") or {},
                           o.get("logging") or {}, timeout=o.get("timeout"))
     return runmod.run_spec(ctx, spec)
+
+
+@contextlib.contextmanager
+def stack(project, seat=None, logs=None, timeout=None, stack_command=None, out=None):
+    """The project's stack for the block: the live one, else one started for it and stopped
+    when the block ends. Yields the run Context (``.project``, ``.stack``, ``.started``)."""
+    ctx = runmod.context(str(Path(project).expanduser()), seat, logs, 0.0, start=True,
+                         stack_command=stack_command, stack_timeout=timeout, out=out)
+    try:
+        yield ctx
+    finally:
+        if ctx.started is not None:
+            ctx.started.stop()

@@ -14,7 +14,8 @@ The shortcuts for the supported simulators, isaac.launch.xml and carla.launch.xm
 Groups and their ROS domains:
 - sim (ego domain): the world server.
   - isaac: swb_isaac_world.launch.xml.
-  - carla: swb_carla_world.launch.xml; CARLA itself runs apart (CarlaUE4.sh).
+  - carla: swb_carla_world.launch.xml; CARLA itself runs apart (CarlaUE4.sh), or, under
+    swb.launch.xml, is started by its keeper (swb.simulator, `simulator_start`).
   - <package>: that package's launch/world.launch.xml, which starts a world server speaking
     swb_world.proto (docs/design/simulator-interface-split.md; swb_world_check conformance)
     on `world_endpoint`.

@@ -26,6 +26,13 @@ for its ``lifetime: run`` pilot), ``logging``. A suite's runs are linked from
 ``<logs>/<project>/suites/<suite>[_shard-i-of-n]/``, which gets ``summary.csv`` and a merged
 ``junit.xml``; ``--resume`` skips the runs linked there with a result.
 
+``--start-stack``: when the project has no live stack, the runner starts one (play_launch of
+``swb_launch swb.launch.xml`` for the project, on the first free seat, in its own session,
+its console under ``<logs>/<project>/stack-launches/``), waits for it to be ready, and
+leaves it up after the runs. ``--stop-stack``: the same, and the stack it started is stopped
+after the runs (SIGINT to its process group, then SIGTERM, SIGKILL). A stack already up is
+used and never stopped; one that differs from the project is refused, never replaced.
+
 Exit codes: 0 every run as expected (passed, or the suite's ``expect``), 1 a scenario failed,
 2 an infrastructure error, 3 refused.
 """
@@ -60,6 +67,14 @@ DEFAULT_LOGGING = {"capture": "standard", "keep": {"passed": "result", "failed":
 
 class Refused(Exception):
     pass
+
+
+class NoStack(Refused):
+    """No live stack of the project (``--start-stack`` starts one)."""
+
+
+class StackFailed(Exception):
+    """A stack the runner started did not come up (an infrastructure error, exit 2)."""
 
 
 # --- run specs ------------------------------------------------------------------------------
@@ -242,11 +257,12 @@ def find_stack(project: Path, host: dict) -> dict:
     if not live:
         where = f"seat {choice}" if choice not in (None, "auto") else "any seat"
         hint = ("start it: cd " + str(project) + " && play_launch launch swb_launch swb.launch.xml")
+        hint += " (or give --start-stack)"
         if seen:
             r = seen[0]
-            raise Refused(f"the stack {r.get('stack_id')} on seat {r['seat']['seat']} is not "
+            raise NoStack(f"the stack {r.get('stack_id')} on seat {r['seat']['seat']} is not "
                           f"running (state {r.get('state')}); {hint}")
-        raise Refused(f"no stack of project {name} on {where} ({root}); {hint}")
+        raise NoStack(f"no stack of project {name} on {where} ({root}); {hint}")
     if len(live) > 1:
         raise Refused("stacks of this project on seats "
                       + ", ".join(str(r["seat"]["seat"]) for r in live)
@@ -282,6 +298,98 @@ def check_stack(rec: dict, project: Path, wait: float = 0.0, reread=None) -> dic
         rec = (reread or (lambda r: stackmod.read_json(
             Path(r["proc"]).parent / stackmod.STACK_JSON)))(rec)
     return rec
+
+
+# --- a stack the runner starts (--start-stack, --stop-stack) --------------------------------
+
+STACK_START_TIMEOUT = 1800.0   # a first Autoware start may build TensorRT engines for minutes
+STACK_STOP_GRACE = 120.0       # SIGINT to the launch; the keeper stops pilots and CARLA first
+
+
+@dataclass
+class StartedStack:
+    """A stack this runner started: its play_launch, in its own session."""
+    proc: object
+    argv: list
+    log: Path
+    seat: int
+
+    def stop(self, grace=STACK_STOP_GRACE):
+        stackmod.stop_processes([self.proc], grace)
+
+
+def stack_argv(project: Path, host: dict, seat: int, log_dir: Path) -> list:
+    """The stack as the user starts it: play_launch of swb.launch.xml for ``project``, on
+    ``seat``, its web UI on the seat's port."""
+    from swb import seat as seatmod
+    s = seatmod.table(host, seatmod.seats_source(project))[seat]
+    argv = ["play_launch", "launch", "--web-addr", f"127.0.0.1:{s.web_port}", "--log-dir",
+            str(log_dir), "swb_launch", "swb.launch.xml", f"project:={project}", f"seat:={seat}",
+            f"logs:={host['logs']}"]
+    return argv
+
+
+def start_stack(project: Path, host: dict, command=None, out=None) -> StartedStack:
+    """Start the project's stack (``command(project, host, seat, log_dir) -> argv``, default
+    ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
+    from swb import seat as seatmod
+    try:
+        s = seatmod.resolve(host, seatmod.seats_source(project))
+    except (config.ConfigError, seatmod.SeatTaken) as e:
+        raise Refused(f"no seat for a stack: {e}") from None
+    if seatmod.holder(s.index, s.lock_dir) is not None:
+        raise Refused(f"seat {s.index} is taken: "
+                      f"{seatmod.describe_holder(seatmod.holder(s.index, s.lock_dir))}")
+    root = stackmod.project_root(host["logs"], project.resolve().name) / "stack-launches"
+    log_dir, n = root / stackmod.now_id(), 1
+    while True:
+        try:
+            log_dir.mkdir(parents=True)
+            break
+        except FileExistsError:
+            n += 1
+            log_dir = root / f"{stackmod.now_id()}-{n}"
+    argv = (command or stack_argv)(project, host, s.index, log_dir)
+    try:
+        proc = stackmod.start_process(argv, dict(os.environ), log_dir / "console.log",
+                                      cwd=str(project))
+    except OSError as e:
+        raise StackFailed(f"the stack did not start ({argv[0]}): {e}") from None
+    (out or sys.stdout).write(f"stack    starting on seat {s.index} (pid {proc.pid}, console "
+                              f"{log_dir / 'console.log'})\n")
+    (out or sys.stdout).flush()
+    return StartedStack(proc=proc, argv=argv, log=log_dir / "console.log", seat=s.index)
+
+
+def _tail(path: Path, n=15) -> str:
+    try:
+        return "\n".join(Path(path).read_text(errors="replace").splitlines()[-n:])
+    except OSError:
+        return ""
+
+
+def wait_started(started: StartedStack, project: Path, host: dict, timeout: float) -> dict:
+    """The started stack's stack.json once it is ready; StackFailed (or Refused, when the
+    launch refused the stack) when it ends first or ``timeout`` passes."""
+    h = dict(host, seat=started.seat)
+    deadline = time.time() + timeout
+    while True:
+        code = started.proc.poll()
+        if code is not None:
+            tail = _tail(started.log)
+            msg = (f"the stack ended ({code}) before it was ready; {started.log}:\n{tail}")
+            raise (Refused if "is refused (3)" in tail else StackFailed)(msg)
+        try:
+            rec = find_stack(project, h)
+        except NoStack:
+            rec = None
+        if rec is not None and rec.get("state") == stackmod.READY:
+            return rec
+        if time.time() >= deadline:
+            state = rec.get("state") if rec else "no stack.json yet"
+            raise StackFailed(f"the stack was not ready within {timeout:.0f} s ({state}); "
+                              f"{started.log}")
+        time.sleep(0.2)
 
 
 # --- one run --------------------------------------------------------------------------------
@@ -366,6 +474,7 @@ class Context:
     scenario_command: object = None   # callable(rec, spec, run_dir, scenario) -> argv (tests)
     pilot_command: object = None      # callable(rec, pilot, entry, log_dir) -> argv (tests)
     out: object = None
+    started: StartedStack = None      # the stack this runner started (--start-stack)
 
 
 def scenario_map(path: Path, sc=None):
@@ -665,7 +774,13 @@ def line(result: results.RunResult, run_dir: Path, expect=None) -> str:
 
 # --- the command ----------------------------------------------------------------------------
 
-def context(project_arg=None, seat=None, logs=None, wait=0.0, **kw) -> Context:
+def context(project_arg=None, seat=None, logs=None, wait=0.0, start=False, stack_command=None,
+            stack_timeout=None, **kw) -> Context:
+    """The project, its host settings and its live stack. ``start``: when the project has no
+    live stack, start one (``start_stack``) and wait for it (``stack_timeout``, else ``wait``
+    when given, else STACK_START_TIMEOUT); ``Context.started`` is then that stack, which the
+    caller stops or keeps. A stack that is up but differs from the project is refused, never
+    replaced."""
     try:
         project = config.find_project(project_arg or None)
         over = {}
@@ -676,8 +791,27 @@ def context(project_arg=None, seat=None, logs=None, wait=0.0, **kw) -> Context:
         host = config.host_settings(project, over)
     except config.ConfigError as e:
         raise Refused(str(e)) from None
-    rec = check_stack(find_stack(project, host), project, wait)
-    return Context(project=project, host=host, stack=rec, runs_root=runs_dir(project, host), **kw)
+    started = None
+    try:
+        rec = find_stack(project, host)
+    except NoStack:
+        if not start:
+            raise
+        started = start_stack(project, host, stack_command, kw.get("out"))
+        try:
+            rec = wait_started(started, project, host,
+                               stack_timeout or (wait or None) or STACK_START_TIMEOUT)
+        except BaseException:
+            started.stop()   # half up is of no use to anyone; it was ours
+            raise
+    try:
+        rec = check_stack(rec, project, wait)
+    except BaseException:
+        if started is not None:
+            started.stop()
+        raise
+    return Context(project=project, host=host, stack=rec, runs_root=runs_dir(project, host),
+                   started=started, **kw)
 
 
 def _parse_params(items) -> dict:
@@ -746,7 +880,7 @@ def run_suite(ctx: Context, specs, suite_dir: Path = None, resume=False, retry=N
     return worst
 
 
-def main(argv=None, out=None) -> int:
+def main(argv=None, out=None, stack_command=None) -> int:
     out = out or sys.stdout
     ap = argparse.ArgumentParser(prog="ros2 run swb run", description=__doc__.split("\n")[0])
     ap.add_argument("target", help="a scenario (.xosc or TIER IV .yaml), a directory, or a suite")
@@ -766,6 +900,13 @@ def main(argv=None, out=None) -> int:
                     help="seconds to wait for the stack to become ready (default: refuse now)")
     ap.add_argument("--ready-timeout", type=float, default=READY_TIMEOUT,
                     help=f"seconds a run waits for its pilots' readiness ({READY_TIMEOUT})")
+    ap.add_argument("--start-stack", action="store_true",
+                    help="start the project's stack when none is up, and leave it up")
+    ap.add_argument("--stop-stack", action="store_true",
+                    help="as --start-stack, and stop the stack it started after the runs "
+                         "(one-shot: scripts, CI); a stack that was already up stays")
+    ap.add_argument("--stack-timeout", type=float,
+                    help=f"seconds a started stack has to become ready ({STACK_START_TIMEOUT:.0f})")
     try:
         args = ap.parse_args(ros_args(sys.argv[1:] if argv is None else argv))
     except SystemExit as e:
@@ -773,9 +914,16 @@ def main(argv=None, out=None) -> int:
     if args.repeat is not None and args.repeat < 1:
         sys.stderr.write("swb run: --repeat must be at least 1\n")
         return EXIT_REFUSED
+    return _main(args, out, stack_command)
+
+
+def _main(args, out, stack_command=None) -> int:
+    ctx = None
     try:
         ctx = context(args.project, args.seat, args.logs, args.wait,
-                      ready_timeout=args.ready_timeout, out=out)
+                      start=args.start_stack or args.stop_stack, stack_command=stack_command,
+                      stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,
+                      out=out)
         target = Path(args.target)
         specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param))
         if args.timeout:
@@ -800,6 +948,21 @@ def main(argv=None, out=None) -> int:
     except Refused as e:
         sys.stderr.write(f"swb run: refused: {e}\n")
         return EXIT_REFUSED
+    except StackFailed as e:
+        sys.stderr.write(f"swb run: error: {e}\n")
+        return EXIT_INFRA
+    finally:
+        started = ctx.started if ctx is not None else None
+        if started is not None:
+            if args.stop_stack:
+                out.write(f"stack    stopping the stack this run started (pid "
+                          f"{started.proc.pid})\n")
+                out.flush()
+                started.stop()
+            else:
+                out.write(f"stack    left up (pid {started.proc.pid}, seat {started.seat}); "
+                          f"stop it with: kill -INT -{started.proc.pid}\n")
+                out.flush()
 
 
 if __name__ == "__main__":

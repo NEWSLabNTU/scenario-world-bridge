@@ -4,8 +4,8 @@ stack.launch.py with the project's settings applied.
     cd my_project
     play_launch launch --web-addr 127.0.0.1:<seat web port> --log-dir <dir> \\
         swb_launch swb.launch.xml [project:=<dir>|pkg://<package>] [seat:=<n>|auto] \\
-        [simulator:=carla|isaac] [map:=<map>] [logs:=<dir>] [gpu:=<n>] \\
-        [stack_args:="name:=value ..."]
+        [simulator:=carla|isaac] [simulator_start:=auto|start|external] [map:=<map>] \\
+        [logs:=<dir>] [gpu:=<n>] [stack_args:="name:=value ..."]
 
 The logic is swb.stack (importable, tested): it finds the project (project:=, else the
 working directory or the nearest parent with swb.yaml), reads the host settings, picks the
@@ -31,8 +31,13 @@ two are the command line's: give --web-addr the seat's web port (`ros2 run swb s
 this launch and the keeper print it) and --log-dir somewhere outside the project if you mind
 play_log/ there.
 
-CARLA itself is external here (started apart, as before; `simulator_start` is a later key);
-Isaac's world server is part of the stack. stack_args go to stack.launch.py last and win
+CARLA (swb.simulator): simulator_start:=auto (the default, else the host settings'
+carla.start) starts CARLA from carla.root when nothing answers on carla.host:carla.port and
+uses the one that answers otherwise; start always starts it (refused when the port is held);
+external never starts or stops it. A port held by something that is not CARLA's RPC server is
+refused. A started CARLA belongs to the keeper: logged to proc/simulator/carla.log, waited for
+(carla.ready_timeout, 300 s) before the pilots start and the stack is ready, and stopped with
+the stack. Isaac's world server starts Isaac. stack_args go to stack.launch.py last and win
 (side_args, sim_args, ...).
 """
 import os
@@ -49,6 +54,7 @@ ARGS = {
     "project": ("", "the project: a directory or pkg://<package>; empty: the working directory's"),
     "seat": ("", "a seat number or auto; empty: the host settings' seat:"),
     "simulator": ("", "carla or isaac; empty: the project's simulator:"),
+    "simulator_start": ("", "auto, start or external: whether the stack starts CARLA itself; empty: the host settings' carla.start (auto)"),
     "map": ("", "the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"),
     "logs": ("", "the log root; empty: the host settings' logs:"),
     "gpu": ("", "the GPU index; empty: the seat's"),
@@ -83,6 +89,7 @@ def _swb(context):
         plan = stack.plan(project_arg=get("project") or None, seat_arg=get("seat") or None,
                           simulator=get("simulator") or None, map_name=get("map") or None,
                           logs=get("logs") or None, gpu=get("gpu") or None,
+                          simulator_start=get("simulator_start") or None,
                           stack_args=named_args(get("stack_args")))
     except stack.StackRefused as e:
         raise RuntimeError(f"swb: the stack is refused (3): {e}") from None

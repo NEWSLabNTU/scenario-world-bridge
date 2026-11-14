@@ -25,7 +25,10 @@ DEFAULTS = {
     "gpu": None,  # None: the seat table's
     "logs": "~/.local/state/swb/logs",
     "cache": "~/.cache/swb",
-    "carla": {"root": "", "host": "localhost", "port": 2000},
+    # start: auto (start CARLA from root when nothing serves host:port), start, external;
+    # ready_timeout: s a started CARLA has to serve RPC (swb.simulator)
+    "carla": {"root": "", "host": "localhost", "port": 2000, "start": "auto",
+              "ready_timeout": 300},
     "isaac": {"root": ""},
     "autoware": {"setup": "/opt/autoware/1.5.0/setup.bash"},
     "seats": {

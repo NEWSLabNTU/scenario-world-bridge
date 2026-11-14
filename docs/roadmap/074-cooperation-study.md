@@ -1462,6 +1462,15 @@ whenever another one spawns.**
     a result only if a class or a D2 verdict changes.
 
   The tie to the spec makes this a swb bug, the user's to schedule.
+- **Confirmed in C3c** (swb 241): in a two-Autoware run, the first-spawned ego (hero, B) runs tyre
+  friction 3.5 on all four wheels for the whole run (146 samples over 8 runs), while the second
+  (A) runs the spec's 1.2. Mass stays right.
+  - **acb's verify does not catch it:** each acb_bridge verifies once at its own attach, before the
+    other car spawns.
+  - C3c so far (stock 8 runs, yield 6) is therefore **provisional**. It will be rerun once
+    `swb_carla_world` re-applies physics after every spawn and acb re-verifies after every spawn,
+    not once.
+  - Until then, no new multi-Model-3 swb batches.
 
 ### E5 and S5 on the real stack: first findings (2026-11-15)
 

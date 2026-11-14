@@ -176,3 +176,20 @@ open):
 Open, live: a gap trace through a real bridge into a run (CARLA), weather parameters
 through `set_weather`, an Isaac switch to a preloaded world, `managed_ego: false` on
 Isaac's rear contact (inventory row 18).
+- Live on CARLA 0.9.16, Autoware 1.5.0 ego (2026-11-15):
+  - **G9 town preload**: a suite of drive_to_goal (Town01) then town02_ego_drive (Town02) on
+    one stack passed 2/2. The keeper's `~/load_map` loaded Town02 in 2.7 s between the
+    pilots' stop and start; CARLA's episode changed once, there, and SSv2's Initialize then
+    found the town loaded (no second episode); acb_bridge started once on Town02, on that
+    episode. The first map of a stack is `skipped` (no bridge serves the SSv2 port yet) and
+    loads at Initialize, as before.
+  - **A started CARLA ends with its stack**: after each `--stop-stack` no CARLA was left.
+  - **G2, G10, G23**: a run with `logging.gap_trace: true`, a gap judge and
+    `world: {weather: {preset: WetNoon, cloudiness: 30}}` passed (`judges: gap=passed`, one
+    trace, G4 agree, 805 frames). The trace and contact report moved into the run;
+    `weather.applied` came before `stack.ready`; frame metrics in result.json (4 windows,
+    frame p95 4.1 ms, tick p95 36 ms). Under `keep: {passed: result}` the trace is pruned with
+    the logs, as documented (`gap_trace/` is a `standard` file); the judge's verdict stays.
+  - Still open: the keeper is SIGKILLed by play_launch about 5 s after SIGTERM, inside the
+    pilots' stop grace, so stack.json ends at `stopping` rather than `stopped` (pilots and
+    CARLA still end, by their parent-death signal).

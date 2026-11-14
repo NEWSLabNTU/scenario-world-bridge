@@ -170,6 +170,11 @@ class StreamRules:
                 acc[i] = self._merger(i, t, x, v, seen, seen1, lead2.get(i), lead1.get(i))
             else:
                 acc[i] = self._lane1(i, t, x, v, seen, lead1.get(i), seen_m)
+            # a lane-2 car still mostly in lane 2 (as measured: on CARLA the body lags the plan, by 0.9 of a
+            # lane at 2 m/s) keeps following the car ahead there
+            j = lead2.get(i)
+            if j is not None and not self.merger(i, t):
+                acc[i] = min(acc[i], C1.follow_cruise((x[j] - L) - x[i], v[i], v[j], CAP, self.v0))
         return acc
 
     def _merger(self, i, t, x, v, seen, seen1, own_lead, new_lead=None):
@@ -609,6 +614,9 @@ class Group:
                 if M.clearance(poses[i], poses[j]) <= 0.01:
                     hit.update((i, j))
                     self.S.contacts += 1
+                    self.S.events.append(" ".join(
+                        f"{q}(l{self.lanes[q]} lat {lat_m[q]:.2f}/{lat_plan[q]:.2f} x {x[q] - X_END:+.1f} v {v[q]:.1f})" for q in (i, j))
+                        + f" t {t:.2f}")
         for i in hit:
             self.S.crashed[i] = True
             self.cars[i].dirty = True
@@ -623,6 +631,7 @@ class Group:
             self.rec = {k: self.job[k] for k in ("conv", "hm", "draw")}
             self.rec.update(out)
             self.rec["rule_l2"] = self.job["mrules"][N_LANE] if self.job["conv"] != "none" else "mixed"
+            self.rec["events"] = " | ".join(self.S.events)
             for i in list(self.active):
                 self.park(i)
             self.phase = "done"
@@ -633,7 +642,7 @@ def arena_jobs(args):
     out = []
     for hm in [float(x) for x in args.hms.split(",")]:
         for d in range(args.draws):
-            for conv in CONVS:
+            for conv in args.convs.split(","):
                 b = best.get(conv, {}).get(str(hm))
                 mr, qr = assign(conv, d, hm, b)
                 out.append({"conv": conv, "hm": hm, "draw": d, "mrules": mr, "qrules": qr})
@@ -744,6 +753,7 @@ def main():
     p.add_argument("--obs-delay", type=float, default=G.OBS)
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
+    p.add_argument("--convs", default=",".join(CONVS), help="arena: the conventions to run")
     p.add_argument("--selftest", action="store_true")
     a = p.parse_args()
     if a.selftest:

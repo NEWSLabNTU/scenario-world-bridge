@@ -1,0 +1,32 @@
+#!/bin/bash
+# The environment an autoware pilot runs in: what `just ego-av` builds, in the same order
+# (roadmap 077, G1), then the pilot's own command.
+#
+#   autoware_env.bash <workspace> <autoware setup> <overlay dir|""> <overlay on: true|false>
+#                     <cuda ndt dir|""> <tensorrt lib dir|""> -- <command> [args...]
+#
+# 1. Autoware (its setup.bash); 2. the Autoware overlay (roadmap 042: the blind_spot, NDT step
+# and pose_instability fixes); 3. CUDA NDT, when built (its CUDA libraries first); 4. acb's and
+# this workspace's installs; 5. TensorRT 10.8.0 first on LD_LIBRARY_PATH, after every setup
+# that rewrites it. A missing piece warns, as the developer recipes do, and the pilot starts.
+# no set -e: a setup script that returns non-zero must not stop the pilot
+ws="$1" setup="$2" overlay="$3" overlay_on="$4" ndt="$5" trt="$6"
+shift 6
+[ "$1" = "--" ] && shift
+
+# shellcheck disable=SC1090
+source "$setup"
+source "$ws/scripts/autoware_overlay.bash"
+swb_autoware_overlay_source "${overlay:-$ws/third_party/autoware_overlay}" "$overlay_on"
+ndt="${ndt:-$ws/third_party/cuda_ndt_matcher}"
+if [ -f "$ndt/install/setup.bash" ]; then
+    source "$ndt/install/setup.bash"
+    [ -s "$ndt/install/.swb_cuda_path" ] && \
+        export LD_LIBRARY_PATH="$(cat "$ndt/install/.swb_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"
+fi
+[ -f "$ws/src/autoware_carla_bridge/install/setup.bash" ] && \
+    source "$ws/src/autoware_carla_bridge/install/setup.bash"
+source "$ws/install/setup.bash"
+source "$ws/scripts/autoware_tensorrt.bash"
+swb_tensorrt_source "${trt:-$ws/third_party/tensorrt/lib}"
+exec "$@"

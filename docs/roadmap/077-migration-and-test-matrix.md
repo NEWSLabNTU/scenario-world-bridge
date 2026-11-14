@@ -75,4 +75,20 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 
 ## Progress and rulings
 
-(none yet)
+- Inventory (2026-11-15): 73 items, 24 gaps (G1 to G24), [077-study/inventory.md](077-study/inventory.md).
+- T0/T1 (e9ecdb5): `just test` runs src/swb's tests (it never did); every pilot kind's launch
+  is resolved by `play_launch dump` (test_pilot_parse.py).
+- G1 (the autoware pilot's environment): an autoware pilot runs under
+  `swb/autoware_env.bash`, which sources what `just ego-av` does in the same order (Autoware,
+  the 042 overlay, CUDA NDT when built, acb's and this workspace's installs, TensorRT 10.8.0
+  first on `LD_LIBRARY_PATH`) and warns the same way for a missing piece. Paths are host
+  settings (`autoware.setup`, `overlay`, `use_overlay`, `cuda_ndt`, `tensorrt_lib`), the
+  workspace's `third_party/` builds by default; stack.json records them. Ruling: the 076
+  acceptance runs on this host ran stock Autoware either way (none of the three is built
+  here), so their verdicts stand; a host with the overlay built ran the developer path
+  fixed and the project path stock until this change.
+- Batches: A (G2, G3, G6, G10, G12, G23: run and stack settings), D (G9 town preload, G21 two
+  SSv2 clients) and the `simple` kind (G22) are being built; B (G5, G14, G15: own cars, free
+  drive, package projects), C (G4: recording), E (G16 to G19: gate, two hosts, parameter
+  overrides, harness mode) next; G8, G13 and G20 (asset sources, CARLA map packages, CARLA
+  0.10) need decisions.

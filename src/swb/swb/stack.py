@@ -659,6 +659,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "carla": carla_run,
         "switch": None,
         "fingerprint": fingerprint(project, psettings),
+        "autoware_env": autoware_env(host, workspace_root()),
         "seat": numbers,
         "lock_dir": s.lock_dir,
         "domains": {"scenario": s.scenario_domain, "ego": ego_domain,
@@ -796,8 +797,34 @@ def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
             words.append(f"{k}:={v}")
     extra = ([] if p["kind"] == "carla_basic"
              else ["--container-mode", "isolated", "--composable-respawn", "on-crash"])
-    return (["play_launch", "launch", "--disable-web-ui", "--log-dir", str(log_dir), *extra,
+    argv = (["play_launch", "launch", "--disable-web-ui", "--log-dir", str(log_dir), *extra,
              os.path.join(rec["pilots_dir"], name)] + words)
+    return autoware_env_argv(rec.get("autoware_env"), argv) if p["kind"] == "autoware" else argv
+
+
+AUTOWARE_ENV = Path(__file__).resolve().parent / "autoware_env.bash"
+
+
+def autoware_env(host: dict, workspace) -> dict:
+    """The autoware pilot's environment from the host settings (``autoware:``), or None when
+    the swb checkout is not known (the pilot then runs in the stack's environment)."""
+    if workspace is None:
+        return None
+    a = host.get("autoware") or {}
+    exp = lambda v: os.path.expanduser(str(v)) if v else ""  # noqa: E731
+    return {"workspace": str(workspace), "setup": exp(a.get("setup")),
+            "overlay": exp(a.get("overlay")),
+            "use_overlay": "true" if a.get("use_overlay", True) else "false",
+            "cuda_ndt": exp(a.get("cuda_ndt")), "tensorrt_lib": exp(a.get("tensorrt_lib"))}
+
+
+def autoware_env_argv(env: dict, argv: list) -> list:
+    """``argv`` under autoware_env.bash: Autoware, the overlay, CUDA NDT, the installs and
+    TensorRT 10.8 sourced first, as the developer recipes do."""
+    if not env or not env.get("setup"):
+        return argv
+    return ["bash", str(AUTOWARE_ENV), env["workspace"], env["setup"], env["overlay"],
+            env["use_overlay"], env["cuda_ndt"], env["tensorrt_lib"], "--", *argv]
 
 
 def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):

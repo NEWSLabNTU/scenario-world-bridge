@@ -282,6 +282,7 @@ def test_pilot_argv_has_the_maps_contract(where, maps_hub):
     rec = stack.plan(project_arg=str(d), map_name="Town01").record
     ego = rec["pilots"][0]
     argv = stack.pilot_argv(rec, ego, rec["pilot_entries"][0], Path("/l"))
+    argv = argv[argv.index("--") + 1:]   # after the autoware environment's prelude
     assert argv[:5] == ["play_launch", "launch", "--disable-web-ui", "--log-dir", "/l"]
     assert argv[argv.index("--composable-respawn") + 2].endswith("pilots/autoware.launch.xml")
     words = dict(w.split(":=", 1) for w in argv if ":=" in w)
@@ -395,3 +396,37 @@ def test_seat_carla_port_is_the_stacks(where, maps_hub):
     assert p.launch_args["carla_port"] == "2020"
     assert p.record["pilot_contract"]["carla_port"] == "2020"
     assert stack.seat_of(p.record).carla_port == 2020
+
+
+def test_autoware_pilot_runs_in_the_autoware_environment(where, maps_hub, tmp_path):
+    d = make(where, maps_hub=maps_hub)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    env = p.record["autoware_env"]
+    assert env["setup"] == "/opt/autoware/1.5.0/setup.bash" and env["use_overlay"] == "true"
+    rec = dict(p.record, pilots_dir="/x")
+    ego = next(x for x in rec["pilots"] if x["kind"] == "autoware")
+    lead = next(x for x in rec["pilots"] if x["kind"] == "carla_basic")
+    entry = {"entity": "ego", "kind": "autoware", "domain": ego["domain"]}
+    argv = stack.pilot_argv(rec, ego, entry, tmp_path)
+    assert argv[:2] == ["bash", str(stack.AUTOWARE_ENV)]
+    assert argv[argv.index("--") + 1:][:2] == ["play_launch", "launch"]
+    plain = stack.pilot_argv(rec, lead, {"entity": "lead", "kind": "carla_basic",
+                                         "domain": lead["domain"]}, tmp_path)
+    assert plain[0] == "play_launch"
+    # the prelude runs the command after sourcing; with stand-ins for every setup
+    ws = tmp_path / "ws"
+    (ws / "scripts").mkdir(parents=True)
+    (ws / "install").mkdir()
+    (ws / "install" / "setup.bash").write_text("export SWB_WS_SOURCED=1\n")
+    (ws / "scripts" / "autoware_overlay.bash").write_text(
+        "swb_autoware_overlay_source() { export OVERLAY_ARGS=\"$1 $2\"; }\n")
+    (ws / "scripts" / "autoware_tensorrt.bash").write_text(
+        "swb_tensorrt_source() { export LD_LIBRARY_PATH=\"$1:$LD_LIBRARY_PATH\"; }\n")
+    setup = tmp_path / "aw.bash"
+    setup.write_text("export AW_SOURCED=1\n")
+    import subprocess as sp
+    out = sp.run(["bash", str(stack.AUTOWARE_ENV), str(ws), str(setup), "", "false", "", "",
+                  "--", "bash", "-c", "echo $AW_SOURCED $SWB_WS_SOURCED $OVERLAY_ARGS "
+                  "${LD_LIBRARY_PATH%%:*}"], capture_output=True, text=True).stdout.split()
+    assert out == ["1", "1", f"{ws}/third_party/autoware_overlay", "false",
+                   f"{ws}/third_party/tensorrt/lib"]

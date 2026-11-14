@@ -41,7 +41,10 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |
 | `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
 | `isaac.root` | the stack | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
-| `autoware.setup` | nothing | not read: source Autoware's `setup.bash` in your environment file ([Install](../getting-started/install.md#the-environment-file)) |
+| `autoware.setup` | autoware pilots | Autoware's `setup.bash` (`/opt/autoware/1.5.0/setup.bash`); an autoware pilot sources it, then the items below, then this workspace's installs |
+| `autoware.overlay`, `autoware.use_overlay` | autoware pilots | the Autoware fixes this workspace carries, built into `third_party/autoware_overlay` (default); `use_overlay: false` runs stock Autoware |
+| `autoware.cuda_ndt` | autoware pilots | the GPU NDT matcher's build (default `third_party/cuda_ndt_matcher`), sourced when built |
+| `autoware.tensorrt_lib` | autoware pilots | a TensorRT 10.8.0 runtime put first on `LD_LIBRARY_PATH` (default `third_party/tensorrt/lib`), so CenterPoint's cached engines load instead of being rebuilt at every start |
 | `seats` | the stack, `seat` | the host's seat table ([Several stacks on one host](../how-to/several-stacks.md)) |
 | `seats.carla` | the stack, `seat` | `{base, stride}`: each seat its own CARLA port, `base + stride n` for seat `n`, over `carla.port`. `stride` at least 3 (CARLA uses its port and the two after it); a table whose CARLA ports meet the seats' other ports is refused. `seat show` prints each seat's CARLA port. With `carla.root` set and `carla.start: auto`, each seat's stack starts its own CARLA there |
 | `hub_url` | `assets` | the Hugging Face endpoint (default the public Hub); another URL is read over plain HTTPS with the Hub's API, for a mirror of the datasets |

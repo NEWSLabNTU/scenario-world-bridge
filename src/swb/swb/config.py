@@ -30,7 +30,10 @@ DEFAULTS = {
     "carla": {"root": "", "host": "localhost", "port": 2000, "start": "auto",
               "ready_timeout": 300},
     "isaac": {"root": ""},
-    "autoware": {"setup": "/opt/autoware/1.5.0/setup.bash"},
+    # the autoware pilot's environment, as `just ego-av` builds it (roadmap 077, G1); empty
+    # paths: the workspace's own third_party/ builds, when there
+    "autoware": {"setup": "/opt/autoware/1.5.0/setup.bash", "overlay": "",
+                 "use_overlay": True, "cuda_ndt": "", "tensorrt_lib": ""},
     "seats": {
         # seat n: scenario domain base+stride*n, pilot domains the next stride-1
         "domains": {"base": 1, "stride": 8},

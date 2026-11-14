@@ -1486,6 +1486,27 @@ crosses its stop line.
   CenterPoint's configured range, our simulated lidar's range, or the tracker is the next question
   (swb 118). If it is our sensor configuration, it is a bug in swb's car, not a finding about
   Autoware.
+- **Reach and turn, diagnosed** from the S5 bags and configs (swb 118; NAS `.../2026-11-15 coop S5
+  reach and turn/`). **Neither is our car.**
+  - **The reach is Autoware's default `centerpoint_tiny`.** The raw cloud (clustering) holds A in
+    90 % of frames at 40-50 m and 57 % at 50-60 m. CenterPoint holds it in 64 % at 30-40 m, 18 % at
+    40-50 m and 1 % at 50-60 m, its scores falling to the 0.35 threshold. The tracker starts only from
+    CenterPoint, so at B's decision deadline its effective reach is about 39 m. The intersection
+    module's attention area is 200 m, so it is not the limit.
+  - **The turn speed is velocity_smoother's lateral limit of 1.0 m/s^2:** sqrt(1/0.079) = 3.56 m/s on
+    the arc, measured at 3.56-3.69 m/s. There are no velocity factors, no creep and no occlusion
+    stop. An unimpeded crossing takes 7.3 s, not 9.
+  - **Candidate fixes** (launch arguments, untested):
+
+    | change | effect on the danger band at 10 m/s |
+    |---|---|
+    | TransFusion (±92 m), or any reach ≥ 85 m | closes it (5.3-9.5 s) |
+    | full CenterPoint, capped at its 76.8 m grid | closes it to about 8.8 s |
+    | a lateral limit of 2.0 m/s^2 (the profile's velocity_smoother_param_path) | only lowers its top to about 8 s |
+
+    No sensor spec change is needed.
+  - **Next:** S5 at lags 5.5-9 s with each detector (swb 118). Which detector swb's Autoware profile
+    should default to is a decision for the user, once those runs are in.
 
 ### C4. Fit and explain
 

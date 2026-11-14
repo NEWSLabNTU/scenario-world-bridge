@@ -321,3 +321,26 @@ def test_new_from_an_installed_package(tmp_path, monkeypatch):
     assert (dest / "swb.yaml").read_text() == BASE
     with pytest.raises(ConfigError, match="installs no swb.yaml"):
         project.source_project("pkg://swb_examples/projects/nope")
+
+
+def test_variants_counted(tmp_path):
+    y = tmp_path / "t.yaml"
+    y.write_text("ScenarioModifiers:\n  ScenarioModifier:\n"
+                 "    - {name: a, list: [1, 2, 3]}\n"
+                 "    - {name: b, start: 0, step: 5, stop: 10}\n"
+                 "OpenSCENARIO:\n  FileHeader: {}\n")
+    assert project.read_scenario(y).variants == 9
+    x = tmp_path / "d.xosc"
+    x.write_text('<OpenSCENARIO><ParameterValueDistribution><ScenarioFile filepath="s.xosc"/>'
+                 '<Deterministic><DeterministicSingleParameterDistribution parameterName="v">'
+                 '<DistributionSet><Element value="1"/><Element value="2"/></DistributionSet>'
+                 '</DeterministicSingleParameterDistribution>'
+                 '<DeterministicSingleParameterDistribution parameterName="w">'
+                 '<DistributionRange stepWidth="1"><Range lowerLimit="0" upperLimit="2"/>'
+                 '</DistributionRange></DeterministicSingleParameterDistribution>'
+                 '</Deterministic></ParameterValueDistribution></OpenSCENARIO>')
+    assert project.read_scenario(x).variants == 6
+    awf = (Path(__file__).resolve().parents[2] / "swb_examples" / "projects" / "safety_suite"
+           / "scenarios" / "awf")
+    for f in awf.glob("UC-ACC*.yaml"):
+        assert project.read_scenario(f).variants == 27

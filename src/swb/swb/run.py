@@ -573,6 +573,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     except (ValueError, OSError) as e:
         sc = None
         infra.append(f"the scenario cannot be read: {e}")
+    variants = sc.variants if sc is not None else 1
     pilots = []
     if sc is not None and sc.distribution_of is None:
         by_entity = {p["entity"]: p for p in rec.get("pilots", [])}
@@ -641,7 +642,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                                  "domain": p["domain"]} for p in pilots},
         "run_pilots": {p["entity"]: e for p, e in run_pilots},
         "logging": lg,
-        "ssv2": {"argv": ssv2_argv, "timeout_s": (spec.timeout or DEFAULT_TIMEOUT) + END_MARGIN},
+        "ssv2": {"argv": ssv2_argv, "variants": variants,
+                 "timeout_s": (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN},
         "env": {**(rec.get("env") or {}), "ROS_DOMAIN_ID": str(rec["domains"]["scenario"])},
     }
     (run_dir / "resolved.yaml").write_text(yaml.safe_dump(resolved, sort_keys=False))
@@ -699,7 +701,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                 ssv2 = None
                 infra.append(f"SSv2 did not start: {e}")
             if ssv2 is not None:
-                limit = (spec.timeout or DEFAULT_TIMEOUT) + END_MARGIN
+                # SSv2's global_timeout is per variant; a distribution runs them all in one go
+                limit = (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN
                 try:
                     code = ssv2.wait(timeout=limit)
                 except subprocess.TimeoutExpired:

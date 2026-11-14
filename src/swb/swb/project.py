@@ -74,6 +74,7 @@ class Scenario:
     logic_file: str = None
     entities: list = field(default_factory=list)
     distribution_of: str = None  # a ParameterValueDistribution's ScenarioFile
+    variants: int = 1  # runs SSv2 makes of it: TIER IV ScenarioModifiers, or a distribution's
 
 
 # --- reading scenarios: --------------------------------------------------------------------
@@ -93,6 +94,52 @@ def _element(tag, value):
     return el
 
 
+def _modifier_variants(mods) -> int:
+    """A TIER IV scenario's ScenarioModifiers: the product of each modifier's values (a
+    ``list``, or ``start``/``step``/``stop``)."""
+    items = (mods or {}).get("ScenarioModifier") if isinstance(mods, dict) else None
+    n = 1
+    for m in items or []:
+        if not isinstance(m, dict):
+            continue
+        if isinstance(m.get("list"), list):
+            n *= max(1, len(m["list"]))
+        elif all(k in m for k in ("start", "step", "stop")):
+            try:
+                start, step, stop = (float(m[k]) for k in ("start", "step", "stop"))
+                if step:
+                    n *= max(1, int(round((stop - start) / step)) + 1)
+            except (TypeError, ValueError):
+                pass
+    return n
+
+
+def _distribution_variants(root) -> int:
+    """An OpenSCENARIO ParameterValueDistribution's deterministic runs: the value sets of
+    a DeterministicParameterDistribution, or the product of its single distributions."""
+    det = root.find("ParameterValueDistribution/Deterministic")
+    if det is None:
+        return 1
+    sets = det.findall("DeterministicMultiParameterDistribution/ValueSetDistribution/"
+                       "ParameterValueSet")
+    n = len(sets) or 1
+    for single in det.findall("DeterministicSingleParameterDistribution"):
+        values = single.findall("DistributionSet/Element")
+        if values:
+            n *= len(values)
+            continue
+        rng = single.find("DistributionRange")
+        r = rng.find("Range") if rng is not None else None
+        try:
+            step = float(rng.get("stepWidth"))
+            lo, hi = float(r.get("lowerLimit")), float(r.get("upperLimit"))
+            if step:
+                n *= max(1, int(round((hi - lo) / step)) + 1)
+        except (AttributeError, TypeError, ValueError):
+            pass
+    return n
+
+
 def read_scenario(path: Path) -> Scenario:
     """A scenario's map and entities; raises ValueError naming what does not parse."""
     path = Path(path)
@@ -104,6 +151,7 @@ def read_scenario(path: Path) -> Scenario:
         if not isinstance(data, dict) or "OpenSCENARIO" not in data:
             raise ValueError("no OpenSCENARIO: at the top")
         root = _element("OpenSCENARIO", data["OpenSCENARIO"])
+        variants = _modifier_variants(data.get("ScenarioModifiers"))
     else:
         try:
             root = ET.parse(path).getroot()
@@ -111,7 +159,8 @@ def read_scenario(path: Path) -> Scenario:
             raise ValueError(f"not valid XML: {e}") from None
         if root.tag != "OpenSCENARIO":
             raise ValueError(f"the root element is <{root.tag}>, not <OpenSCENARIO>")
-    sc = Scenario(path)
+        variants = _distribution_variants(root)
+    sc = Scenario(path, variants=variants)
     sf = root.find("ParameterValueDistribution/ScenarioFile")
     if sf is not None:
         sc.distribution_of = sf.get("filepath")

@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: C3c done provisionally, the canary reruns after the friction fix (swb 241); U2 on Town03's roundabout in swb, then an Autoware 2.0.0 profile (swb 139); full CenterPoint with the higher lateral limit, and TransFusion's intensity (swb 118); N3's follower depth term and E4/C5 car models (133); next: P1 reshaped by D6 (stock, + probe rule, + intent message). User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); N3 done, D9 met (composition holds for queues up to seven cars); E4/C5 done (commitment not supported; a heavy-vehicle spec is the user's call); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: C3c done provisionally, the canary reruns after the friction fix (swb 241); U2 on Town03's roundabout in swb, then an Autoware 2.0.0 profile (swb 139); full CenterPoint with the higher lateral limit, and TransFusion's intensity (swb 118);  next: P1 reshaped by D6 (stock, + probe rule, + intent message). User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -921,6 +921,34 @@ only 4-6.
 - a congested stream, which is also the zipper's open case (C7);
 - N5, the swb check on a found merge site, waits for E7.
 
+### N3 round 4: the follower depth term (2026-11-15)
+
+Commit ea82020, frozen before the hold-out. Data: NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop N3
+depth term/`.
+
+- **Why tight queues missed: a lag of each follower's own, not amplification.** At headway 1 s,
+  every follower ends about 0.26 s behind its leader, whatever B does. Its pair run alone shows the
+  same increment; at 1.5 s and above both are 0. At zero slack the follower brakes on observer
+  noise and, capped by cruise, never closes the gap again. IDM's string-stability gain with the
+  arena's lags is 1.000 at every headway, so the queue is string-stable.
+- **The term:** each follower adds its own measured lag on top of its leader's delay (max-plus),
+  with one scale c = 1.10 fitted on fit2.
+
+**Seven-car hold-out:**
+
+| | contexts | cells |
+|---|---|---|
+| N3 model | 44/48 (92 %) | 99 % |
+| v2 + depth term | 47/48 | |
+| v1 | 10/48 | |
+| round 3's six-car hold-out | 50 % | |
+
+Pooled over the hold-outs of rounds 2-4: 92 % of contexts, 97 % of cells.
+
+**D9, met (2026-11-15).** Composition (pair terms, window cap, depth term) meets the 90 % bar for
+queues of up to seven cars at headways of 1-1.5 s, and for any queue with slack. Explicit games
+remain only for a lead that A closes on within about 2 s.
+
 ### S1. The cut-out, kinematic (2026-11-14)
 
 `scripts/coop/cutout_game.py` (01bc891, swb 139).
@@ -1646,6 +1674,39 @@ end/`). A run now continues 1.5 s past the planned end of A's lane change before
 C1-C3 for pairs from the catalog (Model 3, golf cart, a heavier car when one is specified), the
 capabilities from `just vehicle-check` instead of `TYPES`.
 
+**E4 and C5 results (2026-11-15).** Commits 5f6da18, eb80eef, bc50b2d. Data: NAS `logs/2026 SSv2
+on CARLA/2026-11-15 coop C5 car models/`.
+
+**E4: heavy vehicles in CARLA 0.9.16**, stock physics:
+
+| blueprint | mass | 0-12 m/s | full brake from 12 m/s |
+|---|---|---|---|
+| european_hgv (6 wheels) | 7000 kg | 8.7 s | 22.4 m, 4.56 m/s^2 peak |
+| firetruck | 10 000 kg | 10.6 s | 26.0 m, 3.67 peak |
+| carlacola | 4600 kg | 5.95 s | 13.5 m, 6.88 peak |
+
+- The bus and the cybertruck are car-like.
+- **A heavy-vehicle spec would need:** a 4-wheel body (the format refuses the 6-wheel HGV); chosen
+  mass, brake torque with a slower air-brake lag, resistance and steering; an `ev` or `ideal`
+  powertrain; and downstream, pedal maps, vehicle_info, a sensor mount, an SSv2 catalog entry and an
+  Isaac USD.
+- Whether to add one to sim_vehicle_spec is the user's decision; nothing was added.
+
+**C5: the commitment hypothesis is not supported.** A car that cannot brake or accelerate hard is
+not yielded to more often.
+
+| pair, tier | weak car yielded to | Model 3 yielded to |
+|---|---|---|
+| HGV as B, kinematic | 265 of 629 | 266 |
+| HGV as A, kinematic | 138 | 132 |
+| HGV as B, arena | 8 of 50 | 13 |
+| HGV as A, arena | 15 of 40 | 15 |
+
+- Where the heavy A earns more, it is its assumed gentler lane change, not its weakness: with a
+  3 s lane change it earns more nowhere.
+- The cut-in's yield needs about 2 m/s^2, which every car here has.
+- The golf cart (kinematic, v_B 6) is yielded to in 126 contexts against the Model 3's 120.
+
 ### C6. Hidden capability
 
 Each light policy believes the other's class and limits from a prior and the observed motion, not
@@ -1817,7 +1878,7 @@ being carried.
 | | E7 merge site | E | a lane drop on Town03/05 | site or none |
 | | N1 conflict-set sizes | E | how many cars are in each car's conflict set, per slot, in the arena's and SSv2's multi-car scenes (and highD if it is at hand) | the size distribution; the literature's 3.2 mean / 7 max (survey, N cars) checked on ours. Done (20cef0f; N1, N2 above): arena 1.0 / 1, SSv2 benches 1.19 / 4 (mean / max when > 0) |
 | | N2 composition | B | three-car arena games (a cut-in between B and its follower; a cut-in with a lead ahead of A) against the pair terms composed per measure (risk max, delay max-plus, braking max) | the residual $r$ per context with its bootstrap interval. Done: 81 % of car-cells, 64 % of contexts within tolerance; residual systematic |
-| | D9 pairs enough? | D | does the composed model predict three cars | $r$ within the D2 tolerance in >= 90 % of contexts: pairs suffice, N grows only by composition; systematic: N3; large and irregular: those contexts stay explicit games, try N = 4 there only. Decided 2026-11-14: not enough, systematic: N3, with the A-B outcome as a class and the queue and lead as predictors Final after N3: composition holds for queues ≤ 4 cars; a closing lead within ~2 s and 5+ queues stay explicit games |
+| | D9 pairs enough? | D | does the composed model predict three cars | $r$ within the D2 tolerance in >= 90 % of contexts: pairs suffice, N grows only by composition; systematic: N3; large and irregular: those contexts stay explicit games, try N = 4 there only. Decided 2026-11-14: not enough, systematic: N3, with the A-B outcome as a class and the queue and lead as predictors Final after N3: composition holds for queues ≤ 4 cars; a closing lead within ~2 s and 5+ queues stay explicit games Met after N3 round 4 (2026-11-15): 92 % of held-out contexts |
 | | N3 residual model | B | a permutation-invariant residual over the slots, fitted on three-car runs, tested on four | held-out error against the composed model's. Done in two rounds (9ed8d89, 43b45a3, d17fdc3): held out 82 % of contexts; composition for queues ≤ 4 cars, the closing lead and 5+ queues explicit |
 | | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
 | | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |

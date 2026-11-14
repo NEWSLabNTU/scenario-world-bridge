@@ -199,3 +199,8 @@ Isaac's rear contact (inventory row 18).
   2000 as "not CARLA's RPC server". Each started CARLA now has a reaper (`python3 -m
   swb.simulator reap`, its own session, so play_launch's stop does not reach it) that, when
   the keeper dies, sends SIGTERM, waits 20 s and sends SIGKILL, through a pidfd.
+- T3, the AWF safety suite against its 076 reference (2026-11-15, CARLA 0.9.16 started by the
+  stack, Autoware 1.5.0 clustering, `lifetime: run`): UC-ACC-001 27/27 passed (2454 s; the
+  reference 2409 s), UC-AEB-001 9/9 passed (578 s; 721 s), `physical_verdict` passed on both.
+  First suite on the ROUTER socket (G21), the autoware prelude (G1) and gaps A. After
+  `--stop-stack` no CARLA, reaper or port was left.

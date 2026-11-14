@@ -42,11 +42,13 @@ import itertools
 import math
 import os
 import sys
+from collections import deque
 from dataclasses import dataclass
 from multiprocessing import Pool
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import measures as M  # noqa: E402
+import crossing_game as X  # noqa: E402
 from crossing_game import solve  # noqa: E402
 
 DT = 0.05
@@ -64,6 +66,7 @@ OBS, REACT = 0.19, 1.0  # s: perception delay; B's reaction to a newly seen obst
 L_TIMINGS = (6.0, 4.5, 3.5, 2.5)
 B_GAPS = (0.8, 1.5, 2.5)
 RISK_OK = 0.2
+PEAK_W = 0.5  # s, the arena's peak-braking window
 
 
 @dataclass
@@ -89,7 +92,51 @@ def idm(gap, v, v_lead, tau, v_des):
     return max(a, -max(IDM_B, 1.2 * need))
 
 
-def simulate(t_l, tau_b, h0, v, o_mode, look, v_adj, t_lc):
+V_FREE = 100.0  # m/s: IDM's free-road speed under follow(), whose cruise control holds the car's own
+
+
+def follow(gap, v, v_lead, tau, v_des):
+    """B's follower, as cutin_game.follow_cruise (074 N3): IDM's interaction term toward the leader,
+    capped by a cruise control toward the car's own speed v_des (gain 1.5 /s, -1 .. A_MAX), so it
+    regains its speed instead of approaching it asymptotically."""
+    return min(idm(gap, v, v_lead, tau, V_FREE), max(-1.0, min(A_MAX, 1.5 * (v_des - v))))
+
+
+def l_accel(lat, vl, xl, xo, v_o, v_adj):
+    """L: settle to the left lane's speed once half across; brake for O while its body is in the
+    lane only when a stop needs 3 m/s^2 or more."""
+    al = max(-IDM_B, min(A_MAX, (v_adj - vl) / 1.0)) if lat >= 0.5 else 0.0
+    if lat < LAT_CLEAR and xo - LEN - xl > 0:
+        need = max(0.0, vl - v_o) ** 2 / (2 * max(xo - LEN - xl - 1.0, 0.1))
+        if need >= 3.0:
+            al = min(al, -min(B_MAX, need))
+    return al
+
+
+def b_leaders(t, look, t_reveal):
+    """Which cars B follows at t: L until OBS after it left B's lane; O from OBS on with
+    look-through, else from OBS + REACT after L left."""
+    return (t_reveal is None or t < t_reveal + OBS,
+            (look == "on" and t >= OBS) or (t_reveal is not None and t >= t_reveal + OBS + REACT))
+
+
+def b_accel(leaders, vb, tau_b, v):
+    ab = min([follow(g, vb, vlead, tau_b, v) for g, vlead in leaders] + [max(-1.0, min(A_MAX, 1.5 * (v - vb)))])
+    return max(-B_MAX_B, ab)
+
+
+def lateral(t, t_start, t_lc):
+    """L's lane change: lateral progress 0..1 (cosine) and its lateral speed (m/s)."""
+    if t_start is None:
+        return 0.0, 0.0
+    u = min(1.0, (t - t_start) / t_lc)
+    return 0.5 * (1 - math.cos(math.pi * u)), (LANE_W * 0.5 * math.pi / t_lc * math.sin(math.pi * u) if u < 1 else 0.0)
+
+
+def simulate(t_l, tau_b, h0, v, o_mode, look, v_adj, t_lc, lags=None, peak_mode="command"):
+    """One run; lags: the car's command lags (crossing_game.car_lags), None for an ideal car;
+    peak_mode "window" scores peak braking as the arena does (speed drop over PEAK_W), "command"
+    from the commanded deceleration."""
     v_o = 0.0 if o_mode == "stopped" else O_SLOW * v
     xl = 0.0  # fronts
     xb = -(LEN + h0 * v)
@@ -102,27 +149,20 @@ def simulate(t_l, tau_b, h0, v, o_mode, look, v_adj, t_lc):
     peak = {"L": 0.0, "B": 0.0}
     contact = False
     t = 0.0
+    act = {k: X.Actuator(lags) if lags else None for k in "LB"}
+    vh = {"L": deque(), "B": deque()}
+    peak_w = {"L": 0.0, "B": 0.0}
     while t < HORIZON - 1e-9:
         # --- L
         if t_start is None and vl > v_o and (xo - LEN - xl) / (vl - v_o) <= t_l:
             t_start = t
-        in_lane = lat < LAT_CLEAR
-        if lat >= 0.5:
-            al = max(-IDM_B, min(A_MAX, (v_adj - vl) / 1.0))  # settle to the left lane's speed
-        else:
-            al = 0.0
-        if in_lane and xo - LEN - xl > 0:  # L's safety layer: brakes only when a stop is needed hard
-            need = max(0.0, vl - v_o) ** 2 / (2 * max(xo - LEN - xl - 1.0, 0.1))
-            if need >= 3.0:
-                al = min(al, -min(B_MAX, need))
+        al = l_accel(lat, vl, xl, xo, v_o, v_adj)
         # --- B: what it perceives
-        leaders = []
-        if t_reveal is None or t < t_reveal + OBS:
-            leaders.append((xl - LEN - xb, vl))
-        if look == "on" and t >= OBS or (t_reveal is not None and t >= t_reveal + OBS + REACT):
-            leaders.append((xo - LEN - xb, v_o))
-        ab = min([idm(g, vb, vlead, tau_b, v) for g, vlead in leaders] + [A_MAX])
-        ab = max(-B_MAX_B, ab)
+        see_l, see_o = b_leaders(t, look, t_reveal)
+        leaders = ([(xl - LEN - xb, vl)] if see_l else []) + ([(xo - LEN - xb, v_o)] if see_o else [])
+        ab = b_accel(leaders, vb, tau_b, v)
+        if lags:
+            al, ab = act["L"].step(al), act["B"].step(ab)
         for k, a in (("L", al), ("B", ab)):
             peak[k] = max(peak[k], -a)
         vl = max(0.0, vl + al * DT)
@@ -131,12 +171,14 @@ def simulate(t_l, tau_b, h0, v, o_mode, look, v_adj, t_lc):
         xb += vb * DT
         xo += v_o * DT
         t += DT
-        if t_start is not None:
-            u = min(1.0, (t - t_start) / t_lc)
-            lat = 0.5 * (1 - math.cos(math.pi * u))
-            vy = LANE_W * 0.5 * math.pi / t_lc * math.sin(math.pi * u) if u < 1 else 0.0
-        else:
-            vy = 0.0
+        for k, vv in (("L", vl), ("B", vb)):  # peak braking as the arena measures it (speed drop over 0.5 s)
+            h = vh[k]
+            h.append((t, vv))
+            while t - h[0][0] > PEAK_W + 1e-9:
+                h.popleft()
+            if t - h[0][0] >= PEAK_W - 1e-9:
+                peak_w[k] = max(peak_w[k], (h[0][1] - vv) / PEAK_W)
+        lat, vy = lateral(t, t_start, t_lc)
         if lat >= LAT_CLEAR and t_reveal is None:
             t_reveal = t
         vxl = math.sqrt(max(0.0, vl * vl - vy * vy))
@@ -149,13 +191,18 @@ def simulate(t_l, tau_b, h0, v, o_mode, look, v_adj, t_lc):
         if any(m.clear <= 0.0 for m in pairs.values()):
             contact = True
             break
+    if t < HORIZON - 1e-9 and not contact:  # the last step lands on HORIZON within rounding
+        t = HORIZON
     r = {k: M.rho(m.ttc2d, m.thw, math.inf, m.clear) for k, m in pairs.items()}  # no crossing: no PET
     rho_b, rho_l = max(r["BO"], r["BL"]), max(r["LO"], r["BL"])
-    lost_b = 1.0 if contact else min(1.0, max(0.0, (v * HORIZON - (xb + LEN + h0 * v)) / (v * HORIZON)))
-    lost_l = 1.0 if contact else min(1.0, max(0.0, (v * HORIZON - xl) / (v * HORIZON)))
+    # progress over exactly HORIZON (measures.lost_progress, 074 N3): B's arc length in its pair with
+    # O, L's in its pair with O
+    lost_b = 1.0 if contact else M.lost_progress(v, pairs["BO"].s_h[0] if pairs["BO"].s_h[0] is not None else pairs["BO"].s[0])
+    lost_l = 1.0 if contact else M.lost_progress(v, pairs["LO"].s_h[0] if pairs["LO"].s_h[0] is not None else pairs["LO"].s[0])
     lat_l = pairs["LO"].lat_peak[0]
-    u_l = M.utility(lost_l, rho_l, peak["L"], B_MAX, lat_l, contact)
-    u_b = M.utility(lost_b, rho_b, peak["B"], B_MAX_B, 0.0, contact)
+    pk = peak_w if peak_mode == "window" else peak
+    u_l = M.utility(lost_l, rho_l, pk["L"], B_MAX, lat_l, contact)
+    u_b = M.utility(lost_b, rho_b, pk["B"], B_MAX_B, 0.0, contact)
     m = pairs["BO"]
     return Out(u_l, u_b, rho_b, rho_l, contact, peak["B"], m.ttc2d, m.clear, lost_b, lost_l)
 

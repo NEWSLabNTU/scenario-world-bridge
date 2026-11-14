@@ -61,6 +61,7 @@ class Entity:
     controller: str = ""
     properties: dict = field(default_factory=dict)
     catalog_entry: str = None
+    geometry: dict = field(default_factory=dict)  # an inline Vehicle's numeric axles and box
 
     @property
     def external(self) -> bool:
@@ -177,8 +178,69 @@ def read_scenario(path: Path) -> Scenario:
         ref = obj.find("CatalogReference")
         if ref is not None:
             ent.catalog_entry = ref.get("entryName")
+        veh = obj.find("Vehicle")
+        if veh is not None:
+            ent.geometry = vehicle_geometry(veh)
         sc.entities.append(ent)
     return sc
+
+
+GEOMETRY_TOLERANCE = 0.02   # m: the bridge refuses an ego further than this from its body
+
+
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None  # a $parameter: SSv2 fills it in, nothing to compare here
+
+
+def vehicle_geometry(veh) -> dict:
+    """A <Vehicle>'s numeric geometry: axle positions, track, wheel diameter, box."""
+    g = {}
+    for axle, key in (("FrontAxle", "front"), ("RearAxle", "rear")):
+        a = veh.find(f"Axles/{axle}")
+        if a is None:
+            continue
+        for attr, name in (("positionX", "x"), ("trackWidth", "track"),
+                           ("wheelDiameter", "wheel_diameter")):
+            v = _num(a.get(attr))
+            if v is not None:
+                g[f"{key}_{name}"] = v
+    d = veh.find("BoundingBox/Dimensions")
+    if d is not None:
+        for attr in ("length", "width", "height"):
+            v = _num(d.get(attr))
+            if v is not None:
+                g[attr] = v
+    return g
+
+
+def catalog_geometry(entry: str, catalog: Path = None):
+    """The vehicle catalog's geometry for ``entry`` (sim_vehicle_spec's catalogs/vehicles.xosc),
+    or None when the catalog or the entry is not there."""
+    if catalog is None:
+        try:
+            from ament_index_python.packages import get_package_share_directory
+            catalog = Path(get_package_share_directory("sim_vehicle_spec")) / "catalogs" / \
+                "vehicles.xosc"
+        except Exception:  # noqa: BLE001 (not installed: nothing to check against)
+            return None
+    try:
+        root = ET.parse(catalog).getroot()
+    except (OSError, ET.ParseError):
+        return None
+    for veh in root.iter("Vehicle"):
+        if veh.get("name") == entry:
+            return vehicle_geometry(veh)
+    return None
+
+
+def geometry_problems(declared: dict, catalog: dict) -> list:
+    """``name declared x, catalog y`` for every shared value further apart than the
+    tolerance."""
+    return [f"{k} {declared[k]:g}, the catalog's {catalog[k]:g}" for k in sorted(declared)
+            if k in catalog and abs(declared[k] - catalog[k]) > GEOMETRY_TOLERANCE]
 
 
 def _is_scenario_file(p: Path) -> bool:
@@ -422,6 +484,15 @@ def check_scenario(project: Path, sc: Scenario, settings: dict) -> list:
                                f" {key} drives a {car}",
                                "one car: change the scenario's CatalogReference or the"
                                " pilot's vehicle:"))
+        if car and ent.geometry:
+            cat = catalog_geometry(car)
+            bad = geometry_problems(ent.geometry, cat) if cat else []
+            if bad:
+                out.append(Finding(rel, f"entity {ent.name} declares a car that is not the"
+                                   f" catalog's {car}: " + "; ".join(bad),
+                                   f"use the catalog's {car} (a CatalogReference), or its"
+                                   " numbers; the bridge refuses an ego more than"
+                                   f" {GEOMETRY_TOLERANCE * 100:g} cm off", refused=True))
     if sim == "isaac" and len(external) > 1:
         out.append(Finding(rel, f"{len(external)} externally driven entities"
                            f" ({', '.join(e.name for e in external)}); Isaac drives one",

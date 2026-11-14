@@ -344,3 +344,25 @@ def test_variants_counted(tmp_path):
            / "scenarios" / "awf")
     for f in awf.glob("UC-ACC*.yaml"):
         assert project.read_scenario(f).variants == 27
+
+
+def test_ego_geometry_against_the_catalog(tmp_path):
+    import xml.etree.ElementTree as ET
+    cat = tmp_path / "vehicles.xosc"
+    cat.write_text('<OpenSCENARIO><Catalog name="vehicle_catalog"><Vehicle name="tesla_model3">'
+                   '<BoundingBox><Dimensions width="2.163" height="1.488" length="4.792"/>'
+                   '</BoundingBox><Axles><FrontAxle positionX="3.005" trackWidth="1.667" '
+                   'wheelDiameter="0.74"/><RearAxle positionX="0" trackWidth="1.667" '
+                   'wheelDiameter="0.74"/></Axles></Vehicle></Catalog></OpenSCENARIO>')
+    good = project.catalog_geometry("tesla_model3", cat)
+    assert good["front_x"] == 3.005 and project.catalog_geometry("nope", cat) is None
+    sample = ET.fromstring('<Vehicle><BoundingBox><Dimensions length="$l" width="2.163"/>'
+                           '</BoundingBox><Axles><FrontAxle positionX="1.385" '
+                           'trackWidth="1.63" wheelDiameter="0.78"/></Axles></Vehicle>')
+    declared = project.vehicle_geometry(sample)
+    assert "length" not in declared  # a parameter: not compared
+    bad = project.geometry_problems(declared, good)
+    assert bad == ["front_track 1.63, the catalog's 1.667", "front_wheel_diameter 0.78, the "
+                   "catalog's 0.74", "front_x 1.385, the catalog's 3.005"]
+    assert project.geometry_problems(project.vehicle_geometry(ET.fromstring(
+        '<Vehicle><Axles><FrontAxle positionX="3.004"/></Axles></Vehicle>')), good) == []

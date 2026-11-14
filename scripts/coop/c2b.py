@@ -173,11 +173,15 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
     b = C1.TYPES["car"].b_max
     meas = measures.Measures(b_max=(b, b))
     ps = poses(ta)
+    # the route's curvature at each car (logged since 074's route-curvature change), only with
+    # world poses: the lane frame of older logs is a straight road, kappa = 0
+    world = all("x" in r for r in ta)
     for r, (pa, pb) in zip(ta, ps):
         t = r["t"] - t0
         lat, along, v, ov = r["lat"], r["along"], r["v"], r["ov"]  # along: B's centre ahead of A
         follower = gap = closing = None
-        meas.push_poses(t, pa, pb)
+        kap = (r["kappa"], r["okappa"]) if world and "kappa" in r and "okappa" in r else None
+        meas.push_poses(t, pa, pb, kappa=kap)
         if meas.clear <= 0.0:  # the oriented bodies overlap, as in the arena and C1
             contact = True
         if lat >= C1.LANE_LINE:
@@ -262,6 +266,28 @@ def run_one(out, d0, dv, pa, pb, seed, port, relay):
     return res
 
 
+def add_kappa(out, port):
+    """Add kappa / okappa to every world-frame row of coop_a.jsonl that lacks them (runs logged
+    before cutin_agent logged the route's curvature), from CARLA's map."""
+    import carla
+    import route
+
+    cmap = carla.Client("localhost", port)
+    cmap.set_timeout(60.0)
+    cmap = cmap.get_world().get_map()
+    for log in sorted(Path(out).glob("d*/coop_a.jsonl")):
+        rows = [json.loads(l) for l in open(log) if l.strip()]
+        if not any("x" in r and "kappa" not in r for r in rows):
+            continue
+        for r in rows:
+            if "x" in r and "kappa" not in r:
+                r["kappa"] = round(route.kappa_at(cmap, r["x"], r["y"]), 5)
+                r["okappa"] = round(route.kappa_at(cmap, r["ox"], r["oy"]), 5)
+        with open(log, "w") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True)
@@ -271,9 +297,14 @@ def main():
     ap.add_argument("--only", type=int, default=0, help="run just the first N runs (a smoke test)")
     ap.add_argument("--arena-port", type=int, default=0, help="instead: the same cells in the arena on this CARLA")
     ap.add_argument("--rescore", action="store_true", help="instead: score the runs in --out again from their logs")
+    ap.add_argument("--kappa-port", type=int, default=0,
+                    help="with --rescore: first add each car's route curvature to world-frame logs that lack it, "
+                         "from the map of the CARLA on this port (Town03 loaded); the logs are rewritten")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     if a.rescore:
+        if a.kappa_port:
+            add_kappa(a.out, a.kappa_port)
         old = [json.loads(l) for l in open(os.path.join(a.out, "c2b.jsonl")) if l.strip()]
         with open(os.path.join(a.out, "c2b.jsonl"), "w") as f:
             for r in old:

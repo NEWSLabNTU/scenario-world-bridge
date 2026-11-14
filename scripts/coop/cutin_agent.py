@@ -68,6 +68,7 @@ class LightWorld(carla_basic.CarlaWorld):
         self.log.info(f"world {world.id}: {self.map.name}")
 
 import arena as AR  # noqa: E402
+import route  # noqa: E402
 import cutin_game as C1  # noqa: E402
 
 
@@ -265,7 +266,12 @@ class CutInAgent(CarlaBasicAgent):
         import carla
         me.apply_control(carla.VehicleControl(throttle=th, brake=br, steer=self.steer.command(angle)))
         if self.logf and int(t * 20) % 2 == 0:
+            # each car's route curvature at its position (measures' lateral comfort subtracts
+            # v^2 kappa: what following the road itself takes; 074, design ①)
+            kap = route.lane_kappa(my_own)
+            okap = route.kappa_at(self.world.map, oloc.x, oloc.y, oloc.z)
             self.logf.write(json.dumps({"t": round(t, 3), "phase": self.stage, "along": round(along, 2),
+                                        "kappa": round(kap, 5), "okappa": round(okap, 5),
                                         "x": round(loc.x, 2), "y": round(loc.y, 2), "ox": round(oloc.x, 2), "oy": round(oloc.y, 2),
                                         "yaw": round(yaw, 4), "oyaw": round(oyaw, 4),
                                         "v": round(v, 2), "ov": round(ov, 2), "lat": round(lat, 3),

@@ -215,11 +215,14 @@ class Measures:
         self._fp = ([], [])  # (t, centre x, y, yaw, corners) every pet_sample s
         self._fp_t = -1.0
 
-    def push_poses(self, t, pa, pb):
+    def push_poses(self, t, pa, pb, kappa=None):
         """Both cars' poses at t: (x, y, yaw, vx, vy, length, width), in any one plane frame.
 
         Feeds the general risk (2D TTC, headway, PET, clearance), arc length and lateral
-        acceleration; call it with push() at the same t, or alone.
+        acceleration; call it with push() at the same t, or alone. kappa: each car's route
+        curvature at its position (1/m, positive toward increasing yaw), or None for a straight
+        road: lateral comfort counts only what a car adds to its route, a_lat - v^2 kappa
+        (design ①).
         """
         dt = 0.0 if self._prev_pose is None else t - self._prev_pose[0]
         th = HORIZON  # the window is [0, H] in the caller's time, t = 0 the run's start
@@ -236,13 +239,19 @@ class Measures:
                     f = 1.0 if dt <= 0 else max(0.0, min(1.0, (th - self._prev_pose[0]) / dt))
                     self.s_h[k] = s_prev + f * (self.s[k] - s_prev)
             h = self._vv[k]
-            h.append((t, p[3], p[4]))
+            h.append((t, p[3], p[4], 0.0 if kappa is None else kappa[k]))
             while len(h) > 1 and t - h[1][0] >= WINDOW - 1e-6:
                 h.popleft()
             if t - h[0][0] >= WINDOW - 0.051:
                 span = t - h[0][0]
                 ax, ay = (p[3] - h[0][1]) / span, (p[4] - h[0][2]) / span
-                self.lat_peak[k] = max(self.lat_peak[k], abs(-ax * math.sin(p[2]) + ay * math.cos(p[2])))
+                a_lat = -ax * math.sin(p[2]) + ay * math.cos(p[2])
+                if kappa is not None:
+                    # what following the route itself takes, over the same window as the
+                    # velocity's slope (a sharp lane shift's peak curvature, subtracted at one
+                    # instant, overshoots the window's mean turn)
+                    a_lat -= sp * sp * sum(e[3] for e in h) / len(h)
+                self.lat_peak[k] = max(self.lat_peak[k], abs(a_lat))
         self._prev_pose = (t, pa, pb)
         ca, cb = corners(*pa[:3], *pa[5:]), corners(*pb[:3], *pb[5:])
         reach = math.hypot(pa[5], pa[6]) / 2 + math.hypot(pb[5], pb[6]) / 2
@@ -443,6 +452,17 @@ def selftest():
     a0, b0 = corners(0, 0, 0, L5, W), corners(4.0, 0, 0, L5, W)
     assert abs(separation(a0, b0) + 0.8) < 1e-9 and abs(separation(a0, corners(6.0, 0, 0, L5, W)) - 1.2) < 1e-9
     assert rho(ttc=1.5) == 0.5 and rho(clear=0.2) == 0.8 and rho() == 0.0
+    # a constant speed on a constant-radius arc: the route's own lateral acceleration (v^2 / R)
+    # is not discomfort once its curvature is given; without it, it is
+    R, v = 50.0, 10.0
+    for kap, want in ((None, v * v / R), (1.0 / R, 0.0)):
+        m8 = Measures()
+        for i in range(101):
+            tt = i * 0.05
+            psi = v * tt / R
+            pose = (R * math.sin(psi), R * (1 - math.cos(psi)), psi, v * math.cos(psi), v * math.sin(psi), L5, W)
+            m8.push_poses(tt, pose, p(-30, 3.5, vx=0.0), kappa=None if kap is None else (kap, 0.0))
+        assert abs(m8.lat_peak[0] - want) < 0.05, (kap, m8.lat_peak)
     print("measures selftest ok")
 
 

@@ -22,7 +22,7 @@ traffic_simulator (NPC behavior, Lanelet2 routing)
 +----------------------------------------------------------+
 |  scenario-world-bridge                                    |
 |                                                           |
-|  ZMQ Server (REP socket)                                  |
+|  ZMQ Server (ROUTER socket, one SSv2 session at a time)  |
 |  Coordinator (protobuf <-> SimBackend calls, no simulator)|
 |  ---- SimBackend trait (roadmap 035) -------------------  |
 |  CarlaBackend (src/backend/carla/)                        |
@@ -107,7 +107,9 @@ swb drives SSv2 scenarios on a simulator behind one Rust trait,
 `backend` (`carla`, the default) chooses it, and Isaac Sim is the second implementation
 ([simulator-backends.md](simulator-backends.md), roadmap 037). The layers:
 
-- **`zmq_server`**: the REP socket, the frame budget, panics, the drain after a hang.
+- **`zmq_server`**: the SSv2 socket (ROUTER: one REQ connection per scenario, and one SSv2
+  at a time, `session`), the frame budget, panics, the drain after a hang, the ROS
+  services' commands (weather, `load_map`).
 - **`coordinator`**: decodes each protobuf request into the trait's terms -- an
   `Episode`, a `SpawnRequest` with who drives it (`Driver`, from `is_ego` and the
   controller), a `StatusBatch` of every entity's pose, a `Goal` -- and turns the result into

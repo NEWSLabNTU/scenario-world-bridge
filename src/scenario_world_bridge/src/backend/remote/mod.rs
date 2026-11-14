@@ -42,8 +42,8 @@ use serde::Deserialize;
 
 use crate::agent_link::{self, AgentLink, AgentPose, Command as AgentCommand};
 use crate::backend::{
-    BackendError, Driver, EntityKind, EntityStatus, Environment, Episode, Goal, Sensor, SimBackend,
-    SpawnRequest, StatusBatch, StatusOutcome, Wheels,
+    BackendError, BridgeBackend, Driver, EntityKind, EntityStatus, Environment, Episode, Goal,
+    Sensor, SimBackend, SpawnRequest, StatusBatch, StatusOutcome, Wheels,
 };
 use crate::body_clearance::{self, BodyBox};
 use crate::budgets;
@@ -656,6 +656,8 @@ pub struct RemoteBackend {
     unmapped_signals: BTreeSet<i32>,
     map_origin: [f64; 3],
     step_time: f64,
+    /// The last world load's realtime factor, for a load between scenarios (`load_map`).
+    realtime_factor: f64,
     substeps: u32,
     dt: f64,
     /// The server's sim time after the last step, s, and its frame.
@@ -708,6 +710,7 @@ impl RemoteBackend {
             unmapped_signals: Default::default(),
             map_origin: [0.0; 3],
             step_time: 0.05,
+            realtime_factor: 1.0,
             substeps,
             dt,
             sim_time: 0.0,
@@ -1357,36 +1360,11 @@ fn unsupported(what: &str, needs: wire::Capability, sim: &str) -> BackendError {
     ))
 }
 
-impl SimBackend for RemoteBackend {
-    fn before_serving(&mut self) {
-        // The configured weather, now that there is a world to apply it to; the server keeps
-        // it across map loads.
-        let name = self.config.weather.trim().to_string();
-        if name.is_empty() || !self.offers(wire::Capability::Weather) {
-            if !name.is_empty() {
-                tracing::warn!(
-                    "Weather '{name}' not applied: the {} world server has no weather",
-                    self.sim()
-                );
-            }
-            return;
-        }
-        match crate::weather::decode_request(&name, &[], &[]) {
-            Ok(request) => {
-                let reply = self.set_weather(request);
-                tracing::info!("Weather '{name}': {}", reply.message);
-            }
-            Err(e) => tracing::error!("Weather '{name}': {e}"),
-        }
-    }
-
-    fn initialize(&mut self, episode: &Episode) -> Result<i64, BackendError> {
-        tracing::info!(
-            "Initialize on {}: step_time={}, map {}",
-            self.sim(),
-            episode.step_time,
-            episode.lanelet2_map_path
-        );
+impl RemoteBackend {
+    /// The world load an `Initialize` makes, and a load between scenarios (`load_map`): end
+    /// the previous run, send `LoadWorld` for the episode's map, map its signals, forget its
+    /// entities. The server's sim time after the load, ns, when it said.
+    fn load_world(&mut self, episode: &Episode) -> Result<Option<i64>, BackendError> {
         self.finish_ego_run(true);
         if !self.entities.is_empty() {
             self.log_tracking();
@@ -1517,6 +1495,71 @@ impl SimBackend for RemoteBackend {
         self.names.clear();
         self.pending.clear();
         self.set_step_time(episode.step_time);
+        self.realtime_factor = episode.realtime_factor;
+        Ok(start_ns)
+    }
+}
+
+impl BridgeBackend for RemoteBackend {
+    fn load_map(&mut self, lanelet2_map_path: &str) -> Result<String, BackendError> {
+        tracing::info!(
+            "Loading the world of map {lanelet2_map_path} on {} between scenarios (load_map)",
+            self.sim()
+        );
+        let before = self.world_episode;
+        let episode = Episode {
+            step_time: self.step_time,
+            realtime_factor: self.realtime_factor,
+            lanelet2_map_path: lanelet2_map_path.to_string(),
+        };
+        self.load_world(&episode)?;
+        let dir = map_dir_of(Path::new(lanelet2_map_path));
+        let map = dir.file_name().map_or_else(
+            || dir.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+        let episode = match (before, self.world_episode) {
+            (_, 0) => String::new(),
+            (b, now) if b == now => format!(", episode {now} kept"),
+            (_, now) => format!(", episode {now}"),
+        };
+        let message = format!("{} loaded {map}{episode}", self.sim());
+        tracing::info!("{message}");
+        Ok(message)
+    }
+}
+
+impl SimBackend for RemoteBackend {
+    fn before_serving(&mut self) {
+        // The configured weather, now that there is a world to apply it to; the server keeps
+        // it across map loads.
+        let name = self.config.weather.trim().to_string();
+        if name.is_empty() || !self.offers(wire::Capability::Weather) {
+            if !name.is_empty() {
+                tracing::warn!(
+                    "Weather '{name}' not applied: the {} world server has no weather",
+                    self.sim()
+                );
+            }
+            return;
+        }
+        match crate::weather::decode_request(&name, &[], &[]) {
+            Ok(request) => {
+                let reply = self.set_weather(request);
+                tracing::info!("Weather '{name}': {}", reply.message);
+            }
+            Err(e) => tracing::error!("Weather '{name}': {e}"),
+        }
+    }
+
+    fn initialize(&mut self, episode: &Episode) -> Result<i64, BackendError> {
+        tracing::info!(
+            "Initialize on {}: step_time={}, map {}",
+            self.sim(),
+            episode.step_time,
+            episode.lanelet2_map_path
+        );
+        let start_ns = self.load_world(episode)?;
         self.frame = 0;
         self.episode += 1;
         let motion = match self.config.npc_motion {

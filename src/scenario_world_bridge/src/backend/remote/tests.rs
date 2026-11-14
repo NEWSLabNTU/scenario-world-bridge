@@ -1271,3 +1271,51 @@ fn what_a_server_does_not_report_is_not_compared() {
     assert!(ego_body_mismatches(M3_CENTER, M3_DIMS, Some(M3_WHEELS), &body).is_empty());
     assert!(ego_body_mismatches(M3_CENTER, M3_DIMS, None, &carla_m3_body()).is_empty());
 }
+
+/// `load_map` between scenarios (roadmap 077, G9): one LoadWorld for the map, at the last
+/// Initialize's step, the bridge's entities forgotten, and no episode of its own (no gap
+/// trace, no frame count): the next Initialize is the scenario's.
+#[test]
+fn a_map_loaded_between_scenarios_is_a_world_load_and_no_episode() {
+    let loads = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = loads.clone();
+    let mut inner = honest_with(CARLA_LIKE, "one");
+    let endpoint = server(Box::new(move |req| {
+        if let Some(wire::request::Request::LoadWorld(l)) = &req.request {
+            seen.lock().unwrap().push((
+                l.lanelet2_map_path.clone(),
+                l.step_time,
+                l.realtime_factor,
+            ));
+        }
+        inner(req)
+    }));
+    let mut b = backend(&endpoint);
+    let first = Episode {
+        step_time: 0.1,
+        realtime_factor: 2.0,
+        ..episode()
+    };
+    b.initialize(&first).unwrap();
+    b.spawn(&vehicle("npc", Driver::Scenario, 5.0)).unwrap();
+    assert_eq!(b.entity_count(), 1);
+    let message = b.load_map("/nonexistent/Town02/lanelet2_map.osm").unwrap();
+    assert!(message.contains("loaded Town02"), "{message}");
+    assert!(message.contains("episode 1 kept"), "{message}");
+    assert_eq!(b.entity_count(), 0);
+    assert_eq!(b.episode, 1, "a load between scenarios is not an episode");
+    assert_eq!(
+        *loads.lock().unwrap(),
+        vec![
+            ("/nonexistent/Town01/lanelet2_map.osm".to_string(), 0.1, 2.0),
+            ("/nonexistent/Town02/lanelet2_map.osm".to_string(), 0.1, 2.0),
+        ]
+    );
+    // The scenario's own Initialize then counts as the next episode.
+    b.initialize(&Episode {
+        lanelet2_map_path: "/nonexistent/Town02/lanelet2_map.osm".into(),
+        ..episode()
+    })
+    .unwrap();
+    assert_eq!(b.episode, 2);
+}

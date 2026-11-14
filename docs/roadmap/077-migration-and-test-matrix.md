@@ -94,3 +94,39 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
   drive, package projects), C (G4: recording), E (G16 to G19: gate, two hosts, parameter
   overrides, harness mode) next; G8, G13 and G20 (asset sources, CARLA map packages, CARLA
   0.10) need decisions.
+- G9 town preload and G21 two SSv2 clients (2026-11-15), step 3. Tests without a simulator
+  (the bridge's against a fake backend and an in-process world server, over real ZMQ
+  sockets; the keeper's with a stand-in command). Not run live. Rulings:
+  - **`/scenario_world_bridge/load_map`** (`swb_interfaces/srv/LoadMap`: `map_path`, a map
+    directory or its lanelet2 file, absolute; `success`, `message`): handed to the bridge's
+    world thread as `set_weather` is, and answered after its `LoadWorld`. The load is
+    `Initialize`'s without the episode (no gap trace file, no frame count), at the last
+    Initialize's step and realtime factor, and it forgets the bridge's entities. A new
+    `BridgeBackend` trait in the bridge (over `swb_core`'s `SimBackend`) carries it, so the
+    world protocol and `swb_world_protocol` are unchanged.
+  - **Refused while a scenario runs**: entities spawned and the session's SSv2 asked within
+    5 s. A scenario starting (Initialized, nothing spawned yet) is not protected; the keeper
+    calls only between runs, after the runner stopped SSv2.
+  - **The keeper calls it between the pilots' stop and their start** (`python3 -m
+    swb.load_map`, rclpy, in the scenario domain with the stack's DDS settings; 10 s for the
+    service, 120 s for the answer, inside the runner's 180 s for the switch), on CARLA only and
+    only when something serves the seat's SSv2 port. The answer is the switch's `preload`
+    (`loaded`, `failed` with `error`, `skipped`) and a `map.preload` event. A failure is not
+    the switch's: the town then loads at SSv2's Initialize, one extra episode, as before.
+  - **One SSv2 at a time, by connection, not by a client id in Initialize.**
+    `InitializeRequest` carries nothing that names the client (`initialize_ros_time` is a
+    clock reading), and no other request carries anything. SSv2 opens one REQ socket per
+    scenario (`traffic_simulator::API`, per interpreter activation) and Initializes on it
+    first, so the bridge's socket became a ROUTER (same request-reply exchange; libzmq gives
+    each connection a routing id) and the connection whose Initialize was accepted last holds
+    the session. Any other connection's requests are refused, naming the session (client,
+    map, entities, last request); its Initialize too while the session is live (entities, and
+    a request within 5 s). After a scenario ends (SSv2 despawns everything), never spawned
+    (an ego refused at its spawn), or its SSv2 died silent for 5 s, the next Initialize takes
+    over. No SSv2 change. Left open: a stray whose Initialize lands between the first one's
+    Initialize and first spawn takes the session over, and the first one's requests are
+    then refused (one of the two fails, with the reason, instead of both interleaving).
+  - To check live: a `town02_episode_change`-style switch on a stack (the keeper's log line
+    `town for Town02: loaded`, acb_bridge starting once on Town02, the bridge's `Map 'Town02'
+    is already loaded` at Initialize, no `episode changed` warning), and two
+    `scenario_test_runner`s against one bridge (the second's error names the first).

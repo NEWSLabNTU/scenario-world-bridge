@@ -14,6 +14,9 @@
 
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <!-- swb.load_map: the keeper asks the bridge to load a map's town on a CARLA map switch -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>swb_interfaces</exec_depend>
   <!-- optional: huggingface_hub (pip), used by `assets fetch` when importable;
        without it the Hub is reached over plain HTTPS with the standard library -->
 

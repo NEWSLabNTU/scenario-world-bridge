@@ -29,8 +29,9 @@ A runner asks for another map by writing ``switch-request.json`` (``{id, map}``)
 stack's directory; the keeper sees a new id within 0.1 s, stops the pilots, records the map
 in stack.json (``map``, ``map_path``, the pilots' contract), starts them again with the new
 ``map_path`` and answers in stack.json's ``switch`` (``{id, map, state: done|failed,
-error}``). The run then waits for its pilots' readiness as every run does; the world server
-loads the town on SSv2's Initialize.
+error}``). On CARLA it has the bridge load the new town in between (``swb.load_map``, the
+bridge's ``~/load_map``), so the pilots start on it; when that fails the town loads on SSv2's
+Initialize, one episode later. The run then waits for its pilots' readiness as every run does.
 
 The simulator (swb.simulator): on CARLA, ``simulator_start`` (``auto``, ``start``,
 ``external``) decides at the plan whether the stack starts CARLA itself; a started CARLA is
@@ -1002,6 +1003,66 @@ def read_request(stack_dir: Path):
     return req if isinstance(req, dict) and req.get("id") and req.get("map") else None
 
 
+# The bridge's town load before the pilots restart (roadmap 077, G9). The runner waits
+# SWITCH_TIMEOUT (180 s) for the whole switch: the pilots' stop (up to STOP_GRACE), the
+# service's appearance and the load must fit in it. A Town load at Epic takes 20-70 s.
+PRELOAD_WAIT = 10.0       # for /scenario_world_bridge/load_map to appear
+PRELOAD_TIMEOUT = 120.0   # for its answer
+LOADED, NOT_LOADED, SKIPPED = "loaded", "failed", "skipped"
+
+
+def preload_command(rec: dict, name: str) -> list:
+    """``python3 -m swb.load_map`` for map ``name`` of the stack of ``rec``."""
+    return [sys.executable, "-m", "swb.load_map", str(map_dir(rec["project"], name)),
+            "--wait", str(PRELOAD_WAIT), "--timeout", str(PRELOAD_TIMEOUT)]
+
+
+def bridge_serving(rec: dict, timeout=0.5) -> bool:
+    """Something listens on the seat's SSv2 port: the bridge binds it only once a world
+    server has taken it as its owner."""
+    try:
+        with socket.create_connection(("127.0.0.1", int(seat_of(rec).ssv2_port)),
+                                      timeout=timeout):
+            return True
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def preload_map(rec: dict, name: str) -> dict:
+    """On CARLA, have the bridge load map ``name``'s town now (``~/load_map``, in the
+    scenario domain), so the pilots started next begin on it and SSv2's Initialize finds it
+    loaded; ``{state: loaded|failed|skipped, message|error}`` for the switch's answer. A
+    failure keeps the old way: the town loads at Initialize, one extra episode."""
+    if rec.get("simulator") != "carla":
+        return {"state": SKIPPED, "message": f"{rec.get('simulator')} loads its world itself"}
+    if not bridge_serving(rec):
+        return {"state": SKIPPED, "message": "no bridge serves the seat's SSv2 port yet; the "
+                "town loads at SSv2's Initialize"}
+    domain = (rec.get("domains") or {}).get("scenario")
+    t0 = time.time()
+    try:
+        p = subprocess.run(preload_command(rec, name), env=ros_env(rec, domain),
+                           capture_output=True, text=True,
+                           timeout=PRELOAD_WAIT + PRELOAD_TIMEOUT + 15)
+    except subprocess.TimeoutExpired:
+        return {"state": NOT_LOADED, "error": "swb.load_map did not end in time"}
+    except OSError as e:
+        return {"state": NOT_LOADED, "error": f"swb.load_map: {e}"}
+    answer = {}
+    for line in reversed(p.stdout.splitlines()):
+        try:
+            answer = json.loads(line)
+            break
+        except ValueError:
+            continue
+    took = round(time.time() - t0, 1)
+    if p.returncode == 0 and answer.get("success"):
+        return {"state": LOADED, "message": answer.get("message", ""), "seconds": took}
+    err = p.stderr.strip().splitlines()
+    why = answer.get("message") or (err[-1] if err else f"swb.load_map exited {p.returncode}")
+    return {"state": NOT_LOADED, "error": why, "seconds": took}
+
+
 def switch_map(stack_dir: Path, rec: dict, req: dict, pilots: Pilots) -> bool:
     """Carry out ``req`` (``{id, map}``) on the stack of ``rec``: stop the pilots, record the
     map, start them on it; the answer in ``rec["switch"]``, written to stack.json."""
@@ -1025,6 +1086,12 @@ def switch_map(stack_dir: Path, rec: dict, req: dict, pilots: Pilots) -> bool:
     event(stack_dir, "map.switch", map=name, previous=rec.get("map"))
     print(f"swb stack: pilots to map {name} (from {rec.get('map') or 'none'})", flush=True)
     pilots.stop_all(rec)
+    # the town first, so the pilots start on it (G9); a failure is recorded, not fatal
+    sw["preload"] = preload = preload_map(rec, name)
+    event(stack_dir, "map.preload", map=name, **preload)
+    print(f"swb stack: town for {name}: {preload['state']} "
+          f"({preload.get('message') or preload.get('error')})",
+          file=sys.stderr if preload["state"] == NOT_LOADED else sys.stdout, flush=True)
     rec["map"] = name
     rec["map_path"] = str(map_dir(rec["project"], name))
     rec["pilot_contract"] = contract_for_map(rec.get("pilot_contract") or {}, rec["project"],

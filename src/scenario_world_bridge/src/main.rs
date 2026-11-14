@@ -6,6 +6,7 @@
 mod backend;
 mod coordinator;
 mod frame_stats;
+mod session;
 mod world_services;
 mod zmq_server;
 
@@ -19,7 +20,7 @@ use color_eyre::eyre::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use backend::SimBackend;
+use backend::BridgeBackend;
 
 /// Exit status after a hung tick (`EX_TEMPFAIL`): not a clean exit, so the supervisor
 /// restarts the bridge.
@@ -106,7 +107,7 @@ fn main() -> Result<()> {
     // The stack's state directory (roadmap 076 A9): a map's signal table is read from
     // <state_dir>/<map dir name>/ first, where the CARLA world server writes it.
     remote.set_state_dir(state_dir);
-    let mut backend: Box<dyn SimBackend> = Box::new(remote);
+    let mut backend: Box<dyn BridgeBackend> = Box::new(remote);
     backend.before_serving();
     let coord = coordinator::Coordinator::new(backend);
 

@@ -12,7 +12,9 @@
 
   The bridge binds the SSv2 port only once a world server has taken it as its owner, and
   serves /scenario_world_bridge/set_weather and /scenario_world_bridge/get_weather (swb_interfaces) in its ROS domain for a
-  world server that has weather.
+  world server that has weather, and /scenario_world_bridge/load_map (a map's world now, between
+  scenarios). It serves one SSv2 at a time: a second one's requests are refused while the
+  first one's scenario runs.
 
   respawn: a request the world server does not answer in time, or a reply it marks fatal,
   ends the bridge with status 75; the launch restarts it, and the new one takes the world

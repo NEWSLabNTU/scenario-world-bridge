@@ -9,6 +9,7 @@ use crate::frame_stats::{FrameStats, Outcome, RequestKind, SUMMARY_WINDOW_FRAMES
 use crate::proto::simulation_api_schema::{
     self as api, simulation_request, simulation_response, SimulationRequest, SimulationResponse,
 };
+use crate::session::Sessions;
 use crate::world_services::WorldCommand;
 
 // No idle watchdog. Until roadmap 015 step 7 the bridge handed CARLA back to async after
@@ -31,6 +32,8 @@ pub struct ZmqServer {
     /// Requests from the ROS services (`world_services`), applied between SSv2 requests on
     /// this thread, which owns the world server's client.
     world_commands: Option<mpsc::Receiver<WorldCommand>>,
+    /// Which SSv2 connection holds the scenario (roadmap 077, G21).
+    sessions: Sessions,
 }
 
 impl ZmqServer {
@@ -40,23 +43,37 @@ impl ZmqServer {
         coordinator: Coordinator,
         world_commands: Option<mpsc::Receiver<WorldCommand>>,
     ) -> eyre::Result<Self> {
-        let socket = ctx.socket(zmq::REP)?;
-        let endpoint = format!("tcp://*:{port}");
-        socket.bind(&endpoint)?;
-        tracing::info!("ZMQ REP socket bound to {endpoint}");
+        Self::bind(ctx, &format!("tcp://*:{port}"), coordinator, world_commands)
+    }
+
+    /// The server on `endpoint` (the tests bind an inproc one).
+    pub fn bind(
+        ctx: &zmq::Context,
+        endpoint: &str,
+        coordinator: Coordinator,
+        world_commands: Option<mpsc::Receiver<WorldCommand>>,
+    ) -> eyre::Result<Self> {
+        // ROUTER, not REP: the same one-request-one-reply exchange with SSv2's REQ socket,
+        // and each request names the connection it came from, so a second SSv2 can be told
+        // apart and refused (`session`).
+        let socket = ctx.socket(zmq::ROUTER)?;
+        socket.bind(endpoint)?;
+        tracing::info!("ZMQ ROUTER socket bound to {endpoint}");
         Ok(Self {
             socket: Some(socket),
             coordinator,
             poisoned: None,
             frame_stats: FrameStats::new(),
             world_commands,
+            sessions: Sessions::default(),
         })
     }
 
     /// Apply whatever the ROS services have queued. Between SSv2 requests, so never in the
     /// middle of a frame's ticks or a map load.
     fn serve_world_commands(&mut self) {
-        let Some(rx) = &self.world_commands else {
+        // Taken while applied: a load needs `self`.
+        let Some(rx) = self.world_commands.take() else {
             return;
         };
         while let Ok(cmd) = rx.try_recv() {
@@ -67,8 +84,35 @@ impl ZmqServer {
                 WorldCommand::GetWeather(reply) => {
                     let _ = reply.send(self.coordinator.get_weather());
                 }
+                WorldCommand::LoadMap(path, reply) => {
+                    let _ = reply.send(self.load_map(&path));
+                }
             }
         }
+        self.world_commands = Some(rx);
+    }
+
+    /// `~/load_map`: the map's world now, unless a scenario is running on this bridge.
+    fn load_map(&mut self, path: &str) -> Result<String, String> {
+        let entities = self.coordinator.entity_count();
+        if let Some(running) = self.sessions.running(entities, Instant::now()) {
+            return Err(format!(
+                "not loaded: a scenario is running on this bridge, {running}; a map is \
+                 loaded between scenarios"
+            ));
+        }
+        let lanelet2 = crate::world_services::lanelet2_path(path)?;
+        let started = Instant::now();
+        let loaded = self
+            .coordinator
+            .load_map(&lanelet2)
+            .map_err(|e| e.to_string())?;
+        // The world was loaded anew: whatever session there was has no scenario left.
+        self.sessions.clear();
+        Ok(format!(
+            "{loaded} in {:.1} s",
+            started.elapsed().as_secs_f64()
+        ))
     }
 
     /// Run the server loop until shutdown is signaled.
@@ -128,25 +172,39 @@ impl ZmqServer {
             }
 
             last_request = Instant::now();
-            // Receive the request
-            let msg = match socket.recv_bytes(0) {
-                Ok(bytes) => bytes,
-                Err(e) => {
-                    tracing::error!("recv error: {e}");
-                    continue;
+            // Receive the request: the connection's envelope, then the message.
+            let Some((envelope, msg)) = recv_request(socket) else {
+                continue;
+            };
+            let peer = envelope.first().cloned().unwrap_or_default();
+
+            // One SSv2 at a time (`session`): a request from a connection that does not hold
+            // the scenario is answered with why, and never dispatched.
+            let variant = peek_request_variant(&msg);
+            let initialize = (variant == Some(INITIALIZE_FIELD)).then(|| initialize_map(&msg));
+            let admitted = self.sessions.admit(
+                &peer,
+                initialize.as_deref(),
+                self.coordinator.entity_count(),
+                last_request,
+            );
+            let response_bytes = match admitted {
+                Ok(()) => {
+                    // Decode, dispatch, encode, send -- a panic in a handler becomes a
+                    // failure response instead of the end of the process.
+                    let mut poisoned = self.poisoned.take();
+                    let bytes = guarded_dispatch(&mut poisoned, variant, || self.dispatch(&msg));
+                    self.poisoned = poisoned;
+                    self.sessions.answered(&peer, Instant::now());
+                    bytes
+                }
+                Err(why) => {
+                    tracing::warn!("{why}");
+                    encode_error_response(variant, &why)
                 }
             };
 
-            // Decode, dispatch, encode, send -- a panic in a handler becomes a failure
-            // response instead of the end of the process.
-            let variant = peek_request_variant(&msg);
-            let mut poisoned = self.poisoned.take();
-            let response_bytes = guarded_dispatch(&mut poisoned, variant, || self.dispatch(&msg));
-            self.poisoned = poisoned;
-
-            if let Err(e) = socket.send(&response_bytes, 0) {
-                tracing::error!("send error: {e}");
-            }
+            send_reply(socket, &envelope, &response_bytes);
             // A world request never returned (roadmap 032 N5): the request has its error; stop
             // serving, and drain (see `run`).
             if self.coordinator.wedged().is_some() {
@@ -364,18 +422,72 @@ pub fn drain(socket: &zmq::Socket, reason: &str, policy: DrainPolicy) -> usize {
                 break;
             }
         }
-        let Ok(msg) = socket.recv_bytes(0) else {
+        let Some((envelope, msg)) = recv_request(socket) else {
             continue;
         };
         let variant = peek_request_variant(&msg);
-        if let Err(e) = socket.send(encode_error_response(variant, &description), 0) {
-            tracing::error!("Drain: send error: {e}");
-        }
+        send_reply(
+            socket,
+            &envelope,
+            &encode_error_response(variant, &description),
+        );
         answered += 1;
         last = Instant::now();
         tracing::warn!("Drain: answered request variant {variant:?} with the hang error");
     }
     answered
+}
+
+/// One request from the ROUTER socket: the envelope (the connection's routing id, then the
+/// REQ socket's empty delimiter) and the message. `None` for a recv error or a message
+/// without an envelope (not from a REQ socket), which has no one to answer.
+fn recv_request(socket: &zmq::Socket) -> Option<(Vec<Vec<u8>>, Vec<u8>)> {
+    let mut frames = match socket.recv_multipart(0) {
+        Ok(f) => f,
+        Err(e) => {
+            tracing::error!("recv error: {e}");
+            return None;
+        }
+    };
+    if frames.len() < 2 {
+        tracing::warn!(
+            "Dropped a message without an envelope ({} frame(s))",
+            frames.len()
+        );
+        return None;
+    }
+    let msg = frames.pop()?;
+    Some((frames, msg))
+}
+
+/// Answer the connection `envelope` names.
+fn send_reply(socket: &zmq::Socket, envelope: &[Vec<u8>], reply: &[u8]) {
+    let parts = envelope
+        .iter()
+        .map(Vec::as_slice)
+        .chain(std::iter::once(reply));
+    if let Err(e) = socket.send_multipart(parts, 0) {
+        tracing::error!("send error: {e}");
+    }
+}
+
+/// The map an `Initialize` names (its directory's name, as the logs know maps), for the
+/// session; empty when the request does not decode.
+fn initialize_map(msg: &[u8]) -> String {
+    match SimulationRequest::decode(msg).ok().and_then(|r| r.request) {
+        Some(simulation_request::Request::Initialize(i)) => {
+            let path = std::path::Path::new(&i.lanelet2_map_path);
+            let dir = if path.extension().is_some() {
+                path.parent()
+            } else {
+                Some(path)
+            };
+            dir.and_then(|d| d.file_name())
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or(i.lanelet2_map_path)
+        }
+        _ => String::new(),
+    }
 }
 
 /// Log what one request produced for the frame budget: the step at DEBUG, warnings, and a
@@ -598,7 +710,7 @@ mod tests {
     #[test]
     fn a_drain_answers_every_request_with_the_hang_and_its_own_variant() {
         let ctx = zmq::Context::new();
-        let rep = ctx.socket(zmq::REP).unwrap();
+        let rep = ctx.socket(zmq::ROUTER).unwrap();
         rep.bind("inproc://drain-test").unwrap();
         let client = {
             let ctx = ctx.clone();
@@ -838,5 +950,216 @@ mod tests {
         });
         assert!(failure_description(&bytes).unwrap().contains("again"));
         assert_eq!(poisoned.as_deref(), Some("again"));
+    }
+
+    // --- one SSv2 at a time (roadmap 077, G21), and load_map (G9), over the socket ---------
+
+    use crate::backend::fake::{Call, FakeBackend};
+    use crate::proto::traffic_simulator_msgs::{self as ts, VehicleParameters};
+
+    fn initialize(map: &str) -> simulation_request::Request {
+        simulation_request::Request::Initialize(api::InitializeRequest {
+            step_time: 0.05,
+            realtime_factor: 1.0,
+            lanelet2_map_path: format!("/maps/{map}/lanelet2_map.osm"),
+            ..Default::default()
+        })
+    }
+
+    fn spawn(name: &str) -> simulation_request::Request {
+        simulation_request::Request::SpawnVehicleEntity(api::SpawnVehicleEntityRequest {
+            parameters: Some(VehicleParameters {
+                name: name.into(),
+                subtype: Some(ts::EntitySubtype {
+                    value: ts::entity_subtype::Enum::Car as i32,
+                }),
+                ..Default::default()
+            }),
+            behavior: "simulator_autopilot".into(),
+            ..Default::default()
+        })
+    }
+
+    fn despawn(name: &str) -> simulation_request::Request {
+        simulation_request::Request::DespawnEntity(api::DespawnEntityRequest { name: name.into() })
+    }
+
+    fn frame() -> simulation_request::Request {
+        simulation_request::Request::UpdateFrame(api::UpdateFrameRequest::default())
+    }
+
+    /// Whether a reply succeeded, and its description.
+    fn outcome(bytes: &[u8]) -> (bool, String) {
+        use simulation_response::Response as R;
+        let r = match SimulationResponse::decode(bytes).unwrap().response.unwrap() {
+            R::Initialize(r) => r.result,
+            R::UpdateFrame(r) => r.result,
+            R::SpawnVehicleEntity(r) => r.result,
+            R::DespawnEntity(r) => r.result,
+            other => panic!("unexpected {other:?}"),
+        }
+        .unwrap();
+        (r.success, r.description)
+    }
+
+    /// A REQ client, as SSv2's, on its own connection.
+    struct Ssv2(zmq::Socket);
+
+    impl Ssv2 {
+        fn connect(ctx: &zmq::Context, endpoint: &str) -> Self {
+            let s = ctx.socket(zmq::REQ).unwrap();
+            s.connect(endpoint).unwrap();
+            Self(s)
+        }
+
+        fn call(&self, request: simulation_request::Request) -> (bool, String) {
+            let bytes = SimulationRequest {
+                request: Some(request),
+            }
+            .encode_to_vec();
+            self.0.send(&bytes, 0).unwrap();
+            outcome(&self.0.recv_bytes(0).unwrap())
+        }
+    }
+
+    type Commands = mpsc::Sender<WorldCommand>;
+
+    /// The server on a fake backend, serving on this thread until `clients` returns.
+    fn serve_with(
+        name: &str,
+        clients: impl FnOnce(zmq::Context, String, Commands) + Send + 'static,
+    ) -> FakeBackend {
+        let fake = FakeBackend::default();
+        let ctx = zmq::Context::new();
+        let endpoint = format!("inproc://{name}");
+        let (tx, rx) = mpsc::channel();
+        let mut server = ZmqServer::bind(
+            &ctx,
+            &endpoint,
+            Coordinator::new(Box::new(fake.clone())),
+            Some(rx),
+        )
+        .unwrap();
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let done = shutdown.clone();
+        let client = std::thread::spawn(move || {
+            clients(ctx, endpoint, tx);
+            done.store(true, Ordering::SeqCst);
+        });
+        server.run(shutdown);
+        client.join().unwrap();
+        fake
+    }
+
+    #[test]
+    fn a_stray_ssv2_is_refused_while_a_scenario_runs() {
+        let fake = serve_with("g21-stray", |ctx, endpoint, _| {
+            let a = Ssv2::connect(&ctx, &endpoint);
+            let b = Ssv2::connect(&ctx, &endpoint);
+            assert!(a.call(initialize("Town01")).0);
+            assert!(a.call(spawn("ego")).0);
+            assert!(a.call(frame()).0);
+            // The stray: its Initialize and everything else is refused, saying why.
+            let (ok, why) = b.call(initialize("Town01"));
+            assert!(!ok && why.contains("another SSv2 is running"), "{why}");
+            assert!(why.contains("Town01") && why.contains("1 entity"), "{why}");
+            let (ok, why) = b.call(spawn("ego"));
+            assert!(!ok && why.contains("did not Initialize"), "{why}");
+            assert!(!b.call(frame()).0);
+            // The scenario goes on undisturbed, and ends.
+            assert!(a.call(frame()).0);
+            assert!(a.call(despawn("ego")).0);
+        });
+        // The backend saw one client's requests only: one Initialize, one spawn, two frames.
+        let calls = fake.calls();
+        let n = |f: fn(&Call) -> bool| calls.iter().filter(|c| f(c)).count();
+        assert_eq!(n(|c| matches!(c, Call::Initialize(_))), 1);
+        assert_eq!(n(|c| matches!(c, Call::Spawn(_))), 1);
+        assert_eq!(n(|c| matches!(c, Call::UpdateFrame(_))), 2);
+    }
+
+    #[test]
+    fn back_to_back_scenarios_each_initialize() {
+        let fake = serve_with("g21-next", |ctx, endpoint, _| {
+            // SSv2 opens a connection per scenario (variant); the next one Initializes as
+            // soon as the last despawned everything.
+            for map in ["Town01", "Town01", "Town02"] {
+                let s = Ssv2::connect(&ctx, &endpoint);
+                assert!(s.call(initialize(map)).0, "{map}");
+                assert!(s.call(spawn("ego")).0);
+                assert!(s.call(spawn("npc")).0);
+                assert!(s.call(frame()).0);
+                assert!(s.call(despawn("npc")).0);
+                assert!(s.call(despawn("ego")).0);
+            }
+            // A scenario whose first spawn failed (nothing to despawn) does not block the next.
+            let s = Ssv2::connect(&ctx, &endpoint);
+            assert!(s.call(initialize("Town02")).0);
+            let t = Ssv2::connect(&ctx, &endpoint);
+            assert!(t.call(initialize("Town02")).0);
+        });
+        let inits = fake
+            .calls()
+            .iter()
+            .filter(|c| matches!(c, Call::Initialize(_)))
+            .count();
+        assert_eq!(inits, 5);
+    }
+
+    fn ask_load_map(tx: &Commands, path: &str) -> Result<String, String> {
+        let (reply, rx) = futures::channel::oneshot::channel();
+        tx.send(WorldCommand::LoadMap(path.into(), reply)).unwrap();
+        futures::executor::block_on(rx).unwrap()
+    }
+
+    #[test]
+    fn load_map_waits_for_no_scenario() {
+        let dir = std::env::temp_dir().join(format!("swb-zmq-load-map-{}", std::process::id()));
+        let map = dir.join("Town02");
+        std::fs::create_dir_all(&map).unwrap();
+        std::fs::write(map.join("lanelet2_map.osm"), "<osm/>").unwrap();
+        let map_path = map.to_string_lossy().into_owned();
+        let fake = serve_with("g9-load-map", move |ctx, endpoint, tx| {
+            // No scenario yet: loaded.
+            let loaded = ask_load_map(&tx, &map_path).unwrap();
+            assert!(loaded.contains("Town02"), "{loaded}");
+            // A scenario is running: refused, naming it.
+            let a = Ssv2::connect(&ctx, &endpoint);
+            assert!(a.call(initialize("Town01")).0);
+            assert!(a.call(spawn("ego")).0);
+            let why = ask_load_map(&tx, &map_path).unwrap_err();
+            assert!(
+                why.contains("a scenario is running") && why.contains("Town01"),
+                "{why}"
+            );
+            // It ended: loaded again; the next SSv2 Initializes.
+            assert!(a.call(despawn("ego")).0);
+            assert!(ask_load_map(&tx, &map_path).is_ok());
+            let b = Ssv2::connect(&ctx, &endpoint);
+            assert!(b.call(initialize("Town02")).0);
+            // A path that is not a map is refused without a load.
+            assert!(ask_load_map(&tx, "/nonexistent/Town09")
+                .unwrap_err()
+                .contains("does not exist"));
+        });
+        let loads: Vec<String> = fake
+            .calls()
+            .iter()
+            .filter_map(|c| match c {
+                Call::Initialize(e) => Some(e.lanelet2_map_path.clone()),
+                _ => None,
+            })
+            .collect();
+        let osm = map.join("lanelet2_map.osm").to_string_lossy().into_owned();
+        assert_eq!(
+            loads,
+            vec![
+                osm.clone(),
+                "/maps/Town01/lanelet2_map.osm".into(),
+                osm,
+                "/maps/Town02/lanelet2_map.osm".into()
+            ]
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

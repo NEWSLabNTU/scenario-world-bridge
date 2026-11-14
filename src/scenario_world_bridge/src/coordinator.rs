@@ -9,8 +9,8 @@
 use std::time::Duration;
 
 use crate::backend::{
-    BackendError, Driver, EntityKind, EntityStatus, Environment, Episode, Goal, RoadCondition,
-    Sensor, SimBackend, SpawnRequest, StatusBatch, Wheels,
+    BackendError, BridgeBackend, Driver, EntityKind, EntityStatus, Environment, Episode, Goal,
+    RoadCondition, Sensor, SpawnRequest, StatusBatch, Wheels,
 };
 use crate::environment::{self, Precipitation, ScenarioWeather, Sun, TimeOfDay, Wind};
 use crate::proto::simulation_api_schema::{self as api, Result as ProtoResult};
@@ -19,11 +19,11 @@ use crate::weather::WeatherRequest;
 use crate::world_services::WeatherReply;
 
 pub struct Coordinator {
-    backend: Box<dyn SimBackend>,
+    backend: Box<dyn BridgeBackend>,
 }
 
 impl Coordinator {
-    pub fn new(backend: Box<dyn SimBackend>) -> Self {
+    pub fn new(backend: Box<dyn BridgeBackend>) -> Self {
         Self { backend }
     }
 
@@ -284,6 +284,11 @@ impl Coordinator {
 
     pub fn get_weather(&mut self) -> WeatherReply {
         self.backend.get_weather()
+    }
+
+    /// `~/load_map`: the map's world now (the caller checked no scenario is running).
+    pub fn load_map(&mut self, lanelet2_map_path: &str) -> Result<String, BackendError> {
+        self.backend.load_map(lanelet2_map_path)
     }
 
     pub fn entity_count(&self) -> usize {

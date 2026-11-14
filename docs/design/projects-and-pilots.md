@@ -265,22 +265,30 @@ another map means a pilot restart with another `map_path`.
   the keeper stops every pilot on its way out (SIGINT, SIGTERM, SIGKILL to its group).
 - **The switch.** A runner whose scenario is on another map writes `switch-request.json`
   (`{id, map}`, atomically) into the stack's directory. The keeper polls it every 0.1 s; on a
-  new id it records `switch: {id, map, state: switching}`, stops the pilots, sets `map`,
-  `map_path` and the pilots' contract in stack.json, starts them again and answers
-  `state: done` (or `failed` with `error`). The runner waits for that answer (180 s), then for
-  its pilots' readiness as every run does; the world server loads the town itself on SSv2's
-  Initialize (which ends the CARLA vehicle stacks once more; the keeper respawns them, and
-  SSv2 waits for the ego's agent). A file, not a socket: the keeper already polls, a request
-  survives a slow keeper, and stack.json stays the one record a run reads.
-- **The town is not loaded before the pilots restart.** Only the world server's owner (the
-  bridge) may send `LoadWorld`, and neither the bridge nor the world server offers another
-  way in: the bridge's services are the weather's, and a probe `Hello` changes nothing. So a
-  switch costs one extra episode on CARLA: the pilots start on the old town and end at the
-  load. The clean way is a bridge service (`~/load_map`, a new `swb_interfaces` service,
-  sent to the bridge's world thread as `set_weather` is, and answered after its `LoadWorld`),
-  which needs no protocol change; the keeper would call it before it starts the pilots, and
-  SSv2's Initialize then finds the town loaded (the CARLA world server does not reload a
-  loaded town, so the episode stays).
+  new id it records `switch: {id, map, state: switching}`, stops the pilots, has the bridge
+  load the new town (below), sets `map`, `map_path` and the pilots' contract in stack.json,
+  starts them again and answers `state: done` (or `failed` with `error`), with `preload`
+  saying what came of the town load. The runner waits for that answer (180 s), then for its
+  pilots' readiness as every run does. A file, not a socket: the keeper already polls, a
+  request survives a slow keeper, and stack.json stays the one record a run reads.
+- **The town before the pilots (CARLA).** Only the world server's owner (the bridge) may
+  send `LoadWorld`, so the bridge offers it as a ROS service, `/scenario_world_bridge/load_map`
+  (`swb_interfaces/srv/LoadMap`: a map directory or its lanelet2 file; `success`, `message`).
+  The bridge's world thread loads the map's world exactly as an `Initialize` would, at the
+  last `Initialize`'s step and realtime factor, and answers when the load is done; it is no
+  scenario episode (no gap trace, no frame count). It refuses while a scenario is running on
+  it (entities spawned, and its SSv2 asked within 5 s). Between the pilots' stop and start
+  the keeper runs `python3 -m swb.load_map <map dir>` in the scenario domain (10 s for the
+  service to appear, 120 s for the answer) and records `preload: {state: loaded | failed |
+  skipped, message | error, seconds}` in the switch and a `map.preload` event. The pilots then
+  start on the new town, and SSv2's Initialize finds it loaded (the CARLA world server does
+  not reload a loaded town), so the episode stays and the vehicle stacks start once.
+  `skipped`: no bridge serves the seat's SSv2 port yet (the bridge binds it only once a world
+  server has taken it), or Isaac. `failed` (a refusal, no answer in time, no ROS): the switch
+  still completes and the town loads at SSv2's Initialize as before, which ends the CARLA
+  vehicle stacks once more (the keeper respawns them, SSv2 waits for the ego's agent): one
+  extra episode. A load that outlasts the keeper's 120 s goes on in the bridge; SSv2's
+  Initialize waits behind it.
 - **What is refused (3)**: a map that is not fetched, one not among the stack's maps, another
   map on Isaac. A switch the keeper could not do, or did not answer, is the run's `error`.
 

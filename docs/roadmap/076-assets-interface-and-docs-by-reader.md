@@ -613,7 +613,8 @@ sharing a project.
     stack stopped CARLA with itself; nothing was left over.
   - open: the bridge cannot tell two SSv2 clients apart on its REP socket; a stray SSv2
     from outside swb would do the same. A per-scenario client id in Initialize would let it
-    refuse the second one.
+    refuse the second one. Built in 077 (G21) without an SSv2 change: the bridge's socket is
+    a ROUTER, whose routing id names each REQ connection, and one connection holds the session.
 - Step 10 (retire by name), 2026-11-15. Inventory (grep of src/swb_launch, src/swb,
   src/swb_examples, docs outside design/ and roadmap/, README.md, justfile, scripts/), then
   rulings. The user's path is `swb.launch.xml` and `ros2 run swb`; the justfile and what it
@@ -673,9 +674,9 @@ sharing a project.
   - A non-Autoware autopilot on the vehicle interface is documented from code, never run
     live; the next adopter's project is the test.
   - The bridge cannot tell two SSv2 clients apart (a stray SSv2 joins a run); an Initialize
-    client id would let it refuse the second.
+    client id would let it refuse the second. Built in 077 (G21, the connection as the id).
   - Preloading the town before a CARLA map switch needs a bridge service (`~/load_map`); until
-    then a switch costs one extra episode.
+    then a switch costs one extra episode. Built in 077 (G9).
   - `logging.levels`/`debug` are refused by name until built; `autoware.setup` is not read.
   - The asset cache is one per user; a shared cache needs a fetch that does not chmod a
     directory it does not own.

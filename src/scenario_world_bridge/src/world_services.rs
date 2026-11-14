@@ -2,9 +2,12 @@
 //!
 //!   /scenario_world_bridge/set_weather  swb_interfaces/srv/SetWeather
 //!   /scenario_world_bridge/get_weather  swb_interfaces/srv/GetWeather
+//!   /scenario_world_bridge/load_map     swb_interfaces/srv/LoadMap (roadmap 077)
 //!
 //! The weather is a preset or parameters by name, passed through to the world server, whose
-//! names they are (CARLA's: its presets and `WeatherParameters` fields).
+//! names they are (CARLA's: its presets and `WeatherParameters` fields). `load_map` loads a
+//! map's world between scenarios, as an `Initialize` would (a stack's keeper calls it on a
+//! CARLA map switch before it starts the vehicle stacks again); refused while a scenario runs.
 //!
 //! The node runs its own executor on its own thread, but never touches CARLA: each request
 //! is handed to the ZMQ loop -- the thread that owns the world client and ticks the world --
@@ -25,17 +28,48 @@ use std::time::Duration;
 use futures::channel::oneshot;
 use rclrs::CreateBasicExecutor;
 use swb_interfaces::srv::get_weather::{GetWeather_Request, GetWeather_Response};
+use swb_interfaces::srv::load_map::{LoadMap_Request, LoadMap_Response};
 use swb_interfaces::srv::set_weather::{SetWeather_Request, SetWeather_Response};
 
 use crate::weather::{self, WeatherRequest};
 
 pub const SET_WEATHER: &str = "~/set_weather";
 pub const GET_WEATHER: &str = "~/get_weather";
+pub const LOAD_MAP: &str = "~/load_map";
+
+/// The Lanelet2 file a map directory holds, as SSv2 names it.
+pub const LANELET2_FILE: &str = "lanelet2_map.osm";
 
 /// A request for the world-owning thread.
 pub enum WorldCommand {
     SetWeather(WeatherRequest, oneshot::Sender<WeatherReply>),
     GetWeather(oneshot::Sender<WeatherReply>),
+    /// A map directory or Lanelet2 file; what was loaded, or why not.
+    LoadMap(String, oneshot::Sender<Result<String, String>>),
+}
+
+/// The Lanelet2 file of `path`: a map directory's `lanelet2_map.osm`, or the file itself.
+pub fn lanelet2_path(path: &str) -> Result<String, String> {
+    let given = std::path::Path::new(path.trim());
+    if given.as_os_str().is_empty() {
+        return Err("not loaded: no map_path given (a map directory or its lanelet2 file)".into());
+    }
+    if !given.is_absolute() {
+        return Err(format!(
+            "not loaded: map_path {} is relative; give an absolute path (the bridge's working \
+             directory is not the caller's)",
+            given.display()
+        ));
+    }
+    let file = if given.is_dir() {
+        given.join(LANELET2_FILE)
+    } else {
+        given.to_path_buf()
+    };
+    if !file.is_file() {
+        return Err(format!("not loaded: {} does not exist", file.display()));
+    }
+    Ok(file.to_string_lossy().into_owned())
 }
 
 pub use crate::weather::WeatherReply;
@@ -92,9 +126,16 @@ pub fn start(
                         move |_: GetWeather_Request| get_weather(tx.clone()),
                     )?
                 };
-                Ok((executor, (node, config_param), set, get))
+                let load = {
+                    let tx = tx.clone();
+                    node.create_async_service::<swb_interfaces::srv::LoadMap, _>(
+                        LOAD_MAP,
+                        move |req: LoadMap_Request| load_map(tx.clone(), req),
+                    )?
+                };
+                Ok((executor, (node, config_param), set, get, load))
             })();
-            let (mut executor, _node, _set, _get) = match setup {
+            let (mut executor, _node, _set, _get, _load) = match setup {
                 Ok(s) => {
                     let _ = ready_tx.send(Ok(()));
                     s
@@ -110,7 +151,7 @@ pub fn start(
         })?;
     match ready_rx.recv() {
         Ok(Ok(())) => {
-            tracing::info!("ROS node up: serving {SET_WEATHER}, {GET_WEATHER}");
+            tracing::info!("ROS node up: serving {SET_WEATHER}, {GET_WEATHER}, {LOAD_MAP}");
             Ok(rx)
         }
         Ok(Err(e)) => Err(eyre::eyre!("ROS node: {e}")),
@@ -167,6 +208,26 @@ async fn get_weather(tx: mpsc::Sender<WorldCommand>) -> GetWeather_Response {
     }
 }
 
+async fn load_map(tx: mpsc::Sender<WorldCommand>, req: LoadMap_Request) -> LoadMap_Response {
+    let (reply_tx, reply_rx) = oneshot::channel();
+    let reply = if tx
+        .send(WorldCommand::LoadMap(req.map_path.clone(), reply_tx))
+        .is_err()
+    {
+        Err("the bridge is shutting down".to_string())
+    } else {
+        reply_rx
+            .await
+            .unwrap_or_else(|_| Err("the bridge dropped the request".into()))
+    };
+    let (success, message) = match reply {
+        Ok(m) => (true, m),
+        Err(m) => (false, m),
+    };
+    tracing::info!("{LOAD_MAP} {:?} -> {message}", req.map_path);
+    LoadMap_Response { success, message }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,5 +249,24 @@ mod tests {
         assert_eq!(names, ["cloudiness", "wetness"]);
         assert_eq!(values, [5.0, 0.0]);
         assert_eq!(fields(&WeatherReply::failed("x", None)), Default::default());
+    }
+
+    #[test]
+    fn a_map_is_named_by_its_directory_or_its_lanelet2_file() {
+        let dir = std::env::temp_dir().join(format!("swb-load-map-{}", std::process::id()));
+        let map = dir.join("Town02");
+        std::fs::create_dir_all(&map).unwrap();
+        let osm = map.join(LANELET2_FILE);
+        std::fs::write(&osm, "<osm/>").unwrap();
+        let want = osm.to_string_lossy().into_owned();
+        assert_eq!(lanelet2_path(&map.to_string_lossy()).unwrap(), want);
+        assert_eq!(lanelet2_path(&want).unwrap(), want);
+        let why = lanelet2_path(&dir.to_string_lossy()).unwrap_err();
+        assert!(why.contains("does not exist"), "{why}");
+        assert!(lanelet2_path("maps/Town02")
+            .unwrap_err()
+            .contains("relative"));
+        assert!(lanelet2_path(" ").unwrap_err().contains("no map_path"));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -424,7 +424,7 @@ sharing a project.
    hosts, a Haruna drift run with its own pilot, the golf cart twin as a package project.
 10. [x] Retire what the design replaces (`ego_launch`, `background_av.launch.xml` on the user
    path, `CARLA_MAPS`/`CARLA_USD` for users), by name.
-11. [ ] B: the docs reorganised (B1-B5).
+11. [x] B: the docs reorganised (B1-B5) (421e60f, fd4b14c).
 12. [ ] B6: the docs check; live runs; fresh readers.
 
 ## Progress and rulings
@@ -656,6 +656,10 @@ sharing a project.
   - Not verified live: play_launch's own parser (not ROS launch's) handing an undeclared
     `ego_launch:=` to `swb.launch.py`'s launch configurations; the refusal is tested with ROS
     launch's context.
+- Step 10 checked live (2026-11-15): `play_launch dump launch swb_launch swb.launch.xml
+  ego_launch:=none` in a project is refused under play_launch's parser too ("ego_launch:= is
+  retired (roadmap 076); give a pilot in swb.yaml ..."), not dropped. acb's acceptance.py reads
+  no map variable itself.
 
 ## Acceptance
 

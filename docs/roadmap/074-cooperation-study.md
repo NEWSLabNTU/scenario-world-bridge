@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; next: C2a and the double oracle with it, E3, N1-N2. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); next: S0 (the general utility, cut-in results re-scored), then E3, N1-N2, S1-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -35,6 +35,17 @@ the smallest TTC and time headway, contact and peak braking, weighted by each ca
 pure and mixed equilibria per context (d0 = A's rear ahead of B's front, dv = A's speed minus B's);
 welfare as a cost, the optimum, the worst and best equilibrium. `--selftest` checks the solver on
 textbook chicken (kappa = 10/11) and the obvious cases.
+
+**Utility, revised 2026-11-14.** The payoffs above, and every result in this phase up to S0, use
+the cut-in's follow-case utility: progress along one lane, risk from the longitudinal TTC and time
+headway to the car ahead. `docs/design/cooperative-driving.md` (①) generalizes it to any path
+relation: $U_i = -\ell_i - \rho_i - c_i - 10\cdot\mathbf 1[\text{contact}]$, with $\ell_i$ the lost
+route arc-length progress over the fixed horizon H = 20 s, $\rho_i$ the largest shortfall over the
+cars in $i$'s conflict set $K_i$ of 2D TTC ($\tau^* = 3$ s), time headway ($h^* = 1$ s), PET
+($\pi^* = 1.5$ s) and clearance ($d^* = 1$ m), and $c_i$ longitudinal and lateral comfort. On a
+cut-in it reduces to the old terms except where the cars are side by side (clearance, 2D TTC) or
+cross paths (PET). S0 implements it and re-scores C2b and C3; until then the numbers below are the
+follow-case ones.
 
 **Strategies are contingent rules** (since the review below): A goes, waits (drops behind), or
 goes if it sees B yield within a watch window; B pre-yields (courtesy before any signal) or reacts,
@@ -565,7 +576,7 @@ being carried.
 | | C7 conventions | B | a priority rule, a courtesy band for B, a V2X negotiation; each as a correlation device | the part of PoS each recovers |
 | | D6 build the strategy layer? | D | is acting on beliefs worth a node on the car? | build if regret or VoI reaches >= 10 % of stock's welfare loss in a non-trivial share of contexts; else stop at the findings, or recommend a capability broadcast only |
 | 4 vehicle | P1 strategy layer | B | `interaction_belief`, `interaction_strategy` on Autoware; ablation stock / belief / belief + V2X on the same maps | ablation maps |
-| | D7 deployable? | D | | never worse than stock on contact and the TTC distribution, a significant welfare gain, within the message-rate budget: propose it; else keep it as research |
+| | D7 deployable? | D | | never worse than stock on contact and on the distributions of 2D TTC, PET and clearance (①), a significant welfare gain, within the message-rate budget: propose it; else keep it as research |
 | 5 cases | E5 left-turn signals | E | can SSv2 give the left turn and the oncoming queue green together on Town05/10 | yes or a workaround |
 | | U1, U2 | B | left turn against a queue; roundabout entry (Town03); each kinematic, arena, swb | maps |
 | | E6 4-way stop site | E | lights switched off on a Town05 junction, or an unsignalled junction | site |
@@ -577,10 +588,11 @@ being carried.
 | | N3 residual model | B | a permutation-invariant residual over the slots, fitted on three-car runs, tested on four | held-out error against the composed model's |
 | | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
 | | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |
-| 6 scenarios | S0 general utility | B | route progress, 2D TTC, PET, clearance, lateral comfort (`docs/design/cooperative-driving.md` ⓪, ①); C2b and C3 re-scored | the cut-in's classes unchanged; the 14/-3 near miss smooth |
+| 6 scenarios | S0 general utility | B | route progress, 2D TTC, PET, clearance, lateral comfort (`docs/design/cooperative-driving.md` ⓪, ①) in `measures.py` and `cutin_game.utility`; C2b, C3a, C3b and the double oracle re-scored offline from the recorded runs; prerequisite for S1-S6 and for N2's pair risk $\rho_{ij}$ | the cut-in's classes and equilibria unchanged; the 14/-3 near miss scored smoothly by clearance instead of jumping at contact; D2's agreement still >= 90 % |
 | | S1-S6 | B | cut-out; unsignalled crossing; lane drop or on-ramp; narrow passage; left turn in the arena and swb; overtaking via the oncoming lane: each as a passage game (relation, Δt, speeds, right of way), kinematic, arena, swb light, swb Autoware | equilibrium maps per relation; Autoware's departures |
 
-Order: stage 1 first. Stage 5 starts after D2 (it needs a trusted arena) and runs beside stages
+Order: stage 1 first. S0 comes before any new relation (S1-S6) and before N2, whose pair terms
+compose $\rho$ per pair; the cut-in's results are re-scored, not re-run. Stage 5 starts after D2 (it needs a trusted arena) and runs beside stages
 2-4. Its N-car path (N1-N5) follows the survey's formulation: pair terms, composition per
 measure, a measured residual, N grown by error, mean field past the conflict set. Scooters and the night market are a later phase (reactive NPCs).
 
@@ -592,8 +604,8 @@ workflow. Fix them if there is any." Found and fixed:
 | # | flaw | fix |
 |---|---|---|
 | 1 | Theory: the cut-in was solved as a one-shot simultaneous 2 x 2, but B sees A's lane change and replies; B's "hold" against a car that went was a threat B would not carry out, and the chicken band came from it | contingent strategies, B's reply sequentially rational (C1 rewritten); chicken survives only where something forces simultaneity: B's courtesy before any signal, latency, or prosocial preferences |
-| 2 | Theory: PoA and PoS as ratios of welfare, but every utility is <= 0 | welfare as a cost C = -(U_A + U_B) >= 0; ratios when C_opt is not near 0, and the loss C_eq - C_opt always |
-| 3 | Theory: summing utilities normalised per car ("fraction of free flow") compares a golf cart's 10 % with a car's 10 % | the global target in common units (vehicle-seconds of delay, safety as a constraint) for welfare; per-car normalisation stays inside each car's own payoff (survey) |
+| 2 | Theory: PoA and PoS as ratios of welfare, but every utility is <= 0 | welfare as a cost C = -(U_A + U_B) >= 0; ratios when C_opt is not near 0, and the loss C_eq - C_opt always (unchanged under the general utility: C = sum of $\ell + \rho + c$ + contact) |
+| 3 | Theory: summing utilities normalised per car ("fraction of free flow") compares a golf cart's 10 % with a car's 10 % | the global target in common units (vehicle-seconds of delay, safety as a constraint) for welfare; per-car normalisation stays inside each car's own payoff (survey); since ①, $\ell_i$ is the route arc length lost over H as a fraction of $v_{i,0} H$, inside the car's own payoff |
 | 4 | Theory: safety stated as a constraint, but kappa and C1 trade contact for progress | A may go only if its belief puts contact under delta: go iff $p > \max(\kappa, 1-\delta)$ where going against a hold is contact (survey); C1 keeps the penalty and flags contact equilibria |
 | 5 | Theory: capability evidence as hard set pruning, from accelerations twice differentiated out of 10 Hz tracks, and cars seldom show their limits | soft bounds with a noise model; the class prior carries most of the capability belief (survey) |
 | 6 | Theory: exploitability "measured" by search | it is a lower bound; equilibria reported with the search's budget (C2a) |

@@ -159,6 +159,7 @@ function scenarioView(sname, S){
   const s = addView(sname, S.title || sname);
   views[sname].render = () => {
     if (S.ncar) return ncarView(s);
+    if (S.conventions) return conventionsView(s, S);
     classMap(s, sname, S); payoffView(s, sname, S); metaView(s, S); episodeView(s, S);
     if ((S.state_machines || []).length) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, '(5) The rules as state machines'); const g = h('div', {class: 'sm'}, c);
       for (const k of S.state_machines) drawSM(g, k); }
@@ -326,6 +327,37 @@ function episodeView(s, S){
     }
   }
   gs.onchange = setGroup; setGroup();
+}
+
+// ---------------------------------------------------------------- conventions (C7)
+function convTable(parent, rows, cols){ const sc = h('div', {class: 'scroll'}, parent); const t = h('table', {}, sc); const hr = h('tr', {}, t);
+  for (const [lab] of cols) h('th', {}, hr, lab);
+  for (const r of rows) { const tr = h('tr', {}, t); for (const [, f] of cols) h('td', {}, tr, f(r)); } }
+const pct = v => v === null || v === undefined ? '-' : Math.round(100 * v) + ' %';
+function conventionsView(s, S){
+  const C = A.conventions || [];
+  if (S.notes) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, 'Conventions (C7)'); const ul = h('ul', {class: 'small'}, c); for (const x of S.notes) h('li', {}, ul, x); }
+  for (const src of C) {
+    const c = h('div', {class: 'card'}, s); h('h2', {}, c, src.label); h('p', {class: 'small muted'}, c, src.path);
+    if (src.kind === 'tiebreak_kin') {
+      for (const band of ['near', 'away']) { h('h3', {}, c, band === 'near' ? 'near-tie, |dt| <= 0.3 s' : 'away from the tie, |dt| > 0.3 s');
+        convTable(c, src.rows.filter(r => r.band === band), [['convention', r => r.conv], ['classes', r => r.classes],
+          ['restart crash / both stopped', r => `${pct(r.restart_share)} (${r.restart}/${r.waited})`], ['contact (all pairs)', r => pct(r.contact_share)],
+          ['wait per car (s)', r => fmt(r.wait_pairs, 2)], ['wait in eq. (s)', r => fmt(r.wait_eq, 2)], ['worst eq. - opt', r => fmt(r.loss_worst)],
+          ['mean cost, all pairs', r => fmt(r.C_mean_pairs, 2)], ['gap recovered (eq.)', r => r.recovered_eq === null ? '-' : fmt(r.recovered_eq, 2) + ` (n ${r.n_gap_eq})`],
+          ['self-enforcing', r => pct(r.self_enforcing)]]); } }
+    else if (src.kind === 'tiebreak_arena') {
+      const d2 = src.rows.find(r => r.conv === 'D2'); if (d2) h('p', {class: 'small'}, c, `D2: outcomes agree in ${d2.outcomes_agree} of ${d2.outcomes} (${pct(d2.outcomes_agree / d2.outcomes)}), ${d2.cells} cells, ${d2.runs} arena runs`);
+      convTable(c, src.rows.filter(r => r.conv !== 'D2'), [['convention', r => r.conv], ['side', r => r.side], ['classes agree', r => r.side === 'arena' ? fmt(r.class_agree) : ''],
+        ['restart crash / both stopped', r => `${pct(r.restart_share)} (${r.restart}/${r.waited})`], ['contact', r => pct(r.contact_share)],
+        ['wait per car (s)', r => fmt(r.wait, 2)], ['worst eq. - opt', r => fmt(r.loss)], ['gap recovered', r => r.recovered === null ? '-' : fmt(r.recovered, 2) + ` (n ${r.n_gap})`]]); }
+    else {
+      convTable(c, src.rows, [['convention', r => r.conv], ['h_mean (s)', r => fmt(r.hm)], ['throughput (veh/min)', r => fmt(r.rate_vpm, 1)],
+        ['all through (s)', r => fmt(r.t_last, 1)], ['queue max (m)', r => fmt(r.queue_max, 0)], ['queue mean (m)', r => fmt(r.queue_mean, 0)],
+        ['delay (s)', r => fmt(r.delay, 1)], ['delay lane 1 / 2 (s)', r => `${fmt(r.delay_l1, 1)} / ${fmt(r.delay_l2, 1)}`],
+        ['forced stops', r => fmt(r.forced, 2)], ['hard brakes', r => fmt(r.hard, 1)], ['contacts', r => fmt(r.contact, 2)], ['lane 2 rule', r => r.rules]]); }
+  }
+  if (!C.length) h('p', {class: 'muted'}, s, 'No convention results registered.');
 }
 
 // ---------------------------------------------------------------- N cars

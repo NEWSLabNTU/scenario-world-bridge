@@ -569,6 +569,34 @@ def load_n4(entry, sc):
     return {"ncar_n4": rows} if rows else {}
 
 
+# --- conventions (C7) ------------------------------------------------------------------------------
+def load_conventions(entry, sc):
+    """C7's results, one table per source. kind:
+      tiebreak_kin    tiebreak.py's tiebreak_<geom>.json: per band (near, away, all) and convention
+      tiebreak_arena  tiebreak_arena.py's summary.json: per convention, arena and model side by side
+      stream          zipper_stream.py's stream_<side>.json: per convention and mean headway"""
+    out = []
+    for p in paths(entry):
+        if not os.path.exists(p):
+            raise FileNotFoundError(2, "missing", p)
+        d = json.load(open(p))
+        kind = entry["kind"]
+        if kind == "tiebreak_kin":
+            rows = [{"band": k.split("|")[0], "conv": k.split("|")[1], **v} for k, v in d.items()]
+        elif kind == "tiebreak_arena":
+            rows = []
+            for conv, sides in d["per_conv"].items():
+                for side, v in sides.items():
+                    rows.append({"conv": conv, "side": side, "class_agree": d["classes_agree"].get(conv), **v})
+            rows.append({"conv": "D2", "side": "outcomes", "outcomes_agree": d["outcomes_agree"], "outcomes": d["outcomes"],
+                         "cells": d["cells"], "runs": d.get("runs")})
+        else:
+            rows = [{"conv": k.split("|")[0], "hm": float(k.split("|")[1]), **v} for k, v in d.items()]
+        out.append({"kind": kind, "label": entry.get("label", os.path.basename(p)), "scene": entry.get("scene", ""),
+                    "path": p, "rows": rows})
+    return {"conventions": out}
+
+
 # --- progress ------------------------------------------------------------------------------------
 def load_d2(entry, sc):
     """A D2 share as text ('payoffs inside the arena's 95 % interval: 44 of 48') or a summary.json's
@@ -597,11 +625,11 @@ LOADERS = {k[5:]: v for k, v in globals().items() if k.startswith("load_")}
 def export(sources, out, only=None, log=print):
     cfg = yaml.safe_load(open(sources))
     atlas = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "sources": str(sources), "tiers": cfg["tiers"],
-             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "notes": cfg.get("notes", [])}
+             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "notes": cfg.get("notes", [])}
     for sname, sc in cfg["scenarios"].items():
         if only and sname not in only:
             continue
-        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar")}
+        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "notes")}
         S["tiers"] = {}
         S["episodes"] = []
         S["meta"] = []
@@ -619,7 +647,8 @@ def export(sources, out, only=None, log=print):
                     continue
                 T = S["tiers"].setdefault(tier, {"cells": [], "payoffs": [], "labels": [], "d2": None, "links": [], "items": 0})
                 T["items"] += (len(res.get("episodes", [])) + bool(res.get("meta")) + len(res.get("fitted", []))
-                               + sum(bool(res.get(k)) for k in ("ncar_residuals", "ncar_n1", "ncar_n4")))
+                               + sum(bool(res.get(k)) for k in ("ncar_residuals", "ncar_n1", "ncar_n4"))
+                               + len(res.get("conventions", [])))
                 T["cells"] += res.get("cells", [])
                 T["payoffs"] += res.get("payoffs", [])
                 if res.get("d2"):
@@ -635,6 +664,7 @@ def export(sources, out, only=None, log=print):
                     if res.get(k):
                         atlas["ncar"].setdefault(k, []).append(res[k]) if k == "ncar_residuals" else atlas["ncar"].__setitem__(k, res[k])
                 atlas["fitted"] += res.get("fitted", [])
+                atlas["conventions"] += res.get("conventions", [])
                 log(f"  [{sname}/{tier}] {name}: {len(res.get('cells', []))} cells, {len(res.get('payoffs', []))} payoff "
                     f"contexts, {len(res.get('episodes', []))} episodes ({time.monotonic() - t0:.1f} s)")
         for tier, T in S["tiers"].items():

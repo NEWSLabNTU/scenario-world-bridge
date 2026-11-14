@@ -72,6 +72,12 @@ def _fixture(d):
             f.write(json.dumps({"set": "ho", "model": "n3 shift+residual", "r": 0.01 * d0, "tol": 0.02, "within": d0 < 5,
                                 "cls": "q:A:drop", "u": -0.3, "pos": "behind", "pos_ab": "behind",
                                 "key": ["ho", "a5", d0, 0.0, 1.0, 12.0, "A_aw_perm", "A"]}) + "\n")
+    json.dump({"near|none": {"classes": "W3", "restart_share": 0.4, "restart": 4, "waited": 10, "contact_share": 0.2,
+                             "wait_pairs": 2.0, "wait_eq": 1.0, "loss_worst": 0.1, "C_mean_pairs": 3.0, "recovered_eq": None,
+                             "n_gap_eq": 0, "self_enforcing": 1.0}}, open(d / "tb.json", "w"))
+    json.dump({"zipper|1.2": {"rate_vpm": 30.0, "t_last": 80.0, "queue_max": 120.0, "queue_mean": 70.0, "delay": 18.0,
+                              "delay_l1": 9.0, "delay_l2": 30.0, "forced": 2.0, "hard": 3.0, "contact": 0.0, "rules": "z0.6yd"}},
+              open(d / "zs.json", "w"))
     src = {
         "tiers": ["kinematic", "arena", "swb_autoware", "double_oracle"],
         "scenarios": {
@@ -84,6 +90,9 @@ def _fixture(d):
                                 "double_oracle": [{"loader": "double_oracle", "path": str(d / "do")}]}},
             "crossing": {"title": "Crossing", "axes": ["dt", "v"], "legend": {"NE": "pure NE"},
                          "tiers": {"arena": [{"loader": "arena_runs", "path": str(d / "runs.csv")}]}},
+            "conventions": {"title": "Conventions", "conventions": True, "notes": ["fixture"],
+                            "tiers": {"kinematic": [{"loader": "conventions", "kind": "tiebreak_kin", "path": str(d / "tb.json")},
+                                                    {"loader": "conventions", "kind": "stream", "path": str(d / "zs.json")}]}},
             "ncar": {"title": "N cars", "ncar": True, "tiers": {"arena": [{"loader": "n3_cells", "path": str(d / "n3_cells.jsonl")},
                                                                           {"loader": "n4", "path": str(d / "missing.jsonl")}]}},
         },
@@ -111,6 +120,8 @@ def selftest():
         X = atlas["scenarios"]["crossing"]["tiers"]["arena"]
         assert X["cells"][0]["eq"] == [["go", "react"]], X["cells"]  # pure NE of the 2x2
         assert len(atlas["ncar"]["ncar_residuals"][0]["cells"]) == 2
+        assert [c["kind"] for c in atlas["conventions"]] == ["tiebreak_kin", "stream"], atlas["conventions"]
+        assert atlas["conventions"][0]["rows"][0]["conv"] == "none" and atlas["conventions"][1]["rows"][0]["hm"] == 1.2
         n = atlas_build.build(os.path.join(out, "atlas.json"), os.path.join(out, "atlas.html"))
         html = open(os.path.join(out, "atlas.html")).read()
         assert n < atlas_build.MAX_BYTES and "<title>Strategy atlas</title>" in html

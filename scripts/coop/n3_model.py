@@ -31,6 +31,7 @@ Usage:
   scripts/coop/n3_model.py run --set fit,ho_hf,... --ports 2600,2610,2620 --out <dir>
   scripts/coop/n3_model.py analyze --out <dir>
   scripts/coop/n3_model.py d2 --port 2600 --out <dir>   # C2b's D2 under the fixed window
+  scripts/coop/n3_model.py diagnose --out <dir>  # the post-hoc changes found on the hold-out
   scripts/coop/n3_model.py --selftest
 """
 
@@ -151,10 +152,14 @@ def queue_walk(scene, ab, x, pa, vb):
         return keep, 0.0, 0
     v = ab["v0A"]
     gap = C1.S0 + vb * x
-    need = pa["buffer"] + v * pa["tau"]
+    need = C1.S0 + v * C1.HEADWAY + L_CAR + pa["buffer"] + v * pa["tau"]
+    if SLOT_AT_DECISION:
+        vd = ab.get("dec_vA") or v
+        need = (C1.S0 + vd * C1.HEADWAY + L_CAR + pa["buffer"] + vb * pa["tau"]
+                + max(0.0, vb ** 2 - vd ** 2) / (2 * pa["a_rear"]))
     extra, skipped = 0.0, 0
     for i in range(1, len(q)):
-        if gap >= C1.S0 + v * C1.HEADWAY + L_CAR + need:
+        if gap >= need:
             keep.add("A" + q[i])  # A fits in front of q[i]: the literal pair (not reached in N2)
             break
         extra += (gap + L_CAR) / max(v, 0.1)
@@ -201,6 +206,12 @@ class PairTable:
         return out
 
 
+# Post-hoc changes found on the hold-out (074 N3, after the frozen model 9ed8d89 was scored):
+# off by default, so `analyze` reproduces the frozen model; `diagnose` scores each.
+SLOT_AT_DECISION = False  # the slot test at A's speed when it drops (the AB pair's dec_vA), with
+#                           the kinematic term of A's gap check, instead of at A's start speed
+SHIFT_ONLY_CLOSING = False  # L shifts the A-B context only when A closes on it (dv > 0)
+PER_SLOT_FEATURES = False  # the queue residual's features times the number of slots A skips
 TAU_S = 0.5  # s: L shifts the A-B context only if A decides at least this long after it meets L
 
 
@@ -225,7 +236,7 @@ def shift(scene, pr, x, vb):
     gm = g_meet(va, dv)
     if dv > 0.1:
         t_meet = max(0.0, (x - gm) / dv)
-    elif x < gm - 0.5:
+    elif x < gm - 0.5 and not SHIFT_ONLY_CLOSING:
         t_meet = 0.0  # already inside L's gap, at L's speed or slower
     else:
         return None  # A never reaches L's gap
@@ -284,7 +295,11 @@ def features(scene, car, pr, x, pa, vb, sh):
         return (1.0, press, press * (ab["d0"] - need) / need)  # ... and how far short of its check
     gap = C1.S0 + vb * x
     need = pa["buffer"] + v * pa["tau"] + C1.S0 + v * C1.HEADWAY + L_CAR
-    return (1.0, (gap - need) / (v * H), (ab["v0B"] - v) / max(v, 0.1))
+    f = (1.0, (gap - need) / (v * H), (ab["v0B"] - v) / max(v, 0.1))
+    if PER_SLOT_FEATURES and ab["a_pos"] != "ahead":
+        k = max(1, queue_walk(scene, ab, x, pa, vb)[2])
+        f = tuple(k * fi for fi in f)
+    return f
 
 
 # --- analysis ------------------------------------------------------------------------------------
@@ -326,6 +341,11 @@ def cells(rows, table, theta=None):
     return out
 
 
+def mode(xs):
+    """The most common value; ties broken by order, so the result does not depend on hashing."""
+    return max(sorted(set(xs), key=str), key=xs.count)
+
+
 def judge(cs, model, theta=None):
     """Per cell: mean residual of `model`, the tolerance, within; theta adds the fitted residual."""
     res = []
@@ -340,10 +360,9 @@ def judge(cs, model, theta=None):
                 p += sum(c * fi for c, fi in zip(theta[z["cls"]], z["f"]))
             return p
         r = st.mean(z["u"] - pred(z) for z in xs)
-        cls = max(set(z["cls"] for z in xs), key=[z["cls"] for z in xs].count)
+        cls = mode([z["cls"] for z in xs])
         res.append({"key": key, "r": r, "tol": tol, "within": abs(r) <= tol, "cls": cls, "u": st.mean(us),
-                    "pos": max(set(z["pos"] for z in xs), key=[z["pos"] for z in xs].count),
-                    "pos_ab": max(set(z["pos_ab"] for z in xs), key=[z["pos_ab"] for z in xs].count)})
+                    "pos": mode([z["pos"] for z in xs]), "pos_ab": mode([z["pos_ab"] for z in xs])})
     return res
 
 
@@ -366,7 +385,7 @@ def fit_residual(cs, model="n3c", min_cells=4):
     """theta per class: least squares of the per-cell mean residual on the cell's mean features."""
     by = {}
     for key, xs in cs.items():
-        cls = max(set(z["cls"] for z in xs), key=[z["cls"] for z in xs].count)
+        cls = mode([z["cls"] for z in xs])
         f = [st.mean(z["f"][i] for z in xs) for i in range(len(xs[0]["f"]))]
         r = st.mean(z["u"] - z[model] for z in xs)
         by.setdefault(cls, []).append((f, r))
@@ -482,6 +501,34 @@ def d2(port, out, swb_runs="/mnt/p5plus/aeon/coop/c2b/run2"):
     AR.LEGACY_FOLLOW = False
 
 
+def diagnose(out):
+    """The frozen model and each post-hoc change, refitted on 'fit' and scored on every set."""
+    global SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES
+    names = ("fit", "ho_hf", "ho_vb", "ho_gl", "ho_a4")
+    rows = load(out, names)
+    table = PairTable(load(out, ("pairs",)))
+    L = ["N3 post-hoc changes (found on the hold-out; each refitted on 'fit' only). car-cells, contexts:"]
+    for flags in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0), (1, 1, 1)):
+        SLOT_AT_DECISION, SHIFT_ONLY_CLOSING, PER_SLOT_FEATURES = map(bool, flags)
+        cs = cells(rows, table)
+        th = fit_residual({k: v for k, v in cs.items() if k[0] == "fit"})
+        tag = "+".join(n for n, f in zip(("slot_at_decision", "shift_only_closing", "per_slot"), flags) if f) or "frozen"
+        pool, line = [], f"  {tag:46s}"
+        for t in names:
+            res = judge({k: v for k, v in cs.items() if k[0] == t}, "n3c", th)
+            if t != "fit":
+                pool += res
+            wc, nc = contexts_share(res)
+            line += f" {t} {wc}/{nc}"
+        w, n = share(pool)
+        wc, nc = contexts_share(pool)
+        L.append(line + f" | held-out {w}/{n} ({100 * w / n:.0f} %), contexts {wc}/{nc} ({100 * wc / nc:.0f} %)")
+    SLOT_AT_DECISION = SHIFT_ONLY_CLOSING = PER_SLOT_FEATURES = False
+    txt = "\n".join(L)
+    open(os.path.join(out, "n3_diagnose.txt"), "w").write(txt + "\n")
+    print(txt)
+
+
 def selftest():
     # the queue walk: one slot too short at hf 1 s (gap 14 m), a fitting one at hf 3 s (38 m)
     pa = PA["A_aw_perm"]
@@ -516,7 +563,7 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("mode", nargs="?", choices=("run", "analyze", "d2"))
+    ap.add_argument("mode", nargs="?", choices=("run", "analyze", "d2", "diagnose"))
     ap.add_argument("--set", default="fit")
     ap.add_argument("--ports", default="2600,2610,2620")
     ap.add_argument("--port", type=int, default=2600)
@@ -535,6 +582,8 @@ def main():
             N2.run_pool(ports, a.k, "groups", work, os.path.join(a.out, f"{name}.jsonl"), chunk=4 * a.k)
     elif a.mode == "d2":
         d2(a.port, a.out)
+    elif a.mode == "diagnose":
+        diagnose(a.out)
     else:
         analyze(a.out)
 

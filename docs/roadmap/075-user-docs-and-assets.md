@@ -125,9 +125,13 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
 1. [x] Audit (2026-11-14), above.
 2. [~] Assets: inventory, NAS copies. 243's and 139's copied 2026-11-14; 118, 133 and 241 asked.
 3. [x] The user's word on the doc set and the asset questions (Decisions).
-4. [ ] Launch fixes the docs need: package.xml exec_depends, `carla.launch.xml` world
-   server config, the domain check in `stack.launch.py`, `demo.launch.xml` and the
-   `carla_scenario.launch.xml` alias retired, argument descriptions.
+4. [x] Launch fixes the docs need (342b3e2, 2026-11-14): package.xml exec_depends on what
+   `stack.launch.py` resolves; `carla.launch.xml world_config:=` for the CARLA world server's
+   config; `stack.launch.py` refuses a domain outside 0-57 and equal ego and scenario domains,
+   before anything starts (a test pins it; checked under `ros2 launch` and play_launch 0.20.0,
+   both print the message); `demo.launch.xml` and the `carla_scenario.launch.xml` alias
+   deleted; every argument of `carla.launch.xml`, `isaac.launch.xml` and
+   `carla_simulation.launch.xml` described.
 5. [ ] "Domains and DDS" and "Build your own stack".
 6. [ ] README and the two getting-started guides onto the stack, no `just`.
 7. [ ] Tutorials renumbered and fixed; reference docs fixed; the index.

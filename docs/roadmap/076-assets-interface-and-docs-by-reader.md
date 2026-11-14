@@ -520,6 +520,17 @@ sharing a project.
   stack start (35bf522). Judges take `{run_dir}`/`{scenario}` and plain programs (exit code),
   so `physical_verdict` is one (67550bc). `capture: full|debug` records rosbags per pilot
   domain, `run --capture` (623deec).
+- First live run (2026-11-15, CARLA 0.9.16 at Epic, play_launch 0.34, the `first_drive` copy):
+  - fixed (5616e87): the stack's bridge and relay ran on a sourced Autoware's DDS profile, the
+    runs on swb's, so SSv2 never found the relay's ADAPI (the run's `error` said so). The
+    stack now passes its profile as `dds_config`, never the environment's.
+  - fixed (5616e87): the autoware pilot's `vehicle` (the car) collided with the Autoware
+    profile's `vehicle` switch; play_launch's parser refused the pilot. RViz defaults off.
+  - friction: the stack's fingerprint names the build's commit, so a commit of the same tree
+    after the stack started refuses every run ("restart the stack"). Right for users, costly
+    for developers; a tree hash would keep it right and spare that restart.
+  - friction: play_launch warns `dds-env-split` for the stack's nested sides, whose domains
+    differ on purpose.
 
 ## Acceptance
 

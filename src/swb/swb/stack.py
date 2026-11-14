@@ -108,12 +108,29 @@ def workspace_root():
     return None
 
 
+def source_id(ws) -> str:
+    """The code the stack runs, not the commit that holds it: the tree of the checkout's
+    ``src/`` (``src:<tree>``), plus a hash of its uncommitted changes there (``+<sha>``). A
+    commit of the same tree, or an edit of the docs, leaves it as it was."""
+    def git(*a):
+        try:
+            return subprocess.run(["git", *a], cwd=str(ws), capture_output=True, text=True,
+                                  timeout=20).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+    tree = git("rev-parse", "HEAD:src").strip()
+    if not tree:
+        return None
+    diff = git("diff", "HEAD", "--ignore-submodules=all", "--", "src")
+    return f"src:{tree}" + (f"+{hashlib.sha256(diff.encode()).hexdigest()[:12]}" if diff else "")
+
+
 def build_commits(workspace=None) -> dict:
     ws = workspace if workspace is not None else workspace_root()
     if ws is None:
         return {"swb": None, "submodules": {}}
     p = results.provenance(ws)
-    return {"swb": p.get("swb"), "submodules": p.get("submodules") or {}}
+    return {"swb": source_id(ws) or p.get("swb"), "submodules": p.get("submodules") or {}}
 
 
 def fingerprint(project: Path, settings: dict = None, build: dict = None) -> dict:

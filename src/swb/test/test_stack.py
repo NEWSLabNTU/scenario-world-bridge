@@ -292,3 +292,27 @@ def test_keeper_refuses_a_held_seat(where, maps_hub):
     with seat.acquire(p.seat, "other"):
         assert stack.keep(p.stack_dir, once=True) == 3
     assert json.loads(p.stack_json.read_text())["state"] == "stopped"
+
+
+def test_source_id_ignores_docs_and_commits(tmp_path):
+    import subprocess as sp
+    r = tmp_path / "ws"
+    (r / "src").mkdir(parents=True)
+    (r / "src" / "a.py").write_text("x = 1\n")
+    (r / "README.md").write_text("doc\n")
+    g = lambda *a: sp.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=r,  # noqa: E731
+                          check=True, capture_output=True)
+    g("init", "-q")
+    g("add", "-A")
+    g("commit", "-qm", "1")
+    base = stack.source_id(r)
+    assert base.startswith("src:") and "+" not in base
+    (r / "README.md").write_text("doc 2\n")
+    assert stack.source_id(r) == base          # a docs edit
+    g("commit", "-qam", "docs")
+    assert stack.source_id(r) == base          # its commit
+    (r / "src" / "a.py").write_text("x = 2\n")
+    dirty = stack.source_id(r)
+    assert dirty.startswith(base + "+")
+    g("commit", "-qam", "code")
+    assert stack.source_id(r) not in (base, dirty)

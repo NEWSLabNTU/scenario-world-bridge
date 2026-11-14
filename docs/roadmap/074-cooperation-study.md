@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic done (chicken only for |Δt| ≤ 0.5 s; a right of way selects only at a fault cost ≥ 1; a tie-break is needed after a mutual stop); in progress: E3 (swb 118), the C3a rerun (swb 241), N1-N2 (133); next: S2 in the arena (swb 139), S1 in the arena, S3-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S1 kinematic done (the cut-out's danger is look-through, not the gap; L does not dump risk on B); S2 kinematic done (chicken only for |Δt| ≤ 0.5 s; a right of way selects only at a fault cost ≥ 1; a tie-break is needed after a mutual stop); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); in progress: E3 (swb 118), the C3a rerun (swb 241), S2 in the arena (swb 139); next: N3, S2 in the arena (swb 139), S1 in the arena, S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -587,6 +587,71 @@ Verdict against the criterion:
   can be told from a crash when the cell is analysed.
 - **D2 >= 90 %**: met, 92 %.
 
+### N1, N2. Conflict sets and three-car composition (2026-11-14)
+
+Commit 20cef0f. Scripts: `n1_conflict_sets.py`, `arena_n.py` (a third car on the arena's
+road, `arena.py` unchanged), `n2_composition.py`. Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop
+N1 N2/`.
+
+**N1, the size of a car's conflict set.** Measured per 1 s slot. A car is in the set if its 2D TTC
+is under 3 s, its headway under 1 s, or its PET under 1.5 s (definitions from `measures`).
+
+| source | car-slots with a conflict | mean \|K_i\| when > 0 | max | event size mean / max |
+|---|---|---|---|---|
+| arena three-car runs (576 runs) | 0.3-0.4 % | 1.00 | 1 | 2.0 / 2 |
+| SSv2 Town01 NPC benches (npc_10/20/50, npc_shoulder; replayed along the lanelets) | 5.3 % | 1.19 | 4 | 2.40 / 5 |
+| literature (survey) | | | | 3.2 / 7 |
+
+- Our scenes are sparser than the literature's: none is a dense merge or junction.
+- The ego scenes were not replayed: that needs a recorder for every entity's pose. highD is not on
+  the NAS.
+- **The coupling in the arena's three-car runs does not come through risk.** No car ever has two
+  cars in its conflict set at once, yet the runs differ from the pairs by up to 0.47. A conflict set
+  defined only by risk thresholds is too narrow for composition.
+
+**N2, the residual of composed pair terms.** Setup:
+- Scene a: C follows B, at a headway of 1 or 2 s.
+- Scene b: a lead L ahead of A, at a gap of 15 or 30 m.
+- Grid: d0 {2, 6, 10, 14} m × dv {-2, 0, 2} m/s, v_B 12 m/s.
+- Profiles: A_aw_perm, and do4's equilibrium A, each against B_aw_react.
+- 8 seeds with common random numbers; 3072 runs in 13 min on three CARLAs; no contact.
+
+Results:
+- **Composed per measure** (risk max, delay max-plus, braking max), 234 of 288 car-cells (81 %)
+  fall within the D2 tolerance, and only 61 of 96 contexts (64 %) for every car. The residuals range
+  from -0.32 to +0.47, with bootstrap intervals about 0.0003 wide: these are effects, not noise.
+- **Scene a:**
+  - When the B-C slot is shorter than A's gap check needs, A drops behind C as well. A loses 0.075 to
+    0.12 more than the pairs predict: the slot's length divided by v·H.
+  - The A-C pair is a cut-in ahead of C that never happens with three cars, so C's composed payoff is
+    0.12 to 0.47 too pessimistic.
+- **Scene b:** L slows A before it decides. At d0 2 and 6 with a 15 m gap, A's outcome flips from
+  ahead to behind (r_A -0.28 to -0.32). The three-car outcome is the A-B pair at the speed difference
+  L imposes, not at the nominal one.
+- **A relation-aware composition**, built after seeing the residuals, reaches 265 of 288 (92 %):
+  - it drops pair terms whose relation cannot occur given the A-B outcome;
+  - it charges A the queue's length when the slot is too short.
+
+  It needs a hold-out before it counts.
+
+**D9 decided: pairs are not enough, and the residual is systematic, so N3 follows.** Two things
+shape N3:
+- The residual comes from a discrete change in the A-B outcome, so the model takes that outcome (or
+  the context L shifts it to) as an input or a class, not only as a smooth correction.
+- Its predictors are the target lane's queue (the slot against A's gap need) and A's own lead (gap
+  and closing). Neither is in a risk-defined conflict set.
+
+Nothing calls for N = 4 explicit games.
+
+**Open:**
+- **Hold-out for the relation-aware composition:** other headways, other v_B, a four-car queue.
+- **Scene b's context shift has no composition rule yet.** The A-B pair at dv 0 predicts the outcome
+  but not the payoff: -0.27 against -0.48 measured.
+- **Payoff levels depend on the scoring window.** The arena's followers never regain their start
+  speed, so every loss depends on the window, in `arena.Pair` too. Payoffs scored over different
+  windows (20 s against 30 s) do not compare.
+- **N1 on SSv2 is a replay of NPC-only scenes**, not a run.
+
 ### S1. The cut-out, kinematic (2026-11-14)
 
 `scripts/coop/cutout_game.py` (01bc891, swb 139).
@@ -729,9 +794,9 @@ being carried.
 | | E6 4-way stop site | E | lights switched off on a Town05 junction, or an unsignalled junction | site |
 | | D8 4-way stop | D | | site found: U3; else skip |
 | | E7 merge site | E | a lane drop on Town03/05 | site or none |
-| | N1 conflict-set sizes | E | how many cars are in each car's conflict set, per slot, in the arena's and SSv2's multi-car scenes (and highD if it is at hand) | the size distribution; the literature's 3.2 mean / 7 max (survey, N cars) checked on ours |
-| | N2 composition | B | three-car arena games (a cut-in between B and its follower; a cut-in with a lead ahead of A) against the pair terms composed per measure (risk max, delay max-plus, braking max) | the residual $r$ per context with its bootstrap interval |
-| | D9 pairs enough? | D | does the composed model predict three cars | $r$ within the D2 tolerance in >= 90 % of contexts: pairs suffice, N grows only by composition; systematic: N3; large and irregular: those contexts stay explicit games, try N = 4 there only |
+| | N1 conflict-set sizes | E | how many cars are in each car's conflict set, per slot, in the arena's and SSv2's multi-car scenes (and highD if it is at hand) | the size distribution; the literature's 3.2 mean / 7 max (survey, N cars) checked on ours. Done (20cef0f; N1, N2 above): arena 1.0 / 1, SSv2 benches 1.19 / 4 (mean / max when > 0) |
+| | N2 composition | B | three-car arena games (a cut-in between B and its follower; a cut-in with a lead ahead of A) against the pair terms composed per measure (risk max, delay max-plus, braking max) | the residual $r$ per context with its bootstrap interval. Done: 81 % of car-cells, 64 % of contexts within tolerance; residual systematic |
+| | D9 pairs enough? | D | does the composed model predict three cars | $r$ within the D2 tolerance in >= 90 % of contexts: pairs suffice, N grows only by composition; systematic: N3; large and irregular: those contexts stay explicit games, try N = 4 there only. Decided 2026-11-14: not enough, systematic: N3, with the A-B outcome as a class and the queue and lead as predictors |
 | | N3 residual model | B | a permutation-invariant residual over the slots, fitted on three-car runs, tested on four | held-out error against the composed model's |
 | | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
 | | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |

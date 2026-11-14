@@ -45,7 +45,7 @@ from pathlib import Path
 import yaml
 
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
-from swb import runs as runsmod, slices, stack as stackmod, timeline
+from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -541,7 +541,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     if capture in ("full", "debug"):
         samples = [host_sample()]
 
-    procs = []
+    procs, recorders = [], []
     try:
         for p, entry in (run_pilots if not infra else []):
             log_dir = logs / f"pilot-{p['entity']}"
@@ -572,6 +572,17 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         mark0 = slices.LogMark.take(proc_dir)
         t_start = time.time()
         if not infra:
+            for name, domain, rargv in recordmod.plan(run_dir, capture, pilots,
+                                                      rec["domains"]["scenario"],
+                                                      lg.get("topics")):
+                try:
+                    recorders.append(_start(rargv, stackmod.ros_env(rec, domain),
+                                            logs / "record" / f"{name}.log", cwd=str(run_dir)))
+                    run_events.append({"t_wall": time.time(), "event": "record.start",
+                                       "name": name, "domain": domain})
+                except OSError as e:
+                    run_events.append({"t_wall": time.time(), "event": "record.error",
+                                       "name": name, "message": str(e)})
             env = stackmod.ros_env(rec, rec["domains"]["scenario"])
             try:
                 ssv2 = _start(ssv2_argv, env, logs / "scenario" / "console.log", cwd=str(project))
@@ -590,6 +601,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         t_end = time.time()
         mark1 = slices.LogMark.take(proc_dir)
     finally:
+        # the recorders first, on SIGINT, so each bag is closed before its topics go away
+        stackmod.stop_processes(recorders)
         for proc in procs:
             _stop(proc)
 
@@ -741,6 +754,9 @@ def main(argv=None, out=None) -> int:
     ap.add_argument("--shard", help="i/n: every n-th run from the i-th (1-based)")
     ap.add_argument("--resume", action="store_true", help="skip a suite's runs with a result")
     ap.add_argument("--logs", help="the log root (default: the host settings' logs:)")
+    ap.add_argument("--capture", choices=runsmod.LEVELS,
+                    help="record at this level and keep it whatever the verdict "
+                         "(full: + rosbags of the key topics; debug: + every topic)")
     ap.add_argument("--project", help="the project (default: found from the working dir)")
     ap.add_argument("--seat", help="the stack's seat (default: the host settings' seat:)")
     ap.add_argument("--param", action="append", metavar="NAME=VALUE",
@@ -765,6 +781,9 @@ def main(argv=None, out=None) -> int:
         if args.timeout:
             for s in specs:
                 s.timeout = args.timeout
+        if args.capture:
+            for s in specs:
+                s.logging = {**(s.logging or {}), "capture": args.capture, "keep": {}}
         if args.shard:
             specs = shard(specs, args.shard)
         specs = order_by_map(specs, ctx.stack.get("map"))

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from swb import assets, budget as budgetmod, config, judges as judgesmod
+from swb import assets, budget as budgetmod, config, judges as judgesmod, record as recordmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -44,7 +44,7 @@ LIFETIMES = ("stack", "run")
 INPUTS = ("sensors", "map", "ground_truth")
 LEVELS = ("result", "standard", "full", "debug")
 VERDICTS = ("passed", "failed", "error")
-LOGGING_KEYS = ("capture", "keep", "levels", "budget", "debug")
+LOGGING_KEYS = ("capture", "keep", "levels", "budget", "debug", "topics")
 SUITE_KEYS = ("scenarios", "parameters", "distribution", "repetitions", "seed", "expect",
               "retry", "pilot_args", "logging")
 EXTERNAL_CONTROLLERS = ("agent", "autoware")
@@ -248,6 +248,8 @@ def _check_logging(file, where, lg) -> list:
     if lg.get("capture") is not None and lg["capture"] not in LEVELS:
         out.append(Finding(file, f"{where}.capture: {lg['capture']} is not a level",
                            f"one of {', '.join(LEVELS)}"))
+    for msg in recordmod.topics_problems(lg.get("topics")):
+        out.append(Finding(file, f"{where}.{msg}", "topics: [/localization/kinematic_state]"))
     for msg in budgetmod.problems(lg.get("budget")):
         out.append(Finding(file, f"{where}.budget: {msg}", "budget: {per_run: 2GB, total: 200GB}"))
     keep = lg.get("keep")

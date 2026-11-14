@@ -359,7 +359,12 @@ WARN or above in any slice.
 Levels: `result` (result, resolved, JUnit, timeline), `standard` (+ slices, SSv2's logs),
 `full` (+ a rosbag of the key topics, `host.json` samples), `debug` (+ every topic, DEBUG on
 `logging.debug:` groups). `capture` records; `keep` prunes per verdict after it is known;
-`budget` (`{per_run: 2GB, total: 200GB}`) refuses a run or suite that cannot fit: `per_run`
+At `full` a `ros2 bag record` per pilot domain (pilots sharing a domain share one) records
+the key topics (ego state, control command, vehicle status, detected objects, trajectory,
+`/swb/wheels`; `logging.topics` replaces the list) from the moment every pilot is ready until
+SSv2 ends, into `record/<entity>/`; at `debug` every topic, the scenario domain's too
+(`record/scenario/`). `ros2 run swb run --capture <level>` records one run at that level and
+keeps it whatever the verdict. `budget` (`{per_run: 2GB, total: 200GB}`) refuses a run or suite that cannot fit: `per_run`
 times the runs to go must be free on the log disk and, with `total`, fit beside what the runs
 directory already holds. `runs why <id>` prints the first WARN/ERROR with its
 group.

@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from swb import api, assets, project, results, run, stack, timeline
+from swb import api, assets, project, record as recordmod, results, run, stack, timeline
 
 SWB_ROOT = Path(__file__).resolve().parents[1]
 
@@ -578,3 +578,40 @@ def test_judges_run_and_budget_refuses(where, maps_hub, monkeypatch):
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=10)
+
+
+def test_capture_full_records_each_pilot_domain(live, where, monkeypatch):
+    d, _ = live
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    started = []
+
+    def fake_argv(out_dir, level, topics=None):
+        started.append((out_dir.name, level))
+        # a recorder that writes its bag directory and closes it on SIGINT
+        return [sys.executable, "-c",
+                "import signal, sys, time, pathlib\n"
+                f"p = pathlib.Path({str(out_dir)!r}); p.mkdir(parents=True)\n"
+                "signal.signal(signal.SIGINT, lambda *a: ((p / 'metadata.yaml').write_text('ok'),"
+                " sys.exit(0)))\n"
+                "time.sleep(60)\n"]
+    monkeypatch.setattr(recordmod, "argv", fake_argv)
+    out = io.StringIO()
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--capture", "full"],
+                    out=out) == 0
+    run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+    bags = sorted(x.name for x in (run_dir / "record").iterdir())
+    assert bags and all((run_dir / "record" / b / "metadata.yaml").is_file() for b in bags)
+    assert {lv for _, lv in started} == {"full"}
+    assert (run_dir / "host.json").is_file()  # --capture keeps whatever the verdict
+
+
+def test_record_plan():
+    pilots = [{"entity": "ego", "domain": 1}, {"entity": "lead", "domain": 9},
+              {"entity": "npc", "domain": 1}]
+    full = recordmod.plan(Path("/r"), "full", pilots, 9)
+    assert [(n, dm) for n, dm, _ in full] == [("ego", 1), ("lead", 9)]
+    assert "/localization/kinematic_state" in full[0][2]
+    dbg = recordmod.plan(Path("/r"), "debug", [{"entity": "ego", "domain": 1}], 9)
+    assert [(n, a[-1]) for n, _, a in dbg] == [("ego", "-a"), ("scenario", "-a")]
+    assert recordmod.plan(Path("/r"), "standard", pilots, 9) == []
+    assert recordmod.topics_problems(["no_slash"]) and not recordmod.topics_problems(["/a"])

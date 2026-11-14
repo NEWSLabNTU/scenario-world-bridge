@@ -14,6 +14,8 @@
 
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
+  <!-- optional: huggingface_hub (pip), used by `assets fetch` when importable;
+       without it the Hub is reached over plain HTTPS with the standard library -->
 
   <test_depend>python3-pytest</test_depend>
 

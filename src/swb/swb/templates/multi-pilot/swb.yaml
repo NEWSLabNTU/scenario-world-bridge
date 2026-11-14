@@ -1,0 +1,9 @@
+# @PROJECT@: three pilots of different kinds in one scenario on CARLA's Town01.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+  lead: {kind: carla_basic}
+  follower: {kind: command, run: [python3, pilots/follower.py]}

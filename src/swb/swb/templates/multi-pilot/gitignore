@@ -1,0 +1,5 @@
+# made by swb on each host; swb.lock is committed
+assets/
+state/
+runs/
+.swb/

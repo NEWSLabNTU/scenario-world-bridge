@@ -6,12 +6,14 @@ setup(
     name=package_name,
     version='0.1.0',
     packages=[package_name],
+    # `project new`'s starters, read from beside swb/project.py
+    package_data={package_name: ['templates/*/*', 'templates/*/*/*']},
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
     install_requires=['setuptools'],
-    zip_safe=True,
+    zip_safe=False,
     maintainer='Maintainer',
     maintainer_email='maintainer@example.com',
     description="scenario-world-bridge's user commands",

@@ -1,0 +1,9 @@
+# @PROJECT@: one Autoware ego on Isaac Sim, in CARLA's Town01 as USD.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}

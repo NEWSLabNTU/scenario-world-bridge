@@ -343,6 +343,44 @@ def xodr_left_turn(k, length, x_side, side_len, gap):
             '  <header revMajor="1" revMinor="4" name="arena_left_turn" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_roundabout(k, spacing, r_ring, entry_x, entry_y0, approach, r_entry, entry_arc_len):
+    """K roundabouts `spacing` m apart along x: a one-lane ring (lane -1, outward of its reference
+    circle, its centre line at r_ring, counter-clockwise) and one entry road: a straight approach
+    along +y whose lane -1 is centred at x = entry_x (from y = entry_y0, `approach` m long), then a
+    right-hand arc of radius r_entry (its lane's centre line) `entry_arc_len` m long. All in each
+    roundabout's own frame, its ring centred at the origin. No junction: the meshes overlap, flat."""
+    lane = (f'<laneSection s="0"><center><lane id="0" type="none" level="false"/></center>'
+            f'<right><lane id="-1" type="driving" level="false"><width sOffset="0" a="{LANE_W}" b="0" c="0" d="0"/></lane>'
+            '</right></laneSection>')
+    r_ref = r_ring - LANE_W / 2  # lane -1 is on the right of counter-clockwise travel: outward
+    ring_len = 2 * math.pi * r_ref
+    re_ref = r_entry + LANE_W / 2  # a right turn's lane -1 is inside its arc: the reference line is outside
+    roads = []
+    for i in range(k):
+        ox = i * spacing
+        roads.append(f"""
+  <road name="ring{i}" length="{ring_len}" id="{2 * i + 1}" junction="-1">
+    <link/>
+    <planView><geometry s="0" x="{ox + r_ref}" y="0" hdg="{math.pi / 2}" length="{ring_len}"><arc curvature="{1 / r_ref}"/></geometry></planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes>{lane}</lanes>
+  </road>""")
+        ex = ox + entry_x - LANE_W / 2  # the reference line is left (-x) of the lane heading +y
+        arc_ref = entry_arc_len * re_ref / r_entry
+        roads.append(f"""
+  <road name="entry{i}" length="{approach + arc_ref}" id="{2 * i + 2}" junction="-1">
+    <link/>
+    <planView>
+      <geometry s="0" x="{ex}" y="{entry_y0}" hdg="{math.pi / 2}" length="{approach}"><line/></geometry>
+      <geometry s="{approach}" x="{ex}" y="{entry_y0 + approach}" hdg="{math.pi / 2}" length="{arc_ref}"><arc curvature="{-1 / re_ref}"/></geometry>
+    </planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes>{lane}</lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_roundabout" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 def xodr_narrow(k, length, x0, wn, taper):
     """K parallel two-way roads (lane -1 along +x, lane +1 along -x) whose lane -1 is closed over
     [x0, x0 + wn]: a cubic taper to zero width over the taper before x0, no lane -1 over the closure,

@@ -122,8 +122,15 @@ $$U_i = -\ell_i - \rho_i - c_i - 10\cdot\mathbf 1[\text{contact}]$$
   $h^* = 1$ s, $\pi^* = 1.5$ s, $d^* = 1$ m.
 - **Comfort** from both directions:
   $c_i = 0.3\left(\dfrac{a^{\text{lon,peak}}_i}{b^{\max}_i}\right)^2 + 0.3\left(\dfrac{a^{\text{lat,peak}}_i}{a^{\text{lat,max}}_i}\right)^2$.
-- **Contact** as before. Today's code implements the follow case of $\rho$ (TTC and headway in a
-  shared lane) and longitudinal comfort; the rest is the revision (step S0 below).
+- **Contact**: the two footprints overlap. A footprint is the spec's box (Autoware's
+  `vehicle_info`: 4.79 x 2.163 m for the Model 3), oriented by the car's yaw; the depth of the
+  deepest overlap is recorded beside it, since a square-cornered box at a steep yaw touches before
+  the body does (S0: 1-8 cm at 14/-3).
+- **Implemented** (S0, 2026-11-14) in `scripts/coop/measures.py` (`push_poses`, `rho`, `utility`)
+  and used by C1 (`cutin_game.utility`), the arena and swb's scoring (`c2b.score`); every car is
+  an oriented box, $\mathrm{TTC}^{2D}$ is found by stepping both boxes at constant velocity (0.1 s,
+  refined by bisection), PET from footprints stored every 0.1 s where headings differ by 30-150
+  deg, $a^{\text{lat,max}} = 4$ m/s$^2$.
 
 **Rules that make scores comparable** (learned the hard way, D2: 71 % → 92 %):
 - defined over *time*, never over samples (0.05 s arena ticks and 0.1 s swb logs must agree);

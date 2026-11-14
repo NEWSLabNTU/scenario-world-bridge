@@ -16,8 +16,10 @@ a contingent rule, not a single action:
 Under every strategy B's safety layer brakes, after its reaction time, as hard as the gap to a
 car in its lane needs, up to its braking limit.
 
-Payoffs come from the simulated trajectories: lost progress against free flow, risk from the
-smallest TTC and time headway, peak braking relative to the car's own limit, contact. A car's
+Payoffs come from the simulated trajectories with the general utility (measures.utility,
+docs/design/cooperative-driving.md ①): lost route progress over a fixed horizon, risk as the
+largest shortfall of 2D TTC, time headway, PET and body clearance, peak braking and lateral
+acceleration relative to the car's limits, contact (the bodies overlap). A car's
 payoff is J_i = cos(phi_i) U_i + sin(phi_i) U_-i (phi: its SVO angle). The game is solved per
 context (d0, dv): pure Nash equilibria and the mixed ones by support enumeration. Welfare is
 measured as a cost C = -(U_A + U_B) >= 0, so the price of anarchy and of stability are ratios of
@@ -44,10 +46,14 @@ import os
 import sys
 from dataclasses import dataclass, replace
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import measures as M  # noqa: E402
+
 DT = 0.05
 HORIZON = 20.0  # s; 12 s left a wait at d0 = 20 m unfinished, scored as a total loss (074 E1)
 T_MAX = 40.0  # s; a run goes on past HORIZON until A's lane change is complete, up to this (074 C2a)
 LANE_LINE = 0.5  # A's lateral progress (0 own lane, 1 B's lane) at which it occupies B's lane
+LANE_W = 3.5  # m, as the arena's road
 
 
 @dataclass(frozen=True)
@@ -61,6 +67,8 @@ class Capability:
     reaction: float  # s, from an observable event to the first response
     t_prep: float  # s, from deciding to change lanes to the first lateral motion
     t_lc: float  # s, the lateral motion itself
+    width: float = 2.163  # m, the Model 3's body box in CARLA (sim_vehicle_spec)
+    a_lat_max: float = M.A_LAT_MAX  # m/s^2, the lateral acceleration comfort is judged against
 
 
 @dataclass(frozen=True)
@@ -111,6 +119,9 @@ class Outcome:
     peak_brake: tuple[float, float]
     went: bool  # A changed lanes ahead of B
     b_cont: str  # B's continuation under REACT ("" otherwise)
+    min_clear: float = math.inf  # m, the smallest body clearance
+    min_pet: float = math.inf  # s, post-encroachment time (paths that cross)
+    peak_lat: tuple[float, float] = (0.0, 0.0)  # m/s^2, the largest lateral acceleration per car
 
 
 def follow_accel(gap, v, v_lead, cap, v_des):
@@ -138,8 +149,8 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
     in_lane_at = None  # when A entered B's lane
     b_brake_seen = None  # when A could first see B yielding
     b_prev_a = 0.0
-    min_ttc = min_thw = math.inf
     contact = False
+    meas = M.Measures()
     peak = [0.0, 0.0]
     t = 0.0
     while t < T_MAX - 1e-9:
@@ -194,18 +205,21 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
         if decide is not None:
             lat = min(1.0, max(0.0, (t + DT - decide - cap_a.t_prep) / cap_a.t_lc))
         t += DT
-        if lat >= LANE_LINE:
-            if (xa > xb - cap_b.length) and (xa - cap_a.length < xb):
-                contact = True
-                break
-            if xa > xb:
-                closing, v_follow, gap = vbb - va, vbb, (xa - cap_a.length) - xb
-            else:
-                closing, v_follow, gap = va - vbb, va, (xb - cap_b.length) - xa
-            if closing > 1e-3:
-                min_ttc = min(min_ttc, gap / closing)
-            if v_follow > 1.0:
-                min_thw = min(min_thw, gap / v_follow)
+        # the cars as boxes: B's lane at y = 0, A's at LANE_W; A's lateral motion follows the
+        # arena's cosine profile (the same crossing of the lane line as `lat`)
+        if decide is not None:
+            u = (t - decide - cap_a.t_prep) / cap_a.t_lc
+            ya = LANE_W * (1 - 0.5 * (1 - math.cos(math.pi * lat)))
+            vya = -LANE_W * 0.5 * math.pi / cap_a.t_lc * math.sin(math.pi * lat) if 0 < u < 1 else 0.0
+        else:
+            ya, vya = LANE_W, 0.0
+        vxa = math.sqrt(max(0.0, va * va - vya * vya))
+        pa = (xa - cap_a.length / 2, ya, math.atan2(vya, max(vxa, 0.1)), vxa, vya, cap_a.length, cap_a.width)
+        pb = (xb - cap_b.length / 2, 0.0, 0.0, vbb, 0.0, cap_b.length, cap_b.width)
+        meas.push_poses(t, pa, pb)
+        if meas.clear <= 0.0:
+            contact = True
+            break
     # progress is judged over the whole run, which lasts until A's merge is complete: an
     # unfinished merge no longer scores as a total loss at a fixed horizon
     # lost progress over the run, as a share of free flow over a fixed HORIZON: a run that goes on
@@ -218,18 +232,17 @@ def simulate(a_strat, b_strat, d0, dv, vb, cap_a, cap_b, b_cont=HOLD):
     if decide is None:
         lost_a = 1.0
     went = decide is not None and not dropping
-    return Outcome((lost_a, lost_b), min_ttc, min_thw, contact, (peak[0], peak[1]), went,
-                   b_cont if b_strat == REACT else "")
+    meas.pet = meas._pet()
+    return Outcome((lost_a, lost_b), meas.ttc2d, meas.thw, contact, (peak[0], peak[1]), went,
+                   b_cont if b_strat == REACT else "", meas.clear, meas.pet, tuple(meas.lat_peak))
 
 
 def utility(o, who, cap, pref):
-    risk = 0.0
-    if math.isfinite(o.min_ttc):
-        risk = max(risk, (pref.ttc_ref - o.min_ttc) / pref.ttc_ref)
-    if math.isfinite(o.min_thw):
-        risk = max(risk, (pref.thw_ref - o.min_thw) / pref.thw_ref)
+    """The general utility (measures.utility), with the car's preference weights."""
+    risk = M.rho(o.min_ttc, o.min_thw, o.min_pet, o.min_clear)
     u = -pref.w_progress * o.progress[who] - pref.w_risk * risk
     u -= pref.w_comfort * (min(o.peak_brake[who], cap.b_max) / cap.b_max) ** 2
+    u -= pref.w_comfort * (min(o.peak_lat[who], cap.a_lat_max) / cap.a_lat_max) ** 2
     if o.contact:
         u -= pref.w_contact
     return u

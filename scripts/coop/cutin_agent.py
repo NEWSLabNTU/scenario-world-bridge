@@ -267,6 +267,7 @@ class CutInAgent(CarlaBasicAgent):
         if self.logf and int(t * 20) % 2 == 0:
             self.logf.write(json.dumps({"t": round(t, 3), "phase": self.stage, "along": round(along, 2),
                                         "x": round(loc.x, 2), "y": round(loc.y, 2), "ox": round(oloc.x, 2), "oy": round(oloc.y, 2),
+                                        "yaw": round(yaw, 4), "oyaw": round(oyaw, 4),
                                         "v": round(v, 2), "ov": round(ov, 2), "lat": round(lat, 3),
                                         "accel": round(accel, 2), "th": round(th, 3), "br": round(br, 3), "decide": self.decide,
                                         "dropping": self.dropping, "latched": self.latched}) + "\n")

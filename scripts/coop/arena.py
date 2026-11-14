@@ -308,6 +308,12 @@ class Car:
             tf, v = self.a.get_transform(), self.a.get_velocity()
         return tf.location.x, tf.location.y, math.radians(tf.rotation.yaw), math.hypot(v.x, v.y)
 
+    def pose(self):
+        """(x, y, yaw, vx, vy, length, width), for measures.push_poses."""
+        s = self.arena.snap.find(self.a.id) if self.arena.snap is not None else None
+        tf, v = (s.get_transform(), s.get_velocity()) if s is not None else (self.a.get_transform(), self.a.get_velocity())
+        return (tf.location.x, tf.location.y, math.radians(tf.rotation.yaw), v.x, v.y, self.length, self.width)
+
     def drive(self, accel, y_target, hand_brake=False):
         x, y, yaw, v = self.state()
         th, br = self.lon.command(accel, v)
@@ -629,7 +635,9 @@ class Pair:
                 self.peak[k] = max(self.peak[k], (h[0][1] - vv) / PEAK_WINDOW)
         dy = abs(ya - yb)
         dx = xa - xb
-        if dy < (A.width + B.width) / 2 and abs(dx) < (la + lb) / 2:
+        # contact: the oriented bodies overlap (measures, the same rule in C1 and swb's scoring)
+        self.meas.push_poses(t, A.pose(), B.pose())
+        if self.meas.clear <= 0.0:
             self.contact = True
         follower = gap = closing = None
         if dy < (A.width + B.width) / 2 + 0.3:  # same lane
@@ -659,15 +667,19 @@ class Pair:
         xb, _, _, _ = self.B.state()
         t = self.ar.t - self.t0  # the run lasts until A's merge is complete (C1.T_MAX at most)
         free_a, free_b = self.va0 * t, self.vb0 * t  # as a share of free flow over HORIZON (C1)
-        lost_a = min(1.0, max(0.0, (free_a - (xa - self.xa0)) / max(self.va0 * HORIZON, 1.0)))
-        lost_b = min(1.0, max(0.0, (free_b - (xb - self.xb0)) / max(self.vb0 * HORIZON, 1.0)))
+        # progress along the route: the arc length covered (measures), not x
+        lost_a = min(1.0, max(0.0, (free_a - self.meas.s[0]) / max(self.va0 * HORIZON, 1.0)))
+        lost_b = min(1.0, max(0.0, (free_b - self.meas.s[1]) / max(self.vb0 * HORIZON, 1.0)))
         got_in = self.lat() >= 0.9
         if self.contact:
             lost_a = lost_b = 1.0
         elif not got_in:
             lost_a = 1.0
-        o = C1.Outcome((lost_a, lost_b), self.min_ttc, self.min_thw, self.contact,
-                       (self.peak[0], self.peak[1]), got_in and not self.dropping, "")
+        m = self.meas
+        m.pet = m._pet()
+        o = C1.Outcome((lost_a, lost_b), m.ttc2d, m.thw, self.contact,
+                       (self.peak[0], self.peak[1]), got_in and not self.dropping, "",
+                       m.clear, m.pet, tuple(m.lat_peak))
         pref, cap = C1.Preference(), C1.TYPES["car"]
         self.rec = {**self.job, "road": self.road, "d0_real": round(self.d0_real, 2),
                     "dv_real": round(self.dv_real, 2), "vb_real": round(self.vb0, 2),

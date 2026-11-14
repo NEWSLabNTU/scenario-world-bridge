@@ -99,6 +99,55 @@ def scenario(path, d0, dv):
 ''')
 
 
+W_CAR = C1.Capability.__dataclass_fields__["width"].default
+LANE_W = 3.5  # m, Town03's lanes 2 and 3 (LANES)
+
+
+def poses(ta):
+    """Both cars' poses per logged sample: (x, y, yaw, vx, vy, length, width) each.
+
+    From the world positions when the log has them (x, y, ox, oy), heading as logged (yaw, oyaw)
+    or from the positions' central differences, velocity along it at the logged speed; older logs (C2b's runs 1-2) have only
+    the lane frame (lat, along), rebuilt on a straight road: B's lane at y = 0, A's at LANE_W.
+    """
+    n = len(ta)
+    car_yaw_prev = (H, H) if all("x" in r for r in ta) else (0.0, 0.0)  # the road's heading
+    if all("x" in r for r in ta):
+        pa = [(r["x"], r["y"]) for r in ta]
+        pb = [(r["ox"], r["oy"]) for r in ta]
+    else:
+        xb, pa, pb, lat = 0.0, [], [], ta[0]["lat"]
+        for i, r in enumerate(ta):
+            if i:
+                xb += 0.5 * (r["ov"] + ta[i - 1]["ov"]) * (r["t"] - ta[i - 1]["t"])
+            # a lane change moves lat by 0.05 per 0.1 s at most; the agent's lane tracking jumps
+            # by up to 1 where the east straight ends in a junction: held there
+            if abs(r["lat"] - lat) <= 0.15:
+                lat = r["lat"]
+            pb.append((xb, 0.0))
+            pa.append((xb - r["along"], LANE_W * (1 - lat)))
+    out = []
+    for i, r in enumerate(ta):
+        # heading from positions 0.5 s either side, held below 1 m/s: over 0.1 s, the logs' 1 cm
+        # rounding turned a car creeping at 0.3 m/s by up to 25 degrees (S0)
+        j0, j1 = max(0, i - 5), min(n - 1, i + 5)
+        dt = max(1e-3, ta[j1]["t"] - ta[j0]["t"])
+        car = []
+        for k, (P, v) in enumerate(((pa, r["v"]), (pb, r["ov"]))):
+            logged = r.get(("yaw", "oyaw")[k])
+            dx, dy = (P[j1][0] - P[j0][0]) / dt, (P[j1][1] - P[j0][1]) / dt
+            if logged is not None:
+                yaw = logged
+            elif math.hypot(dx, dy) > 1.0:
+                yaw = math.atan2(dy, dx)
+            else:
+                yaw = car_yaw_prev[k]
+            car.append((P[i][0], P[i][1], yaw, v * math.cos(yaw), v * math.sin(yaw), L, W_CAR))
+        car_yaw_prev = (car[0][2], car[1][2])
+        out.append(tuple(car))
+    return out
+
+
 def score(log_a, log_b, d0, dv, t_prep=0.0):
     """The arena's judgement from the agents' logs."""
     ra = [json.loads(line) for line in open(log_a) if line.strip()]
@@ -107,6 +156,13 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
     tb = [r for r in rb if "phase" in r and r["phase"] == "run"]
     if not ta or not tb:
         return {"error": "no run phase logged"}
+    # the agent's lane tracking jumps where the east straight ends in a junction (lat 1 -> 0.05
+    # in 0.1 s); a lane change moves lat by 0.05 per 0.1 s at most: a jump is held (S0)
+    lat = ta[0]["lat"]
+    for i, r in enumerate(ta):
+        if abs(r["lat"] - lat) <= 0.15:
+            lat = r["lat"]
+        ta[i] = dict(r, lat=lat)
     t0 = ta[0]["t"]
     start = next((r for r in ra if r.get("event") == "start"), {})
     min_ttc = min_thw = math.inf
@@ -116,13 +172,15 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
     hist = []
     b = C1.TYPES["car"].b_max
     meas = measures.Measures(b_max=(b, b))
-    for r in ta:
+    ps = poses(ta)
+    for r, (pa, pb) in zip(ta, ps):
         t = r["t"] - t0
         lat, along, v, ov = r["lat"], r["along"], r["v"], r["ov"]  # along: B's centre ahead of A
         follower = gap = closing = None
+        meas.push_poses(t, pa, pb)
+        if meas.clear <= 0.0:  # the oriented bodies overlap, as in the arena and C1
+            contact = True
         if lat >= C1.LANE_LINE:
-            if abs(along) < L:
-                contact = True
             if along < 0:  # A ahead
                 follower, closing, vf, gap = 1, ov - v, ov, -along - L
             else:
@@ -147,8 +205,7 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
             break
     T = end["t"] - t0
     va0, vb0 = ta[0]["v"], ta[0]["ov"]
-    da = sum(r["v"] * 0.1 for r in ta if t0 <= r["t"] <= end["t"])
-    db = sum(r["ov"] * 0.1 for r in ta if t0 <= r["t"] <= end["t"])
+    da, db = meas.s  # the arc length each car covered until the run's end
     lost_a = min(1.0, max(0.0, (va0 * T - da) / max(va0 * C1.HORIZON, 1.0)))
     lost_b = min(1.0, max(0.0, (vb0 * T - db) / max(vb0 * C1.HORIZON, 1.0)))
     # in: A's lane change is complete by its plan and A is in B's lane (the lateral measure on the
@@ -161,7 +218,9 @@ def score(log_a, log_b, d0, dv, t_prep=0.0):
         lost_a = lost_b = 1.0
     elif not got_in:
         lost_a = 1.0
-    o = C1.Outcome((lost_a, lost_b), min_ttc, min_thw, contact, (peak[0], peak[1]), ahead, "")
+    meas.pet = meas._pet()
+    o = C1.Outcome((lost_a, lost_b), meas.ttc2d, meas.thw, contact, (peak[0], peak[1]), ahead, "",
+                   meas.clear, meas.pet, tuple(meas.lat_peak))
     pref, cap = C1.Preference(), C1.TYPES["car"]
     return {"d0_real": start.get("along") and round(-start["along"] - L, 2), "dv_real": start.get("v") and round(start["v"] - start["ov"], 2),
             "uA": round(C1.utility(o, 0, cap, pref), 4), "uB": round(C1.utility(o, 1, cap, pref), 4),

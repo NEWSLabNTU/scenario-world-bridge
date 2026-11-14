@@ -37,6 +37,7 @@ Exit codes: 0 every run as expected (passed, or the suite's ``expect``), 1 a sce
 2 an infrastructure error, 3 refused.
 """
 import argparse
+import fcntl
 import itertools
 import json
 import os
@@ -475,6 +476,7 @@ class Context:
     pilot_command: object = None      # callable(rec, pilot, entry, log_dir) -> argv (tests)
     out: object = None
     started: StartedStack = None      # the stack this runner started (--start-stack)
+    turn: object = None               # the stack's run lock while this process runs (take_turn)
 
 
 def scenario_map(path: Path, sc=None):
@@ -599,8 +601,41 @@ def logging_for(*layers) -> dict:
     return lg
 
 
+RUN_LOCK = "run.lock"
+
+
+def take_turn(ctx: Context):
+    """One runner at a time on a stack: two SSv2s in one ROS domain drive each other's nodes
+    (their names are the same), so a second run is refused, naming the one running. Held
+    from this process's first run on a stack until it exits (a suite keeps its turn)."""
+    if getattr(ctx, "turn", None) is not None:
+        return
+    stack_dir = Path(ctx.stack["proc"]).parent
+    path = stack_dir / RUN_LOCK
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        try:
+            holder = json.loads(os.pread(fd, 4096, 0).decode() or "{}")
+        except (OSError, ValueError):
+            holder = {}
+        os.close(fd)
+        raise Refused(f"another run is going on stack {ctx.stack.get('stack_id')} (pid "
+                      f"{holder.get('pid', '?')}, {holder.get('target', '?')}, since "
+                      f"{holder.get('since', '?')}); one run at a time per stack: wait for it,"
+                      " or start a stack of your own on another seat") from None
+    info = {"pid": os.getpid(), "target": " ".join(sys.argv[1:])[:200],
+            "since": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    os.ftruncate(fd, 0)
+    os.pwrite(fd, json.dumps(info).encode(), 0)
+    os.set_inheritable(fd, False)
+    ctx.turn = fd
+
+
 def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult:
     """One run, end to end, into its own run directory."""
+    take_turn(ctx)
     rec, project = ctx.stack, ctx.project
     lg = logging_for(config.project_settings(project).get("logging"), spec.logging)
     sc_rel = _rel(project, spec.scenario)

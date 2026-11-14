@@ -864,3 +864,27 @@ def test_crash_watch_counts_only_new_lines(tmp_path):
         f.write("x [node:/b] Exited without code (crash 5 since last healthy run)\n")
     assert w.crashing() == ("/b", 5)
     assert run.CrashWatch(tmp_path / "none.log").crashing() is None
+
+
+def test_one_run_at_a_time_per_stack(live, where):
+    """Two SSv2s in one domain drive each other's nodes: a second runner is refused."""
+    d, _ = live
+    holder = subprocess.Popen(
+        [sys.executable, "-c",
+         "import fcntl, json, os, sys, time\n"
+         "fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT)\n"
+         "fcntl.flock(fd, fcntl.LOCK_EX)\n"
+         "os.write(fd, json.dumps({'pid': os.getpid(), 'target': 'suites/x.yaml'}).encode())\n"
+         "print('held', flush=True); time.sleep(60)\n",
+         str(Path(json.loads(next(where["tmp"].glob("logs/proj/stacks/*/stack.json"))
+                             .read_text())["proc"]).parent / run.RUN_LOCK)],
+        stdout=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().strip() == "held"
+        with pytest.raises(run.Refused, match=r"another run is going on stack .* suites/x.yaml"):
+            api.run_one(d, "scenarios/three_pilots.xosc", {"scenario_command": fake(where)})
+    finally:
+        holder.kill()
+        holder.wait()
+    r = api.run_one(d, "scenarios/three_pilots.xosc", {"scenario_command": fake(where)})
+    assert r.verdict == "passed"   # the turn is free once its holder is gone

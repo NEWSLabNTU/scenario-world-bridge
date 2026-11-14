@@ -298,6 +298,10 @@ A run on the stack's current map restarts nothing.
 
 `ros2 run swb run <x>`:
 
+One run at a time per stack: two SSv2s in one ROS domain drive each other's nodes (their
+names are the same), so a runner takes the stack's `run.lock` (flock) at its first run and
+holds it until it exits; a second runner is refused, naming the holder.
+
 1. finds the project and seat; reads `seat-<n>-current/stack.json`; refuses (3) when there is
    none, when its fingerprint differs from the project's (naming what differs), or when it is
    not ready;

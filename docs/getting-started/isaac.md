@@ -39,15 +39,15 @@ src/swb_isaac_world/scripts/build_msgs.sh        # into $ISAAC_ROOT/msgs
 
 ## Tell swb where it is
 
-The Isaac world server reads Isaac's install from `ISAAC_ROOT`. Add it to the environment
-file, `~/swb.bash`, after the two `source` lines:
+Tell swb where Isaac is installed, once per host, in `~/.config/swb/host.yaml`:
 
-```bash
-export ISAAC_ROOT=~/isaac-sim
+```yaml
+isaac:
+  root: ~/isaac-sim
 ```
 
-(`isaac: {root: ...}` in `~/.config/swb/host.yaml` is the place meant for it; the world
-server does not read that key yet.)
+The stack hands it to the Isaac world server (as `ISAAC_ROOT`), so no terminal needs an
+export.
 
 On a machine with two GPUs, keep the world server on one by adding
 `export ISAAC_KIT_ARGS="--/renderer/multiGpu/enabled=false --/renderer/activeGpu=0"` as

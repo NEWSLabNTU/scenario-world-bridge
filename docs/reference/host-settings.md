@@ -39,7 +39,7 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `carla.root` | the stack, pilots | CARLA's install: the `carla_basic` pilot's `agents` package (`<root>/PythonAPI/carla`), and the CARLA the stack starts (`carla.start`) |
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |
 | `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
-| `isaac.root` | not read yet | Isaac's install; the world server reads `ISAAC_ROOT` from the environment ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
+| `isaac.root` | the stack | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
 | `autoware.setup` | not read yet | Autoware's `setup.bash`; source it in your environment file |
 | `seats` | the stack, `seat` | the host's seat table ([Several stacks on one host](../how-to/several-stacks.md)) |
 | `seat_locks` | the stack, `seat` | the seat locks' directory |

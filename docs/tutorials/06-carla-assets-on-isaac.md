@@ -20,7 +20,7 @@ then on another world, the Mount Haruna mountain road.
 ## Before you start
 
 - [Getting started on Isaac Sim](../getting-started/isaac.md): Isaac Sim installed,
-  `ISAAC_ROOT` in `~/swb.bash`.
+  `isaac.root` in `~/.config/swb/host.yaml`.
 - [Tutorial 1](01-first-drive.md) and [Tutorial 2](02-write-a-scenario.md), on CARLA:
   everything but the simulator works the same here.
 - An NVIDIA RTX GPU with 24 GB and 64 GB of RAM. The world server holds about 17.5 GB

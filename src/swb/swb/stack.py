@@ -545,6 +545,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     }
     if host.get("gpu") is not None or (host.get("seats") or {}).get("gpus") is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(s.gpu)
+    # Isaac's world server finds its install by ISAAC_ROOT; the host settings' isaac.root
+    isaac_root = str((host.get("isaac") or {}).get("root") or "")
+    if sim == "isaac" and isaac_root:
+        env["ISAAC_ROOT"] = os.path.expanduser(isaac_root)
 
     ego_domain = s.pilot_domains[0]
     vehicle = next((b.spec.get("vehicle") for b in bound if b.spec.get("vehicle")),

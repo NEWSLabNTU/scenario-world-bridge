@@ -358,3 +358,12 @@ def test_registered_asks_the_relay():
     finally:
         relay.stop()
     assert not stack.is_registered("tcp://127.0.0.1:1", "cut_in")
+
+
+def test_isaac_root_reaches_the_world_server(where, maps_hub):
+    d = make(where, template="isaac")
+    sysf = where["tmp"] / "system" / "host.yaml"
+    h = yaml.safe_load(sysf.read_text())
+    h["isaac"] = {"root": str(where["tmp"] / "isaac-sim")}
+    sysf.write_text(yaml.safe_dump(h))
+    assert stack.plan(project_arg=str(d)).env["ISAAC_ROOT"] == str(where["tmp"] / "isaac-sim")

@@ -129,13 +129,22 @@ def c3fit(a):
                               "got_in_new": [int(r["got_in"]) for r in new if (r["d0"], r["dv"], r["a"]) == c],
                               "t_plan_new": [r.get("t_plan") for r in new if (r["d0"], r["dv"], r["a"]) == c]}
                      for c in cells}
+        edge = (14.0, -3.0, "A_aw_perm")  # the contact-edge cell that carries most of the error
+        t11 = {k: v for k, v in target.items() if k != edge}
         res.append({"rule": name, "error_old": round(e_old, 4), "error_fixed": round(e_fix, 4),
-                    "error_shadow_legacy": round(e_shadow, 4), "cells": cell_rows})
+                    "error_shadow_legacy": round(e_shadow, 4),
+                    "error_old_11": round(F.score(rows, t11)[0], 4), "error_fixed_11": round(F.score(fixed, t11)[0], 4),
+                    "cells": cell_rows})
         print(f"{name:20s} old {e_old:.4f}  fixed {e_fix:.4f}  (new runs, legacy end {e_shadow:.4f})  {cell_rows}", flush=True)
     rank = lambda key: [r["rule"] for r in sorted(res, key=lambda r: r[key])]
     summary = {"best_old": rank("error_old")[0], "best_fixed": rank("error_fixed")[0],
-               "rank_old": rank("error_old")[:5], "rank_fixed": rank("error_fixed")[:5], "rules": res}
+               "rank_old": rank("error_old")[:5], "rank_fixed": rank("error_fixed")[:5],
+               "best_old_11": rank("error_old_11")[0], "best_fixed_11": rank("error_fixed_11")[0],
+               "rank_fixed_11": rank("error_fixed_11")[:5], "rules": res}
     json.dump(summary, open(out / "fit_fixed.json", "w"), indent=1)
+    # c3_fit's format (the atlas's fit loader): the rules by their error with the fix
+    json.dump([{"error": r["error_fixed"], "rule": r["rule"], "cells": r["cells"]}
+               for r in sorted(res, key=lambda r: r["error_fixed"])], open(out / "fit.json", "w"), indent=1)
     print("best old", summary["best_old"], "best fixed", summary["best_fixed"])
     return summary
 

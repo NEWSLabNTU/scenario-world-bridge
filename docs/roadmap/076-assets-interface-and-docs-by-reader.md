@@ -36,6 +36,18 @@ stay in 070.
    Autoware or something else. Have a unified interface. It should also support multi-agent
    running different autopilot kinds"): pilots, A5.
 9. **CARLA first**: the tutorials start on CARLA; Isaac Sim comes in later chapters.
+10. **The second design is accepted** (user, 2026-11-14): "ok to have a long-lived stack ... your
+    build is ok". Seats are kept in config files, not environment exports.
+11. **The seat table is the user's**: "the seat table should be configuable on users. the actual
+    assignment vary on hosts". swb ships a default table; `host.yaml` replaces it per host
+    (A6).
+12. **Build the new interface and working examples first; retire the old paths in the last
+    step** (user, 2026-11-14).
+13. Ruling (mine, 2026-11-14, cheap to change before step 3 lands): the commands live in a new
+    ament_python package **`swb`**, so they read `ros2 run swb project|assets|seat|run|runs`;
+    the entry launch stays `swb_launch swb.launch.xml`. Why: one short name for every user
+    command, and a Python package for the libraries they share (config, seats, results), which
+    swb_launch (ament_cmake, launch files and scripts) is not.
 
 ## Use-case study (2026-11-14)
 
@@ -117,7 +129,7 @@ pilots:
 vehicles: [vehicles/my_car.yaml]                 # own cars: catalog entries and specs
 ```
 
-`ros2 run swb_launch project new <dir> [--template carla-first-drive|isaac|multi-pilot]`
+`ros2 run swb project new <dir> [--template carla-first-drive|isaac|multi-pilot]`
 writes a starter. `project check` cross-checks every scenario against the project before
 anything starts: its map is fetched, every `agent`-controlled entity has a pilot, each car's
 spec matches, the simulator supports what the scenario uses (Isaac: one ego). A project can be
@@ -143,9 +155,9 @@ play_launch launch swb_launch swb.launch.xml           # the stack: stays up
 ### A4. Runs, suites, and the primitive under them
 
 ```bash
-ros2 run swb_launch run scenarios/cut_in.xosc                    # one run
-ros2 run swb_launch run scenarios/cut_in.xosc --repeat 5
-ros2 run swb_launch run suites/nightly.yaml --shard 1/3 --resume
+ros2 run swb run scenarios/cut_in.xosc                    # one run
+ros2 run swb run scenarios/cut_in.xosc --repeat 5
+ros2 run swb run suites/nightly.yaml --shard 1/3 --resume
 ```
 
 - `run` attaches to this project's stack on this seat, waits for each pilot's readiness, runs
@@ -187,7 +199,19 @@ result so different autopilots stay comparable.
 
 A **seat** is one stack's share of a host: the scenario domain, one domain per pilot, SSv2's
 port and its +1/+2, the relay's, the world server's, the web port, the GPU and the log root,
-all derived from one number by one table. A lock per seat names its holder; `seat: auto`
+all derived from one number by a table. swb ships a default table; a host's `host.yaml`
+(or a host-wide `/etc/swb/seats.yaml` an administrator writes) replaces it, since what is free
+differs per host:
+
+```yaml
+seats:
+  domains: {base: 1, stride: 8}      # seat n: scenario 1+8n, pilots 2+8n .. 7+8n
+  ports: {base: 5555, stride: 100}   # SSv2, +1, +2, relay +5, world server +36
+  web: {base: 8080, stride: 10}
+  count: 7
+  gpus: [0, 0, 0, 1, 1, 1, 1]        # seat -> GPU
+```
+ A lock per seat names its holder; `seat: auto`
 takes the first free one.
 
 The seat and the other host settings live in **config files, not environment exports**
@@ -202,12 +226,12 @@ nothing exported:
 | launch arguments | one stack or run | `seat:=`, `gpu:=`, ... |
 
 Precedence: argument, then the checkout's file, then the user's file, then the defaults.
-`ros2 run swb_launch seat take <n>|auto` writes the user's file and takes the lock;
+`ros2 run swb seat take <n>|auto` writes the user's file and takes the lock;
 `seat show` lists every seat on the host and its holder; `seat release` frees it. The locks
 live in a host-wide directory every user can write (`/tmp/swb-seats/`).
 
 ROS's own tools still read `ROS_DOMAIN_ID` from the environment. For them:
-`ros2 run swb_launch seat env <pilot|scenario>` prints the three exports (domain, RMW, DDS
+`ros2 run swb seat env <pilot|scenario>` prints the three exports (domain, RMW, DDS
 profile) for one group, for `eval` in a terminal that wants to look in; the docs show it once,
 on the domains page.
 
@@ -216,7 +240,7 @@ workspace.
 
 ### A7. Assets: read-only cache, lock, project state
 
-- `ros2 run swb_launch assets fetch|list|check` reads `swb.yaml`, writes `swb.lock` (each
+- `ros2 run swb assets fetch|list|check` reads `swb.yaml`, writes `swb.lock` (each
   dataset's resolved Hugging Face commit and every file's checksum), and links the files from
   a read-only cache (`~/.cache/swb/`) into `assets/`. Runs read the lock, not the tag.
 - `assets:` takes Hugging Face datasets, `path:` directories and `generate:` recipes (the
@@ -296,7 +320,7 @@ logging:
   budget: {per_run: 2GB, total: 200GB}       # refuse to start a suite that cannot fit
 ```
 
-`ros2 run swb_launch runs list|show|why|prune`:
+`ros2 run swb runs list|show|why|prune`:
 - `show <run>`: the timeline, readable;
 - `why <run>`: the first WARN/ERROR and the group it came from, which is also how the verdict
   tells `error` (the stack's fault) from `failed`;
@@ -388,7 +412,7 @@ sharing a project.
 5. [ ] A5: the vehicle side split from the driver; the pilot contract; kinds `autoware`,
    `carla_basic`, `launch`, `command`, `none` (`simple` with 070 D, `container` later).
 6. [ ] A3, A4: `swb.launch.xml` as the stack (fingerprint, lazy pilots, `end_with:=run`);
-   `ros2 run swb_launch run` for runs and suites; `run_one`.
+   `ros2 run swb run` for runs and suites; `run_one`.
 7. [ ] A8, A8b: `result.json` schema with provenance, `resolved.yaml`, summaries, judges; per-run
    log slices, the timeline, levels, keep by verdict, budgets, `runs show|why|prune`.
 8. [ ] A9: signal table on first load, `make_world`, the surfaces map, the rough road in the
@@ -403,7 +427,7 @@ sharing a project.
 ## Acceptance
 
 - From a clean clone and build, with only the environment file sourced: `project new`,
-  `assets fetch`, the stack, then `ros2 run swb_launch run` reach a passed scenario on CARLA
+  `assets fetch`, the stack, then `ros2 run swb run` reach a passed scenario on CARLA
   with an Autoware ego; a second `run` reuses the stack.
 - One run with three pilots of different kinds (Autoware, `carla_basic`, an SDK agent) passes.
 - A suite with a parameter distribution and repetitions, sharded over two hosts, merges into

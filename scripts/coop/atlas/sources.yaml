@@ -339,6 +339,96 @@ scenarios:
           link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C6 hidden capability"
     planned: {swb_light: "not run", swb_autoware: "not run"}
 
+  cutin_cars:
+    title: Cut-in, car models (C5)
+    axes: [d0, dv]
+    facets: [pair, vb]
+    labels: {d0: "d0 (m), A's rear ahead of B's front", dv: "dv = v_A - v_B (m/s)", pair: "A x B (car models)", vb: "v_B (m/s)"}
+    legend:
+      W: "A drops behind B"
+      G: "A goes, B yields"
+      g: "A goes, B holds"
+      Y: "A waits for B's yield, then goes"
+      y: "A goes after a yield-free watch"
+      C: "equilibria with different outcomes (coordination)"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+    rules:
+      A: [go, wait, go_if_yield]
+      B: [pre_yield, react]
+    state_machines: [cutin_A, cutin_B, arena_A, arena_B]
+    notes:
+      - "C5: C1's cut-in with measured capabilities. m3: the spec's Model 3 (E1: 0-12 m/s 4.7 m/s^2 mean, full braking 9.6 peak). hgv: CARLA 0.9.16 vehicle.carlamotors.european_hgv, stock physics (E4: 7000 kg, 7.94 x 2.89 m, 1.38 m/s^2, braking 3.22 mean / 4.56 peak, 22.4 m from 12 m/s). fire: vehicle.carlamotors.firetruck (10 t, 1.13 m/s^2, 2.78 / 3.67, 26.0 m). hgv3: the hgv with the Model 3's 3 s lane change (the heavy cars' 4 s is assumed). golf: TYPES' golf cart (assumed), at v_B 6."
+      - "The commitment hypothesis (a car that cannot brake hard, or accelerate, is yielded to) against the Model 3 in the weak car's role: the weak car is yielded to in 1-13 more contexts of 629 than the Model 3 and in 2-7 fewer elsewhere; where it pays, the gentler 4 s lane change pays (hgv3: 0 contexts). Not supported."
+      - "Arena: the hgv on its own CARLA physics, through the pedal maps E4 measured for it (e4_heavy.py), the Model 3 as in every arena study (50 contexts x 9 profiles x 8 seeds per pair). Commitment not supported there either: the hgv as B is yielded to in 8 of 50 contexts against the Model 3's 13 (1 flip to it, 6 away); as A in 15 of 40 against 15 (1 and 1); it earns more in 0-3 contexts. The hgv as A at dv +4 never reached its context (warm-up 35 s), left out. NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "C5 m3 x m3 @ v_B 12"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_m3_x_m3_v12.csv"
+          fixed: {pair: "m3 x m3", vb: 12.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 m3 x hgv @ v_B 12"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_m3_x_hgv_v12.csv"
+          fixed: {pair: "m3 x hgv", vb: 12.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 hgv x m3 @ v_B 12"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_hgv_x_m3_v12.csv"
+          fixed: {pair: "hgv x m3", vb: 12.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 m3 x fire @ v_B 12"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_m3_x_fire_v12.csv"
+          fixed: {pair: "m3 x fire", vb: 12.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 fire x m3 @ v_B 12"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_fire_x_m3_v12.csv"
+          fixed: {pair: "fire x m3", vb: 12.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 hgv3 x m3 @ v_B 12"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_hgv3_x_m3_v12.csv"
+          fixed: {pair: "hgv3 x m3", vb: 12.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 m3 x m3 @ v_B 6"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_m3_x_m3_v6.csv"
+          fixed: {pair: "m3 x m3", vb: 6.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: kinematic_map
+          label: "C5 golf x m3 @ v_B 6"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/kinematic/map_golf_x_m3_v6.csv"
+          fixed: {pair: "golf x m3", vb: 6.0}
+          payoff_cols: true
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+      arena:
+        - loader: arena_cutin
+          label: "C5 arena m3 x m3 (8 seeds)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/arena/runs_m3_x_m3.csv"
+          fixed: {pair: "m3 x m3", vb: 12.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: arena_cutin
+          label: "C5 arena m3 x hgv (8 seeds)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/arena/runs_m3_x_hgv.csv"
+          fixed: {pair: "m3 x hgv", vb: 12.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+        - loader: arena_cutin
+          label: "C5 arena hgv x m3 (8 seeds)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models/arena/runs_hgv_x_m3.csv"
+          fixed: {pair: "hgv x m3", vb: 12.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C5 car models"
+    planned: {swb_light: "not run", swb_autoware: "not run (no heavy vehicle in sim_vehicle_spec: E4)"}
+
   explain:
     title: Explanations (C4)
     explain: true
@@ -372,6 +462,10 @@ scenarios:
         - loader: n3_cells
           label: N3 round 3 (window cap, 5c73c33)
           path: /mnt/p5plus/aeon/coop/n3c/runs/n3_cells_r3.jsonl
+        - loader: n3_cells
+          label: N3 round 4 (follower depth term, ea82020; seven-car hold-out)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N3 depth term/runs/n3_cells_r4.jsonl"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop N3 depth term"
         - loader: n1_sizes
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop N1 N2/n1/n1_sizes.json"
         - loader: n4

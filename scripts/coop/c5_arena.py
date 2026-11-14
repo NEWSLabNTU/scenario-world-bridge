@@ -226,7 +226,7 @@ def analyze(out, kin):
         kx = ("m3", weak, 12.0) if role == "B" else (weak, "m3", 12.0)
         if kx in maps and ("m3", "m3", 12.0) in maps:
             common = set(maps[kx]) & set(maps[("m3", "m3", 12.0)])
-            sub = {k: {c: v[c] for c in common} for k, v in maps.items()}
+            sub = {k: {c: maps[k][c] for c in common} for k in (kx, ("m3", "m3", 12.0))}
             c = K.compare(sub, weak, role, 12.0)
             L.append(f"  {c['pair']} ({role}): yielded to X {c['yielded_weak']}/{c['contexts']}, to m3 {c['yielded_m3']}; "
                      f"flips to X {c['flip_to_weak']}, from X {c['flip_from_weak']}; X pays (dU > 0.01) {c['pays']} "

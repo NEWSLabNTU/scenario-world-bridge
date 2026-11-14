@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); next: E3, N1-N2, S1-S6. User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); S2 kinematic done (chicken only for |Δt| ≤ 0.5 s; a right of way selects only at a fault cost ≥ 1; a tie-break is needed after a mutual stop); in progress: E3 (swb 118), the C3a rerun (swb 241), N1-N2 (133); next: S2 in the arena, S1, S3-S6. User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -587,6 +587,43 @@ Verdict against the criterion:
   can be told from a crash when the cell is analysed.
 - **D2 >= 90 %**: met, 92 %.
 
+### S2. The unsignalled crossing, kinematic (2026-11-14)
+
+`scripts/coop/crossing_game.py` (c48ce7c, swb 139): the crossing as design ②'s passage game.
+- **Geometry:** two straight roads at right angles, a 3.5 x 3.5 m conflict box Z, Model 3 footprints.
+- **Context:** Δt = t_A^Z − t_B^Z in −4..+4 s, the speed v = 4-14 m/s, the right of way r = none / A / B.
+- **A, the claimant:** gap acceptance with τ ∈ {−∞, 0.5, 1.5, 3, +∞}, patience 2 or 5 s, with or
+  without going on a seen yield (17 rules).
+- **B, the holder:** hold; react (sequentially rational); yield with a band of 1, 2 or 4 s and
+  patience 2 or 5 s (8 rules).
+- **Delays:** 0.19 s of perception, then 0.5 s to decide; the safety layer brakes after 1.0 s.
+- **Payoffs:** S0's general utility. The car without right of way pays a fault cost when it forces
+  the other: the other slows while it never stopped, the other's safety layer brakes, or PET falls
+  below 1.5 s.
+
+Data: NAS `logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing kinematic/`.
+
+- **Chicken is a narrow band, |Δt| ≤ 0.5 s, at every speed.** It is fixed in time, not distance:
+  ±7 m at 14 m/s, ±2 m at 4 m/s. Outside the band the nearer car passes first in every equilibrium.
+  The contingent rules leave no mixed-only context.
+- **The wrong equilibrium in the band is costly.** The loss C_worst − C_opt reaches 0.66 at ±0.5 s
+  and 14 m/s, and 0.79 at +0.5 s and 10 m/s, when the farther car goes first. At Δt = 0 it is at most
+  0.26. Outside the band it is under 0.05.
+- **No equilibrium has contact or a war of attrition** (0 of 306). Off equilibrium they are common.
+  At Δt = 0 and v = 10 m/s, 112 of 153 rule pairs end with both cars stopped at their lines. 28 of the
+  30 contacts are restarts after such a stop: both cars' patience runs out together. A tie-break is a
+  design need, as in the cut-in.
+- **A right of way selects one equilibrium only when failing to yield costs ≥ 1**, a whole 20 s
+  horizon of progress. At 0.5 the r = A map equals r = none.
+- **Over-enforcing the rule costs efficiency.** At a fault cost of 2 with r = A, A goes first even
+  when it arrives 3 s after B. The cost C at Δt = +2 s and 10 m/s rises from 0.07 to 1.56. A priority
+  rule belongs in a conflict window (|Δt| ≲ 1 s), not as an absolute order (C7's conventions).
+- **Safety in equilibrium:** the smallest PET is 1.9 s, above the 1.5 s reference. The risk term comes
+  from 2D TTC instead: 1.66 s at Δt = 0 and v = 10 m/s, from late hold-out braking.
+- **Caveats:** the rule grids are small; the fault cost stands in for liability; there is no arena or
+  swb crossing yet (next: the arena on a generated crossing, then a Town01/02 junction with its lights
+  off, U3).
+
 ### C4. Fit and explain
 
 Note on identifiability: from 2-3 discrete choices per run, an SVO angle and a capability are
@@ -666,7 +703,7 @@ being carried.
 | | N4 far field | B | a long merge or ring with 10-50 cars: near field exact, the rest as density and mean speed, against all cars explicit, at increasing N | the mean-field error against N, and where it falls below the tolerance |
 | | N5 swb check | B | the merge on a found site (E7), or a Town04 map (031) only if N2-N4 call for one | D2's agreement for three cars |
 | 6 scenarios | S0 general utility | B | route progress, 2D TTC, PET, clearance, lateral comfort (`docs/design/cooperative-driving.md` ⓪, ①) in `measures.py` and `cutin_game.utility`; C2b, C3a, C3b and the double oracle re-scored offline from the recorded runs; prerequisite for S1-S6 and for N2's pair risk $\rho_{ij}$ | done (22741ab; S0 above): classes and equilibria unchanged; D2 92 %; 14/-3 is a 0.1-8 cm footprint touch, not a near miss, so it still scores as contact (`pen` kept beside it) |
-| | S1-S6 | B | cut-out; unsignalled crossing; lane drop or on-ramp; narrow passage; left turn in the arena and swb; overtaking via the oncoming lane: each as a passage game (relation, Δt, speeds, right of way), kinematic, arena, swb light, swb Autoware | equilibrium maps per relation; Autoware's departures |
+| | S1-S6 | B | cut-out; unsignalled crossing; lane drop or on-ramp; narrow passage; left turn in the arena and swb; overtaking via the oncoming lane: each as a passage game (relation, Δt, speeds, right of way), kinematic, arena, swb light, swb Autoware | equilibrium maps per relation; Autoware's departures. S2 kinematic done (c48ce7c; S2 above) |
 
 Order: stage 1 first. S0 comes before any new relation (S1-S6) and before N2, whose pair terms
 compose $\rho$ per pair; the cut-in's results are re-scored, not re-run. Stage 5 starts after D2 (it needs a trusted arena) and runs beside stages

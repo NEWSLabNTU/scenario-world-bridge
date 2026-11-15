@@ -256,6 +256,8 @@ class Run:
                     "peakA": round(self.peak["A"], 2), "peakB": round(self.peak["B"], 2),
                     "pet": round(o.pet, 3) if math.isfinite(o.pet) else "inf",
                     "ttc": round(o.ttc, 3) if math.isfinite(o.ttc) else "inf", "clear": round(o.clear, 3),
+                    "thw": round(o.thw, 3) if math.isfinite(o.thw) else "inf",
+                    "rho": round(M.rho(o.ttc, o.thw, o.pet, o.clear), 4),
                     "uA0": round(self.u0["A"], 2), "uB0": round(self.u0["B"], 2),
                     "vA0": round(self.v0["A"], 2), "vB0": round(self.v0["B"], 2),
                     "dt_real": round(-self.u0["A"] / max(self.v0["A"], 0.1) + self.u0["B"] / max(self.v0["B"], 0.1), 3),
@@ -419,7 +421,13 @@ def main():
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
     p.add_argument("--compare-only", action="store_true")
+    p.add_argument("--launch-dead", type=float, default=0.0,
+                   help="the kinematic side's launch dead time (crossing_game.LAUNCH_DEAD, s; 0: as before)")
+    p.add_argument("--hold-stop", action="store_true",
+                   help="the kinematic side's held car brakes to rest (crossing_game.HOLD_STOP; off: as before)")
     args = p.parse_args()
+    G.LAUNCH_DEAD = args.launch_dead
+    G.HOLD_STOP = args.hold_stop
     if args.compare_only:
         rows = list(csv.DictReader(open(os.path.join(args.out, "runs.csv"))))
         wall = None

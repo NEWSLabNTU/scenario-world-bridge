@@ -235,6 +235,8 @@ class Policy:
                 self.shield = self.shield or (v > 0.5 and planned - a > 1.0 and need > BRAKE_LATE + 1.0)
             elif a > 0 and u > STOP - 1.0:
                 a = min(a, 0.0)
+                if HOLD_STOP and v < HOLD_STOP_V:  # held at the line: to rest, not a crawl at the speed left over
+                    a = -min(B_MAX, v / DT)
         return a
 
     def after(self, t, u, v):
@@ -247,10 +249,28 @@ class Policy:
             self.stopped_since = None
 
 
+# The arena car's launch from rest (074 arc tracking, launch_probe.py): with its brake state matched
+# to the model's, CARLA's car moves about 0.35 s later than this model's car after a drive command
+# at standstill, then accelerates as commanded (on the move there is no such delay). With a drive
+# command at rest held for LAUNCH_DEAD = 0.5 s (counted from the first drive command, so it includes
+# the brake's release) the model matches the arena's launch to 0.06 m over 5 s at 6, 10 and 14 m/s.
+# 0: the model as every study before used it (the default).
+LAUNCH_DEAD = 0.0
+# A car its safety layer holds at the line (the other in Z or about to enter it) gets command 0 once a
+# stop needs under 0.3 m/s^2, and with the brake's lag it can be left crawling (0.09 m/s in S4's go/go
+# at dt +1.5, 6 m/s): in this model 0 keeps that speed, the car creeps past Z's edge, where its safety
+# layer no longer acts, and drives into the other (074 arc tracking: S4's contact deficit). CARLA's car
+# brakes to a standstill before the command reaches 0 and stays there. True: a held car below HOLD_STOP_V
+# brakes to rest. False: as every study before (the default).
+HOLD_STOP = False
+HOLD_STOP_V = 0.5  # m/s
+
+
 def car_lags():
-    """The spec's command lags (carla_physics.yaml's command_lags), as the arena applies them."""
+    """The spec's command lags (carla_physics.yaml's command_lags), as the arena applies them, and
+    the launch dead time (LAUNCH_DEAD) at the time of the call."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../src/sim_vehicle_spec/generated/tesla_model3/carla_physics.yaml")
-    out = {"brake_dead_time": 0.0, "brake_time_constant": 0.0, "motor_time_constant": 0.0}
+    out = {"brake_dead_time": 0.0, "brake_time_constant": 0.0, "motor_time_constant": 0.0, "launch_dead_time": LAUNCH_DEAD}
     for line in open(path):
         if line.startswith("command_lags:"):
             for part in line.split("{", 1)[1].rstrip().rstrip("}").split(","):
@@ -266,10 +286,22 @@ class Actuator:
 
     def __init__(self, lags):
         self.dead, self.tb, self.tm = lags["brake_dead_time"], lags["brake_time_constant"], lags["motor_time_constant"]
+        self.launch = lags.get("launch_dead_time", 0.0)
+        self.at_rest_driving = 0.0  # s a drive command has been held at rest
         self.queue = []
         self.brake = self.drive = 0.0
 
-    def step(self, a_cmd):
+    def step(self, a_cmd, v=None):
+        """v: the car's speed now (for the launch dead time; None: no launch dead time)."""
+        if self.launch > 0 and v is not None:
+            if v >= 0.05:
+                self.at_rest_driving = self.launch
+            elif a_cmd > 0:
+                self.at_rest_driving += DT
+            else:
+                self.at_rest_driving = 0.0
+            if self.at_rest_driving < self.launch - 1e-9:
+                a_cmd = min(a_cmd, 0.0)
         self.queue.append(max(0.0, -a_cmd))
         n = int(round(self.dead / DT))
         req = self.queue[-1 - n] if len(self.queue) > n else 0.0
@@ -310,7 +342,7 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):
             if me.act is not None:
-                me.a = me.act.step(me.a)
+                me.a = me.act.step(me.a, me.v)
         for me, pol in ((A, pa_), (B, pb_)):
             me.peak = max(me.peak, -me.a)
             me.v = max(0.0, me.v + me.a * DT)

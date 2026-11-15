@@ -232,6 +232,8 @@ class YPolicy(G.Policy):
                 self.shield = self.shield or (v > 0.5 and planned - a > 1.0 and need > G.BRAKE_LATE + 1.0)
             elif a > 0 and u > STOP - 1.0:
                 a = min(a, 0.0)
+                if G.HOLD_STOP and v < G.HOLD_STOP_V:  # crossing_game.HOLD_STOP
+                    a = -min(B_MAX, v / DT)
         return a
 
 
@@ -267,7 +269,7 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):
             if me.act is not None:
-                me.a = me.act.step(me.a)
+                me.a = me.act.step(me.a, me.v)
         for me, pol in ((A, pa_), (B, pb_)):
             me.peak = max(me.peak, -me.a)
             me.v = max(0.0, me.v + me.a * DT)
@@ -455,7 +457,7 @@ def simulate_stream(rule_a, dt_ctx, v, heads, lags=None, b_rule=HOLD, trace=None
             c.a = a
         for me in [A] + cars:
             if me.act is not None:
-                me.a = me.act.step(me.a)
+                me.a = me.act.step(me.a, me.v)
             me.peak = max(me.peak, -me.a)
             me.v = max(0.0, me.v + me.a * DT)
             me.u += me.v * DT

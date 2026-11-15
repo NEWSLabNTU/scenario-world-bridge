@@ -400,7 +400,13 @@ def main():
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
     p.add_argument("--compare-only", action="store_true", help="re-run the comparison on <out>/runs.csv")
+    p.add_argument("--launch-dead", type=float, default=0.0,
+                   help="the kinematic side's launch dead time (crossing_game.LAUNCH_DEAD, s; 0: as before)")
+    p.add_argument("--hold-stop", action="store_true",
+                   help="the kinematic side's held car brakes to rest (crossing_game.HOLD_STOP; off: as before)")
     args = p.parse_args()
+    G.LAUNCH_DEAD = args.launch_dead
+    G.HOLD_STOP = args.hold_stop
     if args.compare_only:
         rows = list(csv.DictReader(open(os.path.join(args.out, "runs.csv"))))
         wall = None

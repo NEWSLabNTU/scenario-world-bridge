@@ -134,7 +134,7 @@ def simulate(na, nb, dt_ctx, va, vb, wn, lags=None, trace=None):
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):
             if me.act is not None:
-                me.a = me.act.step(me.a)
+                me.a = me.act.step(me.a, me.v)
         for me, pol in ((A, pa_), (B, pb_)):
             me.peak = max(me.peak, -me.a)
             me.v = max(0.0, me.v + me.a * DT)

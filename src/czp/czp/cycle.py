@@ -73,16 +73,21 @@ class Protocol:
         # 8. the latches and the commit point
         prev = mem.decision
         moving_from_rest = mem.own_moving_since is not None and mem.go_from_rest
-        dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, moving_from_rest, p, t, row)
+        if mem.go_since is not None and own.v > p.moved_speed:
+            mem.go_moved = True
+        dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, moving_from_rest, p, t, row,
+                             go_from_rest=mem.go_from_rest and not mem.go_moved)
         if changed:
             mem.decision_since = t
             mem.flips += 1
         if dec.kind == GO and (prev is None or prev.kind != GO):
             mem.go_since = t
             mem.go_from_rest = own.v < p.moved_speed
+            mem.go_moved = False
         elif dec.kind != GO:
             mem.go_since = None
             mem.go_from_rest = False
+            mem.go_moved = False
         mem.decision = dec
         self.mem[zone.id] = mem
         # 10. record

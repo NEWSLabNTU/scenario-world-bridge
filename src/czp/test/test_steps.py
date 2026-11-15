@@ -300,6 +300,52 @@ def test_go_latch_for_launch_dead_time():
     assert d.kind == YIELD
 
 
+def test_go_from_rest_latched_until_motion():
+    """078 P2c: Autoware takes about 1.4 s from ACTIVATE at rest to motion. A go from rest is held over a wait (a
+    re-read band) until the car moves or go_latch_motion_timeout passes; a yield (the turn guard, contested, the
+    other clear first) still releases it, and a go given on the move is held only the launch dead time."""
+    rest, rolling = car("A", s_entry=1.0, v=0.0), car("A", s_entry=1.0, v=0.6)
+    prev = Decision(GO, "j", "rest_tie")
+    t = 10.0 + rest.cap.launch_dead + 0.4  # past the launch latch, before Autoware's 1.4 s
+    d, ch = latch(Decision(WAIT, "j", "ambiguous_band"), prev, 10.0, 10.0, rest, False, P, t, go_from_rest=True)
+    assert d.kind == GO and not ch and d.latched_until == 10.0 + P.go_latch_motion_timeout
+    d, _ = latch(Decision(WAIT, "j", "ambiguous_band"), prev, 10.0, 10.0, rest, False, P, t, go_from_rest=False)
+    assert d.kind == WAIT  # a go given on the move: the launch latch only
+    for r in ("turn", "contested", "clear"):
+        d, _ = latch(Decision(YIELD, "j", r), prev, 10.0, 10.0, rest, False, P, t, go_from_rest=True)
+        assert d.kind == YIELD, r
+    d, _ = latch(Decision(WAIT, "j", "ambiguous_band"), prev, 10.0, 10.0, rolling, False, P, t, go_from_rest=True)
+    assert d.kind == WAIT  # moving (> moved_speed): the latch is done (a row with commit: on_move commits instead)
+    d, _ = latch(Decision(WAIT, "j", "ambiguous_band"), prev, 10.0, 10.0, rest, False, P,
+                 10.0 + P.go_latch_motion_timeout + 0.01, go_from_rest=True)
+    assert d.kind == WAIT  # still at rest after the timeout: released
+    d, _ = latch(Decision(WAIT, "j", "ambiguous_band"), prev, 10.0, 10.0, rest, False,
+                 P.override(source="test", go_latch_launch=False), t, go_from_rest=True)
+    assert d.kind == WAIT  # the latches off (C8's reference)
+
+
+def test_go_from_rest_latched_through_protocol():
+    """The same through Protocol.step: a go from rest stays go while the car has not moved, though the band now
+    reads the other as an ambiguous arrival."""
+    z = Zone("j", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    pr = czp.Protocol()
+    pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "clear"), decision_since=0.0, go_since=0.0, go_from_rest=True,
+                          own_rest_t=-3.0)
+    b = car("B", s_entry=9.0, v=6.0)  # coming, would read in the band or ambiguous: a wait without the latch
+    b.approach = "B"
+    dec, _ = pr.step(1.2, car("A", s_entry=1.0, v=0.0), [b], z, C.Inputs(obs_age=0.2))
+    assert dec.kind == GO
+    pr2 = czp.Protocol(params=P.override(source="test", go_latch_motion_timeout=0.0))
+    pr2.mem[z.id] = Memory(decision=Decision(GO, z.id, "clear"), decision_since=0.0, go_since=0.0, go_from_rest=True,
+                           own_rest_t=-3.0)
+    dec2, _ = pr2.step(1.2, car("A", s_entry=1.0, v=0.0), [b], z, C.Inputs(obs_age=0.2))
+    assert dec2.kind != GO  # without it, the re-read flips the go before the car moves
+    pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "clear"), decision_since=0.0, go_since=0.0, go_from_rest=True,
+                          go_moved=True, own_rest_t=-3.0)
+    dec3, _ = pr.step(1.2, car("A", s_entry=1.0, v=0.0), [b], z, C.Inputs(obs_age=0.2))
+    assert dec3.kind != GO  # it moved under this go and was brought to rest again (its safety layer): not latched
+
+
 def test_commit_on_move():
     own = car("A", s_entry=0.8, v=0.5)
     d, _ = latch(Decision(YIELD, "j", "contested"), Decision(GO, "j", "first"), 0, 0, own, True, P, 5.0,
@@ -323,7 +369,7 @@ def test_crossing_commits_a_go_from_rest_only():
     dec, _ = pr.step(1.0, car("A", s_entry=1.5, v=1.2), [b], z, C.Inputs(obs_age=0.2))
     assert dec.kind == GO and dec.committed
     pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "rest_tie"), decision_since=0.0, go_since=0.0, go_from_rest=True,
-                          own_rest_t=-3.0)
+                          go_moved=True, own_rest_t=-3.0)
     dec, _ = pr.step(1.0, car("A", s_entry=1.5, v=0.0), [b], z, C.Inputs(obs_age=0.2))
     assert dec.kind != GO  # brought to rest (its safety layer): the commit is released
     pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "first"), decision_since=0.0, go_since=0.0, go_from_rest=False,

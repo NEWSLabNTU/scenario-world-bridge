@@ -73,6 +73,7 @@ class Memory:
     decision_since: float = -INF
     go_since: Optional[float] = None
     go_from_rest: bool = False  # the current go began with the car below moved_speed (commit: on_move)
+    go_moved: bool = False  # the car has been above moved_speed under the current go (the latch until motion is done)
     probe: ProbeState = ProbeState()
     record_key: tuple = ()
     flips: int = 0

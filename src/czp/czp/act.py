@@ -14,7 +14,13 @@ the velocity limit, the arena car's command -- is the adapter's.)
   brings the car to rest the commit is released (it is no longer moving); a failed contract (stock) is
   never latched or committed over;
 - the go latch (074 C8 fix (a)): a go is held for the car's launch dead time, unless an agent is in
-  the zone or seen moving off its line (the "turn" guard);
+  the zone or seen moving off its line (the "turn" guard). A go begun from rest is held further, until the
+  car first moves under it (above ``moved_speed``) or ``go_latch_motion_timeout`` has passed, against a wait only (a
+  re-read band, ambiguous): a yield (the turn guard, contested, the other clear first) releases it (078 P2c:
+  Autoware takes about 1.4 s from ACTIVATE at rest to motion, longer than the 0.5 s launch latch, so a
+  band re-read flipped the go before the car moved, and ``commit: on_move`` had nothing to commit yet). Chosen over
+  the own ``launch_dead`` at 1.4 s, which would also move the own interval 0.9 s later in every band reading,
+  in the arena too, where the car launches in 0.5 s; the latch ends at motion, whatever the delay;
 - the decision latch (R10): a decision is held ``latch_s`` unless the reason changes (a band, role or
   guard change beyond its hysteresis, which the margins and the filters provide).
 """
@@ -24,7 +30,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .intervals import stop_need
-from .model import CREEP, GO, STOCK, Decision
+from .model import CREEP, GO, STOCK, WAIT, WAIT_SECOND_ROUND, Decision
 
 
 def commit_point_passed(own, cap=None):
@@ -32,9 +38,11 @@ def commit_point_passed(own, cap=None):
     return own.in_zone or own.cleared or (own.v > 0.5 and stop_need(own.s_entry, own.v) > cap.b_comfort)
 
 
-def latch(new: Decision, prev: Decision, prev_since, go_since, own, own_moving, params, t, row=None):
+def latch(new: Decision, prev: Decision, prev_since, go_since, own, own_moving, params, t, row=None,
+          go_from_rest=False):
     """The decision to act on, and whether it is a new one (for the record and the latch's clock).
-    own_moving: the car is moving under a go that began from rest (what ``commit: on_move`` commits)."""
+    own_moving: the car is moving under a go that began from rest (what ``commit: on_move`` commits).
+    go_from_rest: the current go began with the car below ``moved_speed`` (the latch until motion)."""
     row = row or {}
     if new.kind == STOCK and new.reason == "contract":
         return new, prev is None or prev.kind != STOCK or prev.reason != new.reason  # a failed contract hands the car
@@ -49,6 +57,9 @@ def latch(new: Decision, prev: Decision, prev_since, go_since, own, own_moving, 
         if new.kind != GO and params.go_latch_launch and go_since is not None and \
                 t - go_since < own.cap.launch_dead - 1e-9 and new.reason != "turn":
             return replace(prev, latched_until=go_since + own.cap.launch_dead), False
+        if new.kind in (WAIT, WAIT_SECOND_ROUND) and params.go_latch_launch and go_from_rest and go_since is not None \
+                and own.v <= params.moved_speed and t - go_since < params.go_latch_motion_timeout - 1e-9:
+            return replace(prev, latched_until=go_since + params.go_latch_motion_timeout), False
     if prev is not None and new.kind != prev.kind and new.reason == prev.reason and new.kind not in (STOCK,) \
             and prev.kind != CREEP and t - prev_since < params.latch_s - 1e-9:
         return replace(prev, latched_until=prev_since + params.latch_s), False

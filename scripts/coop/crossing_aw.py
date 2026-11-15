@@ -35,12 +35,15 @@ import n5_swb as N5  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 MAP = ROOT / "data/carla-autoware-bridge/Town05"
 # Town05 j979, CARLA frame. B (the ego) south in ROS (+y in CARLA) on road 5/49 lane -2 (outer);
-# A west on road 0..2 lane -2 (outer), from the ego's left ("left"); or east on lane 1 ("right")
+# A west on road 0..2 lane -2 (outer), from the ego's left ("left", czp zone j108210_108811_109526); or east on
+# road 3..1 lane 2 (outer), from the ego's right ("right", zone j108210_108811_109235: lanelet 109235 at ROS
+# y -6.34 at the zone; CARLA's lane 2 centre is y 6.61 at x -231, 6.44 at -160, 6.20 at -62; 078 P2b fixed the
+# guessed y 7.6, which the goal projected onto a turning lane of the next junction)
 SITES = {
     "left": {"b_spawn": (-131.74, -65.0, 90.4), "b_goal": (-131.37, 45.0, 89.5), "b_ref": (-132.0, -20.0),
              "a_spawn": (-31.0, -4.38, 179.9), "a_goal": (-175.0, -4.06, 179.9), "a_ref": (-100.0, -4.2)},
     "right": {"b_spawn": (-131.74, -65.0, 90.4), "b_goal": (-131.37, 45.0, 89.5), "b_ref": (-132.0, -20.0),
-              "a_spawn": (-231.0, 7.6, 0.0), "a_goal": (-60.0, 7.6, 0.0), "a_ref": (-160.0, 7.6)},
+              "a_spawn": (-231.0, 6.61, 0.0), "a_goal": (-62.0, 6.2, 0.0), "a_ref": (-160.0, 6.44)},
 }
 B_VMAX = 8.0  # the ego's max_velocity (A's v too: from rest the ego reaches it before Z)
 PHYSICS = ROOT / "src/sim_vehicle_spec/generated/tesla_model3/carla_physics.yaml"

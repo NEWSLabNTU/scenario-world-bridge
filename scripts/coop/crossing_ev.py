@@ -14,6 +14,10 @@
   the same test on A's true speed, per run: agreement and lag.
 
   scripts/coop/crossing_ev.py --out <grid dir>     -> <dir>/tables.md, ev4.json, ev5.json, rtc.json
+  scripts/coop/crossing_ev.py --out <grid dir> --fit-from <earlier grid dir> [--e 0.55]
+      EV4 on a fresh held-out round (078 P2b): the FIT split is the earlier grid's seeds 0-1, every run of this
+      grid is held out; also the held-out share within the node's e of the fit bias, and the breakdown per
+      side and rule (-> ev4_heldout.json)
 """
 
 import argparse
@@ -56,6 +60,56 @@ def load_runs(base):
 
 
 # --- EV4 ----------------------------------------------------------------------------------------
+def track_errors(base, min_age=0.0):
+    """(seed, tag, s_true, e) per track message of A, EV4's filters."""
+    rows = list(csv.DictReader(open(base / "bagfacts" / "tracks.csv")))
+    born = {}
+    for x in rows:
+        if x["kind"] == "track":
+            k = (x["tag"], x["uid"])
+            born[k] = min(born.get(k, 1e9), float(x["tr"]))
+    out = []
+    for x in rows:
+        if x["kind"] != "track" or float(x["tr"]) - born[(x["tag"], x["uid"])] < min_age:
+            continue
+        s_true, v_true = -float(x["u_true"]), float(x["v_true"])
+        s_trk, v_trk = -float(x["u_trk"]), float(x["v_trk"])
+        if s_true <= 0 or v_true < 2.0 or s_true / v_true > 10.0 or v_trk < 0.5:
+            continue
+        out.append((int(x["seed"]), x["tag"], s_true, s_trk / v_trk - s_true / v_true))
+    return out
+
+
+def ev4_heldout(base, fit_base, runs, e_node, min_age=0.0):
+    """078 P2b: the earlier round's fit split (seeds 0-1) against every message of this round (held out)."""
+    fit = [(s, e) for seed, _, s, e in track_errors(fit_base, min_age) if seed in FIT]
+    held = [(tag, s, e) for _, tag, s, e in track_errors(base, min_age)]
+    meta = {t: (x.get("side", "left"), x.get("rule"), x.get("arm")) for t, x in runs.items()}
+
+    def stats(f, h):
+        if not f:
+            return None
+        b = stt.median(f)
+        e99 = q([abs(v - b) for v in f], 0.99)
+        return {"n_fit": len(f), "bias_fit": r(b), "e99_fit": r(e99), "n_held": len(h),
+                "held_bias": r(stt.median(h)) if h else None, "held_e99": r(q([abs(v - b) for v in h], 0.99)) if h else None,
+                "held_cover_e99fit": r(sum(abs(v - b) <= e99 for v in h) / len(h)) if h else None,
+                "held_cover_e_node": r(sum(abs(v - b) <= e_node for v in h) / len(h)) if h else None}
+    out = {"e_node": e_node, "min_age": min_age, "bins": []}
+    for lo, hi in BINS:
+        st = stats([e for s, e in fit if lo <= s < hi], [e for _, s, e in held if lo <= s < hi])
+        out["bins"].append({"bin": f"{lo}-{hi}", **(st or {"n_fit": 0, "n_held": sum(lo <= s < hi for _, s, _ in held)})})
+    f30 = [e for s, e in fit if s < 30]
+    out["pool_0_30"] = stats(f30, [e for _, s, e in held if s < 30])
+    groups = defaultdict(list)
+    for tag, s, e in held:
+        if s < 30:
+            side, rule, _ = meta.get(tag, ("?", "?", "?"))
+            groups[f"{side}/{rule}"].append(e)
+    out["pool_0_30_by"] = {k: stats(f30, v) for k, v in sorted(groups.items())}
+    return out
+
+
 def ev4(base, runs, min_age=0.0):
     """min_age: only tracks at least this old (s since the uuid's first message): czp's track contract
     (0.5 s) makes a younger track a phantom, so e of what the role reads is e over tracks >= 0.5 s."""
@@ -250,26 +304,35 @@ def outcomes(runs):
     for x in runs.values():
         if "error" in x:
             continue
-        cells[(x["rule"], x["dt"], x["arm"])].append(x)
+        cells[(x.get("side", "left"), x["rule"], x["dt"], x["arm"])].append(x)
     out = []
-    for (rule, dt, arm), xs in sorted(cells.items(), key=lambda k: (k[0][0], k[0][1], k[0][2])):
+    for (side, rule, dt, arm), xs in sorted(cells.items()):
         v = [x for x in xs if x.get("valid")]
-        out.append({"rule": rule, "dt": dt, "arm": arm, "n": len(xs), "valid": len(v),
+        out.append({"side": side, "rule": rule, "dt": dt, "arm": arm, "n": len(xs), "valid": len(v),
                     "dt_lock": [x.get("dt_lock") for x in xs],
                     "first": "".join(x.get("first") or "-" for x in xs), "contact": sum(x.get("contact", 0) for x in xs),
                     "pet": [x.get("pet") for x in xs], "clear": [x.get("clear") for x in xs],
                     "waitA": [x.get("waitA") for x in xs], "waitB": [x.get("waitB") for x in xs],
                     "both_stopped": [x.get("both_stopped_s") for x in xs], "cleared": sum(x.get("both_cleared", 0) for x in xs),
-                    "tB_out": [x.get("tB_out") for x in xs]})
+                    "tB_out": [x.get("tB_out") for x in xs], "tA_out": [x.get("tA_out") for x in xs],
+                    "ttc2d": [x.get("ttc2d") for x in xs], "seeds": [x.get("seed") for x in xs]})
     return out
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--fit-from", help="EV4 held out: the earlier grid whose seeds 0-1 are the fit split")
+    ap.add_argument("--e", type=float, default=0.55, help="the node's e (for the held-out coverage)")
     a = ap.parse_args()
     base = Path(a.out)
     runs = load_runs(base)
+    if a.fit_from:
+        res = {"ev4_heldout": ev4_heldout(base, Path(a.fit_from), runs, a.e),
+               "ev4_heldout_age05": ev4_heldout(base, Path(a.fit_from), runs, a.e, 0.5)}
+        for k, v in res.items():
+            (base / f"{k}.json").write_text(json.dumps(v, indent=1))
+        print(json.dumps(res, indent=1))
     res = {"outcomes": outcomes(runs), "rtc": rtc(base, runs), "ev4": ev4(base, runs), "ev4_age05": ev4(base, runs, 0.5), "first_tracked": first_tracked(base, runs),
            "ev5": ev5(base, runs)}
     for k, v in res.items():

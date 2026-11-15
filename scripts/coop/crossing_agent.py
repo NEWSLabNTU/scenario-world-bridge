@@ -24,7 +24,8 @@ past Z's near edge along a car's own road, dt = t_A^Z - t_B^Z (dt > 0: B, the eg
 
 Rules (crossing_game.A_RULES): "t1.5p5" (the arena's stock-like A: gap 1.5 s, patience 5 s), "go"
 (aggressive: always go, its safety layer only), "tinfp5" (yielding: goes only once B has cleared Z,
-or after 5 s at rest).
+or after 5 s at rest). And "hold" (078 P2b, EV5's non-yielding A): from the lock A holds its speed at the
+lock and never brakes for B, no safety layer at all (a car that cannot or will not yield).
 
 The driving is the arena's: acb's pedal maps and lags (arena.Longitudinal, PedalLag), pure pursuit on
 A's lane line. Logs every world tick (20 Hz) both cars' truth in CARLA's frame, u and v of each, B's
@@ -89,7 +90,8 @@ class CrossingAgent(CA.CutInAgent):
         super().__init__(config)
         c = self.config
         self.rule_name = rule_name
-        self.rule = next(r for r in G.A_RULES if r[0] == rule_name)
+        self.hold = rule_name == "hold"  # held speed, never brakes (EV5)
+        self.rule = next(r for r in G.A_RULES if r[0] == ("go" if self.hold else rule_name))
         self.dt = float(c["dt"])
         self.v_ref = float(c.get("v", 8.0))
         self.b_vmax = float(c.get("b_vmax", 8.0))
@@ -233,7 +235,10 @@ class CrossingAgent(CA.CutInAgent):
             if seen is not None and seen[0] >= self.t_lock - 1e-9 and self.last_stamp != seen[0]:
                 self.last_stamp = seen[0]
                 self.pol.perceive(seen[0] - self.t_lock, seen[1], seen[3], seen[4])
-            accel = self.pol.step(tr, ua, v)
+            if self.hold:
+                accel = max(-1.0, min(A_ACC, 1.5 * (self.pol.v0 - v)))  # its lock speed, whatever B does
+            else:
+                accel = self.pol.step(tr, ua, v)
             self.pol.after(tr, ua, v)
             if ua > self.exit + PAST:
                 self.stage = "done"

@@ -164,12 +164,16 @@ contested: yield                  # a car that cannot or will not stop keeps the
 - **Inputs:** `/perception/object_recognition/objects`, `/localization/kinematic_state`,
   `/planning/scenario_planning/trajectory`, the RTC status topics of the intersection, lane-change
   and stop-line modules, the Lanelet2 map.
-- **Outputs:** the RTC cooperate commands (approve/deny per module and uuid), the external velocity
-  limit through the AD API, `/interaction_strategy/decision` (the record).
+- **Outputs:** the RTC cooperate commands (approve/deny per module and uuid), a velocity limit on
+  the velocity selector's `max_velocity_candidates` (so it composes with SSv2's limit, rather than
+  the AD API's single external limit), `/interaction_strategy/decision` (one JSON record per
+  decision change).
 - **Autoware does not read reservations** (the lab's V2X lease project): every effect goes through
   RTC and the velocity limit, so Autoware's own planner and shield stay in charge of the motion.
-- RTC must be in manual-cooperate mode for the modules the node drives; the profile gets a switch
-  for it, off by default (R9).
+- RTC is switched to manual-cooperate for a driven module only while the node holds a decision
+  that is not stock's, then back to auto. The switch is `interaction_strategy:=true` in
+  `swb_launch/vehicle_agent.launch.xml`, off by default (R9). Open: a watchdog, since a node that
+  dies while a module is manual leaves that module stopped at its line instead of running stock.
 
 ## Contracts and fallback
 
@@ -202,6 +206,25 @@ error once measured. Roadmap 078's evaluation phase replaces them.
 - **Parity:** the arena adapter reproduces the per-study results (U3, C7, S2, S3, S4) within D2's
   tolerance before it replaces their rules.
 - **Live:** roadmap 078's test runs.
+
+## What the build changed (078 P1, 2026-11-15)
+
+- **Band mode per convention row.** `interval` (one car's latest exit before the other's earliest
+  entry, by the margin) for the all-way stop; `entry` (arrival order, margin 0.2 s) for crossing,
+  narrow passage and merge. The interval test alone makes the band about 2 s wide at a crossing and
+  overrides S2's nearer-car-first.
+- **Rounds 2 and 3** start from one common quiet epoch (latest rest + dwell + launch + see_delay)
+  and are decided among every car at rest; the last resort comes before "another car wins round 2".
+  Right-before-left between opposite approaches falls back to `map_order`.
+- **Noise-robust guards:** the rest position is averaged over its samples; the in-zone and at-rest
+  tests use the filtered "moved" test. The probe's watch keeps rolling at 0.4 m/s instead of
+  standing. A fresh-rest guard holds a first go until a car that has only just stopped would be seen
+  starting; a first go from rest is probed while another car still approaches.
+- New parameters: `fresh_rest_guard`, `probe_first_moving`, `see_delay`, `probe_watch_speed`,
+  `band_margin_entry`. A contested yield counts as stock-equivalent. The latency contract measures
+  perception latency, not decision delay.
+- **The all-way stop row stays stock with no V2X** (078 G0): with these changes it is still worse
+  than stock Autoware in 1-4 of 12 mixed cells, because stock reads a waiting car as static.
 
 ## Open questions
 

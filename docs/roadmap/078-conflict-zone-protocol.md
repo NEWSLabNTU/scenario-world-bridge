@@ -10,8 +10,10 @@ whether it ships. The build spec is [design/conflict-zone-protocol.md](../design
 the theory and evidence [design/cooperative-driving.md](../design/cooperative-driving.md); the
 study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 
-**Status**: Phase 0's four-way stop (V1-V3) done 2026-11-15; G0 for the all-way stop deferred to a
-re-check on the built library (V2b); V4 open. Phase 1 starting.
+**Status**: Phase 1 built 2026-11-15 (czp library, zones, arena adapter, node off by default;
+EV2, EV3 pass). G0 for the all-way stop **not passed** on V2b: the row stays stock with no V2X.
+G1 not passed: S3 has contacts, arena-side EV1 for S2-S4 missing. Next: V4 for the crossing,
+narrow-passage and lane-drop rows, S3's fix, arena EV1, the node's watchdog.
 
 ## Inputs, already in place
 
@@ -80,6 +82,45 @@ D2's tolerance; in the near-tie band (|Δt| ≤ 0.1 s) parity is on the contact 
 (074, S2's kinematic follow-up). **EV2, stock parity.** With the node on but every zone `clear`, and with the node
 off, an ego run matches stock Autoware (same route time within noise, no RTC command issued).
 **EV3, cost.** Cycle time p99 ≤ 20 ms on host 133 with 20 objects.
+
+**Phase 1 results (133's subagent, 2026-11-15; 9bca773..170b03f; NAS `logs/2026 SSv2 on
+CARLA/2026-11-15 078 P1 czp/`).**
+- **I1-I5 built.** `src/czp` (ament_python): the library with no ROS import, `czp-zones`, the
+  ROS-free `strategy` and the rclpy `node`, config in the package. 35 unit and property tests
+  under `just test`; the property tests found two bugs (rounds 2-3 from one common quiet epoch among
+  every car at rest; right-before-left between opposite arms falls back to the map order).
+  Zones: Town01 93, Town03 354, Town05 640, Town10HD 123 (114 signalled), NTU twin 281; no map has
+  right_of_way or stop_sign elements, so priority is equal everywhere. The switch is
+  `interaction_strategy:=true` in `swb_launch/vehicle_agent.launch.xml`; RTC goes to manual only
+  while a non-stock decision is held; the velocity limit goes through the selector's
+  `max_velocity_candidates`.
+- **EV1:** U3 kinematic: czp0 (no V2b guards) 571/572 outcomes against C8's (e), czp 518/572 with
+  classes 44/44; U3 arena against kinematic 94.9 / 91.9 %. S2 against C7's bind 46/48 outcomes,
+  41/48 classes (W against B at |Δt| 0.2-0.3); S4 63/64. **S3: 435/450 outcomes but 10 contacts
+  and 17 forced stops** that S3's equilibria lack (dv +3, the drop at the deadline). Arena side for
+  S2-S4 not done.
+- **EV2 passes:** town01_ego_drive, 4 runs on and 4 off, all pass; the node issued 0 RTC commands,
+  0 mode switches, 0 limits. **EV3 passes:** bench p99 2.1-8.7 ms with 20 objects; live 18-21 ms
+  after a first 52 ms on a loaded host (the self contract falls back to stock).
+- **V2b:** C8's three fixes alone made it worse (8 of 12 cells at v6, mostly deadlocks); five more
+  were needed (an averaged rest position with filtered in-zone and at-rest tests; a watch that keeps
+  rolling at 0.4 m/s; the last resort before "another car wins round 2"; a fresh-rest guard; a
+  probe before a first go while another car still approaches). Worse-than-stock cells, czp / C8's
+  (e): v6 3 / 5, v10 4 / 5, noise ×2 m 0.3 3 / 7, m 0.45 1 / 3. Self-play: 0 contacts everywhere;
+  0 deadlocks at noise ×1, **1 and 2 of 27 at noise ×2**. The remaining worse cells: against
+  stop1y and aggr near ties (1-2 contacts against stock's 0), czp as B against fcfs at v10 (5
+  against 1), and at noise ×2 deadlocks against yield and stop1y. Self-play welfare (near/away), v6:
+  czp −2.00/−1.61, (e) −1.92/−1.26, stock yield −3.66/−0.43.
+
+**G0 ruling, all-way stop (manager, 2026-11-15): not passed. The rule stated above applies.**
+- With no V2X a car cannot know that the other car complies, so **the all-way stop stays stock**
+  in the no-V2X deployment. The czp row is kept for pairs known to comply, which T4 (V2X adoption)
+  tests.
+- Even between compliant cars the row needs a perception contract: e at the arena's level
+  (e99 ≈ 0.25 s). At noise ×2 it deadlocks 1-2 times in 27.
+- What 074 learns from it: at the all-way stop a protocol that waits safely loses to stock
+  Autoware's own restarts. Near ties, the cost lies in mixing with a car that treats a waiting car
+  as static. The convention alone does not fix this.
 
 **G1, ready to measure.** EV1, EV2 and EV3 pass and the property tests are green. Else: fix, or
 narrow the relations the node drives to those that pass.
@@ -170,3 +211,7 @@ and G2.
   assigned to 133's subagent, to start when C8 reports.
 - 2026-11-15: C8 reported (V1-V3 for the all-way stop). G0 deferred to V2b (above). P1 started
   on 133's subagent with the three C8 fixes in I2. Near-tie parity on contact share (EV1).
+- 2026-11-15: P1 built (above). G0 for the all-way stop not passed: stock with no V2X. G1 not
+  passed: S3's contacts and arena EV1 open; per G1's rule the node drives no relation until a row
+  passes G0 and its EV1. Next on 133's subagent: V4 (crossing, narrow passage, lane drop), S3's
+  fix, arena EV1 for S2-S4, the node's watchdog.

@@ -522,6 +522,7 @@ class Context:
     out: object = None
     started: StartedStack = None      # the stack this runner started (--start-stack)
     turn: object = None               # the stack's run lock while this process runs (take_turn)
+    lost_probe: object = None         # callable(rec, entities) -> {entity: why} (tests; G32)
 
 
 def scenario_map(path: Path, sc=None):
@@ -687,6 +688,46 @@ def release_turn(ctx: Context):
             os.close(fd)
         except OSError:
             pass
+
+
+LOST_POLL = 2.0   # s between the runner's questions to the relay while SSv2 runs (G32)
+
+
+def lost_goals(rec: dict, entities) -> dict:
+    """``{entity: why}`` for the entities whose goal the relay says is gone for good (their
+    agent registered again and could not be handed it back; roadmap 077, G32)."""
+    if not entities:
+        return {}
+    try:
+        from swb_agent.commander import Commander, CommanderError
+    except ImportError:
+        return {}
+    out = {}
+    try:
+        with Commander(f"tcp://localhost:{rec['ports']['relay']}", "swb-run", timeout=3.0) as c:
+            for e in entities:
+                reply = c.query(e)
+                if isinstance(reply, dict) and reply.get("lost"):
+                    out[e] = reply["lost"]
+    except (CommanderError, OSError):
+        return {}
+    return out
+
+
+def wait_ssv2(proc, limit: float, rec: dict, entities, probe=lost_goals) -> tuple:
+    """``(exit code or None, lost)``: SSv2 waited for up to ``limit`` s, the relay asked every
+    LOST_POLL s whether a pilot's goal is gone; SSv2 is stopped at the limit or when one is,
+    rather than left to wait for its own timeout."""
+    end = time.time() + limit
+    while True:
+        try:
+            return proc.wait(timeout=max(0.0, min(LOST_POLL, end - time.time()))), {}
+        except subprocess.TimeoutExpired:
+            pass
+        lost = probe(rec, entities)
+        if lost or time.time() >= end:
+            _stop(proc)
+            return None, lost
 
 
 def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult:
@@ -859,11 +900,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             if ssv2 is not None:
                 # SSv2's global_timeout is per variant; a distribution runs them all in one go
                 limit = (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN
-                try:
-                    code = ssv2.wait(timeout=limit)
-                except subprocess.TimeoutExpired:
-                    _stop(ssv2)
-                    code = None
+                code, lost = wait_ssv2(ssv2, limit, rec, [p["entity"] for p in pilots],
+                                       ctx.lost_probe or lost_goals)
+                if lost:
+                    infra += [f"pilot {e}: {why}" for e, why in lost.items()]
+                elif code is None:
                     infra.append(f"SSv2 did not end within {limit:.0f} s; stopped")
                 run_events.append({"t_wall": time.time(), "event": "ssv2.exit", "code": code})
         t_end = time.time()

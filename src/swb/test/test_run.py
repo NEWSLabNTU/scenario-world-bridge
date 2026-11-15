@@ -1034,3 +1034,34 @@ def test_the_stacks_play_launch_runs_on_the_seats_dds():
     assert env["CYCLONEDDS_URI"] == f"file://{seatmod.cyclone_profile()}"
     assert env["RMW_IMPLEMENTATION"] == "rmw_cyclonedds_cpp"
     assert "ROS_LOCALHOST_ONLY" not in env and env["PATH"] == "/bin"
+
+
+def test_wait_ssv2_stops_it_when_the_relay_says_a_goal_is_lost():
+    """roadmap 077, G32: SSv2 is not left to its own timeout once a pilot's goal is gone."""
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                            start_new_session=True)   # as run._start: its own group
+    calls = []
+
+    def probe(rec, entities):
+        calls.append(list(entities))
+        return {"ego": "its agent registered again (it was DRIVING) and refused its goal"} \
+            if len(calls) >= 2 else {}
+    t0 = time.time()
+    code, lost = run.wait_ssv2(proc, 30, {}, ["ego"], probe)
+    assert code is None and "refused its goal" in lost["ego"]
+    assert proc.poll() is not None and time.time() - t0 < 15
+    assert calls[0] == ["ego"]
+    quick = subprocess.Popen([sys.executable, "-c", "pass"])
+    assert run.wait_ssv2(quick, 30, {}, ["ego"], lambda *a: {}) == (0, {})
+
+
+def test_a_lost_goal_ends_the_run_error_with_the_relays_reason(live, where):
+    d, _ = live
+    sleeper = where["tmp"] / "sleeper.py"
+    sleeper.write_text("import time\ntime.sleep(60)\n")
+    lost = {"ego": "its agent registered again (it was DRIVING) and reported no state"}
+    r = api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"scenario_command": lambda *a: [sys.executable, str(sleeper)],
+                     "lost_probe": lambda rec, entities: lost if "ego" in entities else {}})
+    assert r.verdict == results.ERROR
+    assert "pilot ego: its agent registered again (it was DRIVING)" in r.reason

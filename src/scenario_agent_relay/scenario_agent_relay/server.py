@@ -18,6 +18,11 @@ COMMANDER_TIMEOUT = 9.0
 COMMANDER_MAX_TIMEOUT = 30.0
 
 
+REPLAY_WAIT = 10.0     # s a re-registered agent has to report a state before its goal
+REPLAY_TIMEOUT = 30.0  # s for its answer to the goal handed back
+DRIVING_PHASES = (P.PLANNING, P.READY, P.DRIVING)
+
+
 class AgentSession:
     """One registered agent connection."""
 
@@ -170,6 +175,14 @@ class AgentServer:
         self._sessions = {}
         self._supervisors = {}  # entity -> AgentSession of its supervisor (v2)
         self._resets = {}  # entity -> how its last reset went (episodes.py)
+        # roadmap 077, G32: what an entity's agent was last told within its episode (the
+        # goal and the speed limit commands that succeeded), handed again to an agent that
+        # registers anew (it went silent, or restarted); an entity whose goal is gone for
+        # good is `lost`, which a commander's query reports (the runner ends the run).
+        self._standing = {}  # entity -> {"goal": args or None, "speed": args or None}
+        self._lost = {}      # entity -> why its goal is gone
+        self._phases = {}    # entity -> the last phase its agent reported
+        self.replay_wait = REPLAY_WAIT
         self._commanders = set()
         self._lock = threading.Lock()
         self._ids = itertools.count(1)
@@ -250,7 +263,60 @@ class AgentServer:
                                    "no supervisor is registered for it")
         if session is None:
             return None, f"no agent registered for entity {entity!r}"
-        return session.command(next(self._ids), name, args, timeout)
+        status, message = session.command(next(self._ids), name, args, timeout)
+        self._note(entity, name, args, status)
+        return status, message
+
+    # -- standing commands (G32) ----------------------------------------------------------
+    def _note(self, entity, name, args, status):
+        """Keep the goal and the speed limit an entity's agent accepted; forget them at an
+        episode boundary or when the goal is cleared or the car stopped."""
+        with self._lock:
+            st = self._standing.setdefault(entity, {"goal": None, "speed": None})
+            if name == P.SET_GOAL and status == P.OK:
+                st["goal"] = dict(args)
+                self._lost.pop(entity, None)
+            elif name == P.SET_SPEED_LIMIT and status == P.OK:
+                st["speed"] = dict(args)
+            elif name in (P.CLEAR_GOAL, P.STOP):
+                st["goal"] = None
+            elif name in (P.RESET, P.TELEPORTED, P.EPISODE_END):
+                st["goal"] = st["speed"] = None
+                self._lost.pop(entity, None)
+
+    def lost(self, entity):
+        """Why the entity's goal is gone (its agent registered again and the goal could not
+        be handed back), else None."""
+        with self._lock:
+            return self._lost.get(entity)
+
+    def _replay(self, session, standing, phase):
+        """A re-registered agent of an entity with a standing goal gets it again, its speed
+        limit first, once it has reported a state; ``lost`` when it refuses or never does."""
+        entity = session.entity
+        end = time.monotonic() + self.replay_wait
+        while session.state is None and not session.closed.is_set() and \
+                time.monotonic() < end:
+            time.sleep(0.05)
+        if session.closed.is_set():
+            return
+        if session.state is None:
+            why = (f"its agent registered again (it was {phase}) and reported no state "
+                   f"within {self.replay_wait:.0f} s, so its goal was not handed back")
+        else:
+            if standing.get("speed") is not None:
+                self.command(entity, P.SET_SPEED_LIMIT, REPLAY_TIMEOUT, **standing["speed"])
+            status, message = self.command(entity, P.SET_GOAL, REPLAY_TIMEOUT,
+                                           **standing["goal"])
+            if status == P.OK:
+                self.log.warning(f"entity {entity!r}: its agent registered again; its goal "
+                                 "was handed back (set_goal -> OK)")
+                return
+            why = (f"its agent registered again (it was {phase}) and refused its goal "
+                   f"handed back: {status or 'no reply'}" + (f" {message}" if message else ""))
+        with self._lock:
+            self._lost[entity] = why
+        self.log.warning(f"entity {entity!r}: goal lost: {why}")
 
     # -- threads ------------------------------------------------------------------------
     def _accept_loop(self):
@@ -316,6 +382,8 @@ class AgentServer:
                     if kind == P.STATE:
                         session.state = message
                         session.state_received_at = session.last_received
+                        with self._lock:
+                            self._phases[session.entity] = message.get("phase")
                         if message.get("capabilities"):
                             session.capabilities = list(message["capabilities"])
                         self.on_state(session.entity, message, session.last_received)
@@ -385,7 +453,8 @@ class AgentServer:
                                        registered=True,
                                        reset=(self.last_reset(entity)
                                               if commander.version >= 2 else None),
-                                       supervised=supervised, spec_hash=session.spec_hash))
+                                       supervised=supervised, spec_hash=session.spec_hash,
+                                       lost=self.lost(entity)))
         elif kind == P.COMMAND_FOR:
             # Its own thread: a slow agent must not hold up the commander's other requests.
             threading.Thread(target=self._command_for, args=(commander, message),
@@ -435,6 +504,18 @@ class AgentServer:
                              f"previous connection from {previous.address[0]}")
             previous.close("replaced by a new registration")
         session.send(P.registered(entity))
+        with self._lock:
+            standing = dict(self._standing.get(entity) or {})
+            phase = self._phases.get(entity)
+        if standing.get("goal") is not None:
+            threading.Thread(target=self._replay, args=(session, standing, phase or "?"),
+                             daemon=True).start()
+        elif phase in DRIVING_PHASES:
+            why = (f"its agent registered again while {phase}, and the relay holds no goal "
+                   "to hand back")
+            with self._lock:
+                self._lost[entity] = why
+            self.log.warning(f"entity {entity!r}: goal lost: {why}")
         self.log.info(f"entity {entity!r}: agent {session.agent or '?'} registered from "
                       f"{address[0]}:{address[1]}, protocol v{session.version} (capabilities: "
                       f"{', '.join(session.capabilities) or 'none'}; spec_hash "

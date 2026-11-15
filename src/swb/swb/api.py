@@ -33,7 +33,8 @@ from swb.run import Refused, StackFailed  # noqa: F401
 
 SPEC_KEYS = ("parameters", "repetition", "seed", "pilot_args", "logging", "timeout", "expect",
              "ssv2")
-CONTEXT_KEYS = ("ready_timeout", "scenario_command", "pilot_command", "workspace", "out")
+CONTEXT_KEYS = ("ready_timeout", "scenario_command", "pilot_command", "workspace", "out",
+                "lost_probe")
 STACK_KEYS = ("start_stack", "stack_command", "stack_timeout")
 
 

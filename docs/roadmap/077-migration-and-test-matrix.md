@@ -379,3 +379,14 @@ Isaac's rear contact (inventory row 18).
   silent, or restarted) has lost its goal: the relay or the agent should hand the
   scenario's last `set_goal` (and speed limit) back to a re-registered agent of a live
   episode, or the run should end `error` naming the drop, not wait for SSv2's timeout.
+- **G32 built (2026-11-16).** The relay keeps, per entity, the goal and the speed limit its
+  agent last accepted within the episode (forgotten at a reset, a teleport, an episode end,
+  a clear or a stop). An agent that registers again (it went silent, or restarted) is
+  handed both back once it reports a state. When it refuses, reports no state within 10 s,
+  or registers again while driving with no goal on record, the entity is `lost`, and a
+  commander's query carries the reason. `swb run` asks the relay every 2 s while SSv2 runs
+  and ends the run `error` naming the pilot and the reason, stopping SSv2 rather than
+  waiting for its timeout. T0: scenario_agent_relay/test/test_replay.py (an agent killed
+  mid-episode and registered again: handed back, refused, silent, after a stop), and
+  test_run.py (wait_ssv2, and a run ended `error` by a lost goal). Not yet seen live (it
+  needs a CARLA stall like the one that showed it).

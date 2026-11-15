@@ -55,7 +55,7 @@ import yaml
 
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
 from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
-from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod
+from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -386,6 +386,13 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
         raise StackFailed(f"the stack did not start ({argv[0]}): {e}") from None
     (out or sys.stdout).write(f"stack    starting on seat {s.index} (pid {proc.pid}, console "
                               f"{log_dir / 'console.log'})\n")
+    try:
+        sim = config.project_settings(project).get("simulator")
+    except config.ConfigError:
+        sim = None
+    note = toolsmod.gpu_note(s.gpu, sim, toolsmod.gpu_state(s.gpu))
+    if note:
+        (out or sys.stdout).write(f"warning  {note}\n")
     (out or sys.stdout).flush()
     return StartedStack(proc=proc, argv=argv, log=log_dir / "console.log", seat=s.index)
 

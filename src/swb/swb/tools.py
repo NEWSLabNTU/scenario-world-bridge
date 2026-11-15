@@ -1,4 +1,5 @@
-"""The host tools the project workflow needs, and their floors (roadmap 077, G26).
+"""The host tools the project workflow needs, and their floors (roadmap 077, G26); the
+GPU's state when a stack starts (G27).
 
 ``project check`` (so the stack before it starts) refuses a play_launch older than the
 workflow needs: an older one parses the stack's launch differently and fails later, far from
@@ -48,3 +49,44 @@ def findings(version_fn=None) -> list:
         return [Finding("host", f"play_launch {have} ({path}) is older than {floor}, which the "
                         "stack needs", PLAY_LAUNCH_FIX, refused=True)]
     return []
+
+
+# GPU memory a stack's simulator needs on its card, roughly, as measured on Town01 (CARLA 0.9.16
+# at Epic quality, Isaac Sim 6.1 headless with the SimReady town), and a busy card's load
+GPU_NEED_MB = {"carla": 2500, "isaac": 10000}
+GPU_BUSY_PERCENT = 80
+
+
+def gpu_state(index: int):
+    """``(used MiB, total MiB, utilisation %)`` of GPU ``index`` (nvidia-smi), else None."""
+    try:
+        out = subprocess.run(["nvidia-smi", f"--id={index}", "--query-gpu=memory.used,"
+                              "memory.total,utilization.gpu", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    try:
+        used, total, util = (int(float(x)) for x in out.stdout.strip().split(","))
+    except ValueError:
+        return None
+    return used, total, util
+
+
+def gpu_note(index: int, simulator: str, state) -> str:
+    """A warning when GPU ``index`` has less memory free than ``simulator`` needs, or is busy;
+    "" when it looks fine or is unknown. A warning, not a refusal: other users' jobs come and
+    go, and the simulator may still fit."""
+    if state is None:
+        return ""
+    used, total, util = state
+    free, need = total - used, GPU_NEED_MB.get(simulator, 0)
+    why = []
+    if need and free < need:
+        why.append(f"{free / 1024:.1f} GB free, {simulator} needs about {need / 1024:.1f}")
+    if util >= GPU_BUSY_PERCENT:
+        why.append(f"{util} % busy")
+    if not why:
+        return ""
+    return (f"GPU {index} ({used / 1024:.1f} of {total / 1024:.1f} GB in use): "
+            + ", ".join(why) + "; `nvidia-smi` names its processes, the host setting `gpu:` "
+            "(or the seat table's gpus) picks another card")

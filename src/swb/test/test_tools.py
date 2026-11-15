@@ -27,3 +27,16 @@ def test_the_version_line_parses():
     out = "play_launch 0.34.0 (ROS humble, v0.34.0, rlm v0.3.18)\n"
     assert tools.parse_version(out) == (0, 34, 0)
     assert tools.parse_version("something else") is None
+
+
+
+def test_gpu_note_warns_for_too_little_free_memory_or_a_busy_card():
+    """roadmap 077, G27: 241's gpu 0 had another user's job (7.4 GB, 85 %); nothing said so."""
+    assert tools.gpu_note(0, "carla", (2000, 32607, 10)) == ""
+    n = tools.gpu_note(0, "isaac", (28207, 32607, 91))
+    assert n.startswith("GPU 0 (27.5 of 31.8 GB in use)")
+    assert "4.3 GB free, isaac needs about 9.8" in n and "91 % busy" in n
+    assert "gpu:" in n
+    assert tools.gpu_note(1, "carla", (7400, 24000, 85)) .endswith(
+        "another card") and "busy" in tools.gpu_note(1, "carla", (7400, 24000, 85))
+    assert tools.gpu_note(0, "carla", None) == ""

@@ -311,3 +311,11 @@ Isaac's rear contact (inventory row 18).
   time). A run's `provenance.swb` is that build, `provenance.built` its time, and
   `provenance.checkout` the checkout's commit at run time when it moved since. An install
   without a stamp (a plain `colcon build`) records the checkout, as before.
+- G29 live (2026-11-16): `just build` stamped 6d31f4a, and a simple_drive run's provenance
+  named it, with its build time.
+- **G27 built (2026-11-16).** When `swb run` starts a stack it reads the seat's GPU
+  (nvidia-smi) and warns, without refusing, when the card has less memory free than the
+  simulator needs (about 2.5 GB for CARLA, 10 GB for Isaac) or is at least 80 % busy,
+  naming both numbers and the `gpu:` setting. Ruling: a warning, since other users' jobs
+  come and go. Live here: `GPU 0 (27.2 of 31.8 GB in use): 4.7 GB free, isaac needs about
+  9.8`, nothing for CARLA.

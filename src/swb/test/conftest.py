@@ -204,3 +204,10 @@ def play_launch_ok(monkeypatch, tmp_path_factory):
     exe.write_text(f"#!/bin/sh\necho 'play_launch {floor} (fake)'\n")
     exe.chmod(0o755)
     monkeypatch.setenv("PATH", f"{d}:" + __import__("os").environ.get("PATH", ""))
+
+
+@pytest.fixture(autouse=True)
+def gpu_unknown(monkeypatch):
+    """No GPU query in tests (the tests of the note give their own state)."""
+    from swb import tools
+    monkeypatch.setattr(tools, "gpu_state", lambda index: None)

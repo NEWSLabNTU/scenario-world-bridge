@@ -256,3 +256,26 @@ Isaac's rear contact (inventory row 18).
   this host: the check named `autoware_perception_msgs is not built` (the same gap as 241's,
   which town10_ego_drive had not hit), `isaac msgs` built it, `--check` and `project check`
   then passed. User docs: getting-started/isaac.md, commands, troubleshooting.
+- **T2 on CARLA 0.9.16, every pilot kind (2026-11-16)**, each a copy of an example project with
+  one pilot changed, `ros2 run swb run <xosc> --start-stack --stop-stack` (the stack starting
+  CARLA), seat 0, Autoware 1.5.0, build e00448a; each run's result.json is in the project's
+  run directory. GPU shared with three other users' jobs (25 to 29 GB of 32 in use), load 25
+  to 60, so no timing.
+
+  | Pilot kind | Project, scenario | Verdict |
+  |---|---|---|
+  | `simple` | simple_drive, drive_to_goal | passed |
+  | `carla_basic` (ego) | simple_drive with the ego `carla_basic`, drive_to_goal | passed |
+  | `launch` (`agent: own`) | simple_drive with the ego `launch: swb_launch simple.launch.py` | passed |
+  | `command` | multi_pilot four_pilots: ego and `lead` `carla_basic`, `bg_av_1` `simple`, `cut_in` the SDK program | passed |
+  | `none` | simple_drive with the ego `none`, simple.launch.py started by hand against the seat's relay | passed |
+  | `autoware` | first_drive, drive_to_goal | passed (second try) |
+
+  Found on the way: four_pilots with a `simple` ego ended `failed` on its own collision
+  condition (`ego_hits_cut_in`): `simple` ignores traffic, as documented, so that scenario
+  needs a pilot that brakes. The first `autoware` run ended `error` at the ego's spawn, the
+  bridge naming the cause ("the ego's parts were built from different vehicle specs (the
+  vehicle agent 480be4fd0d00, the catalog 01b4d3f52735)"): a non-recursive `git submodule
+  update` had left acb's `deps/` on older specs. `git submodule update --init --recursive`
+  and both workspaces rebuilt, it passed. The spec guard did its job; the fix is the one
+  CLAUDE.md gives.

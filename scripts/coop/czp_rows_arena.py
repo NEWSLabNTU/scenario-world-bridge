@@ -107,7 +107,9 @@ def main():
     ap.add_argument("--obs-sigma-x", type=float, default=0.3)
     ap.add_argument("--obs-sigma-v", type=float, default=0.2)
     ap.add_argument("--list", action="store_true", help="print the job count and exit")
+    CA.add_bias_args(ap)
     a = ap.parse_args()
+    CA.set_bias(a)
     install(a.row)
     prs = pairs(a.row)
     jobs = []

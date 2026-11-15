@@ -2,7 +2,8 @@
 # value and a source: `assumed` (the design's assumed table, to be measured in roadmap 078 Phase 2) or
 # the run that measured it. `heldout` is the held-out error once measured (Phase 2), null until then.
 role_time_error_e:        {value: 0.55, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (Autoware 1.5.0 tracks vs swb truth, Town05 j979; held-out e99 0.53 s rounded up; was 074 C8 arena e99 0.25)", heldout: 0.53}
-role_time_bias:           {value: -0.24, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (reading - truth: the track predicts the other's arrival 0.24 s early, its speed lag while it brakes; corrected = reading - bias, 0.24 s later; the arena adapter sets its own)", heldout: -0.24}
+arrival_bias:             {value: -0.24, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (reading - truth of the other's arrival in the entry band: the track predicts it 0.24 s early, its speed lag while it brakes; corrected = reading - bias, 0.24 s later); 078 P2b held out -0.25; the arena adapter sets its own", heldout: -0.24}
+rest_stamp_bias:          {value: 0.7,  unit: s, source: "078 P2 (reading - truth of the other's rest stamp: the stop instant from Autoware's tracks comes 0.7 s late, median, 0.45-3.55 s; corrected = stamp - bias, 0.7 s earlier); used by stopped_first, rest_tie's and the fresh-rest guards, the second round's epoch; the arena adapter sets its own", heldout: null}
 tie_threshold_T:          {value: 0.5,  unit: s, source: "074 U3 (TIE)", heldout: null}
 tie_margin_m:             {value: 0.3,  unit: s, source: "074 C8 V1: m >= e; m 0.3 for e 0.25", heldout: null}
 second_round_H2:          {value: 2.0,  unit: s, source: "074 C8 V1: H2 >= e + 1.2 s", heldout: null}

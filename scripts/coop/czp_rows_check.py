@@ -90,7 +90,7 @@ class Car:
         self.hist = [(0.0, u0, v0, 0.0)]
         self.wait = 0.0
         self.t_in = None
-        p = CA.params_for(True, 0.0, None)
+        p = CA.params_for(True, CA.BIAS["value"], None)
         self.p = p
         self.proto = czp.Protocol(CA.conventions_for(True), p)
         self.cap = p.capability("car", v_max=v0, length=X.L)
@@ -331,7 +331,9 @@ def main():
     ap.add_argument("--jobs", type=int, default=24)
     ap.add_argument("--no-bystanders", action="store_true", help="a car does not see the cars outside its conflict set")
     ap.add_argument("--limit", type=int, default=0, help="the first N contexts only (a smoke test)")
+    CA.add_bias_args(ap)
     a = ap.parse_args()
+    CA.set_bias(a)
     if a.row == "merge" and a.cars == 3:
         ap.error("the merge is a pair model (merge_game)")
     ctxs = contexts(a)
@@ -345,7 +347,8 @@ def main():
     for r in res:
         for k in ("runs", "unsafe", "not_live", "deadlock", "follow_contact", "stopped"):
             tot[k] += r.get(k, 0)
-    summ = {"row": a.row, "cars": a.cars, "e": a.e, "contexts": len(res), **tot,
+    summ = {"row": a.row, "cars": a.cars, "e": a.e, "rest_stamp_bias": a.rest_stamp_bias, "arrival_bias": a.arrival_bias,
+            "contexts": len(res), **tot,
             "contexts_unsafe": sum(1 for r in res if r.get("unsafe")),
             "contexts_not_live": sum(1 for r in res if r.get("not_live")),
             "worst_wait": max(r["worst_wait"] for r in res),

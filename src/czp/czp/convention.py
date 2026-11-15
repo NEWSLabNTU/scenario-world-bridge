@@ -66,6 +66,12 @@ def tie_rule(rule, zone: Zone, own: Agent, other: Agent):
     raise ValueError(f"unknown tie rule {rule}")
 
 
+def rest_since(stamp, params):
+    """The other's rest stamp, bias-corrected: the time it came to rest (``rest_stamp_bias`` is reading - truth; on
+    Autoware's tracks the stop instant reads 0.7 s late, 078 P2). None stays None."""
+    return None if stamp is None else stamp - params.rest_stamp_bias
+
+
 def far_test(other: Agent, params):
     return other.s_entry > params.far_distance or (
         other.v > params.moved_speed and other.s_entry / max(other.v, 0.1) > params.far_time and other.a > -params.yield_decel)
@@ -93,7 +99,7 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
             return v
         # the winner waits as the fresh-rest guard does (dwell + the other's launch + see_delay): a car that
         # ignores the role and goes on a short patience (S2's 2 s) is seen starting first; then the probe
-        if params.fresh_rest_guard and t - am.rest_t < params.stop_dwell + o.cap.launch_dead + params.see_delay:
+        if params.fresh_rest_guard and t - rest_since(am.rest_t, params) < params.stop_dwell + o.cap.launch_dead + params.see_delay:
             return Verdict(o.id, WAIT, False, "rest_tie_wait", b, v.role)
         return Verdict(v.other, v.kind, v.hard, "rest_tie", v.band, v.role)
     return pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b)
@@ -115,6 +121,7 @@ def pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, fi
         if not (ib.kind == CLEAR and ib.who == own.id):
             guard = params.stop_dwell + o.cap.launch_dead + params.see_delay
             since = am.rest_t if am.rest_t is not None else am.still_since  # at its line, or at rest in a queue
+            since = rest_since(since, params)
             if since is None or t - since < guard:
                 return Verdict(o.id, WAIT, False, "claim", b, v.role)
     return v
@@ -151,7 +158,7 @@ def _role_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age, b):
         # 078 V2b: a car that has only just come to rest may be one that ignores arrival order (it starts after
         # its own stop); wait until its start would have been seen (dwell + its launch dead time + see_delay)
         if first == STOPPED_FIRST and params.fresh_rest_guard and am.rest_t is not None and \
-                t - am.rest_t < params.stop_dwell + o.cap.launch_dead + params.see_delay:
+                t - rest_since(am.rest_t, params) < params.stop_dwell + o.cap.launch_dead + params.see_delay:
             return Verdict(o.id, WAIT, False, "fresh", b, r)
         if first == STOPPED_FIRST and am.rest_t is None and o.v > params.moved_speed and params.probe_first_moving:
             # first, but a car is still coming that has not stopped: stock reads this car at rest as static, so
@@ -307,7 +314,7 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
     # car's dwell: the second round waits that much longer, so that go is seen first
     fresh_own = (own.cap.launch_dead + params.see_delay) if params.fresh_rest_guard else 0.0
     epoch = max([mem.own_rest_t + params.stop_dwell + fresh_own, mem.last_event] +
-                [pv.mem.rest_t - params.role_time_bias + params.stop_dwell +
+                [rest_since(pv.mem.rest_t, params) + params.stop_dwell +
                  ((pv.other.cap.launch_dead + params.see_delay) if params.fresh_rest_guard else 0.0) for pv in rest_pvs])
     q = t - epoch
     if q >= params.second_round_H2:

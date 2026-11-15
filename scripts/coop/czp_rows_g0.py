@@ -167,7 +167,9 @@ def main():
     ap.add_argument("--runs", action="append", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--no-ev1", action="store_true")
+    CA.add_bias_args(ap)
     a = ap.parse_args()
+    CA.set_bias(a)
     rows = [r for p in a.runs for r in csv.DictReader(open(p))]
     res, lines = g0(a.row, rows)
     out = {"row": a.row, "runs": len(rows), "g0": res}

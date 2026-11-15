@@ -72,11 +72,11 @@ def band(own_iv: ZoneInterval, other_iv: ZoneInterval, other: Agent, params, sto
         return Band(AMBIGUOUS, None, slack_own, slack_other)
     if mode == "entry":
         m = params.band_margin_entry if margin is None else margin
-        # the other's arrival as read, bias-corrected as the role's rest stamp is (role.stopped_first): bias is
-        # reading - truth, so the corrected time is the reading - bias. On Autoware's tracks (078 P2 EV4) the bias
+        # the other's arrival as read, bias-corrected (arrival_bias; a rest stamp has its own, rest_stamp_bias): bias
+        # is reading - truth, so the corrected time is the reading - bias. On Autoware's tracks (078 P2 EV4) the bias
         # is -0.24 s: the track predicts the other car 0.24 s earlier than it arrives, and the correction moves
         # its arrival 0.24 s later; the centred error left is within +-e
-        bias = params.role_time_bias
+        bias = params.arrival_bias
         slack_own = (other_iv.t_in[0] - bias) - own_iv.t_in[1]  # I am in before it could be
         slack_other = own_iv.t_in[0] - (other_iv.proceed_in - bias)  # it is in (going now) before I could be
     else:

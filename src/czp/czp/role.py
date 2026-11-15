@@ -36,11 +36,12 @@ def map_order(zone: Zone, own: Agent, other: Agent):
 
 
 def stopped_first(own_rest_t, other_rest_t, t, obs_age, other: Agent, params, far=False):
-    """074 C8's reading of the rest stamps. d = (the other's stamp - bias) - own rest:
+    """074 C8's reading of the rest stamps. d = (the other's stamp - bias) - own rest, bias the other's rest stamp's
+    (``rest_stamp_bias``, reading - truth; the own rest is the own odometry's, not corrected):
     first if d > T + m, second if d < -(T + m), tie if |d| < T - m, else ambiguous. With no stamp of
     the other yet: first once a stamp within T + m would already be known (t - age - bias - own rest
     >= T + m) or when the other is far; pending otherwise."""
-    T, m, bias = params.tie_threshold_T, params.tie_margin_m, params.role_time_bias
+    T, m, bias = params.tie_threshold_T, params.tie_margin_m, params.rest_stamp_bias
     if own_rest_t is None:
         return Role(STOPPED_FIRST, PENDING, {})
     if other_rest_t is None:

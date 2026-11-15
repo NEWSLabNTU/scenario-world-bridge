@@ -44,8 +44,10 @@ from czp.model import Agent, Approach, Zone  # noqa: E402
 CZP_KINDS = ("czp", "czp0")
 # per car capability (the own car's, fix (b)); four_way_arena's --heavy sets one
 CAPS = {}
-# the role-time bias the observer adds (the arena's rest stamp lag, C8 measure-e); four_way_arena sets it
+# the rest stamp's lag the observer adds (czp's rest_stamp_bias; C8 measure-e); four_way_arena sets it
 BIAS = {"value": 0.0}
+# the bias of the other's arrival as read (czp's arrival_bias): none in the arena's observer (078 P2c split)
+ARRIVAL = {"value": 0.0}
 # the margin m (C8's --fm-m), when a study varies it
 MARGIN = {"value": None}
 
@@ -65,9 +67,10 @@ def zone_for(kind, angle=90.0, obstructed=None):
     return Zone("z0", kind, aps)
 
 
-def params_for(fixes=True, bias=0.0, margin=None):
+def params_for(fixes=True, bias=0.0, margin=None, arrival_bias=None):
+    """bias: rest_stamp_bias; arrival_bias: arrival_bias (None: ARRIVAL's)."""
     p = czp.load_params()
-    kw = {"role_time_bias": bias}
+    kw = {"rest_stamp_bias": bias, "arrival_bias": ARRIVAL["value"] if arrival_bias is None else arrival_bias}
     if margin is not None:
         kw["tie_margin_m"] = margin
     if not fixes:  # C8's three fixes off, and V2b's two guards (the reference closest to C8's (e))
@@ -217,6 +220,17 @@ def make_fw_class():
 ANGLE = {"value": 90.0}
 CZP_RULES = [(f"{k}_c1.5", k, 1.5) for k in CZP_KINDS]
 CZP_NAMES = [r[0] for r in CZP_RULES]
+
+
+def add_bias_args(ap):
+    """The two biases czp corrects by, as the arena's own (default 0: its observer has neither), or set to a deployment's
+    to check that a correction for a lag the arena does not have stays safe (078 P2c: Autoware's on the crossing)."""
+    ap.add_argument("--rest-stamp-bias", type=float, default=0.0, help="czp's rest_stamp_bias in the arena (s)")
+    ap.add_argument("--arrival-bias", type=float, default=0.0, help="czp's arrival_bias in the arena (s)")
+
+
+def set_bias(args):
+    BIAS["value"], ARRIVAL["value"] = args.rest_stamp_bias, args.arrival_bias
 
 
 def enable(angle=90.0, bias=0.0, margin=None):

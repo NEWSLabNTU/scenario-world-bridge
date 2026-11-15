@@ -21,7 +21,8 @@ from czp.role import map_order  # noqa: E402
 
 # the all-way stop's properties hold for m >= e (074 C8 V1): checked at C8's arena e (0.25 s, no bias), where that
 # row was verified. On Autoware's tracks (e 0.55 s, 078 P2 EV4) stopped_first is unusable and the row is stock
-P = czp.load_params().override(source="test: 074 C8 arena e", role_time_error_e=0.25, role_time_bias=0.0)
+P = czp.load_params().override(source="test: 074 C8 arena e", role_time_error_e=0.25, arrival_bias=0.0,
+                                                                  rest_stamp_bias=0.0)
 CONV = czp.load_conventions()
 CAR = P.capability("car", v_max=8.0)
 N_CASES = int(os.environ.get("CZP_PROPERTY_CASES", "400"))

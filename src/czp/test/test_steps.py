@@ -24,7 +24,10 @@ from czp.role import map_order, map_priority, obstruction_side, right_of, stoppe
 P = czp.load_params()
 CONV = czp.load_conventions()
 # the all-way stop's readings at 074 C8's arena e (0.25 s, no bias), where m >= e holds (params.yaml's e is Autoware's)
-P_C8 = P.override(source="test: 074 C8 arena e", role_time_error_e=0.25, role_time_bias=0.0)
+P_C8 = P.override(source="test: 074 C8 arena e", role_time_error_e=0.25, arrival_bias=0.0,
+                rest_stamp_bias=0.0)
+# exact rest stamps (decide_all's walkthroughs give every car the truth): no lag to correct
+P_EXACT = P.override(source="test: exact stamps", rest_stamp_bias=0.0)
 CAR = P.capability("car", v_max=6.0)
 
 
@@ -134,7 +137,7 @@ def test_four_way_two_cars_tie_right_before_left():
     """Walkthrough: two cars at a tie at an all-way stop: B (on A's right) goes, A waits."""
     z = four_way(2)
     ags = [car("A"), car("B")]
-    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.05}, P, t=3.0, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.05}, P_EXACT, t=3.0, quiet_since=-math.inf)
     assert d["B"].kind == GO and d["A"].kind != GO
 
 
@@ -169,10 +172,34 @@ def test_rest_tie_binds_after_a_mutual_stop():
     z = Zone("x", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
     ags = [car("A"), car("B")]
     guard = P.stop_dwell + CAR.launch_dead + P.see_delay
-    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - 0.1, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P_EXACT, t=guard - 0.1, quiet_since=-math.inf)
     assert d["B"].kind != GO and d["A"].kind != GO
-    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard + 0.1, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P_EXACT, t=guard + 0.1, quiet_since=-math.inf)
     assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
+
+
+def test_rest_tie_guard_from_the_corrected_rest_stamp():
+    """078 P2c: the other's rest stamp from Autoware's tracks reads its stop rest_stamp_bias (0.7 s) late; the
+    fresh-rest guard of rest_tie counts from the corrected stamp, so the tie still binds (B goes, A yields) and B goes
+    that much sooner after the stamp. The own rest (odometry) is not corrected."""
+    z = Zone("x", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    ags = [car("A"), car("B")]
+    bias = P.rest_stamp_bias
+    assert bias > 0
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - bias - 0.1, quiet_since=-math.inf)
+    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait" and d["A"].kind != GO
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - bias + 0.1, quiet_since=-math.inf)
+    assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
+
+
+def test_stopped_first_corrects_the_rest_stamp():
+    """078 P2c: stopped_first reads the other's stamp less rest_stamp_bias: a stamp 0.85 s after the own rest, read
+    0.7 s late, is a tie, not first."""
+    o = car("B")
+    p = P_C8.override(source="test", rest_stamp_bias=0.7)
+    assert stopped_first(10.0, 10.85, 20, 0.2, o, p).reading == TIE
+    assert stopped_first(10.0, 10.85, 20, 0.2, o, P_C8).reading == FIRST
 
 
 def test_narrow_round_two_follows_the_obstruction():
@@ -432,9 +459,9 @@ def test_entry_band_bias_correction():
     -0.24 s (the track predicts the other early) its arrival is read 0.24 s later, the own slack 0.24 s larger."""
     own, o = car("A", s_entry=20.0, v=6.0), car("B", s_entry=21.0, v=6.0)
     oi, ti = own_interval(own), other_interval(o, P)
-    p0 = P.override(source="test", role_time_bias=0.0)
+    p0 = P.override(source="test", arrival_bias=0.0)
     b0 = band(oi, ti, o, p0, mode="entry")
-    b1 = band(oi, ti, o, P.override(source="test", role_time_bias=-0.24), mode="entry")
+    b1 = band(oi, ti, o, P.override(source="test", arrival_bias=-0.24), mode="entry")
     assert abs((b1.slack_own - b0.slack_own) - 0.24) < 1e-9 and abs((b0.slack_other - b1.slack_other) - 0.24) < 1e-9
 
 

@@ -240,12 +240,12 @@ G32. An item with no open gap can be migrated now.
 | 2 | `basic/` other towns: town02_ego_drive, town03, town05, town10 | CARLA | - | migrated 2026-11-16 (suites/towns, 4 of 4) |
 | 3 | `basic/town02_episode_change` | Epic only (Low crashes) | - | migrated 2026-11-16 (suites/episode_change, passed) |
 | 4 | `awf/` UC-ACC-001-0001 | CARLA | - | migrated 2026-11-15 (`safety_suite` nightly, 27/27 and 9/9) |
-| 5 | `awf/` with CenterPoint | CARLA + CUDA | - | ready to migrate |
-| 6 | `tutorial/town01_follow_to_goal` | CARLA | - | ready to migrate |
+| 5 | `awf/` with CenterPoint | CARLA + CUDA | - | migrated 2026-11-16 (safety_suite centerpoint, 27/27 and 9/9) |
+| 6 | `tutorial/town01_follow_to_goal` | CARLA | - | migrated 2026-11-16 (`scenarios/projects/basic` suites/tutorial) |
 | 7 | `multi_av/town01_two_av` | CARLA, two Autoware | G4 | blocked |
-| 8 | Demo incidents i1 to i5 | CARLA | - | ready to migrate |
-| 9 | Demo incident i6 | CARLA + CUDA | - | ready to migrate |
-| 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA | - | ready to migrate |
+| 8 | Demo incidents i1 to i5 | CARLA | G33 | blocked |
+| 9 | Demo incident i6 | CARLA + CUDA | G33 | blocked |
+| 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA | G33 | blocked |
 | 11 | Demo tour `demo/town01_tour` | CARLA | G4 | blocked |
 | 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | ready to migrate |
 | 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | ready to migrate |

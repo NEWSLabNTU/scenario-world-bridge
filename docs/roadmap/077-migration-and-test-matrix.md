@@ -426,3 +426,40 @@ Isaac's rear contact (inventory row 18).
   - `suites/towns.yaml` (item 2): town02, town03, town05, town10 passed, 4 of 4; the keeper
     loaded each town between runs (11 to 13 s each), no extra episode; the reference 020.
   - `suites/episode_change.yaml` (item 3): passed (03-06-30), the town load inside the run.
+- **Step 4, items 5 and 6 (2026-11-16).** Item 6: `scenarios/projects/basic`'s
+  `suites/tutorial.yaml`, town01_follow_to_goal passed, `physical_verdict` passed. Item 5:
+  safety_suite's `centerpoint.yaml` (a copy), Autoware 1.5.0 with
+  `lidar_detection_model: centerpoint`, `lifetime: run`: UC-ACC-001-0001 passed (27
+  variants, 2126 s), and UC-AEB-001-0001, expected to fail (2 of 9 with centerpoint_tiny,
+  roadmap 020), passed all 9 (631 s): `passed (expected failed)`, exit 1. Since 2026-11-15
+  `centerpoint` is the full model (roadmap 074 S5). The expectation is dropped and the
+  README says so. This host has no TensorRT 10.8 runtime (`just setup-tensorrt`), so each
+  Autoware start rebuilt the engines.
+- **241's Isaac T2 cells (2026-11-16, origin/main 979ef22, Isaac Sim 6.1, Town01,
+  drive_to_goal)**: autoware passed (the first run `error`, below), simple, launch
+  (`agent: own`), command (simple_pilot, `vehicle_side: true`) and none (a scenario SSv2
+  drives itself) passed; launch and command with `isaac: {ego: <aib's ego.yaml with
+  ground_truth>}`, which the ground truth fix (3b95116) makes unnecessary: 241 reruns
+  them as a user writes them once it is on origin. Report on the NAS, "2026-11-16 swb 077
+  T2 Isaac cells".
+- New gaps (2026-11-16):
+  - **G33, the storyboard log per run.** incident_judge needs a log of SSv2's storyboard
+    state changes (`/simulation/context`); nothing records it in a run (033 recorded it
+    from scratch scripts). Blocks items 8 to 11.
+  - **G34**: a `kind: none` pilot on an entity whose controller is Autoware is not refused;
+    the run fails after 119 s naming the vehicle side instead.
+  - **G35**: `project check` re-hashes every fetched file (25 GB for the Isaac set) on each
+    call; it should compare sizes and times against the lock and leave hashing to `assets
+    check`.
+  - **G36**: the Isaac world server finds car bodies under `SWB_VEHICLE_USD` (default a host
+    path, `/mnt/disk1/carla-usd/vehicles`), which the stack does not set: on a host without
+    that path every car, the ego and the NPCs, is a box, so the sensors see boxes.
+  - **G37**: the first Isaac run on a host can end `error` at the ego's spawn. 241's logs: the
+    preload ego's sensors were not ready after 60 warm-up frames; the ego's spawn at 01:59:33
+    was followed by two minutes of MDL shader compilation (about 380 lines of
+    rtx.neuraylib/omni.rtx.materials, Town01's materials on the sensors' first renders), and
+    the bridge's 120 s spawn wait ran out (exit 75). The rerun, shaders cached, spawned in
+    0.2 s.
+  - **G38**: CARLA's agents (carla_basic, and any pilot using them) import shapely and
+    networkx; a host without them crash-loops the pilot with ModuleNotFoundError (241's step
+    9 shard; seen here too).

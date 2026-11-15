@@ -1,14 +1,13 @@
-# The same use cases with Autoware's CenterPoint detector instead of clustering. A known
-# issue (roadmap 020): UC-AEB-001-0001 passes only 2 of its 9 variants with CenterPoint (the
-# ego reaches the standing pedestrian), so its run is expected to fail; UC-ACC-001-0001
-# passes 27/27. The suite's exit status is 0 while the runs end as expected: a fixed AEB
-# shows as "passed (expected failed)" and exits 1, telling you to drop the expectation.
+# The same use cases with Autoware's CenterPoint detector (the full model, the profile's
+# choice for lidar_detection_model:=centerpoint) instead of clustering. Both pass every
+# variant (2026-11-16: UC-ACC-001-0001 27/27, UC-AEB-001-0001 9/9). With centerpoint_tiny,
+# which the name meant before 2026-11-15, UC-AEB passed only 2 of 9 (roadmap 020): a failure
+# here is news again.
 scenarios: [scenarios/awf/]
 pilot_args:
   ego: {lidar_detection_model: centerpoint}
-expect:
-  awf/UC-AEB-001-0001_Standing-pedestrian.yaml: failed
+expect: {}
 retry: {on: error, times: 1}
 logging:
-  # the expected AEB failure needs its logs, not a rosbag
+  # a failure needs its logs, not a rosbag
   keep: {passed: result, failed: standard, error: full}

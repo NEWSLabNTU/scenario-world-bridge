@@ -8,7 +8,7 @@ night, and tell a new failure from a known one.
 | `scenarios/awf/UC-ACC-001-0001_Preceding_vehicle_partial_deceleration.yaml` | a car 30 m ahead slows at 1.5 m/s^2 to a lower speed; the ego must match it without a collision and without braking harder than 1.5 m/s^2. 27 variants (ego speed x car speed x its target) |
 | `scenarios/awf/UC-AEB-001-0001_Standing-pedestrian.yaml` | a pedestrian stands in the lane ahead; the ego must stop short, braking no harder than 6 m/s^2. 9 variants (ego speed x distance) |
 | `suites/nightly.yaml` | both, with Autoware's default lidar detector (clustering); nothing expected to fail |
-| `suites/centerpoint.yaml` | both with the CenterPoint detector; the AEB run is expected to fail (a known issue: 2 of its 9 variants pass) |
+| `suites/centerpoint.yaml` | both with the CenterPoint detector |
 
 Both use cases come from
 [autowarefoundation/odd-usecase-scenario](https://github.com/autowarefoundation/odd-usecase-scenario)
@@ -64,8 +64,8 @@ between them.
 
 `nightly.yaml`: two lines `passed  <run id>  <run directory>` and exit status 0, in about
 45 minutes (measured on 2026-10-10: ACC 27/27 in 2098 s, AEB 9/9 in 663 s, CARLA at Epic
-quality, 32 cores, one RTX GPU). `centerpoint.yaml`: ACC `passed`, AEB
-`failed (expected failed)`, exit status 0. When the AEB failure is fixed, that line reads
-`passed (expected failed)` and the suite exits 1: drop the expectation then.
+quality, 32 cores, one RTX GPU). `centerpoint.yaml`: the same two `passed` lines, in about
+46 minutes (measured on 2026-11-16: ACC 27/27 in 2126 s, AEB 9/9 in 631 s); without the
+TensorRT 10.8 runtime each Autoware start first rebuilds CenterPoint's engines.
 
 `assets/`, `state/` and `runs/` are made on each host and are not committed.

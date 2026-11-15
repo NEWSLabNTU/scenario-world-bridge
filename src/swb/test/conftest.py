@@ -218,3 +218,10 @@ def pins_kept(monkeypatch):
     """The test host's checkout is not under test (the tests of the drift give their own)."""
     from swb import tools
     monkeypatch.setattr(tools, "submodule_drift", lambda workspace: [])
+
+
+@pytest.fixture(autouse=True)
+def agent_modules_present(monkeypatch):
+    """CARLA's agents' modules taken as importable (the tests of G38 give their own)."""
+    from swb import tools
+    monkeypatch.setattr(tools, "missing_modules", lambda modules, python="python3": [])

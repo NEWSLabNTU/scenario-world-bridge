@@ -1,5 +1,6 @@
 """The host tools the project workflow needs, and their floors (roadmap 077, G26); the
-GPU's state when a stack starts (G27); a workspace checked out off its pins (G31).
+GPU's state when a stack starts (G27); a workspace checked out off its pins (G31); the
+Python modules CARLA's agents import (G38).
 
 ``project check`` (so the stack before it starts) refuses a play_launch older than the
 workflow needs: an older one parses the stack's launch differently and fails later, far from
@@ -147,3 +148,39 @@ def drift_note(drift: list) -> str:
     return ("the workspace is off its pins: " + "; ".join(shown) + ". A build from it may "
             "run other code than the pins name: `git submodule update --init --recursive`, "
             "then rebuild (unless you moved them on purpose)")
+
+
+# CARLA's agents (PythonAPI/carla/agents, the carla_basic pilot) import these at start; a host
+# without them crash-loops the pilot (roadmap 077, G38)
+AGENT_MODULES = ("shapely", "networkx")
+AGENT_FIX = ("sudo apt install python3-shapely python3-networkx, or "
+             "python3 -m pip install --user shapely networkx")
+
+
+def missing_modules(modules, python="python3"):
+    """The modules of ``modules`` that do not import under ``python`` (the interpreter the
+    stack's pilots run with, first on PATH); [] when that python cannot be run."""
+    missing = []
+    for m in modules:
+        try:
+            r = subprocess.run([python, "-c", f"import {m}"], capture_output=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return []
+        if r.returncode != 0:
+            missing.append(m)
+    return missing
+
+
+def agent_findings(settings: dict, missing_fn=None) -> list:
+    """``project check``'s finding for a carla_basic pilot on a host without its modules."""
+    pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
+    users = sorted(k for k, p in pilots.items()
+                   if isinstance(p, dict) and p.get("kind") == "carla_basic")
+    if not users:
+        return []
+    missing = (missing_fn or missing_modules)(AGENT_MODULES)
+    if not missing:
+        return []
+    return [Finding("host", f"python3 cannot import {', '.join(missing)}, which CARLA's agents "
+                    f"need (the carla_basic pilot{'s' if len(users) > 1 else ''} "
+                    f"{', '.join(users)})", AGENT_FIX, refused=True)]

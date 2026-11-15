@@ -83,6 +83,15 @@ export PATH=$HOME/.local/bin:$PATH    # where pip --user puts play_launch
 play_launch --version
 ```
 
+CARLA's own driving agents, which the `carla_basic` pilot runs, need two more Python
+modules in the same Python; `project check` refuses a `carla_basic` pilot without them:
+
+```bash
+sudo apt install python3-shapely python3-networkx
+```
+
+(or `python3 -m pip install --user shapely networkx` without sudo).
+
 Check that pip did not install a newer setuptools for your user as well: one in `~/.local`
 shadows Ubuntu's and breaks a later `colcon build --symlink-install`
 (`error: option --editable not recognized`):

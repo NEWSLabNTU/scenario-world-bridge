@@ -89,3 +89,22 @@ def test_submodule_drift_finds_a_nested_checkout_off_its_pin(tmp_path):
     assert f"src/comp/deps/lib at {have[:7]} (pinned {pinned[:7]})" in note
     assert "--recursive" in note
     assert real.drift_note([]) == ""
+
+
+
+def test_a_carla_basic_pilot_without_shapely_or_networkx_is_refused():
+    """roadmap 077, G38: 241's carla_basic pilots crash-looped on ModuleNotFoundError."""
+    s = {"pilots": {"lead": {"kind": "carla_basic"}, "ego": {"kind": "autoware"}}}
+    [f] = tools.agent_findings(s, missing_fn=lambda mods: ["shapely", "networkx"])
+    assert f.refused and "cannot import shapely, networkx" in f.what and "lead" in f.what
+    assert "python3-shapely" in f.fix and "pip install --user shapely networkx" in f.fix
+    assert tools.agent_findings(s, missing_fn=lambda mods: []) == []
+    assert tools.agent_findings({"pilots": {"ego": {"kind": "simple"}}},
+                                missing_fn=lambda mods: ["shapely"]) == []
+
+
+def test_missing_modules_imports_each(tmp_path, monkeypatch):
+    import sys
+    monkeypatch.undo()   # the autouse stub of missing_modules
+    assert tools.missing_modules(["json", "surely_not_a_module_x"], sys.executable) == \
+        ["surely_not_a_module_x"]

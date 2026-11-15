@@ -463,3 +463,7 @@ Isaac's rear contact (inventory row 18).
   - **G38**: CARLA's agents (carla_basic, and any pilot using them) import shapely and
     networkx; a host without them crash-loops the pilot with ModuleNotFoundError (241's step
     9 shard; seen here too).
+- **G38 built (2026-11-16).** `project check` (so the stack) refuses a `carla_basic` pilot
+  when the `python3` first on `PATH` cannot import shapely or networkx, naming the pilots
+  and the apt and pip fixes; install.md lists them. Ruling: `carla_basic` only, since a
+  `command` or `launch` pilot's imports are its own.

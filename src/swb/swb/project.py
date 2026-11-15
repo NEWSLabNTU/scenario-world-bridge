@@ -672,6 +672,7 @@ def check_project(path) -> list:
         return [Finding(str(path or "."), str(e), refused=True)]
     out = check_schema(settings)
     out += toolsmod.findings()
+    out += toolsmod.agent_findings(settings)
     out += assets.check(project, settings)
     missing = False
     for v in settings.get("vehicles") or []:

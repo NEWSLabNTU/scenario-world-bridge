@@ -663,6 +663,101 @@ def load_explain(entry, sc):
     return {"explain": out}
 
 
+# --- S5 on Autoware, the Y merge stream (swb 118) ------------------------------------------------
+def _json_member(p, member):
+    """A JSON file, or one inside a tar (`member`: its name in the tar)."""
+    if not member:
+        return json.load(open(p))
+    import tarfile
+    with tarfile.open(p) as t:
+        return json.load(t.extractfile(member))
+
+
+@class_fn("roundabout_cell")
+def _roundabout_cell(row):
+    """roundabout_map.csv's class, with '*' when an equilibrium has A forcing B (eq_forced), as
+    roundabout_arena classes the arena's cells."""
+    c = row.get("class") or "?"
+    return c + "*" if (num(row.get("eq_forced")) or 0) > 0 and c not in ("!", "?", "M") else c
+
+
+def load_s5_autoware(entry, sc):
+    """s5_aw.py's s5_table.json (runs: v, gap, seed, go, contact, pet, uA, uB): one cell per
+    (v, lag) for the entry's configuration (`config`, the class map's y; `config_name` in the
+    tooltip). Class: g B turned ahead of A in every seed, w B waited in every seed, ! a contact,
+    c both over seeds."""
+    by = {}
+    for p in paths(entry):
+        if not os.path.exists(p):
+            raise FileNotFoundError(2, "missing", p)
+        for r in _json_member(p, entry.get("member"))["runs"]:
+            by.setdefault((r["v"], r["gap"]), []).append(r)
+    cells, name = [], entry.get("config_name", entry.get("label", ""))
+    for (v, gap), rs in sorted(by.items()):
+        go, contact = sum(bool(r["go"]) for r in rs), sum(bool(r["contact"]) for r in rs)
+        cls = "!" if contact else "g" if go == len(rs) else "w" if go == 0 else "c"
+        pets = "/".join(f"{r['pet']:g}" for r in rs if r.get("pet") is not None) or "-"
+        lags = "/".join(f"{r['lag']:g}" for r in rs if r.get("lag") is not None)
+        ub = st.mean(r["uB"] for r in rs)
+        summ = f"{name}: went {go}/{len(rs)}, contact {contact}, PET {pets} s, uB {ub:+.3f}, measured lag {lags} s"
+        c = {"gap": gap, "config": entry["config"], "v": v}
+        c.update(entry.get("fixed") or {})
+        cells.append({"ctx": c, "class": cls, "eq": [], "outcomes": f"{go} went / {len(rs)}", "eq_summary": summ})
+    return {"cells": cells}
+
+
+def load_ymerge_stream(entry, sc):
+    """ymerge_game's stream.jsonl (one row per draw, dt, rule and N): one cell per (N, h_mean, rule),
+    classed by A's externality on the stream (its cost minus the same stream's with A far back):
+    . below 0.05, + below 0.2, # from 0.2, ! a contact."""
+    by = {}
+    for p in paths(entry):
+        for r in read_jsonl(p):
+            by.setdefault((r["n"], r["h_mean"], r["rule"]), []).append(r)
+    cells = []
+    for (n, hm, rule), rs in sorted(by.items()):
+        ext, ua = st.mean(r["externality"] for r in rs), st.mean(r["uA"] for r in rs)
+        k = sum(bool(r["contact"]) for r in rs)
+        cls = "!" if k else "." if ext < 0.05 else "+" if ext < 0.2 else "#"
+        c = {"n": n, "h_mean": hm, "rule": rule}
+        c.update(entry.get("fixed") or {})
+        cost = st.mean(r["cost_stream"] for r in rs)
+        slots = [r["slot"] for r in rs if r.get("slot") is not None]
+        slot = f"{st.mean(slots):.2f}" if slots else "-"
+        cells.append({"ctx": c, "class": cls, "eq": [], "outcomes": f"contact {k}/{len(rs)}",
+                      "eq_summary": f"A's externality {ext:.3f}, stream cost {cost:.3f}, uA {ua:+.3f}, slot {slot}"})
+    return {"cells": cells}
+
+
+def load_e3_knobs(entry, sc):
+    """E3's runs tars (runs/<variant>/c3.jsonl inside): Autoware's cruise-knob settings as B
+    strategies, B named aw_<variant>. Payoff points per (d0, dv): (A rule, aw_<variant>), means over
+    seeds; no cells (the class map keeps C3a's stock outcome)."""
+    import tarfile
+    by = {}
+    for p in paths(entry):
+        if not os.path.exists(p):
+            raise FileNotFoundError(2, "missing", p)
+        with tarfile.open(p) as t:
+            for m in t.getmembers():
+                parts = m.name.split("/")
+                if len(parts) != 3 or parts[2] != "c3.jsonl":
+                    continue
+                for line in t.extractfile(m).read().decode().splitlines():
+                    if not line.strip():
+                        continue
+                    r = json.loads(line)
+                    if r.get("scenario_rc", 0) not in (0, None):
+                        continue
+                    c = {"d0": num(r["d0"]), "dv": num(r["dv"]), **entry.get("fixed", {})}
+                    by.setdefault(ctx_key(c), {"ctx": c, "u": {}})["u"].setdefault((r["a"], f"aw_{parts[1]}"), []).append(r)
+    payoffs = []
+    for v in by.values():
+        pairs = [[a, b, st.mean(r["uA"] for r in rs), st.mean(r["uB"] for r in rs)] for (a, b), rs in sorted(v["u"].items())]
+        payoffs.append({"ctx": v["ctx"], "pairs": pairs, "eq": [], "label": entry.get("label")})
+    return {"payoffs": payoffs}
+
+
 # --- progress ------------------------------------------------------------------------------------
 def load_d2(entry, sc):
     """A D2 share as text ('payoffs inside the arena's 95 % interval: 44 of 48') or a summary.json's

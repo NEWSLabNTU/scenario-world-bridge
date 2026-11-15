@@ -82,6 +82,12 @@ scenarios:
           path: /mnt/p5plus/aeon/coop/s0/c3/c3b/c3.jsonl
           b_name: autoware_perception
           fixed: {vb: 6.0}
+        - loader: e3_knobs
+          label: E3, Autoware's cruise knobs as B strategies (C3a, ground truth; aw_<variant>)
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop E3 autoware knobs/runs.tar",
+                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop E3 autoware knobs/runs_s12.tar"]
+          fixed: {vb: 6.0}
+          link: "logs/2026 SSv2 on CARLA/2026-11-14 coop E3 autoware knobs"
         - loader: fit
           label: B fitted to C3a (gt)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C3a rerun/fit_gt/fit.json"
@@ -120,8 +126,8 @@ scenarios:
   crossing:
     title: Unsignalled crossing
     axes: [dt, v]
-    facets: [r]
-    labels: {dt: "dt = t_A - t_B arrival (s)", v: "speed (m/s)", r: "right of way"}
+    facets: [r, model, grid]
+    labels: {dt: "dt = t_A - t_B arrival (s)", v: "speed (m/s)", r: "right of way", grid: "kinematic grid (coarse: dt step 0.5 s)", model: "model (074 defaults: launch dead time, hold to rest, continuous PET)"}
     legend:
       A: "A crosses first"
       B: "B crosses first"
@@ -137,8 +143,26 @@ scenarios:
     tiers:
       kinematic:
         - loader: kinematic_map
-          label: S2 kinematic (equal speeds, fault 0.5)
+          label: S2 kinematic on the 074 defaults (car lags, fault 0.5; e995a7b)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/s2_equal_new/crossing_map.csv"
+          fixed: {model: "074 defaults", grid: coarse}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun"
+        - loader: kinematic_map
+          label: S2 kinematic fine grid on the 074 defaults (dt +-1 s, step 0.1)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/s2_fine_new/crossing_map.csv"
+          fixed: {model: "074 defaults", grid: fine}
+        - loader: kinematic_map
+          label: S2 kinematic, legacy (car lags, D2)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/kinematic/equal_lags/crossing_map.csv"
+          fixed: {model: legacy, grid: coarse}
+        - loader: kinematic_map
+          label: S2 kinematic fine grid, legacy (car lags, D2)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/kinematic/fine_lags/crossing_map.csv"
+          fixed: {model: legacy, grid: fine}
+        - loader: kinematic_map
+          label: S2 kinematic, legacy ideal car (equal speeds, fault 0.5)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing kinematic/equal_fault0.5/crossing_map.csv"
+          fixed: {model: "legacy, ideal car", grid: coarse}
         - loader: kinematic_resim
           game: crossing
           fixed: {r: none}
@@ -155,16 +179,30 @@ scenarios:
             - {ctx: {dt: 0.3, v: 10.0}, a: tinfp2, b: hold}
       arena:
         - loader: arena_runs
-          label: S2 arena, D2 round 2
+          label: S2 arena, the reference policies, scored with the continuous PET (hold-stop check)
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v14/runs.csv"]
+          fixed: {r: none, model: "074 defaults"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check"
+        - loader: arena_runs
+          label: S2 arena with HOLD_STOP in its policies (e995a7b rerun; not the reference)
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s2_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s2_v14/runs.csv"]
+          fixed: {r: none, model: "074, arena HOLD_STOP"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s2_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+        - loader: arena_runs
+          label: "S2 arena, D2 round 2 (legacy; D2 41 / 51 %, 074 defaults 70 / 71 %)"
           path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v10/runs.csv",
                  "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v14/runs.csv"]
-          fixed: {r: none}
+          fixed: {r: none, model: legacy}
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v1*/summary.json"
           summary_class: class_arena
           summary_keys: [dt, v]
         - loader: d2
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v10/summary.json",
-                 "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v14/summary.json"]
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v14/summary.json"]
     planned: {swb_light: "S2 swb light: not run", swb_autoware: "not run"}
 
   cutout:
@@ -470,6 +508,460 @@ scenarios:
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop N1 N2/n1/n1_sizes.json"
         - loader: n4
           path: /mnt/p5plus/aeon/coop/n4/runs/n4_cells.jsonl
+
+  narrow:
+    title: Narrow passage (S4)
+    axes: [dt, v]
+    facets: [wn, r, model, grid]
+    labels: {dt: "dt = t_A - t_B arrival (s; > 0: B nearer)", v: "speed (m/s)", wn: "W_n, the narrow section (m)", r: "obstacle (r B: on A's side, A yields)", grid: "kinematic grid (coarse: dt step 0.5 s)", model: "model (074 defaults: launch dead time, hold to rest, continuous PET)"}
+    legend:
+      A: "A through first"
+      B: "B through first"
+      C: "chicken: both orders are equilibria"
+      W: "war of attrition: an equilibrium where both stop and wait"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    rules:
+      A: [go, t0.5p2, t0.5p5, t0.5yp2, t0.5yp5, t1.5p2, t1.5p5, t1.5yp2, t1.5yp5, t3p2, t3p5, t3yp2, t3yp5, tinfp2, tinfp5, tinfyp2, tinfyp5, flash, yb1p2, yb1p5, yb2p2, yb2p5, yb4p2, yb4p5]
+      B: [go, t0.5p2, t0.5p5, t0.5yp2, t0.5yp5, t1.5p2, t1.5p5, t1.5yp2, t1.5yp5, t3p2, t3p5, t3yp2, t3yp5, tinfp2, tinfp5, tinfyp2, tinfyp5, flash, yb1p2, yb1p5, yb2p2, yb2p5, yb4p2, yb4p5]
+    state_machines: [crossing_A, crossing_B]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "S4 kinematic on the 074 defaults (car lags, fault 0.5; e995a7b)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/s4_map_new/narrow_map.csv"
+          fixed: {model: "074 defaults", grid: coarse}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun"
+        - loader: kinematic_map
+          label: "S4 kinematic fine grid on the 074 defaults (dt +-1 s, step 0.1)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/s4_fine_new/narrow_map.csv"
+          fixed: {model: "074 defaults", grid: fine}
+        - loader: kinematic_map
+          label: "S4 kinematic, D2 round 2 (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/kinematic_map/narrow_map.csv"
+          fixed: {model: legacy, grid: coarse}
+        - loader: kinematic_map
+          label: "S4 kinematic fine grid, D2 round 2 (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/kinematic_fine/narrow_map.csv"
+          fixed: {model: legacy, grid: fine}
+      arena:
+        - loader: arena_runs
+          label: "S4 arena, the reference policies, scored with the continuous PET (hold-stop check), r none"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/runs.csv"]
+          fixed: {r: none, model: "074 defaults"}
+          ua_col: uA
+          ub_col: uB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn*/summary.json"
+          summary_class: class_arena_none
+          summary_keys: [dt, v, wn]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check"
+        - loader: arena_runs
+          label: "S4 arena, the reference policies, scored with the continuous PET (hold-stop check), r B"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/runs.csv"]
+          fixed: {r: B, model: "074 defaults"}
+          ua_col: uA_rB
+          ub_col: uB_rB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn*/summary.json"
+          summary_class: class_arena_B
+          summary_keys: [dt, v, wn]
+        - loader: arena_runs
+          label: "S4 arena with HOLD_STOP in its policies (e995a7b rerun; not the reference), r none"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s4_wn6/runs.csv"]
+          fixed: {r: none, model: "074, arena HOLD_STOP"}
+          ua_col: uA
+          ub_col: uB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s4_wn*/summary.json"
+          summary_class: class_arena_none
+          summary_keys: [dt, v, wn]
+        - loader: arena_runs
+          label: "S4 arena with HOLD_STOP in its policies (e995a7b rerun; not the reference), r B"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s4_wn6/runs.csv"]
+          fixed: {r: B, model: "074, arena HOLD_STOP"}
+          ua_col: uA_rB
+          ub_col: uB_rB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s4_wn*/summary.json"
+          summary_class: class_arena_B
+          summary_keys: [dt, v, wn]
+        - loader: arena_runs
+          label: "S4 arena, D2 round 2 (legacy; D2 35 / 38 %, outcomes 73 / 78 %; 074 defaults 56 / 42 %, 90 / 91 %), r none"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn6/runs.csv"]
+          fixed: {r: none, model: legacy}
+          ua_col: uA
+          ub_col: uB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn*/summary.json"
+          summary_class: class_arena_none
+          summary_keys: [dt, v, wn]
+        - loader: arena_runs
+          label: "S4 arena, D2 round 2 (legacy), r B"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn6/runs.csv"]
+          fixed: {r: B, model: legacy}
+          ua_col: uA_rB
+          ub_col: uB_rB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn*/summary.json"
+          summary_class: class_arena_B
+          summary_keys: [dt, v, wn]
+        - loader: d2
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/summary.json"]
+    planned: {swb_light: "not run", swb_autoware: "not run"}
+
+  left_turn:
+    title: Unprotected left turn (S5)
+    axes: [h, n]
+    facets: [model]
+    labels: {h: "oncoming queue's mean time headway (s)", n: "oncoming cars", model: "model (074 defaults: launch dead time, hold to rest, continuous PET)"}
+    legend:
+      H: "every equilibrium: C1 holds, A waits for its gap"
+      Y: "every equilibrium: C1 yields"
+      C: "both"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    rules:
+      A: ["1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6", "6.5", "7", "7.5", "8"]
+      B: [hold, yield]
+    notes:
+      - "A turns left across an oncoming queue; A's rule is its accepted gap G (s), C1's (the first oncoming car) hold or yield. Autoware as the turner: the left_turn_aw view."
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "S5 kinematic on the 074 defaults (car lags; e995a7b)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/s5_new/left_turn_map.csv"
+          fixed: {model: "074 defaults"}
+          eq_col: eq
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun"
+        - loader: kinematic_map
+          label: "S5 kinematic, revised model (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn arena/kinematic/left_turn_map.csv"
+          fixed: {model: legacy}
+          eq_col: eq
+        - loader: kinematic_map
+          label: "S5 as U1 composes it (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn arena/kinematic/left_turn_map.csv"
+          fixed: {model: "U1 composition"}
+          class_col: class_U1
+          eq_col: eq_U1
+      arena:
+        - loader: arena_runs
+          label: S5 arena on the 074 defaults (continuous PET; e995a7b rerun)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s5/runs.csv"
+          fixed: {model: "074 defaults"}
+          a_col: G
+          b_col: c1
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s5/summary.json"
+          summary_class: class_arena
+          summary_keys: [n, h]
+        - loader: arena_runs
+          label: "S5 arena (legacy; D2 49 %, 074 defaults 68 %)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn arena/arena/runs.csv"
+          fixed: {model: legacy}
+          a_col: G
+          b_col: c1
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn arena/arena/summary.json"
+          summary_class: class_arena
+          summary_keys: [n, h]
+        - loader: d2
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s5/summary.json"
+    planned: {swb_light: "not run", swb_autoware: "Autoware as the turner: the left_turn_aw view (lag x detector)"}
+
+  left_turn_aw:
+    title: Unprotected left turn on Autoware (S5)
+    axes: [gap, config]
+    facets: [v]
+    labels: {gap: "A's lag at B's decision (s; set)", config: "configuration (name on hover)", v: "A's speed (m/s)"}
+    legend:
+      g: "B (Autoware) turned ahead of A in every seed"
+      w: "B waited for A in every seed"
+      c: "both, over seeds"
+      "!": "a contact"
+    notes:
+      - "Configurations (the y axis): 0 centerpoint_tiny, first batch; 1 centerpoint_tiny; 2 full CenterPoint; 3 full CenterPoint + lat 2; 4 TransFusion; 5 centerpoint_tiny + lat 2."
+      - "Autoware is B, turning left; the oncoming A runs at v with a set lag at B's decision (s5_aw.py). Lat 2: the velocity smoother's lateral_acceleration_limits 2.0 (upstream 1.0). TransFusion sees nothing on CARLA's lidar (intensity 255 on every point)."
+    tiers:
+      swb_autoware:
+        - loader: s5_autoware
+          label: S5 on Autoware, first batch (centerpoint_tiny)
+          config: 0
+          config_name: tiny, first batch
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn autoware/s5_table.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn autoware"
+        - loader: s5_autoware
+          label: "S5 detectors: tiny (centerpoint_tiny)"
+          config: 1
+          config_name: "tiny (centerpoint_tiny)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 detectors/tiny.tar"
+          member: tiny/s5_table.json
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop S5 detectors"
+        - loader: s5_autoware
+          label: "S5 detectors: full CenterPoint"
+          config: 2
+          config_name: "full CenterPoint"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 detectors/full.tar"
+          member: full/s5_table.json
+        - loader: s5_autoware
+          label: "S5 detectors: full CenterPoint + lat 2"
+          config: 3
+          config_name: "full CenterPoint + lat 2"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 full lat2 and transfusion/full_lat2.tar"
+          member: full_lat2/s5_table.json
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop S5 full lat2 and transfusion"
+        - loader: s5_autoware
+          label: "S5 detectors: TransFusion"
+          config: 4
+          config_name: "TransFusion"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 detectors/transfusion.tar"
+          member: transfusion/s5_table.json
+        - loader: s5_autoware
+          label: "S5 detectors: tiny + lat 2"
+          config: 5
+          config_name: "tiny + lat 2"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 detectors/tiny_lat2.tar"
+          member: tiny_lat2/s5_table.json
+
+  roundabout:
+    title: Roundabout entry (U2)
+    axes: [tb, n]
+    facets: [h, row, courtesy, model]
+    labels: {tb: "tb, B's time to the stretch at t = 0 (s)", n: "cars on the ring", h: "ring headway (s)", row: "right of way (B n: B has it, A pays n for forcing B)", courtesy: "B may slow (courtesy)", model: "model (074 defaults: launch dead time, hold to rest, continuous PET)"}
+    legend:
+      A: "A joins ahead of B in every equilibrium"
+      B: "A joins behind B"
+      C: "both (chicken)"
+      "A*": "A ahead, an equilibrium where A forces B"
+      "B*": "A behind, an equilibrium where A forces B"
+      "C*": "both, an equilibrium where A forces B"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    rules:
+      A: [g1.5, g1.5c, g1.5p, g1.5pc, g2.5, g2.5c, g2.5p, g2.5pc, g3.5, g3.5c, g3.5p, g3.5pc, g5, g5c, g5p, g5pc, g8, g8c, g8p, g8pc, ginf, ginfc, ginfp, ginfpc]
+      B: [hold, slow, speed]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "U2 kinematic on the 074 defaults (car lags, fault 0.5; e995a7b), all"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/u2_new/roundabout_map.csv"
+          filter: {subset: all}
+          fixed: {row: "none", courtesy: "yes", model: "074 defaults"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic on the 074 defaults (car lags, fault 0.5; e995a7b), no_courtesy"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/u2_new/roundabout_map.csv"
+          filter: {subset: no_courtesy}
+          fixed: {row: "none", courtesy: "no", model: "074 defaults"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic on the 074 defaults (car lags, fault 0.5; e995a7b), row_B"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/u2_new/roundabout_map.csv"
+          filter: {subset: row_B}
+          fixed: {row: "B 0.5", courtesy: "yes", model: "074 defaults"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic on the 074 defaults (car lags, fault 0.5; e995a7b), row_B_no_courtesy"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/u2_new/roundabout_map.csv"
+          filter: {subset: row_B_no_courtesy}
+          fixed: {row: "B 0.5", courtesy: "no", model: "074 defaults"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic on the 074 defaults, fault 1, row_B"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/u2_fault1_new/roundabout_map.csv"
+          filter: {subset: row_B}
+          fixed: {row: "B 1", courtesy: "yes", model: "074 defaults"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic on the 074 defaults, fault 1, row_B_no_courtesy"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/u2_fault1_new/roundabout_map.csv"
+          filter: {subset: row_B_no_courtesy}
+          fixed: {row: "B 1", courtesy: "no", model: "074 defaults"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic (legacy), all"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout kinematic/map/roundabout_map.csv"
+          filter: {subset: all}
+          fixed: {row: "none", courtesy: "yes", model: "legacy"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic (legacy), no_courtesy"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout kinematic/map/roundabout_map.csv"
+          filter: {subset: no_courtesy}
+          fixed: {row: "none", courtesy: "no", model: "legacy"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic (legacy), row_B"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout kinematic/map/roundabout_map.csv"
+          filter: {subset: row_B}
+          fixed: {row: "B 0.5", courtesy: "yes", model: "legacy"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic (legacy), row_B_no_courtesy"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout kinematic/map/roundabout_map.csv"
+          filter: {subset: row_B_no_courtesy}
+          fixed: {row: "B 0.5", courtesy: "no", model: "legacy"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic, fault 1 (legacy), row_B"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout kinematic/fault1/roundabout_map.csv"
+          filter: {subset: row_B}
+          fixed: {row: "B 1", courtesy: "yes", model: "legacy"}
+          class_fn: roundabout_cell
+        - loader: kinematic_map
+          label: "U2 kinematic, fault 1 (legacy), row_B_no_courtesy"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout kinematic/fault1/roundabout_map.csv"
+          filter: {subset: row_B_no_courtesy}
+          fixed: {row: "B 1", courtesy: "no", model: "legacy"}
+          class_fn: roundabout_cell
+      arena:
+        - loader: arena_runs
+          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), none"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          fixed: {row: "none", courtesy: "yes", model: "074 defaults"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
+          summary_class: class_arena_none0
+          summary_keys: [n, h, tb]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun"
+        - loader: arena_runs
+          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), B 1 (payoffs without the fault)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          fixed: {row: "B 1", courtesy: "yes", model: "074 defaults"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
+          summary_class: class_arena_B1
+          summary_keys: [n, h, tb]
+        - loader: arena_runs
+          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), B 2 (payoffs without the fault)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          fixed: {row: "B 2", courtesy: "yes", model: "074 defaults"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
+          summary_class: class_arena_B2
+          summary_keys: [n, h, tb]
+        - loader: arena_runs
+          label: "U2 arena (legacy; D2 66 %, outcomes 94 %; 074 defaults 66 %, 89 %), none"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/runs.csv"
+          fixed: {row: "none", courtesy: "yes", model: "legacy"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/summary.json"
+          summary_class: class_arena_none0
+          summary_keys: [n, h, tb]
+        - loader: arena_runs
+          label: "U2 arena (legacy), B 1 (payoffs without the fault)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/runs.csv"
+          fixed: {row: "B 1", courtesy: "yes", model: "legacy"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/summary.json"
+          summary_class: class_arena_B1
+          summary_keys: [n, h, tb]
+        - loader: arena_runs
+          label: "U2 arena (legacy), B 2 (payoffs without the fault)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/runs.csv"
+          fixed: {row: "B 2", courtesy: "yes", model: "legacy"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/summary.json"
+          summary_class: class_arena_B2
+          summary_keys: [n, h, tb]
+        - loader: d2
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
+    planned: {swb_light: "swb 139 adds U2 on Town03 through swb", swb_autoware: "not run"}
+
+  ymerge:
+    title: Y merge, 45 deg (N5)
+    axes: [dt, v]
+    facets: [r, model, grid]
+    labels: {dt: "dt = t_A - t_B at the merge point (s; > 0: B nearer)", v: "speed (m/s)", r: "right of way", grid: "kinematic grid (coarse: dt step 0.5 s)", model: "model (074 defaults: launch dead time, hold to rest, continuous PET)"}
+    legend:
+      A: "A (the diagonal) merges first"
+      B: "B (the main road) merges first"
+      C: "both orders are equilibria"
+      W: "an equilibrium with both stopped"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    rules:
+      A: [go, t0.5p2, t0.5p5, t0.5yp2, t0.5yp5, t1.5p2, t1.5p5, t1.5yp2, t1.5yp5, t3p2, t3p5, t3yp2, t3yp5, tinfp2, tinfp5, tinfyp2, tinfyp5]
+      B: [hold, react, yb1p2, yb1p5, yb2p2, yb2p5, yb4p2, yb4p5]
+    state_machines: [crossing_A, crossing_B]
+    notes:
+      - "The 2-car map; A merging into a stream of N cars: the ymerge_stream view."
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "Y merge kinematic on the 074 defaults (car lags, fault 0.5; e995a7b)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/ym_new/ymerge_map.csv"
+          fixed: {model: "074 defaults", grid: coarse}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun"
+        - loader: kinematic_map
+          label: "Y merge kinematic fine grid on the 074 defaults (dt +-1 s, step 0.1)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/kinematic/ym_fine_new/ymerge_map.csv"
+          fixed: {model: "074 defaults", grid: fine}
+        - loader: kinematic_map
+          label: "Y merge kinematic, car lags (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/kin_lags/ymerge_map.csv"
+          fixed: {model: legacy, grid: coarse}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge"
+        - loader: kinematic_map
+          label: "Y merge kinematic fine grid, car lags (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/kin_lags_fine/ymerge_map.csv"
+          fixed: {model: legacy, grid: fine}
+        - loader: kinematic_map
+          label: "Y merge kinematic, ideal car (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/kin_ideal/ymerge_map.csv"
+          fixed: {model: "legacy, ideal car", grid: coarse}
+      arena:
+        - loader: arena_runs
+          label: "Y merge arena, the reference policies, scored with the continuous PET (hold-stop check)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v14/runs.csv"]
+          fixed: {r: none, model: "074 defaults"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check"
+        - loader: arena_runs
+          label: "Y merge arena with HOLD_STOP in its policies (e995a7b rerun; not the reference)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/ym_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/ym_v14/runs.csv"]
+          fixed: {r: none, model: "074, arena HOLD_STOP"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/ym_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+        - loader: arena_runs
+          label: "Y merge arena (legacy; D2 72 / 39 %, 074 defaults 70 / 48 %)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/arena_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/arena_v14/runs.csv"]
+          fixed: {r: none, model: "legacy"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/arena_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+        - loader: d2
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v14/summary.json"]
+    planned: {swb_light: "not run", swb_autoware: "not run"}
+
+  ymerge_stream:
+    title: Y merge into a stream (N5)
+    axes: [n, h_mean]
+    facets: [rule]
+    labels: {n: "N, cars in the main-road stream (B first)", h_mean: "the stream's mean time headway (s)", rule: "A's gap acceptance (re-tested on every slot)"}
+    legend:
+      ".": "A's externality on the stream below 0.05"
+      "+": "0.05 to 0.2"
+      "#": "0.2 or more"
+      "!": "a contact"
+    notes:
+      - "A's externality: the stream's cost minus the same stream's with A 2 km back. Kinematic, the car's lags, legacy defaults (N5); no arena stream was run."
+    tiers:
+      kinematic:
+        - loader: ymerge_stream
+          label: Y merge stream, car lags (legacy, N5)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/stream_lags/stream.jsonl"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge"
 
 # E3 (swb 118): Autoware's cruise knobs as B variants. B's utility at cell (10, 0), seed 0, against
 # A_aw_perm / A_eq (null: within +-0.01 of stock, not reported per variant). params: the knobs'

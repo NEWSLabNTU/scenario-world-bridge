@@ -357,6 +357,8 @@ def decide_fcfsm(M_, S, i, t):
             epoch = max(epoch, tk(eb[1]) + k["lmin"])
     if t - epoch < k["h2"]:
         return False
+    if M_.p.epoch_fix and any(seen(M_, S, i, j)[0] in ("go", "box") for j in M_.names if j != i):
+        return False  # the junction is not quiet while any car, a non-conflicting one too, is seen crossing
     if M_.rule[i] == "fcfse" and t - epoch >= k["h3"] and all(v == "gone" or (seen(M_, S, i, j)[0] == "rest" and M_.prio(i, j, None, True))
                                     for j, v in cls.items()):
         return True

@@ -74,7 +74,7 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
     stop_law = bool(row.get("stop"))
     if o.cleared or am.cleared:
         return Verdict(o.id, GO, False, "cleared")
-    if o.in_zone or am.moved.state:
+    if am.in_zone.state or am.moved.state or o.s_entry < -1.0:
         return Verdict(o.id, YIELD, True, "turn")  # in the zone, or seen moving off its line: it has the turn
     b = pv.band or band_of(own_iv, pv.iv, o, params, am.stopping.state, stop_law, am.rest_t is not None,
                            mode=row.get("band", "interval"))
@@ -97,6 +97,15 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
     else:
         r = role_of("map_priority", zone, own, o, params)
     if r.reading == FIRST:
+        # 078 V2b: a car that has only just come to rest may be one that ignores arrival order (it starts after
+        # its own stop); wait until its start would have been seen (dwell + its launch dead time + see_delay)
+        if first == STOPPED_FIRST and params.fresh_rest_guard and am.rest_t is not None and \
+                t - am.rest_t < params.stop_dwell + o.cap.launch_dead + params.see_delay:
+            return Verdict(o.id, WAIT, False, "fresh", b, r)
+        if first == STOPPED_FIRST and am.rest_t is None and o.v > params.moved_speed and params.probe_first_moving:
+            # first, but a car is still coming that has not stopped: stock reads this car at rest as static, so
+            # the go is made legible first (the probe), as before a round-2 go (078 V2b)
+            return Verdict(o.id, GO, False, "first_probe", b, r)
         return Verdict(o.id, GO, False, "first", b, r)
     if r.reading == SECOND:
         return Verdict(o.id, YIELD, False, "second", b, r)
@@ -217,7 +226,9 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
     if not soft:
         if not exit_clear:
             return Decision(WAIT, zone.id, "exit", row_name), verdicts
-        return Decision(GO, zone.id, verdicts[0].reason if len(verdicts) == 1 else "first",
+        reason = verdicts[0].reason if len(verdicts) == 1 else (
+            "first_probe" if any(v.reason == "first_probe" for v in verdicts) else "first")
+        return Decision(GO, zone.id, reason,
                         row_name, stock_equivalent=all(v.reason in ("clear", "cleared") for v in verdicts)), verdicts
     # soft waits only: the second round, the wait-for cycle, the last resort. These rounds are decided on
     # map facts among every agent of the conflict set at rest (not only those this car waits for), from
@@ -226,23 +237,32 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
     by_id = {pv.other.id: pv for pv in pairs}
     soft_ids = [v.other for v in soft]
 
-    def resting(pv):
-        return pv.mem.rest_t is not None and not pv.mem.moved.state and pv.other.v < params.moved_speed
+    def resting(pv):  # at rest at its line and not (filtered) moved off it; one noisy speed sample is not a start
+        return pv.mem.rest_t is not None and not pv.mem.moved.state
 
     kind = WAIT if any(v.kind == WAIT for v in soft) else YIELD
     if mem.own_rest_t is None or not all(resting(by_id[i]) for i in soft_ids):
         return Decision(kind, zone.id, soft[0].reason, row_name, tuple(soft_ids)), verdicts
     rest_pvs = [pv for pv in pairs if resting(pv)]
-    epoch = max([mem.own_rest_t + params.stop_dwell, mem.last_event] +
-                [pv.mem.rest_t - params.role_time_bias + params.stop_dwell for pv in rest_pvs])
+    # with the fresh-rest guard a first go may come up to see_delay after the later
+    # car's dwell: the second round waits that much longer, so that go is seen first
+    fresh_own = (own.cap.launch_dead + params.see_delay) if params.fresh_rest_guard else 0.0
+    epoch = max([mem.own_rest_t + params.stop_dwell + fresh_own, mem.last_event] +
+                [pv.mem.rest_t - params.role_time_bias + params.stop_dwell +
+                 ((pv.other.cap.launch_dead + params.see_delay) if params.fresh_rest_guard else 0.0) for pv in rest_pvs])
     q = t - epoch
     if q >= params.second_round_H2:
         tr = row.get("tie", "map_order")
         others = [pv.other for pv in rest_pvs]
+        agents = [own] + others
         if all(tie_rule(tr, zone, own, o) for o in others):
             return _go_probe(zone, row_name, "round2", exit_clear), verdicts
+        h3 = params.second_round_H2 + params.tie_threshold_T + params.tie_margin_m + params.role_time_error_e + \
+            params.last_resort_extra
+        # the last resort: the round-2 winner has not gone by H3 (it would have been seen): the map's order
+        if q >= h3 and all(map_order(zone, own, o).reading == FIRST for o in others):
+            return _go_probe(zone, row_name, "last_resort", exit_clear), verdicts
         # another car beats every one by the tie rule: it goes, this car waits
-        agents = [own] + others
         if any(all(tie_rule(tr, zone, x, y) for y in agents if y.id != x.id) for x in others):
             return Decision(WAIT_SECOND_ROUND, zone.id, soft[0].reason, row_name, tuple(soft_ids)), verdicts
         # no unique winner: a wait-for cycle among the agents at rest, broken by the map's order
@@ -250,10 +270,6 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
         order = {x.id: zone.approach(x.approach).order for x in agents}
         if cycle_release(edges, [x.id for x in agents], order) == own.id:
             return _go_probe(zone, row_name, "cycle", exit_clear), verdicts
-        h3 = params.second_round_H2 + params.tie_threshold_T + params.tie_margin_m + params.role_time_error_e + \
-            params.last_resort_extra
-        if q >= h3 and all(map_order(zone, own, o).reading == FIRST for o in others):
-            return _go_probe(zone, row_name, "last_resort", exit_clear), verdicts
         return Decision(WAIT_SECOND_ROUND, zone.id, soft[0].reason, row_name, tuple(soft_ids)), verdicts
     return Decision(kind, zone.id, soft[0].reason, row_name, tuple(soft_ids)), verdicts
 

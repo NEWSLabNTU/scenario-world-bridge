@@ -44,7 +44,13 @@ def load_map(path):
     import lanelet2
     from lanelet2.io import Origin
     from lanelet2.projection import UtmProjector
-    m, _ = lanelet2.io.loadRobust(path, UtmProjector(Origin(0, 0)))
+    import re
+    head = open(path).read(4096)
+    ll = re.search(r'lat="([-0-9.]+)" lon="([-0-9.]+)"', head)
+    origin = Origin(float(ll.group(1)), float(ll.group(2))) if ll else Origin(0, 0)  # a projector near the map
+    m, errs = lanelet2.io.loadRobust(path, UtmProjector(origin))
+    if not len(m.pointLayer) and errs:
+        raise RuntimeError(f"{path}: lanelet2 loaded no points: {errs[:3]}")
     for pt in m.pointLayer:
         if "local_x" in pt.attributes:
             pt.x = float(pt.attributes["local_x"])

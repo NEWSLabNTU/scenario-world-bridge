@@ -18,11 +18,15 @@ rest_window:              {value: 2.0,  unit: m, source: "074 U3 (at rest within
 moved_speed:              {value: 0.5,  unit: m/s, source: "074 C8 (moved off its line: speed and 0.3 m)", heldout: null}
 moved_dist:               {value: 0.3,  unit: m, source: "074 C8", heldout: null}
 moved_dist_alone:         {value: 1.0,  unit: m, source: "074 C8 (distance alone)", heldout: null}
+see_delay:                {value: 1.5,  unit: s, source: "074 C8 (FM_SEE): a start is seen 0.7 s (visible motion) + 0.8 s (perception and decision) after it", heldout: null}
+probe_first_moving:       {value: true, unit: bool, source: "078 V2b: a first go from rest while another car is still coming is probed too (stock reads a car at rest as static)", heldout: null}
+fresh_rest_guard:         {value: true, unit: bool, source: "078 V2b: a first go waits until a car that only just stopped would be seen starting (against cars that ignore arrival order)", heldout: null}
 guard_filter_n:           {value: 2,    unit: samples, source: "074 C8 V3: filter the guards over 2-3 samples (141 flips unfiltered at noise x2)", heldout: null}
 latch_s:                  {value: 1.0,  unit: s, source: "design R10: decisions latched >= 1 s", heldout: null}
 go_latch_launch:          {value: true, unit: bool, source: "074 C8 V3: a go is latched for the launch dead time", heldout: null}
 probe_creep_dist:         {value: 0.5,  unit: m, source: "074 C8: the legible probe, creep about 0.5 m", heldout: null}
 probe_watch:              {value: 0.8,  unit: s, source: "assumed: the other's start is seen 0.7-0.8 s late (C8's model)", heldout: null}
+probe_watch_speed:        {value: 0.4,  unit: m/s, source: "assumed (078 V2b): the car keeps rolling while it watches; at rest stock reads it as static again", heldout: null}
 creep_speed:              {value: 1.0,  unit: m/s, source: "assumed (design: creep 1 m/s)", heldout: null}
 creep_timeout:            {value: 3.0,  unit: s, source: "assumed (design: a creep that gains nothing in 3 s steps down)", heldout: null}
 yield_decel:              {value: 0.5,  unit: m/s^2, source: "assumed (C3's onset + 1.0 s): a yield is <= -0.5 held 0.5 s", heldout: null}

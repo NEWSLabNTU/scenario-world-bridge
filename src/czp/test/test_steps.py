@@ -125,7 +125,7 @@ def test_four_way_ambiguous_both_wait_then_round_two():
     rests = {"A": 0.0, "B": T}  # exactly at the threshold: both read ambiguous
     d = decide_all(CONV, z, ags, rests, P, t=T + P.stop_dwell + 0.5, quiet_since=-math.inf)
     assert d["A"].kind != GO and d["B"].kind != GO
-    t2 = T + P.stop_dwell + P.second_round_H2 + 0.1
+    t2 = T + P.stop_dwell + ((CAR.launch_dead + P.see_delay) if P.fresh_rest_guard else 0.0) + P.second_round_H2 + 0.1
     d = decide_all(CONV, z, ags, rests, P, t=t2, quiet_since=-math.inf)
     assert d["B"].kind == GO and d["B"].reason == "round2" and d["A"].kind != GO
 
@@ -137,7 +137,8 @@ def test_four_way_four_at_once_cycle_broken_by_map_order():
     rests = {i: 0.0 for i in "ABCD"}
     d = decide_all(CONV, z, ags, rests, P, t=1.5, quiet_since=-math.inf)
     assert all(x.kind != GO for x in d.values())
-    d = decide_all(CONV, z, ags, rests, P, t=P.stop_dwell + P.second_round_H2 + 0.1, quiet_since=-math.inf)
+    fresh = (CAR.launch_dead + P.see_delay) if P.fresh_rest_guard else 0.0
+    d = decide_all(CONV, z, ags, rests, P, t=P.stop_dwell + fresh + P.second_round_H2 + 0.1, quiet_since=-math.inf)
     goes = [k for k, x in d.items() if x.kind == GO]
     assert goes == ["A"] and d["A"].reason == "cycle"
 

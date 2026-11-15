@@ -19,19 +19,21 @@ from dataclasses import replace
 from .memory import ProbeState
 from .model import CREEP, GO, YIELD, Decision
 
-PROBED = ("round2", "cycle", "last_resort")
+PROBED = ("round2", "cycle", "last_resort", "first_probe")
 
 
-def probe(decision: Decision, own, ps: ProbeState, params, t, row=None):
-    """(decision, new probe state). A probed go becomes CREEP (reason probe:creep / probe:watch) until done."""
+def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=None):
+    """(decision, new probe state). A probed go becomes CREEP (reason probe:creep / probe:watch) until done.
+    The creep is measured from the car's rest at its line (rest_s), once per rest: a later round watches
+    from where the car is."""
     row = row or {}
     if decision.kind == GO and decision.reason in PROBED and row.get("probe_round2", False):
         if ps.phase == "done":
             return decision, ps
         if ps.phase not in ("creep", "watch"):
-            ps = ProbeState("creep", t, own.s_entry, decision.reason)
+            ps = ProbeState("creep", t, own.s_entry if rest_s is None else max(rest_s, own.s_entry), decision.reason)
         if ps.phase == "creep":
-            if ps.start_s - own.s_entry >= params.probe_creep_dist - 1e-6 or own.s_entry <= 0.05:
+            if ps.start_s - own.s_entry >= params.probe_creep_dist - 0.05 or own.s_entry <= 0.35:
                 ps = ProbeState("watch", t, ps.start_s, ps.reason)
             else:
                 return replace(decision, kind=CREEP, reason="probe:creep"), ps

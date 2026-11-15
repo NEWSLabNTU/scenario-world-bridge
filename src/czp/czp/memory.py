@@ -40,10 +40,12 @@ def debounce(d: Debounce, raw: bool, stamp: float, n: int) -> Debounce:
 @dataclass(frozen=True)
 class AgentMemory:
     rest_t: Optional[float] = None  # the stamp of its first observation at rest at its line
-    rest_s: Optional[float] = None  # its s_entry then
+    rest_s: Optional[float] = None  # its s_entry at rest: the mean of its samples at rest (one noisy sample
+    #                                  against the next made "moved off its line" fire under noise, 078 V2b)
+    rest_n: int = 0
     moved: Debounce = Debounce()  # moved off its line since it rested (filtered)
     stopping: Debounce = Debounce()  # braking for its line (filtered)
-    in_zone: bool = False
+    in_zone: Debounce = Debounce()  # in the zone (filtered: a noisy position at the line is not an entry)
     cleared: bool = False
     seen_since: Optional[float] = None
 
@@ -86,18 +88,22 @@ def is_stopping(ag: Agent, cap, params):
 def update_agent(m: AgentMemory, ag: Agent, t, params) -> tuple:
     """(new AgentMemory, event): event is True when the agent is seen starting, entering or leaving."""
     n = int(params.guard_filter_n)
-    rest_t, rest_s = m.rest_t, m.rest_s
+    rest_t, rest_s, rest_n = m.rest_t, m.rest_s, m.rest_n
     if rest_t is None and at_rest_at_line(ag, params):
-        rest_t, rest_s = ag.stamp, ag.s_entry
+        rest_t, rest_s, rest_n = ag.stamp, ag.s_entry, 1
     moved_raw = False
     if rest_t is not None:
         off = rest_s - ag.s_entry
         moved_raw = (ag.v > params.moved_speed and off > params.moved_dist) or off > params.moved_dist_alone
+        if not moved_raw and not m.moved.state and ag.v < params.moved_speed and ag.stamp > m.moved.last_stamp + 1e-9 \
+                and rest_n < 50:
+            rest_s, rest_n = (rest_s * rest_n + ag.s_entry) / (rest_n + 1), rest_n + 1
     moved = debounce(m.moved, moved_raw, ag.stamp, n)
     stopping = debounce(m.stopping, is_stopping(ag, ag.cap, params), ag.stamp, n)
-    in_zone, cleared = ag.in_zone, ag.cleared or m.cleared
-    event = (moved.state and not m.moved.state) or (in_zone and not m.in_zone) or (cleared and not m.cleared)
-    return AgentMemory(rest_t, rest_s, moved, stopping, in_zone, cleared,
+    in_zone = debounce(m.in_zone, ag.in_zone, ag.stamp, n)
+    cleared = ag.cleared or m.cleared
+    event = (moved.state and not m.moved.state) or (in_zone.state and not m.in_zone.state) or (cleared and not m.cleared)
+    return AgentMemory(rest_t, rest_s, rest_n, moved, stopping, in_zone, cleared,
                        m.seen_since if m.seen_since is not None else t), event
 
 

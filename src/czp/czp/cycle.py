@@ -67,7 +67,7 @@ class Protocol:
         else:
             dec, verdicts = decide(self.conv, zone, own, own_iv, pairs, mem, p, t, age, exit_clear)
         # 7. probe
-        dec, mem.probe = probe(dec, own, mem.probe, p, t, row)
+        dec, mem.probe = probe(dec, own, mem.probe, p, t, row, mem.own_rest_s)
         # 8. the latches and the commit point
         prev = mem.decision
         dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, mem.own_moving_since is not None, p, t, row)

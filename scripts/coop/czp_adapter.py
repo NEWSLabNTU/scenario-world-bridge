@@ -131,9 +131,9 @@ class CZPCore:
         return None if am is None else am.rest_t
 
 
-def creep_accel(u, v, params):
-    """The probe's creep: toward creep speed, never into the zone (u < 0)."""
-    vc = params.creep_speed
+def creep_accel(u, v, params, vc=None):
+    """The probe's creep: toward creep speed (the watch: the watch speed), never into the zone (u < 0)."""
+    vc = params.creep_speed if vc is None else vc
     if u > -0.3:
         return -min(X.B_MAX, v / X.DT)
     return min(X.A_MAX, (vc - v) / X.DT) if v < vc else -min(X.B_MAX, (v - vc) / X.DT)
@@ -178,7 +178,8 @@ def make_fw_class():
             if want:
                 a = X.drive(v, self.v0)
             elif dec.kind == CM.CREEP:
-                a = creep_accel(u, v, self.core.params) if dec.reason.endswith("creep") else hold_accel(v)
+                a = creep_accel(u, v, self.core.params, None if dec.reason.endswith("creep")
+                                else self.core.params.probe_watch_speed)
             else:
                 a = F.plan_stop(u, v, self.v0)
             a = self._shield(t, u, v, a)
@@ -258,7 +259,8 @@ class CZPPassage(X.Policy):
         if want:
             a = X.drive(v, self.v0)
         elif dec.kind == CM.CREEP:
-            a = creep_accel(u, v, self.core.params) if dec.reason.endswith("creep") else hold_accel(v)
+            a = creep_accel(u, v, self.core.params, None if dec.reason.endswith("creep")
+                            else self.core.params.probe_watch_speed)
         else:
             a = X.hold_out(u, v)
         a = self._shield(t, u, v, a)

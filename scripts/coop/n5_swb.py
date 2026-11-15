@@ -14,7 +14,9 @@ Compared (--compare) with ymerge3_arena.py's runs: per (dt, A's rule) each swb r
 (uA, uB, uC) inside the arena's mean +- max(2 sd, 0.02), and the outcome (A's slot, contact) by
 majority; the kinematic model (ymerge_game.simulate_stream, N = 3) beside both.
 
-Usage (the stack up: CARLA_PORT=<port> just run map_path:=<Town03> ego_launch:=none):
+Usage (the stack up with the spec's physics on the agent cars, else they run the blueprint's tires:
+  CARLA_PORT=<port> just run map_path:=<Town03> ego_launch:=none \
+      vehicle_physics:=<repo>/src/sim_vehicle_spec/generated/tesla_model3/carla_physics.yaml):
   scripts/coop/n5_swb.py --out <dir> --lanes <lanes.json> --carla-port 2010 [--seeds 2]
   scripts/coop/n5_swb.py --out <dir> --lanes <lanes.json> --compare <arena dir>
 """
@@ -50,11 +52,10 @@ def ros_position(x, y, z, yaw, back=ORIGIN_AHEAD):
 
 def scenario(path, lanes, dt, v, h, tag):
     target = Y3.start_u(dt, v, h)
-    d_ramp = YA.ramp(YA.WARMUP, v)[0]
     ents, inits = [], []
     for k in CARS:
         ln = lanes[k]
-        x, y, z, yaw = ln.at(ln.s_of_u(target[k] - d_ramp))
+        x, y, z, yaw = ln.at(ln.s_of_u(T.WarmupPlan(k, target[k], v, YA.WARMUP).u_spawn))
         gx, gy, gz, gyaw = ln.at(ln.s_m + 120.0)
         ents.append(f'''		<ScenarioObject name="{ENT[k]}">
 			<CatalogReference catalogName="vehicles" entryName="tesla_model3">

@@ -112,6 +112,64 @@ class Lane:
         return u + self.s_m - Y.Z_LEN - length / 2
 
 
+# The diagonal's approach on Town03: road 4 southbound, then connector 943 with a ~70 deg kink in its
+# centre line (u -92..-80, radius ~3 m) before its 40 m arc onto the diagonal. Measured 2026-11-15: at
+# 10 m/s on the spec's tires (friction 1.2) the car cannot hold it, falls 8 m behind its warm-up and
+# reaches the run at 11.2 m/s. So A's warm-up slows through it and accelerates after; the run's
+# context (dt, h, v at its start, u -45..-55) is the arena's.
+SLOW = {"A": (-96.0, -78.0, 4.0)}  # role: (u from, u to, speed cap m/s)
+SLOW_DOWN, SLOW_UP = 2.0, 3.0  # m/s^2 into and out of a slow zone
+
+
+class WarmupPlan:
+    """A car's warm-up reference from rest: ymerge_arena's ramp (A_REF to v), capped through its
+    SLOW zone, ending at u_target with v at t = warmup. at(t) -> (u, v, a)."""
+
+    DT = 0.01
+
+    def __init__(self, role, u_target, v, warmup, a_ref=2.0):
+        self.zone = SLOW.get(role)
+        self.v, self.warmup, self.a_ref = v, warmup, a_ref
+        lo, hi = u_target - 400.0, u_target
+        for _ in range(60):  # bisect the spawn so that the plan ends at u_target
+            mid = 0.5 * (lo + hi)
+            if self._run(mid)[-1][1] < u_target:
+                lo = mid
+            else:
+                hi = mid
+        self.u_spawn = 0.5 * (lo + hi)
+        self.tab = self._run(self.u_spawn)
+        self.v_end = self.tab[-1][2]
+
+    def cap(self, u):
+        c = self.v
+        if self.zone:
+            u1, u2, vk = self.zone
+            if u < u1:
+                c = min(c, math.sqrt(vk * vk + 2 * SLOW_DOWN * (u1 - u)))
+            elif u <= u2:
+                c = min(c, vk)
+            else:
+                c = min(c, math.sqrt(vk * vk + 2 * SLOW_UP * (u - u2)))
+        return c
+
+    def _run(self, u0):
+        u, v, t, out = u0, 0.0, 0.0, []
+        n = int(round(self.warmup / self.DT))
+        for i in range(n + 1):
+            up = SLOW_UP if self.zone and u > self.zone[1] else self.a_ref
+            v_next = min(v + up * self.DT, self.cap(u + v * self.DT), self.v)
+            a = (v_next - v) / self.DT
+            out.append((t, u, v, a))
+            u += 0.5 * (v + v_next) * self.DT
+            v, t = v_next, (i + 1) * self.DT
+        return out
+
+    def at(self, t):
+        i = min(max(int(t / self.DT), 0), len(self.tab) - 1)
+        return self.tab[i][1:]
+
+
 def load(path):
     d = json.load(open(path))
     return {"A": Lane(d["A"]), "B": Lane(d["B"]), "C": Lane(d["B"])}

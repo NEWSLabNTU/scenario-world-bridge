@@ -4,9 +4,9 @@
 One process per car, on roundabout_agent.py's pattern (carla_basic without BasicAgent): it finds
 its vehicle and the other two by CARLA role_name, never ticks the world, never spawns or moves an
 actor, applies control to its own vehicle only, on world ticks. Each car warms up to v on its
-context's reference trajectory (ymerge3_arena's: a ramp at 2 m/s^2 from where the scenario puts
-it), then drives by its ymerge3.Controller on what it perceives of the other two through
-arena.Observer (10 Hz, 0.19 s, noise); pure pursuit along its lane (ymerge3_town03) at one
+context's reference trajectory (ymerge3_arena's ramp at 2 m/s^2 from where the scenario puts it,
+slowed through Town03's kink on A's approach: ymerge3_town03.WarmupPlan), then drives by its
+ymerge3.Controller on what it perceives of the other two through arena.Observer (10 Hz, 0.19 s, noise); pure pursuit along its lane (ymerge3_town03) at one
 look-ahead (max(6, 0.7 v)), as the arena's; acb's controls (pedal map, lags, steering) through
 arena.Longitudinal, so a held car brakes to rest as in the arena.
 
@@ -58,8 +58,8 @@ class YMerge3Agent(CarlaBasicAgent):
         self.v, self.warmup = float(c["v"]), float(c.get("warmup", YA.WARMUP))
         self.lanes = T.load(c["lanes"])
         self.target = Y3.start_u(float(c["dt"]), self.v, float(c["h"]))
-        d_ramp = YA.ramp(self.warmup, self.v)[0]
-        self.u_spawn = {k: self.target[k] - d_ramp for k in CARS}
+        self.plan = {k: T.WarmupPlan(k, self.target[k], self.v, self.warmup) for k in CARS}
+        self.u_spawn = {k: self.plan[k].u_spawn for k in CARS}
         self.ctl = Y3.Controller(self.role, c["a"], self.v, hold_stop=False)
         rng = random.Random(int(c.get("seed", 0)) * 3 + CARS.index(self.role))
         self.obs = {o: AR.Observer(float(c.get("obs_delay", 0.19)), float(c.get("obs_sigma_x", 0.3)),
@@ -142,8 +142,8 @@ class YMerge3Agent(CarlaBasicAgent):
         u, v = st[self.role][0], st[self.role][1]
         x, y, yaw = st[self.role][2:]
         if self.stage == "warmup":
-            d, vr, ar_ = YA.ramp(t, self.v)
-            accel = max(-4.0, min(3.0, ar_ + 0.6 * (self.u_spawn[self.role] + d - u) + 1.8 * (vr - v)))
+            ur, vr, ar_ = self.plan[self.role].at(t)
+            accel = max(-4.0, min(3.0, ar_ + 0.6 * (ur - u) + 1.8 * (vr - v)))
             for o in self.obs:
                 self.obs[o].push(t - self.warmup, st[o][0], 0.0, st[o][1])
             if t >= self.warmup - 1e-9:

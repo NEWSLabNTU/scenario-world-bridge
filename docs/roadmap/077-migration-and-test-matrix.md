@@ -34,6 +34,8 @@ Axes:
 
 - **Autopilots**: Autoware 1.5.0 through the profile, and its variants that earlier work
   used (detection clustering or CenterPoint, CPU or CUDA NDT, vision-only localization);
+  Autoware 2.0.0 through the same profile (`autoware_release:=2.0.0`, autoware_sim_vehicle
+  32a9d78/7ce07d5; T1 `test_pilot_parse` case `autoware_2.0.0`, T2 below);
   SDK agents (`command` pilots: the cut-in agent, the cooperation agents); CARLA's BasicAgent
   (`carla_basic`); a user's own launch (`launch`, with `agent: own`); a non-Autoware autopilot
   on the vehicle interface (a minimal reference autopilot, new); no pilot (`none`, the
@@ -184,6 +186,13 @@ open):
 Open, live: a gap trace through a real bridge into a run (CARLA), weather parameters
 through `set_weather`, an Isaac switch to a preloaded world, `managed_ego: false` on
 Isaac's rear contact (inventory row 18).
+- Live on CARLA 0.9.16, Autoware 2.0.0 ego (2026-11-15, newslab-server139): the ego in
+  `ghcr.io/autowarefoundation/autoware:universe-humble-2.0.0` (acb_bridge and the launch
+  packages built there; `--net=host`), the stack on the host. T1: `test_pilot_parse` in the
+  image, 6 passed, 2 skipped (the 1.5.0 cases). T2 `basic/town01_ego_drive`: passed, the ego
+  engaged and reached its goal; 64/64 nodes, 54/54 composables, clustering and the laserscan
+  grid. Open: play_launch 0.35.0's Rust parser cannot evaluate 2.0.0's `agnocast_env.launch.py`
+  (`EnvironmentVariable` has no `perform`); 2.0.0 stacks resolve and run with `--parser python`.
 - Live on CARLA 0.9.16, Autoware 1.5.0 ego (2026-11-15):
   - **G9 town preload**: a suite of drive_to_goal (Town01) then town02_ego_drive (Town02) on
     one stack passed 2/2. The keeper's `~/load_map` loaded Town02 in 2.7 s between the

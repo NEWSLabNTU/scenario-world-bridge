@@ -51,7 +51,8 @@ needs_play_launch = pytest.mark.skipif(VERSION is None or VERSION < (0, 30, 0),
                                        reason=f"play_launch >= 0.30 needed (found {VERSION})")
 
 CASES = {
-    "autoware": ("autoware.launch.xml", ["autoware_sim_profile", "acb_bridge"],
+    # the profile's default release, 1.5.0 (tier4_localization_launch exists only there)
+    "autoware": ("autoware.launch.xml", ["autoware_sim_profile", "acb_bridge", "tier4_localization_launch"],
                  ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
                   "sim:=carla", f"map_path:={MAP}"]),
     # Autoware 2.0.0 (autoware_sim_profile's autoware_release:=2.0.0): runs where 2.0.0 is the
@@ -60,7 +61,7 @@ CASES = {
     "autoware_2.0.0": ("autoware.launch.xml", ["autoware_sim_profile", "acb_bridge", "autoware_control_config"],
                        ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
                         "sim:=carla", f"map_path:={MAP}", "autoware_release:=2.0.0"]),
-    "autoware_isaac": ("autoware.launch.xml", ["autoware_sim_profile"],
+    "autoware_isaac": ("autoware.launch.xml", ["autoware_sim_profile", "tier4_localization_launch"],
                        ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
                         "sim:=isaac", f"map_path:={MAP}"]),
     "vehicle_side_carla": ("vehicle_side_carla.launch.xml", ["acb_bridge"],

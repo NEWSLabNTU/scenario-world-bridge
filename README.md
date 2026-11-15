@@ -9,8 +9,8 @@ localization, planning and control, while
 scenario and gives the verdict.
 
 <p align="center">
-  <img src="docs/media/hero_carla_vs_isaac.webp" alt="The same Autoware drives the same NTU campus route in CARLA (left) and Isaac Sim (right)" width="840"><br>
-  <em>One Autoware, one vehicle spec, two simulators: the same NTU campus route in CARLA and Isaac Sim (5x).</em>
+  <img src="docs/media/hero_carla_vs_isaac.webp" alt="The same Autoware drives the same Town10HD route in CARLA (left) and Isaac Sim (right)" width="840"><br>
+  <em>One Autoware, one vehicle spec, two simulators: the same Town10HD route in CARLA and Isaac Sim (3x).</em>
 </p>
 
 <!-- Each image row and its caption row sit in their own <tbody>: GitHub stripes every

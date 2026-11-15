@@ -26,6 +26,7 @@ fresh_rest_guard:         {value: true, unit: bool, source: "078 V2b: a first go
 guard_filter_n:           {value: 2,    unit: samples, source: "074 C8 V3: filter the guards over 2-3 samples (141 flips unfiltered at noise x2)", heldout: null}
 latch_s:                  {value: 1.0,  unit: s, source: "design R10: decisions latched >= 1 s", heldout: null}
 mode_hold:                {value: 1.5,  unit: s, source: "078 P2b: RTC stays manual until the decision has been stock-equivalent this long (following the module's own safe meanwhile); 078 P2: 50 of 90 auto spells between manual ones were <= 1.0 s, 64 <= 1.5 s; 1.5 s = see_delay, past latch_s", heldout: null}
+own_base_to_centre:       {value: 1.416, unit: m, source: "sim_vehicle_spec tesla_model3 geometry: (wheel_base 3.005 + front_overhang 0.807 + rear_overhang 0.980) / 2 - rear_overhang; Autoware's kinematic_state is base_link (the rear axle), czp's own pose the centre (078 P2b: measured 1.38 m on swb)", heldout: null}
 go_latch_launch:          {value: true, unit: bool, source: "074 C8 V3: a go is latched for the launch dead time", heldout: null}
 probe_creep_dist:         {value: 0.5,  unit: m, source: "074 C8: the legible probe, creep about 0.5 m", heldout: null}
 probe_watch:              {value: 0.8,  unit: s, source: "assumed: the other's start is seen 0.7-0.8 s late (C8's model)", heldout: null}

@@ -34,6 +34,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
 from . import zones as ZN
+from .config import load_params
 from .record import to_json
 from .strategy import Obj, Status, Strategy
 
@@ -71,6 +72,7 @@ class InteractionStrategy(Node):
             if self.get_parameter(k).value == "none":
                 self.set_parameters([rclpy.parameter.Parameter(k, value="")])
         self.strategy = None
+        self.base_to_centre = float(load_params().own_base_to_centre)
         self.objects, self.ego, self.traj, self.obj_stamp = [], None, None, None
         self.statuses = {m: [] for m in self.modules}
         self.cycle_time = 0.0
@@ -145,10 +147,15 @@ class InteractionStrategy(Node):
         self.obj_stamp = msg.header.stamp
 
     def on_odom(self, msg):
+        # Autoware's kinematic_state is base_link, the rear axle; czp's own pose is the car's centre (its s_entry is the
+        # front's, centre + length / 2). Unshifted, the front read 1.4 m short: at rest at its line the ego was never
+        # "at its line" (rest_window 2 m), so rest_tie and the later rounds never applied on swb (078 P2b)
         p, tw = msg.pose.pose, msg.twist.twist.linear
         v = math.hypot(tw.x, tw.y)
         a = 0.0 if self.ego is None else self.ego[4]
-        self.ego = (p.position.x, p.position.y, yaw_of(p.orientation), v, a)
+        h = yaw_of(p.orientation)
+        d = self.base_to_centre
+        self.ego = (p.position.x + d * math.cos(h), p.position.y + d * math.sin(h), h, v, a)
 
     def on_traj(self, msg):
         self.traj = [(pt.pose.position.x, pt.pose.position.y) for pt in msg.points[::5]][:60]

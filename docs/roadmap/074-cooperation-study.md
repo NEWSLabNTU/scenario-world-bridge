@@ -6,7 +6,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); N3 done, D9 met (composition holds for queues up to seven cars); E4/C5 done (commitment not supported; a heavy-vehicle spec is the user's call); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: friction canaries, then C7's coin-at-stop (swb 241); full CenterPoint with the higher lateral limit, and TransFusion's intensity (swb 118); E6/E7 site search (133); waiting on the user: the swb_carla_world friction fix and the Autoware 2.0.0 profile (swb 139), the default detector, D6's confirmation, a heavy-vehicle spec; next: C3c rerun after the fix, P1 reshaped by D6 (stock, + probe rule, + intent message). User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); N3 done, D9 met (composition holds for queues up to seven cars); E4/C5 done (commitment not supported; a heavy-vehicle spec is the user's call); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided by its criterion (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); in progress: friction canaries, then C7's coin-at-stop (swb 241); full CenterPoint with the higher lateral limit, and TransFusion's intensity (swb 118); U3, the 4-way stop: games (swb 139) and the stop-sign map variant (133); waiting on the user: the swb_carla_world friction fix and the Autoware 2.0.0 profile (swb 139), the default detector, D6's confirmation, a heavy-vehicle spec; next: C3c rerun after the fix, P1 reshaped by D6 (stock, + probe rule, + intent message). User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -1599,6 +1599,42 @@ crosses its stop line.
   - **TransFusion's blindness is a swb-side question:** what intensity CARLA's lidar gives against
     what TransFusion was trained on. It is backlogged.
 
+### E6, E7: site search, and D8 (2026-11-15)
+
+`scripts/coop/sites.py` (646ebf3), offline, from CARLA 0.9.16's OpenDRIVE and the Autoware
+Lanelet2 maps. Data and plots: NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/`.
+
+**E6: a 4-way site exists.**
+- No 4-arm junction on Town03, Town05 or Town10HD has stop signs.
+- The Lanelet2 maps link no light at any Town03 or Town05 4-way.
+- The maps hold no `right_of_way` and no `traffic_sign` elements, only `traffic_light`.
+- **How Autoware treats such a junction:** its intersection module yields to anyone predicted to
+  conflict and never stops when the junction is clear. That is a mutual yield, not an all-way stop.
+  Its stop line module acts only on `traffic_sign` elements of type `stop_sign`, which these maps
+  lack. Autoware has no first-come-first-served logic.
+- **Best site: Town05 j979.** It has 2-lane arms and about 120 m of straight approach on every arm;
+  its lights are not linked in the map, and SSv2 can switch them off. j1427 is the alternative.
+
+**D8 decided: U3 goes ahead on Town05 j979.**
+- Kinematic and arena first, the arena mirroring the straight 4-way.
+- On the real stack, two variants:
+  - stock: a mutual yield, with no stop;
+  - a stop-sign map variant: four `traffic_sign` stop_sign elements at the approach lanelets'
+    stop lines, giving "stop 1 s, then yield". It is a local copy of the Town05 map, built for the
+    study, not swb's default map.
+- The swb runs wait on the friction fix.
+
+**E7: no lane drop or on-ramp on any town with an Autoware map** (Town03, Town05, Town10HD).
+- The only merge is a 45° Y merge, Town03 j1901, handled by Autoware's intersection module; the
+  arena has no geometry for it.
+- The arena-exact lane drop is on Town06, road 48 (140 m at full width, a 44 m cubic taper).
+  Town06 is not installed here (it is in the NAS's AdditionalMaps archive, 14.8 GB) and has no
+  Lanelet2 map. Town04 is installed but also has no Lanelet2 map.
+
+**N5 waits** on the friction fix and on one of:
+- (a) a 45° arena geometry, to check Town03 j1901 as a Y merge;
+- (b) Town06 plus a Lanelet2 map (031 stage 1), for the arena-exact lane drop.
+
 ### C4. Fit and explain
 
 Note on identifiability: from 2-3 discrete choices per run, an SVO angle and a capability are
@@ -1873,9 +1909,9 @@ being carried.
 | | D7 deployable? | D | | never worse than stock on contact and on the distributions of 2D TTC, PET and clearance (①), a significant welfare gain, within the message-rate budget: propose it; else keep it as research |
 | 5 cases | E5 left-turn signals | E | can SSv2 give the left turn and the oncoming queue green together on Town05/10 | yes or a workaround |
 | | U1, U2 | B | left turn against a queue; roundabout entry (Town03); each kinematic, arena, swb | maps |
-| | E6 4-way stop site | E | lights switched off on a Town05 junction, or an unsignalled junction | site |
-| | D8 4-way stop | D | | site found: U3; else skip |
-| | E7 merge site | E | a lane drop on Town03/05 | site or none |
+| | E6 4-way stop site | E | lights switched off on a Town05 junction, or an unsignalled junction | site. Done: Town05 j979 (j1427) |
+| | D8 4-way stop | D | | site found: U3; else skip. Decided 2026-11-15: U3 on Town05 j979 |
+| | E7 merge site | E | a lane drop on Town03/05 | site or none. Done: none on Autoware-mapped towns; Town03 j1901 (45° Y merge), Town06 road 48 (no Lanelet2) |
 | | N1 conflict-set sizes | E | how many cars are in each car's conflict set, per slot, in the arena's and SSv2's multi-car scenes (and highD if it is at hand) | the size distribution; the literature's 3.2 mean / 7 max (survey, N cars) checked on ours. Done (20cef0f; N1, N2 above): arena 1.0 / 1, SSv2 benches 1.19 / 4 (mean / max when > 0) |
 | | N2 composition | B | three-car arena games (a cut-in between B and its follower; a cut-in with a lead ahead of A) against the pair terms composed per measure (risk max, delay max-plus, braking max) | the residual $r$ per context with its bootstrap interval. Done: 81 % of car-cells, 64 % of contexts within tolerance; residual systematic |
 | | D9 pairs enough? | D | does the composed model predict three cars | $r$ within the D2 tolerance in >= 90 % of contexts: pairs suffice, N grows only by composition; systematic: N3; large and irregular: those contexts stay explicit games, try N = 4 there only. Decided 2026-11-14: not enough, systematic: N3, with the A-B outcome as a class and the queue and lead as predictors Final after N3: composition holds for queues ≤ 4 cars; a closing lead within ~2 s and 5+ queues stay explicit games Met after N3 round 4 (2026-11-15): 92 % of held-out contexts |

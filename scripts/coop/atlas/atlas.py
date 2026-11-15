@@ -63,6 +63,14 @@ def _fixture(d):
                "table": {"A_x|B_y": {"uA": -0.1, "uB": -0.1, "contact": 0, "ahead": 0},
                          "A_br|B_y": {"uA": -0.09, "uB": -0.1, "contact": 0, "ahead": 1}}},
               open(d / "do" / "populations.json", "w"))
+    json.dump({"seeds": 2, "eq_fixed": [{"A": {"A_br": 1.0}, "B": {"B_y": 1.0}, "vA": -0.08, "vB": -0.1, "welfare": -0.18}],
+               "table": {"A_x|B_y": {"fixed": {"uA": -0.1, "uB": -0.1, "ahead": 0.0}},
+                         "A_br|B_y": {"fixed": {"uA": -0.08, "uB": -0.1, "ahead": 1.0}}}}, open(d / "do" / "rerun.json", "w"))
+    with open(d / "sites.csv", "w") as f:
+        f.write("town,junction,arms_lanes\nTown05,720,2/2/1/2\nTown05,979,2/2/2/2\n")
+    import base64
+    open(d / "site.png", "wb").write(base64.b64decode(  # 1 x 1 PNG
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="))
     with open(d / "c3.jsonl", "w") as f:
         for s in range(2):
             f.write(json.dumps({"d0": 6.0, "dv": 0.0, "a": "A_eq", "b": "autoware", "seed": s, "uA": -0.2, "uB": -0.01,
@@ -97,7 +105,9 @@ def _fixture(d):
                                               {"loader": "kinematic_resim", "game": "cutin", "fixed": {"vb": 12.0},
                                                "episodes": [{"ctx": {"d0": 6.0, "dv": 0.0}, "a": "go", "b": "react"}]}],
                                 "swb_autoware": [{"loader": "c3", "path": str(d / "c3.jsonl")}],
-                                "double_oracle": [{"loader": "double_oracle", "path": str(d / "do")}]}},
+                                "double_oracle": [{"loader": "double_oracle", "path": str(d / "do")},
+                                                  {"loader": "do_rerun", "path": str(d / "do" / "rerun.json"),
+                                                   "populations": str(d / "do" / "populations.json")}]}},
             "crossing": {"title": "Crossing", "axes": ["dt", "v"], "legend": {"NE": "pure NE"},
                          "tiers": {"arena": [{"loader": "arena_runs", "path": str(d / "runs.csv")}]}},
             "conventions": {"title": "Conventions", "conventions": True, "notes": ["fixture"],
@@ -108,6 +118,10 @@ def _fixture(d):
                                                  "cells": str(d / "c6_cells.jsonl")}]}},
             "ncar": {"title": "N cars", "ncar": True, "tiers": {"arena": [{"loader": "n3_cells", "path": str(d / "n3_cells.jsonl")},
                                                                           {"loader": "n4", "path": str(d / "missing.jsonl")}]}},
+            "sites": {"title": "Sites", "sites": True, "notes": ["fixture"],
+                      "tiers": {"maps": [{"loader": "sites", "kind": "table", "path": str(d / "sites.csv"), "rank": ["Town05/979"]},
+                                         {"loader": "sites", "kind": "images", "images": [{"path": str(d / "site.png"), "caption": "j"},
+                                                                                          {"path": str(d / "gone.png")}]}]}},
         },
     }
     import yaml
@@ -137,6 +151,11 @@ def selftest():
         assert atlas["conventions"][0]["rows"][0]["conv"] == "none" and atlas["conventions"][1]["rows"][0]["hm"] == 1.2
         assert atlas["beliefs"][0]["kind"] == "kin" and len(atlas["beliefs"][0]["cells"]) == 2, atlas["beliefs"]
         assert atlas["beliefs"][0]["cells"][1]["regret_class"] == 0.04
+        r = S["meta"][1]
+        assert r["A"] == ["A_x", "A_br"] and r["table"]["A_br|B_y"] == [-0.08, -0.1, None, 1.0] and r["rounds"][0]["A_mix"] == {"A_br": 1.0}
+        T, I = atlas["sites"]
+        assert [x["junction"] for x in T["rows"]] == ["979", "720"] and T["rows"][0]["rank"] == 1 and T["cols"][0] == "rank", T
+        assert I["images"][0]["src"].startswith("data:image/png;base64,") and len(I["missing"]) == 1, I
         n = atlas_build.build(os.path.join(out, "atlas.json"), os.path.join(out, "atlas.html"))
         html = open(os.path.join(out, "atlas.html")).read()
         assert n < atlas_build.MAX_BYTES and "<title>Strategy atlas</title>" in html

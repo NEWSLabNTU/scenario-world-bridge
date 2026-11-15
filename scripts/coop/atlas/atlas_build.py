@@ -161,6 +161,7 @@ function scenarioView(sname, S){
     if (S.ncar) return ncarView(s);
     if (S.conventions) return conventionsView(s, S);
     if (S.beliefs) return beliefsView(s, S);
+    if (S.sites) return sitesView(s, S);
     if (S.explain) return explainView(s, S);
     classMap(s, sname, S); payoffView(s, sname, S); metaView(s, S); episodeView(s, S);
     if ((S.state_machines || []).length) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, '(5) The rules as state machines'); const g = h('div', {class: 'sm'}, c);
@@ -467,6 +468,29 @@ function explainView(s, S){
       convTable(c, Object.entries(d.runs_moved || {}), [['runs', ([k]) => k], ['n', ([, v]) => v]]); }
   }
   if (!X.length) h('p', {class: 'muted'}, s, 'No explanation results registered.');
+}
+
+// ---------------------------------------------------------------- sites (E6, E7)
+function sitesView(s, S){
+  const X = A.sites || [];
+  if (S.notes) { const c = h('div', {class: 'card'}, s); h('h2', {}, c, 'Sites (E6, E7)'); const ul = h('ul', {class: 'small'}, c); for (const x of S.notes) h('li', {}, ul, x); }
+  for (const src of X) {
+    const c = h('div', {class: 'card'}, s); h('h2', {}, c, src.label); if (src.path) h('p', {class: 'small muted'}, c, src.path);
+    if (src.notes && src.notes.length) { const ul = h('ul', {class: 'small'}, c); for (const x of src.notes) h('li', {}, ul, x); }
+    if (src.kind === 'table') {
+      const sc = h('div', {class: 'scroll'}, c); const t = h('table', {}, sc); const hr = h('tr', {}, t);
+      for (const k of src.cols) h('th', {}, hr, k.replace(/_/g, ' '));
+      for (const r of src.rows) { const tr = h('tr', {}, t); if (r.rank) tr.style.fontWeight = '600';
+        for (const k of src.cols) h('td', {}, tr, k === 'rank' ? (r.rank || '-') : fmt(r[k])); }
+    } else {
+      const g2 = h('div', {class: 'grid2'}, c);
+      for (const im of src.images) { const f = h('figure', {}, g2); f.style.margin = '0';
+        const img = h('img', {src: im.src, alt: im.caption, loading: 'lazy'}, f); img.style.cssText = 'width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:4px';
+        h('figcaption', {class: 'small'}, f, im.caption); h('div', {class: 'small muted'}, f, im.path); }
+      if ((src.missing || []).length) h('p', {class: 'small muted'}, c, 'Missing: ' + src.missing.join(', '));
+    }
+  }
+  if (!X.length) h('p', {class: 'muted'}, s, 'No site results registered.');
 }
 
 // ---------------------------------------------------------------- N cars

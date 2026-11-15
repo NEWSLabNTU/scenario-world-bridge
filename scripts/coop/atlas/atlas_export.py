@@ -518,6 +518,34 @@ def load_double_oracle(entry, sc):
                      "exploited": pop.get("autoware_like_exploited", {}), "contexts": entry.get("contexts")}}
 
 
+def load_do_rerun(entry, sc):
+    """A double oracle's final table re-run (merge_end.py --do6): path the do6_fixed_*.json (the
+    table per pair: do6 / legacy / fixed, the equilibria), populations the input populations.json
+    (the rules and their order), runs the re-run's runs_*.jsonl (contact rates). One round: the
+    re-run table (`fixed`) and its equilibrium, for the meta-game view beside the original run."""
+    p = os.path.expanduser(entry["path"])
+    d = json.load(open(p))
+    pop = json.load(open(os.path.expanduser(entry["populations"])))
+    contact = {}
+    rp = os.path.expanduser(entry["runs"]) if entry.get("runs") else None
+    if rp and os.path.exists(rp):
+        for r in read_jsonl(rp):
+            contact.setdefault(f"{r['a']}|{r['b']}", []).append(r.get("contact", 0))
+    table = {k: [v["fixed"].get("uA"), v["fixed"].get("uB"), st.mean(contact[k]) if k in contact else None,
+                 v["fixed"].get("ahead")] for k, v in d["table"].items()}
+    order_a = [r["name"] for r in pop["A"]]
+    order_b = [r["name"] for r in pop["B"]]
+    params = {r["name"]: {k: v for k, v in r.items() if k != "name"} for side in ("A", "B") for r in pop[side]}
+    eq = (d.get("eq_fixed") or [{}])[0]
+    rnd = {"round": "re-run", "A_pop": order_a, "B_pop": order_b, "A_mix": eq.get("A", {}), "B_mix": eq.get("B", {}),
+           "vA": eq.get("vA"), "vB": eq.get("vB"), "welfare": eq.get("welfare"), "BR_A": None, "gain_A": None, "BR_B": None,
+           "gain_B": None, "exploitability_lb": None}
+    weights = {**eq.get("A", {}), **eq.get("B", {})}
+    return {"meta": {"label": entry.get("label", Path(p).name), "rounds": [rnd], "table": table, "A": order_a, "B": order_b,
+                     "params": params, "weights": weights, "exploited": pop.get("autoware_like_exploited", {}),
+                     "contexts": entry.get("contexts"), "seeds": d.get("seeds")}}
+
+
 # --- fitted Autoware rules (C3 fit.json) ---------------------------------------------------------
 def load_fit(entry, sc):
     """c3_fit.py's fit.json: candidate B rules by error; the best is the fitted Autoware rule.
@@ -786,6 +814,61 @@ def load_e3_knobs(entry, sc):
     return {"payoffs": payoffs}
 
 
+# --- sites (E6, E7) --------------------------------------------------------------------------------
+def _image_uri(p, max_px):
+    """A PNG as a data: URI, downscaled to max_px on its longer side when PIL is there."""
+    import base64
+    import io
+    raw = open(p, "rb").read()
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(raw))
+        if max(im.size) > max_px:
+            im.thumbnail((max_px, max_px), Image.LANCZOS)
+            buf = io.BytesIO()
+            im.save(buf, "PNG", optimize=True)
+            if buf.tell() < len(raw):
+                raw = buf.getvalue()
+    except Exception:  # no PIL, or a PNG PIL cannot read: embedded as it is
+        pass
+    return "data:image/png;base64," + base64.b64encode(raw).decode()
+
+
+def load_sites(entry, sc):
+    """Site search results (sites.py, stop_sign_map.py), one item per entry. kind:
+      table   a CSV (e6_four_way.csv), rows as they are; `rank` lists "<town>/<junction>" in rank
+              order (the report's), shown first; `cols` the columns to show (default all)
+      images  `images`: [{path, caption}], PNGs embedded (downscaled to max_px, default 1000);
+              a missing image is listed, not fatal, unless every image is missing"""
+    kind = entry["kind"]
+    item = {"kind": kind, "label": entry.get("label", kind), "notes": entry.get("notes", [])}
+    if kind == "table":
+        p = paths(entry)[0]
+        if not os.path.exists(p):
+            raise FileNotFoundError(2, "missing", p)
+        rows = read_csv(p)
+        rank = [str(x) for x in entry.get("rank", [])]
+        for r in rows:
+            k = f"{r.get('town')}/{r.get('junction')}"
+            r["rank"] = rank.index(k) + 1 if k in rank else None
+        rows.sort(key=lambda r: r["rank"] if r["rank"] is not None else len(rank) + 1)  # stable: CSV order after
+        cols = entry.get("cols") or ([c for c in rows[0] if c != "rank"] if rows else [])
+        item.update({"path": p, "cols": ["rank"] + cols, "rows": rows})
+    else:
+        imgs, missing = [], []
+        for im in entry["images"]:
+            p = os.path.expanduser(im["path"])
+            if not os.path.exists(p):
+                missing.append(p)
+                continue
+            imgs.append({"caption": im.get("caption", os.path.basename(p)), "path": p,
+                         "src": _image_uri(p, entry.get("max_px", 1000))})
+        if not imgs:
+            raise FileNotFoundError(2, "missing", missing[0] if missing else "no images")
+        item.update({"images": imgs, "missing": missing})
+    return {"sites": [item]}
+
+
 # --- progress ------------------------------------------------------------------------------------
 def load_d2(entry, sc):
     """A D2 share as text ('payoffs inside the arena's 95 % interval: 44 of 48') or a summary.json's
@@ -814,12 +897,12 @@ LOADERS = {k[5:]: v for k, v in globals().items() if k.startswith("load_")}
 def export(sources, out, only=None, log=print):
     cfg = yaml.safe_load(open(sources))
     atlas = {"generated": time.strftime("%Y-%m-%d %H:%M:%S"), "sources": str(sources), "tiers": cfg["tiers"],
-             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "beliefs": [], "explain": [],
+             "scenarios": {}, "progress": [], "ncar": {}, "fitted": [], "conventions": [], "beliefs": [], "explain": [], "sites": [],
              "notes": cfg.get("notes", [])}
     for sname, sc in cfg["scenarios"].items():
         if only and sname not in only:
             continue
-        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "beliefs", "explain", "notes")}
+        S = {k: sc.get(k) for k in ("title", "axes", "facets", "legend", "rules", "labels", "state_machines", "ncar", "conventions", "beliefs", "explain", "sites", "notes")}
         S["tiers"] = {}
         S["episodes"] = []
         S["meta"] = []
@@ -838,7 +921,8 @@ def export(sources, out, only=None, log=print):
                 T = S["tiers"].setdefault(tier, {"cells": [], "payoffs": [], "labels": [], "d2": None, "links": [], "items": 0})
                 T["items"] += (len(res.get("episodes", [])) + bool(res.get("meta")) + len(res.get("fitted", []))
                                + sum(bool(res.get(k)) for k in ("ncar_residuals", "ncar_n1", "ncar_n4"))
-                               + len(res.get("conventions", [])) + len(res.get("beliefs", [])) + len(res.get("explain", [])))
+                               + len(res.get("conventions", [])) + len(res.get("beliefs", [])) + len(res.get("explain", []))
+                               + len(res.get("sites", [])))
                 T["cells"] += res.get("cells", [])
                 T["payoffs"] += res.get("payoffs", [])
                 if res.get("d2"):
@@ -857,6 +941,7 @@ def export(sources, out, only=None, log=print):
                 atlas["conventions"] += res.get("conventions", [])
                 atlas["beliefs"] += res.get("beliefs", [])
                 atlas["explain"] += res.get("explain", [])
+                atlas["sites"] += res.get("sites", [])
                 log(f"  [{sname}/{tier}] {name}: {len(res.get('cells', []))} cells, {len(res.get('payoffs', []))} payoff "
                     f"contexts, {len(res.get('episodes', []))} episodes ({time.monotonic() - t0:.1f} s)")
         for tier, T in S["tiers"].items():

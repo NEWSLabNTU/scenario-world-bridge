@@ -68,6 +68,10 @@ scenarios:
           link: "logs/2026 SSv2 on CARLA/2026-11-14 coop C2b rerun"
         - loader: d2
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop C2b rerun/run/d2_compare.txt"
+        - loader: d2
+          label: "C2b D2, friction canary (spec tyres, b1c0684): 48 fresh arena runs against the C2b rerun's swb runs"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop friction canaries/c2b/d2_compare.txt"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop friction canaries"
       swb_autoware:
         - loader: c3
           label: C3a rerun (Autoware B, ground truth)
@@ -115,6 +119,13 @@ scenarios:
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end/do7"
           contexts: [[2, 2], [6, 0], [6, 3], [10, 0], [10, -2], [14, -3]]
           link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena merge end"
+        - loader: do_rerun
+          label: "do7 re-run, friction canary (spec tyres, b1c0684): the final 4 x 5 table, 2 fresh seeds"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop friction canaries/do7/do6_fixed_s2_salt0.json"
+          populations: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop friction canaries/do7_populations.json"
+          runs: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop friction canaries/do7/runs_s2_salt0.jsonl"
+          contexts: [[2, 2], [6, 0], [6, 3], [10, 0], [10, -2], [14, -3]]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop friction canaries"
         - loader: double_oracle
           label: do4 (S0 utility)
           path: /mnt/p5plus/aeon/coop/s0/do4
@@ -309,6 +320,7 @@ scenarios:
       - "Restart crash: contact after both cars stopped, as a share of the runs where both stopped, over all rule pairs. Gap recovered: (C_worst^none - C_worst^conv) / (C_worst^none - C_best^none), mean over contexts with a gap >= 0.05."
       - "The zipper under congestion: a lane drop fed on both lanes (20 + 20 cars, headways 1.2 / 1.5 s), conventions none, early, zipper, zipper* (lane 2's best reply), yend."
       - "NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions"
+      - "C7 coin at stop: a seventh convention, coin_stop: the signalled coin sent as a V2X message when the first car stops, received 0.1 s later by both cars; the same fault model as coin. Its tables hold all seven conventions. NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop"
     tiers:
       kinematic:
         - loader: conventions
@@ -324,6 +336,15 @@ scenarios:
           kind: stream
           label: Zipper under congestion (kinematic, 8 draws)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/zipper/kin/stream_kin.json"
+        - loader: conventions
+          kind: tiebreak_kin
+          label: Tie-breaks with coin at stop, crossing (kinematic)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop/kinematic/cross/tiebreak_cross.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop"
+        - loader: conventions
+          kind: tiebreak_kin
+          label: Tie-breaks with coin at stop, narrow passage (kinematic)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop/kinematic/narrow/tiebreak_narrow.json"
       arena:
         - loader: conventions
           kind: tiebreak_arena
@@ -346,6 +367,23 @@ scenarios:
           kind: stream
           label: Zipper under congestion (arena, 4 draws)
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 conventions/zipper/arena/stream_arena.json"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks with coin at stop, crossing arena v 10
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop/arena/cross_v10/summary.json"
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks with coin at stop, crossing arena v 14
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop/arena/cross_v14/summary.json"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks with coin at stop, narrow passage arena W_n 6
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop/arena/narrow_wn6/summary.json"
+        - loader: conventions
+          kind: tiebreak_arena
+          label: Tie-breaks with coin at stop, narrow passage arena W_n 30
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop C7 coin at stop/arena/narrow_wn30/summary.json"
     planned: {swb_light: "not run", swb_autoware: "not run"}
 
   beliefs:
@@ -507,7 +545,51 @@ scenarios:
         - loader: n1_sizes
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop N1 N2/n1/n1_sizes.json"
         - loader: n4
-          path: /mnt/p5plus/aeon/coop/n4/runs/n4_cells.jsonl
+          label: N4 far field (a long merge, N 10-50, 16 draws)
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop N4 far field/runs/n4_cells.jsonl"
+          link: "logs/2026 SSv2 on CARLA/2026-11-14 coop N4 far field"
+
+  sites:
+    title: Sites (E6, E7)
+    sites: true
+    notes:
+      - "E6 (sites.py, 646ebf3, offline over CARLA 0.9.16's OpenDRIVE and the TUM Lanelet2 maps): no 4-arm junction on Town03, Town05 or Town10HD has stop signs, and the only regulatory element in the maps is traffic_light; Autoware treats an unlinked junction with the intersection module (mutual yield, not_prioritized), not an all-way stop. 'Straight' means the heading stays within 4 deg of the arm's entry."
+      - "D8: a site is found, U3 goes ahead on Town05 j979 (j1427 the alternative). The stop-sign map variant: 8 approach lanelets with a traffic_sign (stop_sign) element and a stop line each, read by Autoware 1.5.0's stop_line module (stop 1 s, then yield); validated offline only."
+      - "E7: no lane drop, lane add or on-ramp on Town03, Town05 or Town10HD. The one merge is Town03 j1901, a Y merge (one-lane road 44 into 21 -> 22 at -45 deg; the arena cannot mirror it yet). Town06 road 48 lane -3 is the arena-exact lane drop (140.6 m full width, 43.9 m cubic taper), but Town06 is not installed and has no Lanelet2 map. N5 not ready."
+      - "NAS: logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites, and dataset/2026-11-15 Town05 j979 all-way stop map"
+    tiers:
+      maps:
+        - loader: sites
+          kind: table
+          label: "E6: the 4-way candidates (rank: the report's; the rest in the CSV's order)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e6_four_way.csv"
+          rank: [Town05/979, Town05/1427, Town05/1574, Town03/356]
+          cols: [town, junction, centre_carla_x, centre_carla_y, arms_lanes, arm_roads, straight_in_m, straight_in_through_m,
+                 min_in_m, min_in_through_m, xodr_lights, xodr_stops, lanelet_lights_linked, lanelet_stop_lines,
+                 lanelet_stop_signs, lanelet_right_of_way, approach_lanelets]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites"
+        - loader: sites
+          kind: images
+          label: "E6: the ranked 4-ways"
+          images:
+            - {path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e6_Town05_j979.png", caption: "1: Town05 j979, about 120 m straight on every arm"}
+            - {path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e6_Town05_j1427.png", caption: "2: Town05 j1427, the longest approaches with no other junction"}
+            - {path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e6_Town05_j1574.png", caption: "3: Town05 j1574, 031 defect 8's junction"}
+            - {path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e6_Town03_j356.png", caption: "4: Town03 j356, single-lane arms like the arena's crossing"}
+        - loader: sites
+          kind: images
+          label: "E7: merge sites"
+          images:
+            - {path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e7_Town03_j1901_overview.png", caption: "Town03 j1901, the Y merge (road 44 into 21 -> 22 at -45 deg)"}
+            - {path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop E6 E7 sites/e7_Town06_r48_l-3.png", caption: "Town06 road 48, lane -3: the arena-exact lane drop (not installed here)"}
+        - loader: sites
+          kind: images
+          label: "U3: the Town05 j979 all-way stop map (stop_sign_map.py, 5d94dee)"
+          max_px: 1000
+          images:
+            - {path: "~/nas/autoveh/dataset/2026-11-15 Town05 j979 all-way stop map/j979_stop_signs.png", caption: "j979: approach lanelets (blue), stop lines (red), the four stop signs"}
+          link: "dataset/2026-11-15 Town05 j979 all-way stop map"
+    planned: {swb_autoware: "U3 on Town05 j979 (the stop-sign map): not run"}
 
   narrow:
     title: Narrow passage (S4)

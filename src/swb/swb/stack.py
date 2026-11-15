@@ -1226,14 +1226,16 @@ def _waiting(rec):
 
 
 def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
-         respawn_delay=RESPAWN_DELAY, weather_call=None) -> int:
+         respawn_delay=RESPAWN_DELAY, weather_call=None, world_probe=None) -> int:
     """Hold the seat for the stack in ``stack_dir``; run its pilots on the stack's map and
     move them to another on request; set the project's weather parameters; mark it ready,
     and stopped at the end.
 
     ``once``: return right after the stack is ready (tests). ``pilot_command``:
     ``(rec, pilot, entry, log_dir) -> argv`` in place of ``pilot_argv`` (tests).
-    ``weather_call``: ``(rec) -> (ok, message)`` in place of ``set_weather`` (tests)."""
+    ``weather_call``: ``(rec) -> (ok, message)`` in place of ``set_weather`` (tests).
+    ``world_probe``: ``(rec) -> bool`` in place of ``bridge_serving`` (tests): the stack is
+    ready only once it is true."""
     stack_dir = Path(stack_dir)
     path = stack_dir / STACK_JSON
     rec = read_json(path)
@@ -1288,6 +1290,11 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
             write_json(path, rec)
         pilots_on = False
         next_check = 0.0
+        # the bridge binds SSv2's port only once a world server has taken it as its owner;
+        # an Isaac world server answers only after its worlds are loaded, minutes after it
+        # starts, and a run started before that fails at SSv2's SIMULATOR_INITIALIZE_TIMEOUT
+        serving = world_probe or bridge_serving
+        world_up, next_world = False, 0.0
         while not stop["now"]:
             if carla is not None and carla.poll():
                 write_json(path, rec)
@@ -1338,7 +1345,14 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                     print(f"swb stack: {rec['error']}", file=sys.stderr, flush=True)
                     code = 2
                     break
-            if not waiting and sim_ready and rec.get("state") != READY \
+            if sim_ready and not world_up and time.time() >= next_world:
+                world_up = serving(rec)
+                next_world = time.time() + min(poll, 1.0)
+                if world_up:
+                    event(stack_dir, "world.ready")
+                    print("swb stack: the bridge serves SSv2 (its world server is up)",
+                          flush=True)
+            if not waiting and sim_ready and world_up and rec.get("state") != READY \
                     and not weather.pending(rec):
                 rec["state"] = READY
                 rec["ready_at"] = iso_now()

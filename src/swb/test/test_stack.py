@@ -675,3 +675,27 @@ def test_a_stopping_keeper_says_so_before_its_pilots_stop(where, maps_hub, monke
                       weather_call=lambda rec: (False, "no")) == 2
     assert seen == ["stopping"]
     assert json.loads(p.stack_json.read_text())["state"] == "stopped"
+
+
+def test_the_stack_is_ready_only_once_the_bridge_serves(where, maps_hub):
+    """An Isaac world server answers minutes after it starts, and the bridge binds SSv2's port
+    only then: a stack marked ready before that sent the first run into SSv2's
+    SIMULATOR_INITIALIZE_TIMEOUT (seen 2026-11-15, Town10HD)."""
+    d = make(where)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    for x in p.record["pilots"]:
+        x["ready"] = ["true"]
+    stack.write_plan(p)
+    answers = iter([False, False, True])
+    seen = []
+
+    def probe(rec):
+        seen.append(json.loads(p.stack_json.read_text())["state"])
+        return next(answers)
+
+    assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                      world_probe=probe) == 0
+    assert seen == ["starting", "starting", "starting"]
+    assert json.loads(p.stack_json.read_text())["state"] == "ready"
+    events = [json.loads(x)["event"] for x in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+    assert events.index("world.ready") < events.index("stack.ready")

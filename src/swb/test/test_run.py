@@ -5,6 +5,7 @@ import json
 import os
 import re
 import signal
+import socket
 import subprocess
 import sys
 import textwrap
@@ -75,6 +76,21 @@ def make(where, swb_yaml=None):
     return d
 
 
+def fake_bridge(rec):
+    """A listener on the seat's SSv2 port, as the bridge binds it once its world server is
+    up: the keeper marks the stack ready only then. None when the port is taken (then
+    something serves it already)."""
+    sock = socket.socket()
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind(("127.0.0.1", stack.seat_of(rec).ssv2_port))
+    except OSError:
+        sock.close()
+        return None
+    sock.listen(8)
+    return sock
+
+
 def start_stack(d, ready=("true",), map_name="Town01"):
     p = stack.plan(project_arg=str(d), map_name=map_name)
     for x in p.record["pilots"]:
@@ -88,6 +104,7 @@ def start_stack(d, ready=("true",), map_name="Town01"):
     wrap = f"{sys.executable} {d.parent / 'fake_pilot.py'} {pilots_out}"
     proc = subprocess.Popen([sys.executable, "-m", "swb.stack", "keep", str(p.stack_dir),
                              "--poll", "0.05", "--pilot-wrap", wrap], env=env)
+    proc.bridge = fake_bridge(p.record)
     deadline = time.time() + 20
     while time.time() < deadline:
         rec = json.loads(p.stack_json.read_text())
@@ -643,6 +660,15 @@ FAKE_LAUNCH = textwrap.dedent('''\
     def cmd(rec, pl, entry, log_dir):
         argv = stack.pilot_argv(rec, pl, entry, log_dir)
         return wrap + argv if argv else None
+    # the bridge binds SSv2's port once its world server is up; the keeper waits for it
+    import socket
+    bridge = socket.socket()
+    bridge.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        bridge.bind(("127.0.0.1", stack.seat_of(p.record).ssv2_port))
+        bridge.listen(8)
+    except OSError:
+        pass
     sys.exit(stack.keep(p.stack_dir, poll=0.05, pilot_command=cmd))
 ''')
 

@@ -137,3 +137,11 @@ def maps_hub(hub):
                {"Town01/Town01_physics.usda": "usda", "vehicles/vehicles.json": "{}",
                 "Town02/Town02.usd": "usd2"}, tag="2026-10-23", manifest=True)
     return hub
+
+
+@pytest.fixture(autouse=True)
+def bridge_up(monkeypatch):
+    """No bridge in these tests: a keeper takes its world server as up (the tests of the gate
+    patch it back)."""
+    from swb import stack
+    monkeypatch.setattr(stack, "bridge_serving", lambda rec, timeout=0.5: True)

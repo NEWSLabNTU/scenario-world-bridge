@@ -4,7 +4,7 @@ How a car decides when to go, yield or wait among other road users, in a way tha
 explained and deployed, and how swb measures whether it works. This folds roadmap 074's findings
 (scoring, the two-car games, the N-car formulation, the strategy layer on Autoware) into one
 design. The literature and the long arguments are in `survey-multi-vehicle-cooperation.md`;
-the steps and results in `docs/roadmap/074-cooperation-study.md`.
+the steps and results in `docs/roadmap/074-cooperation-study.md`. The build spec is [conflict-zone-protocol.md](conflict-zone-protocol.md), its phases [roadmap 078](../roadmap/078-conflict-zone-protocol.md).
 
 ## The design in one picture
 

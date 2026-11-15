@@ -108,8 +108,8 @@ class ConvPolicy(X.Policy):
     """crossing_game.Policy (a rule and its safety layer) with a convention on top. ident is the
     car (A or B), beh the convention's behaviour (none, bind, coin, stagger)."""
 
-    def __init__(self, ident, beh, ref, role, rule, v0, b_cont="hold", exit_=X.EXIT):
-        super().__init__(role, rule, v0, b_cont, exit_)
+    def __init__(self, ident, beh, ref, role, rule, v0, b_cont="hold", exit_=X.EXIT, hold_stop=None):
+        super().__init__(role, rule, v0, b_cont, exit_, hold_stop)
         self.ident, self.beh, self.ref = ident, beh, ref
         self.prio = ident == PRIO
         self.pat = self._pat  # re-applied through the setter, now that the convention is known
@@ -193,9 +193,9 @@ def patched(beh_a, beh_b, winner=None):
     made = []
     idents = iter("AB")
 
-    def make(role, rule, v0, b_cont="hold", exit_=X.EXIT):
+    def make(role, rule, v0, b_cont="hold", exit_=X.EXIT, hold_stop=None):
         ident = next(idents)
-        p = ConvPolicy(ident, beh_a if ident == "A" else beh_b, ref, role, rule, v0, b_cont, exit_)
+        p = ConvPolicy(ident, beh_a if ident == "A" else beh_b, ref, role, rule, v0, b_cont, exit_, hold_stop)
         made.append(p)
         return p
 

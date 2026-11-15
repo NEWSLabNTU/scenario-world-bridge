@@ -295,12 +295,18 @@ def add_legacy_args(p):
     p.add_argument("--legacy-pet", action="store_true", help="measures' sampled PET with the 30 deg cut (LEGACY_PET)")
     p.add_argument("--arena-hold-stop", action="store_true",
                    help="arena scripts: the arena's policies brake a held car to rest too (ARENA_HOLD_STOP), as the e995a7b rerun")
+    p.add_argument("--legacy-arena-coast", action="store_true",
+                   help="arena scripts: a held car's a <= 0 is commanded as is, so it coasts (arena.LEGACY_COAST), "
+                        "as every arena run before 2026-11-15's brake to rest")
 
 
 def apply_legacy_args(a):
     global LAUNCH_DEAD, HOLD_STOP, ARENA_HOLD_STOP
     if getattr(a, "arena_hold_stop", False):
         ARENA_HOLD_STOP = True
+    if getattr(a, "legacy_arena_coast", False):
+        import arena
+        arena.LEGACY_COAST = True
     if a.no_launch_dead:
         LAUNCH_DEAD = 0.0
     if a.no_hold_stop:

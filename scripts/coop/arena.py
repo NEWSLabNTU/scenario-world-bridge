@@ -86,6 +86,13 @@ LEGACY_OBS = False
 # With it off, each record also carries what the old end would have scored (`*_legacy`), so the
 # fix's impact is measured on the same runs.
 LEGACY_MERGE_END = False
+# A held car brakes to rest and stays braked, as Autoware's STOPPED state does (pid.param.yaml: smooth
+# stop's strong stop and stopped_acc, -3.4): below STOPPED_V, a request of a <= 0 is commanded as at most
+# -STOPPED_ACC (the user's decision, 2026-11-15). Before it a held car's a = 0 was commanded as is and the car
+# coasted, sometimes creeping on. LEGACY_COAST = True (--legacy-arena-coast) is the old behaviour, for re-runs.
+LEGACY_COAST = False
+STOPPED_V = 0.5  # m/s, crossing_game.HOLD_STOP_V
+STOPPED_ACC = 3.4  # m/s^2
 MERGE_SETTLE = 1.5  # s
 # B's safety layer: Autoware's obstacle_stop as C3 measured it (074, the C3a/C3b bags). Once A's
 # lane change starts (its predicted path reaches B's), obstacle_stop puts a stop point stop_margin
@@ -170,6 +177,8 @@ class Longitudinal:
         self.brake = PedalMap(MAPS / "brake_map.csv")
 
     def command(self, a, v):
+        if not LEGACY_COAST and a <= 0.0 and v < STOPPED_V:
+            a = min(a, -STOPPED_ACC)  # held: brake to rest and stay braked
         brake_coast = self.brake.passive(v)
         coasting = max(self.accel.passive(v), brake_coast)
         if a >= coasting:

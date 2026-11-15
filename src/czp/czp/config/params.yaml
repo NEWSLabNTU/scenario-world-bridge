@@ -18,6 +18,7 @@ far_distance:             {value: 60.0, unit: m, source: "074 C8 (fcfsm's far te
 far_time:                 {value: 2.0,  unit: s, source: "074 C8 (fcfsm's far test)", heldout: null}
 rest_speed:               {value: 0.1,  unit: m/s, source: "074 U3 (a car below this at its line is at rest)", heldout: null}
 rest_window:              {value: 2.0,  unit: m, source: "074 U3 (at rest within 2 m before the line)", heldout: null}
+own_rest_window:          {value: 4.5,  unit: m, source: "078 P2c: the own car at rest within this of the zone is at its line; Autoware's intersection stop line at Town05 j979 sits 2.7-3.2 m before czp's zone edge and the car rests 0.6 m before it (czp s_entry 3.27 m, 3.79 m), so with rest_window (2 m) its rest never registered and rest_tie never bound (078 P2b on_dt-0.3_s0, P2c on_dt-0.3_s0)", heldout: null}
 moved_speed:              {value: 0.5,  unit: m/s, source: "074 C8 (moved off its line: speed and 0.3 m)", heldout: null}
 moved_dist:               {value: 0.3,  unit: m, source: "074 C8", heldout: null}
 moved_dist_alone:         {value: 1.0,  unit: m, source: "074 C8 (distance alone)", heldout: null}

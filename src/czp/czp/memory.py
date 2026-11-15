@@ -126,7 +126,8 @@ def update_memory(mem: Memory, t, own: Agent, others, params, exit_clear=True, b
     new = Memory(**{k: getattr(mem, k) for k in mem.__dataclass_fields__})
     new.agents = dict(mem.agents)
     new.bystanders = dict(mem.bystanders)
-    if own.v < params.rest_speed and 0.0 < own.s_entry <= params.rest_window + 0.05:
+    if own.v < params.rest_speed and 0.0 < own.s_entry <= params.own_rest_window + 0.05:
+        # the own car at rest at its line: Autoware's, which can sit metres before the zone's edge (own_rest_window)
         if new.own_rest_t is None:
             new.own_rest_t, new.own_rest_s = t, own.s_entry
     if own.v >= params.rest_speed:

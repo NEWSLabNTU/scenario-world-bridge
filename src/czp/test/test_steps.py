@@ -178,6 +178,18 @@ def test_rest_tie_binds_after_a_mutual_stop():
     assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
 
 
+def test_own_rest_at_autowares_line():
+    """078 P2c: the own car comes to rest at Autoware's stop line, up to own_rest_window before the zone (3.3 m at
+    Town05 j979): its rest registers there; the other car's rest window stays rest_window."""
+    m = update_memory(Memory(), 5.0, car("A", s_entry=3.3, v=0.0), [], P)
+    assert m.own_rest_t == 5.0
+    m = update_memory(Memory(), 5.0, car("A", s_entry=P.own_rest_window + 0.5, v=0.0), [], P)
+    assert m.own_rest_t is None
+    b = car("B", s_entry=3.3, v=0.0)
+    m = update_memory(Memory(), 5.0, car("A", s_entry=1.0, v=0.0), [b], P)
+    assert m.agents["B"].rest_t is None
+
+
 def test_rest_tie_guard_from_the_corrected_rest_stamp():
     """078 P2c: the other's rest stamp from Autoware's tracks reads its stop rest_stamp_bias (0.7 s) late; the
     fresh-rest guard of rest_tie counts from the corrected stamp, so the tie still binds (B goes, A yields) and B goes

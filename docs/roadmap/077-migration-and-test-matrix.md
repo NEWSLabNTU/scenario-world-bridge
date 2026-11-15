@@ -60,10 +60,10 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 
 ## Steps
 
-1. [ ] Inventory (077-study/inventory.md); this doc refined from it.
-2. [ ] T0/T1 in `just test`: project check over every project in the repository, swb-agent
+1. [x] Inventory (077-study/inventory.md); this doc refined from it.
+2. [x] T0/T1 in `just test`: project check over every project in the repository, swb-agent
    check over every SDK agent, launch parse of every pilot kind and of swb.launch.xml.
-3. [ ] The gaps the inventory names, built in the project workflow (each before the items it
+3. [~] The gaps the inventory names, built in the project workflow (each before the items it
    blocks), with tests.
 4. [ ] Migration, item by item: a project (in `src/swb_examples/projects/` for user-facing
    ones, `scenarios/projects/` for studies), its suite and expectations, run live, compared
@@ -245,3 +245,14 @@ Isaac's rear contact (inventory row 18).
     migration note must say so, or the seat must follow it.
   - Also seen: `assets fetch` took 215 min for 19 GB (the Isaac USD set, 11840 files);
     play_launch warns io_helper lacks `cap_sys_ptrace`.
+- Since 2026-11-15 swb 133 manager assigns the campaign's jobs; this doc stays this session's.
+- **G25 built (2026-11-16).** `project check` of an Isaac project, and so the stack before it
+  starts, checks `<isaac.root>/msgs` (else the ISAAC_ROOT the world server inherits) against
+  the packages aib's installed `build_msgs.sh` builds by default (its own list, one source):
+  a package not built, lacking a message or service module the Autoware install has, or with
+  a type-support library older than the install's is refused by name, fix `ros2 run swb
+  isaac msgs`, which runs the build script for just those (`--check` lists them). Tests
+  without Isaac (test_isaac.py, a fake install; one test reads aib's real script). Live on
+  this host: the check named `autoware_perception_msgs is not built` (the same gap as 241's,
+  which town10_ego_drive had not hit), `isaac msgs` built it, `--check` and `project check`
+  then passed. User docs: getting-started/isaac.md, commands, troubleshooting.

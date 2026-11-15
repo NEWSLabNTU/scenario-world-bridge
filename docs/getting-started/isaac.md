@@ -27,14 +27,12 @@ there is no separate vehicle bridge. Autoware connects to it over ROS, on the sa
 ## Install Isaac Sim
 
 Isaac Sim is pip-installed into a Python 3.12 environment of its own (it does not touch the
-system's Python), with Autoware's messages built for that Python. Choose where it goes and
-run the two installers from the workspace:
+system's Python). Choose where it goes and run the installer from the workspace:
 
 ```bash
 cd ~/scenario-world-bridge                        # your clone
 export ISAAC_ROOT=~/isaac-sim
 src/swb_isaac_world/scripts/install_isaac.sh     # ends: isaacsim 6.1.0.0, INSTALL-DONE
-src/swb_isaac_world/scripts/build_msgs.sh        # into $ISAAC_ROOT/msgs
 ```
 
 ## Tell swb where it is
@@ -49,6 +47,17 @@ isaac:
 The stack hands it to the Isaac world server (as `ISAAC_ROOT`), so no terminal needs an
 export.
 
+Then build Autoware's messages for Isaac's Python, into `<isaac root>/msgs`:
+
+```bash
+source ~/swb.bash
+ros2 run swb isaac msgs        # builds every package that is missing or stale
+```
+
+Run it again after Autoware is updated: `project check` and the stack refuse an Isaac project
+while a message package the world server needs is missing or was built from another
+Autoware, naming the package.
+
 On a machine with two GPUs, keep the world server on one by adding
 `export ISAAC_KIT_ARGS="--/renderer/multiGpu/enabled=false --/renderer/activeGpu=0"` as
 well.
@@ -56,17 +65,17 @@ well.
 **Check**:
 
 ```bash
-source ~/swb.bash
-ls $ISAAC_ROOT/msgs
+ros2 run swb isaac msgs --check
 ```
 
-lists the message packages `build_msgs.sh` built.
+prints nothing and exits 0 when every message package is built.
 
 ## If it does not work
 
 | Symptom | Fix |
 |---|---|
 | `install_isaac.sh`: `uv: command not found` | install uv first (above) |
+| `project check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `ros2 run swb isaac msgs` |
 | The world server is `not up after 1200 s`, its Kit log ends at `omni.client` and it runs at 100 % CPU | a Kit cache link (`~/.cache/ov`, `~/.local/share/ov`, `~/.nvidia-omniverse`) points at a deleted directory, for example after reinstalling Isaac: create its target (`mkdir -p "$(readlink -m ~/.cache/ov)"`), or run `install_isaac.sh` again, which does |
 | Every process prints `'NetworkInterfaceAddress': deprecated element`; the world server logs a DEBUG traceback, `No module named 'em'` | both harmless |
 

@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from swb import assets, budget as budgetmod, config, ground as groundmod, judges as judgesmod
+from swb import assets, budget as budgetmod, config, ground as groundmod, isaac as isaacmod
+from swb import judges as judgesmod
 from swb import profile as profilemod, record as recordmod, ssv2 as ssv2mod, world as worldmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
@@ -653,6 +654,8 @@ def check_project(path) -> list:
             out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}",
                                refused="not fetched" in msg))
     out += profile_problems(project, settings)
+    if sim == "isaac":
+        out += isaacmod.findings(config.host_settings(project))
     files, found = collect_scenarios(project)
     out += found
     if not files:

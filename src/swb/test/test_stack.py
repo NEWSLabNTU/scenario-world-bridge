@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from conftest import fake_isaac
 from swb import assets, config, project, seat, stack
 
 LAUNCH = Path(__file__).resolve().parents[2] / "swb_launch" / "launch"
@@ -425,11 +426,13 @@ def test_registered_asks_the_relay():
     assert not stack.is_registered("tcp://127.0.0.1:1", "cut_in")
 
 
-def test_isaac_root_reaches_the_world_server(where, maps_hub):
+def test_isaac_root_reaches_the_world_server(where, maps_hub, monkeypatch):
     d = make(where, template="isaac")
+    root, setup = fake_isaac(where["tmp"], monkeypatch)
     sysf = where["tmp"] / "system" / "host.yaml"
     h = yaml.safe_load(sysf.read_text())
-    h["isaac"] = {"root": str(where["tmp"] / "isaac-sim")}
+    h["isaac"] = {"root": str(root)}
+    h["autoware"] = {"setup": str(setup)}
     sysf.write_text(yaml.safe_dump(h))
     assert stack.plan(project_arg=str(d)).env["ISAAC_ROOT"] == str(where["tmp"] / "isaac-sim")
 

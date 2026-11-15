@@ -145,3 +145,49 @@ def bridge_up(monkeypatch):
     patch it back)."""
     from swb import stack
     monkeypatch.setattr(stack, "bridge_serving", lambda rec, timeout=0.5: True)
+
+
+@pytest.fixture(autouse=True)
+def no_isaac_root(monkeypatch):
+    """The host's ISAAC_ROOT is not the tests' (swb.isaac reads it when isaac.root is unset)."""
+    monkeypatch.delenv("ISAAC_ROOT", raising=False)
+
+
+PKGS = ("autoware_vehicle_msgs", "autoware_control_msgs", "autoware_perception_msgs")
+
+
+def fake_isaac(tmp, monkeypatch, built=PKGS, autoware_msgs=("_traffic_light_group.py",)):
+    """An Isaac install under ``tmp/isaac-sim`` with ``built`` message packages in msgs/, aib's
+    build script on AMENT_PREFIX_PATH (default list PKGS), and an Autoware install under
+    ``tmp/autoware`` whose packages hold ``autoware_msgs`` message modules. Returns
+    ``(isaac root, autoware setup.bash)``."""
+    root, aw, ament = tmp / "isaac-sim", tmp / "autoware", tmp / "ament"
+    (root / "venv" / "bin").mkdir(parents=True, exist_ok=True)
+    (root / "venv" / "bin" / "python").write_text("")
+    script = ament / "share" / "aib" / "scripts" / "build_msgs.sh"
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text("#!/usr/bin/env bash\nPKGS=(\"$@\")\n"
+                      f"[ ${{#PKGS[@]}} -gt 0 ] || PKGS=({' '.join(PKGS)})\n")
+    (aw / "lib").mkdir(parents=True, exist_ok=True)
+    (aw / "setup.bash").write_text("")
+    (root / "msgs" / "lib").mkdir(parents=True, exist_ok=True)
+    for pkg in PKGS:
+        src = aw / "local" / "lib" / "python3.10" / "dist-packages" / pkg / "msg"
+        src.mkdir(parents=True, exist_ok=True)
+        for m in autoware_msgs:
+            (src / m).write_text("")
+        for ts in ("generator_c", "typesupport_c", "typesupport_fastrtps_c",
+                   "typesupport_introspection_c"):
+            (aw / "lib" / f"lib{pkg}__rosidl_{ts}.so").write_text("")
+    for pkg in built:
+        b = root / "msgs" / pkg
+        (b / "msg").mkdir(parents=True, exist_ok=True)
+        (b / "__init__.py").write_text("")
+        (b / f"lib{pkg}__rosidl_generator_py.so").write_text("")
+        for m in autoware_msgs:
+            (b / "msg" / m).write_text("")
+        for ts in ("generator_c", "typesupport_c", "typesupport_fastrtps_c",
+                   "typesupport_introspection_c"):
+            (root / "msgs" / "lib" / f"lib{pkg}__rosidl_{ts}.so").write_text("")
+    monkeypatch.setenv("AMENT_PREFIX_PATH", str(ament))
+    return root, aw / "setup.bash"

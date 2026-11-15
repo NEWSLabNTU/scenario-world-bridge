@@ -26,6 +26,7 @@ setup(
             'seat = swb.seat:main',
             'run = swb.run:cli',
             'runs = swb.runs:main',
+            'isaac = swb.isaac:main',
         ],
     },
 )

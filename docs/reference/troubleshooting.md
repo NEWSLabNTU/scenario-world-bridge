@@ -9,6 +9,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | Symptom | Cause, fix |
 |---|---|
 | `swb: the stack is refused (3): ...` | the message names the problem and its fix: assets not fetched (`ros2 run swb assets fetch`), a scenario that does not parse, an entity without a pilot, a pilot kind the simulator cannot run |
+| `Isaac message bindings: <package> is not built` (or `is stale`) | Isaac's Python lacks an Autoware message package the world server publishes, or it was built from an older Autoware: `ros2 run swb isaac msgs` |
 | `... seat <n> is taken: <user> (pid ...)` | another stack holds the seat: take another (`ros2 run swb seat take auto`) or wait |
 | `... pilots ... but seat <n> has 7 pilot domains` | more pilots than the seat has domains: fewer pilots, or a seat table with a larger `stride` |
 | The stack and every run start nothing | play_launch missing or older than 0.30.0: `play_launch --version` |

@@ -42,6 +42,14 @@ Every command a user types, in the `swb` package unless named otherwise; `ros2 r
 | `seat release` | sets your seat back to `auto` |
 | `seat env scenario` / `seat env <k>` | prints `export ROS_DOMAIN_ID=... RMW_IMPLEMENTATION=... CYCLONEDDS_URI=...` for the seat's scenario domain or its k-th pilot domain (from 0); use as `eval "$(ros2 run swb seat env scenario)"` |
 
+## `ros2 run swb isaac`
+
+| Command | Does |
+|---|---|
+| `isaac msgs` | builds, into `<isaac.root>/msgs`, every Autoware message package the Isaac world server needs that is missing there or was built from another Autoware (the install is the host setting `autoware.setup`'s) |
+| `isaac msgs <package> ...` | rebuilds those packages |
+| `isaac msgs --check` | lists what is missing or stale, as `project check` does for an Isaac project; exits 0 when nothing is |
+
 ## The stack: `swb_launch swb.launch.xml`
 
 ```bash

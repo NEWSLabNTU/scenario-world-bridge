@@ -27,6 +27,7 @@ setup(
             'run = swb.run:cli',
             'runs = swb.runs:main',
             'isaac = swb.isaac:main',
+            'drive = swb.drive:main',
         ],
     },
 )

@@ -325,3 +325,17 @@ Isaac's rear contact (inventory row 18).
   --init --recursive`, then rebuild). Ruling: a warning, not a refusal, since a developer
   may move a submodule on purpose; and it reads the checkout now, not what was built. Live:
   acb's `deps/sim_vehicle_spec` put back on e7d8656 was named against its pin 9b7e48d.
+- **G14 built (2026-11-16): `ros2 run swb drive`.** A run without a scenario on the
+  project's stack: swb_free_drive (073 S5) in SSv2's place initializes the map, spawns the
+  entity from its catalog entry at `--spawn` and steps the world; once the entity's pilot is
+  up on the episode (the relay's query: a phase past INITIALIZING, with a pose), `--goal` is
+  sent as a commander's `set_goal` (route, control and engage for every kind); ARRIVED
+  passes, `--timeout` fails, a free drive that ends is an error. Without a goal it steps
+  until Ctrl-C or the timeout (driven by hand). Its run directory is a run's; the steps go
+  to `timeline.jsonl`, `result.json` keeps the schema's events (`route_complete`). Rulings:
+  `lifetime: run` pilots are refused (nothing starts them outside a run); one goal per
+  drive (item 47's pose lists are a sequence of drives, or a scenario). Live on CARLA
+  0.9.16: drive_to_goal's spawn and goal, the `simple` pilot arrived 17 s after the goal
+  (run 2026-11-16T01-04-27), Autoware 1.5.0 was up 22 s after the spawn and arrived 27 s
+  after the goal (01-05-48). Migrates item 46 (acb `just sim` + `just autoware`); 48 (the
+  same on Isaac) waits for the Isaac cells' GPU room.

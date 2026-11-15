@@ -104,6 +104,29 @@ and a suite's `summary: <summary.csv>`. A run on another map than the stack's pi
 first prints `map <name>  (pilots restarted from <old> in <s> s)`. From Python,
 `swb.api.run_one(project, scenario, overrides)` runs one and returns its result.
 
+## `ros2 run swb drive`
+
+Drives one pilot on the project's stack without a scenario: the entity is spawned at a
+pose on a map, the world steps, and the pilot is sent a goal.
+
+```bash
+ros2 run swb drive --spawn 190.8,-130.1,0.3,3.14159 --goal 120,-129.8,0,3.14159 \
+    --map Town01 [--entity ego] [--timeout 600] [--start-stack] [--stop-stack]
+```
+
+| Option | |
+|---|---|
+| `--spawn x,y,z,yaw` | where the entity starts, in the map frame (yaw in rad, counter-clockwise from east); `x,y,yaw` puts it at z 0 |
+| `--goal x,y,z,yaw` | the pilot is sent it once it is up on the episode, and drives there; the run passes when the pilot reports it arrived, fails at `--timeout` |
+| no `--goal` | the world steps until Ctrl-C or `--timeout` while you drive the pilot by hand (an RViz goal); the run passes |
+| `--map` | one of the project's maps; default the stack's |
+| `--realtime false` | step as fast as the world goes instead of at wall-clock pace |
+
+Any pilot kind takes the goal (a `stack` lifetime pilot; `run` pilots are refused). The
+run has a run directory as `swb run`'s (`resolved.yaml`, `result.json`,
+`timeline.jsonl`, `logs/free_drive/`), takes the stack's turn the same way, and exits with
+the same codes.
+
 ## `ros2 run swb runs`
 
 | Command | Does |

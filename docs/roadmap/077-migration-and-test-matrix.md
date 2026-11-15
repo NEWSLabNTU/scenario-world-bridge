@@ -92,8 +92,12 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 - Batches: A (G2, G3, G6, G10, G12, G23: run and stack settings), D (G9 town preload, G21 two
   SSv2 clients) and the `simple` kind (G22) are being built; B (G5, G14, G15: own cars, free
   drive, package projects), C (G4: recording), E (G16 to G19: gate, two hosts, parameter
-  overrides, harness mode) next; G8, G13 and G20 (asset sources, CARLA map packages, CARLA
-  0.10) need decisions.
+  overrides, harness mode) next; G8 and G13 (asset sources, CARLA map packages) need
+  decisions.
+- G20 decided (user, 2026-11-15): CARLA 0.10 is in the matrix. Today it lives only on the
+  068 branch (068 step 8), and the workspaces pin the 0.9.16 API (`carla-0916`), so its
+  cells need the 0.10 profile brought to main as a build of its own first; until then
+  they report not built rather than pass.
 - G9 town preload and G21 two SSv2 clients (2026-11-15), step 3. Tests without a simulator
   (the bridge's against a fake backend and an in-process world server, over real ZMQ
   sockets; the keeper's with a stand-in command). Not run live. Rulings:

@@ -1826,6 +1826,17 @@ NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/`).
     - What it means for 078: stock Autoware at a Y merge yields to a car that is first, then loses
       the tie to a cautious one: the coordination failure the merge row targets. The row stays
       stock (G0), so this is the baseline T2 measures against.
+  - **Autoware's occlusion handling on** (swb 118; autoware_sim_vehicle 8be9363 added
+    `intersection_param_path`, default upstream, and `intersection_occlusion.param.yaml`; NAS
+    `.../2026-11-15 coop N5 Y merge occlusion on/`): **keep it off by default.** The corner at j1901 is
+    occluded by static buildings, so occlusion handling is active in every run, even with A parked.
+    B creeps (3.7 m/s at u −60, 2.6-2.8 at the stop line), so 0 of 40 runs are valid for the paced
+    protocol. On an empty junction it costs +11.6 s from u −100 to M (32.0 against 20.4 s). B stops at
+    the line in 30 of 30 runs (was 7), crawl waits in 30 of 30 (was 8), strict waits in 11 (was 2).
+    Outcomes match HOLD in 4 of 15 (was 11): A is never first. B's peak braking before M falls to
+    1.3 m/s² (was 4.1), but Autoware slows the same way with no A at all, for the occlusion and not
+    for A. 1 contact, A with C (light agents only). Not tuned. The argument stays for occlusion
+    scenarios.
 - **Still open:** N5 (b), Town06's lane drop, still needs a Lanelet2 map.
 
 ### C8: the four-way stop as a verified protocol, no V2X (2026-11-15)

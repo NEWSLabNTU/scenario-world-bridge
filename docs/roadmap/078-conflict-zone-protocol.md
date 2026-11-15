@@ -269,7 +269,11 @@ tinfp5; node on and off. 0 contacts.
 - **A mode hysteresis** goes into the strategy, so that readings at band edges stop toggling RTC.
 - **Occlusion is a contract, not a parameter:** with the other car first seen 22 m out, the node is
   stock until 2.5 s before the zone. The phantom at the occlusion edge (design step 3) and Autoware's
-  own occlusion handling (swb 118, running) are the two candidate fixes; radar is EV9.
+  own occlusion handling (swb 118) were the two candidate fixes; radar is EV9.
+  **2026-11-16:** Autoware's occlusion handling is rejected as a default. At a statically occluded
+  corner it creeps on every approach, even with no car there: +11.6 s on an empty junction, and A
+  never goes first (074 N5). The phantom at the occlusion edge remains the candidate, and it must
+  be checked against the same empty-junction cost.
 - **G3 risk recorded:** until the go is committed, the node is worse than stock on clearance and TTC
   in the band.
 

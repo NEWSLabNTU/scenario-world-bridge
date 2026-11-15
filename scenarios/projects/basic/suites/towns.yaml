@@ -1,0 +1,10 @@
+# Item 2: the ego drive on the other towns, one stack: the keeper loads each town between
+# runs (G9). Reference: roadmap 020, 7 of 7 (2026-10-11). CARLA at Epic quality: at Low it
+# crashes on a town change (CLAUDE.md).
+scenarios:
+  - ../../../src/swb_examples/scenarios/basic/town02_ego_drive.xosc
+  - ../../../src/swb_examples/scenarios/basic/town03_ego_drive.xosc
+  - ../../../src/swb_examples/scenarios/basic/town05_ego_drive.xosc
+  - ../../../src/swb_examples/scenarios/basic/town10_ego_drive.xosc
+retry: {on: error, times: 1}
+expect: {}

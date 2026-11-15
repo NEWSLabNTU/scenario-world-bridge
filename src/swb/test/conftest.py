@@ -191,3 +191,16 @@ def fake_isaac(tmp, monkeypatch, built=PKGS, autoware_msgs=("_traffic_light_grou
             (root / "msgs" / "lib" / f"lib{pkg}__rosidl_{ts}.so").write_text("")
     monkeypatch.setenv("AMENT_PREFIX_PATH", str(ament))
     return root, aw / "setup.bash"
+
+
+@pytest.fixture(autouse=True)
+def play_launch_ok(monkeypatch, tmp_path_factory):
+    """A play_launch at the floor first on PATH, for the keepers the tests start as child
+    processes too (it only answers --version; the tests of the floor give their own)."""
+    from swb import tools
+    d = tmp_path_factory.mktemp("bin")
+    exe = d / "play_launch"
+    floor = ".".join(map(str, tools.PLAY_LAUNCH_MIN))
+    exe.write_text(f"#!/bin/sh\necho 'play_launch {floor} (fake)'\n")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{d}:" + __import__("os").environ.get("PATH", ""))

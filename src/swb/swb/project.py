@@ -20,7 +20,7 @@ from pathlib import Path
 import yaml
 
 from swb import assets, budget as budgetmod, config, ground as groundmod, isaac as isaacmod
-from swb import judges as judgesmod
+from swb import judges as judgesmod, tools as toolsmod
 from swb import profile as profilemod, record as recordmod, ssv2 as ssv2mod, world as worldmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
@@ -634,6 +634,7 @@ def check_project(path) -> list:
     except config.ConfigError as e:
         return [Finding(str(path or "."), str(e), refused=True)]
     out = check_schema(settings)
+    out += toolsmod.findings()
     out += assets.check(project, settings)
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (project / v).is_file():

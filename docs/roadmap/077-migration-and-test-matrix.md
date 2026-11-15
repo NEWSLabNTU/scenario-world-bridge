@@ -279,3 +279,8 @@ Isaac's rear contact (inventory row 18).
   update` had left acb's `deps/` on older specs. `git submodule update --init --recursive`
   and both workspaces rebuilt, it passed. The spec guard did its job; the fix is the one
   CLAUDE.md gives.
+- **G26 built (2026-11-16).** `project check` (so the stack before it starts) runs the
+  `play_launch` first on `PATH` and refuses one older than 0.30.0 (the floor install.md
+  names), or none, naming the version, its path and the pip line; a version that does not
+  parse is reported, not refused. Live here: `~/.local/bin/play_launch` 0.20.0 refused, the
+  0.34.0 venv first on `PATH` passed.

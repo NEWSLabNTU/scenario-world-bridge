@@ -1,0 +1,39 @@
+# The protocol's parameters (docs/design/conflict-zone-protocol.md, "Parameters"). Every entry has a
+# value and a source: `assumed` (the design's assumed table, to be measured in roadmap 078 Phase 2) or
+# the run that measured it. `heldout` is the held-out error once measured (Phase 2), null until then.
+role_time_error_e:        {value: 0.25, unit: s, source: "074 C8 measure-e: arena e99 centred", heldout: null}
+role_time_bias:           {value: 0.0,  unit: s, source: "074 C8: 0 on ground truth; 0.2 through arena.Observer (the adapter sets it)", heldout: null}
+tie_threshold_T:          {value: 0.5,  unit: s, source: "074 U3 (TIE)", heldout: null}
+tie_margin_m:             {value: 0.3,  unit: s, source: "074 C8 V1: m >= e; m 0.3 for e 0.25", heldout: null}
+second_round_H2:          {value: 2.0,  unit: s, source: "074 C8 V1: H2 >= e + 1.2 s", heldout: null}
+last_resort_extra:        {value: 1.7,  unit: s, source: "074 C8 (e): H3 = H2 + T + m + e + 1.7 s", heldout: null}
+stop_dwell:               {value: 1.0,  unit: s, source: "074 U3 (STOP_DWELL); the law's full stop", heldout: null}
+zone_guard_margin:        {value: 0.5,  unit: s, source: "074 C8 (FM_ZONE_MG)", heldout: null}
+band_margin:              {value: 1.0,  unit: s, source: "assumed: 074 C7's conflict window |dt| <~ 1 s", heldout: null}
+far_distance:             {value: 60.0, unit: m, source: "074 C8 (fcfsm's far test)", heldout: null}
+far_time:                 {value: 2.0,  unit: s, source: "074 C8 (fcfsm's far test)", heldout: null}
+rest_speed:               {value: 0.1,  unit: m/s, source: "074 U3 (a car below this at its line is at rest)", heldout: null}
+rest_window:              {value: 2.0,  unit: m, source: "074 U3 (at rest within 2 m before the line)", heldout: null}
+moved_speed:              {value: 0.5,  unit: m/s, source: "074 C8 (moved off its line: speed and 0.3 m)", heldout: null}
+moved_dist:               {value: 0.3,  unit: m, source: "074 C8", heldout: null}
+moved_dist_alone:         {value: 1.0,  unit: m, source: "074 C8 (distance alone)", heldout: null}
+guard_filter_n:           {value: 2,    unit: samples, source: "074 C8 V3: filter the guards over 2-3 samples (141 flips unfiltered at noise x2)", heldout: null}
+latch_s:                  {value: 1.0,  unit: s, source: "design R10: decisions latched >= 1 s", heldout: null}
+go_latch_launch:          {value: true, unit: bool, source: "074 C8 V3: a go is latched for the launch dead time", heldout: null}
+probe_creep_dist:         {value: 0.5,  unit: m, source: "074 C8: the legible probe, creep about 0.5 m", heldout: null}
+probe_watch:              {value: 0.8,  unit: s, source: "assumed: the other's start is seen 0.7-0.8 s late (C8's model)", heldout: null}
+creep_speed:              {value: 1.0,  unit: m/s, source: "assumed (design: creep 1 m/s)", heldout: null}
+creep_timeout:            {value: 3.0,  unit: s, source: "assumed (design: a creep that gains nothing in 3 s steps down)", heldout: null}
+yield_decel:              {value: 0.5,  unit: m/s^2, source: "assumed (C3's onset + 1.0 s): a yield is <= -0.5 held 0.5 s", heldout: null}
+yield_hold:               {value: 0.5,  unit: s, source: "assumed", heldout: null}
+yield_window:             {value: [0.5, 1.5], unit: s, source: "assumed", heldout: null}
+critical_gap:             {value: 6.5,  unit: s, source: "assumed: the literature's 4.5-7 s; S5's band", heldout: null}
+wet_factor:               {value: 0.6,  unit: ratio, source: "assumed (design): braking bounds x 0.6 when wet", heldout: null}
+uwb_attest:               {value: [2.5, 0.06], unit: "m, ratio", source: "coop 118: a UWB range tightens an interval only within 2.5 m + 6 % of a track", heldout: null}
+classes:
+  source: "assumed (design: braking car 4, truck 3, two-wheeler 4 m/s^2); launch 074 C8 (HGV 1.4 m/s^2), LAUNCH_DEAD 0.5 (074 arc tracking)"
+  car:         {a_max: 3.0, a_launch: 3.0, launch_dead: 0.5, b_max: 7.0, b_bound: 4.0, b_comfort: 3.5, length: 4.79, width: 2.163, v_max: 14.0}
+  truck:       {a_max: 1.4, a_launch: 1.4, launch_dead: 0.8, b_max: 5.0, b_bound: 3.0, b_comfort: 2.5, length: 10.0, width: 2.6, v_max: 14.0}
+  bus:         {a_max: 1.2, a_launch: 1.2, launch_dead: 0.8, b_max: 5.0, b_bound: 3.0, b_comfort: 2.5, length: 12.0, width: 2.6, v_max: 14.0}
+  two_wheeler: {a_max: 3.5, a_launch: 3.5, launch_dead: 0.3, b_max: 6.0, b_bound: 4.0, b_comfort: 3.5, length: 2.0, width: 0.8, v_max: 14.0}
+  pedestrian:  {a_max: 1.0, a_launch: 1.0, launch_dead: 0.2, b_max: 3.0, b_bound: 2.0, b_comfort: 2.0, length: 0.5, width: 0.5, v_max: 2.5}

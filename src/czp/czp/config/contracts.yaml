@@ -1,0 +1,8 @@
+# The contracts and their fallbacks (docs/design/conflict-zone-protocol.md, "Contracts and fallback").
+# Each: a predicate over the cycle's inputs, its bound, the fallback when it fails, and a source.
+latency: {bound: 0.45, unit: s, predicate: "objects' age <= bound", fallback: stock, source: "design; 074 E1 (0.19 s) + headroom"}
+reach:   {turn_time: 7.3, extra: 1.0, predicate: "detection reach >= v_max * (turn_time + extra) on the conflicting approach", fallback: refuse_gap_creep, source: "074 S5"}
+track:   {bound: 0.5, unit: s, predicate: "the conflicting object tracked >= bound", fallback: phantom, source: "design"}
+map:     {predicate: "the zone's lanes match perception's lane evidence", fallback: stock, source: "design"}
+others:  {slack: 1.0, unit: m/s^2, predicate: "observed acceleration within the class bounds (+ slack)", fallback: contested, source: "design"}
+self:    {bound: 0.020, unit: s, predicate: "cycle time <= bound; node alive", fallback: stock, source: "design R10"}

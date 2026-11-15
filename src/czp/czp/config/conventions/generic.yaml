@@ -1,0 +1,33 @@
+# The convention table, generic jurisdiction (docs/design/conflict-zone-protocol.md, "The convention
+# table"). Rows by relation (the zone's kind); each maps roles to decisions and names the second-round
+# rule. A jurisdiction file (taiwan.yaml, ...) names `base: generic` and overrides the rows its traffic
+# law sets. Roles: map_priority, map_order, stopped_first, ahead_at_end, obstruction_side,
+# committed_claimant; tie rules: right_before_left, map_order, zipper.
+jurisdiction: generic
+all_way_stop:                     # 074 U3, C8 (e)
+  first: stopped_first            # perception fact, with the tie margin
+  tie: right_before_left          # within the margin
+  last: map_order                 # four at once: right-before-left is cyclic
+  stop: true                      # every car stops at the line first (the law)
+  probe_round2: true              # creep about 0.5 m, then watch, before a round-2 go (C8)
+  commit: on_move                 # from rest at the line a go commits once the car moves (C8)
+cross_unsignalled:                # 074 S2, C7
+  first: map_priority             # major road goes
+  tie: right_before_left
+  last: map_order
+merge_lane_drop:                  # 074 S3, C7
+  first: ahead_at_end
+  congested: zipper
+  last: map_order
+narrow_passage:                   # 074 S4
+  first: obstruction_side         # the obstructed side yields
+  tie: map_order
+left_turn:                        # 074 S5
+  first: map_priority             # the turner yields
+  go_if: gap_ge_critical          # and the reach contract holds
+roundabout_entry:
+  first: map_priority             # yield to circulating
+  go_if: gap_ge_critical
+cut_in:                           # 074 C2, C3
+  first: committed_claimant       # yield to a car whose lane change has begun, if the gap allows
+contested: yield                  # a car that cannot or will not stop keeps the turn (C7)

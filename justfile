@@ -281,6 +281,8 @@ test:
     python3 -m pytest -q src/swb/test
     # The agent SDK and protocol, and the relay against it (roadmap 030)
     python3 -m pytest -q src/swb_agent/test src/scenario_agent_relay/test
+    # The conflict-zone protocol's library: unit and property tests (roadmap 078 I2)
+    python3 -m pytest -q src/czp/test
     # The world server shell, on a fake world (roadmaps 037, 046; protobuf only), and the Isaac
     # world's pure modules
     python3 -m unittest discover -s src/swb_world_protocol/swb_world_server/test

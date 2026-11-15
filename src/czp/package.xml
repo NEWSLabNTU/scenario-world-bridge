@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>czp</name>
+  <version>0.1.0</version>
+  <description>
+    The conflict-zone protocol (roadmap 078): a no-V2X, explainable strategy for an Autoware ego
+    at conflict zones. The library (czp) is pure Python with no ROS import; czp-zones builds
+    zones.yaml from a Lanelet2 map; the interaction_strategy node is the ROS adapter.
+  </description>
+  <maintainer email="maintainer@example.com">Maintainer</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- only czp.zones_tool (czp-zones) -->
+  <exec_depend>lanelet2</exec_depend>
+  <!-- only czp.node (interaction_strategy) -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>autoware_perception_msgs</exec_depend>
+  <exec_depend>autoware_planning_msgs</exec_depend>
+  <exec_depend>tier4_rtc_msgs</exec_depend>
+  <exec_depend>tier4_planning_msgs</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

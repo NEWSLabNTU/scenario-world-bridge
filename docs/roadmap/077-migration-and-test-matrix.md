@@ -98,9 +98,10 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
   068 branch (068 step 8), and the workspaces pin the 0.9.16 API (`carla-0916`), so its
   cells need the 0.10 profile brought to main as a build of its own first; until then
   they report not built rather than pass.
-- Private assets (user, 2026-11-15): the NTU campus and Shalun maps are not named or fetched
-  by anything in this repository, the matrix included. The user checks the work on them with
-  a configuration of their own, outside the repository; the matrix covers public assets only.
+- Private assets (user, 2026-11-15): the user docs (README, tutorials, how-to, reference)
+  never mention the private NTU campus and Shalun maps; the roadmaps, scenarios and scripts
+  about them stay. The matrix fetches public assets only; the user checks the work on the
+  private maps with a configuration of their own, outside the repository.
 - G9 town preload and G21 two SSv2 clients (2026-11-15), step 3. Tests without a simulator
   (the bridge's against a fake backend and an in-process world server, over real ZMQ
   sockets; the keeper's with a stand-in command). Not run live. Rulings:

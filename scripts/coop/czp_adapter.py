@@ -14,8 +14,8 @@ Rule kinds registered (none exist until ``enable()`` runs, so every study defaul
 
   czp      the full protocol with 074 C8's three fixes (guard filter and go latch, own capability,
            the legible probe before a round-2 go)
-  czp0     the same with the fixes off (no filter, no go latch, no probe): the parity reference
-           against C8's (e) (fcfse)
+  czp0     the same with the fixes off (no filter, no go latch, no probe, and V2b's fresh-rest guard and
+           first-go probe off): the parity reference against C8's (e) (fcfse)
 
 Studies (``zone_kind``):
   all_way_stop       U3 / C8: four_way_game, four_way_arena (rules czp_c1.5, czp0_c1.5)
@@ -70,8 +70,8 @@ def params_for(fixes=True, bias=0.0, margin=None):
     kw = {"role_time_bias": bias}
     if margin is not None:
         kw["tie_margin_m"] = margin
-    if not fixes:
-        kw.update(guard_filter_n=1, go_latch_launch=False)
+    if not fixes:  # C8's three fixes off, and V2b's two guards (the reference closest to C8's (e))
+        kw.update(guard_filter_n=1, go_latch_launch=False, fresh_rest_guard=False, probe_first_moving=False)
     return p.override(source="arena adapter", **kw)
 
 

@@ -112,8 +112,8 @@ class FWRun(XA.Run):
         same = abs(wz - G.W_BOX) < 1e-9 and abs(a_car.length - G.L) < 0.05 and abs(b_car.length - G.L) < 0.05
         kw = {"A": {}, "B": {}} if same else {"A": {"exit_": ex["A"], "other_exit": ex["B"]},
                                               "B": {"exit_": ex["B"], "other_exit": ex["A"]}}
-        self.pol = {"A": F.FWPolicy("A", rule[job["a"]], v, hold_stop=G.ARENA_HOLD_STOP, **kw["A"]),
-                    "B": F.FWPolicy("B", rule[job["b"]], v, hold_stop=G.ARENA_HOLD_STOP, **kw["B"])}
+        self.pol = {"A": F.make_policy("A", rule[job["a"]], v, hold_stop=G.ARENA_HOLD_STOP, **kw["A"]),
+                    "B": F.make_policy("B", rule[job["b"]], v, hold_stop=G.ARENA_HOLD_STOP, **kw["B"])}
         mk = lambda: AR.Observer(args.obs_delay, args.obs_sigma_x, args.obs_sigma_v, rng)  # noqa: E731
         self.obs = {"A": mk(), "B": mk()}
         self.last_stamp = {"A": None, "B": None}
@@ -347,10 +347,21 @@ def main():
     p.add_argument("--warmup", type=float, default=XA.WARMUP)
     p.add_argument("--fm-m", type=float, default=F.FM_M)
     p.add_argument("--fm-bias", type=float, default=0.2, help="the rest stamp's lag through arena.Observer (C8 measure-e)")
+    p.add_argument("--czp", action="store_true", help="078 I3: czp's rules (czp_c1.5, czp0_c1.5) may be named in --sub; "
+                   "--pairs bar then counts them as the protocol's rules")
     G.add_legacy_args(p)
     args = p.parse_args()
     G.apply_legacy_args(args)
     F.set_fm(args.fm_m, args.fm_bias)
+    if args.czp:
+        import czp_adapter
+        global BAR_RULES
+        names = czp_adapter.enable(angle=args.angle, bias=args.fm_bias, margin=args.fm_m)
+        BAR_RULES = BAR_RULES + tuple(names)
+        if args.heavy:
+            import czp
+            p_ = czp.load_params()
+            czp_adapter.CAPS[args.heavy] = p_.capability("truck", v_max=args.v)
     os.makedirs(args.out, exist_ok=True)
     if args.compare_only:
         rows = list(csv.DictReader(open(os.path.join(args.out, "runs.csv"))))

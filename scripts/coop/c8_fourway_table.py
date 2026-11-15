@@ -24,7 +24,8 @@ NEAR, AWAY = 0.5, 1.5
 MINE = ("fcfsm_c1.5", "fcfse_c1.5")
 STOCK = "yield_c1.5"
 OTHERS = ("aggr", "yield_c1.5", "stop1y_c1.5", "fcfs_c1.5", "fcfsr_c1.5", "rbl_c1.5")
-SELF = ("aggr", "yield_c1.5", "stop1y_c1.5", "fcfs_c1.5", "fcfsr_c1.5", "rbl_c1.5", "fcfsm_c1.5", "fcfse_c1.5")
+SELF = ("aggr", "yield_c1.5", "stop1y_c1.5", "fcfs_c1.5", "fcfsr_c1.5", "rbl_c1.5", "fcfsm_c1.5", "fcfse_c1.5",
+        "czp_c1.5", "czp0_c1.5")
 
 
 def load(path, kind):
@@ -90,11 +91,14 @@ def tables(label, rows):
 
 
 def main():
+    global MINE
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--kin", action="append", default=[])
     p.add_argument("--arena", action="append", default=[])
     p.add_argument("--out", required=True)
+    p.add_argument("--mine", default=",".join(MINE), help="the protocol's rules (078 V2b: czp_c1.5,czp0_c1.5,fcfse_c1.5)")
     a = p.parse_args()
+    MINE = tuple(a.mine.split(","))
     lines = []
     for path in a.kin:
         lines += tables(f"kinematic {path}", load(path, "kin"))

@@ -121,6 +121,18 @@ def set_fm(m=None, bias=None):
         FM_BIAS = bias
 
 
+# 078 I3: rule kinds whose policy is not FWPolicy (czp_adapter.enable() registers czp's); empty by default,
+# so every rule and output of U3 and C8 is unchanged
+POLICY_KINDS = {}
+EXTRA_NAMES = []  # 078 I3: rules added by --czp (czp_adapter.enable), in every game; empty by default
+EXTRA_SUBSETS = {}
+
+
+def make_policy(role, rule, v0, **kw):
+    """The policy object for a rule: FWPolicy, or a registered kind's (078 I3, the czp adapter)."""
+    return POLICY_KINDS.get(rule[1], FWPolicy)(role, rule, v0, **kw)
+
+
 def plan_stop(u, v, v0):
     """Brake to rest at the stop line, starting when the stop needs B_PLAN; until then keep v0."""
     d = STOP - u
@@ -334,7 +346,7 @@ def simulate(ra, rb, dt_ctx, va, vb, lags=None):
     """One run (crossing_game.simulate with the stop-sign rules)."""
     ta, tb = X.T_MEAN + dt_ctx / 2, X.T_MEAN - dt_ctx / 2
     A, B = X.Car(STOP - va * ta, va, lags), X.Car(STOP - vb * tb, vb, lags)
-    pa_, pb_ = FWPolicy("A", ra, va), FWPolicy("B", rb, vb)
+    pa_, pb_ = make_policy("A", ra, va), make_policy("B", rb, vb)
     meas = M.Measures(b_max=(B_MAX, B_MAX), pet_sample=X.PET_SAMPLE)
     seen_in = {"A": None, "B": None}
     stopped_both, both_stopped, contact, t = 0.0, False, False, 0.0
@@ -401,9 +413,9 @@ def klass(pure, mixed, outs):
 
 def context(job):
     dt, v, lags, c8 = job
-    names = NAMES + (C8_NAMES if c8 else [])
+    names = NAMES + (C8_NAMES if c8 else []) + EXTRA_NAMES
     rules = [r for r in RULES if r[0] in names]
-    subsets = dict(SUBSETS, **(C8_SUBSETS if c8 else {}))
+    subsets = dict(SUBSETS, **(C8_SUBSETS if c8 else {}), **EXTRA_SUBSETS)
     outs = {(a[0], b[0]): simulate(a, b, dt, v, v, lags) for a in rules for b in rules}
     ua = {k: X.utility(o.o, 0) for k, o in outs.items()}
     ub = {k: X.utility(o.o, 1) for k, o in outs.items()}
@@ -450,11 +462,11 @@ def run_map(a):
              "# W an equilibrium deadlocks, ! contact, M mixed only; self_<rule>: that rule against itself (first car, rN restarts)",
              "dt:                 " + " ".join(f"{d:>5g}" for d in dts)]
     by = {(r["dt"], r["v"]): r for r in rows}
-    subsets = dict(SUBSETS, **(C8_SUBSETS if a.c8 else {}))
+    subsets = dict(SUBSETS, **(C8_SUBSETS if a.c8 else {}), **EXTRA_SUBSETS)
     for v in vs:
         for sub in subsets:
             lines.append(f"v {v:g} {sub:<13}" + " ".join(f"{by[(d, v)][f'class_{sub}']:>5}" for d in dts))
-        for nme in NAMES + (C8_NAMES if a.c8 else []):
+        for nme in NAMES + (C8_NAMES if a.c8 else []) + EXTRA_NAMES:
             if nme.endswith("_c1.5") or nme == "aggr":
                 lines.append(f"v {v:g} self {nme:<8}" + " ".join(f"{by[(d, v)][f'self_{nme}']:>5}" for d in dts))
     open(os.path.join(a.out, "four_way_map.txt"), "w").write("\n".join(lines) + "\n")
@@ -494,10 +506,18 @@ def main():
     p.add_argument("--fm-m", type=float, default=FM_M, help="fcfsm's margin (s)")
     p.add_argument("--fm-bias", type=float, default=FM_BIAS, help="fcfsm's rest-stamp lag correction (s)")
     p.add_argument("--selftest", action="store_true")
+    p.add_argument("--czp", action="store_true", help="078 I3: add czp's rules (czp_c1.5 with C8's fixes, czp0_c1.5 "
+                   "without) to the games (subsets czp, all_czp)")
     X.add_legacy_args(p)
     a = p.parse_args()
     X.apply_legacy_args(a)
     set_fm(a.fm_m, a.fm_bias)
+    if a.czp:
+        import czp_adapter
+        names = czp_adapter.enable(bias=a.fm_bias, margin=a.fm_m)
+        EXTRA_NAMES.extend(names)
+        EXTRA_SUBSETS.update({"czp": [names[0]], "czp0": [names[1]],
+                              "all_czp": NAMES + (C8_NAMES if a.c8 else []) + names})
     return selftest() if a.selftest else run_map(a)
 
 

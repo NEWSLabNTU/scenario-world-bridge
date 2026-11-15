@@ -39,9 +39,13 @@ import arena as AR  # noqa: E402
 import cutin_agent  # noqa: E402
 import ymerge3 as Y3  # noqa: E402
 import ymerge3_town03 as T  # noqa: E402
+import crossing_game as G  # noqa: E402
+import cutin_game as C1  # noqa: E402
 import ymerge_arena as YA  # noqa: E402
+import ymerge_game as Y  # noqa: E402
 
 CARS = "ABC"
+PACE_A = 1.0  # m/s^2: the pace car's (Autoware's) assumed launch, for its predicted arrival
 
 
 class YMerge3Agent(CarlaBasicAgent):
@@ -61,6 +65,7 @@ class YMerge3Agent(CarlaBasicAgent):
         self.plan = {k: T.WarmupPlan(k, self.target[k], self.v, self.warmup) for k in CARS}
         self.u_spawn = {k: self.plan[k].u_spawn for k in CARS}
         self.ctl = Y3.Controller(self.role, c["a"], self.v, hold_stop=False)
+        self.pace = c.get("pace")  # a car this process does not drive, whose progress sets the warm-up's clock
         rng = random.Random(int(c.get("seed", 0)) * 3 + CARS.index(self.role))
         self.obs = {o: AR.Observer(float(c.get("obs_delay", 0.19)), float(c.get("obs_sigma_x", 0.3)),
                                    float(c.get("obs_sigma_v", 0.2)), rng) for o in CARS if o != self.role}
@@ -83,12 +88,18 @@ class YMerge3Agent(CarlaBasicAgent):
         return None
 
     def on_goal(self, goal, waypoints):
-        with self._ctl:
-            for k in CARS:
+        found, t_give_up = {}, time.monotonic() + float(self.config.get("find_timeout", 60))
+        for k in CARS:  # the other cars (the Autoware ego among them) may spawn after this one
+            while k not in found:
                 a = self.world.vehicle if k == self.role else self._find(self.roles[k])
-                if a is None:
+                if a is not None:
+                    found[k] = a
+                elif time.monotonic() > t_give_up:
                     raise swb_agent.Failed(f"no vehicle with role_name {self.roles[k]!r}")
-                self.actors[k] = a
+                else:
+                    time.sleep(0.5)
+        with self._ctl:
+            self.actors.update(found)
             v = self.world.vehicle
             w = v.get_physics_control().wheels
             self.wb = math.hypot(w[0].position.x - w[2].position.x, w[0].position.y - w[2].position.y) / 100.0
@@ -142,11 +153,15 @@ class YMerge3Agent(CarlaBasicAgent):
         u, v = st[self.role][0], st[self.role][1]
         x, y, yaw = st[self.role][2:]
         if self.stage == "warmup":
-            ur, vr, ar_ = self.plan[self.role].at(t)
-            accel = max(-4.0, min(3.0, ar_ + 0.6 * (ur - u) + 1.8 * (vr - v)))
+            if self.pace:
+                accel, go = self._paced(t, st, u, v)
+            else:
+                ur, vr, ar_ = self.plan[self.role].at(t)
+                accel = max(-4.0, min(3.0, ar_ + 0.6 * (ur - u) + 1.8 * (vr - v)))
+                go = t >= self.warmup - 1e-9
             for o in self.obs:
-                self.obs[o].push(t - self.warmup, st[o][0], 0.0, st[o][1])
-            if t >= self.warmup - 1e-9:
+                self.obs[o].push(t, st[o][0], 0.0, st[o][1])
+            if go:
                 self.stage = "run"
                 self.tr0 = t
                 self.log_event("run", t=t, u={k: st[k][0] for k in CARS}, v={k: st[k][1] for k in CARS},
@@ -154,7 +169,9 @@ class YMerge3Agent(CarlaBasicAgent):
         if self.stage == "run":
             tr = t - self.tr0
             for o, ob in self.obs.items():
-                seen = ob.push(tr, st[o][0], 0.0, st[o][1])
+                seen = ob.push(t, st[o][0], 0.0, st[o][1])  # the observers' clock is this agent's t
+                if seen is not None:
+                    seen = (seen[0] - self.tr0, *seen[1:])
                 if seen is not None and seen[0] >= -1e-9 and seen[0] != self.last_stamp[o]:
                     self.last_stamp[o] = seen[0]
                     self.ctl.observe(seen[0], o, seen[1], seen[3], seen[4])
@@ -177,7 +194,39 @@ class YMerge3Agent(CarlaBasicAgent):
                 row[k] = [round(uk, 3), round(vk, 3), round(xk, 3), round(yk, 3), round(yk_, 5)]
             if self.stage == "run":
                 row["rec"] = self.ctl.record()
+            elif self.pace:
+                row["tau"] = round(getattr(self, "last_tau", -99.0), 3)
             self.logf.write(json.dumps(row) + "\n")
+
+    def _paced(self, t, st, u, v):
+        """The warm-up when the pace car (config "pace", e.g. B as the Autoware ego) is not this
+        agent's: the run starts when the pace car's u reaches its context's; until then this car's
+        plan time is warmup minus the pace car's predicted time to get there (from its speed, at
+        PACE_A up to v), so it arrives at its own start u with v then. A follower (C) also keeps
+        cutin_game's cruise gap to the pace car."""
+        k = self.pace
+        ub, vb = st[k][0], st[k][1]
+        rem = self.target[k] - ub
+        if rem <= 0.0:
+            return G.drive(v, self.v), True
+        t_up = max(0.0, (self.v - vb) / PACE_A)
+        d_up = vb * t_up + 0.5 * PACE_A * t_up * t_up
+        t_left = (math.sqrt(vb * vb + 2 * PACE_A * rem) - vb) / PACE_A if rem < d_up else t_up + (rem - d_up) / self.v
+        tau = self.warmup - t_left
+        self.last_tau = tau
+        if tau < 0.0 and u - self.u_spawn[self.role] < 0.5 and v < 0.3:
+            return -3.0, False  # not yet: held where the scenario put it
+        ur, vr, ar_ = self.plan[self.role].at(max(tau, 0.0))
+        if self.role == "A":
+            # dt is against B's speed when the run starts, which Autoware may not have brought to v:
+            # A's start moves to dt + B's time to Z at its predicted arrival speed, phased in over the plan
+            vb_arr = min(self.v, math.sqrt(vb * vb + 2 * PACE_A * rem))
+            u_tgt = -self.v * (-self.target[k] / max(vb_arr, 1.0) + float(self.config["dt"]))
+            ur += (u_tgt - self.target["A"]) * min(max(tau / self.warmup, 0.0), 1.0)
+        accel = max(-4.0, min(3.0, ar_ + 0.6 * (ur - u) + 1.8 * (vr - v)))
+        if self.role == "C" and k == "B":
+            accel = min(accel, C1.follow_cruise(ub - u - Y3.L, v, vb, Y.CAP, self.v))
+        return accel, False
 
     def log_event(self, what, **kw):
         if self.logf:

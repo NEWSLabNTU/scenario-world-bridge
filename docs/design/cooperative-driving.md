@@ -66,6 +66,12 @@ connected vehicles optional: everything below must hold with no V2X at all.
    the two stops fell on opposite sides of the 0.5 s tie threshold. So a disagreement must resolve
    to "both wait", followed by a deterministic second round, never to "both go". This means
    hysteresis around the tie threshold, and a margin sized by the learned perception error.
+3c. **Prefer roles both cars read from the map.** A role taken from the map (which approach, which
+   road has priority by law, which side the obstruction is on) reads the same in both cars and has
+   no perception error. Use perception facts (who stopped first) only when the map gives none, and
+   always with 3b's margin. The tie-break must be a **total order** over every car in the conflict
+   set: right-before-left is cyclic when four cars arrive together, so its last resort is a fixed
+   order of approaches taken from the map.
 4. **Safety is a constraint, in the game too.** Only rules whose outcome stays contact-free over
    the band are strategies; the contact weight in U scores runs, it is not a price a rule can pay.
    The shield (AEB, obstacle stop, RSS) stays underneath everything and is never bypassed.
@@ -453,6 +459,73 @@ perception 10 Hz ─> prediction ─┬─────────────�
   3. + learned role estimate and response model.
 
   Intent messages are measured last, as an option, at 0 / 30 / 100 % adoption.
+
+## The per-vehicle workflow
+
+What one car runs, every cycle (10 Hz in; decisions 2-5 Hz, latched for at least 1 s):
+
+1. **Zones, offline per map.** From the lanelet map: every conflict zone (where two lanelets'
+   swept areas overlap), its approaches, a fixed approach order, the priority the law gives, and
+   whether its width is shared for a given pair of vehicle widths.
+2. **Relation.** For each tracked object, its predicted path against the car's route: lead,
+   cut-in, crossing, merging, opposing, oncoming against a left turn. Objects off any lane (a
+   scooter between lanes) are matched by path intersection, not by lanelet. The result is the
+   conflict set, usually 3-7 objects.
+3. **Zone intervals.** For the car and each object, [t_in, t_out] at the shared zone with bounds:
+   the car's from its plan and spec; the other's by reachability from its track, its class's
+   capability bounds and footprint. An occluded approach holds a phantom car at the occlusion edge,
+   at the speed limit.
+4. **Band.** From the intervals: *clear* (one car's interval ends, with margin, before the other's
+   starts: the nearer goes, stock Autoware), *band* (the outcome depends on the other: the
+   convention decides), or *contested* (the other cannot or will not stop: yield, C7).
+5. **Role.** A map fact first (3c), a perception fact with its margin second; an ambiguous
+   reading means "wait" (3b).
+6. **Convention.** A table per relation and jurisdiction: role → go, yield, or wait then a second
+   round in the map's fixed order. A wait-for cycle among the conflict set is broken by that order.
+   Never enter a zone whose exit is not clear (no blocking the box).
+7. **Probe and commit.** Where the action needs the other's yield, a legible nudge (a creep, a
+   lateral drift with the indicator) and 0.5-1.5 s of its filtered acceleration. Yield or hold is
+   decided before the **commit point**; after it, the car continues, because aborting midway is
+   worse (S6).
+8. **Act through Autoware.** RTC approve or deny for the intersection and lane-change modules;
+   the API's velocity limit; per-object bounds. The shield underneath.
+9. **Contracts.** Perception latency and reach, track stability, the map against perception, the
+   others within their class bounds. Any violation: stock Autoware, or a minimal-risk stop.
+10. **Record.** Band, role, convention, probe, the learned parameters' share.
+
+## Scenario walkthroughs
+
+Each scenario run through the workflow, and what it exposed. "Fix" items are now in the design.
+
+| scenario | relation, role source | convention | verdict | flaw found, fix |
+|---|---|---|---|---|
+| highway cut-in, our car cut in on | merge; position and the lane change's onset (perception) | yield if the other has committed and the gap allows; else hold | works (C2, C3) | none |
+| our car cutting in | merge; we are the claimant | indicator and drift, probe the follower, abort only before the commit point | works with a fix | aborting late is worse: commit point added (step 7) |
+| unsignalled crossing, two cars near a tie | cross; approach side (map) | right-before-left at a tie | works (S2, C7) | perception-read ties disagree: map role first (3c) |
+| four-way stop, four cars at once | cross ×4; stop order (perception), then the map | FCFS, then right-before-left, then the map's fixed order | works with a fix | right-before-left is cyclic with four cars: total order (3c) |
+| unprotected left turn against an oncoming queue | opposing; the law (turner yields) | go only on a gap ≥ the critical gap | works with a fix | a gap needs reach: at 10 m/s a 7.3 s turn needs 73 m, tiny CenterPoint saw ~40 m; a reach contract (step 9) refuses the turn and creeps, which explains S5 |
+| lane drop in congestion | merge; who is ahead at the end (perception) | zipper | works (S3, C7) | does not raise throughput: expected |
+| narrow passage, parked car on one side | oppose; the obstruction's side (map plus perception) | the obstructed side yields | works (S4) | whether the zone is shared depends on the two widths: zone width per pair (step 1) |
+| roundabout entry | merge; the law (yield to circulating) | gap acceptance; exit intent probed | needs evaluation | indicators are unreliable: exit intent from lateral drift, learned |
+| junction full of stopped cars | cross; any | do not enter without exit room | works with a fix | gridlock: the no-blocking rule (step 6) |
+| dense mixed traffic, scooters | many, off-lane | yield to any non-complier unless clear | works with a fix, needs evaluation | lanelet matching fails off-lane (path intersection, step 2); always yielding freezes the car: a bounded, legible creep with a time-out inside the safety set |
+| occluded approach | cross; the law | phantom car until seen | works (Autoware's occlusion creep) | slow; acceptable |
+| a car that never stops | any | it keeps the turn (contested) | works (C7) | needs its deceleration seen in time: a contract on detection time |
+
+## Assumed parameters, to be measured
+
+Where a value needs training or evaluation, the design assumes one and the evaluation replaces it.
+
+| parameter | assumed | basis | measured by |
+|---|---|---|---|
+| stop and arrival time error e | σ 0.15 s within 30 m | the arena's observer (0.19 s delay) | Autoware tracks against ground truth in swb |
+| tie margin | 2e | 3b | C8's margin(e) |
+| yield vs hold | a deceleration ≥ 0.5 m/s² held 0.5 s is a yield | C3's onset + 1.0 s | probe runs, held out |
+| rationality α | C4's per car class; cautious for trucks and two-wheelers | C4, D5 | held-out yield rates per class |
+| critical gap, left turn | 6.5 s | the literature's 4.5-7 s; S5's band | swb left turns |
+| reach contract | reach ≥ v_max × (turn time + 1 s) | S5 | detector reach per class and weather |
+| capability bounds | braking ≥ 4 m/s² car, 3 truck, 4 two-wheeler; wet × 0.6 | E4 | E4-style runs per blueprint |
+| creep | 1 m/s, a 3 s time-out before the next step | none | the dense-traffic runs |
 
 ## ⑥ Validation: a ladder of gates
 

@@ -45,7 +45,11 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 - **One car, one source**: the spec in `sim_vehicle_spec`; every output names its `spec_hash`.
   The bridge refuses an ego whose world server, vehicle agent and catalog name different
   specs, or whose body is more than 2 cm from the catalog's. On CARLA the world server applies
-  the spec's physics and acb_bridge verifies it (stand-alone, acb applies it)
+  the spec's physics and acb_bridge verifies it (stand-alone, acb applies it), both again
+  after every spawn (CARLA 0.9.16 resets a blueprint's tires when another car of it spawns).
+  A hero still off 20 frames after one ends the run: acb exits 4 (`Physics drift:` names
+  field, expected and read value); the ego's respawn here is unconditional, so acb bounds it,
+  refusing that hero after 2 such exits in one episode
 - **Time**: `nanos(elapsed) + BASE_NS` (1000 s) everywhere, no epoch. An episode (a CARLA
   world) is a vehicle stack's lifetime: a world load or a CARLA restart ends every stack
   (acb_bridge exits 3, required; `clock_guard` backs it up), and its supervisor brings it back

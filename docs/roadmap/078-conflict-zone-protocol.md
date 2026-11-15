@@ -52,7 +52,8 @@ never worse than stock against non-compliers. A row that fails stays stock for i
 | I5 | Contracts and fallback, the decision record, the config files (`conventions/generic.yaml`, `params.yaml`, `contracts.yaml`) | |
 
 **EV1, parity.** The arena adapter reproduces U3, C7, S2, S3 and S4 (outcomes and classes) within
-D2's tolerance. **EV2, stock parity.** With the node on but every zone `clear`, and with the node
+D2's tolerance; in the near-tie band (|Δt| ≤ 0.1 s) parity is on the contact share, not the class
+(074, S2's kinematic follow-up). **EV2, stock parity.** With the node on but every zone `clear`, and with the node
 off, an ego run matches stock Autoware (same route time within noise, no RTC command issued).
 **EV3, cost.** Cycle time p99 ≤ 20 ms on host 133 with 20 objects.
 

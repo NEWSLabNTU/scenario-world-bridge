@@ -339,7 +339,7 @@ class Measures:
         # refine the grid's best candidate per theta on poses interpolated between the samples
         # (the region's nearest corner to t_A = t_B lies between samples on both time axes)
         dtm = np.abs(ta[:, None] - tb[None, :])
-        step = max(ta[1] - ta[0] if len(ta) > 1 else PET_SAMPLE, tb[1] - tb[0] if len(tb) > 1 else PET_SAMPLE)
+        step = float(max(ta[1] - ta[0] if len(ta) > 1 else PET_SAMPLE, tb[1] - tb[0] if len(tb) > 1 else PET_SAMPLE))
 
         def wrisk(theta, pet):
             x = min(1.0, max(0.0, (theta - PET_ANGLE_0) / (PET_ANGLE_1 - PET_ANGLE_0)))
@@ -369,8 +369,8 @@ class Measures:
             if math.isfinite(pet):
                 risk = max(risk, w * max(0.0, PET_REF - pet) / PET_REF)
         if risk > 0.0:
-            return PET_REF * (1.0 - risk)
-        return best_by_theta[PET_THETAS.index(30.0)]
+            return float(PET_REF * (1.0 - risk))
+        return float(best_by_theta[PET_THETAS.index(30.0)])
 
     @staticmethod
     def _pose_at(f, t):

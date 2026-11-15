@@ -158,15 +158,20 @@ def compare(args, rows):
         cell = (float(r["v"]), float(r["dt"]))
         by.setdefault((cell, r["beh"], r.get("winner") or "", r["a"], key_b(r)), []).append(r)
     cells = sorted({k[0] for k in by})
+    # the variants and conventions the runs hold: runs made before a variant existed (coin_stop) compare on the rest
+    held = {(r["beh"], r.get("winner") or "") for r in rows}
+    variants = [x for x in VARIANTS if x in held]
+    convs = [c for c in TB.CONVS if TB.BEH[c] in {b for b, _ in held}]
     wn = float(rows[0].get("wn") or 0.0)
     lines, cell_rows = [], []
     agg = {c: {"arena": {"restart": 0, "waited": 0, "wait": [], "contact": 0, "n": 0},
-               "kinematic": {"restart": 0, "waited": 0, "wait": [], "contact": 0, "n": 0}} for c in TB.CONVS}
+               "kinematic": {"restart": 0, "waited": 0, "wait": [], "contact": 0, "n": 0}} for c in convs}
     out_agree = out_total = 0
+    ties = []  # --tie-share: the near-tie band's variant pairs, scored by contact share
     for cell in cells:
         v, dt = cell
         kin = {}
-        for beh, w in VARIANTS:
+        for beh, w in variants:
             for a in a_acts:
                 for b in b_acts:
                     for k in keys[b]:
@@ -176,6 +181,12 @@ def compare(args, rows):
                         ko = kin[(beh, w, a, k)].o
                         same = (maj(lambda x: x["first"]) == ko.first and maj(lambda x: int(x["contact"])) == int(ko.contact)
                                 and maj(lambda x: int(x["both_stopped"])) == int(ko.both_stopped))
+                        if X.in_tie_band(dt):  # the band: the outcome is a contact share (074, 54672f9)
+                            e = X.tie_entry(dt, f"{beh}{('/' + w) if w else ''} {a}/{k}",
+                                            lambda: TB.run_one(geom, a, k, (dt, v, wn), (beh, beh), w or None, lags).o,
+                                            rs, args.obs_sigma_x, args.obs_sigma_v, v=v)
+                            ties.append(e)
+                            same = e["agree"]
                         out_agree += same
                         out_total += 1
 
@@ -196,7 +207,7 @@ def compare(args, rows):
 
         row = {"geom": geom, "wn": wn, "v": v, "dt": dt}
         base = {}
-        for conv in TB.CONVS:
+        for conv in convs:
             for side, uf, ff in (("arena", u_ar, f_ar), ("kinematic", u_k, f_k)):
                 g = side_game(conv, a_acts, b_acts, keys, uf, ff)
                 if conv == "none":
@@ -229,16 +240,23 @@ def compare(args, rows):
                             g["wait"].append(r.wait)
         cell_rows.append(row)
         lines.append(f"v {v:3g} dt {dt:+4.1f}: " + "  ".join(
-            f"{c} {row[f'{c}_arena_class']}/{row[f'{c}_kinematic_class']}" for c in TB.CONVS))
-    cls_agree = {c: sum(r[f"{c}_arena_class"] == r[f"{c}_kinematic_class"] for r in cell_rows) for c in TB.CONVS}
+            f"{c} {row[f'{c}_arena_class']}/{row[f'{c}_kinematic_class']}" for c in convs))
+    scored = [r for r in cell_rows if not X.in_tie_band(r["dt"])]  # the band is scored by share, not class
+    cls_agree = {c: sum(r[f"{c}_arena_class"] == r[f"{c}_kinematic_class"] for r in scored) for c in convs}
     summary = {"geom": geom, "wn": wn, "runs": len(rows), "outcomes_agree": out_agree, "outcomes": out_total,
                "classes_agree": cls_agree, "cells": len(cell_rows), "per_conv": {}}
+    if X.TIE_SHARE:
+        summary.update({"class_cells": len(scored), "tie_share": ties, "tie_band": X.TIE_BAND})
+        lines += [f"tie v {e['v']:g} dt {e['dt']:+.1f} {e['pair']:<28} contact share kin {e['kin_share']:.2f} (n {e['n_kin']}) "
+                  f"arena {e['arena_share']:.2f} (n {e['n_arena']}) | {'agree' if e['agree'] else 'DIFFER'}" for e in ties]
     lines.append(f"\noutcomes agree (first, contact, both stopped) in {out_agree} of {out_total} variant pairs "
                  f"({100 * out_agree / max(out_total, 1):.0f} %); classes agree per convention: "
-                 + ", ".join(f"{c} {n}/{len(cell_rows)}" for c, n in cls_agree.items()))
+                 + ", ".join(f"{c} {n}/{len(scored)}" for c, n in cls_agree.items())
+                 + (f" (|dt| <= {X.TIE_BAND} by contact share: {sum(e['agree'] for e in ties)} of {len(ties)} pairs)"
+                    if X.TIE_SHARE else ""))
     lines.append(f"\n{'conv':11} | {'restart arena':>16} {'kin':>14} | {'contact ar':>10} {'kin':>6} | {'wait ar':>7} {'kin':>5} | "
                  f"{'loss ar':>7} {'kin':>6} | {'rec_eq ar':>9} {'kin':>6}")
-    for c in TB.CONVS:
+    for c in convs:
         pc = {}
         for side in ("arena", "kinematic"):
             g = agg[c][side]
@@ -299,7 +317,11 @@ def main():
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
     p.add_argument("--compare-only", action="store_true")
     p.add_argument("--selftest", action="store_true")
+    p.add_argument("--tie-share", type=int, default=0, metavar="N",
+                   help="score the near-tie band (|dt| <= crossing_game.TIE_BAND) by contact share over N seeded kinematic "
+                        "runs with the arena's perception noise (0: off)")
     args = p.parse_args()
+    X.TIE_SHARE = args.tie_share
     if args.selftest:
         return selftest()
     args.v = args.v or ("10" if args.geom == "cross" else "6,10")

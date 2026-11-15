@@ -321,6 +321,7 @@ def compare(args, rows):
         by.setdefault(key, []).append(r)
     lines, inside, total, agree, n_out = [], 0, 0, 0, 0
     summary: dict = {"cells": []}
+    ties = []  # --tie-share: the near-tie band's pairs, scored by contact share
     for dt in [float(x) for x in args.dts.split(",")]:
         kin = G.outcomes(dt, args.v, args.v, G.car_lags() if args.car_lags else None)
         # the arena's mean outcome per pair as a payoff table, and the kinematic model's, on the subset
@@ -354,6 +355,15 @@ def compare(args, rows):
                 ar_contact = maj(lambda r: int(r["contact"]))
                 ar_wait = maj(lambda r: int(r["both_stopped"]))
                 same = (ar_first == ok_.first and ar_contact == int(ok_.contact) and ar_wait == int(ok_.both_stopped))
+                if G.in_tie_band(dt):  # the band: the outcome is a contact share (074, 54672f9)
+                    ra_t = next(r for r in G.A_RULES if r[0] == a)
+                    rb_t = next(r for r in G.B_RULES if r[0] == b)
+                    cont = c_k if b == "react" else "hold"
+                    lg = G.car_lags() if args.car_lags else None
+                    e = G.tie_entry(dt, f"{a}/{b}", lambda: G.simulate(ra_t, rb_t, dt, args.v, args.v, cont, lags=lg),
+                                    rs, args.obs_sigma_x, args.obs_sigma_v, v=args.v)
+                    ties.append(e)
+                    same = e["agree"]
                 agree += same
                 n_out += 1
                 lines.append(f"dt {dt:+4.1f}  {a:>8}/{b:<6} | arena uA {ja_ar[(a, b)]:+.3f} uB {jb_ar[(a, b)]:+.3f} "
@@ -379,10 +389,17 @@ def compare(args, rows):
                                  "eq_arena": cls["arena"][1], "eq_kinematic": cls["kinematic"][1]})
         lines.append(f"## dt {dt:+.1f}: class arena {cls['arena'][0]} ({cls['arena'][1]}) | kinematic {cls['kinematic'][0]} "
                      f"({cls['kinematic'][1]})")
+    scored = [c for c in summary["cells"] if not G.in_tie_band(c["dt"])]  # the band is scored by share, not class
     summary.update({"payoffs_inside": inside, "payoffs": total, "outcomes_agree": agree, "pairs": n_out,
-                    "classes_agree": sum(c["class_arena"] == c["class_kinematic"] for c in summary["cells"])})
+                    "classes_agree": sum(c["class_arena"] == c["class_kinematic"] for c in scored)})
+    if G.TIE_SHARE:
+        summary.update({"class_cells": len(scored), "tie_share": ties, "tie_band": G.TIE_BAND})
+        lines += [f"tie dt {e['dt']:+.1f} {e['pair']:<16} contact share kin {e['kin_share']:.2f} (n {e['n_kin']}) arena "
+                  f"{e['arena_share']:.2f} (n {e['n_arena']}) | {'agree' if e['agree'] else 'DIFFER'}" for e in ties]
     lines.append(f"payoffs inside the arena's 95 % interval: {inside} of {total} ({100 * inside / max(total, 1):.0f} %); "
-                 f"outcomes agree in {agree} of {n_out}; classes agree in {summary['classes_agree']} of {len(summary['cells'])}")
+                 f"outcomes agree in {agree} of {n_out}; classes agree in {summary['classes_agree']} of {len(scored)}"
+                 + (f" (|dt| <= {G.TIE_BAND} by contact share: {sum(e['agree'] for e in ties)} of {len(ties)} pairs)"
+                    if G.TIE_SHARE else ""))
     return lines, summary
 
 

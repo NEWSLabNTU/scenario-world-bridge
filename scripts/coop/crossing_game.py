@@ -60,7 +60,10 @@ import csv
 import itertools
 import math
 import os
+import random
+import statistics as st
 import sys
+import zlib
 from dataclasses import dataclass
 from multiprocessing import Pool
 
@@ -288,6 +291,105 @@ HOLD_STOP_V = 0.5  # m/s
 ARENA_HOLD_STOP = False
 
 
+# 074 D2's near-tie band (decided 2026-11-15, 54672f9): at |dt| <= TIE_BAND the arena's outcome is a contact
+# probability set by its perception noise, which the kinematic model (noise-free, the truth perceived) lacks. With
+# --tie-share N the arena scripts' comparisons score that band by contact share: the kinematic model's share over
+# N seeded runs with the arena's perception (arena.Observer: 10 Hz, delayed, noisy) against the arena's over its
+# seeds. TIE_SHARE 0 (the default): the band is scored as every other cell, by class and majority outcome.
+TIE_SHARE = 0
+TIE_BAND = 0.1  # s
+_NOISE = None  # (sigma_x, sigma_v, random.Random) while contact_share runs: every simulate perceives through it
+
+
+class Perception:
+    """arena.Observer for the kinematic model (the same sampling, delay, noise and slope-of-speeds acceleration),
+    fed as the arena scripts feed their policies: only stamps from the run's start on, each once. Before t = 0 the
+    other is taken at its start speed, as the arena's warm-up drives it, so the filter is full at the start."""
+
+    def __init__(self, sigma_x, sigma_v, rng, u0, v0, delay=None):
+        self.delay, self.sx, self.sv, self.rng = OBS if delay is None else delay, sigma_x, sigma_v, rng
+        self.buf, self.hist, self.seen, self.last_sample, self.last_stamp = [], [], None, -1e9, None
+        t = -1.5
+        while t < -1e-9:
+            self._push(t, u0 + v0 * t, v0)
+            t += DT
+
+    def _push(self, t, x, v):
+        if t - self.last_sample >= 0.1 - 1e-9:
+            self.last_sample = t
+            self.buf.append((t, x + self.rng.gauss(0, self.sx), v + self.rng.gauss(0, self.sv)))
+        while self.buf and t - self.buf[0][0] >= self.delay - 1e-9:
+            tt, xx, vv = self.buf.pop(0)
+            self.hist.append((tt, vv))
+            while self.hist and tt - self.hist[0][0] > 1.0 + 1e-9:
+                self.hist.pop(0)
+            acc = 0.0
+            if len(self.hist) >= 5:
+                n = len(self.hist)
+                mt = sum(h[0] for h in self.hist) / n
+                mv = sum(h[1] for h in self.hist) / n
+                den = sum((h[0] - mt) ** 2 for h in self.hist)
+                acc = sum((h[0] - mt) * (h[1] - mv) for h in self.hist) / den if den > 0 else 0.0
+            self.seen = (tt, xx, vv, acc)
+
+    def feed(self, pol, t, u, v):
+        self._push(t, u, v)
+        if self.seen is not None and self.seen[0] >= -1e-9 and self.seen[0] != self.last_stamp:
+            self.last_stamp = self.seen[0]
+            pol.perceive(*self.seen)
+
+
+def perception_pair(A, B):
+    """Per run: None (the truth, the model's default) or (what A sees of B, what B sees of A) under _NOISE."""
+    if _NOISE is None:
+        return None
+    sx, sv, rng = _NOISE
+    return Perception(sx, sv, rng, B.u, B.v), Perception(sx, sv, rng, A.u, A.v)
+
+
+def perceive_pair(obs, pa_, pb_, t, A, B):
+    if obs is None:
+        pa_.perceive(t, B.u, B.v, B.a)
+        pb_.perceive(t, A.u, A.v, A.a)
+    else:
+        obs[0].feed(pa_, t, B.u, B.v)
+        obs[1].feed(pb_, t, A.u, A.v)
+
+
+def in_tie_band(dt):
+    return TIE_SHARE > 0 and abs(dt) <= TIE_BAND + 1e-9
+
+
+def contact_share(run, key, sigma_x=0.3, sigma_v=0.2, n=None):
+    """The share of TIE_SHARE (or n) seeded runs of run() -- one kinematic run, an outcome with .contact -- that
+    end in contact, under the arena's perception; key (str) seeds them, so a cell's draws are reproducible."""
+    global _NOISE
+    n = n or TIE_SHARE
+    base = zlib.crc32(key.encode())
+    k = 0
+    try:
+        for s in range(n):
+            _NOISE = (sigma_x, sigma_v, random.Random(base * 1000 + s))
+            k += bool(run().contact)
+    finally:
+        _NOISE = None
+    return k / n
+
+
+def share_agree(pk, nk, pa, na):
+    """Two contact shares agree when they differ by at most 2 standard errors of the pooled share (at least 0.1)."""
+    p = (pk * nk + pa * na) / (nk + na)
+    return abs(pk - pa) <= max(2 * math.sqrt(p * (1 - p) * (1 / nk + 1 / na)), 0.1) + 1e-9
+
+
+def tie_entry(dt, pair, run, rows, sigma_x, sigma_v, **extra):
+    """One band pair's share comparison: run() the kinematic run, rows the arena's runs of the pair."""
+    pk = contact_share(run, f"{dt:+.3f}/{pair}/{sorted(extra.items())}", sigma_x, sigma_v)
+    pa = st.mean(int(float(r["contact"])) for r in rows)
+    return {"dt": dt, "pair": pair, **extra, "kin_share": round(pk, 3), "n_kin": TIE_SHARE,
+            "arena_share": round(pa, 3), "n_arena": len(rows), "agree": share_agree(pk, TIE_SHARE, pa, len(rows))}
+
+
 def add_legacy_args(p):
     """The switches back to the models every study before 074's kinematic defaults used."""
     p.add_argument("--no-launch-dead", action="store_true", help="no launch dead time (LAUNCH_DEAD 0)")
@@ -298,10 +400,14 @@ def add_legacy_args(p):
     p.add_argument("--legacy-arena-coast", action="store_true",
                    help="arena scripts: a held car's a <= 0 is commanded as is, so it coasts (arena.LEGACY_COAST), "
                         "as every arena run before 2026-11-15's brake to rest")
+    p.add_argument("--tie-share", type=int, default=0, metavar="N",
+                   help="arena scripts' comparisons: score the near-tie band (|dt| <= TIE_BAND) by contact share, the "
+                        "kinematic model's over N seeded runs with the arena's perception noise (TIE_SHARE; 0: off)")
 
 
 def apply_legacy_args(a):
-    global LAUNCH_DEAD, HOLD_STOP, ARENA_HOLD_STOP
+    global LAUNCH_DEAD, HOLD_STOP, ARENA_HOLD_STOP, TIE_SHARE
+    TIE_SHARE = getattr(a, "tie_share", 0) or 0
     if getattr(a, "arena_hold_stop", False):
         ARENA_HOLD_STOP = True
     if getattr(a, "legacy_arena_coast", False):
@@ -378,6 +484,7 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
     ta, tb = T_MEAN + dt_ctx / 2, T_MEAN - dt_ctx / 2
     A, B = Car(-va * ta, va, lags), Car(-vb * tb, vb, lags)
     pa_, pb_ = Policy("A", ra, va), Policy("B", rb, vb, b_cont)
+    obs = perception_pair(A, B)
     meas = M.Measures(b_max=(B_MAX, B_MAX), pet_sample=PET_SAMPLE)
     seen_in: dict = {"A": None, "B": None}  # when each body was first in Z
     stopped_both = 0.0
@@ -385,8 +492,7 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
     contact = False
     t = 0.0
     while t < T_MAX - 1e-9:
-        pa_.perceive(t, B.u, B.v, B.a)
-        pb_.perceive(t, A.u, A.v, A.a)
+        perceive_pair(obs, pa_, pb_, t, A, B)
         A.a = pa_.step(t, A.u, A.v)
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):

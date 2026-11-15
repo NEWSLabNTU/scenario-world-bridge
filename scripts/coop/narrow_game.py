@@ -123,13 +123,13 @@ def simulate(na, nb, dt_ctx, va, vb, wn, lags=None, trace=None):
     role_a, ra, ca = rule_of(na)
     role_b, rb, cb = rule_of(nb)
     pa_, pb_ = X.Policy(role_a, ra, va, ca, exit_), X.Policy(role_b, rb, vb, cb, exit_)
+    obs = X.perception_pair(A, B)
     meas = M.Measures(b_max=(X.B_MAX, X.B_MAX), pet_sample=X.PET_SAMPLE)
     seen_in: dict = {"A": None, "B": None}
     stopped_both, both_stopped, contact, restart = 0.0, False, False, False
     t = 0.0
     while t < T_MAX - 1e-9:
-        pa_.perceive(t, B.u, B.v, B.a)
-        pb_.perceive(t, A.u, A.v, A.a)
+        X.perceive_pair(obs, pa_, pb_, t, A, B)
         A.a = pa_.step(t, A.u, A.v)
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):

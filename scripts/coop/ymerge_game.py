@@ -259,13 +259,13 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
     ta, tb = T_MEAN + dt_ctx / 2, T_MEAN - dt_ctx / 2
     A, B = G.Car(-va * ta, va, lags), G.Car(-vb * tb, vb, lags)
     pa_, pb_ = YPolicy("A", ra, va), YPolicy("B", rb, vb, b_cont)
+    obs = G.perception_pair(A, B)
     world = World(before=max(-A.u, -B.u) + Z_LEN + 50.0)
     meas = M.Measures(b_max=(B_MAX, B_MAX), pet_sample=G.PET_SAMPLE)
     at_m = {"A": None, "B": None}
     stopped_both, both_stopped, contact, t = 0.0, False, False, 0.0
     while t < T_MAX - 1e-9:
-        pa_.perceive(t, B.u, B.v, B.a)
-        pb_.perceive(t, A.u, A.v, A.a)
+        G.perceive_pair(obs, pa_, pb_, t, A, B)
         A.a = pa_.step(t, A.u, A.v)
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):

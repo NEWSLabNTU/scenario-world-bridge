@@ -347,12 +347,12 @@ def simulate(ra, rb, dt_ctx, va, vb, lags=None):
     ta, tb = X.T_MEAN + dt_ctx / 2, X.T_MEAN - dt_ctx / 2
     A, B = X.Car(STOP - va * ta, va, lags), X.Car(STOP - vb * tb, vb, lags)
     pa_, pb_ = make_policy("A", ra, va), make_policy("B", rb, vb)
+    obs = X.perception_pair(A, B)
     meas = M.Measures(b_max=(B_MAX, B_MAX), pet_sample=X.PET_SAMPLE)
     seen_in = {"A": None, "B": None}
     stopped_both, both_stopped, contact, t = 0.0, False, False, 0.0
     while t < T_MAX - 1e-9:
-        pa_.perceive(t, B.u, B.v, B.a)
-        pb_.perceive(t, A.u, A.v, A.a)
+        X.perceive_pair(obs, pa_, pb_, t, A, B)
         A.a = pa_.step(t, A.u, A.v)
         B.a = pb_.step(t, B.u, B.v)
         for me in (A, B):

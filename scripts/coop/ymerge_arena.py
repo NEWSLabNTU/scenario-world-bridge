@@ -352,6 +352,7 @@ def compare(args, rows):
         by.setdefault(key, []).append(r)
     lines, inside, total, agree, n_out = [], 0, 0, 0, 0
     summary: dict = {"cells": []}
+    ties = []  # --tie-share: the near-tie band's pairs, scored by contact share
     for dt in [float(x) for x in args.dts.split(",")]:
         kin = Y.outcomes(dt, args.v, args.v, G.car_lags() if args.car_lags else None)
         ja_ar, jb_ar, ja_k, jb_k, res_k, res_ar = {}, {}, {}, {}, {}, {}
@@ -361,9 +362,10 @@ def compare(args, rows):
                     cands_ar = [(c, by[(dt, a, f"react:{c}")]) for c in ("yield", "hold")]
                     _, rs = max(cands_ar, key=lambda x: st.mean(float(r["uB"]) for r in x[1]))
                     cands_k = [(c, kin[(a, f"react:{c}")]) for c in ("yield", "hold")]
-                    _, ok_ = max(cands_k, key=lambda x: G.utility(replace(x[1], peak=x[1].peak_w), 1))
+                    c_k, ok_ = max(cands_k, key=lambda x: G.utility(replace(x[1], peak=x[1].peak_w), 1))
                 else:
                     rs, ok_ = by[(dt, a, b)], kin[(a, b)]
+                    c_k = "hold"
                 ja_ar[(a, b)] = st.mean(float(r["uA"]) for r in rs)
                 jb_ar[(a, b)] = st.mean(float(r["uB"]) for r in rs)
                 ok_ = replace(ok_, peak=ok_.peak_w)
@@ -380,6 +382,14 @@ def compare(args, rows):
                 maj = lambda f: max(set(f(r) for r in rs), key=lambda x: sum(f(r) == x for r in rs))  # noqa: E731
                 ar_first, ar_contact, ar_wait = maj(lambda r: r["first"]), maj(lambda r: int(r["contact"])), maj(lambda r: int(r["both_stopped"]))
                 same = (ar_first == ok_.first and ar_contact == int(ok_.contact) and ar_wait == int(ok_.both_stopped))
+                if G.in_tie_band(dt):  # the band: the outcome is a contact share (074, 54672f9)
+                    ra_t = next(r for r in Y.A_RULES if r[0] == a)
+                    rb_t = next(r for r in Y.B_RULES if r[0] == b)
+                    lg = G.car_lags() if args.car_lags else None
+                    e = G.tie_entry(dt, f"{a}/{b}", lambda: Y.simulate(ra_t, rb_t, dt, args.v, args.v, c_k, lags=lg),
+                                    rs, args.obs_sigma_x, args.obs_sigma_v, v=args.v)
+                    ties.append(e)
+                    same = e["agree"]
                 agree += same
                 n_out += 1
                 lines.append(f"dt {dt:+4.1f}  {a:>8}/{b:<6} | arena uA {ja_ar[(a, b)]:+.3f} uB {jb_ar[(a, b)]:+.3f} "
@@ -402,10 +412,17 @@ def compare(args, rows):
         summary["cells"].append({"dt": dt, "v": args.v, "class_arena": cls["arena"][0], "class_kinematic": cls["kinematic"][0],
                                  "eq_arena": cls["arena"][1], "eq_kinematic": cls["kinematic"][1]})
         lines.append(f"## dt {dt:+.1f}: class arena {cls['arena'][0]} ({cls['arena'][1]}) | kinematic {cls['kinematic'][0]} ({cls['kinematic'][1]})")
+    scored = [c for c in summary["cells"] if not G.in_tie_band(c["dt"])]  # the band is scored by share, not class
     summary.update({"payoffs_inside": inside, "payoffs": total, "outcomes_agree": agree, "pairs": n_out,
-                    "classes_agree": sum(c["class_arena"] == c["class_kinematic"] for c in summary["cells"])})
+                    "classes_agree": sum(c["class_arena"] == c["class_kinematic"] for c in scored)})
+    if G.TIE_SHARE:
+        summary.update({"class_cells": len(scored), "tie_share": ties, "tie_band": G.TIE_BAND})
+        lines += [f"tie dt {e['dt']:+.1f} {e['pair']:<16} contact share kin {e['kin_share']:.2f} (n {e['n_kin']}) arena "
+                  f"{e['arena_share']:.2f} (n {e['n_arena']}) | {'agree' if e['agree'] else 'DIFFER'}" for e in ties]
     lines.append(f"payoffs inside the arena's 95 % interval: {inside} of {total} ({100 * inside / max(total, 1):.0f} %); "
-                 f"outcomes agree in {agree} of {n_out}; classes agree in {summary['classes_agree']} of {len(summary['cells'])}")
+                 f"outcomes agree in {agree} of {n_out}; classes agree in {summary['classes_agree']} of {len(scored)}"
+                 + (f" (|dt| <= {G.TIE_BAND} by contact share: {sum(e['agree'] for e in ties)} of {len(ties)} pairs)"
+                    if G.TIE_SHARE else ""))
     return lines, summary
 
 

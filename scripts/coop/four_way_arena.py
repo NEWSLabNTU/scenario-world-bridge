@@ -255,12 +255,12 @@ def compare(args, rows):
     bias = F.FM_BIAS
     F.set_fm(bias=0.0)  # the kinematic model perceives the truth: no stamp lag to correct
     try:
-        return _compare(args, rows)
+        return _compare(args, rows, bias)
     finally:
         F.set_fm(bias=bias)
 
 
-def _compare(args, rows):
+def _compare(args, rows, arena_bias=0.0):
     SUB = tuple(args.sub.split(","))  # noqa: N806
     lags = G.car_lags()
     rule = {r[0]: r for r in F.RULES}
@@ -268,6 +268,15 @@ def _compare(args, rows):
     for r in rows:
         by.setdefault((float(r["dt"]), r["a"], r["b"]), []).append(r)
     lines, inside, total, agree, n_out, cells = [], 0, 0, 0, 0, []
+    ties = []  # --tie-share: the near-tie band's pairs, scored by contact share
+
+    def noisy(a, b, dt):
+        # under the arena's perception the kinematic car reads stamps as the arena's does: the arena's stamp-lag bias
+        F.set_fm(bias=arena_bias)
+        try:
+            return F.simulate(rule[a], rule[b], dt, args.v, args.v, lags).o
+        finally:
+            F.set_fm(bias=0.0)
     for dt in [float(x) for x in args.dts.split(",")]:
         ja_ar, jb_ar, ja_k, jb_k, outs_k, rs_ar = {}, {}, {}, {}, {}, {}
         for a in SUB:
@@ -291,6 +300,10 @@ def _compare(args, rows):
                 ar_o = (maj(lambda r: r["first"]), maj(lambda r: int(r["contact"])), maj(lambda r: int(r["deadlock"])))
                 k_o = (ko.o.first, int(ko.o.contact), int(ko.deadlock))
                 same = ar_o == k_o
+                if G.in_tie_band(dt):  # the band: the outcome is a contact share (074, 54672f9)
+                    e = G.tie_entry(dt, f"{a}/{b}", lambda: noisy(a, b, dt), rs, args.obs_sigma_x, args.obs_sigma_v, v=args.v)
+                    ties.append(e)
+                    same = e["agree"]
                 agree += same
                 n_out += 1
                 lines.append(f"dt {dt:+4.1f} {a:>11}/{b:<11} | arena uA {ja_ar[(a, b)]:+.3f} uB {jb_ar[(a, b)]:+.3f} first "
@@ -316,11 +329,18 @@ def _compare(args, rows):
                       "eq_arena": cls["arena"][1], "eq_kinematic": cls["kinematic"][1]})
         lines.append(f"## dt {dt:+.1f}: class arena {cls['arena'][0]} ({cls['arena'][1]}) | kinematic {cls['kinematic'][0]} "
                      f"({cls['kinematic'][1]})")
+    scored = [c for c in cells if not G.in_tie_band(c["dt"])]  # the band is scored by share, not class
     summ = {"cells": cells, "payoffs_inside": inside, "payoffs": total, "outcomes_agree": agree, "pairs": n_out,
-            "classes_agree": sum(c["class_arena"] == c["class_kinematic"] for c in cells),
+            "classes_agree": sum(c["class_arena"] == c["class_kinematic"] for c in scored),
             "arena_hold_stop": G.ARENA_HOLD_STOP}
+    if G.TIE_SHARE:
+        summ.update({"class_cells": len(scored), "tie_share": ties, "tie_band": G.TIE_BAND})
+        lines += [f"tie dt {e['dt']:+.2f} {e['pair']:<24} contact share kin {e['kin_share']:.2f} (n {e['n_kin']}) arena "
+                  f"{e['arena_share']:.2f} (n {e['n_arena']}) | {'agree' if e['agree'] else 'DIFFER'}" for e in ties]
     lines.append(f"payoffs inside the arena's 95 % interval: {inside} of {total} ({100 * inside / max(total, 1):.0f} %); "
-                 f"outcomes agree in {agree} of {n_out}; classes agree in {summ['classes_agree']} of {len(cells)}")
+                 f"outcomes agree in {agree} of {n_out}; classes agree in {summ['classes_agree']} of {len(scored)}"
+                 + (f" (|dt| <= {G.TIE_BAND} by contact share: {sum(e['agree'] for e in ties)} of {len(ties)} pairs)"
+                    if G.TIE_SHARE else ""))
     return lines, summ
 
 

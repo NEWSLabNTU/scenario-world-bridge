@@ -312,6 +312,7 @@ def compare(args, rows):
         by.setdefault((float(r["v"]), float(r["dt"]), r["a"], r["b"]), []).append(r)
     lines, inside, total, agree, n_out = [], 0, 0, 0, 0
     summary: dict = {"cells": []}
+    ties = []  # --tie-share: the near-tie band's pairs, scored by contact share
     tallies = {k: {"arena": 0, "kinematic": 0} for k in ("contact", "both_stopped", "deadlock", "restart")}
     for v, dt in cells(args):
         res_ar, res_k, kin_out = {}, {}, {}
@@ -339,6 +340,11 @@ def compare(args, rows):
             maj = lambda f: max(set(f(x) for x in rs), key=lambda y: sum(f(x) == y for x in rs))  # noqa: E731
             ar_first, ar_contact, ar_wait = maj(lambda x: x["first"]), maj(lambda x: int(x["contact"])), maj(lambda x: int(x["both_stopped"]))
             same = ar_first == ok_.first and ar_contact == int(ok_.contact) and ar_wait == int(ok_.both_stopped)
+            if X.in_tie_band(dt):  # the band: the outcome is a contact share (074, 54672f9)
+                e = X.tie_entry(dt, f"{a}/{b}", lambda: N.simulate(a, b, dt, v, v, args.wn, lags).o, rs,
+                                args.obs_sigma_x, args.obs_sigma_v, v=v, wn=args.wn)
+                ties.append(e)
+                same = e["agree"]
             agree += same
             n_out += 1
             for k, kv in (("contact", int(ok_.contact)), ("both_stopped", int(ok_.both_stopped)), ("deadlock", int(ko.deadlock)),
@@ -364,12 +370,18 @@ def compare(args, rows):
         lines.append(f"## v {v:g} dt {dt:+.1f}: class r none arena {cell['class_arena_none']} kin {cell['class_kinematic_none']} | "
                      f"r B arena {cell['class_arena_B']} kin {cell['class_kinematic_B']} || eq arena {cell['eq_arena_none']} | "
                      f"kin {cell['eq_kinematic_none']}")
-    agree_cls = {r: sum(c[f"class_arena_{r}"] == c[f"class_kinematic_{r}"] for c in summary["cells"]) for r in ("none", "B")}
+    scored = [c for c in summary["cells"] if not X.in_tie_band(c["dt"])]  # the band is scored by share, not class
+    agree_cls = {r: sum(c[f"class_arena_{r}"] == c[f"class_kinematic_{r}"] for c in scored) for r in ("none", "B")}
     summary.update({"payoffs_inside": inside, "payoffs": total, "outcomes_agree": agree, "pairs": n_out,
                     "classes_agree": agree_cls, "tallies": tallies})
+    if X.TIE_SHARE:
+        summary.update({"class_cells": len(scored), "tie_share": ties, "tie_band": X.TIE_BAND})
+        lines += [f"tie v {e['v']:g} dt {e['dt']:+.1f} {e['pair']:<16} contact share kin {e['kin_share']:.2f} (n {e['n_kin']}) "
+                  f"arena {e['arena_share']:.2f} (n {e['n_arena']}) | {'agree' if e['agree'] else 'DIFFER'}" for e in ties]
     lines.append(f"payoffs inside the arena's 95 % interval: {inside} of {total} ({100 * inside / max(total, 1):.0f} %); "
                  f"outcomes agree in {agree} of {n_out}; classes agree (r none) {agree_cls['none']}, (r B) {agree_cls['B']} "
-                 f"of {len(summary['cells'])}")
+                 f"of {len(scored)}" + (f" (|dt| <= {X.TIE_BAND} by contact share: {sum(e['agree'] for e in ties)} of "
+                                        f"{len(ties)} pairs)" if X.TIE_SHARE else ""))
     lines.append("rule pairs (arena majority / kinematic): " + ", ".join(
         f"{k} {v['arena']}/{v['kinematic']}" for k, v in tallies.items()))
     return lines, summary

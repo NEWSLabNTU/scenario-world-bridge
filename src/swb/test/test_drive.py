@@ -174,3 +174,25 @@ def test_a_pilot_left_up_elsewhere_is_not_sent_the_goal_until_it_is_at_the_spawn
     assert seen[:3] == [0, 0, 0]   # no goal while it reported the old pose
     assert drive.at_spawn({"x": 99.0, "y": -20.5}, (99.19, -20.04)) is True
     assert drive.at_spawn({"x": 41.8, "y": -66.3}, (99.19, -20.04)) is False
+
+
+def test_a_poses_file_gives_the_spawn_and_the_goal(tmp_path):
+    """Item 47: acb's pilot poses (initial_pose, goal_pose with a quaternion)."""
+    f = tmp_path / "poses.yaml"
+    f.write_text("initial_pose: {x: 190.77, y: -130.1, z: 0.0, qx: 0, qy: 0, "
+                 "qz: 0.9993321134127607, qw: 0.03654212777035594}\n"
+                 "goal_pose: {x: 153.63, y: -36.27, z: 0.0, qx: 0, qy: 0, "
+                 "qz: -0.613963783246778, qw: 0.7893341959280007}\n")
+    spawn, goal = drive.read_poses(f)
+    assert spawn[:2] == (190.77, -130.1) and abs(spawn[3] - 3.0685) < 1e-3
+    assert goal[:2] == (153.63, -36.27) and abs(goal[3] + 1.3216) < 1e-3
+    g = tmp_path / "goal_only.yaml"
+    g.write_text("goal_pose: {x: 88.4, y: -100.0, z: 0.0, qx: 0, qy: 0, qz: -0.7071, qw: 0.7071}\n")
+    assert drive.read_poses(g)[0] is None
+
+
+def test_main_needs_a_spawn(tmp_path, capsys):
+    g = tmp_path / "goal_only.yaml"
+    g.write_text("goal_pose: {x: 88.4, y: -100.0}\n")
+    assert drive.main(["--poses", str(g)]) == run.EXIT_REFUSED
+    assert "give --spawn" in capsys.readouterr().err

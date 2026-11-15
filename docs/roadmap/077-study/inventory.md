@@ -224,3 +224,88 @@ Tested as they stand, not reworked:
 - **In progress elsewhere, test the last good state**: 052 (NPC sinking in the ego's sensors
   open), 053 (dirt waits for data), 059 and 072 (row 22, 59: 116/116 on 2026-11-05), 062 (row
   23), 064 (row 27), 066 (row 21), 074.
+
+## 4. Step 4 hand-out (2026-11-16)
+
+For handing step 4 out by host. "Host" as section 1 says it, reduced to what decides who
+can run an item: CARLA (one GPU host), CARLA + CUDA, two Autoware stacks, Isaac, two
+hosts, or private assets (NTU, Shalun, the golf cart: the user checks those with their
+own configuration, so they are not handed out). "Open gaps" are the item's gaps not
+built by this date; built: G1, G2, G3, G5 (CARLA), G6, G9, G10, G12, G14, G15, G21 to
+G32. An item with no open gap can be migrated now.
+
+| # | Item | Host | Open gaps | State |
+|---|---|---|---|---|
+| 1 | `basic/` starters, Town01 | CARLA | - | ready to migrate |
+| 2 | `basic/` other towns: town02_ego_drive, town03, town05, town10 | CARLA | - | ready to migrate |
+| 3 | `basic/town02_episode_change` | Epic only (Low crashes) | - | ready to migrate |
+| 4 | `awf/` UC-ACC-001-0001 | CARLA | - | ready to migrate |
+| 5 | `awf/` with CenterPoint | CARLA + CUDA | - | ready to migrate |
+| 6 | `tutorial/town01_follow_to_goal` | CARLA | - | ready to migrate |
+| 7 | `multi_av/town01_two_av` | CARLA, two Autoware | G4 | blocked |
+| 8 | Demo incidents i1 to i5 | CARLA | - | ready to migrate |
+| 9 | Demo incident i6 | CARLA + CUDA | - | ready to migrate |
+| 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA | - | ready to migrate |
+| 11 | Demo tour `demo/town01_tour` | CARLA | G4 | blocked |
+| 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | ready to migrate |
+| 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | ready to migrate |
+| 14 | 050 measurement set | CARLA | - | ready to migrate |
+| 15 | Free-standing scenario on upstream SSv2 | CARLA | not built (068 step 9: upstream SSv2) | planned |
+| 16 | `basic/town01_ego_drive`, town02_ego_drive on Isaac | Isaac | - | ready to migrate |
+| 17 | Incidents 1-6 and UC-ACC on Isaac | Isaac | - | ready to migrate |
+| 18 | `isaac/town01_rear_contact` | Isaac | - | ready to migrate |
+| 19 | `scenarios/surfaces/` snow, soil, mud, wet, weather, zones, ... | Isaac | G7, G11 | blocked |
+| 20 | `road_physics` example | Isaac | - | ready to migrate |
+| 21 | Rough road on Town01 | Isaac | - | ready to migrate |
+| 22 | NTU twin on Isaac: `ntu_twin_r01`, `_r02`, `_r01_lead`, ... | private assets (the user checks these, 077 ruling); Isaac | G4, G8 | blocked |
+| 23 | NTU open-data roads `scenarios/ntu/` | private assets (the user checks these, 077 ruling); Isaac | G8 | blocked |
+| 24 | Haruna `haruna_down.xosc` through swb, Tsukuba | Isaac | - | ready to migrate |
+| 25 | Town05 ring drift lap | Isaac | - | ready to migrate |
+| 26 | Vision-only speed ladder | Isaac | - | ready to migrate |
+| 27 | Shalun map | private assets (the user checks these, 077 ruling); Isaac | no scenario, no Autoware run yet | blocked (no scenario) |
+| 28 | Golf cart Isaac twin | private assets (the user checks these, 077 ruling); Isaac | G5 (Isaac rig) | blocked |
+| 29 | Several Autoware egos on Isaac, V2X | Isaac | one ego on Isaac (076 ruling) | by design |
+| 30 | NTU off-road field, competition director | private assets (the user checks these, 077 ruling); Isaac | not built | blocked |
+| 31 | Cut-in batch C3a | two hosts; CARLA + CUDA | G16, G17 | blocked |
+| 32 | C2b swb check of the arena | CARLA | - | ready to migrate |
+| 33 | Cut-out S1 on the real stack | CARLA + CUDA | G16 | blocked |
+| 34 | E2 lane change gate | CARLA | - | ready to migrate |
+| 35 | E3 Autoware knobs | CARLA | G18 | blocked |
+| 36 | E5/S5 left turn at junction 861 on the real stack | CARLA | - | ready to migrate |
+| 37 | Gap campaign live loop | CARLA (Isaac later) | - | ready to migrate |
+| 38 | Live race planner, grip-or-drift, styles, route generalisation | Isaac | G19 | blocked |
+| 39 | Hairpin drift H1 | Isaac | G19 | blocked |
+| 40 | Arenas | CARLA | G19 | blocked |
+| 41 | Kinematic games and fits | any | - | no simulator; nothing to migrate |
+| 42 | Coop atlas | any | - | no simulator; nothing to migrate |
+| 43 | Soil calibration, manoeuvre suite, step responses, multi-ego soil, ... | Isaac | G19 | blocked |
+| 44 | 13-surface proving ground | Isaac | no lanelet map | blocked |
+| 45 | CARLA realism | CARLA | - | a study of CARLA images; nothing to migrate |
+| 46 | Autoware on CARLA without SSv2 | CARLA | - | migrated 2026-11-16 (`swb drive`, CARLA, simple and Autoware) |
+| 47 | acb demo pilot | CARLA | - | migrated 2026-11-16 (`swb drive --poses`, CARLA, Autoware) |
+| 48 | Autoware on Isaac without SSv2 | Isaac | - | migrated 2026-11-16 (`swb drive`, Isaac, simple and Autoware) |
+| 49 | `vehicle-check` | CARLA; Isaac | G19 | blocked |
+| 50 | `just acceptance <xosc> N [sim:=]` | Isaac | G11 | blocked |
+| 51 | `just e2e [xosc] sim:=carla | Isaac | - | ready to migrate |
+| 52 | `just run` long-lived dev stack | CARLA | - | ready to migrate |
+| 53 | `just ego-av`, `ego-isaac`, `bg-av` | CARLA | - | ready to migrate |
+| 54 | `just carla-start map:= quality:= render:=` | CARLA | - | ready to migrate |
+| 55 | `just isaac-world ego:= world:= follow:= render:= record:= ... | Isaac | - | ready to migrate |
+| 56 | `just world-health`, `world-check` | sim host | - | ready to migrate |
+| 57 | Two checkouts on one host | two hosts; CARLA | G17 | blocked |
+| 58 | CARLA 0.10.0 `scenarios/carla0100/town10_ego_drive` | CARLA | G20 | blocked |
+| 59 | NTU twin in CARLA: `ntu_carla_r01`, `_r02`, `_r01_lead`, ... | private assets (the user checks these, 077 ruling); CARLA | G4, G8, G13 | blocked |
+| 60 | `run_suite` | T0 tests | - | tool or harness |
+| 61 | `physical_verdict` | 2026-11-15 live | - | tool or harness |
+| 62 | gap trace + `gap_oracle` | 024 baseline 2026-10-13 | - | tool or harness |
+| 63 | `incident_judge` | 6/6 2026-10-21 | - | tool or harness |
+| 64 | `chase_view`, `demo_captions`, `make_showreel.sh`, ... | the take of 2026-10-21 | - | tool or harness |
+| 65 | `carla_poses` | any | - | tool or harness |
+| 66 | `ego_ready` | any | - | tool or harness |
+| 67 | `swb-agent check/new/supervise`, `ros_adapter`, `skeleton` | 16/16 on fake Autoware (030) | - | tool or harness |
+| 68 | Probes | any | - | tool or harness |
+| 69 | Weather services | any | - | tool or harness |
+| 70 | Map and asset builders: `download_maps.sh`, `repair_lanelet_*`, ... | private assets (the user checks these, 077 ruling) | - | tool or harness |
+| 71 | `carla_bench.py`, `stall_probe.py` | any | - | tool or harness |
+| 72 | `prune-logs` | any | - | tool or harness |
+| 73 | `check_scenario_vehicles.py` | any | - | tool or harness |

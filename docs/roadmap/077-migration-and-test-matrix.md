@@ -403,3 +403,11 @@ Isaac's rear contact (inventory row 18).
     pilot that says `inputs: [ground_truth]` turns it on too. Live: the launch cell on
     Town10HD then passed (02-26-10). (241 holds the Isaac cells; this one was rerun here
     only to check the fix.)
+- **Step 4 (2026-11-16): items 46, 47 and 48 migrated** onto `ros2 run swb drive`. 47:
+  `--poses <file>` reads acb's pilot poses (`initial_pose`, `goal_pose`) as the spawn and
+  the goal; live on CARLA 0.9.16 with Autoware 1.5.0 and `autoware_sim_pilot`'s
+  example_poses.yaml (Town01), up 23 s after the spawn, arrived 99 s after the goal (run
+  2026-11-16T02-35-06). The rest of step 4 is laid out for handing out by host in
+  [the inventory, section 4](077-study/inventory.md#4-step-4-hand-out-2026-11-16): each
+  item's host class (CARLA, CARLA + CUDA, two Autoware, Isaac, two hosts, private assets),
+  its gaps still open, and whether it can be migrated now.

@@ -2,6 +2,7 @@
 (roadmap 077, G14).
 
     ros2 run swb drive --spawn x,y,z,yaw [--goal x,y,z,yaw] [--map Town01] [--entity ego]
+        [--poses <file: initial_pose, goal_pose>]
         [--timeout 600] [--realtime true|false] [--start-stack] [--stop-stack]
 
 In SSv2's place, ``swb_free_drive`` (the bridge's second binary, roadmap 073) initializes the
@@ -51,6 +52,25 @@ def parse_pose(text: str, what: str) -> tuple:
     if len(v) != 4 or not all(math.isfinite(x) for x in v):
         raise ValueError(f"{what} {text!r}: four numbers x,y,z,yaw (or three, x,y,yaw)")
     return tuple(v)
+
+
+def read_poses(path) -> tuple:
+    """``(spawn, goal)`` from a poses file of acb's pilot (``initial_pose``, ``goal_pose``:
+    x, y, z and a quaternion; roadmap 017, item 47), each None when absent."""
+    doc = yaml.safe_load(Path(path).read_text()) or {}
+
+    def one(key):
+        q = doc.get(key)
+        if not isinstance(q, dict):
+            return None
+        try:
+            yaw = math.atan2(2.0 * (float(q.get("qw", 1)) * float(q.get("qz", 0))
+                                    + float(q.get("qx", 0)) * float(q.get("qy", 0))),
+                             1.0 - 2.0 * (float(q.get("qy", 0)) ** 2 + float(q.get("qz", 0)) ** 2))
+            return (float(q["x"]), float(q["y"]), float(q.get("z", 0.0)), yaw)
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(f"{path}: {key} needs numbers x, y (z, qx, qy, qz, qw)") from None
+    return one("initial_pose"), one("goal_pose")
 
 
 def pose_dict(p: tuple) -> dict:
@@ -230,7 +250,9 @@ def _follow(proc, rec, entity, goal, timeout, up_timeout, events, commander_fn, 
 
 def main(argv=None, out=None) -> int:
     ap = argparse.ArgumentParser(prog="ros2 run swb drive", description=__doc__.split("\n\n")[0])
-    ap.add_argument("--spawn", required=True, help="x,y,z,yaw in the map frame (or x,y,yaw)")
+    ap.add_argument("--spawn", help="x,y,z,yaw in the map frame (or x,y,yaw)")
+    ap.add_argument("--poses", help="a poses file (initial_pose, goal_pose) as acb's pilot "
+                                    "takes: the spawn and the goal, unless --spawn/--goal")
     ap.add_argument("--goal", help="x,y,z,yaw: the pilot drives there; the run passes on arrival")
     ap.add_argument("--map", help="one of the project's maps (default: the stack's)")
     ap.add_argument("--entity", default="ego", help="the pilot's entity (default ego)")
@@ -244,9 +266,14 @@ def main(argv=None, out=None) -> int:
     args = ap.parse_args(argv)
     out = out or sys.stdout
     try:
-        spawn = parse_pose(args.spawn, "--spawn")
+        spawn = parse_pose(args.spawn, "--spawn") if args.spawn else None
         goal = parse_pose(args.goal, "--goal") if args.goal else None
-    except ValueError as e:
+        if args.poses:
+            p_spawn, p_goal = read_poses(args.poses)
+            spawn, goal = spawn or p_spawn, goal or p_goal
+        if spawn is None:
+            raise ValueError("give --spawn, or --poses with an initial_pose")
+    except (ValueError, OSError) as e:
         print(f"swb drive: refused: {e}", file=sys.stderr)
         return runmod.EXIT_REFUSED
     signal.signal(signal.SIGTERM, runmod._on_term)

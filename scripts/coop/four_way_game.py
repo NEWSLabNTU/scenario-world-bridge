@@ -21,6 +21,17 @@ Rules (each car's; the same set for both):
   fcfsr_c<C>  fcfs, a tie broken right-before-left (the car on the right goes; B is A's right)
   rbl_c<C>    right-before-left: stop; yield to a car on the right that is at or near its line
               (within RBL_NEAR s), regardless of arrival
+  fcfsm_c<C>  074 C8 (c), fcfs made fail-safe (c8_fourway_check.py verifies it): the other's rest stamp
+              (less FM_BIAS, the stamp's measured lag) minus its own rest reads first (> TIE + FM_M),
+              second (< -(TIE + FM_M)), tie (|.| < TIE - FM_M) or ambiguous; no stamp yet reads first
+              only once a stamp within TIE + FM_M would be known, or when the other is seen far; first
+              goes, a tie goes for B (on the right), everything else waits -- a disagreement makes both
+              wait -- and a car seen moving from its line has the turn; second round, FM_H2 s after its
+              dwell: B goes if A is seen at rest; a zone-interval guard: no start while a car that is
+              not braking for its line would enter Z (at its speed) before this car could leave it,
+              plus FM_ZONE_MG
+  fcfse_c<C>  074 C8 (e): fcfsm with the map's fixed order (A, then B) as the last resort: A goes FM_H3 s
+              after its dwell if B is still seen at rest (against a B that waits for A and never goes)
 
 C, the commit time: a car that has started from its line keeps re-checking its rule for C s and
 stops again when the rule says so (C = 0: committed at once; inf: never committed). Every rule's
@@ -65,7 +76,26 @@ B_PLAN = 2.0  # m/s^2: a planned stop at the line starts when it needs this much
 COMMITS = (0.0, 1.5)
 _KINDS = ("yield", "stop1y", "fcfs", "fcfsr", "rbl")
 RULES = [("aggr", "aggr", 0.0)] + [(f"{k}_c{c:g}", k, c) for k in _KINDS for c in COMMITS]
-NAMES = [r[0] for r in RULES]
+NAMES = [r[0] for r in RULES]  # U3's rule set (its subsets, maps and payoff files)
+# 074 C8: the fail-safe FCFS (c) and its fixed-order last resort (e), beside U3's rules (--c8 adds them to
+# the games). Its margin is sized from the rest stamp's error e (c8_fourway_check.py: safe and live for
+# FM_M >= e); FM_BIAS is the stamp's mean lag, 0 on the kinematic model's true perception and about 0.2 s
+# through arena.Observer (c8_fourway_check.py measure-e), set by four_way_arena.py.
+FM_M = 0.3  # s
+FM_E = 0.25  # s, the error bound the margin is designed for (it sets FM_H3)
+FM_BIAS = 0.0  # s
+FM_H2 = 2.0  # s
+FM_ZONE_MG = 0.5  # s
+FM_SEE = 0.7 + 0.8  # s, a start until it is seen (visible motion, then the perception and decision delay)
+C8_KINDS = ("fcfsm", "fcfse")
+C8_RULES = [(f"{k}_c{c:g}", k, c) for k in C8_KINDS for c in COMMITS]
+RULES = RULES + C8_RULES
+C8_NAMES = [r[0] for r in C8_RULES]
+
+
+def fm_h3():
+    """(e)'s last resort: after B's second-round go would have been seen, whatever B read."""
+    return FM_H2 + TIE + FM_M + FM_E + FM_SEE + 0.2
 SUBSETS = {
     "all": NAMES,
     "autoware": [n for n in NAMES if n.startswith(("yield", "stop1y"))],
@@ -74,6 +104,21 @@ SUBSETS = {
     "fcfsr": [n for n in NAMES if n.startswith("fcfsr")],
     "rbl": [n for n in NAMES if n.startswith("rbl")],
 }
+
+
+C8_SUBSETS = {
+    "fcfsm": [n for n in C8_NAMES if n.startswith("fcfsm")],
+    "fcfse": [n for n in C8_NAMES if n.startswith("fcfse")],
+    "all_c8": NAMES + C8_NAMES,
+}
+
+
+def set_fm(m=None, bias=None):
+    global FM_M, FM_BIAS
+    if m is not None:
+        FM_M = m
+    if bias is not None:
+        FM_BIAS = bias
 
 
 def plan_stop(u, v, v0):
@@ -89,11 +134,18 @@ class FWPolicy:
     """One car's stop-sign rule and crossing_game's safety layer, on what it perceives of the other;
     the kinematic model and the arena step this object (perceive / step / after, as X.Policy)."""
 
-    def __init__(self, role, rule, v0, hold_stop=None):
+    def __init__(self, role, rule, v0, hold_stop=None, exit_=None, other_exit=None):
+        """exit_ / other_exit: this car's / the other's front distance past Z's near edge when its rear has
+        left Z (default EXIT, U3's box and car; a skewed junction or a longer vehicle widens them)."""
         self.role, self.v0 = role, v0
         self.name, self.kind, self.commit = rule
         self.hold_stop = X.HOLD_STOP if hold_stop is None else hold_stop
-        self.exit = EXIT
+        self.exit = EXIT if exit_ is None else exit_
+        self.other_exit = self.exit if other_exit is None else other_exit
+        self.other_rest_u = None  # where the other was when its rest was read (fcfsm: has it moved off?)
+        self.exit_clear = True  # fcfsm: never enter Z unless this car's exit lane beyond it is clear (a runner
+        #                       with traffic beyond Z sets it; nothing queues beyond Z in the arena or this model)
+        self.reading = ""  # fcfsm's last reading of the other (first / second / tie / amb / wait / turn)
         self.hist = []
         self.stopped_since = None
         self.rested = self.shield = False
@@ -103,6 +155,7 @@ class FWPolicy:
         self.other_rest_t = None  # when the other was first seen at rest at its line (observation stamp)
         self.other_cleared = False
         self.restarts = 0
+        self._oa, self._raw = 0.0, (0.0, 0.0)
         self.clip_n = self.clip_moving = 0
         self.clip_vmax = self.clip_dist = 0.0
 
@@ -117,12 +170,12 @@ class FWPolicy:
 
     def _clear(self, t, u, v, ou, ov):
         """Autoware's mutual-yield test: the other's passage misses this car's by the margins."""
-        if ou >= self.exit:
+        if ou >= self.other_exit:
             return True
         t_in_e = X.t_cover(-u, v, self.v0) if u < 0 else 0.0
         t_out_e = X.t_cover(self.exit - u, v, self.v0)
         t_in_o = X.t_in(ou, ov)
-        t_out_o = X.t_out(ou, ov, self.exit)
+        t_out_o = X.t_out(ou, ov, self.other_exit)
         return t_out_o + M_BEFORE <= t_in_e or t_in_o >= t_out_e + M_AFTER
 
     def _want_go(self, t, u, v, ou, ov):
@@ -136,8 +189,10 @@ class FWPolicy:
             return False
         if k == "stop1y":
             return self._clear(t, u, v, ou, ov)
-        if self.other_cleared or ou >= self.exit:
+        if self.other_cleared or ou >= self.other_exit:
             return True
+        if k in C8_KINDS:
+            return self._fcfsm(t, u, v, ou, ov)
         if k in ("fcfs", "fcfsr"):
             if self.other_rest_t is None:
                 return True  # nobody waiting before me
@@ -153,13 +208,62 @@ class FWPolicy:
         near = (ov < 0.1 and STOP - 2.0 <= ou < 0) or (ou < 0 and X.t_in(ou, ov) <= RBL_NEAR)
         return not near
 
+    def _stopping(self, ou, ov, oa):
+        """074 C8: the other is braking for its line: the deceleration it shows is enough to stop there (at
+        most X.BRAKE_LATE + 1, a comfortable stop) -- the zone contract takes it as a car that will stop. A car
+        whose safety layer only slows it is not stopping for its line."""
+        need = ov * ov / (2 * max(STOP - ou + 2.0, 0.1))
+        return oa < -0.5 and need <= -oa + 1.0 and need <= X.BRAKE_LATE + 1.0
+
+    def _fcfsm(self, t, u, v, ou, ov):
+        """074 C8 (c) / (e) at the line, after the dwell (see the module's docstring)."""
+        oa = self._oa
+        # moved off its line: speed and distance together, or distance alone (one noisy sample is not a start)
+        off = ou - self.other_rest_u if self.other_rest_u is not None else 0.0
+        moved = self.other_rest_t is not None and ((ov > 0.5 and off > 0.3) or off > 1.0)
+        if 0 <= ou < self.other_exit or moved:
+            self.reading = "turn"
+            return False
+        if not self.exit_clear:
+            self.reading = "exit"
+            return False
+        # the zone guard: a car not braking for its line, predicted (at its speed) into Z before I leave it
+        if self.other_rest_t is None and ou < 0 and ov > 0.5:
+            braking = self._stopping(*self._raw, oa)
+            my_out = X.LAUNCH_DEAD + X.t_cover(self.exit - u, v, self.v0)
+            if not braking and -ou / ov <= my_out + FM_ZONE_MG:
+                self.reading = "zone"
+                return False
+        lr = OBS + DECIDE
+        if self.other_rest_t is None:
+            far = ou < -60.0 or (ov > 0.5 and -ou / ov > 2.0 and oa > -0.5)
+            first = far or t - lr - FM_BIAS - self.rest_t >= TIE + FM_M
+            self.reading = "first" if first else "wait"
+        else:
+            d = (self.other_rest_t - FM_BIAS) - self.rest_t
+            self.reading = ("first" if d > TIE + FM_M else "second" if d < -(TIE + FM_M) else
+                            "tie" if abs(d) < TIE - FM_M else "amb")
+        if self.reading == "first" or (self.reading == "tie" and self.role == "B"):
+            return True
+        if self.reading == "wait":
+            return False
+        quiet = t - (self.rest_t + STOP_DWELL)
+        at_rest = self.other_rest_t is not None and ou < 0
+        if self.role == "B" and quiet >= FM_H2 and at_rest:
+            return True
+        if self.kind == "fcfse" and self.role == "A" and quiet >= fm_h3() and at_rest:
+            return True
+        return False
+
     def step(self, t, u, v):
         sd = self._seen(t, OBS + DECIDE)
         if sd is not None:
             ou, ov = sd[1] + sd[2] * (t - sd[0]), sd[2]
+            self._oa, self._raw = sd[3], (sd[1], sd[2])  # fcfsm: the observation itself, not extrapolated
             if self.other_rest_t is None and sd[2] < 0.1 and STOP - 2.0 <= sd[1] < 0:
                 self.other_rest_t = sd[0]
-            if sd[1] >= self.exit:
+                self.other_rest_u = sd[1]
+            if sd[1] >= self.other_exit:
                 self.other_cleared = True
             committed = self.go and self.moving_since is not None and t - self.moving_since >= self.commit
             if not committed and (u < 0 or self.kind == "aggr"):
@@ -180,9 +284,11 @@ class FWPolicy:
         if sr is None or u >= 0:
             return a
         ou, ov = sr[1] + sr[2] * (t - sr[0]), sr[2]
-        in_box = 0 <= ou < self.exit
+        in_box = 0 <= ou < self.other_exit
         closing = (ou < 0 and ov > 0.5 and X.t_in(ou, ov) < 2.0 and X.t_in(ou, ov) <= X.t_in(u, max(v, 0.5)) + 0.3
                    and X.t_in(ou, ov) < X.t_cover(self.exit - u, v, self.v0))
+        if closing and self.kind in C8_KINDS and self.other_rest_t is None and self._stopping(sr[1], sr[2], sr[3]):
+            closing = False  # 074 C8: a car braking for its line will stop (the zone contract); the protocol holds
         if in_box or closing:
             need = v * v / (2 * max(-u - 0.3, 0.05))
             if need > 0.3:
@@ -292,25 +398,28 @@ def klass(pure, mixed, outs):
 
 
 def context(job):
-    dt, v, lags = job
-    outs = {(a[0], b[0]): simulate(a, b, dt, v, v, lags) for a in RULES for b in RULES}
+    dt, v, lags, c8 = job
+    names = NAMES + (C8_NAMES if c8 else [])
+    rules = [r for r in RULES if r[0] in names]
+    subsets = dict(SUBSETS, **(C8_SUBSETS if c8 else {}))
+    outs = {(a[0], b[0]): simulate(a, b, dt, v, v, lags) for a in rules for b in rules}
     ua = {k: X.utility(o.o, 0) for k, o in outs.items()}
     ub = {k: X.utility(o.o, 1) for k, o in outs.items()}
     row = {"dt": dt, "v": v}
-    for sub, names in SUBSETS.items():
-        pure, mixed = X.solve(ua, ub, names, names)
+    for sub, sn in subsets.items():
+        pure, mixed = X.solve(ua, ub, sn, sn)
         row[f"class_{sub}"] = klass(pure, mixed, outs)
         row[f"eq_{sub}"] = " ".join(f"{a}/{b}" for a, b in pure)
         if pure:
             row[f"welfare_{sub}"] = round(sum(ua[p] + ub[p] for p in pure) / len(pure), 4)
     # each convention against itself (the same rule for both cars, c 1.5): what it does on its own
-    for n in NAMES:
+    for n in names:
         o = outs[(n, n)]
         row[f"self_{n}"] = ("!" if o.o.contact else "W" if o.deadlock else o.o.first or "-") + \
             ("" if not sum(o.restarts) else f"r{sum(o.restarts)}")
     return row, {f"{a}|{b}": (round(ua[(a, b)], 4), round(ub[(a, b)], 4), outs[(a, b)].o.first, int(outs[(a, b)].o.contact),
                               int(outs[(a, b)].deadlock), round(outs[(a, b)].o.pet, 2) if math.isfinite(outs[(a, b)].o.pet) else "inf")
-                 for a in NAMES for b in NAMES}
+                 for a in names for b in names}
 
 
 def run_map(a):
@@ -318,7 +427,7 @@ def run_map(a):
     vs = [float(x) for x in a.v.split(",")]
     n = int(round(2 * a.dt_max / a.dt_step))
     dts = [round(-a.dt_max + i * a.dt_step, 3) for i in range(n + 1)]
-    jobs = [(dt, v, lags) for v in vs for dt in dts]
+    jobs = [(dt, v, lags, a.c8) for v in vs for dt in dts]
     with Pool(a.jobs) as pool:
         res = pool.map(context, jobs)
     os.makedirs(a.out, exist_ok=True)
@@ -339,10 +448,11 @@ def run_map(a):
              "# W an equilibrium deadlocks, ! contact, M mixed only; self_<rule>: that rule against itself (first car, rN restarts)",
              "dt:                 " + " ".join(f"{d:>5g}" for d in dts)]
     by = {(r["dt"], r["v"]): r for r in rows}
+    subsets = dict(SUBSETS, **(C8_SUBSETS if a.c8 else {}))
     for v in vs:
-        for sub in SUBSETS:
+        for sub in subsets:
             lines.append(f"v {v:g} {sub:<13}" + " ".join(f"{by[(d, v)][f'class_{sub}']:>5}" for d in dts))
-        for nme in NAMES:
+        for nme in NAMES + (C8_NAMES if a.c8 else []):
             if nme.endswith("_c1.5") or nme == "aggr":
                 lines.append(f"v {v:g} self {nme:<8}" + " ".join(f"{by[(d, v)][f'self_{nme}']:>5}" for d in dts))
     open(os.path.join(a.out, "four_way_map.txt"), "w").write("\n".join(lines) + "\n")
@@ -361,6 +471,12 @@ def selftest():
     # aggr against aggr at a tie: contact or a safety-layer save, never a deadlock
     o = simulate(rule["aggr"], rule["aggr"], 0.0, 8.0, 8.0, lags)
     assert not o.deadlock
+    # 074 C8: fcfsm and fcfse at a tie and near the tie threshold: no contact, no deadlock; fcfse against
+    # fcfsr (which reads A first and waits for it) does not deadlock
+    for k in ("fcfsm_c1.5", "fcfse_c1.5"):
+        for dt in (-0.75, -0.5, -0.25, 0.0, 0.25, 0.5):
+            o = simulate(rule[k], rule[k], dt, 8.0, 8.0, lags)
+            assert not o.o.contact and not o.deadlock, (k, dt, o)
     print("selftest ok")
 
 
@@ -372,10 +488,14 @@ def main():
     p.add_argument("--dt-step", type=float, default=0.5)
     p.add_argument("--car-lags", action="store_true")
     p.add_argument("--jobs", type=int, default=16)
+    p.add_argument("--c8", action="store_true", help="074 C8: add fcfsm and fcfse to the games (subsets fcfsm, fcfse, all_c8)")
+    p.add_argument("--fm-m", type=float, default=FM_M, help="fcfsm's margin (s)")
+    p.add_argument("--fm-bias", type=float, default=FM_BIAS, help="fcfsm's rest-stamp lag correction (s)")
     p.add_argument("--selftest", action="store_true")
     X.add_legacy_args(p)
     a = p.parse_args()
     X.apply_legacy_args(a)
+    set_fm(a.fm_m, a.fm_bias)
     return selftest() if a.selftest else run_map(a)
 
 

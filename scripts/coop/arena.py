@@ -273,19 +273,26 @@ def xodr(k, length):
             '  <header revMajor="1" revMinor="4" name="arena" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
-def xodr_crossings(k, approach, beyond, spacing=450.0):
+def xodr_crossings(k, approach, beyond, spacing=450.0, angle=math.pi / 2):
     """K crossings at grade, one per pair: road a<i> one lane along +x and road b<i> one lane
     along +y (OpenDRIVE), crossing at (i * spacing, -i * spacing) with no junction (the two
     road meshes overlap there, flat). Each road starts `approach` m before its crossing and ends
-    `beyond` m after it; spacing > approach + beyond keeps a road from meeting another pair's."""
+    `beyond` m after it; spacing > approach + beyond keeps a road from meeting another pair's.
+    angle: road b's heading (OpenDRIVE, rad; default pi / 2, the right angle), its lane centre still
+    through the crossing point (074 C8: a skewed junction)."""
     lane = (f'<right><lane id="-1" type="driving" level="false"><width sOffset="0" a="{LANE_W}" b="0" c="0" d="0"/>'
             '</lane></right>')
     roads = []
     length = approach + beyond
     for i in range(k):
         cx, cy = i * spacing, -i * spacing
+        if abs(angle - math.pi / 2) < 1e-12:
+            b0 = (cx - LANE_W / 2, cy - approach)
+        else:  # the reference line LANE_W / 2 left of the lane centre, which passes (cx, cy)
+            b0 = (cx - LANE_W / 2 * math.sin(angle) - approach * math.cos(angle),
+                  cy + LANE_W / 2 * math.cos(angle) - approach * math.sin(angle))
         for j, (name, x0, y0, hdg) in enumerate(((f"a{i}", cx - approach, cy + LANE_W / 2, 0.0),
-                                                 (f"b{i}", cx - LANE_W / 2, cy - approach, math.pi / 2))):
+                                                 (f"b{i}", b0[0], b0[1], angle))):
             roads.append(f"""
   <road name="{name}" length="{length}" id="{2 * i + j + 1}" junction="-1">
     <link/>

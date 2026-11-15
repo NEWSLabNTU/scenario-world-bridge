@@ -1890,6 +1890,13 @@ swb 118, 407437a; NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop arena arc trackin
         which the kinematic model lacks: with the arena's noise added, the kinematic go/hold contact
         share at |Δt| ≤ 0.1 s falls from 1.00 to 0.45-0.55 (brake arena 1-3 of 5); with a fast launch
         it stays 0.93-0.97 (coast arena 4-5 of 5). At a near tie the race is a coin flip.
+        (`LAUNCH_DEAD = 0.5` is the dead time from the first drive command, brake release included;
+        the first visible motion comes about 0.1 s later.)
+      - swb 241's partial check agrees (not on the NAS; 241's `coop-c3/brlag`): braked rest to
+        0.1 m/s in 0.45-0.55 s, to 1 m/s in 0.75-1.43 s for a_go 3 down to 1, whatever the hold
+        time. The one real lag gap is a release just before rest (the kinematic car goes on from
+        about 0.24 m/s, the arena car stops first); a switch for it moves D2 payoffs 0 to +3 points
+        and no outcome or class, so it is not adopted.
       - **Decided (manager, 2026-11-15): score the near-tie band by contact share, keep the
         kinematic model noise-free.** In |Δt| ≤ 0.1 s an outcome is a contact probability, not a
         class; D2 there compares the kinematic share (with the arena's noise, sampled) against the

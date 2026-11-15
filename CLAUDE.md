@@ -242,7 +242,11 @@ CenterPoint was ready at **189 s** on the first start and **19 s** on the second
 stack in 20 s, and the engine mtimes did not change. Demo incident 2 passed with the
 pedestrian 5.4 m ahead, as before. On the default stack (`clustering`) only
 `shape_estimation` and `detection_by_tracker` load libnvinfer. Neither builds an engine,
-and both start as before. To check what a stack loaded:
+and both start as before. Those numbers are centerpoint_tiny's: since 2026-11-15
+`lidar_detection_model:=centerpoint` is **full CenterPoint** (`centerpoint/centerpoint`; the
+profile's choice, roadmap 074 S5: 1 contact in 8 against tiny's 5), whose two engines build
+once in ~33 s on 10.8 and which takes ~600 MiB more VRAM at peak (~2.05 GB);
+`centerpoint/centerpoint_tiny` keeps tiny. To check what a stack loaded:
 `grep nvinfer /proc/<lidar_centerpoint container pid>/maps`.
 When Autoware moves to a release built against another TensorRT, bump the version, wheel
 and checksum in `scripts/autoware_tensorrt.bash` together.

@@ -656,6 +656,11 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         # the scenarios' vehicle catalog: the project's merged one, else the installed one
         vehiclesmod.ENV: str(vehiclesmod.catalog_dir(project)),
     }
+    # Isaac's world server finds every car's body (the ego's and the NPCs') under
+    # SWB_VEHICLE_USD, by default a host path: the project's fetched USD set has them
+    # (roadmap 077, G36; without, every car is a box to the sensors)
+    if (usd / "vehicles" / "vehicles.json").is_file():
+        env["SWB_VEHICLE_USD"] = str(usd / "vehicles")
     if host.get("gpu") is not None or (host.get("seats") or {}).get("gpus") is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(s.gpu)
     # Isaac's world server finds its install by ISAAC_ROOT; the host settings' isaac.root

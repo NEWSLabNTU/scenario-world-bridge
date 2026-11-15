@@ -467,3 +467,13 @@ Isaac's rear contact (inventory row 18).
   when the `python3` first on `PATH` cannot import shapely or networkx, naming the pilots
   and the apt and pip fixes; install.md lists them. Ruling: `carla_basic` only, since a
   `command` or `launch` pilot's imports are its own.
+- **G37 built (2026-11-16), in swb_isaac_world.** The preload ego now warms its sensors for
+  up to 1200 frames, not 60 (`PRELOAD_WARM_FRAMES`), so a cold host compiles the map's
+  shaders before the bridge's spawn wait starts. The commit is on swb_isaac_world; the pin
+  here moves once that commit is on origin. A cold host has to confirm it (241's).
+- **G36 built (2026-11-16).** On Isaac the stack sets `SWB_VEHICLE_USD` to the project's
+  asset set (`assets/carla-usd/vehicles`) when that set has its `vehicles.json`, so the ego
+  and the NPCs are their CARLA bodies wherever the project is. This changes what the sensors
+  see, not only the picture: the NPCs' bodies come from the same catalogue, so it stays ahead
+  of G33. Live: a `simple` drive on Town10 passed with the variable naming the project's set,
+  and the world server logged no box stand-in.

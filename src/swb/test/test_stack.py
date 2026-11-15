@@ -41,6 +41,7 @@ def fake_pilot(rec, p, entry, log_dir):
 def test_plan_multi_pilot(where, maps_hub):
     d = make(where)
     p = stack.plan(project_arg=str(d))
+    assert "SWB_VEHICLE_USD" not in p.env   # a CARLA project fetches no USD set (G36)
     # lazy on CARLA: the pilots start for the first run's map
     assert p.seat.index == 2 and p.simulator == "carla" and p.map is None
     assert p.record["maps"] == ["Town01"] and p.record["map"] is None
@@ -768,3 +769,12 @@ def test_isaac_ground_truth_for_a_pilot_that_says_it_drives_on_it(where, maps_hu
     (d / "swb.yaml").write_text(text)
     p = stack.plan(project_arg=str(d), check=None)
     assert p.record["isaac_ego"]["config"]["ground_truth"] == {"topic": "/ground_truth/odom"}
+
+
+
+def test_the_isaac_world_server_finds_the_cars_in_the_projects_usd_set(where, maps_hub):
+    """roadmap 077, G36: SWB_VEHICLE_USD defaulted to a host path; on a host without it
+    every car was a box. The project's fetched set has them."""
+    d = make(where, template="isaac")   # the fake set has vehicles/vehicles.json
+    cat = d / "assets" / "carla-usd" / "vehicles"
+    assert stack.plan(project_arg=str(d), check=None).env["SWB_VEHICLE_USD"] == str(cat)

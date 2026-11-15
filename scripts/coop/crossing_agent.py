@@ -215,7 +215,7 @@ class CrossingAgent(CA.CutInAgent):
                 self.log_event("launch", t=t, ua=ua, ub=ub, vb=vb, ab=ab, eta_b=eta_b)
         if self.stage == "approach":
             want = eta_b + self.dt
-            dv = DV if eta_b > T_LOCK + 2.0 else 2.0  # near the lock, closer to v
+            dv = DV  # the whole band to the lock: at dt -1 A needs ~12 m/s against an ego still accelerating
             self.v_cmd = max(self.v_ref - dv, min(self.v_ref + dv, -ua / max(want, 0.1))) if ua < 0 else self.v_ref
             if v < self.v_cmd - 0.5 and t_cover(-ua, v, self.v_cmd, A_ACC) > want:
                 self.v_cmd = self.v_ref + dv  # behind the aim: catch up

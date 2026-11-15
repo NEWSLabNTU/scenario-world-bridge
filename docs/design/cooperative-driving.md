@@ -292,6 +292,86 @@ selfish pair has a lower welfare than the Autoware-like pair (-0.167 against -0.
 makes the other car reveal itself within the 1-3 belief updates a lane change allows. It is the one
 place a sequential decision model (a POMDP) may pay.
 
+## The protocol frame, and related work
+
+A conflict zone is a shared resource and the cars are processes competing for it: a
+**decentralised mutual-exclusion protocol**, one per band. Its safety: never two cars in the zone.
+Its liveness: no deadlock, no starvation. The layers:
+
+| layer | framework | what it answers |
+|---|---|---|
+| spec | rulebook (ranked rules) and STL robustness; S0's ρ is the negated robustness of "always (TTC ≥ 3 s ∧ headway ≥ 1 s ∧ PET ≥ 1.5 s ∧ clearance ≥ 1 m)" | what counts as good, in priority order |
+| safety | reachability, control barrier functions, RSS | which rules may be played |
+| coordination | mutual exclusion with symmetry breaking: identical anonymous processes cannot break a tie deterministically (Angluin 1980), so a role or randomness is needed; mixed traffic as BAR (Byzantine, altruistic, rational); verified for safety and liveness with timed automata | ties, deadlock, mixed conventions |
+| incentives | game theory: correlated equilibrium, evolutionarily stable conventions | will a rational car obey |
+| flow | max-plus algebra (the N-car delay recursion is max-plus), string stability, traffic flow | queues, throughput, large N |
+| execution | contingency planning; legible motion; the probe | acting before intent is known |
+| validation | conformal intervals, falsification | how sure the arena matches the stack |
+
+**Related work** (survey, "The protocol framework: related work", 656261c):
+- intersections as distributed mutual exclusion (Wu et al., TPDS 2015);
+- knowledge-based intersection protocols proven safe, live and optimal, also with faulty and
+  legacy cars (Alpturer, Halpern, van der Meyden, DISC 2024);
+- formally verified car control (Loos, Platzer), and UPPAAL proofs for urban crossings
+  (Hilscher, Olderog, Schwammberger);
+- correlated equilibrium at intersections, with a central manager (Adkins et al. 2019; Wang et
+  al. 2024);
+- rulebooks (Censi et al. 2019);
+- a roadside unit against Autoware in CARLA and on real cars, which saw Autoware's "repeated mutual
+  yielding near conflict points" (Yu et al. 2026), the failure U3 measured.
+
+**The gap is small in theory and wide in measurement.** Nobody runs the processes as full
+Autoware stacks with the shield underneath. Nobody measures role-keyed conventions with no V2X
+on a real stack, or mixed traffic as BAR, with a never-worse-than-stock bar.
+
+## Deployment assumptions and contracts
+
+The protocol is stated over one quantity: each car's **zone interval**, when it enters and leaves
+the conflict zone, with bounds. Vehicle shape, road shape, perception and latency change only how
+the interval is computed, conservatively, by reachability. They never change the protocol, so its
+proofs carry over.
+
+Each layer holds an **assume-guarantee contract**, monitored on the car. Example: "if perception
+error ≤ e, latency ≤ l and the other car can brake ≥ b, then no two cars are in the zone".
+When an assumption fails, the car falls back to stock Autoware or a minimal-risk stop. The set of
+conditions the contracts cover is the operational design domain (ISO 34503).
+
+| area | the study assumes now | deployment assumes | where it enters |
+|---|---|---|---|
+| vehicle shape | one box, 4.79 × 2.163 m | oriented polygons with margins; overhangs; articulated trailers; two-wheelers | swept path, so the zone interval |
+| vehicle capability | measured for the spec'd car | own capability from the spec; others' bounded by class and by what was seen; load, tyres and brakes vary | the safety set; the braking assumption |
+| other road users | the study's rules, or stock Autoware | humans, other automated cars, aggressive drivers, local culture | BAR: follows, deviates when it pays, ignores |
+| road geometry | straight arena roads, 90° crossings, a 45° Y merge | curves, skewed and five-arm junctions, lane drops, unmarked roads | the zone from the map's swept paths, in curvilinear coordinates |
+| road width | constant 3.5 m | varying, narrowing, parked cars | whether a zone is shared at all |
+| grade and surface | flat, dry | slopes, wet, unknown friction | braking bounds |
+| visibility | open | occlusion; detector reach 40-56 m (S5) | interval width; a creep-to-see step |
+| perception | ground truth or CenterPoint | noise, 0.1-0.45 s latency, misclassification, lost tracks | interval bounds; the probe; the role estimate (3b) |
+| map | trusted | errors (Town03 links none of its lights), staleness | an assumption monitor; stock when map and perception disagree |
+| communication | none, or an ideal message | optional, lossy, late, partial, possibly false | an untrusted prior; safe and live at 0 % adoption |
+| traffic law | generic priority | the jurisdiction's (turning, minor road, a dark signal) | which role-keyed convention is legal; the rulebook's ranks |
+| compute | offline | an ECU's rates; clock sync | dwell time; staleness bounds |
+
+Examples:
+- **Width decides whether a zone is shared.** On a 5 m stretch two cars do not fit side by side
+  (2 × 2.16 m plus margins), so it is a zone and S4's protocol applies. Two scooters do fit, and
+  there is no zone. A bus beside a parked car narrows it further.
+- **A skewed junction changes timing, not the protocol.** At 60° the paths overlap longer, so the
+  intervals and the tie band widen; the convention is unchanged.
+- **A turning trailer** sweeps the opposing lane long after its cab has passed. A box
+  underestimates its interval.
+- **An occluded approach.** Until the other car is seen, its interval covers the whole occluded
+  stretch, so the car creeps to see: S1's look-through lesson at a junction.
+- **A wet downhill approach** lowers the braking bound from about 7 to about 4 m/s². Fewer rules
+  stay in the safety set, so the car commits earlier or yields more often.
+
+**Test matrix** for every protocol (C8 first):
+- vehicles: car, van, bus, truck, scooter, as CARLA blueprints;
+- geometry: generated skewed, curved, narrowing, sloped and occluded arena roads, plus Town05 j979
+  and the NTU twin map;
+- perception: ground truth, the detectors, added latency;
+- V2X: 0, 30 and 100 % adoption, loss and delay, false intent;
+- others: stock Autoware, aggressive rules, logit and level-k play.
+
 ## Lessons from neighbouring projects (2026-11-15)
 
 Two projects in the lab work on the parts this design leaves optional or out of scope.

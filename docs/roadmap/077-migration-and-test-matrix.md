@@ -370,3 +370,12 @@ Isaac's rear contact (inventory row 18).
   Lincoln MKZ 2020 body with its measured geometry (the Tesla's other sections),
   `simple` pilot, drive_to_goal passed (run 2026-11-16T01-38-11); the world server, acb and
   the catalog all named spec e12f66a91e53, and acb verified the applied physics.
+- Regression after G5's pilot-launch change (2026-11-16, CARLA): simple and launch passed;
+  command (four_pilots) passed on the second try. The first ended `error` at SSv2's
+  timeout: both carla_basic agents' CARLA calls timed out (10 s) at 01:46:44 under the host's
+  load (load 18 to 20, GPU 90 % busy with other users' jobs), the relay dropped them as
+  silent and they registered again, and the ego's agent never had its goal again.
+- **G32 (new, 2026-11-16).** An agent that registers again within a scenario (it went
+  silent, or restarted) has lost its goal: the relay or the agent should hand the
+  scenario's last `set_goal` (and speed limit) back to a re-registered agent of a live
+  episode, or the run should end `error` naming the drop, not wait for SSv2's timeout.

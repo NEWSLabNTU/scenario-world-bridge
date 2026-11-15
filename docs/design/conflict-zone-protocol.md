@@ -225,6 +225,22 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   perception latency, not decision delay.
 - **The all-way stop row stays stock with no V2X** (078 G0): with these changes it is still worse
   than stock Autoware in 1-4 of 12 mixed cells, because stock reads a waiting car as static.
+- **Second round (078 V4):** band mode `gap` for `merge_lane_drop` (who leads by a headway now,
+  `merge_horizon` 1.5 s, `merge_headway` 0.6 s); the entry band strict at m − e; a role-first go in
+  an ambiguous band waits while the other's lead as read is ≥ m − e; `rest_tie` (both at rest: the
+  role binds, the winner goes after the 3 s fresh-rest guard); `claim` at the narrow passage (a go
+  that does not clear before the other could enter needs the other at rest), round two by
+  `obstruction_side`; a queued car is covered by its leader's verdict; bystanders' starts and exits
+  count for the quiet epoch (`Protocol.step(bystanders=)`); the merge act plans its end stop 1 m
+  before the end after the brake's lag, merges ahead only on the full gap test before its commit
+  point, and as B makes room once A's lane change is seen.
+- **Watchdog** (contracts and fallback): the node publishes `/interaction_strategy/heartbeat` every
+  cycle with the modules it holds manual and its limit. `interaction_strategy_watchdog`, a separate
+  process, calls `enable_auto_mode` for them and clears the limit after 0.5 s without one.
+- **Which rows are on (078 G0):** only `cross_unsignalled`. The all-way stop, narrow passage and lane
+  drop are `stock`. **The limit of conventions without V2X:** a convention pays only where no
+  waiting car must go first from rest against a car that cannot read it. A gap-test driver reads a
+  car waiting by its role as static and restarts into it.
 
 ## Open questions
 

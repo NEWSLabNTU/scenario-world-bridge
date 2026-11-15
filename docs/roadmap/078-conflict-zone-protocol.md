@@ -10,10 +10,10 @@ whether it ships. The build spec is [design/conflict-zone-protocol.md](../design
 the theory and evidence [design/cooperative-driving.md](../design/cooperative-driving.md); the
 study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 
-**Status**: Phase 1 built 2026-11-15 (czp library, zones, arena adapter, node off by default;
-EV2, EV3 pass). G0 for the all-way stop **not passed** on V2b: the row stays stock with no V2X.
-G1 not passed: S3 has contacts, arena-side EV1 for S2-S4 missing. Next: V4 for the crossing,
-narrow-passage and lane-drop rows, S3's fix, arena EV1, the node's watchdog.
+**Status**: Phases 0-1 done 2026-11-15. G0: **only the unsignalled crossing enters the table**;
+the all-way stop, the narrow passage and the lane drop stay stock. G1 passed for the crossing
+(the node drives that relation only). Next: Phase 2 on the crossing, starting with RTC on a real
+conflict on swb and EV4.
 
 ## Inputs, already in place
 
@@ -66,6 +66,39 @@ The fixes are design changes, so they go into the build, not into another study 
 the all-way stop is decided there, by the same criterion. If it still fails against stock, the
 all-way stop stays stock where the other car may be stock (T4 measures how often that is), and (e)
 applies between compliant cars.
+
+**V4 results, the other rows (133's subagent, 2026-11-15; 9f214f6, a6ebb52, d81460d; NAS `logs/2026
+SSv2 on CARLA/2026-11-15 078 V4 rows/`).**
+- **Formal** (`czp_rows_check.py`: the built library through the adapter, the cars' lags, no
+  post-start shield; exhaustive over a family of perception adversaries per context: delays, a
+  constant ±e or 0 error, square waves): at e 0.25 every row is safe and live (crossing 2 and 3
+  cars, worst wait 7.0 / 10.4 s; narrow passage 2 cars and a 3-car queue, 16.1 s; lane drop 2 cars).
+  At e 0.5, past the margin, the crossing and the lane drop fail, the check's sanity case.
+- The checker and the arena forced library changes: the entry band strict at m − e (176 unsafe
+  narrow runs before); an ambiguous-band rule for role-first goes; `rest_tie` (both at rest binds
+  the role, the winner goes after the 3 s fresh-rest guard); `claim` at the narrow passage, with
+  round two by the obstruction side; shadowed queues; bystanders counted for the quiet epoch (3-car
+  crossing: 45 unsafe runs before); a `gap` band mode for the lane drop.
+- **Arena BAR** (5 seeds; stock = the study rule nearest stock Autoware: crossing A t1.5p5 / B
+  yb2p5, narrow t1.5p5, lane drop A e1.2d / B hold):
+
+  | row | self-play | worse than stock | G0 |
+  |---|---|---|---|
+  | **crossing** | 0 contacts, 0 deadlocks of 90 | **0 of 12 cells** | **pass** |
+  | narrow passage, W_n 30 / 6 | 0 / 0 of 70 | 4 of 14 at both: czp as B (free side) goes by its role after the guard, and gap-test rules read it as static and restart into it (the legible probe cut the worst cell 20 → 6, not to 0) | fail |
+  | lane drop | 0 / 0 of 80 | 3 of 11 (czp as B against drop rules' own run-outs); czp as A: 7 not merged against c20 (stock 38) | fail |
+
+**G0 rulings (manager, 2026-11-15).** The criterion as stated:
+- **The unsignalled crossing enters the table.**
+- **The narrow passage and the lane drop stay stock.** Their failures share the all-way stop's
+  cause: a car that waits safely and then goes by its role is read as static by a gap-test rule,
+  which restarts into it. The lane drop also deadlocks, 7 times, where stock deadlocks 38.
+- **Caveat:** "stock" in the arena is a study rule chosen to be near Autoware. G3 decides on swb
+  against Autoware itself.
+- **What 074 learns:** with no V2X, a convention pays only where the waiting car is never asked to
+  go first from rest against a car that cannot read it. That is true of the crossing (nearer-first,
+  both moving) and of none of the other three rows. This is principle 3's limit, and it should be
+  stated in the design.
 
 ### Phase 1: implementation
 
@@ -121,6 +154,19 @@ CARLA/2026-11-15 078 P1 czp/`).**
 - What 074 learns from it: at the all-way stop a protocol that waits safely loses to stock
   Autoware's own restarts. Near ties, the cost lies in mixing with a car that treats a waiting car
   as static. The convention alone does not fix this.
+
+**Phase 1, second round (V4's subagent).** S3 fixed in the kinematic model (0 contacts, was 10;
+12 forced stops, was 17; 435/450 outcomes; stock's zipper alone has 19 contacts). Arena EV1:
+S2 167/168, S4 149/150 and 145/150, S3 202/208; near-tie shares within tolerance. Kinematic S4
+against C7's bind falls to 52/64 outcomes under the claim rule; that relation stays stock anyway. A
+**watchdog** (`czp.watchdog`, started with the node): the node publishes a heartbeat every
+cycle; after 0.5 s without one, the watchdog calls Autoware's own `enable_auto_mode` for every held
+module and clears the limit. Back in auto 0.52 s after a SIGKILL or a hang.
+
+**G1 ruling (manager, 2026-11-15): passed for the crossing.** EV1 (S2 kinematic 46/48, arena
+167/168), EV2, EV3, property tests and the watchdog all pass. Per G1's rule the node drives only
+the crossing relation; every other zone kind is `stock`. Not yet tested: RTC acting on a real
+conflict. It is Phase 2's first step, before EV4.
 
 **G1, ready to measure.** EV1, EV2 and EV3 pass and the property tests are green. Else: fix, or
 narrow the relations the node drives to those that pass.
@@ -215,3 +261,6 @@ and G2.
   passed: S3's contacts and arena EV1 open; per G1's rule the node drives no relation until a row
   passes G0 and its EV1. Next on 133's subagent: V4 (crossing, narrow passage, lane drop), S3's
   fix, arena EV1 for S2-S4, the node's watchdog.
+- 2026-11-15: V4 and the second round reported. G0: crossing in; narrow passage and lane drop stock.
+  G1 passed for the crossing. Phase 2 on the crossing next: a crossing light agent, RTC on a real
+  conflict on swb, then EV4.

@@ -99,9 +99,9 @@ account and settles the licences.
 | CARLA 0.9.16 towns and actors in USD (5 towns, 41 vehicles, 97 props, 52 walkers) | `2026-10-23_carla-0.9.16-isaac-usd` (24 GB) | CARLA content, CC-BY 4.0 | -- |
 | CARLA Town07_Opt in USD | `2026-10-18 CARLA Town07_Opt Isaac USD` | CC-BY 4.0 | -- |
 | Mount Haruna and Tsukuba courses (Isaac world, Autoware map, scenario, raw open data) | `2026-10-30 Haruna and Tsukuba courses` | OSM (ODbL), GSI tiles (attribution), CARLA props | world.yaml's absolute path; props by a link to the CARLA set |
-| NTU campus twin (Isaac world, Autoware map) | `2026-10-30 NTU twin map` (269 GB) | built from the vendor's MLS scan | published unlisted (decision 4) |
+| NTU campus twin (Isaac world, Autoware map) | private | built from the vendor's MLS scan | private (decision 4) |
 | NTU campus as a CARLA map | not yet (072 planned) | vendor scan | asked of the other hosts |
-| Shalun (CARLA and Isaac) | `2026-10-30 SVL Shalun map` | from SVL's assets | published unlisted (decision 4) |
+| Shalun (CARLA and Isaac) | private | from SVL's assets | private (decision 4) |
 | CARLA towns' Autoware maps with swb's repairs (Town01, 02, 03, 05, 10; signal tables, Isaac world.yaml) | `2026-11-14 CARLA towns Autoware maps (swb)` (530 MB) | TUM's pack, LGPL-3.0; CARLA | isaac/world.yaml and carla/traffic_lights.yaml name absolute paths |
 | Town05 with the ring at 110 km/h (063) | `2026-11-14 Town05 ring 110kmh (063)` (160 MB) | as above | -- |
 | Road-physics test stages (13 surfaces, proving ground; towns' physics layers in the USD set) | `2026-10-29 Isaac road-physics test stages` | ours | 066/069 stages asked of the other hosts |
@@ -157,10 +157,8 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    | `carla-town-autoware-maps` (TUM towns with swb's repairs, Town05 ring, Town01 point-cloud world) | 53 | 0.73 GB | LGPL-3.0 |
    | `isaac-road-physics-stages` (surfaces, proving ground, 066 procedural stages) | 77 | 2.6 MB | Apache-2.0 |
    | `newslab-golfcart-models` | 20 | 6 MB | Apache-2.0 |
-   | `shalun-map` (`world.yaml` made relative) | 47 | 0.41 GB | SVL's, private |
-   | `ntu-campus-maps` (twin map with its Isaac world versions, 133's additions, CARLA package) | 6303 | 20.4 GB | vendor scan, private |
 
-   Left out of NTU: the raw 50 m scan tiles (184 GB), the build archive, the proof videos.
+   The Shalun and NTU campus maps went to private repositories, not named here.
    Names carry no `swb-` prefix (user, 2026-11-14: "If it's not bound to swb, I prefer not to
    add swb- prefix"): the data is Isaac Sim's USD, Autoware's maps and CARLA's packages; only
    small sidecars (`world.yaml`, the vehicle catalogue JSON, `surfaces.yaml`) are swb's formats.
@@ -172,7 +170,7 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    modifications listed; Apache-2.0 with Nebula's VLP-32C table credited). The GSI tiles
    (`raw/dem5a/`, `raw/seamlessphoto/`, the debug mosaic and a stray DEM tile, unmodified
    server responses) were removed from the courses and its history squashed, so no revision
-   serves them; `raw/jobs.txt` lists their URLs. `shalun-map` and `ntu-campus-maps` stay private.
+   serves them; `raw/jobs.txt` lists their URLs. The Shalun and NTU campus maps stay private.
 
 ## Gaps found writing tutorials 6 and 7 (2026-11-14)
 

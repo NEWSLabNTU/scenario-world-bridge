@@ -84,6 +84,24 @@ def test_band_contested_zone_guard():
     assert band(own_interval(own), other_interval(o, P), o, P, stopping=True, stop_law=True).kind != CONTESTED
 
 
+def test_band_gap_merge():
+    """078 S3: at a lane drop the merge is judged on who leads whom by a headway now, not on arrival at the
+    end: a car ahead but slower is caught before the end; a car beside but faster is not ahead yet."""
+    def lane(i, front_to_end, v):  # s_entry: front to the lane's end; s_exit: the rear's
+        return Agent(i, approach=i, s_entry=front_to_end, s_exit=front_to_end + 4.79, v=v, cap=P.capability("car"))
+    a = lane("A", 80.0, 12.0)
+    b_far_behind = lane("B", 80.0 + 4.79 + 25.0, 12.0)  # A's rear 25 m ahead of B's front, same speed
+    assert band(own_interval(a), other_interval(b_far_behind, P), b_far_behind, P, mode="gap", own=a).kind == CLEAR
+    assert band(own_interval(a), other_interval(b_far_behind, P), b_far_behind, P, mode="gap", own=a).who == "A"
+    beside_faster = lane("A", 80.0, 15.0)
+    b_beside = lane("B", 80.0 - 0.2, 12.0)  # fronts level, A 3 m/s faster: still not ahead by a headway
+    k = band(own_interval(beside_faster), other_interval(b_beside, P), b_beside, P, mode="gap", own=beside_faster).kind
+    assert k in (BAND, AMBIGUOUS)
+    b_ahead = lane("B", 80.0 - 4.79 - 25.0, 12.0)  # B's rear 25 m ahead of A's front
+    r = band(own_interval(a), other_interval(b_ahead, P), b_ahead, P, mode="gap", own=a)
+    assert r.kind == CLEAR and r.who == "B"
+
+
 # --- role ----------------------------------------------------------------------------------------------
 def test_stopped_first_readings():
     T, m = P.tie_threshold_T, P.tie_margin_m

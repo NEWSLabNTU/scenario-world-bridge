@@ -17,7 +17,7 @@ cross_unsignalled:                # 074 S2, C7
   tie: right_before_left
   last: map_order
 merge_lane_drop:                  # 074 S3, C7
-  band: entry
+  band: gap                       # who leads whom by a headway now (a lane, not a point; 078 S3)
   first: ahead_at_end
   congested: zipper
   last: map_order

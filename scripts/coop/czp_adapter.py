@@ -314,44 +314,139 @@ def patched_crossing(czp_cars=("A", "B"), zone_kind=CM.CROSS_UNSIGNALLED, kind="
 
 
 # --- S3: the merge at a lane drop (merge_game.Rules' interface) -------------------------------------
+END_STOP = 1.0  # m: the czp car's planned stop before the lane's end (as the study's drop aims for)
+END_PLAN = 2.5  # m/s^2: it brakes for that stop once it needs this much (the study's BRAKE_LATE) ...
+DROP_LEAD = 1.0  # s: an unresolved (ambiguous) order is settled this long before the deadline, B first
+DROP_DV = 2.0  # m/s: A falls back this much below B's speed while beside it
+REST_GAP = 0.5  # m: at rest at the end, A merges ahead of a B at rest behind it with this much room
+END_LAG = 0.15  # s: ... over the distance left after the brake's dead time and lag (the study ignores them)
+
+
 def make_merge_rules():
+    import cutin_game as C1
     import merge_game as MG
 
     class CZPMergeRules(MG.Rules):
-        """merge_game.Rules with A's merge decided by czp (merge_lane_drop: who is ahead at the lane's
-        end, with the margin; the through lane first in the map's order). go = merge ahead of B when the
-        study's gap fits (its physics, as a safety check); yield or wait = fall behind B and merge into
-        its wake (the study's drop). B keeps its own rule. Positions are measured to the lane's end."""
+        """merge_game.Rules with A decided and driven by czp (merge_lane_drop: who leads whom by a
+        headway, ``band: gap``; then ahead_at_end with the margin; the through lane first in the map's
+        order). B keeps its own rule and safety layer (the study's, unchanged). Positions are measured to
+        the lane's end.
+
+        A's act (078 S3 fix):
+        - merge ahead only on czp's go and the study's full gap test (tau 0.6 s with the closing term),
+          never on the bare buffer at the deadline: a car beside the other is not ahead;
+        - merge into B's wake (B first) whenever the gap behind is there and the merge's commit point
+          lies ahead: half across (T_LC / 2 at its speed) before the planned stop at the end. Past it the
+          car stops at the end first and merges from rest once B has passed (a forced stop, not a run-out);
+        - merge ahead only before the commit point too; past it A drops;
+        - drop back behind B (the study's drop) as soon as czp yields, and when the order is still
+          unresolved DROP_LEAD s before the deadline (the last point a lane change still ends before the lane
+          does), so that there is room to merge behind B instead of stopping;
+        - B's courtesy (seen braking <= -yield_decel for yield_hold s, the probe's yield test) with A not
+          behind it: A stops dropping back and merges ahead once the gap holds for the half lane change
+          (BUFFER plus B's closing over it at its seen braking; mutual courtesy, A dropping while B makes room, was S3's forced
+          stop at the end); from rest at the end A merges ahead of a B that has stopped behind it;
+        - brake for the end as a planned stop, END_STOP m before it, over the distance left after the brake's
+          lag, also once it has begun a merge (the study brakes for the end itself, then without the 1 m and
+          the lag, and a merge begun late over-ran the end: the 10 contacts).
+        """
 
         def __init__(self, ra, rb, x_end, va0, vb0, b_cont="hold", kind="czp"):
-            # A's own gap acceptance off (tau inf): czp decides the merge ahead; the merge into B's wake
-            # and the drop at the deadline stay the study's (zipper timing)
-            ra = (ra[0], ra[1], math.inf, False, "drop")
             super().__init__(ra, rb, x_end, va0, vb0, b_cont)
             self.core = CZPCore("A", kind, CM.MERGE_LANE_DROP, va0, MG.L, MG.L)
             self.core.other_cap = self.core.params.capability("car", v_max=vb0, length=MG.L)
             self.core.own_cap = self.core.params.capability("car", v_max=va0, length=MG.L)
             self.a_prev = 0.0
             self.last_dec = None
+            self.why = None  # how A merged: ahead, courtesy, wake, rest
+            self.b_yield_since = None
+            self.courtesy = False
+
+        def committable(self, rem, va):
+            """The wake merge's commit point: half across before the planned stop at the end."""
+            return rem - END_STOP >= max(va, 1.0) * MG.T_LC / 2 + 0.5
 
         def step(self, t, xa, va, lat, xb, vb, seen_b, seen_a):
-            if self.decide is None and not self.dropping:
-                xb_s, vb_s, ab_s = seen_b
+            L, CAP = MG.L, MG.CAP
+            xb_s, vb_s, ab_s = seen_b
+            xa_s, va_s, lat_s = seen_a
+            rem = self.x_end - xa
+            # --- A: czp's decision and its act
+            if self.decide is None:
                 age = MG.OBS + MG.DECIDE
-                u_a = -(self.x_end - xa)  # the front's position past the lane's end
-                u_b = -(self.x_end - xb_s)
-                dec = self.core.decide(t, u_a, va, self.a_prev, (t - age, u_b, vb_s, ab_s))
+                dec = self.core.decide(t, -rem, va, self.a_prev, (t - age, -(self.x_end - xb_s), vb_s, ab_s))
                 self.last_dec = dec
-                gap_ahead = (xa - MG.L) - xb_s
-                # go: A is ahead at the end (or clear): merge ahead once the study's gap fits; yield or
-                # wait: keep the lane (the study's zipper merges into B's wake, or drops at the deadline)
-                deadline = self.x_end - xa <= MG.lane_change_dist(va)
-                fits = gap_ahead >= MG.BUFFER + vb_s * MG.TAUS[0] or (deadline and gap_ahead >= MG.BUFFER)
-                if dec.kind in (CM.GO, CM.STOCK) and fits:
-                    self.decide = t  # at the deadline A, ahead at the end, claims its slot (B's turn is behind)
-            aa, ab = super().step(t, xa, va, lat, xb, vb, seen_b, seen_a)
+                gap_ahead = (xa - L) - xb_s
+                gap_behind = (xb_s - L) - xa
+                need = MG.BUFFER + vb_s * MG.TAUS[0] + max(0.0, vb_s ** 2 - va ** 2) / (2 * MG.A_REAR)
+                ok = self.committable(rem, va)
+                if gap_behind >= MG.S0 + va * MG.HEADWAY:
+                    self.decide, self.why = t, ("rest" if self.stopped else "wake")
+                # B's courtesy, read as czp's probe reads a yield: braking <= -yield_decel held yield_hold s
+                p = self.core.params
+                if ab_s <= -p.yield_decel:
+                    self.b_yield_since = t if self.b_yield_since is None else self.b_yield_since
+                else:
+                    self.b_yield_since = None
+                courtesy = self.b_yield_since is not None and t - self.b_yield_since >= p.yield_hold - 1e-9 \
+                    and gap_ahead > -L  # A's front ahead of B's
+                self.courtesy = courtesy
+                # behind a yielding B the gap only has to hold while A is half across (B is opening it)
+                h = MG.T_LC / 2
+                need_c = MG.BUFFER + max(0.0, (vb_s - va) * h + 0.5 * min(ab_s, 0.0) * h * h)
+                if self.decide is None and self.stopped and vb_s < 0.3 and gap_ahead >= REST_GAP:
+                    self.decide, self.why = t, "rest_ahead"  # both at rest, A ahead: B is waiting for A
+                if self.decide is None and (ok or self.stopped) and (
+                        (dec.kind in (CM.GO, CM.STOCK) and not self.dropping and gap_ahead >= need) or
+                        (courtesy and gap_ahead >= min(need, need_c))):
+                    self.decide, self.why = t, ("courtesy" if courtesy and dec.kind not in (CM.GO, CM.STOCK) else "ahead")
+                if self.decide is None and not self.dropping and (
+                        dec.kind in (CM.YIELD, CM.WAIT_SECOND_ROUND) or not ok or
+                        (dec.kind != CM.GO and rem <= MG.lane_change_dist(va) + va * DROP_LEAD)):
+                    self.dropping = True  # B first: drop back now, while there is room to merge behind it
+            # --- A's longitudinal
+            if self.decide is not None and lat > 0.0 and xa < xb:
+                aa = C1.follow_cruise((xb - L) - xa, va, vb, CAP, self.va0)
+            elif self.dropping and self.decide is None and self.courtesy:
+                aa = 0.0  # B is making room ahead of it: stop dropping back, keep the speed
+            elif self.dropping and self.decide is None and (xb_s - L) - xa < 0 and vb_s > 1.0:
+                # beside B: fall back at DROP_DV below B's speed (the study brakes to rest beside it, which
+                # against a courteous B stops both cars short of the end)
+                aa = -C1.A_WAIT_DECEL if va > vb_s - DROP_DV else 0.0
+            elif self.dropping and self.decide is None:
+                aa = -C1.A_WAIT_DECEL if va > 0.5 * vb_s or (xb_s - L) - xa < 0 else 0.0
+            else:
+                aa = max(-1.0, min(CAP.a_max, 1.5 * (self.va0 - va)))
+            if (self.decide is None or lat < 0.5) and rem > 0:  # not half across: a planned stop before the end
+                d = rem - END_STOP - va * END_LAG
+                need_e = va * va / (2 * max(d, 0.05))
+                if d <= 0.05:
+                    aa = -CAP.b_max if va > 0 else 0.0
+                elif need_e >= END_PLAN:
+                    aa = min(aa, -min(CAP.b_max, need_e * 1.15))
+            # --- B: the study's rule and safety layer, unchanged (merge_game.Rules.step)
+            if lat_s > 0.08 and self.lat_seen_at is None:
+                self.lat_seen_at = t
+            a_ahead = xa_s - L > xb - L
+            gap_b = (xa_s - L) - xb
+            yielding = False
+            if self.bname == "react" and self.lat_seen_at is not None and t >= self.lat_seen_at + MG.REACT and a_ahead:
+                yielding = self.b_cont == "yield"
+            if self.bname.startswith("c"):
+                if (not self.b_latched and t >= MG.REACT and a_ahead and gap_b < self.band and lat_s < 0.5
+                        and (self.x_end - xa_s) <= MG.COURTESY_T * max(va_s, 1.0)):
+                    self.b_latched = True
+                yielding = self.b_latched and a_ahead
+            b_dec = self.b_y if self.bname.startswith("c") else C1.B_YIELD_DECEL
+            if yielding:
+                ab = -b_dec if gap_b < MG.S0 + vb * MG.HEADWAY else C1.follow_cruise(gap_b, vb, va_s, CAP, self.vb0)
+            else:
+                ab = max(-1.0, min(CAP.a_max, 1.5 * (self.vb0 - vb)))
+            if lat_s >= 0.5 and xa_s > xb:
+                ab = min(ab, C1.follow_accel(gap_b, vb, va_s, CAP, self.vb0))
+            aa = max(-CAP.b_max, min(CAP.a_max, aa))
             self.a_prev = aa
-            return aa, ab
+            return aa, max(-CAP.b_max, ab)
 
     return CZPMergeRules
 

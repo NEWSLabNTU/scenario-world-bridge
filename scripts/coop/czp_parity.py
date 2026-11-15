@@ -227,7 +227,7 @@ def s3(args):
     with Pool(args.jobs) as pool:
         res = pool.map(s3_context, jobs)
     rows = []
-    n = ok = contacts = stops = 0
+    n = ok = contacts = stops = unmerged = 0
     misses = []
     for r in res:
         rc = r["ref_class"]
@@ -239,13 +239,14 @@ def s3(args):
             ok += good
             contacts += c["contact"]
             stops += c["stopped"]
+            unmerged += not c["merged"]
             rows.append({"study": "s3", "d_end": r["d_end"], "d0": r["d0"], "dv": r["dv"], "b": b, "ref_class": rc,
-                         "czp_order": order, "czp_contact": c["contact"], "czp_stopped": c["stopped"], "ok": int(good)})
+                         "czp_order": order, "czp_contact": c["contact"], "czp_stopped": c["stopped"], "czp_merged": c["merged"], "ok": int(good)})
             if not good:
                 misses.append(f"d_end{r['d_end']:g} d0{r['d0']:+g} dv{r['dv']:+g} B {b}: S3 {rc}, czp {order}"
                               f"{' contact' if c['contact'] else ''}{' stop' if c['stopped'] else ''}")
     summ = {"czp": {"outcomes_agree": f"{ok}/{n}", "outcomes_pct": round(100 * ok / max(n, 1), 1),
-                    "contacts": contacts, "forced_stops": stops, "misses": misses}}
+                    "contacts": contacts, "forced_stops": stops, "not_merged_by_T_MAX": unmerged, "misses": misses}}
     return rows, summ
 
 

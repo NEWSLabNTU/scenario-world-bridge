@@ -12,8 +12,9 @@ study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 
 **Status**: Phases 0-1 done 2026-11-15. G0: **only the unsignalled crossing enters the table**;
 the all-way stop, the narrow passage and the lane drop stay stock. G1 passed for the crossing
-(the node drives that relation only). Next: Phase 2 on the crossing, starting with RTC on a real
-conflict on swb and EV4.
+(the node drives that relation only). Phase 2 on the crossing (2026-11-16) found the node worse than
+stock in the band until its go is committed, and e 0.53 s on Autoware's tracks: G0 for the crossing
+is reopened with the commit and e 0.55 s.
 
 ## Inputs, already in place
 
@@ -212,6 +213,66 @@ time included:
 - The manager set `b_bound` and the source tags (truck 2.3, `b_comfort` 2.0 to stay below it); the
   czp tests pass.
 
+**Phase 2 on the crossing: RTC on a real conflict, EV4, EV5 (133's subagent, 2026-11-15/16;
+039cb1a, d043485, 291816f; NAS `logs/2026 SSv2 on CARLA/2026-11-15 078 P2 crossing RTC and e/`).**
+Town05 j979 (`cross_unsignalled`). The ego is Autoware 1.5.0 with full CenterPoint and spec
+physics. A is a light agent (`crossing_agent.py`) from the ego's left, paced on the ego's measured
+acceleration: Δt at the lock is within 0.03 s of the cell in all 58 valid runs. Rules t1.5p5, go and
+tinfp5; node on and off. 0 contacts.
+- **A show-stopper found and fixed:** the node and the watchdog called `enable_auto_mode` with the
+  wrong service type (`AutoModeWithModule`; rtc_interface serves `tier4_rtc_msgs/srv/AutoMode`), so
+  no module ever went back to auto. A cooperate command clears auto mode by itself, so the ego
+  stood at its line for 45 s on the last deny. P1's EV2 and watchdog checks passed only because
+  they saw no conflict, or a fake of the same wrong type. Rechecked with the real type: kill
+  0.52 s, hang 0.49 s. Also fixed: the self contract flapped at a live cycle p50 of 18.6 ms (now
+  the median of 10 cycles); cycle p50 is about 6 ms and p99 about 20 ms live.
+- **RTC carries the node's decisions:** 114 of 114 commands shown by the module within 1 s; 42 of
+  44 approves removed the stop factor; 50 of 70 denies restored one (the rest came too late:
+  ego stopped, inside, or past the line); back in auto at the end in 26 of 26 runs. **Its gaps:**
+  - no latch or commit;
+  - an approve overrides the module's own collision check (7 approves while `safe` was false,
+    after which safety rests on obstacle stop alone);
+  - no creep (the velocity limit is the only way);
+  - the status uuid persists past the line;
+  - clear or contested readings at band edges toggle the mode: 216 switches in 26 runs.
+- **The node is worse than stock in the band** (t1.5p5, seeds 0-3): minimum clearance 0.50 m
+  against stock's 1.00, minimum TTC 0.74 s against 1.30; ego first 10 of 12 band runs against
+  12; the ego clears the zone at 15.5 s against 11.5. Cause: a go from rest is not committed. Once
+  the ego moves its band reads ambiguous, the node denies, and go and wait alternate every
+  1-2 s until A's patience wins. With `commit: on_move` (6 runs) the chatter is gone (ego first
+  6 of 6, clearance 1.01 m, TTC 1.32 s, PET 1.54 s), but the ego still clears about 1 s later
+  than stock (13.3 s against 12.4).
+- **EV4, pre-registered split** (seeds 0-1 fit, 2-3 held out):
+
+  | bin | held-out e99 (centred) | bias |
+  |---|---|---|
+  | 0-10 m | 0.57 s | −0.24 s |
+  | 10-20 m, tracks ≥ 0.5 s old | 0.23 s | −0.24 s |
+  | pooled 0-30 m, tracks ≥ 0.5 s old | **0.53 s** (cover 98 %) | −0.24 s |
+
+  The bias is the tracker's speed lag while A brakes (+0.78 m/s). **A is never tracked beyond
+  25 m:** first tracked at a median 21.6 m from the zone in 40 of 40 runs (corner occlusion, as at
+  the Y merge), so the node reads the band only about 2.5 s before the zone. **The stop instant from
+  tracks comes 0.7 s late** (median; 0.45-3.55 s).
+- **EV5:** the yield test agrees with A's true acceleration in 52 of 52 runs (lag 0.65-0.8 s), and
+  with what A did in 43 of 52. The 9 misses read a brief safety brake or a patience start as a
+  yield. A non-yielding A was nearly absent, so this is weak evidence.
+
+**Rulings (manager, 2026-11-16).**
+- **The crossing row needs a committed go** (`commit: on_move`, or a latch until the ego is
+  inside). V4 verified the row without it, so **G0 for the crossing is reopened**: formal and arena
+  recheck with the commit, at the measured e.
+- **e (G2, provisional): e = 0.55 s with bias −0.24 s** (EV4's pooled held-out e99, rounded up),
+  replacing the assumed 0.25 s, until the held-out set is larger. `stopped_first` and `rest_tie`
+  timing on tracks is unusable at this e (stop instant +0.7 s late). The crossing's arrival-order
+  role must therefore hold at m = 0.55 s: the G0 recheck uses it.
+- **A mode hysteresis** goes into the strategy, so that readings at band edges stop toggling RTC.
+- **Occlusion is a contract, not a parameter:** with the other car first seen 22 m out, the node is
+  stock until 2.5 s before the zone. The phantom at the occlusion edge (design step 3) and Autoware's
+  own occlusion handling (swb 118, running) are the two candidate fixes; radar is EV9.
+- **G3 risk recorded:** until the go is committed, the node is worse than stock on clearance and TTC
+  in the band.
+
 ### Phase 3: test runs
 
 | step | what | measures |
@@ -263,10 +324,10 @@ and G2.
 ## Risks
 
 - **RTC's coverage.** The intersection module's RTC may not expose every decision the table makes
-  (a second round, a creep). Mitigation: the velocity limit, or a small Autoware overlay package.
+  (a second round, a creep). Mitigation: the velocity limit, or a small Autoware overlay package. **Confirmed 2026-11-16:** no latch, an approve overrides the module's `safe`, no creep, mode toggling at band edges (Phase 2 above).
 - **e may be too large.** If EV4's role-time error at 30 m is near the tie band itself,
   `stopped_first` is unusable and the all-way stop falls back to `map_order` alone. That is safe
-  and live, but ignores arrival order. The report must say what that costs.
+  and live, but ignores arrival order. The report must say what that costs. **Confirmed 2026-11-16 for `stopped_first`** (stop instant +0.7 s late on tracks; pooled e99 0.53 s).
 - **Arena vs swb.** D2 holds per relation, not everywhere (S4's payoffs swing ±15 points between
   reruns). G3 uses swb (T2), not the arena alone.
 - **The stack's own failures** (principle 1) can mask the node's effect: T2 runs on the fixed stack
@@ -285,3 +346,6 @@ and G2.
 - 2026-11-15: V4 and the second round reported. G0: crossing in; narrow passage and lane drop stock.
   G1 passed for the crossing. Phase 2 on the crossing next: a crossing light agent, RTC on a real
   conflict on swb, then EV4.
+- 2026-11-16: Phase 2 on the crossing reported (RTC auto-mode fault fixed; node worse than stock in
+  the band until the go is committed; EV4 e 0.53 s held out, tracks only within 25 m). G0 for the
+  crossing reopened with `commit: on_move`; e set to 0.55 s provisionally.

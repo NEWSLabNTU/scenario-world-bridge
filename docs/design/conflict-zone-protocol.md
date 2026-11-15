@@ -242,6 +242,16 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   waiting car must go first from rest against a car that cannot read it. A gap-test driver reads a
   car waiting by its role as static and restarts into it.
 
+- **Phase 2, the crossing on swb (078, 2026-11-16):** `enable_auto_mode/<module>` is
+  `tier4_rtc_msgs/srv/AutoMode` (bool enable), and a cooperate command clears auto mode by itself.
+  The self contract reads the median of the last 10 cycle times. The crossing row needs a commit once
+  moving (`commit: on_move`): an uncommitted go from rest chatters go/wait. The strategy needs a
+  mode hysteresis, because band-edge readings toggle RTC's mode. `role_time_error_e` 0.55 s and
+  `role_time_bias` −0.24 s are measured on Autoware's tracks (EV4, held out). An occlusion contract:
+  the other car is first tracked about 22 m out, so the node is stock until then unless a phantom
+  stands at the occlusion edge. An RTC approve overrides the module's own `safe`, so a go
+  approved while `safe` is false rests on obstacle stop alone.
+
 ## Open questions
 
 - The commit point for a lane change inside Autoware's module: where RTC can still deny.

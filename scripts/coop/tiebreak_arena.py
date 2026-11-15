@@ -320,8 +320,15 @@ def main():
     p.add_argument("--tie-share", type=int, default=0, metavar="N",
                    help="score the near-tie band (|dt| <= crossing_game.TIE_BAND) by contact share over N seeded kinematic "
                         "runs with the arena's perception noise (0: off)")
+    p.add_argument("--variants", default=None,
+                   help="the conventions' behaviours to run, comma-separated (default: every one in VARIANTS), e.g. "
+                        "none,bind,coin,stagger to match runs made before coin_stop")
     args = p.parse_args()
     X.TIE_SHARE = args.tie_share
+    if args.variants:
+        global VARIANTS
+        keep = set(args.variants.split(","))
+        VARIANTS = tuple(x for x in VARIANTS if x[0] in keep)
     if args.selftest:
         return selftest()
     args.v = args.v or ("10" if args.geom == "cross" else "6,10")

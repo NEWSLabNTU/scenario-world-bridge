@@ -298,3 +298,11 @@ Isaac's rear contact (inventory row 18).
   into the run. The stack could catch it at its start: the workspace's nested submodules
   checked out off their pins (`git submodule status --recursive`, a `+` line), as
   check_pins does for the pins themselves, named with the fix.
+- G30 live (2026-11-16): a listener on 8080 (seat 0's web UI), then `swb run --start-stack`
+  on simple_drive: the stack started on seat 1 and passed.
+- **G28 built (2026-11-16).** play_launch's DDS check compares each node with play_launch's
+  own environment, which was the terminal's (Autoware's Cyclone profile, domain 0): every
+  stack warned for `/bridge`, `/simulator`, `/stack_keeper`. `swb run --start-stack` now
+  starts play_launch on the seat's scenario domain and the stack's Cyclone profile, as its
+  nodes are. Live: three warnings became one, `/simulator` on the ego's domain, which is
+  meant; troubleshooting says so, and how to start a stack by hand without the others.

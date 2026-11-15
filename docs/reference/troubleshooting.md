@@ -11,6 +11,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | `swb: the stack is refused (3): ...` | the message names the problem and its fix: assets not fetched (`ros2 run swb assets fetch`), a scenario that does not parse, an entity without a pilot, a pilot kind the simulator cannot run |
 | `play_launch <version> (...) is older than 0.30.0, which the stack needs` | the `play_launch` first on `PATH` is too old: `python3 -m pip install --user 'play_launch>=0.30.0'`, or put the newer one first on `PATH` |
 | `Isaac message bindings: <package> is not built` (or `is stale`) | Isaac's Python lacks an Autoware message package the world server publishes, or it was built from an older Autoware: `ros2 run swb isaac msgs` |
+| `WARN dds-env-split: /simulator sets ROS_DOMAIN_ID=<n> where the rest of the launch has <m>` in the stack's console | expected: the world server runs on the ego pilot's domain, on purpose. A stack you started by hand with `play_launch` from a terminal on another domain or DDS profile warns for `/bridge` and `CYCLONEDDS_URI` too; `eval "$(ros2 run swb seat env scenario)"` first, or let `swb run --start-stack` start it |
 | `... seat <n> is taken: <user> (pid ...)` | another stack holds the seat: take another (`ros2 run swb seat take auto`) or wait |
 | `... pilots ... but seat <n> has 7 pilot domains` | more pilots than the seat has domains: fewer pilots, or a seat table with a larger `stride` |
 | The stack and every run start nothing | play_launch missing or older than 0.30.0: `play_launch --version` |

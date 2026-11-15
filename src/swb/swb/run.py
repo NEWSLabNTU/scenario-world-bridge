@@ -340,6 +340,20 @@ def stack_argv(project: Path, host: dict, seat: int, log_dir: Path) -> list:
     return argv
 
 
+def stack_env(s, base=None) -> dict:
+    """The stack's play_launch environment: this one, on the seat's scenario domain and the
+    stack's DDS (roadmap 077, G28). Its nodes set the same, so play_launch's DDS check
+    compares them with what they share rather than with the terminal's (often Autoware's
+    profile, domain 0) and warns only where a node is meant to differ (the world server on
+    the ego's domain)."""
+    from swb import seat as seatmod
+    env = dict(os.environ if base is None else base)
+    env.update(ROS_DOMAIN_ID=str(s.scenario_domain), RMW_IMPLEMENTATION="rmw_cyclonedds_cpp",
+               CYCLONEDDS_URI=f"file://{seatmod.cyclone_profile()}")
+    env.pop("ROS_LOCALHOST_ONLY", None)
+    return env
+
+
 def start_stack(project: Path, host: dict, command=None, out=None) -> StartedStack:
     """Start the project's stack (``command(project, host, seat, log_dir) -> argv``, default
     ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
@@ -366,7 +380,7 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
             log_dir = root / f"{stackmod.now_id()}-{n}"
     argv = (command or stack_argv)(project, host, s.index, log_dir)
     try:
-        proc = stackmod.start_process(argv, dict(os.environ), log_dir / "console.log",
+        proc = stackmod.start_process(argv, stack_env(s), log_dir / "console.log",
                                       cwd=str(project))
     except OSError as e:
         raise StackFailed(f"the stack did not start ({argv[0]}): {e}") from None

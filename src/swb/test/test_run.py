@@ -1021,3 +1021,16 @@ def test_managed_ego_false_hands_the_ego_to_no_pilot(live, where):
     resolved = yaml.safe_load((run_dir / "resolved.yaml").read_text())
     assert set(resolved["pilots"]) == {"lead", "follower"}   # no ego: SSv2 drives it not
     assert set(results.RunResult.read(run_dir / "result.json").pilots) == {"lead", "follower"}
+
+
+def test_the_stacks_play_launch_runs_on_the_seats_dds():
+    """roadmap 077, G28: play_launch itself on the scenario domain and the stack's Cyclone
+    profile, not the terminal's (Autoware's profile, domain 0)."""
+    from swb import config, seat as seatmod
+    s = seatmod.table(config.DEFAULTS)[1]
+    env = run.stack_env(s, {"ROS_DOMAIN_ID": "0", "ROS_LOCALHOST_ONLY": "1", "PATH": "/bin",
+                            "CYCLONEDDS_URI": "file:///opt/autoware/1.5.0/config/cyclonedds.xml"})
+    assert env["ROS_DOMAIN_ID"] == str(s.scenario_domain) == "9"
+    assert env["CYCLONEDDS_URI"] == f"file://{seatmod.cyclone_profile()}"
+    assert env["RMW_IMPLEMENTATION"] == "rmw_cyclonedds_cpp"
+    assert "ROS_LOCALHOST_ONLY" not in env and env["PATH"] == "/bin"

@@ -169,8 +169,8 @@ class YPolicy(G.Policy):
     perceive() takes the other's (u, v, a); u is the front's distance past Z's near edge along the
     car's own path, the same for both paths (Z_LEN each), so the merged-lane gap is ou - u - L."""
 
-    def __init__(self, role, rule, v0, b_cont="hold"):
-        super().__init__(role, rule, v0, b_cont, EXIT)
+    def __init__(self, role, rule, v0, b_cont="hold", hold_stop=None):
+        super().__init__(role, rule, v0, b_cont, EXIT, hold_stop)
 
     def _gap_first(self, t, u, v, ou, ov):
         """A's test: at full drive, A reaches M at least tau + L / v_other before the other."""
@@ -232,7 +232,8 @@ class YPolicy(G.Policy):
                 self.shield = self.shield or (v > 0.5 and planned - a > 1.0 and need > G.BRAKE_LATE + 1.0)
             elif a > 0 and u > STOP - 1.0:
                 a = min(a, 0.0)
-                if G.HOLD_STOP and v < G.HOLD_STOP_V:  # crossing_game.HOLD_STOP
+                self.note_clip(v)
+                if self.hold_stop and v < G.HOLD_STOP_V:  # crossing_game.HOLD_STOP
                     a = -min(B_MAX, v / DT)
         return a
 

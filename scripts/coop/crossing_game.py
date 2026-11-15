@@ -161,8 +161,13 @@ class Policy:
     front past Z's near edge along the car's own road.
     """
 
-    def __init__(self, role, rule, v0, b_cont="hold", exit_=EXIT):
+    def __init__(self, role, rule, v0, b_cont="hold", exit_=EXIT, hold_stop=None):
         self.role, self.v0, self.b_cont = role, v0, b_cont
+        self.hold_stop = HOLD_STOP if hold_stop is None else hold_stop  # the arena passes ARENA_HOLD_STOP
+        # the safety layer's hold at the line (the clip to 0): ticks, ticks still moving (v >= 0.05 m/s),
+        # the largest speed and the distance covered while held
+        self.clip_n = self.clip_moving = 0
+        self.clip_vmax = self.clip_dist = 0.0
         self.exit = exit_  # the front's distance past the zone's near edge when the rear leaves it
         self.decided = self.rested = self.shield = self.react_done = False
         self.stopped_since: float | None = None
@@ -235,9 +240,22 @@ class Policy:
                 self.shield = self.shield or (v > 0.5 and planned - a > 1.0 and need > BRAKE_LATE + 1.0)
             elif a > 0 and u > STOP - 1.0:
                 a = min(a, 0.0)
-                if HOLD_STOP and v < HOLD_STOP_V:  # held at the line: to rest, not a crawl at the speed left over
+                self.note_clip(v)
+                if self.hold_stop and v < HOLD_STOP_V:  # held at the line: to rest, not a crawl at the speed left over
                     a = -min(B_MAX, v / DT)
         return a
+
+    def note_clip(self, v):
+        self.clip_n += 1
+        if v >= 0.05:
+            self.clip_moving += 1
+        self.clip_vmax = max(self.clip_vmax, v)
+        self.clip_dist += v * DT
+
+    def clip_record(self, k):
+        """The hold-clip statistics for a run record, keys prefixed by the car's name k."""
+        return {f"clip{k}_s": round(self.clip_n * DT, 2), f"clip{k}_moving_s": round(self.clip_moving * DT, 2),
+                f"clip{k}_vmax": round(self.clip_vmax, 3), f"clip{k}_dist": round(self.clip_dist, 3)}
 
     def after(self, t, u, v):
         """Bookkeeping once the car has moved: stops (patience) and whether it came to rest."""
@@ -264,6 +282,10 @@ LAUNCH_DEAD = 0.5
 # brakes to rest (the default since 074's kinematic defaults). False (--no-hold-stop): as every study before.
 HOLD_STOP = True
 HOLD_STOP_V = 0.5  # m/s
+# The arena is the reference (074 hold-stop arena check): its cars run the same Policy, but HOLD_STOP is
+# a fix to the kinematic model's car, not to the rules, so the arena's policies keep the clip to 0 they
+# had before it (ARENA_HOLD_STOP False; --arena-hold-stop: the rules as the e995a7b rerun ran them).
+ARENA_HOLD_STOP = False
 
 
 def add_legacy_args(p):
@@ -271,10 +293,14 @@ def add_legacy_args(p):
     p.add_argument("--no-launch-dead", action="store_true", help="no launch dead time (LAUNCH_DEAD 0)")
     p.add_argument("--no-hold-stop", action="store_true", help="a held car is not braked to rest (HOLD_STOP off)")
     p.add_argument("--legacy-pet", action="store_true", help="measures' sampled PET with the 30 deg cut (LEGACY_PET)")
+    p.add_argument("--arena-hold-stop", action="store_true",
+                   help="arena scripts: the arena's policies brake a held car to rest too (ARENA_HOLD_STOP), as the e995a7b rerun")
 
 
 def apply_legacy_args(a):
-    global LAUNCH_DEAD, HOLD_STOP
+    global LAUNCH_DEAD, HOLD_STOP, ARENA_HOLD_STOP
+    if getattr(a, "arena_hold_stop", False):
+        ARENA_HOLD_STOP = True
     if a.no_launch_dead:
         LAUNCH_DEAD = 0.0
     if a.no_hold_stop:

@@ -116,7 +116,7 @@ class Run:
         self.pol = {}
         for k in "AB":
             role, rule, cont = N.rule_of(job[k.lower()])
-            self.pol[k] = X.Policy(role, rule, v, cont, self.exit)
+            self.pol[k] = X.Policy(role, rule, v, cont, self.exit, hold_stop=X.ARENA_HOLD_STOP)
         mk = lambda: AR.Observer(args.obs_delay, args.obs_sigma_x, args.obs_sigma_v, rng)  # noqa: E731
         self.obs = {"A": mk(), "B": mk()}  # what A sees of B, what B sees of A
         self.last_stamp = {"A": None, "B": None}
@@ -217,6 +217,7 @@ class Run:
                     "restedA": int(o.stopped[0]), "restedB": int(o.stopped[1])}
         for k, car in self.cars():  # back at the start, at rest
             self.p.place_at(k, car, self.u_spawn[k])
+        self.rec.update({**self.pol["A"].clip_record("A"), **self.pol["B"].clip_record("B")})
         self.phase = "done"
 
 

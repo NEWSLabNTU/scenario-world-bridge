@@ -125,7 +125,8 @@ class Run:
         ra = next(r for r in G.A_RULES if r[0] == job["a"])
         rb = next(r for r in G.B_RULES if r[0] == job["b"])
         self.ra, self.rb = ra, rb
-        self.pol = {"A": G.Policy("A", ra, v), "B": G.Policy("B", rb, v, job.get("b_cont", "hold"))}
+        self.pol = {"A": G.Policy("A", ra, v, hold_stop=G.ARENA_HOLD_STOP),
+                    "B": G.Policy("B", rb, v, job.get("b_cont", "hold"), hold_stop=G.ARENA_HOLD_STOP)}
         mk = lambda: AR.Observer(args.obs_delay, args.obs_sigma_x, args.obs_sigma_v, rng)  # noqa: E731
         self.obs = {"A": mk(), "B": mk()}  # what A sees of B, what B sees of A
         self.last_stamp = {"A": None, "B": None}
@@ -234,6 +235,7 @@ class Run:
                     "vA0": round(self.v0["A"], 2), "vB0": round(self.v0["B"], 2),
                     "dt_real": round(-self.u0["A"] / max(self.v0["A"], 0.1) + self.u0["B"] / max(self.v0["B"], 0.1), 3),
                     "t_run": round(t, 2), "shieldA": int(o.shield[0]), "shieldB": int(o.shield[1])}
+        self.rec.update({**self.pol["A"].clip_record("A"), **self.pol["B"].clip_record("B")})
         self.phase = "done"
 
 

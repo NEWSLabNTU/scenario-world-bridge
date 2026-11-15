@@ -13,7 +13,9 @@ the API's limit: the selector takes the lowest) and its clear command, and the d
 Zones: ``zones_file`` (czp-zones' output for the map), else ``<map_path>/czp_zones.yaml``, else built
 from ``<map_path>/lanelet2_map.osm`` in the background (minutes for a large town) and cached; until
 then the node is stock (it sends nothing). With the node dead, late or unsure, Autoware runs stock
-(R9): the contracts hand back to stock, and the modules are put back in auto mode on shutdown.
+(R9): the contracts hand back to stock, and the modules are put back in auto mode on shutdown; a node that
+dies without its shutdown (SIGKILL, a crash) or stops cycling is caught by ``czp.watchdog`` from the
+heartbeat it publishes every cycle (/interaction_strategy/heartbeat).
 """
 
 from __future__ import annotations
@@ -86,6 +88,10 @@ class InteractionStrategy(Node):
         self.pub_clear = self.create_publisher(VelocityLimitClearCommand, "/planning/scenario_planning/clear_velocity_limit",
                                                QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.pub_rec = self.create_publisher(String, "/interaction_strategy/decision", 10)
+        # the watchdog's heartbeat (czp.watchdog): every cycle, after the decision and before its commands
+        self.pub_hb = self.create_publisher(String, "/interaction_strategy/heartbeat",
+                                            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE))
+        self.n_cycles = 0
         self.log_path = self.get_parameter("record_log").value
         threading.Thread(target=self.load_zones, daemon=True).start()
         self.timer = self.create_timer(1.0 / float(self.get_parameter("rate_hz").value), self.tick)
@@ -151,14 +157,22 @@ class InteractionStrategy(Node):
     def now_s(self):
         return self.get_clock().now().nanoseconds * 1e-9
 
+    def heartbeat(self):
+        st = self.strategy
+        self.n_cycles += 1
+        self.pub_hb.publish(String(data=json.dumps({"cycle": self.n_cycles, "manual": sorted(st.manual) if st else [],
+                                                    "limited": bool(st.limited) if st else False})))
+
     def tick(self):
         if self.strategy is None or self.ego is None:
+            self.heartbeat()
             return
         t0 = time.perf_counter()
         t = self.now_s()
         age = 0.0 if self.obj_stamp is None else max(0.0, t - (self.obj_stamp.sec + self.obj_stamp.nanosec * 1e-9))
         sts = [s for m in self.modules for s in self.statuses[m]]
         acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, self.cycle_time)
+        self.heartbeat()  # names the modules this cycle switches to manual before the switch is sent
         self.apply(acts)
         for rec in acts.records:
             line = to_json(rec)

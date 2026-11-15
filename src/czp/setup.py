@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'czp-zones = czp.zones_tool:main',
             'interaction_strategy = czp.node:main',
+            'interaction_strategy_watchdog = czp.watchdog:main',
         ],
     },
 )

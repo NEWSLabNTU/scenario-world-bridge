@@ -58,6 +58,12 @@
     <param name="modules" value="$(var interaction_strategy_modules)"/>
     <param name="record_log" value="$(eval &quot;'$(var interaction_strategy_log)' if '$(var interaction_strategy_log)' != '' else 'none'&quot;)"/>
   </node>
+  <!-- Its watchdog: the driven modules back to auto mode when the node's heartbeat stops (it died or hung
+       while holding a module in manual mode). A separate process, so it outlives the node. -->
+  <node pkg="czp" exec="interaction_strategy_watchdog" name="interaction_strategy_watchdog" output="screen"
+        respawn="true" if="$(var interaction_strategy)">
+    <param name="modules" value="$(var interaction_strategy_modules)"/>
+  </node>
 
   <group if="$(eval '&quot;$(var user_launch)&quot; != &quot;&quot;')">
     <include file="$(var user_launch)">

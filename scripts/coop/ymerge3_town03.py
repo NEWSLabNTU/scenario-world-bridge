@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ymerge_game as Y  # noqa: E402
 
 STEP = 0.25
-BACK, AHEAD = 260.0, 160.0
+BACK, AHEAD = 260.0, 260.0
 ENTRY = {"A": (-126.9, 48.0), "B": (-149.0, 38.4)}  # CARLA: the diagonal's and the main road's junction entries
 FORWARD_ROADS = {1930, 1909, 22, 1679, 23}
 MERGE_TOL = 0.1

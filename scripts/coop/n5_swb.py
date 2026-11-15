@@ -41,6 +41,7 @@ import ymerge_arena as YA  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 CARS = "ABC"
 ENT = {"A": "coop_a", "B": "coop_b", "C": "coop_c"}
+NEAR_TIE = 0.1  # |dt| (s): the near-tie band, scored by contact share as well (074, 54672f9)
 ORIGIN_AHEAD = 1.416  # the catalog's bounding-box centre ahead of the scenario's vehicle origin (m)
 
 
@@ -214,11 +215,15 @@ def compare(rows, arena_dir, v, h):
             us = {k: st.mean(float(r[k]) for r in ss) for k in ("uA", "uB", "uC")}
             ua = {k: st.mean(float(r[k]) for r in ar) for k in ("uA", "uB", "uC")}
             cells.append({"dt": dt, "a": a, "swb": us, "arena": ua, "kinematic": {k: ko[k] for k in ("uA", "uB", "uC")},
-                          "out_swb": os_, "out_arena": oa, "out_kinematic": ok, "inside": sum(hits), "of": len(hits)})
+                          "out_swb": os_, "out_arena": oa, "out_kinematic": ok, "inside": sum(hits), "of": len(hits),
+                          "contact_share_swb": st.mean(int(r["contact"]) for r in ss),
+                          "contact_share_arena": st.mean(int(r["contact"]) for r in ar)})
             lines.append(f"dt {dt:+4.1f} {a:>8} | swb ({len(ss)}) uA {us['uA']:+.3f} uB {us['uB']:+.3f} uC {us['uC']:+.3f} slot/contact {os_} "
                          f"| arena ({len(ar)}) uA {ua['uA']:+.3f} uB {ua['uB']:+.3f} uC {ua['uC']:+.3f} {oa} "
                          f"| kin uA {ko['uA']:+.3f} uB {ko['uB']:+.3f} uC {ko['uC']:+.3f} {ok} | payoffs in {sum(hits)}/{len(hits)}"
-                         f"{'' if oa == os_ else ' (outcome differs from the arena)'}")
+                         f"{'' if oa == os_ else ' (outcome differs from the arena)'}"
+                         + (f" | near tie: contact share swb {cells[-1]['contact_share_swb']:.2f}, arena {cells[-1]['contact_share_arena']:.2f}"
+                            if abs(dt) <= NEAR_TIE + 1e-9 else ""))
     lines.append(f"swb payoffs inside the arena's interval: {inside} of {total} ({100 * inside / max(total, 1):.0f} %); outcomes "
                  f"(A's slot, contact) agree with the arena in {agree_a} of {n_out}, with the kinematic model in {agree_k} of {n_out}")
     return lines, {"payoffs_inside": inside, "payoffs": total, "outcomes_arena": agree_a, "outcomes_kinematic": agree_k,

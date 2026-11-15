@@ -872,7 +872,162 @@ scenarios:
           summary_keys: [n, h, tb]
         - loader: d2
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
-    planned: {swb_light: "swb 139 adds U2 on Town03 through swb", swb_autoware: "not run"}
+      swb_light:
+        - loader: u2_swb
+          label: "U2 through swb on Town03 (agent cars, spec physics; b1c0684), n 1, h 1.5, v 7; D2 70 %, 88 % after offsets"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout swb/swb/u2_swb.jsonl"
+          fixed: {row: "none", courtesy: "yes", model: "074 defaults"}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout swb"
+        - loader: d2
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout swb/swb/compare.txt"
+        - loader: arena_runs
+          label: "U2 arena on Town03's lanes (the swb tier's yardstick; b1c0684)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout swb/arena/runs.csv"
+          fixed: {row: "none", courtesy: "yes", model: "074 defaults, Town03 lanes"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout swb/arena/summary.json"
+          summary_class: class_arena_none0
+          summary_keys: [n, h, tb]
+    planned: {swb_autoware: "not run"}
+
+  overtaking:
+    title: Overtaking on a two-lane road (S6)
+    axes: [tm, g]
+    facets: [vb, bias, subset]
+    labels: {tm: "tm, B's time to meet A at the start (s)", g: "A's gap behind L (m)", vb: "oncoming B's speed (m/s)", bias: "A's error in B's speed", subset: "rules (all; no_abort: A without its abort rules; b_hold: B gives no courtesy)"}
+    legend:
+      P: "A passes in every equilibrium"
+      W: "A stays behind"
+      C: "chicken with B: A passes because B gives way, or A stays and B holds"
+      X: "both outcomes otherwise"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    rules:
+      A: [wait, go, g0.5, g1.5, g3, g0.5a, g1.5a, g3a]
+      B: [hold, brake, right, brakeright, speedup]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "S6 kinematic, bias 0, all (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias0/overtake_map.csv"
+          filter: {subset: all}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic"
+        - loader: kinematic_map
+          label: "S6 kinematic, bias 0, no_abort (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias0/overtake_map.csv"
+          filter: {subset: no_abort}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias 0, b_hold (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias0/overtake_map.csv"
+          filter: {subset: b_hold}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias -0.2, all (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias-0.2/overtake_map.csv"
+          filter: {subset: all}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias -0.2, no_abort (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias-0.2/overtake_map.csv"
+          filter: {subset: no_abort}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias -0.2, b_hold (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias-0.2/overtake_map.csv"
+          filter: {subset: b_hold}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias -0.3, all (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias-0.3/overtake_map.csv"
+          filter: {subset: all}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias -0.3, no_abort (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias-0.3/overtake_map.csv"
+          filter: {subset: no_abort}
+        - loader: kinematic_map
+          label: "S6 kinematic, bias -0.3, b_hold (car lags)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking kinematic/bias-0.3/overtake_map.csv"
+          filter: {subset: b_hold}
+      arena:
+        - loader: arena_runs
+          label: "S6 arena (D2 74 %, outcomes 96 %, classes 43 of 48)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking arena/run/runs.csv"
+          fixed: {subset: arena}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking arena/run/summary.json"
+          summary_class: class_arena
+          summary_keys: [bias, g, vb, tm]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking arena"
+        - loader: d2
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S6 overtaking arena/run/summary.json"
+    planned: {swb_light: "not run", swb_autoware: "not run"}
+
+  fourway:
+    title: All-way stop (U3)
+    axes: [dt, v]
+    facets: [subset]
+    labels: {dt: "dt = t_A - t_B at the stop line (s; > 0: B first; B is on A's right)", v: "speed (m/s)", subset: "rules (all; autoware: yield and stop-then-yield; one convention each; arena6: the six c1.5 rules)"}
+    legend:
+      A: "A crosses first in every equilibrium"
+      B: "B crosses first"
+      C: "chicken: equilibria with either first"
+      W: "an equilibrium deadlocks"
+      M: "only mixed equilibria"
+      "!": "an equilibrium has contact"
+      "?": "no equilibrium found"
+    notes:
+      - "Rules: aggr no stop; yield stock mutual yield (Autoware's 4 s / 3 s margins); stop1y stop, 1 s, then yield; fcfs first stopped goes; fcfsr fcfs with right-before-left at a tie (0.5 s); rbl right-before-left; _c0 / _c1.5 the commit time."
+      - "Stop-then-yield never deadlocks but breaks ties by noise (5-41 go/hold flips per arena run); fcfs crashes at ties; fcfsr removes them (C7's binding priority); rbl against fcfs deadlocks in the arena."
+    rules:
+      A: [aggr, yield_c0, yield_c1.5, stop1y_c0, stop1y_c1.5, fcfs_c0, fcfs_c1.5, fcfsr_c0, fcfsr_c1.5, rbl_c0, rbl_c1.5]
+      B: [aggr, yield_c0, yield_c1.5, stop1y_c0, stop1y_c1.5, fcfs_c0, fcfs_c1.5, fcfsr_c0, fcfsr_c1.5, rbl_c0, rbl_c1.5]
+    tiers:
+      kinematic:
+        - loader: kinematic_map
+          label: "U3 kinematic, all (car lags; 0daa4a3)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/kinematic/four_way_map.csv"
+          class_col: class_all
+          eq_col: eq_all
+          fixed: {subset: all}
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop"
+        - loader: kinematic_map
+          label: "U3 kinematic, autoware (car lags; 0daa4a3)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/kinematic/four_way_map.csv"
+          class_col: class_autoware
+          eq_col: eq_autoware
+          fixed: {subset: autoware}
+        - loader: kinematic_map
+          label: "U3 kinematic, stop_yield (car lags; 0daa4a3)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/kinematic/four_way_map.csv"
+          class_col: class_stop_yield
+          eq_col: eq_stop_yield
+          fixed: {subset: stop_yield}
+        - loader: kinematic_map
+          label: "U3 kinematic, fcfs (car lags; 0daa4a3)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/kinematic/four_way_map.csv"
+          class_col: class_fcfs
+          eq_col: eq_fcfs
+          fixed: {subset: fcfs}
+        - loader: kinematic_map
+          label: "U3 kinematic, fcfsr (car lags; 0daa4a3)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/kinematic/four_way_map.csv"
+          class_col: class_fcfsr
+          eq_col: eq_fcfsr
+          fixed: {subset: fcfsr}
+        - loader: kinematic_map
+          label: "U3 kinematic, rbl (car lags; 0daa4a3)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/kinematic/four_way_map.csv"
+          class_col: class_rbl
+          eq_col: eq_rbl
+          fixed: {subset: rbl}
+      arena:
+        - loader: arena_runs
+          label: "U3 arena, six c1.5 rules, 5 seeds (held cars brake to rest, 4fcaa8d); D2 outcomes 86 %, off the tie 94-95 %"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/arena_v6/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/arena_v10/runs.csv"]
+          fixed: {subset: arena6}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/arena_v*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+        - loader: d2
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/arena_v6/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U3 four-way stop/arena_v10/summary.json"]
+    planned: {swb_light: "not run", swb_autoware: "U3 on Autoware at Town05 j979 (swb 139, next)"}
 
   ymerge:
     title: Y merge, 45 deg (N5)

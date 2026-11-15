@@ -706,6 +706,34 @@ def load_s5_autoware(entry, sc):
     return {"cells": cells}
 
 
+def load_u2_swb(entry, sc):
+    """u2_swb.py's u2_swb.jsonl (one row per swb run: n, h, tb, a, b, seed, u0, u1, contact, a_ahead,
+    forced, valid): one cell per context over the fixed pairs played there. Class: the pairs'
+    outcome, A ahead in every run, B behind in every run, C both, ! a contact; * when A forced B."""
+    by = {}
+    for p in paths(entry):
+        for r in read_jsonl(p):
+            if not r.get("valid", 1) or r.get("scenario_exit", 0) not in (0, None):
+                continue
+            c = {"n": num(r["n"]), "h": num(r["h"]), "tb": num(r["tb"]), **(entry.get("fixed") or {})}
+            by.setdefault(ctx_key(c), {"ctx": c, "u": {}})["u"].setdefault((r["a"], r["b"]), []).append(r)
+    cells, payoffs = [], []
+    for v in by.values():
+        pairs, outs, forced, contact = [], [], 0, 0
+        for (a, b), rs in v["u"].items():
+            pairs.append([a, b, st.mean(r["u0"] for r in rs), st.mean(r["u1"] for r in rs)])
+            outs += ["A" if r["a_ahead"] else "B" for r in rs]
+            forced += sum(bool(r.get("forced")) for r in rs)
+            contact += sum(bool(r.get("contact")) for r in rs)
+        cls = "!" if contact else (outs[0] if len(set(outs)) == 1 else "C") + ("*" if forced else "")
+        summ = "; ".join(f"{a}/{b} uA {ua:+.3f} uB {ub:+.3f}" for a, b, ua, ub in pairs)
+        cells.append({"ctx": v["ctx"], "class": cls, "eq": [], "n": len(outs),
+                      "outcomes": f"A ahead {outs.count('A')}/{len(outs)}, forced {forced}, contact {contact}",
+                      "eq_summary": summ})
+        payoffs.append({"ctx": v["ctx"], "pairs": pairs, "eq": [], "label": entry.get("label")})
+    return {"cells": cells, "payoffs": payoffs}
+
+
 def load_ymerge_stream(entry, sc):
     """ymerge_game's stream.jsonl (one row per draw, dt, rule and N): one cell per (N, h_mean, rule),
     classed by A's externality on the stream (its cost minus the same stream's with A far back):

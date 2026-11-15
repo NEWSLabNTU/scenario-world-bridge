@@ -5,6 +5,7 @@
 # $OUT/DONE touched. Everything it writes is under $OUT. Run it detached:
 #   OUT=<dir> LANES=<lanes.json> CARLA_DIR=<CARLA 0.9.16> [CARLA_PORT=2010] [VB=10] [GPU=0] [PY=python3] \
 #     [EXTRA="lidar_detection_model:=centerpoint"] [ARGS="--seeds 2"] setsid scripts/coop/ymerge3_aw_run.sh > log 2>&1 &
+# ARGS may hold several passes separated by ';' (e.g. "--baseline;--seeds 2"), run in order on one stack.
 set -u
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 : "${OUT:?OUT=<output dir>}"; : "${LANES:?LANES=<ymerge3_town03 lanes.json>}"
@@ -44,8 +45,11 @@ for i in $(seq 1 120); do
     sleep 10
 done
 echo "ego ready after $i tries $(date +%T)" | tee "$OUT/start.log"
-in_env $PY scripts/coop/ymerge3_aw.py --out "$OUT" --lanes "$LANES" --carla-port $PORT ${ARGS:-} > "$OUT/stdout.log" 2>&1
-echo "runs rc=$? $(date +%T)" | tee -a "$OUT/start.log"
+IFS=';' read -ra PASSES <<< "${ARGS:- }"
+for pass in "${PASSES[@]}"; do
+    in_env $PY scripts/coop/ymerge3_aw.py --out "$OUT" --lanes "$LANES" --carla-port $PORT $pass >> "$OUT/stdout.log" 2>&1
+    echo "runs [$pass] rc=$? $(date +%T)" | tee -a "$OUT/start.log"
+done
 kill -TERM -$SPID; sleep 20
 kill -TERM -$CPID 2>/dev/null; sleep 5
 for p in $(ps -eo pid,comm --no-headers | awk '$2 ~ /^CarlaUE4-Linux/ {print $1}'); do

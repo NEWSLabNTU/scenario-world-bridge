@@ -170,6 +170,25 @@ class WarmupPlan:
         return self.tab[i][1:]
 
 
+# Stock Autoware as B does not hold its speed when the run starts: from rest and its walkway stop it
+# reaches the run below v (8.9-9.8 m/s at v 10) and keeps accelerating. Its time to the zone's near
+# edge fits a launch at 0.3-0.5 m/s^2 up to v within 0.05 s over the 24 runs it did not yield
+# (2026-11-15); at constant speed the error was up to 0.35 s.
+B_LAUNCH = 0.4  # m/s^2
+
+
+def t_reach(d, v0, vmax, a=B_LAUNCH):
+    """Time to cover d m from v0, accelerating at a up to vmax, then at vmax."""
+    if d <= 0.0:
+        return 0.0
+    v0 = max(v0, 0.1)
+    if v0 >= vmax:
+        return d / v0
+    t_up = (vmax - v0) / a
+    d_up = v0 * t_up + 0.5 * a * t_up * t_up
+    return (math.sqrt(v0 * v0 + 2 * a * d) - v0) / a if d < d_up else t_up + (d - d_up) / vmax
+
+
 def load(path):
     d = json.load(open(path))
     return {"A": Lane(d["A"]), "B": Lane(d["B"]), "C": Lane(d["B"])}

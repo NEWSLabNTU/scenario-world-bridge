@@ -66,6 +66,7 @@ class YMerge3Agent(CarlaBasicAgent):
         self.u_spawn = {k: self.plan[k].u_spawn for k in CARS}
         self.ctl = Y3.Controller(self.role, c["a"], self.v, hold_stop=False)
         self.pace = c.get("pace")  # a car this process does not drive, whose progress sets the warm-up's clock
+        self.park = bool(c.get("park"))  # held at its spawn throughout (a baseline without this car), still logging
         rng = random.Random(int(c.get("seed", 0)) * 3 + CARS.index(self.role))
         self.obs = {o: AR.Observer(float(c.get("obs_delay", 0.19)), float(c.get("obs_sigma_x", 0.3)),
                                    float(c.get("obs_sigma_v", 0.2)), rng) for o in CARS if o != self.role}
@@ -177,6 +178,8 @@ class YMerge3Agent(CarlaBasicAgent):
                     self.ctl.observe(seen[0], o, seen[1], seen[3], seen[4])
             accel = self.ctl.step(tr, u, v)
             self.ctl.after(tr, u, v)
+        if self.park:
+            accel = -3.0
         lane = self.lanes[self.role]
         look = max(6.0, 0.7 * v)
         s = lane.project(("pp", self.role), x, y)
@@ -218,10 +221,11 @@ class YMerge3Agent(CarlaBasicAgent):
             return -3.0, False  # not yet: held where the scenario put it
         ur, vr, ar_ = self.plan[self.role].at(max(tau, 0.0))
         if self.role == "A":
-            # dt is against B's speed when the run starts, which Autoware may not have brought to v:
-            # A's start moves to dt + B's time to Z at its predicted arrival speed, phased in over the plan
+            # dt is against B's arrival at Z, and Autoware reaches the run below v and keeps
+            # accelerating (T.B_LAUNCH): A's start moves to dt + B's predicted time to Z from its
+            # predicted speed at the run's start, phased in over the plan
             vb_arr = min(self.v, math.sqrt(vb * vb + 2 * PACE_A * rem))
-            u_tgt = -self.v * (-self.target[k] / max(vb_arr, 1.0) + float(self.config["dt"]))
+            u_tgt = -self.v * (T.t_reach(-self.target[k], vb_arr, self.v) + float(self.config["dt"]))
             ur += (u_tgt - self.target["A"]) * min(max(tau / self.warmup, 0.0), 1.0)
         accel = max(-4.0, min(3.0, ar_ + 0.6 * (ur - u) + 1.8 * (vr - v)))
         if self.role == "C" and k == "B":

@@ -53,6 +53,9 @@ PERC_R = 2.5
 AGENT = []
 G_HORIZON = 20.0  # crossing_game.HORIZON
 B_VTOL = 0.15
+WAIT_V, WAIT_MIN = 0.5, 2.0  # a mutual-yield wait: A and B both below WAIT_V m/s for WAIT_MIN s, the zone empty
+WAIT_CRAWL = 1.5  # m/s: the same with Autoware's creep at its stop line counted as waiting
+BASE_RULE = "t1.5yp2"  # the baseline's runs carry a rule only for their context; A is parked
 
 
 def _stop(signum, frame):
@@ -129,7 +132,7 @@ def load(log):
     return [r for r in rows if "phase" in r], ev
 
 
-def score(rd, dt, v, h):
+def score(rd, dt, v, h, park=False):
     rows, ev = load(Path(rd) / "coop_a.jsonl")
     if "start" not in ev or "run" not in ev:
         return {"error": "no run logged" if "start" in ev else "no start logged"}
@@ -139,11 +142,15 @@ def score(rd, dt, v, h):
     u0, v0 = ev["run"]["u"], ev["run"]["v"]
     box = {k: tuple(ev["start"]["box"][k]) for k in CARS}
     res = Y3.score3(ticks, {k: v0[k] for k in CARS}, box, eps=0.01)
-    dt_real = -u0["A"] / max(v0["A"], 0.1) + u0["B"] / max(v0["B"], 0.1)
+    # B's time to Z on Autoware's launch from its start speed (T.B_LAUNCH), as A's pacing predicts it
+    dt_real = -u0["A"] / max(v0["A"], 0.1) - T.t_reach(-u0["B"], v0["B"], v)
+    dt_const = -u0["A"] / max(v0["A"], 0.1) + u0["B"] / max(v0["B"], 0.1)
     h_real = (u0["B"] - u0["C"] - box["B"][0]) / max(v0["C"], 0.1)
     # B's speed at the start is Autoware's (from rest, with its walkway stops before the run; 0.89 v at
     # dt -1 in the trials): 15 % for B, n5_swb's 10 % for A and C; valid_strict is n5_swb's test
     ctx = abs(dt_real - dt) <= 0.25 and abs(h_real - h) <= 0.25 and all(abs(v0[k] - v) <= 0.1 * v for k in "AC")
+    if park:  # the baseline: A held at its spawn, so only B's start and C's h and speed count
+        ctx = abs(h_real - h) <= 0.25 and abs(v0["C"] - v) <= 0.1 * v
     valid = ctx and abs(v0["B"] - v) <= B_VTOL * v
     strict = ctx and abs(v0["B"] - v) <= 0.1 * v
     # B's yield: before the first of A and B reaches M (u Z_LEN), B's lowest speed, its hardest braking (the speed's drop
@@ -161,7 +168,29 @@ def score(rd, dt, v, h):
         if t - vb[j][0] >= 0.95:
             peak = max(peak, (vb[j][1] - x) / (t - vb[j][0]))
     last = run[min(len(run) - 1, int(res["t_run"] / 0.05))].get("rec", {})
-    return {**res, "dt_real": round(dt_real, 3), "h_real": round(h_real, 3), **{f"v{k}0": round(v0[k], 2) for k in CARS},
+    # mutual-yield waits: A and B both below WAIT_V for more than WAIT_MIN s with the zone empty and
+    # neither through it yet (both fronts short of its near edge), over the scoring window; a stop
+    # after the merge (B's walkway stop at u 53 with A behind it) is not one. Autoware creeps at its
+    # intersection stop line (0.4-1.1 m/s), so the same count in a crawl band, WAIT_CRAWL, too
+    def waits_below(vw):
+        out, since = [], None
+        for t, s in ticks:
+            if t > G_HORIZON + 1e-9:
+                break
+            both = s["A"][1] < vw and s["B"][1] < vw and s["A"][0] <= 0.0 and s["B"][0] <= 0.0
+            if both and since is None:
+                since = t
+            elif not both and since is not None:
+                if t - since > WAIT_MIN:
+                    out.append((round(since, 2), round(t - since, 2)))
+                since = None
+        if since is not None and ticks and min(ticks[-1][0], G_HORIZON) - since > WAIT_MIN:
+            out.append((round(since, 2), round(min(ticks[-1][0], G_HORIZON) - since, 2)))
+        return out
+    waits, crawl = waits_below(WAIT_V), waits_below(WAIT_CRAWL)
+    return {**res, "dt_real": round(dt_real, 3), "dt_const": round(dt_const, 3), "h_real": round(h_real, 3),
+            "waits": len(waits), "wait_s": round(sum(w[1] for w in waits), 2), "wait_list": waits,
+            "waits_crawl": len(crawl), "wait_crawl_s": round(sum(w[1] for w in crawl), 2), "wait_crawl_list": crawl, **{f"v{k}0": round(v0[k], 2) for k in CARS},
             "valid": int(valid), "valid_strict": int(strict), "A_facings": last.get("facings", ""), "friction": json.dumps(ev["run"].get("friction", {})),
             "t_A_M": None if t_am is None else round(t_am, 2), "t_B_M": None if t_bm is None else round(t_bm, 2), "vB_min_pre": None if vmin[1] is None else round(vmin[1], 2),
             "t_vB_min": None if vmin[0] is None else round(vmin[0], 2), "t_B_slow": None if t_slow is None else round(t_slow, 2),
@@ -223,12 +252,12 @@ def bag_facts(rd, lanes):
 
 
 # --- runs --------------------------------------------------------------------------------------
-def tag_of(dt, a, seed):
-    return f"dt{dt:g}_{a}_s{seed}"
+def tag_of(dt, a, seed, park=False):
+    return f"{'base_' if park else ''}dt{dt:g}_{a}_s{seed}"
 
 
-def run_one(out, lanes_path, lanes, dt, v, h, a, seed, port, relay):
-    rd = Path(out) / tag_of(dt, a, seed)
+def run_one(out, lanes_path, lanes, dt, v, h, a, seed, port, relay, park=False):
+    rd = Path(out) / tag_of(dt, a, seed, park)
     rd.mkdir(parents=True, exist_ok=True)
     for old in ("bag", "scenario_test_runner"):
         if (rd / old).exists():
@@ -238,15 +267,15 @@ def run_one(out, lanes_path, lanes, dt, v, h, a, seed, port, relay):
             (rd / old).rename(rd / f"{old}.failed{n}")
     t_end = 40.0 + G_HORIZON + 10.0
     xosc = rd / "n5aw.xosc"
-    scenario(xosc, lanes, dt, v, h, tag_of(dt, a, seed), t_end)
-    base = {"dt": dt, "v": v, "h": h, "a": a, "seed": seed}
+    scenario(xosc, lanes, dt, v, h, tag_of(dt, a, seed, park), t_end)
+    base = {"dt": dt, "v": v, "h": h, "a": a, "seed": seed, **({"park": 1} if park else {})}
     if not C3.restart_ego():
         return {**base, "error": "ego not ready"}
     procs = []
     for k in "AC":
         cfg = {"entity": ENT[k], "role": k, "roles": ENT, "pace": "B", "dt": dt, "v": v, "h": h, "warmup": YA.WARMUP, "a": a,
                "seed": seed, "lanes": str(Path(lanes_path).resolve()), "log": str(rd / f"{ENT[k]}.jsonl"), "carla_port": port,
-               "find_timeout": 90, "carla_pythonapi": os.path.join(os.environ.get("CARLA_DIR", ""), "PythonAPI", "carla")}
+               "find_timeout": 90, "park": park and k == "A", "carla_pythonapi": os.path.join(os.environ.get("CARLA_DIR", ""), "PythonAPI", "carla")}
         (rd / f"{ENT[k]}.json").write_text(json.dumps(cfg))
         procs.append(subprocess.Popen([sys.executable, str(ROOT / "scripts/coop/ymerge3_agent.py"), "--relay", relay,
                                        "--entity", ENT[k], "--config", str(rd / f"{ENT[k]}.json")],
@@ -274,7 +303,7 @@ def run_one(out, lanes_path, lanes, dt, v, h, a, seed, port, relay):
 
 def finish(rd, lanes, res):
     try:
-        res.update(score(rd, res["dt"], res["v"], res["h"]))
+        res.update(score(rd, res["dt"], res["v"], res["h"], bool(res.get("park"))))
     except Exception as e:  # noqa: BLE001 -- recorded with the run
         res["error"] = repr(e)[:200]
         return res
@@ -283,6 +312,38 @@ def finish(rd, lanes, res):
     except Exception as e:  # noqa: BLE001 -- the bag is a diagnostic; the score stands without it
         res["bag_error"] = repr(e)[:200]
     return res
+
+
+def relative(rows, base):
+    """Payoffs net of Autoware's own drive: each car's progress over the window as a share of the
+    baseline's (A parked, the same dt's start; mean over its valid runs), lost = 1 - that share,
+    clipped to [0, 1]. B and C against the baseline's B and C; A against the baseline's C when A
+    slots in behind B (it then follows B through its walkway stop as C does), else against a free
+    road (lost as scored). Risk, comfort and contact as scored."""
+    import crossing_game as G
+    import measures as M
+    import statistics as st
+    ref = {}
+    for b in base:
+        if b.get("valid") and "error" not in b:
+            ref.setdefault(float(b["dt"]), []).append(b)
+    out = []
+    for r in rows:
+        bs = ref.get(float(r["dt"]))
+        if not bs or "error" in r:
+            continue
+        p = {k: st.mean(1.0 - b[f"lost{k}"] for b in bs) for k in "BC"}
+        rel = {}
+        for k in "ABC":
+            pk = p["C"] if k == "A" and str(r["slot"]) == "1" else (1.0 if k == "A" else p[k])
+            rel[k] = 1.0 if r[f"lost{k}"] >= 1.0 else min(1.0, max(0.0, 1.0 - (1.0 - r[f"lost{k}"]) / max(pk, 1e-6)))
+        hit = bool(r["contact"])
+        q = {**r, **{f"lost{k}_rel": round(rel[k], 4) for k in "ABC"}}
+        q["uA"] = round(M.utility(rel["A"], max(r["rhoB"], r["rhoC"]), r["peakA"], G.B_MAX, contact=hit), 4)
+        q["uB"] = round(M.utility(rel["B"], r["rhoB"], r["peakB"], G.B_MAX, contact=hit), 4)
+        q["uC"] = round(M.utility(rel["C"], r["rhoC"], r["peakC"], G.B_MAX, contact=hit or bool(r.get("rear"))), 4)
+        out.append(q)
+    return out
 
 
 def main():
@@ -299,16 +360,20 @@ def main():
     ap.add_argument("--redo-invalid", type=int, default=1)
     ap.add_argument("--rescore", action="store_true")
     ap.add_argument("--compare", metavar="ARENA_DIR")
+    ap.add_argument("--baseline", action="store_true", help="the Autoware-alone baseline: A parked, BASE_RULE, every dt")
     a = ap.parse_args()
     signal.signal(signal.SIGTERM, _stop)
     os.makedirs(a.out, exist_ok=True)
     lanes = T.load(a.lanes)
-    path = os.path.join(a.out, "n5aw.jsonl")
+    path = os.path.join(a.out, "n5aw_base.jsonl" if a.baseline else "n5aw.jsonl")
+    bpath = os.path.join(a.out, "n5aw_base.jsonl")
     if a.rescore or a.compare:
         rows = [json.loads(line) for line in open(path) if line.strip()]
         if a.rescore:
             keep = ("dt", "v", "h", "a", "seed", "scenario_rc", "wall_s", "attempt")
-            rows = [finish(Path(a.out) / tag_of(r["dt"], r["a"], r["seed"]), lanes, {k: r[k] for k in keep if k in r}) for r in rows]
+            keep += ("park",)
+            rows = [finish(Path(a.out) / tag_of(r["dt"], r["a"], r["seed"], bool(r.get("park"))), lanes, {k: r[k] for k in keep if k in r})
+                    for r in rows]
             with open(path, "w") as f:
                 for r in rows:
                     f.write(json.dumps(r) + "\n")
@@ -317,18 +382,27 @@ def main():
             Path(a.out, "compare.txt").write_text("\n".join(lines) + "\n")
             Path(a.out, "summary.json").write_text(json.dumps(summ, indent=1))
             print("\n".join(lines))
+            if os.path.exists(bpath) and not a.baseline:
+                base = [json.loads(line) for line in open(bpath) if line.strip()]
+                lines, summ = N5.compare(relative(rows, base), a.compare, a.v, a.h)
+                lines.insert(0, "# payoffs net of the Autoware-alone baseline (ymerge3_aw.relative)")
+                Path(a.out, "compare_rel.txt").write_text("\n".join(lines) + "\n")
+                Path(a.out, "summary_rel.json").write_text(json.dumps(summ, indent=1))
+                print("\n".join(lines))
         return 0
-    if a.only:
+    if a.baseline:
+        runs = [(float(dt), BASE_RULE, s) for dt in a.dts.split(",") for s in range(a.seeds)]
+    elif a.only:
         runs = [(float(x.split(":")[0]), x.split(":")[1], int(x.split(":")[2])) for x in a.only.split(",")]
     else:
         runs = [(float(dt), r, s) for dt in a.dts.split(",") for r in Y3.A_RULES for s in range(a.seeds)]
     with open(path, "a") as f:
         for dt, rule, s in runs:
             for attempt in range(3):  # an error (a stack that did not engage) is retried, an invalid run redone redo_invalid times
-                res = run_one(a.out, a.lanes, lanes, dt, a.v, a.h, rule, s, a.carla_port, a.relay)
+                res = run_one(a.out, a.lanes, lanes, dt, a.v, a.h, rule, s, a.carla_port, a.relay, a.baseline)
                 res["attempt"] = attempt
                 if "error" in res:
-                    res["cause"] = C3.junit_message(Path(a.out) / tag_of(dt, rule, s))
+                    res["cause"] = C3.junit_message(Path(a.out) / tag_of(dt, rule, s, a.baseline))
                 print(json.dumps(res), flush=True)
                 if "error" not in res and (res.get("valid") or attempt >= a.redo_invalid):
                     break

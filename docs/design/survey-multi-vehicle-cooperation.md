@@ -910,3 +910,265 @@ Cited from memory, not re-checked by search:
 50. Kearns, Littman, Singh, "Graphical Models for Game Theory", UAI 2001.
 51. Daskalakis, Papadimitriou, "Computing Equilibria in Anonymous Games", FOCS 2007.
 52. McMahan, Gordon, Blum, "Planning in the Presence of Cost Functions Controlled by an Adversary" (double oracle), ICML 2003.
+
+## The protocol framework: related work (2026-11-15)
+
+Roadmap 074's study is reframed as **a protocol for a shared resource**: a conflict zone is a
+critical section, the cars are processes, and the study's layers are (1) a specification (a
+rulebook of ranked rules plus STL robustness; S0's risk ρ is minus the robustness of
+"always (TTC ≥ 3 ∧ headway ≥ 1 ∧ PET ≥ 1.5 ∧ clearance ≥ 1)"), (2) safety (reachability,
+barrier functions, RSS as the feasible set), (3) coordination (distributed mutual exclusion with
+symmetry breaking, tolerant to mixed traffic in the BAR sense, verified for safety and
+liveness), (4) incentives (correlated equilibrium, ESS, cheap talk as one check inside the
+protocol), (5) flow (max-plus delay composition, string stability, LWR, bottleneck capacity),
+(6) execution (contingency MPC, legible motion as the probe, intent messages) and (7)
+validation (conformal prediction for arena-vs-real agreement, falsification). This section
+lists the closest work per layer, then who has combined layers, then the gap. Game-theoretic
+planning (Sadigh, Fisac, Wang, Schwarting, potential games), EGTA/PSRO, rare-event testing
+with O'Kelly/D2RL, and DoppelTest are already covered above and are only pointed to here
+("survey [n]" is the numbering of the references above; [F*] is this section's list).
+
+Checked by web search and Crossref on 2026-11-15; anything not confirmed against a primary
+record is marked UNVERIFIED.
+
+### 1. Specification: rulebooks and STL
+
+- **Rulebooks** [F1]: rules as violation metrics in a pre-order by priority; planning picks the
+  trajectory that is lexicographically least violating. Motional followed with a hazard-based
+  SOTIF argument over rulebooks [F2] and with "The Reasonable Crowd" [F3], 92 scenarios ranked by
+  people and fitted by a 14-rule rulebook. Minimum-violation planning [F4] is the theory under
+  it. Ours uses a rulebook to *score* runs of two full stacks against each other, not to plan.
+- **STL robustness** [F5] gives the signed margin we use for ρ; differentiable STL (STLCG [F6])
+  and rule hierarchies turned into a receding-horizon reward [F7] put it inside a planner.
+- **Formalized traffic rules**: German interstate [F8] and intersection [F9] rules in temporal
+  logic (TUM, CommonRoad [F10]), checked on recorded traffic; Isabelle/HOL monitors [F11]. These
+  formalize *the law*; our S0 formula is a safety-surrogate envelope, not a traffic rule, and
+  the right-of-way rules of [F9] are a ready source for the convention table.
+
+### 2. Safety: the feasible set
+
+- **HJ reachability** [F12] and **CBF-QPs** [F13] are the standard safety filters; RSS is
+  survey [41]. Online verification of every planned trajectory with a fail-safe fallback,
+  under "legal safety" (others obey the rules) [F14], is the closest to Autoware's shield.
+- **Reachability inside interaction planning**: Leung et al. [F15] and Wang, Leung, Pavone
+  [F16] give planner and controller one HJ notion of safety in multi-agent driving. Ours
+  takes the shield as given (AEB, obstacle stop) and uses the feasible set only to prune
+  strategies, which is the standard role.
+
+### 3. Coordination: mutual exclusion, symmetry, faults, verification
+
+- **Intersections as mutual exclusion.** Wu, Zhang, Luo, Cao [F17] state intersection control
+  over V2V as a new variant of distributed mutual exclusion and give algorithms for it; this is
+  our framing, a decade earlier. Dresner and Stone's AIM [F18] is the centralized reservation
+  version (it emulates a light or stop sign, and has a human-driver extension). Azimi et al.
+  [F19] and Aoki and Rajkumar [F20, F21] give V2V protocols with deadlock-freedom arguments;
+  [F21] handles mixed human and automated traffic by letting human drivers follow the lights.
+- **Knowledge-based intersection protocols** (Alpturer, Halpern, van der Meyden, DISC 2024
+  [F22]): a global policy compiled into protocols vehicles run, proven safe, live and optimal,
+  also with faulty (lossy) and legacy (limited-communication) vehicles. The closest
+  distributed-computing treatment of our layer 3; it is abstract, no vehicle dynamics.
+- **Symmetry breaking.** Angluin [F23] is the root impossibility for anonymous identical
+  processes. In driving: the symmetric four-way case deadlocks until one car probes forward
+  (Li et al., survey [61]); Google's prototypes waited at four-way stops while others edged out,
+  and were tuned in 2015 to creep, a probe as a convention [F24] (press, not a paper). Learned
+  conventions [F25] show self-play picks a convention the real population does not use. Social
+  laws [F26] are the AI version of "design the convention off-line".
+- **Byzantine, rational and mixed participants.** BAR [F27] and (k,t)-robust equilibria [F28]
+  are the distributed-systems models. In vehicles: Byzantine consensus for connected vehicles
+  [F29], an intersection game with "malicious" cars that assume priority [F30], and a single
+  spoofing vehicle that raised delay 23.4 % under the US DOT's I-SIG signal control [F31]. No
+  vehicle work found uses the BAR model itself; mixed traffic is usually "humans follow lights"
+  [F21] or "legacy vehicles" [F22].
+- **Verified protocols.** KeYmaera proofs of distributed ACC for any number of cars on a straight
+  highway [F32], a two-car intersection [F33], its efficiency cost under V2V loss [F34], and
+  ground-robot obstacle avoidance with liveness [F35]. Spatial logics (MLSL) for lane-change
+  safety [F36, F37] and urban crossing controllers verified in UPPAAL for liveness and fairness
+  ("no queue jumping") [F38, F39]. UPPAAL-SMC on an intersection manager [F40]; Gwendolen plus
+  UPPAAL on platoon join/leave [F41]. No TLA+ work on vehicle protocols was found. All verify
+  a model of a protocol, none a running production stack.
+
+### 4. Incentives
+
+- **Correlated equilibrium at intersections**: a manager samples an optimal CE of a graphical
+  game [F42]; CE trajectory planning at V2I intersections [F43]. Both make the recommendation a
+  central device; ours makes it a convention keyed on an observable role, which needs no device.
+- **Cheap talk and signalling between road users**: non-cooperative models of whether to signal
+  [F44, F45] find selective disclosure pays, consistent with C6 (intent pays, capability does not).
+- **Evolutionary analysis**: real lane changes (Waymo Open Motion) classified as Stag Hunt or
+  Prisoner's Dilemma in 4-11 % of events, with an EGT simulation [F46]. No paper found applies
+  Selten's result (only pure, role-keyed strategies are ESS in asymmetric contests) to yielding
+  conventions; that use is ours, as far as we can tell.
+- Game-theoretic AV planning itself: survey [1, 2, 8, 10, 17].
+
+### 5. Flow
+
+- **Max-plus** is the algebra of timed event graphs [F47]. In traffic it is used for signal
+  switching sequences (De Schutter's group, UNVERIFIED citation detail) and, as min-plus, for
+  LWR network models [F48]. No paper found writes the delay of a queue of automated cars
+  crossing a conflict zone as a max-plus recursion, as our N-car composition does; the
+  recursion itself is textbook.
+- **Capacity of slot-based and reservation intersections**: queueing analysis of slot-based
+  crossings against lights [F49]; reservation control can be worse than signals on asymmetric
+  networks under route choice [F50]. These are the "a convention does not make capacity" check.
+- **String stability** [F51] and LWR / cell transmission [F52, F53] are standard; Stern et al.
+  [F54] measured one automated car damping stop-and-go waves in a real ring.
+
+### 6. Execution
+
+- **Contingency planning**: multiple contingency paths over predicted obstacle modes [F55];
+  contingency MPC with a second, emergency horizon [F56]; contingency games survey [12]. Our
+  "commit, hold a branch" is the same structure.
+- **Legibility**: Dragan's legibility vs predictability [F57]; legible MPC for highway lane
+  changes [F58]; a VR study that lateral offsets make lane-change intent legible but read as
+  aggressive [F59] (venue UNVERIFIED). Using a legible nudge as a *probe* whose response is
+  measured is the information-gathering idea of survey [45].
+
+### 7. Validation
+
+- **Conformal prediction**: planning with conformal prediction regions (in CARLA) [F60];
+  conformal assurance for warning systems from simulation [F61]; reachability under a bounded
+  sim-to-real distribution shift [F62]. Using conformal intervals for *arena-vs-stack agreement*
+  (D2) is an application of these, not a new method.
+- **Falsification / stress testing**: the black-box validation survey [F63] and adaptive stress
+  testing [F64]; Scenic/VerifAI's sim-to-track study [F65] measured the sim-to-real gap
+  systematically, the closest precedent for D2.
+
+### Standards and industry
+
+- **SAE J3216** (2021) [F66] defines cooperation classes: A status-sharing, B intent-sharing,
+  C agreement-seeking, D prescriptive. Our convention plus intent message is class B used to
+  reach a class C outcome without a negotiation round, which is why the probe is needed.
+- **ETSI ITS**: the Manoeuvre Coordination Service pre-standardization study TR 103 578 V2.1.1
+  (2024) [F67] has agreement-seeking and prescriptive concepts, the specification TS 103 561 is
+  in work (status UNVERIFIED); the Collective Perception Service is TS 103 324 V2.1.1 (2023)
+  [F68], class A.
+- **Safety standards**: ISO 21448 (SOTIF) [F69] treats other road users' behaviour as triggering
+  conditions of the ego's functional insufficiency, not as a protocol partner (our reading);
+  ISO 34502:2022 [F70] is scenario-based evaluation for highway ADS and excludes traffic flow;
+  UL 4600 Ed. 3 (2023) [F71] is a safety-case standard whose scope includes platoons. None
+  specifies how an intent message changes the ego's obligations.
+
+### Combinations
+
+| who | layers combined | what is missing for this study |
+|---|---|---|
+| Loos, Platzer [F32-F34] | 2 + 3, proven for N cars | straight road or one intersection; no incentives; model, not a stack |
+| Hilscher, Olderog, Schwammberger [F36-F39] | 1 (spatial logic) + 3 (UPPAAL safety, liveness, fairness) | abstract cars; no measurement |
+| Wu et al. [F17]; Aoki, Rajkumar [F20, F21] | 3 + 5 (throughput), mixed traffic in [F21] | no game, no formal proof of the mixed case, simulated vehicles |
+| Alpturer, Halpern, van der Meyden [F22] | 3 with faults and legacy vehicles | no dynamics, no incentives |
+| Pruekprasert et al. [F30] | 4 + 3 (priority games with rule-breakers) | small models, no shield |
+| Adkins et al. [F42]; Wang, Yi, Hong [F43] | 4 (CE) + 3 (a central manager) | needs infrastructure; no role-keyed convention |
+| Leung, Wang, Pavone [F15, F16]; survey [44, 46] | 2 + 4 (reachability in interaction games) | two cars, no protocol |
+| Veer et al. [F7]; Collin et al. [F2] | 1 + 6 (rules in the planner) | single ego |
+| Fremont et al. [F65] | 7 + 1 (formal scenarios, sim-to-track) | single stack, no interaction protocol |
+| Yu et al. 2026 [F72] | 3 (RSU coordination) measured against Autoware in CARLA | Autoware is the baseline (it showed "repeated mutual yielding near conflict points"); learned controller, no formal layer |
+
+Nobody found combines more than two or three layers, and none of the combinations above takes a
+full production stack as the process.
+
+### Gap
+
+1. **The processes are full Autoware stacks.** Every verified or game-theoretic protocol above
+   runs on a model car or a planner abstraction; the nearest measured work uses Autoware as a
+   baseline [F72] or as the host of one cooperative planner [F73]. Measuring a convention's
+   safety and liveness on several complete stacks, with the shield underneath, is new.
+2. **Mixed traffic as BAR.** Stock Autoware (reads no message), a convention-following stack and
+   an RL deviator map onto altruistic/obedient, Byzantine-to-the-convention and rational
+   participants. Faulty or legacy vehicles [F22] and malicious ones [F30, F31] exist separately;
+   the three together, with "never worse than stock against a non-complier" (D7) as the
+   requirement, were not found.
+3. **Conventions measured against a real stack.** Symmetry breaking by role or randomness is
+   theory [F23] and anecdote [F24]; ESS arguments for role-keyed yielding were not found applied
+   to driving. Measuring which convention is stable, with an arena model checked against the
+   stack by conformal intervals, is the study's own.
+
+The gap is small in theory, wide in measurement. Each layer is standard; the framing of an
+intersection as distributed mutual exclusion is in [F17] (2015), safety and liveness proofs
+of such protocols exist [F22, F32-F39], and CE coordination at intersections exists [F42, F43].
+What is new is putting them in one protocol whose processes are real stacks, and measuring it.
+
+**Standard practice vs new, per layer.** Standard: 1 (rulebooks, STL robustness), 2 (the
+shield, RSS, reachability), 6 (contingency MPC, intent messages per J3216 class B), 7
+(falsification; conformal regions). Established in research, not in practice: 3's protocol
+proofs (UPPAAL, KeYmaera), 4's CE at intersections, 5's capacity analyses. New, as far as
+found: the BAR framing of mixed traffic, ESS-based convention selection, max-plus delay
+composition for a queue of automated cars at a conflict zone, legible motion used as a probe
+whose response is measured, and conformal intervals for arena-vs-stack agreement.
+
+### References (protocol framework)
+
+Verified by Crossref, the publisher or arXiv on 2026-11-15 unless marked.
+
+- F1. Censi, Slutsky, Wongpiromsarn, Yershov, Pendleton, Fu, Frazzoli, "Liability, Ethics, and Culture-Aware Behavior Specification using Rulebooks", ICRA 2019, pp. 8536-8542. https://doi.org/10.1109/ICRA.2019.8794364 (arXiv 1902.09355)
+- F2. Collin, Bilka, Pendleton, Duintjer Tebbens, "Safety of the Intended Driving Behavior Using Rulebooks", IEEE IV 2020, pp. 136-143. https://doi.org/10.1109/IV47402.2020.9304588
+- F3. Helou et al., "The Reasonable Crowd: Towards evidence-based and interpretable models of driving behavior", IROS 2021, pp. 6708-6715. https://doi.org/10.1109/IROS51168.2021.9635960 (arXiv 2107.13507)
+- F4. Wongpiromsarn, Slutsky, Frazzoli, Topcu, "Minimum-Violation Planning for Autonomous Systems: Theoretical and Practical Considerations", ACC 2021, pp. 4866-4872. https://doi.org/10.23919/ACC50511.2021.9483174
+- F5. Donzé, Maler, "Robust Satisfaction of Temporal Logic over Real-Valued Signals", FORMATS 2010, LNCS 6246, pp. 92-106. https://doi.org/10.1007/978-3-642-15297-9_9
+- F6. Leung, Aréchiga, Pavone, "Back-Propagation Through Signal Temporal Logic Specifications: Infusing Logical Structure into Gradient-Based Methods", WAFR 2020; IJRR 42(6), 2023. https://arxiv.org/abs/2008.00097
+- F7. Veer, Leung, Cosner, Chen, Karkus, Pavone, "Receding Horizon Planning with Rule Hierarchies for Autonomous Vehicles", ICRA 2023, pp. 1507-1513. https://doi.org/10.1109/ICRA48891.2023.10160622 (arXiv 2212.03323)
+- F8. Maierhofer, Rettinger, Mayer, Althoff, "Formalization of Interstate Traffic Rules in Temporal Logic", IEEE IV 2020, pp. 752-759. https://doi.org/10.1109/IV47402.2020.9304549
+- F9. Maierhofer, Moosbrugger, Althoff, "Formalization of Intersection Traffic Rules in Temporal Logic", IEEE IV 2022. https://doi.org/10.1109/IV51971.2022.9827153
+- F10. Althoff, Koschi, Manzinger, "CommonRoad: Composable Benchmarks for Motion Planning on Roads", IEEE IV 2017, pp. 719-726. https://doi.org/10.1109/IVS.2017.7995802
+- F11. Rizaldi, Keinholz, Huber, Feldle, Immler, Althoff, Hilgendorf, Nipkow, "Formalising and Monitoring Traffic Rules for Autonomous Vehicles in Isabelle/HOL", iFM 2017, LNCS, pp. 50-66 (last two authors from memory). https://doi.org/10.1007/978-3-319-66845-1_4
+- F12. Bansal, Chen, Herbert, Tomlin, "Hamilton-Jacobi Reachability: A Brief Overview and Recent Advances", CDC 2017 tutorial. https://arxiv.org/abs/1709.07523
+- F13. Ames, Xu, Grizzle, Tabuada, "Control Barrier Function Based Quadratic Programs for Safety Critical Systems", IEEE TAC 62(8), 2017, pp. 3861-3876. https://arxiv.org/abs/1609.06408
+- F14. Pek, Manzinger, Koschi, Althoff, "Using online verification to prevent autonomous vehicles from causing accidents", Nature Machine Intelligence 2(9), 2020, pp. 518-528. https://doi.org/10.1038/s42256-020-0225-y
+- F15. Leung, Schmerling, Zhang, Chen, Talbot, Gerdes, Pavone, "On infusing reachability-based safety assurance within planning frameworks for human-robot vehicle interactions", IJRR 39, 2020, pp. 1326-1345. https://doi.org/10.1177/0278364920950795
+- F16. Wang, Leung, Pavone, "Infusing Reachability-Based Safety into Planning and Control for Multi-agent Interactions", IROS 2020, pp. 6252-6259. https://arxiv.org/abs/2008.00067
+- F17. Wu, Zhang, Luo, Cao, "Distributed Mutual Exclusion Algorithms for Intersection Traffic Control", IEEE TPDS 26(1), 2015. https://research.polyu.edu.hk/en/publications/distributed-mutual-exclusion-algorithms-for-intersection-traffic-/
+- F18. Dresner, Stone, "A Multiagent Approach to Autonomous Intersection Management", JAIR 31, 2008, pp. 591-656. https://doi.org/10.1613/jair.2502
+- F19. Azimi, Bhatia, Rajkumar, Mudalige, "Reliable Intersection Protocols Using Vehicular Networks", ICCPS 2013, pp. 1-10. https://dblp.org/rec/conf/iccps/AzimiBRM13
+- F20. Aoki, Rajkumar, "A Configurable Synchronous Intersection Protocol for Self-Driving Vehicles", RTCSA 2017, pp. 1-11. https://doi.org/10.1109/RTCSA.2017.8046306
+- F21. Aoki, Rajkumar, "V2V-based Synchronous Intersection Protocols for Mixed Traffic of Human-Driven and Self-Driving Vehicles", RTCSA 2019, pp. 1-11. https://doi.org/10.1109/RTCSA.2019.8864572
+- F22. Alpturer, Halpern, van der Meyden, "A Knowledge-Based Analysis of Intersection Protocols", DISC 2024 (full version). https://arxiv.org/abs/2408.09499
+- F23. Angluin, "Local and Global Properties in Networks of Processors", STOC 1980, pp. 82-93. https://doi.org/10.1145/800141.804655
+- F24. Google self-driving prototypes tuned to creep at stop signs, Fortune 2015-09-29 citing the Wall Street Journal; AP 2014 on waiting at four-way stops (press, not peer-reviewed). https://fortune.com/2015/09/29/google-self-driving-cars-humans
+- F25. Lerer, Peysakhovich, "Learning Existing Social Conventions via Observationally Augmented Self-Play", AIES 2019. https://arxiv.org/abs/1806.10071
+- F26. Shoham, Tennenholtz, "On social laws for artificial agent societies: off-line design", Artificial Intelligence 73, 1995, pp. 231-252. https://doi.org/10.1016/0004-3702(94)00007-N
+- F27. Aiyer, Alvisi, Clement, Dahlin, Martin, Porth, "BAR Fault Tolerance for Cooperative Services", SOSP 2005, pp. 45-58. https://www.cs.utexas.edu/~lorenzo/papers/sosp05.pdf
+- F28. Abraham, Dolev, Gonen, Halpern, "Distributed Computing Meets Game Theory: Robust Mechanisms for Rational Secret Sharing and Multiparty Computation", PODC 2006, pp. 53-62. https://www.cs.huji.ac.il/~dolev/pubs/dg53.pdf
+- F29. Liu, Lin, Kang, Shiraishi, Blough, "A Byzantine-Tolerant Distributed Consensus Algorithm for Connected Vehicles Using Proof-of-Eligibility", MSWiM 2019, pp. 225-234. https://doi.org/10.1145/3345768.3355910 (application details UNVERIFIED)
+- F30. Pruekprasert, Zhang, Dubut, Huang, Kishida, "Decision Making for Autonomous Vehicles at Unsignalized Intersection in Presence of Malicious Vehicles", ITSC 2019. https://arxiv.org/abs/1904.10158
+- F31. Chen, Yin, Feng, Mao, Liu, "Exposing Congestion Attack on Emerging Connected Vehicle based Traffic Signal Control", NDSS 2018. https://doi.org/10.14722/ndss.2018.23222
+- F32. Loos, Platzer, Nistor, "Adaptive Cruise Control: Hybrid, Distributed, and Now Formally Verified", FM 2011, LNCS 6664, pp. 42-56. https://logic.kastel.kit.edu/ap/pub/dccs.pdf
+- F33. Loos, Platzer, "Safe Intersections: At the Crossing of Hybrid Systems and Verification", ITSC 2011, pp. 1181-1186. https://doi.org/10.1109/ITSC.2011.6083138
+- F34. Loos, Witmer, Steenkiste, Platzer, "Efficiency Analysis of Formally Verified Adaptive Cruise Controllers", ITSC 2013, pp. 1565-1570. https://doi.org/10.1109/ITSC.2013.6728453
+- F35. Mitsch, Ghorbal, Vogelbacher, Platzer, "Formal verification of obstacle avoidance and navigation of ground robots", IJRR 36(12), 2017, pp. 1312-1340. https://doi.org/10.1177/0278364917733549
+- F36. Hilscher, Linker, Olderog, Ravn, "An Abstract Model for Proving Safety of Multi-lane Traffic Manoeuvres", ICFEM 2011, LNCS 6991, pp. 404-419. https://doi.org/10.1007/978-3-642-24559-6_28 (its reservation/claim mechanism described from memory)
+- F37. Bochmann, Hilscher, Linker, Olderog, "Synthesizing and verifying controllers for multi-lane traffic maneuvers", Formal Aspects of Computing 29, 2017, pp. 583-600. https://doi.org/10.1007/s00165-017-0424-4
+- F38. Schwammberger, "Introducing Liveness into Multi-lane Spatial Logic lane change controllers using UPPAAL", EPTCS 269, 2018, pp. 17-31. https://doi.org/10.4204/EPTCS.269.3
+- F39. Schwammberger, "Proving properties of autonomous car manoeuvres in urban traffic", it - Information Technology 63(4), 2021, pp. 253-263. https://doi.org/10.1515/itit-2021-0007
+- F40. Chouhan, Banda, "Formal Verification of Heuristic Autonomous Intersection Management Using Statistical Model Checking", Sensors 20(16):4506, 2020. https://doi.org/10.3390/s20164506
+- F41. Kamali, Dennis, McAree, Fisher, Veres, "Formal verification of autonomous vehicle platooning", Science of Computer Programming 148, 2017, pp. 88-106. https://doi.org/10.1016/j.scico.2017.05.006
+- F42. Adkins, Mount, Zhang, "A Game-Theoretic Approach for Minimizing Delays in Autonomous Intersections", Traffic and Granular Flow '17, Springer 2019, pp. 131-139. https://doi.org/10.1007/978-3-030-11440-4_16
+- F43. Wang, Yi, Hong, "Multi-Vehicle Trajectory Planning at V2I-Enabled Intersections Based on Correlated Equilibrium", RA-L 9, 2024, pp. 8346-8353. https://doi.org/10.1109/LRA.2024.3444715
+- F44. Bitar, Crusat, Watling, "Modelling Implicit and Explicit Communication Between Road Users from a Non-Cooperative Game-Theoretic Perspective: An Exploratory Study", VEHITS 2024, pp. 456-464. https://doi.org/10.5220/0012729000003702
+- F45. Bitar, Solernou Crusat, Romano, Watling, "To Signal or Not to Signal? A Non-cooperative Game-Theoretic Approach to Discretionary Communication Between Road Users", SN Computer Science, 2025. https://doi.org/10.1007/s42979-025-04533-w
+- F46. Chung, Talebpour, Hamdar, "Characterizing Lane-Changing Behavior in Mixed Traffic", 2025 (preprint). https://arxiv.org/abs/2512.07219
+- F47. Baccelli, Cohen, Olsder, Quadrat, "Synchronization and Linearity: An Algebra for Discrete Event Systems", Wiley 1992 (free web edition 2001).
+- F48. Farhi, Haj-Salem, Lebacque, "An algebraic approach for modeling and simulation of road traffic networks", 2014 (preprint). https://arxiv.org/abs/1406.6929
+- F49. Tachet, Santi, Sobolevsky, Reyes-Castro, Frazzoli, Helbing, Ratti, "Revisiting Street Intersections Using Slot-Based Systems", PLoS ONE 11(3):e0149607, 2016. https://doi.org/10.1371/journal.pone.0149607
+- F50. Levin, Boyles, Patel, "Paradoxes of reservation-based intersection controls in traffic networks", Transportation Research Part A 90, 2016, pp. 14-25. https://doi.org/10.1016/j.tra.2016.05.013
+- F51. Ploeg, van de Wouw, Nijmeijer, "Lp String Stability of Cascaded Systems: Application to Vehicle Platooning", IEEE TCST 22(2), 2014, pp. 786-793.
+- F52. Lighthill, Whitham, "On kinematic waves II: A theory of traffic flow on long crowded roads", Proc. Royal Society A 229(1178), 1955 (start page 281 or 317 per source); Richards, "Shock waves on the highway", Operations Research 4, 1956.
+- F53. Daganzo, "The cell transmission model: A dynamic representation of highway traffic consistent with the hydrodynamic theory", Transportation Research Part B 28(4), 1994, pp. 269-287.
+- F54. Stern et al., "Dissipation of stop-and-go waves via control of autonomous vehicles: Field experiments", Transportation Research Part C 89, 2018, pp. 205-221. https://doi.org/10.1016/j.trc.2018.02.005
+- F55. Hardy, Campbell, "Contingency Planning Over Probabilistic Obstacle Predictions for Autonomous Road Vehicles", IEEE T-RO 29, 2013, pp. 913-929. https://doi.org/10.1109/TRO.2013.2254033
+- F56. Alsterda, Brown, Gerdes, "Contingency Model Predictive Control for Automated Vehicles", ACC 2019, pp. 717-722. https://doi.org/10.23919/ACC.2019.8815260 (arXiv 1903.08818)
+- F57. Dragan, Lee, Srinivasa, "Legibility and Predictability of Robot Motion", HRI 2013, pp. 301-308. https://doi.org/10.1109/HRI.2013.6483603
+- F58. Brüdigam, Ahmic, Leibold, Wollherr, "Legible Model Predictive Control for Autonomous Driving on Highways", IFAC-PapersOnLine 51, 2018, pp. 215-221. https://doi.org/10.1016/j.ifacol.2018.11.016
+- F59. Lee, Britten, Block, Pandya, Jung, Schmitt, "Coming In! Communicating Lane Change Intent in Autonomous Vehicles", HRI 2023 companion (venue UNVERIFIED). https://motional.com/news/coming-communicating-lane-change-intent-autonomous-vehicles
+- F60. Lindemann, Cleaveland, Shim, Pappas, "Safe Planning in Dynamic Environments using Conformal Prediction", RA-L 8(8), 2023. https://arxiv.org/abs/2210.10254
+- F61. Luo, Zhao, Kuck, Ivanovic, Savarese, Schmerling et al., "Sample-Efficient Safety Assurances Using Conformal Prediction", WAFR 2022; IJRR 43, 2024, pp. 1409-1424. https://doi.org/10.1177/02783649231221580
+- F62. Hashemi, Lindemann, Deshmukh, "Statistical Reachability Analysis of Stochastic Cyber-Physical Systems Under Distribution Shift", IEEE TCAD 43, 2024, pp. 4250-4261. https://doi.org/10.1109/TCAD.2024.3438072
+- F63. Corso, Moss, Koren, Lee, Kochenderfer, "A Survey of Algorithms for Black-Box Safety Validation of Cyber-Physical Systems", JAIR 72, 2021, pp. 377-428. https://doi.org/10.1613/jair.1.12716
+- F64. Koren, Alsaif, Lee, Kochenderfer, "Adaptive Stress Testing for Autonomous Vehicles", IEEE IV 2018. https://arxiv.org/abs/1902.01909
+- F65. Fremont, Kim, Pant, Seshia et al., "Formal Scenario-Based Testing of Autonomous Vehicles: From Simulation to the Real World", ITSC 2020. https://doi.org/10.1109/ITSC45102.2020.9294368 (arXiv 2003.07739)
+- F66. SAE J3216_202107, "Taxonomy and Definitions for Terms Related to Cooperative Driving Automation for On-Road Motor Vehicles" (first issued 2020-05). https://saemobilus.sae.org/standards/j3216_202005-taxonomy-definitions-terms-related-cooperative-driving-automation-road-motor-vehicles
+- F67. ETSI TR 103 578 V2.1.1 (2024-04), "Intelligent Transport Systems; Vehicular Communication; Informative report for the Manoeuvre Coordination Service" (title wording UNVERIFIED; content per the catalogue and secondary papers). https://www.etsi.org/deliver/etsi_tr/103500_103599/103578/02.01.01_60/
+- F68. ETSI TS 103 324 V2.1.1 (2023-06), "Intelligent Transport Systems; Vehicular Communication; Basic Set of Applications; Collective Perception Service; Release 2". https://www.etsi.org/deliver/etsi_ts/103300_103399/103324/02.01.01_60/
+- F69. ISO 21448:2022, "Road vehicles -- Safety of the intended functionality" (not fetched; cited from the standard's catalogue title).
+- F70. ISO 34502:2022, "Road vehicles -- Test scenarios for automated driving systems -- Scenario based safety evaluation framework". https://www.iso.org/standard/78951.html
+- F71. ANSI/UL 4600, "Standard for Evaluation of Autonomous Products", Ed. 3, 2023-03-17. https://ulse.org/ul-standards-engagement/autonomous-vehicle-technology/autonomous-trucking-incorporated-third
+- F72. Yu, Wang, Li, Yu, Saad, Sakaguchi, "How Roadside Units Enhance Intersection Safety? Cooperative Autonomous Driving System Design and A Proof of Concept", 2026 (preprint; Autoware baseline in CARLA and on real vehicles). https://arxiv.org/abs/2608.09144
+- F73. Hirata, Tsukada, Okumura, Tamura, Ochiai, Défago, "Roadside-assisted Cooperative Planning using Future Path Sharing for Autonomous Driving", VTC2021-Fall (Autoware + LGSVL). https://arxiv.org/abs/2108.04629

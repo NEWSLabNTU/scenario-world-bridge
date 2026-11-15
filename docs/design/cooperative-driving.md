@@ -21,8 +21,8 @@ the steps and results in `docs/roadmap/074-cooperation-study.md`.
  │      │     safety as a feasibility constraint                │   │      │  goes), stock Autoware│
  │      v                                                       │   │      v in a band:            │
  │ ② TWO-CAR GAMES  equilibrium map; the bands where it is a    │──>│ convention table 2-5 Hz      │
- │      │           game; a convention per band (§ solution)    │   │  role -> go/yield, intent    │
- │      v                                                       │   │  message out, probe rule,    │
+ │      │           game; a convention per band (§ solution)    │   │  role -> go/yield, probe     │
+ │      v                                                       │   │  rule (V2X intent optional), │
  │ ③ N CARS  pairs composed per measure + measured residual     │   │  + decision record           │
  │      │    + mean field beyond the conflict set               │   │      │                       │
  │      v                                                       │   │      v                       │
@@ -38,6 +38,8 @@ the steps and results in `docs/roadmap/074-cooperation-study.md`.
 ## Principles
 
 Revised 2026-11-15 from roadmap 074's findings; each principle names the result it rests on.
+The focus is an **explainable vehicle strategy combined with learning**, on one car, with
+connected vehicles optional: everything below must hold with no V2X at all.
 
 1. **Fix the stack first.** Stock Autoware's own failures (perception reach, planner limits, the
    map, the simulator's physics) are measured and fixed before any strategy is credited, and a
@@ -52,16 +54,34 @@ Revised 2026-11-15 from roadmap 074's findings; each principle names the result 
    dominant (the nearer car goes) and stock behaviour is right.
 3. **Coordinate, don't infer.** In a band the losses are coordination failures between several
    equilibria ("after you" deadlocks, restart crashes, wars of attrition), not missing knowledge
-   of the other car. They are cured by a convention keyed on an observable role asymmetry,
-   announced by an intent message and checked by a probe, not by a belief node (D6: capability
-   broadcasts are worth 0; C5: a weak car is not yielded to more).
+   of the other car. They are cured by a convention keyed on an observable role asymmetry (who
+   stopped first, who is on the right), read from the other car's motion by a probe, not by a
+   belief node (D6: capability broadcasts are worth 0; C5: a weak car is not yielded to more).
+3a. **Connected vehicles are optional.** The car works at 0 % V2X adoption. A received intent
+   message is an untrusted prior that may shorten the probe; safety and liveness never depend on
+   one. Implicit communication comes first: motion shaped so others can read it (legibility).
+3b. **A convention must fail safe when the two cars see the role differently.** With no message,
+   each car reads the role from its own perception, and the two readings can disagree. U3's
+   FCFS + right-before-left made contact in 3 of 30 runs at dt -0.25 s for exactly that reason:
+   the two stops fell on opposite sides of the 0.5 s tie threshold. So a disagreement must resolve
+   to "both wait", followed by a deterministic second round, never to "both go". This means
+   hysteresis around the tie threshold, and a margin sized by the learned perception error.
 4. **Safety is a constraint, in the game too.** Only rules whose outcome stays contact-free over
    the band are strategies; the contact weight in U scores runs, it is not a price a rule can pay.
    The shield (AEB, obstacle stop, RSS) stays underneath everything and is never bypassed.
-5. **Theory gives the structure; learning calibrates measured gaps.** A learned term corrects a
-   gap the checks have measured (the follower depth term, c = 1.10; one α per car class), and its
-   share is reported. Reinforcement learning, where used, audits: it searches for profitable
-   deviations outside the rule set. It never decides.
+5. **An explainable structure with learned parameters.** The strategy is a readable rule: band,
+   role, convention, probe. Learning fits the parameters that theory cannot know, each one
+   interpretable and reported with its share of the decision:
+   - **The role estimate.** Arrival and stop times with calibrated uncertainty, under real
+     perception. This sets the tie margin of 3b.
+   - **The other car's response.** One rationality α per car class: a logit response (C4, D5) or a
+     level-k depth.
+   - **The probe's thresholds.** How soon a yield can be told from a hold.
+   - **Residuals the checks have measured.** For example the follower depth term, c = 1.10.
+
+   Reinforcement learning, where used, audits for profitable deviations outside the rule set; it
+   never decides. Every learned parameter is tuned on one seed set and read on another,
+   pre-registered held-out set.
 6. **Every number is measured on a real stack, or on a model checked against one, and a gap is a
    model bug first.** swb runs full Autoware stacks; the arena is trusted where it agrees (D2).
    When they disagree, the model is suspected first: the 0.35 s launch delay, the held car's
@@ -258,7 +278,7 @@ play. Five layers do, each with its theory:
 | feasibility | which rules may be played? | constrained games: generalized Nash equilibrium with a shared constraint (Rosen); reachability / RSS sets | rules contact-free over the band; the shield underneath |
 | selection | which equilibrium in a band? | correlated equilibrium (Aumann): a signal recommends an action, obeying is a best response; its obedience constraints are a linear program | the convention table: "the car on the right goes", binding priority after a stop |
 | stability | will the convention hold in a population? | evolutionary game theory: in an asymmetric contest only pure strategies are evolutionarily stable (Selten 1980), so a role-keyed convention (Maynard Smith's "bourgeois") is stable and a mixed war of attrition is not; stochastic stability (Young) for which convention emerges | C7: binding priority ends restart crashes; staggered patience, a timing rule with no role, is bad |
-| communication | is the intent message believed? | cheap talk: credible where interests align (coordination), weak where they conflict (Farrell, Crawford-Sobel); sequential recommendations: extensive-form correlated equilibrium | C6: the intent message pays, the capability broadcast does not |
+| communication | how does the other car learn my intent? | implicit first: legible motion (Dragan) and the probe, a leader-follower move. Where V2X exists, cheap talk: credible where interests align (coordination), weak where they conflict (Farrell, Crawford-Sobel) | C6: the intent pays, the capability broadcast does not; with no V2X, intent is carried by motion |
 | robustness | what if the other ignores the convention? | robust / minimax-regret play against non-compliers; logit quantal response (QRE) and level-k for noisy or human play | stock Autoware and humans read no message; the convention must never be worse than stock against them (D7); C4's potential model with one α per class is a logit response in a potential game |
 
 **What a correlated equilibrium cannot do.** It selects among feasible outcomes; it does not make
@@ -272,11 +292,43 @@ selfish pair has a lower welfare than the Autoware-like pair (-0.167 against -0.
 makes the other car reveal itself within the 1-3 belief updates a lane change allows. It is the one
 place a sequential decision model (a POMDP) may pay.
 
+## Lessons from neighbouring projects (2026-11-15)
+
+Two projects in the lab work on the parts this design leaves optional or out of scope.
+
+**Signalised junction control** (repo 2026-vehicle-consensus): a decentralised max-pressure
+controller per signal, in SUMO, with Lean 4 proofs of its service bounds and no-flap rule.
+- **A decentralised rule is only as good as a shared, observable state.** For a signal that state
+  is a presence signal for every halted vehicle: with sensing from connected vehicles only, the
+  service bound breaks below 75-100 % adoption. For this design it is the role fact (3b).
+- **Tune and read on different seeds, and pre-register held-out sets.** Its 23 development hours
+  were overfitted by about 176 candidate rules, and four held-out tests refuted the result (geometric
+  mean 0.59-0.94).
+- **Audit what is executed, not the controller's intent.**
+- **Count the backlog.** Mean trip time hides cars waiting to enter.
+- **Pricing and auctions bought no delay;** they serve as an accounting layer.
+
+**Shared perception and space leases over lossy V2X** (repo crdt-tensor, SEPS): a safety layer
+that gates manoeuvres, on CARLA + swb + Autoware with ns-3 5G radio; its lease is a TLA+ model.
+- **A lease acts only on an explicit accept from every required party.** Silence, loss or a
+  missing party aborts, so loss never yields a false grant. That is safe but not live with a
+  non-participant: the car holds. This is the reason connected vehicles stay optional here, as a
+  shortcut rather than a requirement.
+- **Capability and priority claims were found useless; ties are broken by id.** This matches D6
+  and this design's role-keyed conventions.
+- **Received intent pays for lane changes** (cited: success 57 → 85 % at 15 veh/km/lane against
+  predicting from motion). **Perception data is worth about one 100 ms slot.** The measured radio:
+  median about 48 ms, p99 about 0.2 s.
+- **Autoware's planner does not read reservations.** A strategy acts through Autoware's own
+  inputs (RTC, velocity limit), as ⑤ does.
+
 ## ④ Theory and learning: who does what
 
 | component | theory gives | learning adds | checked by |
 |---|---|---|---|
 | reading the other | a probe rule: yield vs hold from filtered acceleration after a nudge | its thresholds under real perception noise | calibration: predicted vs observed yield rates |
+| role facts | the convention's role (who stopped first, who is on the right) | arrival and stop times with calibrated error, which sets the tie margin | the two cars' readings disagree in less than the bound; disagreement fails safe (3b) |
+| others' response | a logit response in a potential game; level-k | one α (or k) per car class | held-out yield rates per class |
 | payoff | kinematic game, pair composition | residual $g_\theta$ over the conflict set (permutation-invariant per slot) | held-out swb runs; the residual's share is reported |
 | rules | threshold form, double oracle; conventions per band | an RL auditor searching for profitable deviations outside the rule set (PSRO's oracle) | exploitability; obedience of the convention |
 | size | slots bound the local structure | a set model trained on 2-3 cars | N+1 residual; exact games at small N |
@@ -294,16 +346,17 @@ learned, not explained.
 
 ```
 perception 10 Hz ─> prediction ─┬──────────────────────────────> planning 10 Hz ─> control 33 Hz
-          (V2X intent, untrusted)┤                                  ^   ^
+           (V2X intent, optional)┤                                  ^   ^
                                 v                                   │   │
                     interaction_strategy 2-5 Hz, dwell ≥ 1 s ───────┘   │
                     band detector -> convention table (lookup, μs)      │
-                    intent message out; probe rule; decision record     │
+                    probe rule; intent out if V2X; decision record      │
                     out: go/wait (RTC), speed limit, per-object bounds ─┘
 ```
 
-- **No belief node** (D6). The other car is read by the probe rule from its motion; an intent
-  message is a prior checked against motion.
+- **No belief node** (D6). The other car is read by the probe rule from its motion. Where V2X
+  exists, an intent message is a prior checked against motion; with no V2X nothing is lost but
+  probe time.
 - **Into Autoware**, least invasive first: go/wait through RTC or the external lane-change request,
   yield/hold through the API's velocity limit; then per-object safety bounds replacing Autoware's
   fixed constants (rear car brakes at 1-2 m/s², reacts in 1-2 s, for a truck and a golf cart
@@ -314,7 +367,12 @@ perception 10 Hz ─> prediction ─┬─────────────�
 - **Deployment rules**: the shield stays; with the node dead or unsure, stock Autoware runs; never
   worse than stock against a car that ignores the convention; own capability from the vehicle
   spec; fits an ECU.
-- **P1** measures it in that order: stock, + probe rule, + intent message.
+- **P1** measures it in that order, all with no V2X:
+  1. stock;
+  2. + convention and probe rule;
+  3. + learned role estimate and response model.
+
+  Intent messages are measured last, as an option, at 0 / 30 / 100 % adoption.
 
 ## ⑥ Validation: a ladder of gates
 
@@ -338,7 +396,7 @@ value of information, measured on deployment code at deployment rates.
 - The stack work S5 called for is done: CARLA's friction reset fixed in swb, full CenterPoint as
   `centerpoint`, lidar intensity from the spec (TransFusion sees cars offline).
 - Open: U3, the 4-way stop (games; Autoware on a stop-sign map variant); swb checks with several
-  cars (C3c, N5) now the friction fix is in; P1 (stock, + probe, + intent message); the convention
+  cars (C3c, N5) now the friction fix is in; P1 with no V2X (stock, + convention and probe, + learned parameters; messages last, optional); the convention
   table's robustness against non-compliers (D7).
 
 **The scenario plan** (roadmap 074, S0-S6), one relation at a time, each through the same ladder:

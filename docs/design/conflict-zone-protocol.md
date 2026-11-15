@@ -94,12 +94,19 @@ workflow and scenario walkthroughs).
    tighter range only when it falls on a track within 2.5 m + 6 % of the range.
 4. **Band** (`band(own, other, params)`). `clear` when one interval's latest exit precedes the
    other's earliest entry by the margin; `contested` when the other's interval shows no braking
-   that can stop it before the zone; else `band`.
+   that can stop it before the zone; else `band`. Own interval from the car's own capability
+   (launch, length, braking by spec or class), never a default car's: a heavy car using the Model
+   3's launch under-estimates its own interval about 2× (074 C8).
 5. **Role** (`role(zone, relation, agents)`). The map's fact first (`map_priority`, then
-   `map_order`); a perception fact (`stopped_first`, `ahead_at_end`) with the tie margin 2e; inside
-   the margin, `ambiguous`.
+   `map_order`); a perception fact (`stopped_first`, `ahead_at_end`) with the tie margin; inside
+   the margin, `ambiguous`. The perception fact is bias-corrected first. A hard threshold with no
+   margin is unsafe for any perception error (074 C8: a band of width 2e); the margin must be at
+   least e (the error's 99 % quantile, centred), so e on each side.
 6. **Convention** (`decide(conventions, relation, role)`). The jurisdiction's table, row by
-   relation, then role. `ambiguous` → `wait`, then `wait_second_round` resolved by `map_order`. A
+   relation, then role. `ambiguous` → `wait`, then `wait_second_round` resolved by `map_order`,
+   H2 ≥ e + 1.2 s after the junction is quiet (no car seen starting or leaving the zone; a blocked
+   exit's release counts as an event). Before a round-2 `go`, the legible probe (creep about 0.5 m,
+   then watch): stock Autoware reads a car at rest as static and restarts into the round-2 go. A
    wait-for graph over the conflict set; any cycle is broken by `map_order`. `go` requires the
    zone's `exit_box` clear.
 7. **Probe and commit** (`probe(decision, own, other, params)`). When `go` needs the other to
@@ -109,7 +116,10 @@ workflow and scenario walkthroughs).
    continue. A creep that gains nothing within 3 s steps down to `yield`.
 8. **Act** (adapter). `go` → RTC approve for the module that owns the zone (intersection, lane
    change, stop line); `yield`/`wait` → RTC deny and, if needed, a velocity limit; `stock` → leave
-   Autoware alone. Latch ≥ 1 s unless the band or the role changes beyond the hysteresis.
+   Autoware alone. Latch ≥ 1 s unless the band or the role changes beyond the hysteresis. The
+   guards get hysteresis too: a `go` is latched for the launch dead time, and the zone guard and
+   the "moved off its line" test are filtered over 2-3 samples (074 C8: unfiltered, they flipped
+   up to 141 times a run at noise ×2 and caused contacts).
 9. **Contracts** (`check(contracts, inputs)`). Each a predicate with a fallback: perception latency
    ≤ 0.45 s; reach ≥ v_max × (turn time + 1 s) for the left turn; track stable ≥ 0.5 s; map and
    perception agree on the zone's lanes; others within their class bounds; the node's own cycle
@@ -175,7 +185,8 @@ contested: yield                  # a car that cannot or will not stop keeps the
 ## Parameters
 
 `params.yaml` starts from the design's "Assumed parameters, to be measured" table (role-time error
-σ 0.15 s within 30 m; tie margin 2e; yield test; α per class; critical gap 6.5 s; reach contract;
+σ 0.15 s within 30 m; tie margin m = e with e the centred 99 % quantile (C8: arena e99 ≈ 0.25 s,
+bias 0.2 s; m 0.3), H2 ≥ e + 1.2 s (2.0 s), zone-guard margin 0.5 s; yield test; α per class; critical gap 6.5 s; reach contract;
 braking bounds car 4, truck 3, two-wheeler 4 m/s², wet × 0.6; creep 1 m/s and 3 s; radar and UWB
 figures). Each entry carries its source (`assumed`, or the run that measured it) and its held-out
 error once measured. Roadmap 078's evaluation phase replaces them.

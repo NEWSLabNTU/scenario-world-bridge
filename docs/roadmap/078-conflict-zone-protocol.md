@@ -10,7 +10,8 @@ whether it ships. The build spec is [design/conflict-zone-protocol.md](../design
 the theory and evidence [design/cooperative-driving.md](../design/cooperative-driving.md); the
 study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 
-**Status**: planned 2026-11-15. Phase 0 (C8, the verification of the four-way stop) running.
+**Status**: Phase 0's four-way stop (V1-V3) done 2026-11-15; G0 for the all-way stop deferred to a
+re-check on the built library (V2b); V4 open. Phase 1 starting.
 
 ## Inputs, already in place
 
@@ -40,6 +41,29 @@ evaluation points (EV) feed it. The user decides the deployment gate (G4).
 **G0, which conventions enter the table.** A row enters when the formal model shows safety and
 liveness for 2-4 cars within ±e, and the arena shows no contact in self-play, no deadlock, and
 never worse than stock against non-compliers. A row that fails stays stock for its relation.
+
+**Phase 0 results, the all-way stop (C8, 2026-11-15; 074 C8).**
+- V1: the hard tie threshold (U3's fcfsr) is unsafe for any e > 0. (e), the fail-safe rule with the
+  map's order as last resort, is safe and live for 2-4 cars; m = e, H2 ≥ e + 1.2 s. e99 ≈ 0.25 s
+  centred in the arena.
+- V2: (e) has 0 contacts and 0 deadlocks in self-play, but is worse than stock in 4 of 12 BAR cells:
+  stock Autoware's "a car at rest stays" races (e)'s second-round go.
+- V3: skew is harmless; noise ×2 flips the guards (3/27 contacts, 1 deadlock); a heavy car needs its
+  own zone interval.
+
+**G0 ruling, all-way stop (manager, 2026-11-15): not passed yet; deferred to V2b.** The formal and
+self-play criteria pass, "never worse than stock" does not, and the criterion stays as stated.
+The fixes are design changes, so they go into the build, not into another study round:
+- **guard hysteresis** (latch a go for the launch dead time; the zone guard and the "moved" test
+  filtered over 2-3 samples), the design's latch extended to the guards;
+- **zone intervals from the car's own capability** (launch, length, braking from the spec or class);
+- **the legible probe before a round-2 go** (creep about 0.5 m, then watch), against stock's
+  static-at-rest.
+
+**V2b**, after I3: the arena adapter with these three reruns C8's BAR table and noise ×2. G0 for
+the all-way stop is decided there, by the same criterion. If it still fails against stock, the
+all-way stop stays stock where the other car may be stock (T4 measures how often that is), and (e)
+applies between compliant cars.
 
 ### Phase 1: implementation
 
@@ -144,3 +168,5 @@ and G2.
 
 - 2026-11-15: phase doc written. Phase 0 (C8) running on host 133. P1 implementation (I1-I5)
   assigned to 133's subagent, to start when C8 reports.
+- 2026-11-15: C8 reported (V1-V3 for the all-way stop). G0 deferred to V2b (above). P1 started
+  on 133's subagent with the three C8 fixes in I2. Near-tie parity on contact share (EV1).

@@ -390,9 +390,11 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
         sim = config.project_settings(project).get("simulator")
     except config.ConfigError:
         sim = None
-    note = toolsmod.gpu_note(s.gpu, sim, toolsmod.gpu_state(s.gpu))
-    if note:
-        (out or sys.stdout).write(f"warning  {note}\n")
+    ws = stackmod.workspace_root()
+    for note in (toolsmod.gpu_note(s.gpu, sim, toolsmod.gpu_state(s.gpu)),
+                 toolsmod.drift_note(toolsmod.submodule_drift(ws)) if ws else ""):
+        if note:
+            (out or sys.stdout).write(f"warning  {note}\n")
     (out or sys.stdout).flush()
     return StartedStack(proc=proc, argv=argv, log=log_dir / "console.log", seat=s.index)
 

@@ -40,3 +40,52 @@ def test_gpu_note_warns_for_too_little_free_memory_or_a_busy_card():
     assert tools.gpu_note(1, "carla", (7400, 24000, 85)) .endswith(
         "another card") and "busy" in tools.gpu_note(1, "carla", (7400, 24000, 85))
     assert tools.gpu_note(0, "carla", None) == ""
+
+
+
+def _git(*a, cwd):
+    import subprocess
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "-c", "protocol.file.allow=always", *a], cwd=cwd, check=True,
+                   capture_output=True)
+
+
+def test_submodule_drift_finds_a_nested_checkout_off_its_pin(tmp_path):
+    """roadmap 077, G31: a component's deps/ left on an older commit by a non-recursive
+    update is named with both commits."""
+    import importlib
+    real = importlib.reload(importlib.import_module("swb.tools"))   # undo the autouse stub
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    _git("init", "-q", cwd=lib)
+    (lib / "f").write_text("1")
+    _git("add", "f", cwd=lib)
+    _git("commit", "-qm", "one", cwd=lib)
+    comp = tmp_path / "comp"
+    comp.mkdir()
+    _git("init", "-q", cwd=comp)
+    _git("submodule", "add", "-q", str(lib), "deps/lib", cwd=comp)
+    _git("commit", "-qm", "pin lib", cwd=comp)
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    _git("init", "-q", cwd=ws)
+    _git("submodule", "add", "-q", str(comp), "src/comp", cwd=ws)
+    _git("commit", "-qm", "pin comp", cwd=ws)
+    _git("submodule", "update", "--init", "--recursive", "-q", cwd=ws)
+    assert real.submodule_drift(ws) == []
+    # the library moves on, and the component pins the new commit; the workspace takes the
+    # component's new pin without --recursive: its deps/lib stays on the old commit
+    (lib / "f").write_text("2")
+    _git("commit", "-qam", "two", cwd=lib)
+    _git("-C", "deps/lib", "pull", "-q", "origin", "HEAD", cwd=comp)
+    _git("commit", "-qam", "bump lib", cwd=comp)
+    _git("-C", "src/comp", "pull", "-q", "origin", "HEAD", cwd=ws)
+    _git("commit", "-qam", "bump comp", cwd=ws)
+    drift = real.submodule_drift(ws)
+    assert [d[0] for d in drift] == ["src/comp/deps/lib"]
+    path, have, pinned = drift[0]
+    assert have and pinned and have != pinned
+    note = real.drift_note(drift)
+    assert f"src/comp/deps/lib at {have[:7]} (pinned {pinned[:7]})" in note
+    assert "--recursive" in note
+    assert real.drift_note([]) == ""

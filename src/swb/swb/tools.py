@@ -1,5 +1,5 @@
 """The host tools the project workflow needs, and their floors (roadmap 077, G26); the
-GPU's state when a stack starts (G27).
+GPU's state when a stack starts (G27); a workspace checked out off its pins (G31).
 
 ``project check`` (so the stack before it starts) refuses a play_launch older than the
 workflow needs: an older one parses the stack's launch differently and fails later, far from
@@ -90,3 +90,60 @@ def gpu_note(index: int, simulator: str, state) -> str:
     return (f"GPU {index} ({used / 1024:.1f} of {total / 1024:.1f} GB in use): "
             + ", ".join(why) + "; `nvidia-smi` names its processes, the host setting `gpu:` "
             "(or the seat table's gpus) picks another card")
+
+
+def submodule_drift(workspace) -> list:
+    """``[(path, checked out, pinned)]`` for every submodule of ``workspace``, nested ones
+    (a component's ``deps/``) too, checked out at another commit than its parent pins, or not
+    checked out at all (``checked out`` None). A build from such a tree runs code the pins do
+    not name: on 2026-11-16 a non-recursive update left acb's ``deps/`` on an older vehicle
+    spec, and the bridge refused the ego a minute into the run (roadmap 077, G31)."""
+    try:
+        out = subprocess.run(["git", "submodule", "status", "--recursive"], cwd=str(workspace),
+                             capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if out.returncode != 0:
+        return []
+    drift = []
+    for line in out.stdout.splitlines():
+        if not line or line[0] not in "+-":
+            continue
+        parts = line[1:].split()
+        if len(parts) < 2:
+            continue
+        sha, path = parts[0], parts[1]
+        if line[0] == "-":
+            drift.append((path, None, sha))
+            continue
+        pinned = _pinned(workspace, path)
+        drift.append((path, sha, pinned))
+    return drift
+
+
+def _pinned(workspace, path):
+    """The commit that ``path``'s parent repository (the innermost one holding it) pins."""
+    import os
+    full = os.path.join(str(workspace), path)
+    try:
+        top = subprocess.run(["git", "-C", os.path.dirname(full), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=20).stdout.strip()
+        if not top:
+            return None
+        rel = os.path.relpath(full, top)
+        return subprocess.run(["git", "-C", top, "rev-parse", f"HEAD:{rel}"],
+                              capture_output=True, text=True, timeout=20).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def drift_note(drift: list) -> str:
+    """One warning line for ``submodule_drift``'s list, "" when it is empty."""
+    if not drift:
+        return ""
+    items = [f"{p} at {c[:7]} (pinned {(pin or '?')[:7]})" if c else f"{p} not checked out"
+             for p, c, pin in drift]
+    shown = items[:4] + ([f"and {len(items) - 4} more"] if len(items) > 4 else [])
+    return ("the workspace is off its pins: " + "; ".join(shown) + ". A build from it may "
+            "run other code than the pins name: `git submodule update --init --recursive`, "
+            "then rebuild (unless you moved them on purpose)")

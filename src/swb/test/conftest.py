@@ -211,3 +211,10 @@ def gpu_unknown(monkeypatch):
     """No GPU query in tests (the tests of the note give their own state)."""
     from swb import tools
     monkeypatch.setattr(tools, "gpu_state", lambda index: None)
+
+
+@pytest.fixture(autouse=True)
+def pins_kept(monkeypatch):
+    """The test host's checkout is not under test (the tests of the drift give their own)."""
+    from swb import tools
+    monkeypatch.setattr(tools, "submodule_drift", lambda workspace: [])

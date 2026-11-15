@@ -319,3 +319,9 @@ Isaac's rear contact (inventory row 18).
   naming both numbers and the `gpu:` setting. Ruling: a warning, since other users' jobs
   come and go. Live here: `GPU 0 (27.2 of 31.8 GB in use): 4.7 GB free, isaac needs about
   9.8`, nothing for CARLA.
+- **G31 built (2026-11-16).** When `swb run` starts a stack it lists the workspace's
+  submodules, nested ones too (`git submodule status --recursive`), checked out off the
+  commit their parent pins, and warns with both commits and the fix (`git submodule update
+  --init --recursive`, then rebuild). Ruling: a warning, not a refusal, since a developer
+  may move a submodule on purpose; and it reads the checkout now, not what was built. Live:
+  acb's `deps/sim_vehicle_spec` put back on e7d8656 was named against its pin 9b7e48d.

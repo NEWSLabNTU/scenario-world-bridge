@@ -318,6 +318,8 @@ END_STOP = 1.0  # m: the czp car's planned stop before the lane's end (as the st
 END_PLAN = 2.5  # m/s^2: it brakes for that stop once it needs this much (the study's BRAKE_LATE) ...
 DROP_LEAD = 1.0  # s: an unresolved (ambiguous) order is settled this long before the deadline, B first
 DROP_DV = 2.0  # m/s: A falls back this much below B's speed while beside it
+LAT_SEEN = 0.08  # A's lateral progress at which B sees the lane change (merge_game's B rules: 0.08)
+B_YIELD_DECEL = 3.0  # m/s^2: czp's B makes room at most this hard (S3's c40 courtesy)
 REST_GAP = 0.5  # m: at rest at the end, A merges ahead of a B at rest behind it with this much room
 END_LAG = 0.15  # s: ... over the distance left after the brake's dead time and lag (the study ignores them)
 
@@ -325,8 +327,9 @@ END_LAG = 0.15  # s: ... over the distance left after the brake's dead time and 
 def make_merge_rules():
     import cutin_game as C1
     import merge_game as MG
+    Study = getattr(MG, "_orig_rules", MG.Rules)  # the study's class, also while MG.Rules is patched
 
-    class CZPMergeRules(MG.Rules):
+    class CZPMergeRules(Study):
         """merge_game.Rules with A decided and driven by czp (merge_lane_drop: who leads whom by a
         headway, ``band: gap``; then ahead_at_end with the margin; the through lane first in the map's
         order). B keeps its own rule and safety layer (the study's, unchanged). Positions are measured to
@@ -335,10 +338,11 @@ def make_merge_rules():
         A's act (078 S3 fix):
         - merge ahead only on czp's go and the study's full gap test (tau 0.6 s with the closing term),
           never on the bare buffer at the deadline: a car beside the other is not ahead;
-        - merge into B's wake (B first) whenever the gap behind is there and the merge's commit point
-          lies ahead: half across (T_LC / 2 at its speed) before the planned stop at the end. Past it the
-          car stops at the end first and merges from rest once B has passed (a forced stop, not a run-out);
-        - merge ahead only before the commit point too; past it A drops;
+        - merge into B's wake (B first) whenever the gap behind is there (the planned stop at the end keeps a
+          late one from running out: it waits, half across or at the end, for B to pass);
+        - merge ahead only before its commit point (half across, at its speed, before the planned stop at
+          the end) and only when the gap also holds over the half lane change at both cars' current
+          accelerations (A braking for the end in front of an accelerating B was a contact); past it A drops;
         - drop back behind B (the study's drop) as soon as czp yields, and when the order is still
           unresolved DROP_LEAD s before the deadline (the last point a lane change still ends before the lane
           does), so that there is room to merge behind B instead of stopping;
@@ -363,7 +367,8 @@ def make_merge_rules():
             self.courtesy = False
 
         def committable(self, rem, va):
-            """The wake merge's commit point: half across before the planned stop at the end."""
+            """The merge ahead's commit point: half across (T_LC / 2 at its speed) before the planned stop at
+            the end."""
             return rem - END_STOP >= max(va, 1.0) * MG.T_LC / 2 + 0.5
 
         def step(self, t, xa, va, lat, xb, vb, seen_b, seen_a):
@@ -393,11 +398,16 @@ def make_merge_rules():
                 self.courtesy = courtesy
                 # behind a yielding B the gap only has to hold while A is half across (B is opening it)
                 h = MG.T_LC / 2
+                # the gap over the half lane change at both cars' current accelerations (A's own command)
+                # B may resume its speed (a stock car's cruise: 1.5 /s toward its limit, up to a_max) unless its
+                # courtesy has been seen
+                ab_eff = ab_s if self.courtesy else max(ab_s, min(MG.CAP.a_max, 1.5 * (self.core.other_cap.v_max - vb_s)))
+                hold_h = gap_ahead - ((vb_s - va) * h + 0.5 * (ab_eff - min(self.a_prev, 0.0)) * h * h) >= MG.BUFFER
                 need_c = MG.BUFFER + max(0.0, (vb_s - va) * h + 0.5 * min(ab_s, 0.0) * h * h)
                 if self.decide is None and self.stopped and vb_s < 0.3 and gap_ahead >= REST_GAP:
                     self.decide, self.why = t, "rest_ahead"  # both at rest, A ahead: B is waiting for A
                 if self.decide is None and (ok or self.stopped) and (
-                        (dec.kind in (CM.GO, CM.STOCK) and not self.dropping and gap_ahead >= need) or
+                        (dec.kind in (CM.GO, CM.STOCK) and not self.dropping and gap_ahead >= need and hold_h) or
                         (courtesy and gap_ahead >= min(need, need_c))):
                     self.decide, self.why = t, ("courtesy" if courtesy and dec.kind not in (CM.GO, CM.STOCK) else "ahead")
                 if self.decide is None and not self.dropping and (
@@ -448,17 +458,99 @@ def make_merge_rules():
             self.a_prev = aa
             return aa, max(-CAP.b_max, ab)
 
+    class _BCZP:
+        """B, the through lane's car, decided by czp (merge_lane_drop from B's side; B's approach is the major
+        one). B's act: on czp's yield (A leads by the gap band, or is ahead at the end) once A's lane change is
+        seen (lateral progress LAT_SEEN, the indicator and the drift) and while A is not across and not wholly
+        behind B, B makes room: it follows A as its leader (IDM to S0 + v HEADWAY behind A's rear, at most
+        B_YIELD_DECEL), the zipper's opening and C2's committed claimant; otherwise it keeps its lane and speed
+        (stock's hold, whose safety layer stays underneath). Yielding before A moves made both cars yield
+        against a dropping A (mutual courtesy) and, read back as a yield, both cars go."""
+
+        def b_init(self, kind, vb0):
+            self.core_b = CZPCore("B", kind, CM.MERGE_LANE_DROP, vb0, MG.L, MG.L)
+            self.core_b.other_cap = self.core_b.params.capability("car", v_max=self.va0, length=MG.L)
+            self.core_b.own_cap = self.core_b.params.capability("car", v_max=vb0, length=MG.L)
+            self.b_prev = 0.0
+            self.last_dec_b = None
+
+
+        def b_step(self, t, ab, xa_s, va_s, lat_s, xb, vb):
+            L = MG.L
+            age = MG.OBS + MG.DECIDE
+            if lat_s >= 1.0:
+                self.b_prev = ab
+                return ab  # A is across: B's safety layer follows it
+            dec = self.core_b.decide(t, -(self.x_end - xb), vb, self.b_prev, (t - age, -(self.x_end - xa_s), va_s, 0.0))
+            self.last_dec_b = dec
+            if dec.kind not in (CM.GO, CM.STOCK) and xa_s > xb - L and lat_s >= LAT_SEEN:
+                # make room at a comfortable deceleration (S3's courtesy: 2-3 m/s^2), not IDM's full braking
+                ab = min(ab, max(-B_YIELD_DECEL, C1.follow_accel((xa_s - L) - xb, vb, va_s, MG.CAP, self.vb0)))
+            ab = max(-MG.CAP.b_max, ab)
+            self.b_prev = ab
+            return ab
+
+    Base = Study
+
+    class CZPMergeRulesB(_BCZP, Base):
+        """A keeps its study rule; B is czp (its study part is hold: the lane and speed, and the safety layer)."""
+
+        def __init__(self, ra, rb, x_end, va0, vb0, b_cont="hold", kind="czp"):
+            Base.__init__(self, ra, ("hold", None, None), x_end, va0, vb0, "hold")
+            self.b_init(kind, vb0)
+
+        def step(self, t, xa, va, lat, xb, vb, seen_b, seen_a):
+            aa, ab = Base.step(self, t, xa, va, lat, xb, vb, seen_b, seen_a)
+            return aa, self.b_step(t, ab, seen_a[0], seen_a[1], seen_a[2], xb, vb)
+
+    class CZPMergeRulesAB(_BCZP, CZPMergeRules):
+        """Both cars czp (self-play)."""
+
+        def __init__(self, ra, rb, x_end, va0, vb0, b_cont="hold", kind="czp"):
+            CZPMergeRules.__init__(self, ra, ("hold", None, None), x_end, va0, vb0, "hold", kind)
+            self.b_init(kind, vb0)
+
+        def step(self, t, xa, va, lat, xb, vb, seen_b, seen_a):
+            aa, ab = CZPMergeRules.step(self, t, xa, va, lat, xb, vb, seen_b, seen_a)
+            return aa, self.b_step(t, ab, seen_a[0], seen_a[1], seen_a[2], xb, vb)
+
+    CZPMergeRules.B_ONLY, CZPMergeRules.BOTH = CZPMergeRulesB, CZPMergeRulesAB
     return CZPMergeRules
 
 
+MERGE_CZP_A = ("czp", "zipper", 0.6, False, "drop")  # merge_game rule tuples naming czp in A's / B's place
+MERGE_CZP_B = ("czp", None, None)
+
+
+def merge_rules_factory(kind="czp", cars=None):
+    """A merge_game.Rules factory: czp in the place whose rule is named "czp" (MERGE_CZP_A / MERGE_CZP_B), or
+    in the places named by cars ("A", "B", "AB"); the study's Rules otherwise."""
+    import merge_game as MG
+    orig = MG.Rules if not hasattr(MG, "_orig_rules") else MG._orig_rules
+    cls = make_merge_rules()
+
+    def make(ra, rb, x_end, va0, vb0, b_cont="hold"):
+        a = (cars is not None and "A" in cars) or ra[0] == "czp"
+        b = (cars is not None and "B" in cars) or rb[0] == "czp"
+        if a and b:
+            return cls.BOTH(ra, rb, x_end, va0, vb0, b_cont, kind)
+        if a:
+            return cls(ra, rb, x_end, va0, vb0, b_cont, kind)
+        if b:
+            return cls.B_ONLY(ra, rb, x_end, va0, vb0, b_cont, kind)
+        return orig(ra, rb, x_end, va0, vb0, b_cont)
+    return make
+
+
 @contextlib.contextmanager
-def patched_merge(kind="czp"):
-    """merge_game.Rules replaced by the czp merge for the next simulate (A is czp, B keeps its rule)."""
+def patched_merge(kind="czp", cars="A"):
+    """merge_game.Rules replaced by the czp merge for the next simulate (default: A is czp, B keeps its rule)."""
     import merge_game as MG
     orig = MG.Rules
-    cls = make_merge_rules()
-    MG.Rules = lambda ra, rb, x_end, va0, vb0, b_cont="hold": cls(ra, rb, x_end, va0, vb0, b_cont, kind)
+    MG._orig_rules = orig
+    MG.Rules = merge_rules_factory(kind, cars)
     try:
         yield
     finally:
         MG.Rules = orig
+        del MG._orig_rules

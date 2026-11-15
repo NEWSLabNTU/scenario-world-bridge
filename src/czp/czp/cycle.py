@@ -34,8 +34,10 @@ class Protocol:
         return self.mem.setdefault(zone_id, Memory())
 
     def step(self, t, own: Agent, others, zone: Zone, inputs: C.Inputs = None, exit_clear=True, obs_age=None,
-             placed=True):
-        """(decision, record or None). placed: the agents already carry their approach and s_entry / s_exit."""
+             placed=True, bystanders=()):
+        """(decision, record or None). placed: the agents already carry their approach and s_entry / s_exit.
+        bystanders: cars at the junction outside this zone's conflict set, each placed on its own zone: only their
+        events (start, entry, exit) are used, for the junction's quiet epoch."""
         t0 = time.perf_counter()
         p = self.params
         row = self.conv.get(zone.kind) or {}
@@ -51,7 +53,7 @@ class Protocol:
         stock, phantom, forced, _refuse = C.fallback(states)
         confl = [replace(a, phantom=True) if a.id in phantom else a for a in confl]
         # memory
-        mem = update_memory(self.memory(zone.id), t, own, confl, p, exit_clear)
+        mem = update_memory(self.memory(zone.id), t, own, confl, p, exit_clear, bystanders)
         # 3. intervals
         own_iv = own_interval(own, p)
         ivs = {a.id: other_interval(a, p) for a in confl}

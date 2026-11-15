@@ -19,7 +19,7 @@ from dataclasses import replace
 from .memory import ProbeState
 from .model import CREEP, GO, YIELD, Decision
 
-PROBED = ("round2", "cycle", "last_resort", "first_probe")
+PROBED = ("round2", "cycle", "last_resort", "first_probe", "rest_tie")
 
 
 def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=None):

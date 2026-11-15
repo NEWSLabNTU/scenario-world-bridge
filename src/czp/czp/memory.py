@@ -48,6 +48,8 @@ class AgentMemory:
     in_zone: Debounce = Debounce()  # in the zone (filtered: a noisy position at the line is not an entry)
     cleared: bool = False
     seen_since: Optional[float] = None
+    still_since: Optional[float] = None  # the stamp since which it has been below rest_speed anywhere (a queued car
+    #                                      behind another is at rest but not at its line; 078 V4's claim)
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class ProbeState:
 @dataclass
 class Memory:
     agents: dict = field(default_factory=dict)  # id -> AgentMemory
+    bystanders: dict = field(default_factory=dict)  # id -> AgentMemory: cars at the junction outside the conflict set
     own_rest_t: Optional[float] = None
     own_rest_s: Optional[float] = None
     own_moving_since: Optional[float] = None
@@ -103,14 +106,24 @@ def update_agent(m: AgentMemory, ag: Agent, t, params) -> tuple:
     in_zone = debounce(m.in_zone, ag.in_zone, ag.stamp, n)
     cleared = ag.cleared or m.cleared
     event = (moved.state and not m.moved.state) or (in_zone.state and not m.in_zone.state) or (cleared and not m.cleared)
+    still = m.still_since
+    if ag.v < params.rest_speed:
+        still = ag.stamp if still is None else still
+    elif ag.v >= params.moved_speed:
+        still = None
     return AgentMemory(rest_t, rest_s, rest_n, moved, stopping, in_zone, cleared,
-                       m.seen_since if m.seen_since is not None else t), event
+                       m.seen_since if m.seen_since is not None else t, still), event
 
 
-def update_memory(mem: Memory, t, own: Agent, others, params, exit_clear=True) -> Memory:
-    """Advance the memory by one cycle (a new Memory; the old one is left as it was)."""
+def update_memory(mem: Memory, t, own: Agent, others, params, exit_clear=True, bystanders=()) -> Memory:
+    """Advance the memory by one cycle (a new Memory; the old one is left as it was). bystanders: cars at the
+    junction that are not in this zone's conflict set (each relative to its own zone): their starts, entries
+    and exits are junction events too, so that every car's quiet epoch is the same up to e (078 V4: three
+    cars at a crossing, where A does not conflict with C but B waits for C; without C's events A's last
+    resort ran out before B's round two)."""
     new = Memory(**{k: getattr(mem, k) for k in mem.__dataclass_fields__})
     new.agents = dict(mem.agents)
+    new.bystanders = dict(mem.bystanders)
     if own.v < params.rest_speed and 0.0 < own.s_entry <= params.rest_window + 0.05:
         if new.own_rest_t is None:
             new.own_rest_t, new.own_rest_s = t, own.s_entry
@@ -121,6 +134,11 @@ def update_memory(mem: Memory, t, own: Agent, others, params, exit_clear=True) -
     for ag in others:
         am, ev = update_agent(mem.agents.get(ag.id, AgentMemory()), ag, t, params)
         new.agents[ag.id] = am
+        if ev:
+            new.last_event = max(new.last_event, t)
+    for ag in bystanders:
+        am, ev = update_agent(mem.bystanders.get(ag.id, AgentMemory()), ag, t, params)
+        new.bystanders[ag.id] = am
         if ev:
             new.last_event = max(new.last_event, t)
     if exit_clear and not mem.exit_clear:

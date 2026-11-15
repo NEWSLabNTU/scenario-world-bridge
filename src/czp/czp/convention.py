@@ -24,9 +24,9 @@ from typing import Optional
 from .band import band as band_of
 from .intervals import ZoneInterval, own_interval, other_interval
 from .memory import AgentMemory, Memory
-from .model import (AMBIG, AMBIGUOUS, CLEAR, CONTESTED, FIRST, GO, SECOND, STOCK,
+from .model import (AMBIG, AMBIGUOUS, BAND, CLEAR, CONTESTED, FIRST, GO, SECOND, STOCK,
                     STOPPED_FIRST, TIE, WAIT, WAIT_SECOND_ROUND, YIELD, Agent, Band, Decision, Role, Zone)
-from .role import map_order, right_of, role as role_of
+from .role import map_order, obstruction_side, right_of, role as role_of
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,9 @@ def tie_rule(rule, zone: Zone, own: Agent, other: Agent):
         return map_order(zone, own, other).reading == FIRST
     if rule in ("map_order", "zipper"):
         return map_order(zone, own, other).reading == FIRST
+    if rule == "obstruction_side":  # the free side first, then the map's order (078 V4: the narrow passage's
+        r = obstruction_side(zone, own, other)  # round two follows its first fact, else it undid the rest tie)
+        return r.reading == FIRST if r.reading != TIE else map_order(zone, own, other).reading == FIRST
     raise ValueError(f"unknown tie rule {rule}")
 
 
@@ -78,8 +81,47 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
         return Verdict(o.id, YIELD, True, "turn")  # in the zone, or seen moving off its line: it has the turn
     b = pv.band or band_of(own_iv, pv.iv, o, params, am.stopping.state, stop_law, am.rest_t is not None,
                            mode=row.get("band", "interval"), own=own)
+    if (not stop_law and row.get("rest_tie", False) and mem.own_rest_t is not None and own.v < params.rest_speed
+            and am.rest_t is not None and b.kind in (BAND, AMBIGUOUS)):
+        # 078 V4: both at rest at their lines is a tie, read the same by both (the rest is filtered memory): the
+        # row's role binds after the mutual stop (074 C7) and the priority car goes at once. Read from the
+        # noisy band instead, it flickered between ambiguous (wait) and band (the tie's go), and the late go
+        # raced an impatient car's restart (the arena's czp-in-B contacts at the crossing)
+        b = Band(BAND, None, b.slack_own, b.slack_other)
+        v = pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None)
+        if v.kind != GO:
+            return v
+        # the winner waits as the fresh-rest guard does (dwell + the other's launch + see_delay): a car that
+        # ignores the role and goes on a short patience (S2's 2 s) is seen starting first; then the probe
+        if params.fresh_rest_guard and t - am.rest_t < params.stop_dwell + o.cap.launch_dead + params.see_delay:
+            return Verdict(o.id, WAIT, False, "rest_tie_wait", b, v.role)
+        return Verdict(v.other, v.kind, v.hard, "rest_tie", v.band, v.role)
+    return pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b)
+
+
+def pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None):
+    """pair_verdict past the guards and the band: contested, clear, then the row's role."""
+    o, am = pv.other, pv.mem
     if b.kind == CONTESTED:
         return Verdict(o.id, YIELD, True, "contested", b)
+    v = _role_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age, b)
+    if v.kind == GO and row.get("claim"):
+        # 078 V4, the claim (design step 7): a go by arrival order or by the role, not out before the other could be
+        # in (the interval test), needs the other to have yielded: at rest at its line for the fresh-rest guard's
+        # time (dwell + its launch + see_delay), so that a restart of a car that stopped only for its safety layer,
+        # or that goes on a short patience, is seen first. A car that never yields (S4's go) met this one head-on
+        # in the long passage, and its safety layer's braking, read through noise, had passed for a yield
+        ib = band_of(own_iv, pv.iv, o, params, am.stopping.state, False, False, mode="interval")
+        if not (ib.kind == CLEAR and ib.who == own.id):
+            guard = params.stop_dwell + o.cap.launch_dead + params.see_delay
+            since = am.rest_t if am.rest_t is not None else am.still_since  # at its line, or at rest in a queue
+            if since is None or t - since < guard:
+                return Verdict(o.id, WAIT, False, "claim", b, v.role)
+    return v
+
+
+def _role_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age, b):
+    o, am = pv.other, pv.mem
     if b.kind == CLEAR:
         if b.who == own.id:
             return Verdict(o.id, GO, False, "clear", b)
@@ -96,6 +138,15 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
         r = role_of(first, zone, own, o, params, own_t_end=own_iv.t_in[1], other_t_end=pv.iv.nominal_in)
     else:
         r = role_of("map_priority", zone, own, o, params)
+    mode = row.get("band", "interval")
+    if r.reading == FIRST and b.kind == AMBIGUOUS and mode in ("entry", "gap") and first != STOPPED_FIRST:
+        # 078 V4: at the band's edge the other may read itself clear (its own reading of its lead is within 2e of
+        # this car's): this car's role-first go would meet its go. Go only when the other's lead, as read here,
+        # rules that out (< M - e); else wait (the other yields by its role or goes on its clear, and a mutual
+        # wait is the second round's)
+        m = params.band_margin_entry
+        if b.slack_other >= m - params.role_time_error_e - 1e-6:
+            return Verdict(o.id, WAIT, False, "ambiguous_band", b, r)
     if r.reading == FIRST:
         # 078 V2b: a car that has only just come to rest may be one that ignores arrival order (it starts after
         # its own stop); wait until its start would have been seen (dwell + its launch dead time + see_delay)
@@ -217,7 +268,15 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
         return Decision(GO, zone.id, "inside", row_name, committed=True), []
     if row.get("stop") and own.s_entry > 0 and (mem.own_rest_t is None or t - mem.own_rest_t < params.stop_dwell):
         return Decision(WAIT, zone.id, "stop", row_name), []
-    verdicts = [pair_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age) for pv in pairs]
+    # 078 V4: a car queued behind another of the conflict set on the same approach cannot reach the zone before
+    # that one (one lane): while its leader has not left, it is shadowed -- the leader's verdict stands for both
+    # (a queued car never stood at its line, so the claim's rest guard and the rounds would wait for it forever)
+    def shadowed(pv):
+        o = pv.other
+        return any(q.other.approach == o.approach and q.other.id != o.id and q.other.s_entry < o.s_entry - 1.0
+                   and not (q.other.cleared or q.mem.cleared) for q in pairs)
+    verdicts = [Verdict(pv.other.id, GO, False, "shadowed") if shadowed(pv) else
+                pair_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age) for pv in pairs]
     hard = [v for v in verdicts if v.kind != GO and v.hard]
     soft = [v for v in verdicts if v.kind != GO and not v.hard]
     if hard:
@@ -226,8 +285,8 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
     if not soft:
         if not exit_clear:
             return Decision(WAIT, zone.id, "exit", row_name), verdicts
-        reason = verdicts[0].reason if len(verdicts) == 1 else (
-            "first_probe" if any(v.reason == "first_probe" for v in verdicts) else "first")
+        reason = verdicts[0].reason if len(verdicts) == 1 else next(
+            (r for r in ("first_probe", "rest_tie") if any(v.reason == r for v in verdicts)), "first")
         return Decision(GO, zone.id, reason,
                         row_name, stock_equivalent=all(v.reason in ("clear", "cleared") for v in verdicts)), verdicts
     # soft waits only: the second round, the wait-for cycle, the last resort. These rounds are decided on

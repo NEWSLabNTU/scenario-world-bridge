@@ -161,6 +161,58 @@ def test_four_way_four_at_once_cycle_broken_by_map_order():
     assert goes == ["A"] and d["A"].reason == "cycle"
 
 
+def test_rest_tie_binds_after_a_mutual_stop():
+    """078 V4: at an unsignalled crossing both cars at rest at their lines read a tie the same way: the car on
+    the right (B) goes, after the fresh-rest guard's wait; A yields; neither reads the noisy band."""
+    z = Zone("x", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    ags = [car("A"), car("B")]
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - 0.1, quiet_since=-math.inf)
+    assert d["B"].kind != GO and d["A"].kind != GO
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard + 0.1, quiet_since=-math.inf)
+    assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
+
+
+def test_narrow_round_two_follows_the_obstruction():
+    """078 V4: the narrow passage's tie rule is the obstruction side (the free side first), then the map's order."""
+    from czp.convention import tie_rule
+    zn = Zone("n", "narrow_passage", (Approach("A", obstructed=True), Approach("B", heading=math.pi, order=1)))
+    a, b = car("A"), car("B")
+    assert not tie_rule("obstruction_side", zn, a, b) and tie_rule("obstruction_side", zn, b, a)
+    ze = Zone("n", "narrow_passage", (Approach("A"), Approach("B", heading=math.pi, order=1)))
+    assert tie_rule("obstruction_side", ze, a, b)  # equal sides: the map's order (A first)
+
+
+def test_narrow_claim_waits_for_the_other_to_yield():
+    """078 V4: at the narrow passage a go that needs the other to yield (by arrival, not out before it could be
+    in) waits until the other is seen at rest for the guard's time."""
+    zn = Zone("n", "narrow_passage", (Approach("A", obstructed=True), Approach("B", heading=math.pi, order=1)))
+    own = Agent("B", approach="B", s_entry=12.0, s_exit=12.0 + 36.0 + 4.79, v=6.0, cap=CAR)
+    o = Agent("A", approach="A", s_entry=20.0, s_exit=20.0 + 36.0 + 4.79, v=6.0, cap=CAR)
+    from czp.convention import PairView, pair_verdict
+    from czp.memory import AgentMemory
+    v = pair_verdict(CONV["narrow_passage"], zn, own, own_interval(own), PairView(o, other_interval(o, P), AgentMemory()),
+                     Memory(), P, 0.0)
+    assert v.kind == WAIT and v.reason == "claim"
+
+
+def test_bystander_events_restart_the_quiet_epoch():
+    """078 V4: a car outside the conflict set (the opposite arm at a crossing) starting or leaving is a junction
+    event: the round-two clock restarts."""
+    p = czp.Protocol(params=P)
+    z = Zone("x", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    own = car("A")
+    by_in = Agent("C", approach="C", s_entry=-1.0, s_exit=5.0, v=3.0, stamp=1.0, cap=CAR)
+    for k in range(4):
+        p.step(1.0 + 0.1 * k, own, [car("B", stamp=1.0 + 0.1 * k)], z, bystanders=[replace_stamp(by_in, 1.0 + 0.1 * k)])
+    assert p.mem["x"].last_event >= 1.0
+
+
+def replace_stamp(a, t):
+    from dataclasses import replace
+    return replace(a, stamp=t)
+
+
 def test_exit_box_blocks_go():
     z = four_way(2)
     d = decide_all(CONV, z, [car("A"), car("B")], {"A": 0.0, "B": 0.05}, P, t=3.0, quiet_since=-math.inf,

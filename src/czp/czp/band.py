@@ -14,6 +14,8 @@ from __future__ import annotations
 from .intervals import ZoneInterval, stop_need
 from .model import AMBIGUOUS, BAND, CLEAR, CONTESTED, INF, Agent, Band
 
+EPS = 1e-6  # s: the strict thresholds' tolerance (a lead read exactly at m - e is not inside the band)
+
 
 def contested(own_iv: ZoneInterval, other: Agent, other_iv: ZoneInterval, stopping: bool, params, stop_law=False,
               rested=False):
@@ -65,7 +67,7 @@ def band(own_iv: ZoneInterval, other_iv: ZoneInterval, other: Agent, params, sto
             return Band(CLEAR, own_iv.agent, slack_own, slack_other)
         if slack_other >= m + e:
             return Band(CLEAR, other.id, slack_own, slack_other)
-        if slack_own <= m - e and slack_other <= m - e:
+        if slack_own < m - e - EPS and slack_other < m - e - EPS:  # strict: see the entry mode's
             return Band(BAND, None, slack_own, slack_other)
         return Band(AMBIGUOUS, None, slack_own, slack_other)
     if mode == "entry":
@@ -84,6 +86,8 @@ def band(own_iv: ZoneInterval, other_iv: ZoneInterval, other: Agent, params, sto
         return Band(CLEAR, own_iv.agent, slack_own, slack_other)
     if slack_other >= m + e:
         return Band(CLEAR, other.id, slack_own, slack_other)
-    if slack_own <= m - e and slack_other <= m - e:
+    # entry mode (078 V4): band is strict, so that two readings within +-e of one lead never give one car "clear,
+    # I go" (>= m + e) and the other "band" (and its role's go): at a lead of exactly m both held
+    if (slack_own < m - e - EPS and slack_other < m - e - EPS) if mode == "entry" else (slack_own <= m - e and slack_other <= m - e):
         return Band(BAND, None, slack_own, slack_other)
     return Band(AMBIGUOUS, None, slack_own, slack_other)

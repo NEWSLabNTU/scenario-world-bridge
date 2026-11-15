@@ -13,6 +13,7 @@ all_way_stop:                     # 074 U3, C8 (e)
   commit: on_move                 # from rest at the line a go commits once the car moves (C8)
 cross_unsignalled:                # 074 S2, C7
   band: entry                     # outside the tie band the nearer car goes (S2), inside it the role
+  rest_tie: true                  # both at rest at their lines: a tie, the role binds after the stop (C7; 078 V4)
   first: map_priority             # major road goes
   tie: right_before_left
   last: map_order
@@ -23,8 +24,11 @@ merge_lane_drop:                  # 074 S3, C7
   last: map_order
 narrow_passage:                   # 074 S4
   band: entry
+  rest_tie: true
+  claim: true                     # a go before the other is out needs it at rest for the guard (078 V4)
   first: obstruction_side         # the obstructed side yields
-  tie: map_order
+  tie: obstruction_side           # round two too (078 V4); the map's order only between equal sides
+  last: map_order
 left_turn:                        # 074 S5
   first: map_priority             # the turner yields
   go_if: gap_ge_critical          # and the reach contract holds

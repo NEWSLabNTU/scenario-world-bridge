@@ -40,6 +40,12 @@ def have_package(name):
         return False
 
 
+# play_launch options per case. 2.0.0's agnocast_env.launch.py (included by its control and
+# perception launches) calls context.perform_substitution(EnvironmentVariable(...)), which
+# play_launch's Rust parser (0.35.0) cannot evaluate ("'EnvironmentVariable' object has no
+# attribute 'perform'"); its Python parser resolves it.
+PARSER = {"autoware_2.0.0": ["--parser", "python"]}
+
 VERSION = play_launch_version()
 needs_play_launch = pytest.mark.skipif(VERSION is None or VERSION < (0, 30, 0),
                                        reason=f"play_launch >= 0.30 needed (found {VERSION})")
@@ -48,6 +54,12 @@ CASES = {
     "autoware": ("autoware.launch.xml", ["autoware_sim_profile", "acb_bridge"],
                  ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
                   "sim:=carla", f"map_path:={MAP}"]),
+    # Autoware 2.0.0 (autoware_sim_profile's autoware_release:=2.0.0): runs where 2.0.0 is the
+    # installed Autoware (autoware_control_config exists only there), e.g. inside
+    # ghcr.io/autowarefoundation/autoware:universe-humble-2.0.0
+    "autoware_2.0.0": ("autoware.launch.xml", ["autoware_sim_profile", "acb_bridge", "autoware_control_config"],
+                       ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
+                        "sim:=carla", f"map_path:={MAP}", "autoware_release:=2.0.0"]),
     "autoware_isaac": ("autoware.launch.xml", ["autoware_sim_profile"],
                        ["entity:=ego", "relay:=tcp://localhost:5560", "vehicle:=tesla_model3",
                         "sim:=isaac", f"map_path:={MAP}"]),
@@ -75,7 +87,7 @@ def test_pilot_resolves_under_play_launch(kind, tmp_path):
         pytest.skip(f"not installed: {', '.join(missing)}")
     out = tmp_path / "model.yaml"
     p = subprocess.run(["play_launch", "dump", "-o", str(out), "launch",
-                        os.path.join(PILOTS, name), *args],
+                        os.path.join(PILOTS, name), *PARSER.get(kind, []), *args],
                        capture_output=True, text=True, timeout=600, cwd=str(tmp_path))
     tail = "\n".join((p.stdout + p.stderr).strip().splitlines()[-8:])
     assert p.returncode == 0 and out.is_file(), f"{kind}: play_launch refused {name}:\n{tail}"

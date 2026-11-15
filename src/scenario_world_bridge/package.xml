@@ -17,6 +17,10 @@
   <!-- The weather world services (rclrs node). rclrs itself is a crate, not a rosdep key. -->
   <depend>rcl</depend>
   <depend>swb_interfaces</depend>
+  <!-- rclrs 0.7 builds its vendored example_interfaces and test_msgs from the installed ROS
+       packages: Autoware 1.5.0's install has them, the 2.0.0 image does not. -->
+  <build_depend>example_interfaces</build_depend>
+  <build_depend>test_msgs</build_depend>
 
   <export>
     <build_type>ament_cargo</build_type>

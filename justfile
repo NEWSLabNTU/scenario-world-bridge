@@ -103,7 +103,11 @@ setup:
     # The packages colcon builds, not `--from-paths src`: rosdep's crawl walks into the
     # components' deps/ copies (COLCON_IGNORE does not stop it) and fails on their templates
     # ("@KIT@_description does not follow naming conventions").
-    rosdep install --from-paths $(colcon list --base-paths src -p) --ignore-src -y
+    # python-yamale-pip (SSv2's scenario_test_runner) resolves only from a rosdep source some
+    # hosts add (autonomoustuff's), not from rosdistro, so not in the Autoware 2.0.0 image: skipped
+    # here and installed with pip.
+    rosdep install --from-paths $(colcon list --base-paths src -p) --ignore-src -y --skip-keys python-yamale-pip
+    python3 -c "import yamale" &>/dev/null || pip install --user yamale
 
     # Developer extras
     rustup toolchain list | grep -q nightly || rustup toolchain install nightly

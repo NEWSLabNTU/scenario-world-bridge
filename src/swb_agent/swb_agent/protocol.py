@@ -341,10 +341,12 @@ def command(command_id, name, **args):
 
 
 def reply(command_id, status=OK, message="", state=None, registered=None, reset=None,
-          supervised=None, spec_hash=None, lost=None):
+          supervised=None, spec_hash=None, lost=None, lost_at=None):
     body = {"type": REPLY, "id": command_id, "status": status, "message": message}
     if lost:
         body["lost"] = lost   # a query's: the entity's goal is gone for good (G32)
+        if lost_at is not None:
+            body["lost_at"] = lost_at   # when (wall time, s)
     if spec_hash:
         body["spec_hash"] = spec_hash
     if registered is not None:

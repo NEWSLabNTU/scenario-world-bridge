@@ -411,3 +411,9 @@ Isaac's rear contact (inventory row 18).
   [the inventory, section 4](077-study/inventory.md#4-step-4-hand-out-2026-11-16): each
   item's host class (CARLA, CARLA + CUDA, two Autoware, Isaac, two hosts, private assets),
   its gaps still open, and whether it can be migrated now.
+- G32, a false alarm found live (2026-11-16): between suites on one stack the keeper
+  restarted the ego's pilot for a map switch; its last phase was DRIVING (the previous run
+  had ended there), so the relay marked it lost, and the next run (town02_ego_drive) ended
+  `error` at its first poll, its retry too. The relay now stamps when an entity went lost,
+  and the runner counts only a loss at or after its SSv2 started (a reset clears it in any
+  case). Test: test_a_goal_lost_before_the_run_began_is_not_this_runs.

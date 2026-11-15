@@ -180,7 +180,7 @@ class AgentServer:
         # registers anew (it went silent, or restarted); an entity whose goal is gone for
         # good is `lost`, which a commander's query reports (the runner ends the run).
         self._standing = {}  # entity -> {"goal": args or None, "speed": args or None}
-        self._lost = {}      # entity -> why its goal is gone
+        self._lost = {}      # entity -> (why its goal is gone, wall time it went)
         self._phases = {}    # entity -> the last phase its agent reported
         self.replay_wait = REPLAY_WAIT
         self._commanders = set()
@@ -288,7 +288,15 @@ class AgentServer:
         """Why the entity's goal is gone (its agent registered again and the goal could not
         be handed back), else None."""
         with self._lock:
-            return self._lost.get(entity)
+            got = self._lost.get(entity)
+        return got[0] if got else None
+
+    def lost_at(self, entity):
+        """When (wall time, s) the entity's goal went, else None: a commander that started
+        after it (the next run) is not ending its run for an earlier loss."""
+        with self._lock:
+            got = self._lost.get(entity)
+        return got[1] if got else None
 
     def _replay(self, session, standing, phase):
         """A re-registered agent of an entity with a standing goal gets it again, its speed
@@ -315,7 +323,7 @@ class AgentServer:
             why = (f"its agent registered again (it was {phase}) and refused its goal "
                    f"handed back: {status or 'no reply'}" + (f" {message}" if message else ""))
         with self._lock:
-            self._lost[entity] = why
+            self._lost[entity] = (why, time.time())
         self.log.warning(f"entity {entity!r}: goal lost: {why}")
 
     # -- threads ------------------------------------------------------------------------
@@ -454,7 +462,8 @@ class AgentServer:
                                        reset=(self.last_reset(entity)
                                               if commander.version >= 2 else None),
                                        supervised=supervised, spec_hash=session.spec_hash,
-                                       lost=self.lost(entity)))
+                                       lost=self.lost(entity),
+                                       lost_at=self.lost_at(entity)))
         elif kind == P.COMMAND_FOR:
             # Its own thread: a slow agent must not hold up the commander's other requests.
             threading.Thread(target=self._command_for, args=(commander, message),
@@ -514,7 +523,7 @@ class AgentServer:
             why = (f"its agent registered again while {phase}, and the relay holds no goal "
                    "to hand back")
             with self._lock:
-                self._lost[entity] = why
+                self._lost[entity] = (why, time.time())
             self.log.warning(f"entity {entity!r}: goal lost: {why}")
         self.log.info(f"entity {entity!r}: agent {session.agent or '?'} registered from "
                       f"{address[0]}:{address[1]}, protocol v{session.version} (capabilities: "

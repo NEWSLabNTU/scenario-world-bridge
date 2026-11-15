@@ -2,6 +2,7 @@
 restarted) is handed its goal and speed limit back; when that fails the entity is `lost`
 and a commander's query says why (the runner ends the run with it)."""
 import threading
+import time
 
 import pytest
 
@@ -87,6 +88,7 @@ def test_a_goal_refused_on_the_way_back_is_lost_and_the_query_says_why(server):
     while r.get("id") != 7:
         r = c.recv()
     assert "no route from here" in r["lost"]
+    assert abs(r["lost_at"] - time.time()) < 10
     b.close()
     c.close()
 

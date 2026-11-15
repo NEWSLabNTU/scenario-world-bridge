@@ -693,9 +693,11 @@ def release_turn(ctx: Context):
 LOST_POLL = 2.0   # s between the runner's questions to the relay while SSv2 runs (G32)
 
 
-def lost_goals(rec: dict, entities) -> dict:
-    """``{entity: why}`` for the entities whose goal the relay says is gone for good (their
-    agent registered again and could not be handed it back; roadmap 077, G32)."""
+def lost_goals(rec: dict, entities, since: float = 0.0) -> dict:
+    """``{entity: why}`` for the entities whose goal the relay says went for good at or after
+    ``since`` (wall time; their agent registered again and could not be handed it back;
+    roadmap 077, G32). An earlier loss is another run's: a pilot the stack restarted between
+    runs (a map switch) registers again before this run's episode begins."""
     if not entities:
         return {}
     try:
@@ -707,7 +709,8 @@ def lost_goals(rec: dict, entities) -> dict:
         with Commander(f"tcp://localhost:{rec['ports']['relay']}", "swb-run", timeout=3.0) as c:
             for e in entities:
                 reply = c.query(e)
-                if isinstance(reply, dict) and reply.get("lost"):
+                if isinstance(reply, dict) and reply.get("lost") and \
+                        float(reply.get("lost_at") or 0.0) >= since:
                     out[e] = reply["lost"]
     except (CommanderError, OSError):
         return {}
@@ -718,13 +721,14 @@ def wait_ssv2(proc, limit: float, rec: dict, entities, probe=lost_goals) -> tupl
     """``(exit code or None, lost)``: SSv2 waited for up to ``limit`` s, the relay asked every
     LOST_POLL s whether a pilot's goal is gone; SSv2 is stopped at the limit or when one is,
     rather than left to wait for its own timeout."""
-    end = time.time() + limit
+    start = time.time()
+    end = start + limit
     while True:
         try:
             return proc.wait(timeout=max(0.0, min(LOST_POLL, end - time.time()))), {}
         except subprocess.TimeoutExpired:
             pass
-        lost = probe(rec, entities)
+        lost = probe(rec, entities, start)
         if lost or time.time() >= end:
             _stop(proc)
             return None, lost

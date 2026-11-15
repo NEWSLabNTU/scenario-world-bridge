@@ -1042,7 +1042,7 @@ def test_wait_ssv2_stops_it_when_the_relay_says_a_goal_is_lost():
                             start_new_session=True)   # as run._start: its own group
     calls = []
 
-    def probe(rec, entities):
+    def probe(rec, entities, since):
         calls.append(list(entities))
         return {"ego": "its agent registered again (it was DRIVING) and refused its goal"} \
             if len(calls) >= 2 else {}
@@ -1055,6 +1055,27 @@ def test_wait_ssv2_stops_it_when_the_relay_says_a_goal_is_lost():
     assert run.wait_ssv2(quick, 30, {}, ["ego"], lambda *a: {}) == (0, {})
 
 
+def test_a_goal_lost_before_the_run_began_is_not_this_runs(monkeypatch):
+    """Seen live 2026-11-16: the keeper restarted the ego's pilot for a map switch between
+    runs, the relay marked it lost (its last phase was DRIVING), and the next run ended error
+    at its first poll. A loss older than this run's SSv2 is ignored."""
+    import types
+    replies = {"ego": {"registered": True, "lost": "gone", "lost_at": 100.0}}
+
+    class C:
+        def __init__(self, *a, **k):
+            pass
+        __enter__ = lambda self: self
+        __exit__ = lambda self, *e: None
+        query = lambda self, e: replies[e]
+    fake = types.ModuleType("swb_agent.commander")
+    fake.Commander, fake.CommanderError = C, RuntimeError
+    monkeypatch.setitem(sys.modules, "swb_agent.commander", fake)
+    rec = {"ports": {"relay": 1}}
+    assert run.lost_goals(rec, ["ego"], since=200.0) == {}
+    assert run.lost_goals(rec, ["ego"], since=50.0) == {"ego": "gone"}
+
+
 def test_a_lost_goal_ends_the_run_error_with_the_relays_reason(live, where):
     d, _ = live
     sleeper = where["tmp"] / "sleeper.py"
@@ -1062,6 +1083,6 @@ def test_a_lost_goal_ends_the_run_error_with_the_relays_reason(live, where):
     lost = {"ego": "its agent registered again (it was DRIVING) and reported no state"}
     r = api.run_one(d, "scenarios/three_pilots.xosc",
                     {"scenario_command": lambda *a: [sys.executable, str(sleeper)],
-                     "lost_probe": lambda rec, entities: lost if "ego" in entities else {}})
+                     "lost_probe": lambda rec, entities, since: lost if "ego" in entities else {}})
     assert r.verdict == results.ERROR
     assert "pilot ego: its agent registered again (it was DRIVING)" in r.reason

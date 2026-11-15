@@ -26,6 +26,13 @@
   <arg name="vehicle_model" default="none" description="Autoware's vehicle model (the profile's): its description's spec_hash.yaml is the spec the agent registers with; none = no spec_hash (not empty: rcl refuses an empty parameter)"/>
   <arg name="spec_hash_file" default="" description="a YAML with key spec_hash the agent registers with, instead of vehicle_model's description package (a car from another repository); empty = vehicle_model's"/>
   <arg name="user_launch" default="" description="a launch file of your own to start beside this vehicle side; empty = none"/>
+  <!-- The conflict-zone protocol (roadmap 078 I4): czp's interaction_strategy node beside
+       Autoware, in this (the ego's) domain. Off by default; on, it puts the RTC modules it drives
+       in manual mode only while it holds a decision that is not stock's. -->
+  <arg name="interaction_strategy" default="false" description="true: run czp's interaction_strategy node (roadmap 078)"/>
+  <arg name="interaction_strategy_zones" default="" description="czp-zones' zones.yaml for this map; empty = map_path/czp_zones.yaml, else built from the map"/>
+  <arg name="interaction_strategy_modules" default="[intersection]" description="the RTC modules the node drives"/>
+  <arg name="interaction_strategy_log" default="" description="a file for the decision records (JSON lines); empty = topic only"/>
 
   <!-- Two node blocks rather than one with optional params: an empty string parameter is
        written as "-p name:=", which rcl rejects. -->
@@ -41,6 +48,15 @@
         if="$(eval '&quot;$(var relay)&quot; == &quot;&quot; and &quot;$(var goal_poses_file)&quot; != &quot;&quot;')">
     <param name="goal_poses_file" value="$(var goal_poses_file)"/>
     <param name="agent_config" value="$(var agent_config)"/>
+  </node>
+
+  <node pkg="czp" exec="interaction_strategy" name="interaction_strategy" output="screen"
+        if="$(var interaction_strategy)">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="map_path" value="$(eval &quot;'$(var map_path)' if '$(var map_path)' != '' else 'none'&quot;)"/>
+    <param name="zones_file" value="$(eval &quot;'$(var interaction_strategy_zones)' if '$(var interaction_strategy_zones)' != '' else 'none'&quot;)"/>
+    <param name="modules" value="$(var interaction_strategy_modules)"/>
+    <param name="record_log" value="$(eval &quot;'$(var interaction_strategy_log)' if '$(var interaction_strategy_log)' != '' else 'none'&quot;)"/>
   </node>
 
   <group if="$(eval '&quot;$(var user_launch)&quot; != &quot;&quot;')">

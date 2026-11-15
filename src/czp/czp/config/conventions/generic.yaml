@@ -12,14 +12,17 @@ all_way_stop:                     # 074 U3, C8 (e)
   probe_round2: true              # creep about 0.5 m, then watch, before a round-2 go (C8)
   commit: on_move                 # from rest at the line a go commits once the car moves (C8)
 cross_unsignalled:                # 074 S2, C7
+  band: entry                     # outside the tie band the nearer car goes (S2), inside it the role
   first: map_priority             # major road goes
   tie: right_before_left
   last: map_order
 merge_lane_drop:                  # 074 S3, C7
+  band: entry
   first: ahead_at_end
   congested: zipper
   last: map_order
 narrow_passage:                   # 074 S4
+  band: entry
   first: obstruction_side         # the obstructed side yields
   tie: map_order
 left_turn:                        # 074 S5

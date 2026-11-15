@@ -63,6 +63,7 @@ class ZoneInterval:
     nominal_in: float  # constant-speed entry (INF at rest)
     can_stop: bool  # it can still stop before the zone at its braking bound
     reason: str = "track"
+    proceed_in: float = INF  # its go-now entry (INF at rest)
 
 
 def own_interval(own: Agent, params=None, at_rest_v=0.1):
@@ -71,13 +72,13 @@ def own_interval(own: Agent, params=None, at_rest_v=0.1):
     dead = c.launch_dead if own.v < at_rest_v else 0.0
     a_go = c.a_launch if own.v < at_rest_v else c.a_max
     if own.cleared:
-        return ZoneInterval(own.id, (0.0, 0.0), (0.0, 0.0), 0.0, 0.0, False, "own")
+        return ZoneInterval(own.id, (0.0, 0.0), (0.0, 0.0), 0.0, 0.0, False, "own", 0.0)
     e_in = t_cover(own.s_entry, own.v, c.v_max, c.a_max)
     l_in = t_cover(own.s_entry, own.v, c.v_max, a_go, dead)
     e_out = t_cover(own.s_exit, own.v, c.v_max, c.a_max)
     l_out = t_cover(own.s_exit, own.v, c.v_max, a_go, dead)
     return ZoneInterval(own.id, (e_in, l_in), (e_out, l_out), l_out, own.s_entry / own.v if own.v > 0.1 else INF,
-                        own.s_entry > 0 and stop_need(own.s_entry, own.v) <= c.b_bound, "own")
+                        own.s_entry > 0 and stop_need(own.s_entry, own.v) <= c.b_bound, "own", l_in)
 
 
 def other_interval(ag: Agent, params, at_rest_v=0.1):
@@ -102,8 +103,9 @@ def other_interval(ag: Agent, params, at_rest_v=0.1):
     # if it goes now: its own go-now exit (as it computes its own interval, from its class's capability),
     # so that this car's "clear for the other" and the other's "clear for me" read the same quantity
     proceed = INF if ag.v < at_rest_v else t_cover(ag.s_exit, ag.v, c.v_max, c.a_max)
+    p_in = INF if ag.v < at_rest_v else (0.0 if ag.s_entry <= 0 else t_cover(ag.s_entry, ag.v, c.v_max, c.a_max))
     nominal = 0.0 if ag.s_entry <= 0 else (ag.s_entry / ag.v if ag.v > 0.1 else INF)
-    return ZoneInterval(ag.id, (e_in, l_in), (e_out, l_out), proceed, nominal, can_stop, reason)
+    return ZoneInterval(ag.id, (e_in, l_in), (e_out, l_out), proceed, nominal, can_stop, reason, p_in)
 
 
 def intervals(agent: Agent, zone_id, params, own=False):

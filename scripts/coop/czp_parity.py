@@ -207,7 +207,7 @@ def s3_context(job):
     lags = X.car_lags()
     row = MG.context((d_end, d0, dv, vb, lags))
     out = {"d_end": d_end, "d0": d0, "dv": dv, "vb": vb, "ref_class": row["class"]}
-    ra = next(r for r in MG.A_RULES if r[0] == "z0.6d")
+    ra = next(r for r in MG.A_RULES if r[0] == "z0.6d")  # the zipper's timing; czp decides the merge ahead
     for kind in ("czp",):
         res = {}
         for rb in MG.B_RULES:

@@ -23,7 +23,7 @@ def zone_from_dict(d):
 
 def load_zones(path):
     """(the file's header, [Zone]) from a zones.yaml."""
-    raw = yaml.safe_load(open(path))
+    raw = yaml.load(open(path), Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
     zones = [zone_from_dict(z) for j in raw.get("junctions", []) for z in j["zones"]]
     head = {k: v for k, v in raw.items() if k != "junctions"}
     return head, zones

@@ -34,11 +34,20 @@ def contested(own_iv: ZoneInterval, other: Agent, other_iv: ZoneInterval, stoppi
 
 
 def band(own_iv: ZoneInterval, other_iv: ZoneInterval, other: Agent, params, stopping=False, stop_law=False,
-         rested=False, margin=None, e=None):
-    m = params.band_margin if margin is None else margin
+         rested=False, margin=None, e=None, mode="interval"):
+    """mode "interval" (the design's test: one's latest exit before the other's earliest entry, margin
+    band_margin) or "entry" (the arrival order: one's latest entry before the other's earliest entry,
+    margin band_margin_entry; the later car yields, as the studies' nearer-car-first outside the
+    tie band, 074 S2: |dt| <= 0.2 s)."""
     e = params.role_time_error_e if e is None else e
-    slack_own = other_iv.t_in[0] - own_iv.t_out[1]  # I am out before it could be in
-    slack_other = own_iv.t_in[0] - other_iv.proceed_out  # it is out (if it keeps going) before I could be in
+    if mode == "entry":
+        m = params.band_margin_entry if margin is None else margin
+        slack_own = other_iv.t_in[0] - own_iv.t_in[1]  # I am in before it could be
+        slack_other = own_iv.t_in[0] - other_iv.proceed_in  # it is in (going now) before I could be
+    else:
+        m = params.band_margin if margin is None else margin
+        slack_own = other_iv.t_in[0] - own_iv.t_out[1]  # I am out before it could be in
+        slack_other = own_iv.t_in[0] - other_iv.proceed_out  # it is out (if it keeps going) before I could be in
     if other.cleared:
         return Band(CLEAR, own_iv.agent, INF, INF)
     if contested(own_iv, other, other_iv, stopping, params, stop_law, rested) and slack_own < m + e:

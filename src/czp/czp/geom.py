@@ -5,22 +5,49 @@ from __future__ import annotations
 import math
 
 
+_CUM = {}
+
+
+def _cum(pts):
+    c = _CUM.get(id(pts))
+    if c is None or c[0] is not pts:
+        acc, out = 0.0, [0.0]
+        for (x0, y0), (x1, y1) in zip(pts[:-1], pts[1:]):
+            acc += math.hypot(x1 - x0, y1 - y0)
+            out.append(acc)
+        c = _CUM[id(pts)] = (pts, out)
+    return c[1]
+
+
 def polyline_project(pts, x, y):
-    """(arc length of the nearest point on the polyline, signed lateral offset (left +), heading there)."""
+    """(arc length of the nearest point on the polyline, signed lateral offset (left +), heading there).
+    The nearest vertex first, then the two segments beside it (exact for polylines sampled finer than
+    their curvature, as czp-zones' are)."""
+    n = len(pts)
+    if n < 2:
+        return 0.0, 0.0, 0.0
+    cum = _cum(pts)
+    bi, bd = 0, math.inf
+    for i in range(n):
+        px, py = pts[i]
+        d = (px - x) * (px - x) + (py - y) * (py - y)
+        if d < bd:
+            bi, bd = i, d
     best = (math.inf, 0.0, 0.0, 0.0)
-    s0 = 0.0
-    for (x0, y0), (x1, y1) in zip(pts[:-1], pts[1:]):
-        dx, dy = x1 - x0, y1 - y0
-        seg = math.hypot(dx, dy)
-        if seg < 1e-9:
+    for j in (bi - 1, bi):
+        if j < 0 or j + 1 >= n:
             continue
-        u = max(0.0, min(1.0, ((x - x0) * dx + (y - y0) * dy) / (seg * seg)))
+        (x0, y0), (x1, y1) = pts[j], pts[j + 1]
+        dx, dy = x1 - x0, y1 - y0
+        seg2 = dx * dx + dy * dy
+        if seg2 < 1e-18:
+            continue
+        u = max(0.0, min(1.0, ((x - x0) * dx + (y - y0) * dy) / seg2))
         px, py = x0 + u * dx, y0 + u * dy
         d = math.hypot(x - px, y - py)
         if d < best[0]:
-            lat = (dx * (y - y0) - dy * (x - x0)) / seg
-            best = (d, s0 + u * seg, lat, math.atan2(dy, dx))
-        s0 += seg
+            seg = math.sqrt(seg2)
+            best = (d, cum[j] + u * seg, (dx * (y - y0) - dy * (x - x0)) / seg, math.atan2(dy, dx))
     return best[1], best[2], best[3]
 
 

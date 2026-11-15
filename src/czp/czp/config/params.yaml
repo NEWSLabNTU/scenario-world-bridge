@@ -9,7 +9,8 @@ second_round_H2:          {value: 2.0,  unit: s, source: "074 C8 V1: H2 >= e + 1
 last_resort_extra:        {value: 1.7,  unit: s, source: "074 C8 (e): H3 = H2 + T + m + e + 1.7 s", heldout: null}
 stop_dwell:               {value: 1.0,  unit: s, source: "074 U3 (STOP_DWELL); the law's full stop", heldout: null}
 zone_guard_margin:        {value: 0.5,  unit: s, source: "074 C8 (FM_ZONE_MG)", heldout: null}
-band_margin:              {value: 1.0,  unit: s, source: "assumed: 074 C7's conflict window |dt| <~ 1 s", heldout: null}
+band_margin:              {value: 1.0,  unit: s, source: "assumed: 074 C7's conflict window |dt| <~ 1 s (the interval test: exit before entry)", heldout: null}
+band_margin_entry:        {value: 0.2,  unit: s, source: "074 S2 / S4: the tie band |dt| <= 0.2 s (the entry test: arrival order)", heldout: null}
 far_distance:             {value: 60.0, unit: m, source: "074 C8 (fcfsm's far test)", heldout: null}
 far_time:                 {value: 2.0,  unit: s, source: "074 C8 (fcfsm's far test)", heldout: null}
 rest_speed:               {value: 0.1,  unit: m/s, source: "074 U3 (a car below this at its line is at rest)", heldout: null}

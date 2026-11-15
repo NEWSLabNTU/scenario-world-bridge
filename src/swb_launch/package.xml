@@ -15,6 +15,8 @@
   <exec_depend>acb_launch</exec_depend>
   <exec_depend>autoware_sim_profile</exec_depend>
   <exec_depend>swb_agent</exec_depend>
+  <!-- vehicle_agent.launch.xml: interaction_strategy:=true (roadmap 078) -->
+  <exec_depend>czp</exec_depend>
   <!-- swb.launch.py: the project, seat and pilots plan (swb.stack) -->
   <exec_depend>swb</exec_depend>
   <exec_depend>scenario_test_runner</exec_depend>

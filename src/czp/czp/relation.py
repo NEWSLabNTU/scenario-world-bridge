@@ -22,26 +22,49 @@ LATERAL_MATCH = 2.0  # m from an approach's centreline
 HEADING_MATCH = math.radians(45)
 
 
-def match_approach(zone: Zone, x, y, yaw):
-    """(approach, arc length, lateral) of the zone approach this pose drives on, or (None, ...)."""
+_BBOX = {}
+
+
+def _bbox(ap):
+    b = _BBOX.get(id(ap))
+    if b is None:
+        xs, ys = [p[0] for p in ap.centerline], [p[1] for p in ap.centerline]
+        b = _BBOX[id(ap)] = (min(xs) - LATERAL_MATCH, min(ys) - LATERAL_MATCH, max(xs) + LATERAL_MATCH,
+                             max(ys) + LATERAL_MATCH, ap)
+    return b
+
+
+def match_approach(zone: Zone, x, y, yaw, cache=None, key=None):
+    """(approach, arc length, lateral) of the zone approach this pose drives on, or (None, ...).
+    cache (a dict, kept for one cycle) with key (the agent's id) memoises the projection per approach:
+    the zones of a junction share their approaches."""
     best = (None, 0.0, math.inf)
     for ap in zone.approaches:
         if len(ap.centerline) < 2:
             continue
-        s, lat, h = polyline_project(ap.centerline, x, y)
+        b = _bbox(ap)
+        if not (b[0] <= x <= b[2] and b[1] <= y <= b[3]):
+            continue
+        ck = (key, ap.lanelet if ap.lanelet is not None else ap.id, id(ap)) if cache is not None else None
+        if ck is not None and ck in cache:
+            s, lat, h = cache[ck]
+        else:
+            s, lat, h = polyline_project(ap.centerline, x, y)
+            if ck is not None:
+                cache[ck] = (s, lat, h)
         dh = abs(math.atan2(math.sin(yaw - h), math.cos(yaw - h)))
         if abs(lat) <= LATERAL_MATCH and dh <= HEADING_MATCH and abs(lat) < best[2]:
             best = (ap, s, abs(lat))
     return best
 
 
-def place(zone: Zone, ag: Agent, approach=None):
+def place(zone: Zone, ag: Agent, approach=None, cache=None):
     """The agent with its approach and its s_entry / s_exit at the zone, from its pose (or unchanged)."""
     if ag.pose is None:
         return ag
     x, y, yaw = ag.pose
     if approach is None:
-        ap, s, _ = match_approach(zone, x, y, yaw)
+        ap, s, _ = match_approach(zone, x, y, yaw, cache, ag.id)
     else:
         ap = zone.approach(approach)
         s, _, _ = polyline_project(ap.centerline, x, y)
@@ -51,7 +74,7 @@ def place(zone: Zone, ag: Agent, approach=None):
     return replace(ag, approach=ap.id, s_entry=ap.entry_s - (s + half), s_exit=ap.exit_s - (s - half))
 
 
-def relate(agents, own: Agent, zones, route=(), horizon=8.0):
+def relate(agents, own: Agent, zones, route=(), horizon=8.0, cache=None):
     """Step 2. {zone id: [(Relation, agent placed at that zone)]} for the zones on the own route.
     A zone is on the route when one of its approaches' lanelets is in ``route`` (lanelet ids), or when the
     own agent already carries the approach (the arena)."""
@@ -71,7 +94,7 @@ def relate(agents, own: Agent, zones, route=(), horizon=8.0):
             placed = ag
             if ag.approach is None or not any(a.id == ag.approach for a in z.approaches):
                 ap = next((a for a in z.approaches if ag.lanelet is not None and a.lanelet == ag.lanelet), None)
-                placed = place(z, ag, ap.id if ap is not None else None)
+                placed = place(z, ag, ap.id if ap is not None else None, cache)
             if placed.approach is None:
                 if ag.pose is not None and z.polygon and _path_hits(ag, z, horizon):
                     rel.append((Relation(ag.id, z.id, CROSS), _nearest_heading(z, ag)))

@@ -322,6 +322,9 @@ def make_merge_rules():
         its wake (the study's drop). B keeps its own rule. Positions are measured to the lane's end."""
 
         def __init__(self, ra, rb, x_end, va0, vb0, b_cont="hold", kind="czp"):
+            # A's own gap acceptance off (tau inf): czp decides the merge ahead; the merge into B's wake
+            # and the drop at the deadline stay the study's (zipper timing)
+            ra = (ra[0], ra[1], math.inf, False, "drop")
             super().__init__(ra, rb, x_end, va0, vb0, b_cont)
             self.core = CZPCore("A", kind, CM.MERGE_LANE_DROP, va0, MG.L, MG.L)
             self.core.other_cap = self.core.params.capability("car", v_max=vb0, length=MG.L)
@@ -330,7 +333,7 @@ def make_merge_rules():
             self.last_dec = None
 
         def step(self, t, xa, va, lat, xb, vb, seen_b, seen_a):
-            if self.decide is None:
+            if self.decide is None and not self.dropping:
                 xb_s, vb_s, ab_s = seen_b
                 age = MG.OBS + MG.DECIDE
                 u_a = -(self.x_end - xa)  # the front's position past the lane's end
@@ -338,11 +341,12 @@ def make_merge_rules():
                 dec = self.core.decide(t, u_a, va, self.a_prev, (t - age, u_b, vb_s, ab_s))
                 self.last_dec = dec
                 gap_ahead = (xa - MG.L) - xb_s
-                if dec.kind in (CM.GO, CM.STOCK) and not self.dropping:
-                    if gap_ahead >= MG.BUFFER + vb_s * MG.TAUS[0]:
-                        self.decide = t
-                elif dec.kind in CM.STOPPING:
-                    self.dropping = True
+                # go: A is ahead at the end (or clear): merge ahead once the study's gap fits; yield or
+                # wait: keep the lane (the study's zipper merges into B's wake, or drops at the deadline)
+                deadline = self.x_end - xa <= MG.lane_change_dist(va)
+                fits = gap_ahead >= MG.BUFFER + vb_s * MG.TAUS[0] or (deadline and gap_ahead >= MG.BUFFER)
+                if dec.kind in (CM.GO, CM.STOCK) and fits:
+                    self.decide = t  # at the deadline A, ahead at the end, claims its slot (B's turn is behind)
             aa, ab = super().step(t, xa, va, lat, xb, vb, seen_b, seen_a)
             self.a_prev = aa
             return aa, ab

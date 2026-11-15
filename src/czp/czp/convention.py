@@ -76,7 +76,8 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
         return Verdict(o.id, GO, False, "cleared")
     if o.in_zone or am.moved.state:
         return Verdict(o.id, YIELD, True, "turn")  # in the zone, or seen moving off its line: it has the turn
-    b = pv.band or band_of(own_iv, pv.iv, o, params, am.stopping.state, stop_law, am.rest_t is not None)
+    b = pv.band or band_of(own_iv, pv.iv, o, params, am.stopping.state, stop_law, am.rest_t is not None,
+                           mode=row.get("band", "interval"))
     if b.kind == CONTESTED:
         return Verdict(o.id, YIELD, True, "contested", b)
     if b.kind == CLEAR:

@@ -30,6 +30,10 @@ DEFAULTS = {
     "carla": {"root": "", "host": "localhost", "port": 2000, "start": "auto",
               "ready_timeout": 300},
     "isaac": {"root": ""},
+    # dds.profile: a Cyclone DDS XML for every process of the stack and every tool that talks
+    # to it (a host whose network needs another, e.g. unicast on loopback); "": swb_launch's
+    # localhost profile (roadmap 077, G15)
+    "dds": {"profile": ""},
     # the autoware pilot's environment, as `just ego-av` builds it (roadmap 077, G1); empty
     # paths: the workspace's own third_party/ builds, when there
     "autoware": {"setup": "/opt/autoware/1.5.0/setup.bash", "overlay": "",
@@ -102,6 +106,30 @@ or a directory in it (``pkg://swb_examples/projects/first_drive``)."""
             return d
     raise ConfigError(f"no {PROJECT_FILE} in {p} or above: run `ros2 run swb project new <dir>`"
                       " or give project:=<dir>")
+
+
+def package_project(project) -> str:
+    """The installed package whose share holds ``project`` (``pkg://`` or a path into an
+    install's ``share/``), else "". Such a project is read-only: it is copied to run
+    (``project new --from pkg://...``), so its lock, assets, state and runs are the copy's."""
+    p = str(project)
+    for prefix in (x for x in os.environ.get("AMENT_PREFIX_PATH", "").split(":") if x):
+        share = os.path.join(prefix, "share") + os.sep
+        if p.startswith(share):
+            return p[len(share):].split(os.sep)[0]
+    return ""
+
+
+def writable_project(project) -> Path:
+    """``project``, or ConfigError when it is an installed package's (``package_project``)."""
+    pkg = package_project(project)
+    if pkg:
+        sub = str(project).split(os.sep + "share" + os.sep + pkg, 1)[-1].strip(os.sep)
+        src = f"pkg://{pkg}" + (f"/{sub}" if sub else "")
+        raise ConfigError(f"{project} is installed with the package {pkg}, read-only: copy it "
+                          f"and run the copy (`ros2 run swb project new <dir> --from {src}`); "
+                          "its lock, assets, state and runs are then the copy's")
+    return Path(project)
 
 
 def host_settings(project: Path = None, overrides: dict = None) -> dict:

@@ -62,3 +62,28 @@ def test_write_user_setting(dirs):
     config.write_user_setting("seat", 3)
     s = config.host_settings()
     assert s["seat"] == 3 and s["gpu"] == 1
+
+
+def test_a_package_project_is_read_only_and_named_with_its_copy(tmp_path, monkeypatch):
+    """roadmap 077, G15: a project inside an installed package's share is copied to run."""
+    from swb import config
+    prefix = tmp_path / "install" / "golfcart_twin"
+    proj = prefix / "share" / "golfcart_twin" / "projects" / "route1"
+    proj.mkdir(parents=True)
+    monkeypatch.setenv("AMENT_PREFIX_PATH", f"/nowhere:{prefix}")
+    assert config.package_project(proj) == "golfcart_twin"
+    assert config.package_project(tmp_path / "mine") == ""
+    try:
+        config.writable_project(proj)
+        raise AssertionError("not refused")
+    except config.ConfigError as e:
+        assert "--from pkg://golfcart_twin/projects/route1" in str(e)
+    assert config.writable_project(tmp_path / "mine") == tmp_path / "mine"
+
+
+def test_the_dds_profile_is_a_host_setting():
+    from swb import config, seat
+    assert config.DEFAULTS["dds"] == {"profile": ""}
+    assert seat.cyclone_profile({"dds": {"profile": "~/unicast-lo.xml"}}) == \
+        Path("~/unicast-lo.xml").expanduser()
+    assert seat.cyclone_profile({"dds": {"profile": ""}}).name == seat.CYCLONE_PROFILE

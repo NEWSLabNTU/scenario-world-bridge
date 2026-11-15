@@ -735,6 +735,7 @@ def main(argv=None):
             return 0
         project = config.find_project(args.project)
         if args.cmd == "fetch":
+            config.writable_project(project)
             fetch(project, update=args.update)
             return 0
         findings = check(project)

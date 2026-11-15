@@ -340,7 +340,7 @@ def stack_argv(project: Path, host: dict, seat: int, log_dir: Path) -> list:
     return argv
 
 
-def stack_env(s, base=None) -> dict:
+def stack_env(s, base=None, host=None) -> dict:
     """The stack's play_launch environment: this one, on the seat's scenario domain and the
     stack's DDS (roadmap 077, G28). Its nodes set the same, so play_launch's DDS check
     compares them with what they share rather than with the terminal's (often Autoware's
@@ -349,7 +349,7 @@ def stack_env(s, base=None) -> dict:
     from swb import seat as seatmod
     env = dict(os.environ if base is None else base)
     env.update(ROS_DOMAIN_ID=str(s.scenario_domain), RMW_IMPLEMENTATION="rmw_cyclonedds_cpp",
-               CYCLONEDDS_URI=f"file://{seatmod.cyclone_profile()}")
+               CYCLONEDDS_URI=f"file://{seatmod.cyclone_profile(host)}")
     env.pop("ROS_LOCALHOST_ONLY", None)
     return env
 
@@ -380,7 +380,7 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
             log_dir = root / f"{stackmod.now_id()}-{n}"
     argv = (command or stack_argv)(project, host, s.index, log_dir)
     try:
-        proc = stackmod.start_process(argv, stack_env(s), log_dir / "console.log",
+        proc = stackmod.start_process(argv, stack_env(s, host=host), log_dir / "console.log",
                                       cwd=str(project))
     except OSError as e:
         raise StackFailed(f"the stack did not start ({argv[0]}): {e}") from None
@@ -946,7 +946,7 @@ def context(project_arg=None, seat=None, logs=None, wait=0.0, start=False, stack
     caller stops or keeps. A stack that is up but differs from the project is refused, never
     replaced."""
     try:
-        project = config.find_project(project_arg or None)
+        project = config.writable_project(config.find_project(project_arg or None))
         over = {}
         if seat not in (None, ""):
             over["seat"] = seat

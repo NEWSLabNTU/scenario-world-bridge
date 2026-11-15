@@ -3,7 +3,10 @@
 Every command a user types, in the `swb` package unless named otherwise; `ros2 run swb
 <command> --help` prints the same. Every command finds its project as `--project <dir>`
 (or `project:=` on the stack), else the working directory or the nearest parent holding a
-`swb.yaml`; `pkg://<package>[/<dir>]` names a project a ROS package installs.
+`swb.yaml`; `pkg://<package>[/<dir>]` names a project a ROS package installs. Such a
+project is read-only: `project check` reads it, and the commands that write (`assets
+fetch`, `run`, `drive`, the stack) refuse it, naming the `project new --from` line that
+copies it; the copy holds its lock, assets, state and runs.
 
 ## Exit codes
 

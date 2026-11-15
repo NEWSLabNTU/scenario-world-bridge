@@ -422,8 +422,12 @@ def acquire(seat: Seat, project=None, lock_dir=None) -> Lock:
 
 # ---------------------------------------------------------------------------- env
 
-def cyclone_profile() -> Path:
-    """swb_launch's localhost Cyclone profile: the installed share, else the workspace's."""
+def cyclone_profile(settings: dict = None) -> Path:
+    """The stack's Cyclone profile: the host setting ``dds.profile`` when set; else
+    swb_launch's localhost profile, the installed share's, else the workspace's."""
+    own = str(((settings or {}).get("dds") or {}).get("profile") or "")
+    if own:
+        return Path(os.path.expanduser(own))
     try:
         from ament_index_python.packages import get_package_share_directory
         share = Path(get_package_share_directory("swb_launch"))
@@ -457,10 +461,10 @@ def group_domain(seat: Seat, group: str) -> int:
     return seat.pilot_domains[k]
 
 
-def env_line(seat: Seat, group: str) -> str:
+def env_line(seat: Seat, group: str, settings: dict = None) -> str:
     return (f"export ROS_DOMAIN_ID={group_domain(seat, group)} "
             f"RMW_IMPLEMENTATION=rmw_cyclonedds_cpp "
-            f"CYCLONEDDS_URI=file://{cyclone_profile()}")
+            f"CYCLONEDDS_URI=file://{cyclone_profile(settings)}")
 
 
 # ---------------------------------------------------------------------------- command
@@ -561,7 +565,7 @@ def main(argv=None) -> int:
                 s = held[0]
             else:
                 s = resolve(settings, source)
-            print(env_line(s, args.group))
+            print(env_line(s, args.group, settings))
             return EXIT_OK
     except SeatTaken as e:
         return _err(str(e))

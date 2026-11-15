@@ -542,7 +542,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     if retired:
         raise StackRefused("stack_args: " + "; ".join(retired))
     try:
-        project = config.find_project(project_arg or None)
+        project = config.writable_project(config.find_project(project_arg or None))
     except ConfigError as e:
         raise StackRefused(str(e)) from None
     overrides = {}
@@ -622,7 +622,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "SWB_MAPS": str(project / "assets" / "maps"),
         "SWB_CARLA_USD": str(usd),
         "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
-        "CYCLONEDDS_URI": f"file://{seatmod.cyclone_profile()}",
+        "CYCLONEDDS_URI": f"file://{seatmod.cyclone_profile(host)}",
     }
     if host.get("gpu") is not None or (host.get("seats") or {}).get("gpus") is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(s.gpu)
@@ -658,7 +658,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "vehicle_model": vehicle,
         "nest_side": "true",
         # every stack process on the profile the runs use (a sourced Autoware exports its own)
-        "dds_config": f"file://{seatmod.cyclone_profile()}",
+        "dds_config": f"file://{seatmod.cyclone_profile(host)}",
     }
     # the bridge reads a map's signal table from the same state dir first (both simulators:
     # an Isaac world finds its lamps by the table CARLA's server wrote); the gap trace and

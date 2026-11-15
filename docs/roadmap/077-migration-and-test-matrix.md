@@ -339,3 +339,12 @@ Isaac's rear contact (inventory row 18).
   (run 2026-11-16T01-04-27), Autoware 1.5.0 was up 22 s after the spawn and arrived 27 s
   after the goal (01-05-48). Migrates item 46 (acb `just sim` + `just autoware`); 48 (the
   same on Isaac) waits for the Isaac cells' GPU room.
+- **G15 built (2026-11-16).** (a) The host setting `dds.profile`: a Cyclone XML that takes
+  the place of swb's localhost profile for the stack, its processes (`dds_config`), the
+  runner's play_launch and `seat env`. Live: a stack with the setting recorded it in
+  stack.json's env and its run passed. (b) Ruling on "a package project's state goes
+  where": a project in an installed package's share is read-only; `project check` reads it,
+  `assets fetch`, `run`, `drive` and the stack refuse it, naming the `project new <dir>
+  --from pkg://...` that copies it, and the copy holds its lock, assets, state and runs.
+  Live: the installed simple_drive refused that way. A package ships its project, a user
+  copies it once.

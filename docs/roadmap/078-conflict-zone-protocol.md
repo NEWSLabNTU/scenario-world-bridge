@@ -191,6 +191,27 @@ read on a second, pre-registered held-out set; the held-out error is reported wi
 held-out error within its tolerance (stated per parameter in its run's report). A parameter
 that cannot be measured to tolerance takes its conservative bound, and the report says so.
 
+**EV8 done (swb 118, 9e9d4f0; NAS `logs/2026 SSv2 on CARLA/2026-11-15 078 EV8 braking/`; 480 runs,
+39 CARLA blueprints + the spec Model 3).** The class bound is q0.1 of effective deceleration, dead
+time included:
+
+| class | dry | wet | assumed (dry / wet) | params.yaml `b_bound` |
+|---|---|---|---|---|
+| car | 4.28 (2 of 23 below 4.0: a2 3.72, microlino 3.83) | 3.51 | 4 / 2.4 | 4.0, kept |
+| truck and van | 2.56 (firetruck 2.35) | 2.43 | 3 / 1.8 | **2.3** |
+| bus | 5.69 (n = 1) | 5.09 | 3 / 1.8 | 3.0, kept |
+| two-wheeler | not physical (CARLA's bikes are 4-wheel bodies) | | 4 / 2.4 | 4.0, assumed |
+
+- CARLA 0.9.16's tyre friction ignores wetness: every wet preset brakes the same. Wet is therefore
+  friction × 0.6. The lowest measured wet/dry ratio is 0.60, so `wet_factor` 0.6 stands.
+- Stock blueprints ship friction 3.5 and are limited by brake torque.
+- The spec Model 3: 8.37 m/s² dry, 6.57 with its command lags, 4.64 wet with lags.
+- Dead time is about 0.05 s (one tick), up to 0.23 s when the gearbox hunts.
+- `b_max` (a ceiling on others' braking) is exceeded by stock CARLA actors: peaks car 13.1, truck
+  11.7. Raise it only if czp has to watch CARLA-physics actors.
+- The manager set `b_bound` and the source tags (truck 2.3, `b_comfort` 2.0 to stay below it); the
+  czp tests pass.
+
 ### Phase 3: test runs
 
 | step | what | measures |

@@ -35,12 +35,12 @@ yield_decel:              {value: 0.5,  unit: m/s^2, source: "assumed (C3's onse
 yield_hold:               {value: 0.5,  unit: s, source: "assumed", heldout: null}
 yield_window:             {value: [0.5, 1.5], unit: s, source: "assumed", heldout: null}
 critical_gap:             {value: 6.5,  unit: s, source: "assumed: the literature's 4.5-7 s; S5's band", heldout: null}
-wet_factor:               {value: 0.6,  unit: ratio, source: "assumed (design): braking bounds x 0.6 when wet", heldout: null}
+wet_factor:               {value: 0.6,  unit: ratio, source: "078 EV8 (swb 118, 9e9d4f0): lowest measured wet/dry ratio 0.60, wet = friction x 0.6 (CARLA 0.9.16 ignores wetness)", heldout: null}
 uwb_attest:               {value: [2.5, 0.06], unit: "m, ratio", source: "coop 118: a UWB range tightens an interval only within 2.5 m + 6 % of a track", heldout: null}
 classes:
-  source: "assumed (design: braking car 4, truck 3, two-wheeler 4 m/s^2); launch 074 C8 (HGV 1.4 m/s^2), LAUNCH_DEAD 0.5 (074 arc tracking)"
+  source: "b_bound: 078 EV8 (swb 118, 9e9d4f0; q0.1 of effective deceleration with dead time, 39 CARLA blueprints + the spec Model 3): car 4.28 dry -> kept 4.0, truck and van 2.56 -> 2.3, bus 5.69 (n=1) -> kept 3.0, two-wheeler not physical in CARLA (4-wheel bodies) -> kept 4.0 assumed; b_max: assumed, exceeded by stock CARLA actors (peaks car 13.1, truck 11.7); launch 074 C8 (HGV 1.4 m/s^2), LAUNCH_DEAD 0.5 (074 arc tracking)"
   car:         {a_max: 3.0, a_launch: 3.0, launch_dead: 0.5, b_max: 7.0, b_bound: 4.0, b_comfort: 3.5, length: 4.79, width: 2.163, v_max: 14.0}
-  truck:       {a_max: 1.4, a_launch: 1.4, launch_dead: 0.8, b_max: 5.0, b_bound: 3.0, b_comfort: 2.5, length: 10.0, width: 2.6, v_max: 14.0}
+  truck:       {a_max: 1.4, a_launch: 1.4, launch_dead: 0.8, b_max: 5.0, b_bound: 2.3, b_comfort: 2.0, length: 10.0, width: 2.6, v_max: 14.0}
   bus:         {a_max: 1.2, a_launch: 1.2, launch_dead: 0.8, b_max: 5.0, b_bound: 3.0, b_comfort: 2.5, length: 12.0, width: 2.6, v_max: 14.0}
   two_wheeler: {a_max: 3.5, a_launch: 3.5, launch_dead: 0.3, b_max: 6.0, b_bound: 4.0, b_comfort: 3.5, length: 2.0, width: 0.8, v_max: 14.0}
   pedestrian:  {a_max: 1.0, a_launch: 1.0, launch_dead: 0.2, b_max: 3.0, b_bound: 2.0, b_comfort: 2.0, length: 0.5, width: 0.5, v_max: 2.5}

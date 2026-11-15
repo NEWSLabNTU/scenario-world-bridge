@@ -236,10 +236,10 @@ G32. An item with no open gap can be migrated now.
 
 | # | Item | Host | Open gaps | State |
 |---|---|---|---|---|
-| 1 | `basic/` starters, Town01 | CARLA | - | ready to migrate |
-| 2 | `basic/` other towns: town02_ego_drive, town03, town05, town10 | CARLA | - | ready to migrate |
-| 3 | `basic/town02_episode_change` | Epic only (Low crashes) | - | ready to migrate |
-| 4 | `awf/` UC-ACC-001-0001 | CARLA | - | ready to migrate |
+| 1 | `basic/` starters, Town01 | CARLA | - | migrated 2026-11-16 (`scenarios/projects/basic`, suites/town01, 6 of 6) |
+| 2 | `basic/` other towns: town02_ego_drive, town03, town05, town10 | CARLA | - | migrated 2026-11-16 (suites/towns, 4 of 4) |
+| 3 | `basic/town02_episode_change` | Epic only (Low crashes) | - | migrated 2026-11-16 (suites/episode_change, passed) |
+| 4 | `awf/` UC-ACC-001-0001 | CARLA | - | migrated 2026-11-15 (`safety_suite` nightly, 27/27 and 9/9) |
 | 5 | `awf/` with CenterPoint | CARLA + CUDA | - | ready to migrate |
 | 6 | `tutorial/town01_follow_to_goal` | CARLA | - | ready to migrate |
 | 7 | `multi_av/town01_two_av` | CARLA, two Autoware | G4 | blocked |

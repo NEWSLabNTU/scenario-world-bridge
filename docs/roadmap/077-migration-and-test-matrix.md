@@ -417,3 +417,12 @@ Isaac's rear contact (inventory row 18).
   `error` at its first poll, its retry too. The relay now stamps when an entity went lost,
   and the runner counts only a loss at or after its SSv2 started (a reset clears it in any
   case). Test: test_a_goal_lost_before_the_run_began_is_not_this_runs.
+- **Step 4, items 1-3 migrated (2026-11-16)**: `scenarios/projects/basic/` (Autoware 1.5.0
+  ego, the five towns, the `physical_verdict` judge), its suites naming the starters where
+  they live (`src/swb_examples/scenarios/basic/`). Live on CARLA 0.9.16 (started by the
+  stack), one stack per command:
+  - `suites/town01.yaml` (item 1): 6 of 6 passed, `physical_verdict` passed on each
+    (rear_contact declares its contact), 02:43 to 02:52; the reference 6 of 6 (034).
+  - `suites/towns.yaml` (item 2): town02, town03, town05, town10 passed, 4 of 4; the keeper
+    loaded each town between runs (11 to 13 s each), no extra episode; the reference 020.
+  - `suites/episode_change.yaml` (item 3): passed (03-06-30), the town load inside the run.

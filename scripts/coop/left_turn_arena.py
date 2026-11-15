@@ -428,7 +428,9 @@ def main():
     p.add_argument("--obs-sigma-x", type=float, default=0.3)
     p.add_argument("--obs-sigma-v", type=float, default=0.2)
     p.add_argument("--compare-only", action="store_true")
+    X.add_legacy_args(p)
     args = p.parse_args()
+    X.apply_legacy_args(args)
     if args.compare_only:
         rows = list(csv.DictReader(open(os.path.join(args.out, "runs.csv"))))
         wall = None

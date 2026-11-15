@@ -254,16 +254,33 @@ class Policy:
 # at standstill, then accelerates as commanded (on the move there is no such delay). With a drive
 # command at rest held for LAUNCH_DEAD = 0.5 s (counted from the first drive command, so it includes
 # the brake's release) the model matches the arena's launch to 0.06 m over 5 s at 6, 10 and 14 m/s.
-# 0: the model as every study before used it (the default).
-LAUNCH_DEAD = 0.0
+# 0 (--no-launch-dead): the model as every study before 074's kinematic defaults used it.
+LAUNCH_DEAD = 0.5
 # A car its safety layer holds at the line (the other in Z or about to enter it) gets command 0 once a
 # stop needs under 0.3 m/s^2, and with the brake's lag it can be left crawling (0.09 m/s in S4's go/go
 # at dt +1.5, 6 m/s): in this model 0 keeps that speed, the car creeps past Z's edge, where its safety
 # layer no longer acts, and drives into the other (074 arc tracking: S4's contact deficit). CARLA's car
 # brakes to a standstill before the command reaches 0 and stays there. True: a held car below HOLD_STOP_V
-# brakes to rest. False: as every study before (the default).
-HOLD_STOP = False
+# brakes to rest (the default since 074's kinematic defaults). False (--no-hold-stop): as every study before.
+HOLD_STOP = True
 HOLD_STOP_V = 0.5  # m/s
+
+
+def add_legacy_args(p):
+    """The switches back to the models every study before 074's kinematic defaults used."""
+    p.add_argument("--no-launch-dead", action="store_true", help="no launch dead time (LAUNCH_DEAD 0)")
+    p.add_argument("--no-hold-stop", action="store_true", help="a held car is not braked to rest (HOLD_STOP off)")
+    p.add_argument("--legacy-pet", action="store_true", help="measures' sampled PET with the 30 deg cut (LEGACY_PET)")
+
+
+def apply_legacy_args(a):
+    global LAUNCH_DEAD, HOLD_STOP
+    if a.no_launch_dead:
+        LAUNCH_DEAD = 0.0
+    if a.no_hold_stop:
+        HOLD_STOP = False
+    if a.legacy_pet:
+        M.LEGACY_PET = True
 
 
 def car_lags():
@@ -642,7 +659,9 @@ def main():
     p.add_argument("--jobs", type=int, default=8)
     p.add_argument("--fault", type=float, default=FAULT, help="cost of failing to yield (classes and welfare)")
     p.add_argument("--selftest", action="store_true")
+    add_legacy_args(p)
     a = p.parse_args()
+    apply_legacy_args(a)
     return selftest() if a.selftest else run_map(a)
 
 

@@ -627,7 +627,9 @@ def main():
     p.add_argument("--dts", default="-1,0,1")
     p.add_argument("--seed", type=int, default=1)
     p.add_argument("--selftest", action="store_true")
+    G.add_legacy_args(p)
     a = p.parse_args()
+    G.apply_legacy_args(a)
     if a.selftest:
         return selftest()
     if a.mode == "stream":

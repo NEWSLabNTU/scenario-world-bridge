@@ -395,13 +395,9 @@ def main():
     p.add_argument("--look-min", type=float, default=LOOK_MIN)
     p.add_argument("--look-gain", type=float, default=LOOK_GAIN)
     p.add_argument("--compare-only", action="store_true")
-    p.add_argument("--launch-dead", type=float, default=0.0,
-                   help="the kinematic side's launch dead time (crossing_game.LAUNCH_DEAD, s; 0: as before)")
-    p.add_argument("--hold-stop", action="store_true",
-                   help="the kinematic side's held car brakes to rest (crossing_game.HOLD_STOP; off: as before)")
+    X.add_legacy_args(p)
     args = p.parse_args()
-    X.LAUNCH_DEAD = args.launch_dead
-    X.HOLD_STOP = args.hold_stop
+    X.apply_legacy_args(args)
     set_look(args.look_min, args.look_gain)
 
     if args.compare_only:

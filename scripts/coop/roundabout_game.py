@@ -306,8 +306,8 @@ def simulate(ra, rb, n, h, v, tb, lags=None):
         aa = R.a_step(t, s, va, seen_q)
         aq = R.q_step(t, sq, vq, (sr[1] + sr[2] * ager, sr[2]), (sd[1] + sd[2] * age, sd[2]))
         if lags:
-            aa = act[0].step(aa)
-            aq = [act[i + 1].step(a) for i, a in enumerate(aq)]
+            aa = act[0].step(aa, va)
+            aq = [act[i + 1].step(a, vq[i]) for i, a in enumerate(aq)]
         va = max(0.0, va + aa * DT)
         s += va * DT
         R.after(t, va)
@@ -499,7 +499,9 @@ def main():
     p.add_argument("--geom", default="model", choices=sorted(GEOMETRIES), help="the ring and entry geometry")
     p.add_argument("--lanes", help="instead: a real roundabout's lanes (roundabout_town03.py's JSON)")
     p.add_argument("--selftest", action="store_true")
+    X.add_legacy_args(p)
     a = p.parse_args()
+    X.apply_legacy_args(a)
     set_geometry(a.geom)
     if a.lanes:
         import roundabout_town03

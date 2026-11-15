@@ -318,7 +318,9 @@ def main():
     p.add_argument("--car-lags", action="store_true")
     p.add_argument("--jobs", type=int, default=16)
     p.add_argument("--selftest", action="store_true")
+    X.add_legacy_args(p)
     a = p.parse_args()
+    X.apply_legacy_args(a)
     return selftest() if a.selftest else run_map(a)
 
 

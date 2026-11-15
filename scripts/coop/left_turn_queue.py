@@ -217,8 +217,8 @@ def simulate(G, c1, n, h, v, lags=None):
         aa = R.a_step(t, s, va, seen_c)
         ac = R.c_step(t, x, vc, (sr[1] + sr[2] * age_r, sr[2]), (sd[1] + sd[2] * age, sd[2]))
         if lags:
-            aa = act[0].step(aa)
-            ac = [act[i + 1].step(a) for i, a in enumerate(ac)]
+            aa = act[0].step(aa, va)
+            ac = [act[i + 1].step(a, vc[i]) for i, a in enumerate(ac)]
         va = max(0.0, va + aa * DT)
         s += va * DT
         for i in range(n):
@@ -359,7 +359,9 @@ def main():
     p.add_argument("--car-lags", action="store_true")
     p.add_argument("--jobs", type=int, default=12)
     p.add_argument("--selftest", action="store_true")
+    X.add_legacy_args(p)
     a = p.parse_args()
+    X.apply_legacy_args(a)
     return selftest() if a.selftest else run_map(a)
 
 

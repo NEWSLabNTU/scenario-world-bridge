@@ -53,6 +53,12 @@ A_LAT_MAX = 4.0  # m/s^2, the lateral acceleration comfort is judged against (ab
 W_COMFORT = 0.3
 W_CONTACT = 10.0
 PET_SAMPLE = 0.1  # s between stored footprints for PET
+# PET's heading weight (074 kinematic defaults): 0 below PET_ANGLE_0 deg between the headings, 1 from
+# PET_ANGLE_1, smooth in between; PET_THETAS the thresholds it is evaluated at (30 deg among them: the
+# old cut). LEGACY_PET: the sampled PET over pairs at least 30 deg apart (every study before).
+PET_ANGLE_0, PET_ANGLE_1 = 15.0, 45.0
+PET_THETAS = [15.0 + 2.5 * k for k in range(13)]
+LEGACY_PET = False
 HORIZON = 20.0  # s: route progress is scored over [0, HORIZON] of the run (design ①, H; 074 N3)
 
 
@@ -271,11 +277,140 @@ class Measures:
                 self.thw = min(self.thw, h)
         if t - self._fp_t >= self.pet_sample - 1e-6:
             self._fp_t = t
-            self._fp[0].append((t, pa[0], pa[1], pa[2], ca, math.hypot(pa[5], pa[6]) / 2))
-            self._fp[1].append((t, pb[0], pb[1], pb[2], cb, math.hypot(pb[5], pb[6]) / 2))
+            self._fp[0].append((t, pa[0], pa[1], pa[2], ca, math.hypot(pa[5], pa[6]) / 2, pa[5], pa[6]))
+            self._fp[1].append((t, pb[0], pb[1], pb[2], cb, math.hypot(pb[5], pb[6]) / 2, pb[5], pb[6]))
 
     def _pet(self):
-        """Post-encroachment time over the stored footprints, where the paths cross."""
+        """Post-encroachment time over the stored footprints, where the paths cross.
+
+        074 kinematic defaults: continuous in time and weighted by heading. PET is the smallest
+        |t_A - t_B| over the region of (t_A, t_B) where the two footprints overlap; that region's
+        edge is found between samples by linear interpolation of the boxes' signed separation along
+        each car's time axis, so it does not move in steps of the sampling. A footprint pair counts
+        with a weight w of the angle between the headings (folded to 0-90 deg: an oppose is a
+        follow), smooth from 0 at PET_ANGLE_0 to 1 at PET_ANGLE_1 (smoothstep): PET's risk is the
+        largest w(theta) * shortfall(PET over the pairs at least theta apart) over a grid of
+        theta, so a lane shift of a few centimetres moves it a little, not from none to some. The
+        value returned is the PET with that risk, PET_REF (1 - r); with no risk, the PET over the
+        pairs at least 30 deg apart (inf if none). LEGACY_PET: the sampled PET over pairs at least
+        30 deg apart, as every study before used it."""
+        if LEGACY_PET:
+            return self._pet_legacy()
+        import numpy as np
+        fa, fb = self._fp
+        if not fa or not fb:
+            return math.inf
+        ta = np.array([f[0] for f in fa]); tb = np.array([f[0] for f in fb])
+        xa = np.array([f[1] for f in fa]); ya = np.array([f[2] for f in fa]); ha = np.array([f[3] for f in fa])
+        xb = np.array([f[1] for f in fb]); yb = np.array([f[2] for f in fb]); hb = np.array([f[3] for f in fb])
+        ra = np.array([f[5] for f in fa]); rb = np.array([f[5] for f in fb])
+        ang = np.degrees(np.arccos(np.clip(np.abs(np.cos(ha[:, None] - hb[None, :])), 0.0, 1.0)))
+        if ang.max() <= PET_ANGLE_0:
+            return math.inf
+        # signed separation: exact (separating-axis) for near pairs that can count, the centre
+        # distance less both half-diagonals (a lower bound, > 0) elsewhere
+        sep = np.hypot(xa[:, None] - xb[None, :], ya[:, None] - yb[None, :]) - (ra[:, None] + rb[None, :])
+        for i, j in zip(*np.nonzero((sep < 0.5) & (ang > PET_ANGLE_0))):
+            sep[i, j] = separation(fa[i][4], fb[j][4])
+        big = 1e9
+        best_by_theta = []
+        for theta in PET_THETAS:
+            s_ = np.where(ang >= theta, sep, big)
+            inside = s_ <= 0.0
+            cand = [np.abs(ta[:, None] - tb[None, :])[inside]] if inside.any() else []
+            # region edges between samples along A's time (rows) and B's (columns)
+            for axis in (0, 1):
+                s0 = s_[:-1, :] if axis == 0 else s_[:, :-1]
+                s1 = s_[1:, :] if axis == 0 else s_[:, 1:]
+                cross = (s0 > 0) != (s1 > 0)
+                if not cross.any():
+                    continue
+                a0, a1 = s0[cross], s1[cross]
+                f = np.clip(a0 / (a0 - a1), 0.0, 1.0)
+                ii, jj = np.nonzero(cross)
+                if axis == 0:
+                    t_a = ta[ii] + f * (ta[ii + 1] - ta[ii])
+                    t_b = tb[jj]
+                else:
+                    t_a = ta[ii]
+                    t_b = tb[jj] + f * (tb[jj + 1] - tb[jj])
+                cand.append(np.abs(t_a - t_b))
+            best_by_theta.append(float(min(c.min() for c in cand)) if cand else math.inf)
+        # refine the grid's best candidate per theta on poses interpolated between the samples
+        # (the region's nearest corner to t_A = t_B lies between samples on both time axes)
+        dtm = np.abs(ta[:, None] - tb[None, :])
+        step = max(ta[1] - ta[0] if len(ta) > 1 else PET_SAMPLE, tb[1] - tb[0] if len(tb) > 1 else PET_SAMPLE)
+
+        def wrisk(theta, pet):
+            x = min(1.0, max(0.0, (theta - PET_ANGLE_0) / (PET_ANGLE_1 - PET_ANGLE_0)))
+            return x * x * (3 - 2 * x) * (max(0.0, PET_REF - pet) / PET_REF if math.isfinite(pet) else 0.0)
+        # refine: the theta with the largest coarse risk, full weight (PET_ANGLE_1) and the 30 deg report
+        k_best = max(range(len(PET_THETAS)), key=lambda k: wrisk(PET_THETAS[k], best_by_theta[k]))
+        cache = {}
+        for k in {k_best, PET_THETAS.index(PET_ANGLE_1), PET_THETAS.index(30.0)}:
+            theta, pet0 = PET_THETAS[k], best_by_theta[k]
+            if not math.isfinite(pet0) or pet0 > PET_REF + 0.2:
+                continue
+            sel = (np.abs(dtm - pet0) <= step + 1e-9) & (sep < 0.5) & (ang >= theta)
+            seeds = [(float(ta[i]), float(tb[j])) for i, j in zip(*np.nonzero(sel))]
+            seeds.sort(key=lambda c: abs(abs(c[0] - c[1]) - pet0))
+            key = (round(pet0, 6), tuple(seeds[:3]), theta)
+            if key not in cache:
+                cache[key] = self._refine(fa, fb, theta, pet0, seeds[:3], step)
+            best_by_theta[k] = min(pet0, cache[key])
+            # thresholds sharing the coarse value and above this one share the refinement
+            for k2 in range(k + 1, len(PET_THETAS)):
+                if best_by_theta[k2] == pet0:
+                    best_by_theta[k2] = best_by_theta[k]
+        risk = 0.0
+        for theta, pet in zip(PET_THETAS, best_by_theta):
+            x = min(1.0, max(0.0, (theta - PET_ANGLE_0) / (PET_ANGLE_1 - PET_ANGLE_0)))
+            w = x * x * (3 - 2 * x)
+            if math.isfinite(pet):
+                risk = max(risk, w * max(0.0, PET_REF - pet) / PET_REF)
+        if risk > 0.0:
+            return PET_REF * (1.0 - risk)
+        return best_by_theta[PET_THETAS.index(30.0)]
+
+    @staticmethod
+    def _pose_at(f, t):
+        """A footprint list's box at time t, interpolated linearly between samples (corners, heading)."""
+        k = max(0, min(len(f) - 2, int((t - f[0][0]) / max(f[1][0] - f[0][0], 1e-9)) if len(f) > 1 else 0))
+        while k > 0 and f[k][0] > t:
+            k -= 1
+        while k < len(f) - 2 and f[k + 1][0] < t:
+            k += 1
+        a, b = f[k], f[min(k + 1, len(f) - 1)]
+        u = 0.0 if b[0] == a[0] else max(0.0, min(1.0, (t - a[0]) / (b[0] - a[0])))
+        dh = math.atan2(math.sin(b[3] - a[3]), math.cos(b[3] - a[3]))
+        h = a[3] + u * dh
+        return corners(a[1] + u * (b[1] - a[1]), a[2] + u * (b[2] - a[2]), h, a[6], a[7]), h
+
+    def _refine(self, fa, fb, theta, pet0, seeds, step, n=16):
+        """The smallest |t_A - t_B| with the two boxes overlapping and at least theta apart, on a
+        fine grid of interpolated poses within 1.5 sample steps of each seed pair of times."""
+        half = 1.5 * step
+        cos_t = math.cos(math.radians(theta))
+        best = pet0
+        for ca_t, cb_t in seeds:
+            for p_ in range(n + 1):
+                t_a = ca_t - half + 2 * half * p_ / n
+                if t_a < fa[0][0] or t_a > fa[-1][0]:
+                    continue
+                box_a, h_a = self._pose_at(fa, t_a)
+                for q in range(n + 1):
+                    t_b = cb_t - half + 2 * half * q / n
+                    if t_b < fb[0][0] or t_b > fb[-1][0] or abs(t_a - t_b) >= best:
+                        continue
+                    box_b, h_b = self._pose_at(fb, t_b)
+                    if abs(math.cos(h_a - h_b)) > cos_t + 1e-9:
+                        continue
+                    if overlap(box_a, box_b):
+                        best = abs(t_a - t_b)
+        return best
+
+    def _pet_legacy(self):
+        """The sampled PET over footprint pairs at least 30 deg apart (before 074 kinematic defaults)."""
         best = math.inf
         fa, fb = self._fp
         # no two headings 30 degrees apart (a follow, a merge, an oppose): no crossing to time
@@ -283,8 +418,8 @@ class Measures:
         hb = {round(f[3], 2) for f in fb}
         if all(abs(math.cos(x - y)) > math.cos(math.radians(30)) for x in ha for y in hb):
             return best
-        for ta, xa, ya, ha, ca, ra in fa:
-            for tb, xb, yb, hb, cb, rb in fb:
+        for ta, xa, ya, ha, ca, ra, *_ in fa:
+            for tb, xb, yb, hb, cb, rb, *_ in fb:
                 if abs(ta - tb) >= best:
                     continue
                 if math.hypot(xa - xb, ya - yb) > ra + rb:
@@ -426,6 +561,24 @@ def selftest():
         m5.push_poses(tt, p(-20 + 10 * tt, 0, vx=10.0), p(0, -10 + 10 * (tt + 1.0), yaw=math.pi / 2, vy=10.0))
     r5 = m5.result()
     assert r5["clear"] > 0 and 1.25 <= r5["pet"] <= 1.45, r5
+    # continuous PET: the same crossing with A shifted by a fraction of a sample, against the exact
+    # 1.3 - shift; the legacy PET moves in sample steps
+    global LEGACY_PET
+    for d in (0.0, 0.013, 0.027, 0.041):
+        m6 = Measures(pet_sample=0.05)
+        for k in range(200):
+            tt = k * 0.05
+            m6.push_poses(tt, p(-20 + 10 * (tt + d), 0, vx=10.0), p(0, -10 + 10 * (tt + 1.0), yaw=math.pi / 2, vy=10.0))
+        assert abs(m6._pet() - (1.3 - d)) < 0.012, (d, m6._pet())
+        LEGACY_PET = True
+        assert abs(m6._pet() - 1.3) > 0.04 or d == 0.0, m6._pet()
+        LEGACY_PET = False
+    # a follow and a lane change have no PET (weight 0 below PET_ANGLE_0)
+    m6 = Measures()
+    for k in range(100):
+        tt = k * 0.05
+        m6.push_poses(tt, p(10 * tt, 0, vx=10.0), p(10 * tt + 10, 0, vx=10.0))
+    assert m6._pet() == math.inf
     assert abs(r5["sA"] - 10 * 4.95) < 0.1, r5
     # progress over the fixed window: 10 m/s for 30 s, sampled at 0.05 or 0.1 s, slowing to 8 m/s
     # from 10 s at 1 m/s^2: s(H) = 100 + 18 + 8 * 8, the same at both rates, whatever follows H

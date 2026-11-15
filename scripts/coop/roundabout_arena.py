@@ -480,7 +480,9 @@ def main():
     p.add_argument("--lanes", help="a real roundabout's lanes (roundabout_town03.py's JSON), on its town in this CARLA")
     p.add_argument("--warmup", type=float, default=WARMUP, help="the ring cars' warm-up (s)")
     p.add_argument("--cells", help="n:tb,... instead of the default cells (h 1.5)")
+    X.add_legacy_args(p)
     args = p.parse_args()
+    X.apply_legacy_args(args)
     WARMUP = args.warmup
     if args.cells:
         CELLS = [(int(c.split(":")[0]), 1.5, float(c.split(":")[1])) for c in args.cells.split(",")]

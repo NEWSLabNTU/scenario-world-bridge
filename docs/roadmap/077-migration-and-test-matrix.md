@@ -306,3 +306,8 @@ Isaac's rear contact (inventory row 18).
   starts play_launch on the seat's scenario domain and the stack's Cyclone profile, as its
   nodes are. Live: three warnings became one, `/simulator` on the ego's domain, which is
   meant; troubleshooting says so, and how to start a stack by hand without the others.
+- **G29 built (2026-11-16).** `just build` stamps the install (`install/swb_build.json`: the
+  checkout's commit, `+dirty` when its tracked tree had changes, the submodule pins, the
+  time). A run's `provenance.swb` is that build, `provenance.built` its time, and
+  `provenance.checkout` the checkout's commit at run time when it moved since. An install
+  without a stamp (a plain `colcon build`) records the checkout, as before.

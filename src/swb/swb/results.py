@@ -318,19 +318,76 @@ def file_sha256(path) -> str:
     return "sha256:" + h.hexdigest()
 
 
-def provenance(workspace, project=None) -> dict:
-    """What ran: the workspace's commit (``+dirty`` when its tree has changes), the submodule
-    pins, the host, the GPU and the project's swb.lock. Every part tolerates being absent."""
+BUILD_STAMP = "swb_build.json"
+
+
+def checkout_commit(workspace):
+    """The checkout's commit, ``+dirty`` when its tracked tree has changes; None without git."""
     commit = (_out(["git", "rev-parse", "HEAD"], cwd=workspace) or "").strip() or None
     if commit and (_out(["git", "status", "--porcelain", "--untracked-files=no"],
                         cwd=workspace) or "").strip():
         commit += "+dirty"
+    return commit
+
+
+def stamp_build(workspace, install) -> Path:
+    """Write ``<install>/swb_build.json``: the checkout's commit and submodule pins as they
+    were when ``just build`` built this install (roadmap 077, G29)."""
+    import datetime
+    path = Path(install) / BUILD_STAMP
+    path.write_text(json.dumps({
+        "swb": checkout_commit(workspace), "submodules": submodule_pins(workspace),
+        "built": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+    }, indent=2) + "\n")
+    return path
+
+
+def installed_build(prefix=None):
+    """The stamp of the install this swb runs from (beside its ``swb`` package's prefix), or
+    None: a plain ``colcon build`` writes none."""
+    if prefix is None:
+        try:
+            from ament_index_python.packages import get_package_prefix
+            prefix = get_package_prefix("swb")
+        except Exception:
+            return None
+    for d in (Path(prefix), Path(prefix).parent):
+        f = d / BUILD_STAMP
+        if f.is_file():
+            try:
+                return json.loads(f.read_text())
+            except (OSError, ValueError):
+                return None
+    return None
+
+
+def provenance(workspace, project=None, build=None) -> dict:
+    """What ran: the build (``build``, the install's stamp: its commit and submodule pins
+    when it was built), else the workspace's commit (``+dirty`` when its tree has changes)
+    and pins; the checkout's commit now when it differs from the build's; the host, the GPU
+    and the project's swb.lock. Every part tolerates being absent."""
+    commit = checkout_commit(workspace)
     lock = Path(project) / "swb.lock" if project is not None else None
     gpus = gpu_names()
+    extra = {}
+    if build and build.get("swb"):
+        extra = {"built": build.get("built")}
+        if commit != build["swb"]:
+            extra["checkout"] = commit
     return {
-        "swb": commit,
-        "submodules": submodule_pins(workspace),
+        "swb": build["swb"] if build and build.get("swb") else commit,
+        "submodules": (build.get("submodules") if build and build.get("swb") else None)
+        or submodule_pins(workspace),
+        **extra,
         "host": socket.gethostname(),
         "gpu": ", ".join(gpus) if gpus else None,
         "swb_lock": file_sha256(lock) if lock is not None and lock.is_file() else None,
     }
+
+
+if __name__ == "__main__":
+    import sys
+    if sys.argv[1:2] == ["stamp"] and len(sys.argv) == 4:
+        print(stamp_build(sys.argv[2], sys.argv[3]))
+    else:
+        sys.exit("usage: python3 -m swb.results stamp <workspace> <install>")

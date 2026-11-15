@@ -70,6 +70,12 @@ Schema `swb.result/1`:
 }
 ```
 
+`provenance.swb` is the commit the install was built from (`+dirty` when the checkout had
+uncommitted changes then) and `provenance.built` when; `provenance.checkout` is the
+checkout's commit at run time, present only when it differs. An install built without the
+workspace's build recipe (a plain `colcon build`) records the checkout's commit at run time
+as `swb`.
+
 Event types: `collision.vehicle`, `collision.pedestrian`, `collision.static`, `red_light`,
 `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`.
 

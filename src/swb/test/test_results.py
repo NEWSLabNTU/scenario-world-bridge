@@ -181,3 +181,29 @@ def test_submodule_pins_parse(monkeypatch):
     text = f" {sha} src/a (v1)\n+{sha} src/b (heads/main)\n-{sha} src/c\n"
     monkeypatch.setattr(results, "_out", lambda *a, **k: text)
     assert results.submodule_pins(".") == {"src/a": sha, "src/b": sha + "+", "src/c": sha + "-"}
+
+
+def test_provenance_names_the_build_and_the_checkout_apart(tmp_path):
+    """roadmap 077, G29: result.json's swb is the install's build, not the checkout's HEAD
+    at run time; the checkout is recorded beside it when it moved."""
+    import subprocess
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    subprocess.run(["git", "init", "-q", str(ws)], check=True)
+    g = ["git", "-C", str(ws), "-c", "user.email=t@t", "-c", "user.name=t"]
+    (ws / "a").write_text("1")
+    subprocess.run(g + ["add", "a"], check=True)
+    subprocess.run(g + ["commit", "-qm", "one"], check=True)
+    install = tmp_path / "install"
+    (install / "swb").mkdir(parents=True)
+    results.stamp_build(ws, install)
+    built = results.installed_build(install / "swb")
+    assert len(built["swb"]) == 40 and built["built"]
+    p = results.provenance(ws, build=built)
+    assert p["swb"] == built["swb"] and "checkout" not in p
+    (ws / "a").write_text("2")
+    subprocess.run(g + ["commit", "-qam", "two"], check=True)
+    p = results.provenance(ws, build=built)
+    assert p["swb"] == built["swb"] and p["checkout"] != built["swb"] and p["built"]
+    assert results.installed_build(tmp_path / "nowhere") is None
+    assert results.provenance(ws)["swb"] == p["checkout"]   # no stamp: the checkout, as before

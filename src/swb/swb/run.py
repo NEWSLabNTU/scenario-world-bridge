@@ -887,7 +887,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         samples.append(host_sample())
         (run_dir / "host.json").write_text(json.dumps(samples, indent=2) + "\n")
 
-    prov = results.provenance(ctx.workspace or stackmod.workspace_root() or project, project)
+    prov = results.provenance(ctx.workspace or stackmod.workspace_root() or project, project,
+                              build=results.installed_build())
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 spec_hash=rec.get("spec_hash") or {})
     result = results.RunResult(

@@ -166,6 +166,8 @@ build: _check-setuptools
         --symlink-install \
         --cargo-args --profile dev-release \
         --cmake-args -DBUILD_TESTING=OFF
+    # what this install was built from, for every run's result.json (roadmap 077, G29)
+    PYTHONPATH=src/swb python3 -m swb.results stamp . install >/dev/null
 
     # colcon-cargo-ros2 writes this workspace's message patches into acb's Cargo.lock too,
     # as `[[patch.unused]]` entries (swb_interfaces is not an acb dependency). Undo that, and

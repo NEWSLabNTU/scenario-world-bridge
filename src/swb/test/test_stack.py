@@ -750,3 +750,21 @@ def test_an_own_car_reaches_the_bridge_the_world_server_and_its_pilot(where, map
     assert ego["args"]["description"].endswith("my_lincoln/description.urdf")
     assert p.record["spec_hash"]["ego"] == "hash-of-my_lincoln"
     assert p.record["vehicles"]["my_lincoln"]["spec_hash"] == "hash-of-my_lincoln"
+
+
+def test_isaac_ground_truth_for_a_pilot_that_says_it_drives_on_it(where, maps_hub, tmp_path,
+                                                                   monkeypatch):
+    """A launch pilot running simple_pilot on Isaac (inputs: [ground_truth]) gets the
+    world server's /ground_truth/odom, as a simple pilot does (seen live 2026-11-16: without
+    it the pilot never had a pose and the run ended at SSv2's Autoware wait)."""
+    base = tmp_path / "aib" / "ego.yaml"
+    base.parent.mkdir()
+    base.write_text("rig: tesla_model3.rig.yaml\ndomain: 1\nnode_name: isaac_vehicle\n")
+    monkeypatch.setattr(stack, "aib_ego_config", lambda: base)
+    d = make(where, template="isaac")
+    text = (d / "swb.yaml").read_text().replace(
+        "kind: autoware", 'kind: launch, launch: "swb_launch simple.launch.py", agent: own, '
+        "inputs: [map, ground_truth]")
+    (d / "swb.yaml").write_text(text)
+    p = stack.plan(project_arg=str(d), check=None)
+    assert p.record["isaac_ego"]["config"]["ground_truth"] == {"topic": "/ground_truth/odom"}

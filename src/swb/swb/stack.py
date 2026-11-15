@@ -715,7 +715,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     if sim == "isaac":
         sided = [b for b in bound if b.sided()]
         ego = "default" if sided else "none"
-        if any(b.kind in GROUND_TRUTH_KINDS for b in sided):
+        # a pilot of a ground-truth kind, or one that says it drives on the true pose
+        # (inputs: [ground_truth], e.g. a launch pilot running simple_pilot; roadmap 077)
+        if any(b.kind in GROUND_TRUTH_KINDS or "ground_truth" in (b.spec.get("inputs") or [])
+               for b in sided):
             isaac_ego = {"path": str(stack_dir / ISAAC_EGO),
                          "config": isaac_ego_with_ground_truth()}
             ego = isaac_ego["path"]

@@ -390,3 +390,16 @@ Isaac's rear contact (inventory row 18).
   mid-episode and registered again: handed back, refused, silent, after a stop), and
   test_run.py (wait_ssv2, and a run ended `error` by a lost goal). Not yet seen live (it
   needs a CARLA stall like the one that showed it).
+- **Item 48 migrated (2026-11-16): `swb drive` on Isaac Sim 6.1**, Town10HD, the spawn and
+  goal of town10_ego_drive. The `simple` pilot: up 1.5 s after the spawn, arrived 30 s
+  after the goal (run 2026-11-16T02-24-09). Autoware 1.5.0: up 5.5 s after the spawn,
+  arrived 52 s after the goal (02-28-37), the stack started and stopped by the drive. The
+  world server came up in about a minute from the NVMe copy of Isaac. Two fixes on the way:
+  - `drive` sent a pilot left up by an earlier run its goal at once, on its old pose, before
+    the spawn; it planned from there and never arrived (the first try failed at 600 s). The
+    goal now waits for the pilot's pose at the spawn (3 m).
+  - On Isaac the world server's ground truth was on for `kind: simple` only, so a `launch`
+    pilot running simple_pilot had no pose and the run ended at SSv2's Autoware wait. A
+    pilot that says `inputs: [ground_truth]` turns it on too. Live: the launch cell on
+    Town10HD then passed (02-26-10). (241 holds the Isaac cells; this one was rerun here
+    only to check the fix.)

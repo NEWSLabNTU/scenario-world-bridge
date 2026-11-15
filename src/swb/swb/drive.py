@@ -36,6 +36,7 @@ UP_TIMEOUT = 300.0     # s for the entity's pilot to be on the episode after the
 POLL = 0.5
 # agent phases (swb_agent.protocol)
 UP_PHASES = ("IDLE", "PLANNING", "READY", "DRIVING", "ARRIVED", "STOPPED")
+AT_SPAWN_M = 3.0   # the pilot is on this drive's episode once its pose is this near the spawn
 ARRIVED = "ARRIVED"
 
 
@@ -80,13 +81,21 @@ def commander(rec: dict):
 
 
 def _phase(c, entity):
-    """The entity's agent's phase and whether it has a pose, from the relay; (None, False)
-    when it is not registered."""
+    """The entity's agent's phase and its pose (a dict, or None), from the relay;
+    (None, None) when it is not registered."""
     reply = c.query(entity)
     state = (reply.get("state") or {}) if isinstance(reply, dict) else {}
     if not reply.get("registered", state != {}):
-        return None, False
-    return state.get("phase"), state.get("pose") is not None
+        return None, None
+    return state.get("phase"), state.get("pose")
+
+
+def at_spawn(pose, spawn) -> bool:
+    """The pose is the spawn's (a pilot left up by an earlier run reports its old pose until
+    the entity is spawned for this drive)."""
+    if not pose:
+        return False
+    return math.hypot(float(pose["x"]) - spawn[0], float(pose["y"]) - spawn[1]) <= AT_SPAWN_M
 
 
 def drive(ctx, entity: str, spawn: tuple, goal: tuple = None, map_name: str = None,
@@ -142,7 +151,7 @@ def drive(ctx, entity: str, spawn: tuple, goal: tuple = None, map_name: str = No
                       (f", goal {goal}" if goal else ", no goal (Ctrl-C ends it)") + "\n")
             out.flush()
             verdict, reason = _follow(proc, rec, entity, goal, timeout, up_timeout, events,
-                                      commander_fn or commander, out)
+                                      commander_fn or commander, out, spawn)
     except KeyboardInterrupt:
         verdict = results.PASSED if goal is None else results.FAILED
         reason = "ended by hand" + ("" if goal is None else " before the goal")
@@ -175,7 +184,8 @@ def drive(ctx, entity: str, spawn: tuple, goal: tuple = None, map_name: str = No
     return result
 
 
-def _follow(proc, rec, entity, goal, timeout, up_timeout, events, commander_fn, out):
+def _follow(proc, rec, entity, goal, timeout, up_timeout, events, commander_fn, out,
+            spawn=None):
     """``(verdict, reason)``: wait for the pilot on the episode, send the goal, wait for it."""
     t0 = time.time()
     sent = False
@@ -185,9 +195,9 @@ def _follow(proc, rec, entity, goal, timeout, up_timeout, events, commander_fn, 
             if code is not None:
                 return results.ERROR, f"swb_free_drive ended ({code}) during the drive"
             now = time.time()
-            phase, has_pose = _phase(c, entity)
+            phase, pose = _phase(c, entity)
             if not sent:
-                if phase in UP_PHASES and has_pose:
+                if phase in UP_PHASES and (at_spawn(pose, spawn) if spawn else pose):
                     events.append({"t_wall": now, "type": "drive.up", "entity": entity})
                     if goal is None:
                         sent = True

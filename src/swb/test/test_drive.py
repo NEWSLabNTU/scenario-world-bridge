@@ -16,6 +16,7 @@ class FakeCommander:
         self.phases = list(phases)   # (phase, has_pose) per query; the last repeats
         self.goal_status = goal_status
         self.commands = []
+        self.at = (0.0, 0.0)   # where a pose of True puts the car
 
     def __enter__(self):
         return self
@@ -27,8 +28,9 @@ class FakeCommander:
         phase, pose = self.phases.pop(0) if len(self.phases) > 1 else self.phases[0]
         if phase is None:
             return {"registered": False}
-        return {"registered": True, "state": {"phase": phase,
-                                              "pose": {"x": 0} if pose else None}}
+        if pose is True:
+            pose = {"x": self.at[0], "y": self.at[1]}
+        return {"registered": True, "state": {"phase": phase, "pose": pose or None}}
 
     def command(self, entity, name, timeout=None, **args):
         self.commands.append((entity, name, args))
@@ -83,6 +85,7 @@ def test_the_goal_is_sent_once_the_pilot_is_up_and_arrival_passes(tmp_path):
     ctx = make_ctx(tmp_path)
     c = FakeCommander([(None, False), ("INITIALIZING", False), ("IDLE", True),
                        ("DRIVING", True), ("DRIVING", True), ("ARRIVED", True)])
+    c.at = (1.0, 2.0)
     r = drive.drive(ctx, "ego", (1, 2, 0, 0), goal=(30, 2, 0, 0), timeout=10,
                     argv_fn=lambda *a: SLEEP, commander_fn=lambda rec: c)
     assert r.verdict == results.PASSED
@@ -153,3 +156,21 @@ def test_an_entity_without_a_stack_pilot_is_refused(tmp_path):
 def test_main_refuses_a_bad_pose(capsys):
     assert drive.main(["--spawn", "1,2"]) == run.EXIT_REFUSED
     assert "four numbers" in capsys.readouterr().err
+
+
+def test_a_pilot_left_up_elsewhere_is_not_sent_the_goal_until_it_is_at_the_spawn(tmp_path):
+    """Seen live on Isaac (2026-11-16): a pilot up from an earlier run reported its old pose,
+    got the goal before the spawn, planned from there and never arrived."""
+    ctx = make_ctx(tmp_path)
+    old = {"x": 41.8, "y": -66.3}
+    c = FakeCommander([("ARRIVED", old), ("ARRIVED", old), ("IDLE", {"x": 99.0, "y": -20.5}),
+                       ("DRIVING", True), ("ARRIVED", True)])
+    seen = []
+    q = c.query
+    c.query = lambda e: (seen.append(len(c.commands)), q(e))[1]
+    r = drive.drive(ctx, "ego", (99.19, -20.04, 0, -1.57), goal=(41.77, -66.28, 0, 3.14),
+                    timeout=10, argv_fn=lambda *a: SLEEP, commander_fn=lambda rec: c)
+    assert r.verdict == results.PASSED
+    assert seen[:3] == [0, 0, 0]   # no goal while it reported the old pose
+    assert drive.at_spawn({"x": 99.0, "y": -20.5}, (99.19, -20.04)) is True
+    assert drive.at_spawn({"x": 41.8, "y": -66.3}, (99.19, -20.04)) is False

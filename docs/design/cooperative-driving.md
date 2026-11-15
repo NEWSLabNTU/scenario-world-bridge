@@ -493,6 +493,42 @@ What one car runs, every cycle (10 Hz in; decisions 2-5 Hz, latched for at least
    others within their class bounds. Any violation: stock Autoware, or a minimal-risk stop.
 10. **Record.** Band, role, convention, probe, the learned parameters' share.
 
+## Sensors, and what each feeds
+
+Which sensor feeds which workflow step, with what quality. UWB's numbers come from the lab's V2X
+lease project (coop 118, crdt-tensor: an IEEE 802.15.4z chip model on Sionna ray tracing through
+Town05, simulated, no hardware). Radar and camera have not been studied here; their rows are
+assumptions for P1's evaluation.
+
+| sensor | gives | quality | feeds | failure, and the rule |
+|---|---|---|---|---|
+| LiDAR + detector | objects, class, footprint | reach 40-56 m (tiny vs full CenterPoint, S5); intensity from the spec | relation, intervals | reach shorter than the reach contract: refuse the gap, creep |
+| radar (assumed) | range and range rate of objects far out | assumed 150-200 m, range rate ±0.1 m/s | intervals of far, fast cars: the left turn's oncoming queue | not yet in the stack: an option for the reach contract, to evaluate |
+| camera (assumed) | lights, indicators, brake lights | not measured | the probe (indicator, brake light as intent), light state | indicators unreliable: a prior, checked against motion |
+| localization (NDT, IMU) | own pose | sub-decimetre in the map | own interval, zone matching | NDT emergency: stock or minimal-risk stop |
+| map | zones, approach order, the law's priority, width | trusted unless contradicted | zones, role (map facts), convention | map against perception mismatch: stock |
+| UWB (optional, equipped pairs) | range and bearing to an equipped car, with its id | direct path: within 0.3 m 97-98 % of the time, 0.15 m at p95; bearing about 5° within ±45° (measured on hardware, Margiani et al. 2023), 12° at ±60°; 20 Hz; at most one frame late; about 80 m reach (assumed) | intervals (tighter range), identity across occlusion, presence of an unseen car | without a direct path (5-6 % of ranges; 8-10 % for a car behind other cars) the range reads 16-17 m **long**, one-sided, and the usual NLOS flag misses it |
+| V2X (optional) | intent, ids | lossy, about 48 ms median | the probe's prior, ids for UWB | silence is not consent: never needed for safety or liveness |
+
+**Rules for UWB.** The NLOS error only makes a car look farther away, which is the unsafe
+direction for a zone interval. So:
+- **Never clear a zone on UWB alone.** A UWB range tightens an interval only when it falls on a
+  tracked object, within 2.5 m + 6 % of the range (coop 118's attestation rule). Otherwise it is
+  ignored for clearing.
+- **Use it as a presence bound.** Because the error is one-sided, a measured range is close to an
+  upper bound on the true one: "an equipped car is within r". An equipped car that perception
+  cannot see becomes a phantom at r or closer. This is the "presence signal" the signal-control
+  project found a decentralised rule needs.
+- **Identity, not role.** UWB binds an id to a body and keeps a track through an occlusion. It does
+  not give "who stopped first": two-way ranging leaves each end with its own estimate, and a stop
+  time needs a common timebase. A range rate falling to zero at the same instant for both cars is an
+  idea to test in P1's evaluation, not a result. The map's total order (3c) stays the tie-break; an
+  id order is allowed only between two equipped cars that both hold the other's id.
+- **Equipped is optional, like V2X.** Ranging a stranger's car needs a key exchange over BLE, so a
+  non-equipped car is handled as today: by perception and the map.
+- **Behind buildings, neither LiDAR nor UWB sees cross traffic.** Only infrastructure would; the
+  phantom car at the occlusion edge stays the rule.
+
 ## Scenario walkthroughs
 
 Each scenario run through the workflow, and what it exposed. "Fix" items are now in the design.

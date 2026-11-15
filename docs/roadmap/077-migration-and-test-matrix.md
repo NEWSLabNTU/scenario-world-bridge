@@ -104,6 +104,13 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
   never mention the private NTU campus and Shalun maps; the roadmaps, scenarios and scripts
   about them stay. The matrix fetches public assets only; the user checks the work on the
   private maps with a configuration of their own, outside the repository.
+- Isaac on the project workflow, live (2026-11-15, Town10HD, Autoware 1.5.0): the keeper
+  marked the stack ready with its pilots while the Isaac world server was still loading
+  (over 20 min on a host whose spinning disk, where Isaac is installed, other users kept
+  80 % busy; the world server's own 1200 s limit restarted it once), and the first run failed
+  at SSv2's SIMULATOR_INITIALIZE_TIMEOUT. Fixed (`0300af9`): the stack is ready only once the
+  bridge serves SSv2, which it does only after its world server is up (`world.ready`). Then
+  `town10_ego_drive` passed on Isaac and on CARLA; the README's hero is that pair.
 - G9 town preload and G21 two SSv2 clients (2026-11-15), step 3. Tests without a simulator
   (the bridge's against a fake backend and an in-process world server, over real ZMQ
   sockets; the keeper's with a stand-in command). Not run live. Rulings:

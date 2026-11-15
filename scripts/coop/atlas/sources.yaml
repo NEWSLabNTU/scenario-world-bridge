@@ -1253,7 +1253,7 @@ scenarios:
           summary_keys: [dt, v]
         - loader: d2
           path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v14/summary.json"]
-    planned: {swb_light: "not run", swb_autoware: "not run"}
+    planned: {swb_light: "2-car: not run; the three-car check (N5 swb, Town03 j1901, v 10, h 1.5): outcomes 15 of 15, payoffs 68 % inside the arena (logs/2026 SSv2 on CARLA/2026-11-15 coop N5 swb three-car Y merge)", swb_autoware: "not run"}
 
   ymerge_stream:
     title: Y merge into a stream (N5)
@@ -1266,6 +1266,7 @@ scenarios:
       "#": "0.2 or more"
       "!": "a contact"
     notes:
+      - "Three cars through swb (N5 swb, Town03 j1901; A into B and C at h 1.5, v 10): outcomes 15 of 15 against the arena, payoffs 68 % inside; the rest is A's start overshoot (+0.25 m/s) and Town03's curve after the merge."
       - "A's externality: the stream's cost minus the same stream's with A 2 km back. Kinematic, the car's lags, legacy defaults (N5); no arena stream was run."
     tiers:
       kinematic:

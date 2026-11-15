@@ -42,7 +42,7 @@ def fake(log_path):
     from rclpy.node import Node
     from rclpy.qos import QoSProfile, ReliabilityPolicy
     from tier4_rtc_msgs.msg import CooperateResponse, CooperateStatus, CooperateStatusArray, Module
-    from tier4_rtc_msgs.srv import AutoModeWithModule, CooperateCommands
+    from tier4_rtc_msgs.srv import AutoMode, CooperateCommands  # rtc_interface's type (078 P2)
     from unique_identifier_msgs.msg import UUID
 
     from czp.geom import point_at
@@ -66,7 +66,7 @@ def fake(log_path):
             self.po = self.create_publisher(Odometry, "/localization/kinematic_state", rel)
             self.pb = self.create_publisher(PredictedObjects, "/perception/object_recognition/objects", rel)
             self.ps = self.create_publisher(CooperateStatusArray, "/planning/cooperate_status/intersection", rel)
-            self.create_service(AutoModeWithModule, "/planning/enable_auto_mode/intersection", self.on_auto)
+            self.create_service(AutoMode, "/planning/enable_auto_mode/intersection", self.on_auto)
             self.create_service(CooperateCommands, "/planning/cooperate_commands/intersection", self.on_cmd)
             self.auto_mode = True
             self.create_timer(0.1, self.tick)

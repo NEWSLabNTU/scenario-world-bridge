@@ -50,6 +50,7 @@ class Status:
     uuid: str
     start_distance: float = 0.0
     safe: bool = True
+    auto_mode: bool = False  # the status's own auto_mode
 
 
 @dataclass
@@ -147,6 +148,10 @@ class Strategy:
                     self.manual.add(m)
                     acts.auto_mode.append((m, False))
             for s in near:
+                if s.auto_mode and s.module in self.manual and s.uuid in self.sent:
+                    # the module is back in auto mode while this node holds it (the watchdog restored it, or
+                    # the status is a new registration): the command is sent again, which makes it manual again
+                    del self.sent[s.uuid]
                 if self.sent.get(s.uuid) != activate:
                     self.sent[s.uuid] = activate
                     acts.rtc.append((s.module, s.uuid, activate))

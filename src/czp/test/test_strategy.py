@@ -74,3 +74,19 @@ def test_velocity_limit_without_rtc_cover():
     acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)], None, [], 0.1)
     assert acts.decision.kind in ("wait", "yield") and isinstance(acts.velocity_limit, float)
     assert acts.velocity_limit <= math.sqrt(2 * 3.5 * 18.0) + 1e-6
+
+
+def test_held_module_seen_in_auto_gets_the_command_again():
+    """078 P2: a module the node holds that reports auto mode (the watchdog restored it) is commanded again."""
+    zones, z = setup()
+    st = Strategy(zones)
+    a0, a1 = z.approaches
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    obj = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)]
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), obj, None, [Status("intersection", "ab" * 16)], 0.1)
+    assert ("intersection", "ab" * 16, False) in acts.rtc
+    acts = st.cycle(0.1, (x, y, h, 6.0, 0.0), obj, None, [Status("intersection", "ab" * 16, auto_mode=False)], 0.1)
+    assert not acts.rtc  # held and manual: nothing new
+    acts = st.cycle(0.2, (x, y, h, 6.0, 0.0), obj, None, [Status("intersection", "ab" * 16, auto_mode=True)], 0.1)
+    assert ("intersection", "ab" * 16, False) in acts.rtc

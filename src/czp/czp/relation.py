@@ -45,7 +45,12 @@ def match_approach(zone: Zone, x, y, yaw, cache=None, key=None):
         b = _bbox(ap)
         if not (b[0] <= x <= b[2] and b[1] <= y <= b[3]):
             continue
-        ck = (key, ap.lanelet if ap.lanelet is not None else ap.id, id(ap)) if cache is not None else None
+        # keyed by the centre line itself (lanelet, length, end points), not the approach object: the zones of a
+        # junction carry equal copies of each approach, and one projection serves them all (078 P2: the live
+        # cycle at Town05 j979 ran 18.6 ms p50, most of it these projections)
+        cl = ap.centerline
+        ck = (key, ap.lanelet if ap.lanelet is not None else ap.id, len(cl), tuple(cl[0]), tuple(cl[-1])) \
+            if cache is not None else None
         if ck is not None and ck in cache:
             s, lat, h = cache[ck]
         else:

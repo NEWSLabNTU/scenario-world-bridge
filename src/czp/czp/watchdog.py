@@ -25,7 +25,6 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
-from .node import MODULE_TYPES
 
 HEARTBEAT = "/interaction_strategy/heartbeat"
 
@@ -34,8 +33,8 @@ class Watchdog(Node):
     def __init__(self):
         super().__init__("interaction_strategy_watchdog")
         from tier4_planning_msgs.msg import VelocityLimitClearCommand
-        from tier4_rtc_msgs.srv import AutoModeWithModule
-        self.AutoModeWithModule, self.VelocityLimitClearCommand = AutoModeWithModule, VelocityLimitClearCommand
+        from tier4_rtc_msgs.srv import AutoMode
+        self.AutoMode, self.VelocityLimitClearCommand = AutoMode, VelocityLimitClearCommand
         self.declare_parameter("modules", ["intersection"])
         self.declare_parameter("timeout_s", 0.5)
         self.declare_parameter("retry_s", 1.0)
@@ -55,7 +54,7 @@ class Watchdog(Node):
 
     def client(self, m):
         if m not in self.auto:
-            self.auto[m] = self.create_client(self.AutoModeWithModule, f"/planning/enable_auto_mode/{m}")
+            self.auto[m] = self.create_client(self.AutoMode, f"/planning/enable_auto_mode/{m}")  # rtc_interface's type
         return self.auto[m]
 
     def on_hb(self, msg):
@@ -84,7 +83,6 @@ class Watchdog(Node):
                                                                   sender="interaction_strategy"))
         if not self.tripped:
             return
-        from tier4_rtc_msgs.msg import Module
         for m in self.targets:
             if m in self.done:
                 continue
@@ -96,8 +94,7 @@ class Watchdog(Node):
                     self.get_logger().info(f"RTC {m}: auto mode restored")
                     continue
             if now - sent >= self.retry:
-                req = self.AutoModeWithModule.Request()
-                req.module = Module(type=MODULE_TYPES.get(m, 8))
+                req = self.AutoMode.Request()
                 req.enable = True
                 self.pending[m] = (self.client(m).call_async(req), now)
 

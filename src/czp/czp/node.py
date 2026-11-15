@@ -37,6 +37,7 @@ from . import zones as ZN
 from .record import to_json
 from .strategy import Obj, Status, Strategy
 
+SELF_WINDOW = 10  # cycles: the self contract reads their median
 MODULE_TYPES = {"intersection": 8, "intersection_occlusion": 9, "blind_spot": 11, "lane_change_left": 1,
                 "lane_change_right": 2}
 
@@ -57,9 +58,9 @@ class InteractionStrategy(Node):
         from nav_msgs.msg import Odometry
         from tier4_planning_msgs.msg import VelocityLimit, VelocityLimitClearCommand
         from tier4_rtc_msgs.msg import CooperateStatusArray
-        from tier4_rtc_msgs.srv import AutoModeWithModule, CooperateCommands
+        from tier4_rtc_msgs.srv import AutoMode, CooperateCommands
         self.VelocityLimit, self.VelocityLimitClearCommand = VelocityLimit, VelocityLimitClearCommand
-        self.CooperateCommands, self.AutoModeWithModule = CooperateCommands, AutoModeWithModule
+        self.CooperateCommands, self.AutoMode = CooperateCommands, AutoMode
         self.declare_parameter("map_path", "")
         self.declare_parameter("zones_file", "")
         self.declare_parameter("modules", ["intersection"])
@@ -82,7 +83,10 @@ class InteractionStrategy(Node):
             self.create_subscription(CooperateStatusArray, f"/planning/cooperate_status/{m}",
                                      lambda msg, m=m: self.on_status(m, msg), rel)
         self.cmd = {m: self.create_client(CooperateCommands, f"/planning/cooperate_commands/{m}") for m in self.modules}
-        self.auto = {m: self.create_client(AutoModeWithModule, f"/planning/enable_auto_mode/{m}") for m in self.modules}
+        # rtc_interface serves tier4_rtc_msgs/srv/AutoMode here (bool enable); AutoModeWithModule is the AD API's
+        # type, which no Autoware node serves on this name: a client of it never matches (078 P2: "back to auto"
+        # never reached the module, which stayed manual on its last command)
+        self.auto = {m: self.create_client(AutoMode, f"/planning/enable_auto_mode/{m}") for m in self.modules}
         self.pub_limit = self.create_publisher(VelocityLimit, "/planning/scenario_planning/max_velocity_candidates",
                                                QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.pub_clear = self.create_publisher(VelocityLimitClearCommand, "/planning/scenario_planning/clear_velocity_limit",
@@ -150,7 +154,7 @@ class InteractionStrategy(Node):
         self.traj = [(pt.pose.position.x, pt.pose.position.y) for pt in msg.points[::5]][:60]
 
     def on_status(self, module, msg):
-        self.statuses[module] = [Status(module, uuid_hex(s.uuid), float(s.start_distance), bool(s.safe))
+        self.statuses[module] = [Status(module, uuid_hex(s.uuid), float(s.start_distance), bool(s.safe), bool(s.auto_mode))
                                  for s in msg.statuses]
 
     # --- the cycle -----------------------------------------------------------------------------------
@@ -171,7 +175,11 @@ class InteractionStrategy(Node):
         t = self.now_s()
         age = 0.0 if self.obj_stamp is None else max(0.0, t - (self.obj_stamp.sec + self.obj_stamp.nanosec * 1e-9))
         sts = [s for m in self.modules for s in self.statuses[m]]
-        acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, self.cycle_time)
+        # the self contract on the median of the last SELF_WINDOW cycles: on a loaded host single cycles straddle the
+        # 20 ms budget, and a contract read per cycle flapped stock <-> decision every 0.1-0.5 s (078 P2), each flap a
+        # mode switch of the module
+        recent = sorted(self.cycle_times[-SELF_WINDOW:]) or [0.0]
+        acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, recent[len(recent) // 2])
         self.heartbeat()  # names the modules this cycle switches to manual before the switch is sent
         self.apply(acts)
         for rec in acts.records:
@@ -186,8 +194,7 @@ class InteractionStrategy(Node):
     def apply(self, acts):
         from tier4_rtc_msgs.msg import Command, CooperateCommand, Module
         for m, enable in acts.auto_mode:
-            req = self.AutoModeWithModule.Request()
-            req.module = Module(type=MODULE_TYPES.get(m, 8))
+            req = self.AutoMode.Request()
             req.enable = enable
             self.auto[m].call_async(req)
             self.get_logger().info(f"RTC {m}: auto mode {enable}")
@@ -216,10 +223,8 @@ class InteractionStrategy(Node):
         """Back to stock: every module this node put in manual mode to auto, the limit cleared."""
         if self.strategy is None:
             return
-        from tier4_rtc_msgs.msg import Module
         for m in sorted(self.strategy.manual):
-            req = self.AutoModeWithModule.Request()
-            req.module = Module(type=MODULE_TYPES.get(m, 8))
+            req = self.AutoMode.Request()
             req.enable = True
             self.auto[m].call_async(req)
         if self.strategy.limited:

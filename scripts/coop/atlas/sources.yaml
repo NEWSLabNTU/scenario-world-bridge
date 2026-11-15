@@ -190,9 +190,17 @@ scenarios:
             - {ctx: {dt: 0.3, v: 10.0}, a: tinfp2, b: hold}
       arena:
         - loader: arena_runs
-          label: S2 arena, the reference policies, scored with the continuous PET (hold-stop check)
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v14/runs.csv"]
+          label: "S2 arena — held cars brake to rest (4fcaa8d), the reference"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s2_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s2_v14/runs.csv"]
           fixed: {r: none, model: "074 defaults"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s2_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest"
+        - loader: arena_runs
+          label: "S2 arena, the reference policies, scored with the continuous PET (hold-stop check) — coast arena (legacy)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v14/runs.csv"]
+          fixed: {r: none, model: "074, coast arena"}
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v1*/summary.json"
           summary_class: class_arena
           summary_keys: [dt, v]
@@ -205,7 +213,7 @@ scenarios:
           summary_class: class_arena
           summary_keys: [dt, v]
         - loader: arena_runs
-          label: "S2 arena, D2 round 2 (legacy; D2 41 / 51 %, 074 defaults 70 / 71 %)"
+          label: "S2 arena, D2 round 2 (legacy; D2 41 / 51 %; 074 coast 70 / 71 %, brake 62 / 77 %)"
           path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v10/runs.csv",
                  "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-14 coop S2 crossing D2/round2/v14/runs.csv"]
           fixed: {r: none, model: legacy}
@@ -213,7 +221,7 @@ scenarios:
           summary_class: class_arena
           summary_keys: [dt, v]
         - loader: d2
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s2_v14/summary.json"]
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s2_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s2_v14/summary.json"]
     planned: {swb_light: "S2 swb light: not run", swb_autoware: "not run"}
 
   cutout:
@@ -629,9 +637,19 @@ scenarios:
           fixed: {model: legacy, grid: fine}
       arena:
         - loader: arena_runs
-          label: "S4 arena, the reference policies, scored with the continuous PET (hold-stop check), r none"
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/runs.csv"]
+          label: "S4 arena, r none — held cars brake to rest (4fcaa8d), the reference"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn6/runs.csv"]
           fixed: {r: none, model: "074 defaults"}
+          ua_col: uA
+          ub_col: uB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn*/summary.json"
+          summary_class: class_arena_none
+          summary_keys: [dt, v, wn]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest"
+        - loader: arena_runs
+          label: "S4 arena, the reference policies, scored with the continuous PET (hold-stop check), r none — coast arena (legacy)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/runs.csv"]
+          fixed: {r: none, model: "074, coast arena"}
           ua_col: uA
           ub_col: uB
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn*/summary.json"
@@ -639,9 +657,18 @@ scenarios:
           summary_keys: [dt, v, wn]
           link: "logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check"
         - loader: arena_runs
-          label: "S4 arena, the reference policies, scored with the continuous PET (hold-stop check), r B"
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/runs.csv"]
+          label: "S4 arena, r B — held cars brake to rest (4fcaa8d), the reference"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn6/runs.csv"]
           fixed: {r: B, model: "074 defaults"}
+          ua_col: uA_rB
+          ub_col: uB_rB
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn*/summary.json"
+          summary_class: class_arena_B
+          summary_keys: [dt, v, wn]
+        - loader: arena_runs
+          label: "S4 arena, the reference policies, scored with the continuous PET (hold-stop check), r B — coast arena (legacy)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/runs.csv"]
+          fixed: {r: B, model: "074, coast arena"}
           ua_col: uA_rB
           ub_col: uB_rB
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn*/summary.json"
@@ -666,7 +693,7 @@ scenarios:
           summary_class: class_arena_B
           summary_keys: [dt, v, wn]
         - loader: arena_runs
-          label: "S4 arena, D2 round 2 (legacy; D2 35 / 38 %, outcomes 73 / 78 %; 074 defaults 56 / 42 %, 90 / 91 %), r none"
+          label: "S4 arena, D2 round 2 (legacy; D2 35 / 38 %, outcomes 73 / 78 %; 074 coast 56 / 42 %, 90 / 91 %; brake 51 / 54 %, 90 / 90 %), r none"
           path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn30/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S4 narrow passage D2/arena_wn6/runs.csv"]
           fixed: {r: none, model: legacy}
           ua_col: uA
@@ -684,7 +711,7 @@ scenarios:
           summary_class: class_arena_B
           summary_keys: [dt, v, wn]
         - loader: d2
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn30/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/s4_wn6/summary.json"]
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn30/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s4_wn6/summary.json"]
     planned: {swb_light: "not run", swb_autoware: "not run"}
 
   left_turn:
@@ -725,9 +752,20 @@ scenarios:
           eq_col: eq_U1
       arena:
         - loader: arena_runs
-          label: S5 arena on the 074 defaults (continuous PET; e995a7b rerun)
-          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s5/runs.csv"
+          label: "S5 arena — held cars brake to rest (4fcaa8d), the reference"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s5/runs.csv"
           fixed: {model: "074 defaults"}
+          a_col: G
+          b_col: c1
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s5/summary.json"
+          summary_class: class_arena
+          summary_keys: [n, h]
+        - loader: arena_runs
+          label: "S5 arena on the 074 defaults (continuous PET; e995a7b rerun) — coast arena (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s5/runs.csv"
+          fixed: {model: "074, coast arena"}
           a_col: G
           b_col: c1
           ua_col: u0
@@ -736,7 +774,7 @@ scenarios:
           summary_class: class_arena
           summary_keys: [n, h]
         - loader: arena_runs
-          label: "S5 arena (legacy; D2 49 %, 074 defaults 68 %)"
+          label: "S5 arena (legacy; D2 49 %; 074 coast 68 %, brake 68 %)"
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop S5 left turn arena/arena/runs.csv"
           fixed: {model: legacy}
           a_col: G
@@ -747,7 +785,7 @@ scenarios:
           summary_class: class_arena
           summary_keys: [n, h]
         - loader: d2
-          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/s5/summary.json"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/s5/summary.json"
     planned: {swb_light: "not run", swb_autoware: "Autoware as the turner: the left_turn_aw view (lag x detector)"}
 
   left_turn_aw:
@@ -898,9 +936,19 @@ scenarios:
           class_fn: roundabout_cell
       arena:
         - loader: arena_runs
-          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), none"
-          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          label: "U2 arena, none — held cars brake to rest (4fcaa8d), the reference"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/runs.csv"
           fixed: {row: "none", courtesy: "yes", model: "074 defaults"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/summary.json"
+          summary_class: class_arena_none0
+          summary_keys: [n, h, tb]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest"
+        - loader: arena_runs
+          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), none — coast arena (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          fixed: {row: "none", courtesy: "yes", model: "074, coast arena"}
           ua_col: u0
           ub_col: u1
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
@@ -908,25 +956,43 @@ scenarios:
           summary_keys: [n, h, tb]
           link: "logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun"
         - loader: arena_runs
-          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), B 1 (payoffs without the fault)"
-          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          label: "U2 arena, B 1 (payoffs without the fault) — held cars brake to rest (4fcaa8d), the reference"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/runs.csv"
           fixed: {row: "B 1", courtesy: "yes", model: "074 defaults"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/summary.json"
+          summary_class: class_arena_B1
+          summary_keys: [n, h, tb]
+        - loader: arena_runs
+          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), B 1 (payoffs without the fault) — coast arena (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          fixed: {row: "B 1", courtesy: "yes", model: "074, coast arena"}
           ua_col: u0
           ub_col: u1
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
           summary_class: class_arena_B1
           summary_keys: [n, h, tb]
         - loader: arena_runs
-          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), B 2 (payoffs without the fault)"
-          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          label: "U2 arena, B 2 (payoffs without the fault) — held cars brake to rest (4fcaa8d), the reference"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/runs.csv"
           fixed: {row: "B 2", courtesy: "yes", model: "074 defaults"}
+          ua_col: u0
+          ub_col: u1
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/summary.json"
+          summary_class: class_arena_B2
+          summary_keys: [n, h, tb]
+        - loader: arena_runs
+          label: "U2 arena on the 074 defaults (continuous PET; e995a7b rerun), B 2 (payoffs without the fault) — coast arena (legacy)"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/runs.csv"
+          fixed: {row: "B 2", courtesy: "yes", model: "074, coast arena"}
           ua_col: u0
           ub_col: u1
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
           summary_class: class_arena_B2
           summary_keys: [n, h, tb]
         - loader: arena_runs
-          label: "U2 arena (legacy; D2 66 %, outcomes 94 %; 074 defaults 66 %, 89 %), none"
+          label: "U2 arena (legacy; D2 66 %, outcomes 94 %; 074 coast 66 %, 89 %; brake 63 %, 90 %), none"
           path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop U2 roundabout arena/run/runs.csv"
           fixed: {row: "none", courtesy: "yes", model: "legacy"}
           ua_col: u0
@@ -953,7 +1019,7 @@ scenarios:
           summary_class: class_arena_B2
           summary_keys: [n, h, tb]
         - loader: d2
-          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop kinematic defaults rerun/arena/u2/summary.json"
+          path: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/u2/summary.json"
       swb_light:
         - loader: u2_swb
           label: "U2 through swb on Town03 (agent cars, spec physics; b1c0684), n 1, h 1.5, v 7; D2 70 %, 88 % after offsets"
@@ -1156,9 +1222,17 @@ scenarios:
           fixed: {model: "legacy, ideal car", grid: coarse}
       arena:
         - loader: arena_runs
-          label: "Y merge arena, the reference policies, scored with the continuous PET (hold-stop check)"
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v14/runs.csv"]
+          label: "Y merge arena — held cars brake to rest (4fcaa8d), the reference"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v14/runs.csv"]
           fixed: {r: none, model: "074 defaults"}
+          summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v1*/summary.json"
+          summary_class: class_arena
+          summary_keys: [dt, v]
+          link: "logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest"
+        - loader: arena_runs
+          label: "Y merge arena, the reference policies, scored with the continuous PET (hold-stop check) — coast arena (legacy)"
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v14/runs.csv"]
+          fixed: {r: none, model: "074, coast arena"}
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v1*/summary.json"
           summary_class: class_arena
           summary_keys: [dt, v]
@@ -1171,14 +1245,14 @@ scenarios:
           summary_class: class_arena
           summary_keys: [dt, v]
         - loader: arena_runs
-          label: "Y merge arena (legacy; D2 72 / 39 %, 074 defaults 70 / 48 %)"
+          label: "Y merge arena (legacy; D2 72 / 39 %; 074 coast 70 / 48 %, brake 72 / 47 %)"
           path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/arena_v10/runs.csv", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/arena_v14/runs.csv"]
           fixed: {r: none, model: "legacy"}
           summary: "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/arena_v1*/summary.json"
           summary_class: class_arena
           summary_keys: [dt, v]
         - loader: d2
-          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop hold-stop arena check/arena/ym_v14/summary.json"]
+          path: ["~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v10/summary.json", "~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-15 coop arena brake to rest/arena/ym_v14/summary.json"]
     planned: {swb_light: "not run", swb_autoware: "not run"}
 
   ymerge_stream:

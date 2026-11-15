@@ -320,6 +320,47 @@ def xodr_lane_drop(k, length, x_end, taper):
             '  <header revMajor="1" revMinor="4" name="arena_lane_drop" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
 
 
+def xodr_ymerge(k, approach, beyond, diag_len, r_arc, spacing=300.0, angle=math.pi / 4):
+    """K Y merges (074 N5, Town03 j1901 mirrored): per pair a one-lane main road m<i> along +x
+    and a one-lane diagonal road d<i> that comes from the main road's left (+y, OpenDRIVE) at
+    `angle`, runs straight for diag_len m and bends onto the main road along an arc of radius
+    r_arc (lane centre), tangent to it at the merge point M = (0, -i * spacing). No junction:
+    the diagonal ends at M on top of the main road's lane (the meshes overlap there, flat), and
+    a car carries on along the main road. The main road runs from `approach` m before M to
+    `beyond` m past it. Each road's reference line is its lane's left edge (lane -1, LANE_W
+    wide), so the lane centres are the paths ymerge_game.Path gives."""
+    w = LANE_W
+    lane = f'<right><lane id="-1" type="driving" level="false"><width sOffset="0" a="{w}" b="0" c="0" d="0"/></lane></right>'
+    ca, sa = math.cos(angle), math.sin(angle)
+    r_ref = r_arc - w / 2  # a left turn: the reference line (the lane's left edge) is inside
+    arc_len = r_ref * angle
+    roads = []
+    for i in range(k):
+        y0 = -i * spacing
+        # the arc's start on the lane centre, then the straight's start, both moved left by w/2
+        p1 = (-r_arc * sa, y0 + r_arc * (1 - ca))
+        nx, ny = sa * w / 2, ca * w / 2  # the left normal at heading -angle, times w/2
+        p0 = (p1[0] - diag_len * ca, p1[1] + diag_len * sa)
+        geo_main = (f'<geometry s="0" x="{-approach}" y="{y0 + w / 2}" hdg="0" length="{approach + beyond}"><line/></geometry>')
+        geo_diag = (f'<geometry s="0" x="{p0[0] + nx:.4f}" y="{p0[1] + ny:.4f}" hdg="{-angle:.6f}" length="{diag_len}"><line/></geometry>'
+                    f'<geometry s="{diag_len}" x="{p1[0] + nx:.4f}" y="{p1[1] + ny:.4f}" hdg="{-angle:.6f}" length="{arc_len:.4f}">'
+                    f'<arc curvature="{1 / r_ref:.6f}"/></geometry>')
+        for j, (name, geo, length) in enumerate(((f"m{i}", geo_main, approach + beyond),
+                                                 (f"d{i}", geo_diag, diag_len + arc_len))):
+            roads.append(f"""
+  <road name="{name}" length="{length:.4f}" id="{2 * i + j + 1}" junction="-1">
+    <link/>
+    <planView>{geo}</planView>
+    <elevationProfile/><lateralProfile/>
+    <lanes><laneSection s="0">
+      <center><lane id="0" type="none" level="false"/></center>
+      {lane}
+    </laneSection></lanes>
+  </road>""")
+    return ('<?xml version="1.0" standalone="yes"?>\n<OpenDRIVE>\n'
+            '  <header revMajor="1" revMinor="4" name="arena_ymerge" version="1"/>' + "".join(roads) + "\n</OpenDRIVE>\n")
+
+
 def xodr_two_way(k, length, shoulder=1.5):
     """K parallel two-way roads: lane -1 along +x, lane +1 along -x, and a driveable strip of
     `shoulder` m outside each (lanes -2 and +2), for a car that moves right."""

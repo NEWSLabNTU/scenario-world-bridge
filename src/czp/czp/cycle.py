@@ -72,14 +72,17 @@ class Protocol:
         dec, mem.probe = probe(dec, own, mem.probe, p, t, row, mem.own_rest_s)
         # 8. the latches and the commit point
         prev = mem.decision
-        dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, mem.own_moving_since is not None, p, t, row)
+        moving_from_rest = mem.own_moving_since is not None and mem.go_from_rest
+        dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, moving_from_rest, p, t, row)
         if changed:
             mem.decision_since = t
             mem.flips += 1
         if dec.kind == GO and (prev is None or prev.kind != GO):
             mem.go_since = t
+            mem.go_from_rest = own.v < p.moved_speed
         elif dec.kind != GO:
             mem.go_since = None
+            mem.go_from_rest = False
         mem.decision = dec
         self.mem[zone.id] = mem
         # 10. record

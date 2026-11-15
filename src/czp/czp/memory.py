@@ -72,6 +72,7 @@ class Memory:
     decision: Optional[Decision] = None
     decision_since: float = -INF
     go_since: Optional[float] = None
+    go_from_rest: bool = False  # the current go began with the car below moved_speed (commit: on_move)
     probe: ProbeState = ProbeState()
     record_key: tuple = ()
     flips: int = 0

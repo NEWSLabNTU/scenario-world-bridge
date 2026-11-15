@@ -1,8 +1,8 @@
 # The protocol's parameters (docs/design/conflict-zone-protocol.md, "Parameters"). Every entry has a
 # value and a source: `assumed` (the design's assumed table, to be measured in roadmap 078 Phase 2) or
 # the run that measured it. `heldout` is the held-out error once measured (Phase 2), null until then.
-role_time_error_e:        {value: 0.25, unit: s, source: "074 C8 measure-e: arena e99 centred", heldout: null}
-role_time_bias:           {value: 0.0,  unit: s, source: "074 C8: 0 on ground truth; 0.2 through arena.Observer (the adapter sets it)", heldout: null}
+role_time_error_e:        {value: 0.55, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (Autoware 1.5.0 tracks vs swb truth, Town05 j979; held-out e99 0.53 s rounded up; was 074 C8 arena e99 0.25)", heldout: 0.53}
+role_time_bias:           {value: -0.24, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (reading - truth: the track predicts the other's arrival 0.24 s early, its speed lag while it brakes; corrected = reading - bias, 0.24 s later; the arena adapter sets its own)", heldout: -0.24}
 tie_threshold_T:          {value: 0.5,  unit: s, source: "074 U3 (TIE)", heldout: null}
 tie_margin_m:             {value: 0.3,  unit: s, source: "074 C8 V1: m >= e; m 0.3 for e 0.25", heldout: null}
 second_round_H2:          {value: 2.0,  unit: s, source: "074 C8 V1: H2 >= e + 1.2 s", heldout: null}
@@ -25,6 +25,7 @@ probe_first_moving:       {value: true, unit: bool, source: "078 V2b: a first go
 fresh_rest_guard:         {value: true, unit: bool, source: "078 V2b: a first go waits until a car that only just stopped would be seen starting (against cars that ignore arrival order)", heldout: null}
 guard_filter_n:           {value: 2,    unit: samples, source: "074 C8 V3: filter the guards over 2-3 samples (141 flips unfiltered at noise x2)", heldout: null}
 latch_s:                  {value: 1.0,  unit: s, source: "design R10: decisions latched >= 1 s", heldout: null}
+mode_hold:                {value: 1.5,  unit: s, source: "078 P2b: RTC stays manual until the decision has been stock-equivalent this long (following the module's own safe meanwhile); 078 P2: 50 of 90 auto spells between manual ones were <= 1.0 s, 64 <= 1.5 s; 1.5 s = see_delay, past latch_s", heldout: null}
 go_latch_launch:          {value: true, unit: bool, source: "074 C8 V3: a go is latched for the launch dead time", heldout: null}
 probe_creep_dist:         {value: 0.5,  unit: m, source: "074 C8: the legible probe, creep about 0.5 m", heldout: null}
 probe_watch:              {value: 0.8,  unit: s, source: "assumed: the other's start is seen 0.7-0.8 s late (C8's model)", heldout: null}

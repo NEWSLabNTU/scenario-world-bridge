@@ -60,9 +60,48 @@ def test_tie_takes_rtc_then_back_to_auto():
     assert acts.decision is not None and acts.decision.kind in ("wait", "yield")
     assert ("intersection", False) in acts.auto_mode
     assert ("intersection", "ab" * 16, False) in acts.rtc
-    # it has gone: the module goes back to auto mode, nothing else is sent
+    # it has gone: for mode_hold the module stays manual and follows its own safe (ACTIVATE here), then auto
     acts = st.cycle(2.0, (x, y, h, 0.0, 0.0), [], None, stat, 0.1)
+    assert not acts.auto_mode and acts.rtc == [("intersection", "ab" * 16, True)]
+    acts = st.cycle(2.0 + st.p.mode_hold, (x, y, h, 0.0, 0.0), [], None, stat, 0.1)
     assert ("intersection", True) in acts.auto_mode and not acts.rtc
+
+
+def test_mode_hysteresis_band_edge_flicker():
+    """078 P2b: a reading that flickers between a held decision and stock-equivalent at the band's edge switches
+    the mode once, not at every flip; the commands follow the module's own safe while stock-equivalent."""
+    zones, z = setup()
+    st = Strategy(zones)
+    a0, a1 = z.approaches
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    tie = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)]
+    stat = [Status("intersection", "ab" * 16, safe=False)]
+    switches = 0
+    for k in range(20):  # 0.1 s per cycle: the tie, then nothing (stock), alternating every 0.3 s
+        objs = tie if (k // 3) % 2 == 0 else []
+        acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), objs, None, stat, 0.1)
+        switches += len(acts.auto_mode)
+    assert switches == 1 and st.manual == {"intersection"}
+    for k in range(20, 20 + int(st.p.mode_hold / 0.1) + 2):
+        acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), [], None, stat, 0.1)
+        switches += len(acts.auto_mode)
+    assert switches == 2 and not st.manual
+
+
+def test_mode_hysteresis_released_by_a_contract():
+    """A failed contract hands the module back to auto at once, hysteresis or not."""
+    zones, z = setup()
+    st = Strategy(zones)
+    a0, a1 = z.approaches
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    obj = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)]
+    stat = [Status("intersection", "ab" * 16)]
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1)
+    assert ("intersection", False) in acts.auto_mode
+    acts = st.cycle(0.1, (x, y, h, 6.0, 0.0), obj, None, stat, obs_age=5.0)  # the latency contract fails
+    assert ("intersection", True) in acts.auto_mode
 
 
 def test_velocity_limit_without_rtc_cover():

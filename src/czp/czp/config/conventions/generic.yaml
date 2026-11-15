@@ -17,6 +17,8 @@ cross_unsignalled:                # 074 S2, C7
   first: map_priority             # major road goes
   tie: right_before_left
   last: map_order
+  commit: on_move                 # a go from rest commits once the car moves, until it is in the zone (078 P2: else it chattered)
+  commit_release: turn            # ... unless the other is seen starting or in the zone while this car can still stop (078 P2b: arena)
 merge_lane_drop:                  # 074 S3, C7
   band: gap                       # who leads whom by a headway now (a lane, not a point; 078 S3)
   first: ahead_at_end

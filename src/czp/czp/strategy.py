@@ -11,7 +11,13 @@ trajectory is given), nearest first; per zone the objects placed by ``relate`` a
 - creep (the probe): ACTIVATE with the creep speed as the velocity limit (probe:creep), DEACTIVATE
   (probe:watch);
 - stock, or every zone clear: the modules back to auto mode and the velocity limit cleared -- and when
-  nothing was ever changed, nothing is sent (EV2: no RTC command on a clear route).
+  nothing was ever changed, nothing is sent (EV2: no RTC command on a clear route);
+- the mode hysteresis (078 P2b): a module this node holds goes back to auto mode only once the decision
+  has been stock-equivalent (or stock) for ``mode_hold`` s. Meanwhile it stays manual and follows the
+  module's own reading -- ACTIVATE when its status is safe, DEACTIVATE when not --, which is what auto
+  mode would do, one cycle later. Readings of clear or contested at the band's edges, which used to
+  toggle the mode at every flip (078 P2: 216 switches in 26 runs), now change only the command. A failed
+  contract, or no status of the module near, releases at once.
 """
 
 from __future__ import annotations
@@ -80,6 +86,7 @@ class Strategy:
         self.manual = set()  # modules this node put in manual mode
         self.sent = {}  # uuid -> last command sent
         self.limited = False
+        self.equiv_since = None  # since when every decision has been stock or stock-equivalent (the mode hysteresis)
         self.counts = {"rtc": 0, "auto_mode": 0, "velocity_limit": 0}
 
     def candidates(self, x, y, yaw, traj=None, cache=None):
@@ -115,6 +122,7 @@ class Strategy:
             agents.append(Agent(o.id, cls=cls, pose=(o.x, o.y, o.yaw), v=max(o.v, 0.0), a=o.a, stamp=t - obs_age, cap=cap,
                                 track_age=t - self.first_seen[o.id]))
         chosen = None
+        contract = False
         cache = {}
         for s_entry, z, ap, s_exit in self.candidates(x, y, yaw, traj, cache)[:max_zones]:
             own = Agent("ego", approach=ap.id, s_entry=s_entry, s_exit=s_exit, v=v, a=a, stamp=t, cap=self.own_cap,
@@ -131,8 +139,24 @@ class Strategy:
                 acts.records.append(rec)
             if chosen is None and dec.kind != STOCK and not dec.stock_equivalent:
                 chosen = (dec, z, s_entry)
+            contract = contract or (dec.kind == STOCK and dec.reason == "contract")
         near = [s for s in statuses if s.module in self.modules]
-        if chosen is None:
+        if chosen is not None:
+            self.equiv_since = None
+        elif self.equiv_since is None:
+            self.equiv_since = t
+        held = [s for s in near if s.module in self.manual]
+        if chosen is None and held and not contract and t - self.equiv_since < self.p.mode_hold - 1e-9:
+            # the mode hysteresis: still manual, acting as auto mode would (the module's own safe)
+            for s in held:
+                if s.auto_mode and s.uuid in self.sent:
+                    del self.sent[s.uuid]
+                if self.sent.get(s.uuid) != s.safe:
+                    self.sent[s.uuid] = s.safe
+                    acts.rtc.append((s.module, s.uuid, s.safe))
+            if self.limited:
+                acts.velocity_limit, self.limited = "clear", False
+        elif chosen is None:
             for m in sorted(self.manual):
                 acts.auto_mode.append((m, True))
             self.manual.clear()

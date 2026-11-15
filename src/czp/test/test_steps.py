@@ -23,6 +23,8 @@ from czp.role import map_order, map_priority, obstruction_side, right_of, stoppe
 
 P = czp.load_params()
 CONV = czp.load_conventions()
+# the all-way stop's readings at 074 C8's arena e (0.25 s, no bias), where m >= e holds (params.yaml's e is Autoware's)
+P_C8 = P.override(source="test: 074 C8 arena e", role_time_error_e=0.25, role_time_bias=0.0)
 CAR = P.capability("car", v_max=6.0)
 
 
@@ -104,15 +106,15 @@ def test_band_gap_merge():
 
 # --- role ----------------------------------------------------------------------------------------------
 def test_stopped_first_readings():
-    T, m = P.tie_threshold_T, P.tie_margin_m
+    T, m = P_C8.tie_threshold_T, P_C8.tie_margin_m
     o = car("B")
-    assert stopped_first(10.0, 10.0 + T + m + 0.01, 20, 0.7, o, P).reading == FIRST
-    assert stopped_first(10.0, 10.0 - T - m - 0.01, 20, 0.7, o, P).reading == SECOND
-    assert stopped_first(10.0, 10.0 + 0.1, 20, 0.7, o, P).reading == TIE
-    assert stopped_first(10.0, 10.0 + T, 20, 0.7, o, P).reading == AMBIG  # at the threshold: ambiguous
+    assert stopped_first(10.0, 10.0 + T + m + 0.01, 20, 0.7, o, P_C8).reading == FIRST
+    assert stopped_first(10.0, 10.0 - T - m - 0.01, 20, 0.7, o, P_C8).reading == SECOND
+    assert stopped_first(10.0, 10.0 + 0.1, 20, 0.7, o, P_C8).reading == TIE
+    assert stopped_first(10.0, 10.0 + T, 20, 0.7, o, P_C8).reading == AMBIG  # at the threshold: ambiguous
     # no stamp yet: first only once one within T + m would be known
-    assert stopped_first(10.0, None, 10.0 + 0.7 + T + m + 0.01, 0.7, o, P).reading == FIRST
-    assert stopped_first(10.0, None, 10.5, 0.7, o, P).reading != FIRST
+    assert stopped_first(10.0, None, 10.0 + 0.7 + T + m + 0.01, 0.7, o, P_C8).reading == FIRST
+    assert stopped_first(10.0, None, 10.5, 0.7, o, P_C8).reading != FIRST
 
 
 def test_map_facts():
@@ -153,10 +155,10 @@ def test_four_way_four_at_once_cycle_broken_by_map_order():
     z = four_way(4)
     ags = [car(i) for i in "ABCD"]
     rests = {i: 0.0 for i in "ABCD"}
-    d = decide_all(CONV, z, ags, rests, P, t=1.5, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, rests, P_C8, t=1.5, quiet_since=-math.inf)
     assert all(x.kind != GO for x in d.values())
-    fresh = (CAR.launch_dead + P.see_delay) if P.fresh_rest_guard else 0.0
-    d = decide_all(CONV, z, ags, rests, P, t=P.stop_dwell + fresh + P.second_round_H2 + 0.1, quiet_since=-math.inf)
+    fresh = (CAR.launch_dead + P_C8.see_delay) if P_C8.fresh_rest_guard else 0.0
+    d = decide_all(CONV, z, ags, rests, P_C8, t=P_C8.stop_dwell + fresh + P_C8.second_round_H2 + 0.1, quiet_since=-math.inf)
     goes = [k for k, x in d.items() if x.kind == GO]
     assert goes == ["A"] and d["A"].reason == "cycle"
 
@@ -303,6 +305,31 @@ def test_commit_on_move():
     d, _ = latch(Decision(YIELD, "j", "contested"), Decision(GO, "j", "first"), 0, 0, own, True, P, 5.0,
                  CONV["all_way_stop"])
     assert d.kind == GO and d.committed
+    d, _ = latch(Decision(STOCK, "j", "contract"), Decision(GO, "j", "first"), 0, 0, own, True, P, 5.0,
+                 CONV["all_way_stop"])
+    assert d.kind == STOCK  # a failed contract is never committed over
+
+
+def test_crossing_commits_a_go_from_rest_only():
+    """078 P2b: the crossing's go commits once the car moves under a go it began at rest, not a go given on the move
+    far from the zone (that one commits at its commit point only)."""
+    assert CONV["cross_unsignalled"].get("commit") == "on_move"
+    z = Zone("j", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    pr = czp.Protocol()
+    pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "rest_tie"), decision_since=0.0, go_since=0.0, go_from_rest=True,
+                          own_moving_since=0.5, own_rest_t=-3.0)
+    b = car("B", s_entry=4.0, v=4.0)  # it would be in first: no longer a go as read
+    b.approach = "B"
+    dec, _ = pr.step(1.0, car("A", s_entry=1.5, v=1.2), [b], z, C.Inputs(obs_age=0.2))
+    assert dec.kind == GO and dec.committed
+    pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "rest_tie"), decision_since=0.0, go_since=0.0, go_from_rest=True,
+                          own_rest_t=-3.0)
+    dec, _ = pr.step(1.0, car("A", s_entry=1.5, v=0.0), [b], z, C.Inputs(obs_age=0.2))
+    assert dec.kind != GO  # brought to rest (its safety layer): the commit is released
+    pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "first"), decision_since=0.0, go_since=0.0, go_from_rest=False,
+                          own_moving_since=-10.0)
+    dec, _ = pr.step(1.0, car("A", s_entry=30.0, v=8.0), [car("B", s_entry=24.0, v=8.0)], z, C.Inputs(obs_age=0.2))
+    assert not (dec.kind == GO and dec.committed)
 
 
 # --- contracts, record, the cycle ----------------------------------------------------------------------
@@ -352,3 +379,30 @@ def test_protocol_two_cars_tie_sequence():
                 pass
         t += 0.1
     assert went and went[0] == "B"
+
+
+def test_entry_band_bias_correction():
+    """078 P2b: the entry band reads the other's arrival bias-corrected: bias is reading - truth, so with Autoware's
+    -0.24 s (the track predicts the other early) its arrival is read 0.24 s later, the own slack 0.24 s larger."""
+    own, o = car("A", s_entry=20.0, v=6.0), car("B", s_entry=21.0, v=6.0)
+    oi, ti = own_interval(own), other_interval(o, P)
+    p0 = P.override(source="test", role_time_bias=0.0)
+    b0 = band(oi, ti, o, p0, mode="entry")
+    b1 = band(oi, ti, o, P.override(source="test", role_time_bias=-0.24), mode="entry")
+    assert abs((b1.slack_own - b0.slack_own) - 0.24) < 1e-9 and abs((b0.slack_other - b1.slack_other) - 0.24) < 1e-9
+
+
+def test_crossing_commit_released_by_the_turn_guard():
+    """078 P2b: the crossing's committed go gives way to the other's seen start while the car can still stop, and holds
+    over it once past its commit point."""
+    row = CONV["cross_unsignalled"]
+    assert row.get("commit_release") == "turn"
+    prev = Decision(GO, "j", "rest_tie")
+    slow = car("A", s_entry=4.0, v=1.0)
+    d, _ = latch(Decision(YIELD, "j", "turn"), prev, 0.0, 0.0, slow, True, P, 2.0, row)
+    assert d.kind == YIELD
+    d, _ = latch(Decision(WAIT, "j", "ambiguous_band"), prev, 0.0, 0.0, slow, True, P, 2.0, row)
+    assert d.kind == GO and d.committed  # a re-read band is not a start: the commit holds
+    fast = car("A", s_entry=3.0, v=6.0)  # 6 m/s 3 m out: past its comfortable stop
+    d, _ = latch(Decision(YIELD, "j", "turn"), prev, 0.0, 0.0, fast, True, P, 2.0, row)
+    assert d.kind == GO and d.committed

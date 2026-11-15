@@ -43,6 +43,13 @@ hand can leave behind are its child processes, still holding the seat's ports: t
 stack on that seat then fails with `Address already in use`. Find them with `ps -u $USER
 -o pid,ppid,etimes,comm` (orphans have parent 1) and stop them by pid.
 
+A free lock is not enough: before a stack starts, swb also checks that nothing listens on
+the seat's ports (SSv2 and its two sensor-release sockets, the relay, the world server, and
+the web UI when `swb run` starts the stack). A process outside the seat table, such as a
+stack a developer started by hand on its own ports, may hold them. `auto` then takes the
+next seat; a seat you named is refused, the message naming each port in use. `ss -ltnp`
+names the process.
+
 ## Take a seat
 
 ```bash

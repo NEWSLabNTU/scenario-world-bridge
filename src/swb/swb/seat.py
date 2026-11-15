@@ -203,19 +203,52 @@ def parse_choice(value, where: str = "host settings"):
     raise ConfigError(f"{where}: seat must be a number or auto, not {value!r}")
 
 
-def resolve(settings: dict, source: str = None) -> Seat:
-    """The seat ``settings["seat"]`` names; ``auto``: the first whose lock is free."""
+def resolve(settings: dict, source: str = None, usable=None) -> Seat:
+    """The seat ``settings["seat"]`` names; ``auto``: the first whose lock is free and, when
+    ``usable`` (``(seat) -> bool``) is given, that it accepts (``not busy_ports(seat)``)."""
     seats = table(settings, source)
     choice = parse_choice(settings.get("seat"), source or "host settings")
     if choice == "auto":
         for s in seats:
-            if holder(s.index, s.lock_dir) is None:
+            if holder(s.index, s.lock_dir) is None and (usable is None or usable(s)):
                 return s
-        raise SeatTaken(-1, {"note": f"all {len(seats)} seats are taken"})
+        raise SeatTaken(-1, {"note": f"all {len(seats)} seats are taken"
+                             + (" or their ports in use" if usable else "")})
     if not 0 <= choice < len(seats):
         raise ConfigError(f"{source or 'host settings'}: seat {choice} is not in the table "
                           f"(0-{len(seats) - 1})")
     return seats[choice]
+
+
+def busy_ports(s: Seat, web: bool = True) -> list:
+    """``[(what, port)]`` of the seat's ports something on this host already listens on (a
+    stack started outside the seat table, e.g. a checkout's ``just run`` on its own
+    ``SWB_WEB_PORT``; roadmap 077, G30). ``web``: the stack's web UI port too (the runner
+    checks it before starting play_launch, which then holds it)."""
+    ports = [("SSv2", s.ssv2_port), ("SSv2 sensor release", s.release_ports[0]),
+             ("SSv2 sensor release", s.release_ports[1]), ("relay", s.relay_port),
+             ("world server", s.world_port)]
+    if web:
+        ports.append(("web UI", s.web_port))
+    return [(what, p) for what, p in ports if not port_free(p)]
+
+
+def port_free(port: int) -> bool:
+    """Nothing listens on ``port`` (any address): a bind to it succeeds."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("0.0.0.0", port))
+        except OSError:
+            return False
+    return True
+
+
+def describe_busy(s: Seat, busy: list) -> str:
+    return (f"seat {s.index}'s ports are in use by a process outside the seat table: "
+            + ", ".join(f"{what} {p}" for what, p in busy)
+            + " (another checkout's stack? `ss -ltnp` names it); take another seat "
+              "(`ros2 run swb seat take auto`) or stop it")
 
 
 # ---------------------------------------------------------------------------- locks

@@ -345,12 +345,16 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
     ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
     from swb import seat as seatmod
     try:
-        s = seatmod.resolve(host, seatmod.seats_source(project))
+        s = seatmod.resolve(host, seatmod.seats_source(project),
+                            usable=lambda x: not seatmod.busy_ports(x))
     except (config.ConfigError, seatmod.SeatTaken) as e:
         raise Refused(f"no seat for a stack: {e}") from None
     if seatmod.holder(s.index, s.lock_dir) is not None:
         raise Refused(f"seat {s.index} is taken: "
                       f"{seatmod.describe_holder(seatmod.holder(s.index, s.lock_dir))}")
+    busy = seatmod.busy_ports(s)
+    if busy:
+        raise Refused(seatmod.describe_busy(s, busy))
     root = stackmod.project_root(host["logs"], project.resolve().name) / "stack-launches"
     log_dir, n = root / stackmod.now_id(), 1
     while True:

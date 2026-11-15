@@ -284,3 +284,17 @@ Isaac's rear contact (inventory row 18).
   names), or none, naming the version, its path and the pip line; a version that does not
   parse is reported, not refused. Live here: `~/.local/bin/play_launch` 0.20.0 refused, the
   0.34.0 venv first on `PATH` passed.
+- **G30 built (2026-11-16).** A seat whose lock is free but whose ports something already
+  listens on (a developer stack on a checkout's own `SWB_WEB_PORT`, which the project
+  workflow does not read) is skipped by `auto` and refused when named, naming each port in
+  use: the runner checks the web UI port too before it starts play_launch, the stack's plan
+  the ports it binds later (SSv2, its two release sockets, the relay, the world server),
+  since play_launch holds the web port by then. `seat show` and `seat env` resolve as before.
+  Ruling: no reading of `.env` (host settings stay in files, decision of 076); the seat
+  table is the one way to move a stack's numbers. Docs: several-stacks.md.
+- **G31 (new, 2026-11-16, from this host's T2).** A `git submodule update` without
+  `--recursive` left acb's `deps/` on older commits than acb's own pins, and the build from
+  them gave a vehicle agent of another spec; the bridge refused the ego's spawn, a minute
+  into the run. The stack could catch it at its start: the workspace's nested submodules
+  checked out off their pins (`git submodule status --recursive`, a `+` line), as
+  check_pins does for the pins themselves, named with the fix.

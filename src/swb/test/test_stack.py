@@ -702,3 +702,21 @@ def test_the_stack_is_ready_only_once_the_bridge_serves(where, maps_hub):
     assert json.loads(p.stack_json.read_text())["state"] == "ready"
     events = [json.loads(x)["event"] for x in (p.stack_dir / "events.jsonl").read_text().splitlines()]
     assert events.index("world.ready") < events.index("stack.ready")
+
+
+def test_a_named_seat_whose_ports_are_in_use_is_refused(where, maps_hub):
+    """roadmap 077, G30: the stack refuses seat 2 when something already serves its SSv2
+    port, naming the port, rather than starting a bridge that cannot bind it."""
+    import socket
+    d = make(where)
+    s2 = seat.table(config.host_settings(d), seat.seats_source(d))[2]
+    sock = socket.socket()
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("127.0.0.1", s2.ssv2_port))
+    sock.listen()
+    try:
+        with pytest.raises(stack.StackRefused, match=f"SSv2 {s2.ssv2_port}"):
+            stack.plan(project_arg=str(d))
+    finally:
+        sock.close()
+    assert stack.plan(project_arg=str(d)).seat.index == 2

@@ -270,3 +270,33 @@ def test_seat_table_gives_each_seat_a_carla(tmp_path):
         seat.table(bad)
     with pytest.raises(cfg.ConfigError, match="seats.carla.stride"):
         seat.table(cfg.merge(cfg.DEFAULTS, {"seats": {"carla": {"base": 2000, "stride": 2}}}))
+
+
+def _listen(port):
+    import socket
+    s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("127.0.0.1", port))
+    s.listen()
+    return s
+
+
+def test_auto_skips_a_seat_whose_ports_a_foreign_stack_holds(env):
+    """roadmap 077, G30: a stack outside the seat table (a checkout's `just run` on its own
+    SWB_WEB_PORT) holds seat 0's numbers without its lock; auto takes seat 1 instead."""
+    st = config.merge(settings(ports={"base": 47055, "stride": 100},
+                               web={"base": 47900, "stride": 10}),
+                      {"seat_locks": str(env[2])})
+    s0 = seat.table(st)[0]
+    sock = _listen(s0.web_port)
+    try:
+        assert seat.busy_ports(s0) == [("web UI", s0.web_port)]
+        assert seat.busy_ports(s0, web=False) == []
+        got = seat.resolve(st, usable=lambda s: not seat.busy_ports(s))
+        assert got.index == 1
+        assert seat.resolve(st).index == 0   # without the check, as seat show resolves
+        msg = seat.describe_busy(s0, seat.busy_ports(s0))
+        assert f"web UI {s0.web_port}" in msg and "seat take auto" in msg
+    finally:
+        sock.close()
+    assert seat.busy_ports(s0) == []

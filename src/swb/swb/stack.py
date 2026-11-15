@@ -573,12 +573,17 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
 
     try:
         source = seatmod.seats_source(project)
-        s = seatmod.resolve(host, source)
+        s = seatmod.resolve(host, source,
+                            usable=lambda x: not seatmod.busy_ports(x, web=False))
     except (ConfigError, seatmod.SeatTaken) as e:
         raise StackRefused(str(e)) from None
     h = seatmod.holder(s.index, s.lock_dir)
     if h is not None:
         raise StackRefused(f"seat {s.index} is taken: {seatmod.describe_holder(h)}")
+    # the web UI's port is play_launch's by now, so only the ports the stack binds later
+    busy = seatmod.busy_ports(s, web=False)
+    if busy:
+        raise StackRefused(seatmod.describe_busy(s, busy))
 
     scenarios = scan_scenarios(project)
     maps = served_maps(psettings, scenarios)

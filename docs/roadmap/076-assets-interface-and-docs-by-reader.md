@@ -666,8 +666,17 @@ sharing a project.
   retired (roadmap 076); give a pilot in swb.yaml ..."), not dropped. acb's acceptance.py reads
   no map variable itself.
 - Open after 076's build, each a ruling (2026-11-15):
-  - Isaac live acceptance (`isaac_first_drive`, two scenarios on one stack) and the second
-    host of the shard check: swb 241 runs them; their results go here.
+  - Isaac live acceptance (`isaac_first_drive`, two scenarios on one stack): passed on a
+    second host (swb 241, 2026-11-15, build 8ed13d7, Isaac Sim 6.1, Autoware 1.5.0) after one
+    host fix. The first `run --start-stack` of drive_to_goal ended `error` after 47 s: the
+    host's Isaac message bindings (`$ISAAC_ROOT/msgs`, built 2026-10-22) lacked
+    `autoware_perception_msgs`, which the world server now publishes traffic lights with;
+    `project check` said ok and the console said only "failed frame". With the bindings
+    rebuilt (aib's `build_msgs.sh autoware_perception_msgs`), drive_to_goal passed (91 s
+    scenario; the command 16 min 20 s, about 15 min of it the stack start) and follow_to_goal
+    passed on the same stack (73 s scenario, 1 min 18 s wall). `kill -INT` of the stack left
+    nothing. Its frictions are 077's G25 to G30. The second host of the shard check is still
+    to come (a CARLA batch holds that host).
   - `vehicles:` is checked, not loaded: a project's own car needs its catalog entry and
     physics generated from its spec and handed to the bridge and world server. Its own phase,
     with an example of three different cars in one run.

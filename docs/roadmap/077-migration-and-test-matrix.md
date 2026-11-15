@@ -228,3 +228,20 @@ Isaac's rear contact (inventory row 18).
   reference 2409 s), UC-AEB-001 9/9 passed (578 s; 721 s), `physical_verdict` passed on both.
   First suite on the ROUTER socket (G21), the autoware prelude (G1) and gaps A. After
   `--stop-stack` no CARLA, reaper or port was left.
+- Frictions of 076's Isaac acceptance on a second host (swb 241, 2026-11-15), new gaps:
+  - **G25, Isaac message bindings.** `project check` and the stack's readiness should import
+    in Isaac's Python every message package the world server publishes and name a missing
+    one; the fix (`just isaac-msgs`) has no `ros2 run swb` form. The blocker of that run.
+  - **G26, play_launch version.** The host had 0.18.3; the workflow needs a newer one
+    (0.35.0 was installed apart). `project check` should name the floor.
+  - **G27, GPU choice.** host.yaml's `gpu` pointed at a card another user's job held (7.4 GB,
+    85 %); nothing warned. The plan could report the card's memory and load.
+  - **G28, DDS warnings.** The stack console warns `dds-env-split` for `/bridge` (domain 1)
+    and `/simulator` (2) against the launch's unset 0: true and harmless, alarming to a user.
+  - **G29, provenance.** result.json reads the checkout's HEAD at run time (it moved during
+    the runs), not the installed build's commit.
+  - **G30, web port.** The stack took web 8080 although the checkout's `.env` set
+    `SWB_WEB_PORT` 8180: the project workflow reads host.yaml's seat, not `.env`, so the
+    migration note must say so, or the seat must follow it.
+  - Also seen: `assets fetch` took 215 min for 19 GB (the Isaac USD set, 11840 files);
+    play_launch warns io_helper lacks `cap_sys_ptrace`.

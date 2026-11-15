@@ -12,9 +12,9 @@ study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 
 **Status**: Phases 0-1 done 2026-11-15. G0: **only the unsignalled crossing enters the table**;
 the all-way stop, the narrow passage and the lane drop stay stock. G1 passed for the crossing
-(the node drives that relation only). Phase 2 on the crossing (2026-11-16) found the node worse than
-stock in the band until its go is committed, and e 0.53 s on Autoware's tracks: G0 for the crossing
-is reopened with the commit and e 0.55 s.
+(the node drives that relation only). Phase 2 on the crossing (2026-11-16): with a committed go that gives way to
+a seen start, G0 for the crossing passes again; e 0.55 s confirmed on held-out runs; a base_link pose
+bug fixed. Next: the post-fix swb rerun, EV5, the right-hand deny path.
 
 ## Inputs, already in place
 
@@ -277,6 +277,51 @@ tinfp5; node on and off. 0 contacts.
 - **G3 risk recorded:** until the go is committed, the node is worse than stock on clearance and TTC
   in the band.
 
+**Phase 2b on the crossing: committed go, mode hysteresis, e 0.55 (133's subagent, 2026-11-16;
+c05c85b, bcafc5a, f7bbeeb; NAS `logs/2026 SSv2 on CARLA/2026-11-16 078 P2 crossing commit/`).**
+- **G0 recheck** (V4's criterion, 5 arena seeds):
+
+  | variant | formal 2 / 3 cars at e 0.55 | arena self-play | cells worse than stock |
+  |---|---|---|---|
+  | plain `on_move` commit | safe, live (7.3 / 10.9 s worst wait) | 0 / 90 | **2 / 12** (a committed go cannot retract against a patience or gap-test restart; 1 / 12 at e 0.25 too) |
+  | **commit + `commit_release: turn`** | safe, live (7.3 / 10.9 s) | 0 / 90 | **0 / 12**, 0 contacts in every czp cell; again 0 / 12 on fresh noise (`--seed 2`) |
+
+  The release gives the committed go up when the other car is seen starting (off its line or in
+  the zone) while the ego can still stop comfortably. Sanity case: e 0.8 fails formally, e 0.65 and
+  0.7 hold. Cost of e 0.55 against V4's 0.25: the czp car's lost time is about +10 % (0.349 against
+  0.318 s over the BAR cells).
+- **Mode hysteresis:** `mode_hold` 1.5 s. While it holds, the node sends what the module's own `safe`
+  says. Switches fell to 2.7 per run (54 in 20), from 8.3.
+- **params:** `role_time_error_e` 0.55, `role_time_bias` −0.24 (reading − truth; the entry band
+  reads A's arrival 0.24 s later).
+- **swb, t1.5p5, seeds 0-3, node on and off, 40 valid runs, before the base_link fix:** 0 contacts.
+  The node's minimum clearance and TTC are now stock's (1.00 m / 1.18 s against 1.01 / 1.19; last
+  round 0.50 / 0.74). In the band, the node puts the ego first in 10 of 12 runs (stock 12) and
+  clears at 14.8 s against 13.3. RTC: 70 of 70 commands shown, 16 of 16 approves effective, 44 of
+  54 denies.
+- **The two lost band runs were a node bug:** it read Autoware's `kinematic_state` pose (base_link,
+  the rear axle) as the car's centre, so the ego's front read 1.38 m short. Its rest at the line
+  never registered and `rest_tie` never bound. Fixed in f7bbeeb (`own_base_to_centre` 1.416 m, from
+  the spec); an offline replay of that bag binds `rest_tie`. The bug likely affected the first
+  Phase 2 round too. A second effect: Autoware takes about 1.4 s from ACTIVATE at rest to motion,
+  longer than the 0.5 s go latch.
+- **EV4 on the new held-out runs** (pre-registered: fit = 2026-11-15 seeds 0-1, held out = all 40
+  runs of this round; tracks ≥ 0.5 s old): pooled 0-30 m held-out e99 **0.56 s**, bias −0.25 s; e 0.55
+  covers 98.8 %. **e 0.55 s is confirmed** (G2 for e, manager). Without the age filter, the 20-30 m
+  bin is still track start-up (cover 66 %); the node must not read a track younger than 0.5 s.
+- **Not run:** the node arm after the base_link fix, EV5 with the held-speed A, the right-hand
+  deny path (1 of 44 runs done).
+
+**Rulings (manager, 2026-11-16).**
+- **G0 for the crossing: passed again**, with `commit_release: turn`. The variant was chosen after
+  the plain commit failed on the same seeds. It was confirmed on fresh noise, and it gets one
+  more fresh-seed arena check in the next round before G3.
+- **e = 0.55 s, bias −0.24 s, a track-age floor of 0.5 s:** fixed for the crossing (G2, this
+  parameter).
+- **Next:** the post-fix swb rerun (the node arm of the grid; EV5 held-speed; right-hand deny path);
+  a go from rest latched until motion, or `launch_dead` from Autoware's 1.4 s; `role_time_bias`
+  split into arrival and rest-stamp biases.
+
 ### Phase 3: test runs
 
 | step | what | measures |
@@ -353,3 +398,5 @@ and G2.
 - 2026-11-16: Phase 2 on the crossing reported (RTC auto-mode fault fixed; node worse than stock in
   the band until the go is committed; EV4 e 0.53 s held out, tracks only within 25 m). G0 for the
   crossing reopened with `commit: on_move`; e set to 0.55 s provisionally.
+- 2026-11-16: Phase 2b: G0 for the crossing passed with `commit_release: turn`; e 0.55 s confirmed
+  (held out 0.56 s); the node's base_link bug fixed; the post-fix swb rerun is next.

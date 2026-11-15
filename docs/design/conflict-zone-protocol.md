@@ -252,6 +252,16 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   stands at the occlusion edge. An RTC approve overrides the module's own `safe`, so a go
   approved while `safe` is false rests on obstacle stop alone.
 
+- **Phase 2b (078, 2026-11-16):** `cross_unsignalled` commits a go begun from rest (`commit:
+  on_move`). The commit gives way when the other car is seen starting while the ego can still stop
+  comfortably (`commit_release: turn`); a plain commit failed G0. `mode_hold` 1.5 s: a held module
+  stays manual until the decision has been stock-equivalent that long, and meanwhile the node sends
+  what the module's own `safe` says. The entry band corrects the arrival read from a track by
+  `role_time_bias` (reading − truth), and tracks younger than 0.5 s are not read. Own pose:
+  Autoware's `kinematic_state` is base_link (rear axle), so the node shifts it to the centre by
+  `own_base_to_centre` from the spec. Autoware takes about 1.4 s from ACTIVATE at rest to motion,
+  so a go from rest must stay latched until the car moves.
+
 ## Open questions
 
 - The commit point for a lane change inside Autoware's module: where RTC can still deny.

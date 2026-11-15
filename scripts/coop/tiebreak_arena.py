@@ -6,7 +6,7 @@ The arenas are run as they are (their worlds, warm-ups, cars, observers and scor
 car's policy is tiebreak.ConvPolicy (the rule with the convention on top, through tiebreak.patched)
 and each run records the convention's payoffs, its wait and the coin's signal. Behaviour variants
 per rule pair: none (also rB's and bind_fault's runs), bind, coin with A winning, coin with B
-winning, stagger.
+winning, coin_stop (the coin sent when the first car stops) with A or B winning, stagger.
 
 Per cell and convention the game on the arena's rule subset is solved on the arena's mean payoffs
 and on the kinematic model's (tiebreak.run_one on the same subset), and compared on D2's yardstick:
@@ -38,7 +38,8 @@ import crossing_game as X  # noqa: E402
 import measures as M  # noqa: E402
 import tiebreak as TB  # noqa: E402
 
-VARIANTS = (("none", ""), ("bind", ""), ("coin", "A"), ("coin", "B"), ("stagger", ""))
+VARIANTS = (("none", ""), ("bind", ""), ("coin", "A"), ("coin", "B"), ("coin_stop", "A"), ("coin_stop", "B"),
+            ("stagger", ""))
 MODELS = ("none", "rB", "bind", "coin")
 DTS = "-0.7,-0.3,-0.1,0,0.1,0.3,0.7"
 CROSS_A = ("go", "t0.5yp2", "t1.5p2", "t1.5yp5", "tinfp2", "tinfp5")
@@ -125,7 +126,7 @@ def side_game(conv, a_acts, b_acts, keys, u_of, flags_of):
     """The convention's game on one side: u_of(beh, w, a, k, who, model) -> payoff; flags_of(beh, w, a,
     k) -> (first, contact, both_stopped)."""
     beh, model = TB.BEH[conv], TB.FAULT_MODEL[conv]
-    ws = ("A", "B") if beh == "coin" else ("",)
+    ws = ("A", "B") if beh in TB.COINS else ("",)
     ua, ub, phys, fl = {}, {}, {}, {}
     for a in a_acts:
         for b in b_acts:
@@ -208,7 +209,7 @@ def compare(args, rows):
                                                    if gap is not None and gap >= TB.GAP_MIN else None)
                 row[f"{conv}_{side}_eq"] = g["pure"]
             beh = TB.BEH[conv]
-            for w in (("A", "B") if beh == "coin" else ("",)):
+            for w in (("A", "B") if beh in TB.COINS else ("",)):
                 for a in a_acts:
                     for b in b_acts:
                         for k in keys[b]:

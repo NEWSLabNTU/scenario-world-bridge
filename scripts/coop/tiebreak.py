@@ -25,6 +25,11 @@ Conventions (behaviour carried by both cars / fault model):
               FLASH_LEAD s later; the loser sees the flash OBS s after it and holds until the winner
               has cleared (or FALLBACK s); the loser pays FAULT if it enters first after the flash.
               Payoffs are the mean over the two coin outcomes
+  coin_stop   the coin as a V2X message sent when the first car stops (074 C7, "conventions to
+              carry"): as soon as either car is below WAIT_V before the zone, the coin picks a
+              winner and both cars receive it V2X_LAT s later, before either may restart; from then
+              neither goes on patience, the winner goes max(FLASH_LEAD, V2X_LAT) s after the send,
+              the loser holds until the winner has cleared (or FALLBACK s). coin's fault model
   stagger     staggered patience, no signal and no fault: the car on the right (B) waits at most
               STAG_SHORT s, A its own patience plus STAG_EXTRA s
 
@@ -70,15 +75,19 @@ import narrow_game as N  # noqa: E402
 PRIO = "B"  # the priority car: from A's right at the crossing, the free side at the narrow passage
 TIE_HOLD = 0.5  # s both seen stopped before the tie is declared (as crossing_game's both_stopped)
 FLASH_LEAD = 0.3  # s from the winner's flash to its start
+V2X_LAT = 0.1  # s from coin_stop's send to its receipt by both cars (a V2X message, not a flash seen)
 FALLBACK = 5.0  # s a loser holds for a winner that does not clear the zone
 STAG_SHORT, STAG_EXTRA = 1.0, 3.0  # s: the right car's patience cap, the other's extra patience
 FAULT = X.FAULT
 GAP_MIN = 0.05
 ENF_TOL = 0.02  # a deviation must gain more than D2's payoff floor to break self-enforcement
 NEAR = 0.3  # s: the near-tie band |dt| <= NEAR
-CONVS = ("none", "rB", "bind_fault", "bind", "coin", "stagger")
-BEH = {"none": "none", "rB": "none", "bind_fault": "none", "bind": "bind", "coin": "coin", "stagger": "stagger"}
-FAULT_MODEL = {"none": "none", "rB": "rB", "bind_fault": "bind", "bind": "bind", "coin": "coin", "stagger": "none"}
+CONVS = ("none", "rB", "bind_fault", "bind", "coin", "coin_stop", "stagger")
+BEH = {"none": "none", "rB": "none", "bind_fault": "none", "bind": "bind", "coin": "coin", "coin_stop": "coin_stop",
+       "stagger": "stagger"}
+FAULT_MODEL = {"none": "none", "rB": "rB", "bind_fault": "bind", "bind": "bind", "coin": "coin", "coin_stop": "coin",
+               "stagger": "none"}
+COINS = ("coin", "coin_stop")  # the behaviours with a coin (payoffs: the mean over both winners)
 DTS = "-1,-0.5,-0.3,-0.2,-0.1,0,0.1,0.2,0.3,0.5,1"
 
 
@@ -86,8 +95,14 @@ class Referee:
     """The coin's device: it declares the tie from both cars' own states (each car reports its own
     truth every step) once both have been below WAIT_V before the zone for TIE_HOLD s."""
 
-    def __init__(self, winner):
+    def __init__(self, winner, at_stop=False):
         self.winner, self.state, self.since, self.t_sig = winner, {}, None, None
+        self.at_stop = at_stop  # coin_stop: sent when the first car stops
+
+    def received(self, t):
+        """Whether a car has the coin's outcome at t (coin: the flash, seen OBS s after it, is handled
+        by the policy; coin_stop: the message, V2X_LAT s after the send)."""
+        return self.t_sig is not None and t >= self.t_sig + V2X_LAT - 1e-9
 
     def report(self, ident, t, u, v):
         self.state[ident] = (t, u, v)
@@ -95,6 +110,10 @@ class Referee:
             return
         (ta, ua, va), (tb, ub, vb) = self.state["A"], self.state["B"]
         if abs(ta - tb) > 1e-6:
+            return
+        if self.at_stop:
+            if (va < X.WAIT_V and ua < 0) or (vb < X.WAIT_V and ub < 0):
+                self.t_sig = t
             return
         if va < X.WAIT_V and vb < X.WAIT_V and ua < 0 and ub < 0:
             self.since = t if self.since is None else self.since
@@ -146,7 +165,8 @@ class ConvPolicy(X.Policy):
                 self.tie = t
         else:
             self.mutual_since = None
-        if self.beh in ("bind", "coin") and other_wait and u < 0:
+        coin_known = self.beh == "coin_stop" and self.ref is not None and self.ref.received(t)
+        if (self.beh in ("bind", "coin") and other_wait or coin_known) and u < 0:
             self.stopped_since = None  # patience paused while the other waits: the convention decides
         start_lose = win = False
         can_stop = me_wait or (u < X.STOP and v * v / (2 * max(X.STOP - u, 0.05)) <= 3.0)
@@ -160,6 +180,11 @@ class ConvPolicy(X.Policy):
                 win = t >= self.ref.t_sig + FLASH_LEAD
             else:
                 start_lose = t >= self.ref.t_sig + X.OBS and u < 0
+        elif coin_known:
+            if self.ref.winner == self.ident:
+                win = t >= self.ref.t_sig + max(FLASH_LEAD, V2X_LAT) - 1e-9
+            else:
+                start_lose = True
         if start_lose and not self.lose and not self.lose_done:
             self.lose, self.lose_t = True, t
         if self.lose and (other_clear or t - self.lose_t >= FALLBACK):
@@ -189,7 +214,7 @@ def patched(beh_a, beh_b, winner=None):
     """crossing_game.Policy replaced by ConvPolicy for the next simulate (A is built first, then B;
     crossing_game, narrow_game and both arenas build their policies so)."""
     orig = X.Policy
-    ref = Referee(winner) if "coin" in (beh_a, beh_b) else None
+    ref = Referee(winner, at_stop="coin_stop" in (beh_a, beh_b)) if set(COINS) & {beh_a, beh_b} else None
     made = []
     idents = iter("AB")
 
@@ -260,14 +285,14 @@ def acts(geom):
 
 
 def winners(beh):
-    return ("A", "B") if beh == "coin" else (None,)
+    return ("A", "B") if beh in COINS else (None,)
 
 
 def all_runs(geom, ctx, lags):
     """Every rule pair under each behaviour (and each coin outcome)."""
     a_acts, b_acts, keys = acts(geom)
     runs = {}
-    for beh in ("none", "bind", "coin", "stagger"):
+    for beh in ("none", "bind", "coin", "coin_stop", "stagger"):
         for w in winners(beh):
             for a in a_acts:
                 for b in b_acts:
@@ -449,7 +474,7 @@ def report(rows, geom):
                          f"{x['deadlock']:>4} {x['eq_restart']:>4} {x['eq_contact']:>4} {x['loss_worst']:6.3f} "
                          f"{x['C_mean_pairs']:6.3f} {num(x['recovered_eq'], '{:+.2f}'):>6} (n{x['n_gap_eq']:>3}) "
                          f"{num(x['recovered_opt'], '{:+.2f}'):>6} (n{x['n_gap_opt']:>3}) {pct(x['self_enforcing']):>5}")
-    lines.append("\n## classes per context (none | rB | bind_fault | bind | coin | stagger)")
+    lines.append("\n## classes per context (" + " | ".join(CONVS) + ")")
     keyf = lambda r: (r["wn"], r["v"], r["dt"])  # noqa: E731
     for k in sorted({keyf(r) for r in rows}):
         rs = {r["conv"]: r for r in rows if keyf(r) == k}
@@ -499,6 +524,15 @@ def selftest():
     for w in "AB":
         o2 = run_one("cross", na, nb, (0.0, 8.0, 0.0), ("coin", "coin"), w, lags)
         assert o2.sig and o2.o.first == w and not o2.o.contact, (w, o2)
+    # the coin sent at the first stop: sent before both have been stopped TIE_HOLD s, and the
+    # winner goes first without a restart crash
+    for w in "AB":
+        o4 = run_one("cross", na, nb, (0.0, 8.0, 0.0), ("coin_stop", "coin_stop"), w, lags)
+        assert o4.sig and o4.o.first == w and not o4.o.contact, (w, o4)
+    ref2 = Referee("A", at_stop=True)
+    ref2.report("A", 0.0, -2.0, 0.0)
+    ref2.report("B", 0.0, -9.0, 5.0)
+    assert ref2.t_sig == 0.0 and not ref2.received(0.05) and ref2.received(0.1)
     # staggered patience: B (right) goes after 1 s, A waits 5 s: B first
     o3 = run_one("cross", na, nb, (0.0, 8.0, 0.0), ("stagger", "stagger"), None, lags)
     assert o3.o.first == "B" and not o3.o.contact, o3

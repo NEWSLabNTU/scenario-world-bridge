@@ -29,7 +29,7 @@ Rules (each car's; the same set for both):
               wait -- and a car seen moving from its line has the turn; second round, FM_H2 s after its
               dwell: B goes if A is seen at rest; a zone-interval guard: no start while a car that is
               not braking for its line would enter Z (at its speed) before this car could leave it,
-              plus FM_ZONE_MG
+              plus FM_ZONE_MG; once moving it is committed (the safety layer still brakes)
   fcfse_c<C>  074 C8 (e): fcfsm with the map's fixed order (A, then B) as the last resort: A goes FM_H3 s
               after its dwell if B is still seen at rest (against a B that waits for A and never goes)
 
@@ -217,6 +217,8 @@ class FWPolicy:
 
     def _fcfsm(self, t, u, v, ou, ov):
         """074 C8 (c) / (e) at the line, after the dwell (see the module's docstring)."""
+        if self.go and self.moving_since is not None:
+            return True  # once moving the protocol has committed: a stop at Z's edge is worse; the safety layer stays
         oa = self._oa
         # moved off its line: speed and distance together, or distance alone (one noisy sample is not a start)
         off = ou - self.other_rest_u if self.other_rest_u is not None else 0.0

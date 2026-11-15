@@ -63,6 +63,11 @@ EXTRA = {
                        "/carla/ground_truth/odom on CARLA, /ground_truth/odom on Isaac"),
     "max_speed_kmh": ("", "never faster than this; empty: the config's (50)"),
     "publish_description": ("true", "start robot_state_publisher with the car's description"),
+    "spec": ("", "the car's spec file (its wheelbase and steering); empty: sim_vehicle_spec's "
+                 "vehicles/<vehicle>.yaml"),
+    "description": ("", "a URDF of the car to publish; empty: the car's Autoware description "
+                        "packages through pilot_vehicle.xacro (an own car: the stack's, "
+                        "generated from its spec)"),
 }
 
 
@@ -83,6 +88,8 @@ def agent_config(values):
         config["odom_topic"] = values["odom_topic"]
     if values.get("max_speed_kmh"):
         config["max_speed_kmh"] = float(values["max_speed_kmh"])
+    if values.get("spec"):
+        config["spec"] = values["spec"]
     return config
 
 
@@ -98,14 +105,23 @@ def _pilot(context):
     if not values["map_path"]:
         raise RuntimeError("pilot simple: map_path:= the map directory (it routes on its "
                            "lanelet2_map.osm)")
+    # every argument this launch was given reaches the vehicle side (ROS launch's arguments
+    # are global; play_launch's parser scopes an include to the arguments it names): an own
+    # car's vehicle_config and autoware_spec_hash_file (roadmap 077, G5)
+    passed = dict(context.launch_configurations)
+    passed["sim"] = values["sim"]
     actions = [IncludeLaunchDescription(AnyLaunchDescriptionSource(
         os.path.join(HERE, "vehicle_side.launch.xml")),
-        launch_arguments=[("sim", values["sim"])])]
+        launch_arguments=list(passed.items()))]
     if values["publish_description"] == "true":
         vehicle = values["vehicle"]
-        description = Command(["xacro ", XACRO,
-                               f" vehicle_model:={vehicle}",
-                               f" sensor_model:={vehicle}_sensor_kit"])
+        if values.get("description"):
+            with open(values["description"]) as f:
+                description = f.read()
+        else:
+            description = Command(["xacro ", XACRO,
+                                   f" vehicle_model:={vehicle}",
+                                   f" sensor_model:={vehicle}_sensor_kit"])
         actions.append(Node(package="robot_state_publisher", executable="robot_state_publisher",
                             name="robot_state_publisher", output="screen",
                             parameters=[{"use_sim_time": values["use_sim_time"] == "true",

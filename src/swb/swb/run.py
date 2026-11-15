@@ -466,7 +466,13 @@ def scenario_argv(rec: dict, spec: RunSpec, run_dir: Path, scenario: Path) -> li
     args.update(ssv2mod.launch_args(spec.ssv2 or {}))
     args["global_timeout"] = str(int(spec.timeout or DEFAULT_TIMEOUT))
     ego = next((p for p in rec.get("pilots", []) if p["entity"] == "ego"), None)
-    if ego and ego.get("vehicle"):
+    # SSv2 reads <vehicle_model>_description's vehicle_info and simulator_model files (and
+    # would launch Autoware with it, which it does not here): an own car without Autoware
+    # packages (roadmap 077, G5) keeps SSv2's default; its body, catalog entry and physics
+    # are the bridge's and the world server's
+    if ego and ego.get("vehicle") and (ego["vehicle"] not in (rec.get("vehicles") or {})
+                                       or projectmod._package_installed(
+                                           f"{ego['vehicle']}_description")):
         args["vehicle_model"] = ego["vehicle"]
     if spec.parameters and not spec.distribution:
         args["override_parameters"] = json.dumps({k: str(v) for k, v in spec.parameters.items()})

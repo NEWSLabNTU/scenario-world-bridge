@@ -60,7 +60,9 @@ def _pilot(context):
         swb = get_package_share_directory("swb_launch")
         actions.append(IncludeLaunchDescription(AnyLaunchDescriptionSource(
             os.path.join(swb, "launch", "pilots", "vehicle_side.launch.xml")),
-            launch_arguments=[("sim", values["sim"])]))
+            # every argument given here reaches the vehicle side (as simple.launch.py)
+            launch_arguments=list({**context.launch_configurations,
+                                   "sim": values["sim"]}.items())))
     respawn = values["respawn"] == "true"
     actions.append(ExecuteProcess(cmd=argv(values), name=f"command_{values['entity']}",
                                   output="screen", respawn=respawn,

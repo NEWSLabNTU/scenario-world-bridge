@@ -93,7 +93,9 @@ def _pilot(context):
     if values["vehicle_side"] == "true":
         actions.append(IncludeLaunchDescription(AnyLaunchDescriptionSource(
             os.path.join(swb, "launch", "pilots", "vehicle_side.launch.xml")),
-            launch_arguments=[("sim", values["sim"])]))
+            # every argument given here reaches the vehicle side (as simple.launch.py)
+            launch_arguments=list({**context.launch_configurations,
+                                   "sim": values["sim"]}.items())))
     actions.append(IncludeLaunchDescription(AnyLaunchDescriptionSource(
         resolve_launch(values["launch"])), launch_arguments=driver_args(values).items()))
     if values["agent"] == "swb":

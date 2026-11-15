@@ -57,7 +57,7 @@ from pathlib import Path
 
 from swb import config, ground as groundmod, project as projectmod, results, seat as seatmod
 from swb import episodes as episodesmod, judges as judgesmod, simulator as simmod
-from swb import world as worldmod
+from swb import vehicles as vehiclesmod, world as worldmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
@@ -350,6 +350,25 @@ def assign_domains(bound: list, s: seatmod.Seat, simulator: str):
     return bound
 
 
+def own_car_args(car: dict, kind: str, sim: str) -> dict:
+    """The launch arguments that give a pilot an own car's generated files: on CARLA the
+    vehicle side's sensors and, without Autoware, its spec_hash in place of the car's
+    Autoware description package; the simple pilot its spec (wheelbase, steering)."""
+    a = {}
+    if sim == "carla":
+        a["vehicle_config"] = car["carla_sensors"]
+    if kind != "autoware":
+        a["autoware_spec_hash_file"] = car["spec_hash_file"]
+        a["spec_hash_file"] = car["spec_hash_file"]
+        maps = (car.get("pedal_maps") or {}).get("dir")
+        if sim == "carla" and maps:
+            a["vehicle_maps_dir"] = maps   # else the vehicle side looks in <car>_description
+    if kind == "simple":
+        a["spec"] = car["spec"]
+        a["description"] = car["description"]
+    return a
+
+
 def pilot_entry(b: Bound, project: Path, ctx: dict) -> dict:
     """A bound pilot as stack.launch.py's ``pilots:`` takes it (and the runner, for ``lifetime:
     run``): entity, kind, domain, launch arguments, substitutions applied."""
@@ -606,6 +625,17 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     map_path = map_dir(project, chosen) if chosen else None
 
     bound = assign_domains(bind_pilots(psettings, scenarios), s, sim)
+    # the project's own cars (vehicles:), generated into state/vehicles/; their pilots get
+    # the car's files (roadmap 077, G5)
+    try:
+        cars = vehiclesmod.generate(project, psettings) if psettings.get("vehicles") else {}
+    except vehiclesmod.VehicleError as e:
+        raise StackRefused(str(e)) from None
+    merged_catalog = cars.pop("__catalog__", None)
+    for b in bound:
+        car = cars.get(b.spec.get("vehicle"))
+        if car is not None:
+            b.spec["args"] = {**own_car_args(car, b.kind, sim), **(b.spec.get("args") or {})}
     stack_pilots = [b for b in bound if b.lifetime == "stack"]
     ctx = {"seed": 0, "run_dir": "", "run_id": "", "params": {}}
     entries = []
@@ -623,6 +653,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "SWB_CARLA_USD": str(usd),
         "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
         "CYCLONEDDS_URI": f"file://{seatmod.cyclone_profile(host)}",
+        # the scenarios' vehicle catalog: the project's merged one, else the installed one
+        vehiclesmod.ENV: str(vehiclesmod.catalog_dir(project)),
     }
     if host.get("gpu") is not None or (host.get("seats") or {}).get("gpus") is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(s.gpu)
@@ -660,6 +692,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         # every stack process on the profile the runs use (a sourced Autoware exports its own)
         "dds_config": f"file://{seatmod.cyclone_profile(host)}",
     }
+    if merged_catalog:
+        args["vehicle_catalogs"] = merged_catalog
     # the bridge reads a map's signal table from the same state dir first (both simulators:
     # an Isaac world finds its lamps by the table CARLA's server wrote); the gap trace and
     # the contact reports go to the stack's episodes/, which each run empties into its own
@@ -688,6 +722,11 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         first = [str(map_path)] + [str(map_dir(project, m)) for m in preload if m != chosen]
         sim_side = {"world": ",".join(first), "ego": ego, **sim_side}
     sim_side.update(worldmod.sim_args(project, sim, world, isaac))
+    ego_car = cars.get(vehicle) if vehicle else None
+    if sim == "carla" and ego_car is not None:
+        # the world server applies an own car's physics to it (the installed cars keep
+        # CARLA's blueprint unless given; acb then checks them against the spec)
+        sim_side["vehicle_physics"] = ego_car["carla_physics"]
     # stack_args (the developers'): side_args and sim_args merge into swb's, by name; a name
     # swb owns is refused (they used to replace swb's whole text, state_dir with it)
     user = dict(stack_args or {})
@@ -762,7 +801,11 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "pilot_entries": entries,
         "pilot_contract": common,
         "pilots_dir": str(Path(swb_launch_share()) / "launch" / "pilots"),
-        "spec_hash": {b.entity: h for b in bound if (h := spec_hash_of(b.spec.get("vehicle")))},
+        "spec_hash": {b.entity: h for b in bound
+                      if (h := (cars.get(b.spec.get("vehicle")) or {}).get("spec_hash")
+                          or spec_hash_of(b.spec.get("vehicle")))},
+        "vehicles": {n: {k: c.get(k) for k in ("spec", "spec_hash", "catalog", "pedal_maps")}
+                     for n, c in cars.items()},
         "proc": str(proc),
         "launch_args": args,
         "pid": None,

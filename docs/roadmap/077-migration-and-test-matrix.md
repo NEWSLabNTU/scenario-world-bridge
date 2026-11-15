@@ -348,3 +348,25 @@ Isaac's rear contact (inventory row 18).
   --from pkg://...` that copies it, and the copy holds its lock, assets, state and runs.
   Live: the installed simple_drive refused that way. A package ships its project, a user
   copies it once.
+- **G5 built (2026-11-16): `vehicles:` is loaded, on CARLA.** At start the stack generates
+  each listed spec (`sim_vehicle_spec.gen`) into `state/vehicles/<name>/` (catalog entry,
+  spec_hash, CARLA physics and sensors) with a URDF of its frames from the spec, and one
+  catalog of the installed cars and the project's (`state/vehicles/catalogs/`), which
+  `SWB_VEHICLES` names for every run (the installed catalog's directory without own cars)
+  and the bridge reads (`vehicle_catalogs`). The ego's own physics go to CARLA's world
+  server (`vehicle_physics`); a pilot of an own car gets `vehicle_config`, `spec_hash_file`,
+  `autoware_spec_hash_file`, `vehicle_maps_dir` and (simple) its `spec` and the URDF.
+  `project check` refuses an installed car's name or body, an `autoware` pilot of an own car
+  without its Autoware packages, and an own car on Isaac. Fixes found on the way: the
+  simple, launch and command pilots' includes of the vehicle side named only `sim:=`, and
+  play_launch's parser scopes an include to what it names, so nothing else reached the
+  vehicle side (they forward every argument now; T1 case
+  `test_an_own_car_simple_pilot_resolves_without_the_cars_autoware_packages`); the vehicle
+  side's `vehicle_maps_dir` default resolves `<car>_description` in both branches of its
+  `eval`. Rulings: pedal maps from `vehicles/<name>_maps/` beside the spec, else the Tesla
+  Model 3's, recorded in stack.json; SSv2's `vehicle_model` stays its default for an own car
+  without `<car>_description` (SSv2 reads only that package's parameter files and does not
+  launch Autoware here); Isaac's rig from the spec is later. Live on CARLA 0.9.16: a
+  Lincoln MKZ 2020 body with its measured geometry (the Tesla's other sections),
+  `simple` pilot, drive_to_goal passed (run 2026-11-16T01-38-11); the world server, acb and
+  the catalog all named spec e12f66a91e53, and acb verified the applied physics.

@@ -720,3 +720,33 @@ def test_a_named_seat_whose_ports_are_in_use_is_refused(where, maps_hub):
     finally:
         sock.close()
     assert stack.plan(project_arg=str(d)).seat.index == 2
+
+
+def test_an_own_car_reaches_the_bridge_the_world_server_and_its_pilot(where, maps_hub,
+                                                                       monkeypatch):
+    """roadmap 077, G5: vehicles: is loaded: the merged catalog to the bridge and the
+    scenarios (SWB_VEHICLES), the car's physics to CARLA's world server, its files to the
+    pilot, its spec_hash recorded."""
+    from swb import vehicles
+    from test_vehicles import INSTALLED, fake_gen, own_spec
+    monkeypatch.setattr(vehicles, "run_gen", fake_gen)
+    monkeypatch.setattr(vehicles, "installed_catalog", lambda: INSTALLED)
+    d = make(where)
+    own_spec(d)
+    s = yaml.safe_load((d / "swb.yaml").read_text())
+    s["vehicles"] = ["vehicles/my_lincoln.yaml"]
+    s["pilots"] = {"ego": {"kind": "simple", "vehicle": "my_lincoln"},
+                   "*": {"kind": "none"}}
+    (d / "swb.yaml").write_text(yaml.safe_dump(s))
+    p = stack.plan(project_arg=str(d), check=None)
+    own = d / "state" / "vehicles"
+    assert p.launch_args["vehicle_catalogs"] == str(own / "catalogs" / "vehicles.xosc")
+    assert p.env["SWB_VEHICLES"] == str(own / "catalogs")
+    assert f"vehicle_physics:={own / 'my_lincoln' / 'carla' / 'carla_physics.yaml'}" in \
+        p.launch_args["sim_args"]
+    [ego] = [e for e in p.record["pilot_entries"] if e["entity"] == "ego"]
+    assert ego["args"]["spec"] == str(d / "vehicles" / "my_lincoln.yaml")
+    assert ego["args"]["vehicle_config"].endswith("my_lincoln/carla/carla_sensors.yaml")
+    assert ego["args"]["description"].endswith("my_lincoln/description.urdf")
+    assert p.record["spec_hash"]["ego"] == "hash-of-my_lincoln"
+    assert p.record["vehicles"]["my_lincoln"]["spec_hash"] == "hash-of-my_lincoln"

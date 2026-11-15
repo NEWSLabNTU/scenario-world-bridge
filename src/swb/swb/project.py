@@ -20,7 +20,7 @@ from pathlib import Path
 import yaml
 
 from swb import assets, budget as budgetmod, config, ground as groundmod, isaac as isaacmod
-from swb import judges as judgesmod, tools as toolsmod
+from swb import judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
 from swb import profile as profilemod, record as recordmod, ssv2 as ssv2mod, world as worldmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
@@ -626,6 +626,43 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
     return out
 
 
+def own_car_problems(project: Path, settings: dict) -> list:
+    """``vehicles:`` (roadmap 077, G5): names and bodies of their own; an autoware pilot of
+    an own car needs the car's Autoware packages installed; Isaac's rig is not made yet."""
+    pf = config.PROJECT_FILE
+    out = [Finding(pf, m, refused=True) for m in vehiclesmod.problems(project, settings)]
+    try:
+        own = {n for n, _, _ in vehiclesmod.spec_names(project, settings)}
+    except vehiclesmod.VehicleError:
+        return out
+    sim = settings.get("simulator")
+    pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
+    for key, p in pilots.items():
+        if not isinstance(p, dict) or p.get("vehicle") not in own:
+            continue
+        car = p["vehicle"]
+        if sim == "isaac":
+            out.append(Finding(pf, f"pilots.{key}: {car} is a car of the project's own; on "
+                               "Isaac its rig is not made from the spec yet", "simulator: carla,"
+                               " or an installed car", refused=True))
+        if p.get("kind") == "autoware" and not _package_installed(f"{car}_description"):
+            out.append(Finding(pf, f"pilots.{key}: an autoware pilot of {car} needs Autoware's"
+                               f" packages of the car ({car}_description, {car}_sensor_kit_*),"
+                               " installed", "generate them from the spec (autoware_sim_vehicle"
+                               "'s autoware_gen), build and source them; or another pilot kind",
+                               refused=True))
+    return out
+
+
+def _package_installed(name: str) -> bool:
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        get_package_share_directory(name)
+        return True
+    except Exception:  # noqa: BLE001 (not found, or no ROS environment)
+        return False
+
+
 def check_project(path) -> list:
     """Every finding for the project at ``path`` (a directory or pkg://<package>)."""
     try:
@@ -636,9 +673,13 @@ def check_project(path) -> list:
     out = check_schema(settings)
     out += toolsmod.findings()
     out += assets.check(project, settings)
+    missing = False
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (project / v).is_file():
             out.append(Finding(config.PROJECT_FILE, f"vehicles: {v}: no such file"))
+            missing = True
+    if settings.get("vehicles") and not missing and isinstance(settings["vehicles"], list):
+        out += own_car_problems(project, settings)
     if isinstance(settings.get("ground"), dict):
         for where, msg in groundmod.problems(project, settings["ground"]):
             if "is not a file" in msg:

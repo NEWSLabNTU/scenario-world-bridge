@@ -92,3 +92,31 @@ def test_pilot_resolves_under_play_launch(kind, tmp_path):
                        capture_output=True, text=True, timeout=600, cwd=str(tmp_path))
     tail = "\n".join((p.stdout + p.stderr).strip().splitlines()[-8:])
     assert p.returncode == 0 and out.is_file(), f"{kind}: play_launch refused {name}:\n{tail}"
+
+
+@needs_play_launch
+def test_an_own_car_simple_pilot_resolves_without_the_cars_autoware_packages(tmp_path):
+    """roadmap 077, G5: the stack gives an own car's pilot its generated files; the vehicle
+    side must take them, not look up <car>_description (play_launch's parser scopes an
+    include to the arguments it names, so simple.launch.py forwards them all)."""
+    for p in ("swb_agent", "acb_bridge", "sim_vehicle_spec", "acb_launch"):
+        if not have_package(p):
+            pytest.skip(f"not installed: {p}")
+    from ament_index_python.packages import get_package_share_directory
+    sensors = os.path.join(get_package_share_directory("sim_vehicle_spec"), "generated",
+                           "tesla_model3", "carla_sensors.yaml")
+    urdf = tmp_path / "description.urdf"
+    urdf.write_text('<?xml version="1.0"?><robot name="vehicle"><link name="base_link"/></robot>')
+    hashes = tmp_path / "spec_hash.yaml"
+    hashes.write_text("spec_hash: abc\n")
+    out = tmp_path / "model.yaml"
+    p = subprocess.run(["play_launch", "dump", "-o", str(out), "launch",
+                        os.path.join(PILOTS, "simple.launch.py"), "entity:=ego",
+                        "relay:=tcp://localhost:5560", "vehicle:=my_lincoln", "sim:=carla",
+                        f"map_path:={MAP}", f"vehicle_config:={sensors}",
+                        f"autoware_spec_hash_file:={hashes}", f"description:={urdf}",
+                        f"spec_hash_file:={hashes}", f"vehicle_maps_dir:={tmp_path}"],
+                       capture_output=True, text=True, timeout=600, cwd=str(tmp_path))
+    tail = "\n".join((p.stdout + p.stderr).strip().splitlines()[-8:])
+    assert p.returncode == 0 and out.is_file(), f"play_launch refused the own car:\n{tail}"
+    assert str(hashes) in out.read_text()

@@ -55,9 +55,10 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 
 ## Projects
 
-- **`vehicles:` is checked, not loaded.** `project check` refuses a listed spec file that
-  does not exist, but the stack does not load it: give the bridge your catalog and the
-  world server your physics through `stack_args` ([Your car](../how-to/your-car.md)).
+- **An own car (`vehicles:`) runs on CARLA only.** On Isaac its rig is not made from the
+  spec yet, and `project check` refuses it there. An `autoware` pilot of an own car needs
+  the car's Autoware packages built and installed; a car without measured pedal maps drives
+  on the Tesla Model 3's ([Your car](../how-to/your-car.md)).
 - **The bridge's trace and contact directories are the stack's, not a run's.** The bridge
   reads them once, at start; each run takes the files the bridge wrote during it
   (`gap_trace/`, `contacts/`). `logging.gap_trace` is therefore `swb.yaml`'s, not a

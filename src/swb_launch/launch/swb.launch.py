@@ -88,6 +88,15 @@ def named_args(text):
     return out
 
 
+def _refused(why):
+    """The refusal on stderr first, as one plain line, then raised: play_launch wraps a launch
+    file's exception in its parser's error and a `--parser python` hint, which a reader who
+    started play_launch directly saw instead of the reason (roadmap 077, G68)."""
+    msg = f"swb: the stack is refused (3): {why}"
+    print(msg, file=sys.stderr, flush=True)
+    raise RuntimeError(msg) from None
+
+
 def _swb(context):
     get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
     stack = _stack_module()
@@ -95,7 +104,7 @@ def _swb(context):
     # drop without a word: refused by name, with what replaced them (roadmap 076 step 10)
     retired = stack.retired_args(n for n in context.launch_configurations if n not in ARGS)
     if retired:
-        raise RuntimeError("swb: the stack is refused (3): " + "; ".join(retired))
+        _refused("; ".join(retired))
     try:
         plan = stack.plan(project_arg=get("project") or None, seat_arg=get("seat") or None,
                           simulator=get("simulator") or None, map_name=get("map") or None,
@@ -103,7 +112,7 @@ def _swb(context):
                           simulator_start=get("simulator_start") or None,
                           stack_args=named_args(get("stack_args")))
     except stack.StackRefused as e:
-        raise RuntimeError(f"swb: the stack is refused (3): {e}") from None
+        _refused(e)
     stack.write_plan(plan)
     here = os.path.dirname(os.path.abspath(__file__))
     on = plan.map or "the first run's map"

@@ -189,3 +189,18 @@ def test_summary(root, tmp_path):
     rows = list(csv.DictReader(open(other / "summary.csv")))
     assert rows[0]["params"] == "gap_m=6;policy=yield"
     assert call("summary", str(tmp_path / "nothing"))[0] == 3
+
+
+def test_why_names_the_bridges_refusal_not_ssv2s_error_nor_play_launchs_note():
+    """G67, on 241's run of 2026-11-16 (host paths replaced): SSv2's reason is a SemanticError
+    ("Spawn entity ... resulted in failure"); the cause is the bridge's "Cannot spawn ..." line
+    after it in frame 2; before it come play_launch's cap_sys_ptrace notes and SSv2's own WARNs."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent / "data" / "runs"
+    code, out = call("why", "--root", str(root), "2026-11-16T18-27-38_autopilot_r0")
+    assert code == 0
+    assert "reason   SemanticError:" in out and 'Spawn entity "npc_autopilot"' in out
+    assert ("first    WARN in bridge/scenario_world_bridge: spawn_vehicle_entity{frame=2}: "
+            "scenario_world_bridge::coordinator: Returning error: Cannot spawn 'npc_autopilot' "
+            "(simulator_autopilot): the isaac world server does not offer AUTOPILOT") in out
+    assert "cap_sys_ptrace" not in out

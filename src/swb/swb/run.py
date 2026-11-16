@@ -379,6 +379,14 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
         except FileExistsError:
             n += 1
             log_dir = root / f"{stackmod.now_id()}-{n}"
+    if command is None:
+        # The stack's own plan, here first (roadmap 077, G68): a refusal from inside the launch
+        # reaches the terminal wrapped in play_launch's parser error (and a `--parser python`
+        # hint); planned here, it is said plainly and the run exits 3 before anything starts.
+        try:
+            stackmod.plan(project_arg=str(project), seat_arg=str(s.index), logs=host["logs"])
+        except stackmod.StackRefused as e:
+            raise Refused(f"the stack is refused: {e}") from None
     argv = (command or stack_argv)(project, host, s.index, log_dir)
     try:
         proc = stackmod.start_process(argv, stack_env(s, host=host), log_dir / "console.log",

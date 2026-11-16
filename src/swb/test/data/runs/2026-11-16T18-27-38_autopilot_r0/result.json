@@ -1,0 +1,56 @@
+{
+  "schema": "swb.result/1",
+  "run_id": "2026-11-16T18-27-38_autopilot_r0",
+  "verdict": "error",
+  "reason": "SemanticError: /ws/install/traffic_simulator/include/traffic_simulator/api/api.hpp:231: Spawn entity \"npc_autopilot\" resulted in failure.",
+  "scenario": {
+    "file": "scenarios/autopilot.xosc",
+    "sha256": "sha256:c101b88f4c112978633abf15121415e5f2e01730d7d3ccff2beb5929925f76c4",
+    "parameters": {},
+    "repetition": 0,
+    "seed": null
+  },
+  "ssv2": {
+    "junit": "junit.xml",
+    "failures": 0,
+    "errors": 1,
+    "message": "SemanticError: /ws/install/traffic_simulator/include/traffic_simulator/api/api.hpp:231: Spawn entity \"npc_autopilot\" resulted in failure."
+  },
+  "events": [],
+  "metrics": {
+    "duration_s": 38.943
+  },
+  "pilots": {
+    "ego": {
+      "kind": "autoware",
+      "vehicle": "tesla_model3",
+      "inputs": [],
+      "lifetime": "stack"
+    }
+  },
+  "provenance": {
+    "swb": "2788710781bcaa7aa67ef319cd509dc2c5607677+dirty",
+    "submodules": {
+      "src/autoware_carla_bridge": "47f443ae0a0574c3b908e2126b8f6a82d181e333",
+      "src/autoware_isaac_bridge": "b563fe44701d1a214dbfe40fda2fd21a32b6d1d9",
+      "src/autoware_sim_vehicle": "8be93638e30f71bd327210a2a9afcd1ab7659f45",
+      "src/color_names": "c6a32273186b2debd20a6af98b42149b411378c1",
+      "src/scenario_simulator_v2": "7e98ecc4f728e3c1b31ced21c01e829c2f91ac0f",
+      "src/sim_vehicle_ecu": "5174d71905805caa143981a53331b42e1198f3ff",
+      "src/sim_vehicle_spec": "9b7e48dbd914aa9febc59f19ea4c55238464212a",
+      "src/swb_carla_world": "38b2d06e5624130e4ba53e2239ecf62991283a31",
+      "src/swb_isaac_world": "8d63f0bbf7e07da6ee987d9ba504ab8fe542d84a",
+      "src/swb_world_protocol": "03495780373d54c6e1020dc6f26185f81e26ea09",
+      "third_party/cuda_ndt_matcher": "99540d8a1ea3cf1302fa5378f347bf1e4cefc6a5"
+    },
+    "built": "2026-11-16T09:20:12+00:00",
+    "host": "host",
+    "gpu": "NVIDIA GeForce RTX 5090, NVIDIA GeForce RTX 5090",
+    "swb_lock": "sha256:f1219a07121f0f370f7fdd4af9fd1a7da62e6701950cb261c29938cc6b5795da",
+    "simulator": "isaac",
+    "stack_id": "2026-11-16T18-15-11_seat0",
+    "spec_hash": {
+      "ego": "01b4d3f5273572098cee2052d1c0affe8aeded8d3c71ae2b27a57c350cbcb9f1"
+    }
+  }
+}

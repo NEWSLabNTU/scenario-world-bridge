@@ -81,3 +81,47 @@ def test_stack_error_is_a_problem():
     tl = timeline.build([{"type": "stack.error", "t_wall": 1.0, "message": "world server died"}])
     assert timeline.first_problem(tl)["message"] == "world server died"
     assert timeline.first_problem([]) is None
+
+
+def test_a_time_without_a_zone_is_local(monkeypatch):
+    """G69: Python logging's asctime is local time; read as UTC it was 28800 s late at +8."""
+    import time
+    monkeypatch.setenv("TZ", "Asia/Taipei")
+    time.tzset()
+    try:
+        utc = timeline.parse_iso("2026-11-16T09:43:07.091834Z")
+        _, t, name, _ = timeline.parse_line(
+            "2026-11-16 17:43:07,091 WARNING swb_world_server: step 2 has run 180.1 s")
+        assert name == "swb_world_server"
+        assert abs(t - (utc - 0.000834)) < 1e-6  # the same instant, not 8 h later
+        assert timeline.parse_iso("2026-11-16T17:43:07.091834+08:00") == utc  # a zone stays
+    finally:
+        monkeypatch.delenv("TZ")
+        time.tzset()
+
+
+def test_why_prefers_swbs_own_refusal_and_skips_capability_notes():
+    """G67: the bridge's "Cannot spawn ..." outranks SSv2's generic SemanticError; play_launch's
+    capability notes are never first."""
+    def e(t, group, process, level, message):
+        return {"t_wall": t, "group": group, "process": process, "level": level,
+                "event": f"log.{level.lower()}", "message": message}
+    cap = e(1.0, "scenario", "play_launch", "WARN",
+            "/x/bin/play_launch_io_helper lacks cap_sys_ptrace: I/O monitoring cannot read "
+            "privileged processes.")
+    setcap = e(1.1, "scenario", "console", "WARN", "run `play_launch setcap` to grant it")
+    semantic = e(5.0, "scenario", "openscenario_interpreter_node-1", "ERROR",
+                 "SemanticError: Failed to add entity 'ego'")
+    spawn = e(5.2, "bridge", "scenario_world_bridge", "WARN",
+              "Cannot spawn 'ego' (autoware): no agent registered for it")
+    tl = [cap, setcap, semantic, spawn]
+    assert timeline.why(tl) is spawn
+    assert timeline.first_problem(tl) is semantic  # the capability notes are skipped
+    assert timeline.first_problem(tl, "ERROR") is semantic
+    # no refusal from swb's processes: the first problem, as before
+    assert timeline.why([cap, semantic]) is semantic
+    # a world server's failure counts too; another group's "failed" does not outrank
+    ws = e(6.0, "simulator", "swb_isaac_world", "ERROR", "load_world failed: no USD stage")
+    pilot = e(4.0, "pilot-ego", "planning", "WARN", "planning failed to find a path")
+    assert timeline.why([cap, pilot, semantic, ws]) is ws
+    assert timeline.why([cap, setcap]) is None

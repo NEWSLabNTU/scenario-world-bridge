@@ -786,6 +786,28 @@ def test_a_started_stack_that_fails(where, maps_hub, launcher, capsys):
     assert "not ready within 1 s" in capsys.readouterr().err and time.time() - t0 < 30
 
 
+def test_the_stack_is_planned_here_first_and_a_refusal_said_plainly(where, maps_hub,
+                                                                     monkeypatch, capsys):
+    """G68: `--start-stack` plans the stack in its own process (stack.plan, the launch's call)
+    before play_launch starts: a refusal exits 3 with the reason, not play_launch's parser
+    error, and nothing starts."""
+    d = make(where)
+    asked, started = [], []
+
+    def refusing_plan(**kw):
+        asked.append(kw)
+        raise run.stackmod.StackRefused("project check found problems:\nswb.yaml: pilots: ego: "
+                                        "kind 'autowar' is not one of autoware, command")
+    monkeypatch.setattr(run.stackmod, "plan", refusing_plan)
+    monkeypatch.setattr(run.stackmod, "start_process", lambda *a, **k: started.append(a))
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack"]) == 3
+    err = capsys.readouterr().err
+    assert "the stack is refused: project check found problems" in err
+    assert "kind 'autowar' is not one of autoware, command" in err
+    assert "--parser" not in err and started == []
+    assert asked == [{"project_arg": str(d), "seat_arg": "1", "logs": str(where["tmp"] / "logs")}]
+
+
 def test_api_stack_block(where, maps_hub, launcher):
     d = make(where)
     cmd, _ = launcher

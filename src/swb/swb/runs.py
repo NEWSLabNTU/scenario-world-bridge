@@ -220,7 +220,7 @@ def cmd_why(args, out):
         out.write(f"reason   {r['reason']}\n")
     tl_path = d / "timeline.jsonl"
     tl = timeline.read(tl_path) if tl_path.is_file() else []
-    first = timeline.first_problem(tl)
+    first = timeline.why(tl)
     if first is None:
         out.write("first    no WARN or ERROR in the timeline\n")
         return EXIT_OK

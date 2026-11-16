@@ -41,7 +41,10 @@ _MILESTONES = [
 
 
 def parse_iso(s: str):
-    """Seconds since the epoch for an ISO 8601 time (no zone: UTC); None if not one."""
+    """Seconds since the epoch for an ISO 8601 time; None if not one. A time with no zone is
+    this host's local time: Python logging's ``asctime`` (the Isaac world server's lines) is
+    written so, and the timeline is built on the host that wrote the logs. Read as UTC, those
+    lines landed 28800 s late on a UTC+8 host (roadmap 077, G69)."""
     s = s.strip().replace(",", ".")
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
@@ -52,9 +55,7 @@ def parse_iso(s: str):
         t = _dt.datetime.fromisoformat(s)
     except ValueError:
         return None
-    if t.tzinfo is None:
-        t = t.replace(tzinfo=_dt.timezone.utc)
-    return t.timestamp()
+    return t.timestamp()  # naive: local time
 
 
 def to_epoch(t):
@@ -221,9 +222,37 @@ def is_problem(e, min_level="WARN") -> bool:
     return LEVELS.get(str(e.get("level", "")).upper(), 0) >= LEVELS[min_level]
 
 
+# play_launch's notes on capabilities its helpers lack: never a run's reason (roadmap 077, G67)
+_NOISE = re.compile(r"cap_sys_ptrace|\bgetcap\b|\bsetcap\b")
+# swb's own processes (the bridge and the relay, the world servers), and what they say when
+# they refuse a scenario or fail it: "Cannot spawn 'x' ...", "... refused", "... failed"
+_SWB_GROUPS = {"bridge", "relay", "simulator"}
+_REFUSAL = re.compile(r"\bCannot spawn\b|\brefus(?:e|es|ed)\b|\bfailed\b", re.I)
+
+
+def is_noise(e) -> bool:
+    return bool(_NOISE.search(str(e.get("message") or "")))
+
+
+def is_swb_refusal(e) -> bool:
+    return e.get("group") in _SWB_GROUPS and bool(_REFUSAL.search(str(e.get("message") or "")))
+
+
 def first_problem(timeline, min_level="WARN"):
-    """The first entry at ``min_level`` or above (a WARN/ERROR log line, a stack.error)."""
+    """The first entry at ``min_level`` or above (a WARN/ERROR log line, a stack.error), but
+    not play_launch's capability notes."""
     for e in timeline:
-        if is_problem(e, min_level):
+        if is_problem(e, min_level) and not is_noise(e):
             return e
     return None
+
+
+def why(timeline, min_level="WARN"):
+    """The entry that best says why a run ended as it did (`runs why`): the first refusal or
+    failure that swb's own processes logged at ``min_level`` or above, which outranks SSv2's
+    generic error that follows it (a SemanticError naming no cause; roadmap 077, G67), else
+    the first problem."""
+    for e in timeline:
+        if is_problem(e, min_level) and is_swb_refusal(e):
+            return e
+    return first_problem(timeline, min_level)

@@ -56,7 +56,7 @@ import yaml
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
 from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
-from swb import launcher as launchermod, world as worldmod
+from swb import crashloop, launcher as launchermod, world as worldmod
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -438,6 +438,7 @@ def wait_started(started: StartedStack, project: Path, host: dict, timeout: floa
     launch refused the stack) when it ends first or ``timeout`` passes."""
     h = dict(host, seat=started.seat)
     deadline = time.time() + timeout
+    next_loop = 0.0
     while True:
         code = started.proc.poll()
         if code is not None:
@@ -450,6 +451,14 @@ def wait_started(started: StartedStack, project: Path, host: dict, timeout: floa
             rec = None
         if rec is not None and rec.get("state") == stackmod.READY:
             return rec
+        if time.time() >= next_loop:
+            # a required node respawned without end is no slow start (077 G77): the stack's
+            # own launch (its nested sides) and, once it has a record, each side's nodes
+            loop = crashloop.looping(Path(rec["proc"]) if rec and rec.get("proc") else None,
+                                     launch_dir=Path(started.log).parent)
+            if loop:
+                raise StackFailed(f"the stack's start is ended: {loop}; {started.log}")
+            next_loop = time.time() + 2.0
         if time.time() >= deadline:
             state = rec.get("state") if rec else "no stack.json yet"
             raise StackFailed(f"the stack was not ready within {timeout:.0f} s ({state}); "

@@ -88,9 +88,16 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 The user asked for the campaign to end in a release (through 133, 2026-11-16). **Release
 ready** means: (a) install.md's commands build from a fresh clone on two clean hosts, one for
 CARLA and one for Isaac; (b) tutorials 1 to 7 pass for a fresh reader; (c) every ready
-inventory item is migrated, with a reference result on the release commit; (d) no open gap
+inventory item is migrated, with a T3 reference that compares clean on the tag commit; (d) no open gap
 gives a wrong verdict (the class of G42, G54, G55) or blocks (a) to (c); (e) check_pins,
 check_docs and the tests pass; (f) the release notes list what is deferred, below.
+
+Main is not frozen (the user, through 133, 2026-11-16). The T3 references are recorded once,
+on the release candidate (`scripts/t3.py record`). Right before the user tags, the T3 suites
+run on the exact commit to be tagged and `scripts/t3.py compare` checks them against the
+references; any changed verdict or judge verdict is reported to the user. A change landed
+after the references that alters a result is resolved before the tag: either that suite's
+reference is recorded again on the tag commit, or the change is held out of the release.
 
 Must-have, in order: the fresh-clone build (241's three package failures); G55 and the
 vehicle_physics default (118), then items 1 to 6 and 8 to 10 again on the spec's physics;

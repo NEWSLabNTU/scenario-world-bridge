@@ -3,7 +3,8 @@
 # references (`record`) and compares a host's latest results with them (`compare`).
 #
 # Each entry: project (a directory holding swb.yaml), suite (under its suites/), sim, and
-# what the host needs. A scenario expected to fail says so in its suite's `expect:`, so the
+# what the host needs (`long: true`: tens of minutes). c2b, e2 and s5 reach into scripts/coop:
+# they run in this repository, never a copy. A scenario expected to fail says so in its suite's `expect:`, so the
 # suite still exits 0 on it; the reference records the verdict either way.
 references: scenarios/t3-references
 suites:
@@ -18,6 +19,11 @@ suites:
   - {project: scenarios/projects/demo, suite: cut_in_rear, sim: carla, needs: [tensorrt]}
   - {project: scenarios/projects/demo, suite: tour, sim: carla, needs: [tensorrt]}
   - {project: scenarios/projects/gap, suite: gap, sim: carla}
+  - {project: scenarios/projects/bench, suite: bench, sim: carla}        # no Autoware; frame_budget p95 <= 10 ms
+  - {project: scenarios/projects/set050, suite: default, sim: carla}     # truck_pass expected failed
+  - {project: scenarios/projects/set050, suite: bench, sim: carla}       # npc_20
+  - {project: scenarios/projects/set050, suite: two_av, sim: carla}      # two Autoware stacks
+  - {project: scenarios/projects/set050_tour, suite: tour, sim: carla, needs: [tensorrt], long: true}  # ~20 min
   - {project: scenarios/projects/c2b, suite: c2b, sim: carla}
   - {project: scenarios/projects/e2, suite: e2, sim: carla}
   - {project: src/swb_examples/projects/safety_suite, suite: nightly, sim: carla, copy: true}

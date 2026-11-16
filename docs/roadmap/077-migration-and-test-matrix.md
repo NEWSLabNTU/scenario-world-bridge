@@ -1218,6 +1218,26 @@ Isaac's rear contact (inventory row 18).
   9.6 s). Town02's first try ended `error` (no answer to the ego's Spawn within 120 s, the
   first ego on the preloaded town, host load 80-88; G65), its retry passed; the stack took
   16 min to be ready with both towns. In T3 part 2 as isaac_basic/towns (b1a36b1).
+- **Item 17 on Isaac (swb 241, 2026-11-17, 12d284d): incidents 5 of 5; i6 and UC-ACC
+  open.** `scenarios/projects/isaac_demo`: the demo tour's ego on aib's rig (CenterPoint,
+  lifetime stack), demo's judges; suites `incidents`, `i6`, `uc_acc` (UC-ACC a copy cut to
+  044's one Isaac variant, its header naming the source: TIER IV's ScenarioModifiers expand
+  in SSv2, so a suite cannot cut them). Live on 45b8e0f (issue 040 fixed), Isaac on NVMe,
+  TensorRT 10.8 (the stack ready in about 7 min), host load 70-160:
+  - `incidents`: i1 to i5 passed, 5 of 5, incident_judge and physical_verdict passed on
+    each (01-08-33 to 01-26-38).
+  - `i6`: SSv2 passed twice (01-30-16, 01-48-32), both judges failed both: contact with
+    the cyclist (Isaac's contact report, 6 frames, peak impulse 55.5 and 45.1 N s);
+    min_gap 0.17 m at 1.27 m/s and 0.18 m at 3.1 m/s, then the ego stopped and yielded.
+    CARLA's demo passes i6 3 of 3, and 044 passed it on Isaac (2026-10-23). Ruling (243):
+    not a reference and no expected `failed`. The load was far above the quiet-GPU rule, the
+    condition under which i6 failed on CARLA too, so i6 stays out of T3 until a rerun on a
+    quiet host; if it fails there, it is written up as Autoware's margin on Isaac, or the
+    cyclist's body against its box.
+  - `uc_acc`: no pass yet. The first cut had the wrong target speed (2.778 m/s; 044's is
+    5.556 -> 1.944) and failed on a 60 s standstill; at 1.944, two Autoware errors at load
+    72-123 (INITIALIZING; change_to_stop not reachable). A retry in a quieter window.
+  No references recorded.
 - **Item 18, assigned (133, 2026-11-17): swb 241, alongside item 17.** Not yet migrated.
   Nothing blocks it: G3 gives `ssv2: managed_ego: false` per scenario, and the runner hands
   that ego to no pilot; CARLA's rear_contact already runs in basic's `suites/town01.yaml`

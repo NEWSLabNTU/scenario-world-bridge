@@ -440,3 +440,22 @@ def test_the_reaper_leaves_with_a_carla_its_keeper_stopped(tmp_path):
     carla.terminate()
     carla.wait()
     assert reaper.wait(timeout=10) == 0
+
+
+def test_a_map_this_hosts_carla_has_no_town_for_is_named(tmp_path):
+    """G13: a town installed into the CARLA binary is a host fact."""
+    content = tmp_path / "CARLA_0.9.16" / "CarlaUE4" / "Content"
+    (content / "Carla" / "Maps").mkdir(parents=True)
+    (content / "Carla" / "Maps" / "Town01.umap").write_text("")
+    (content / "Carla" / "Maps" / "Town10HD.umap").write_text("")
+    carla = {"root": str(tmp_path / "CARLA_0.9.16")}
+    alias = {"Town10": "Town10HD"}
+    assert sim.town_problems(["Town01", "Town10"], carla, alias) == []
+    [(m, town, dirs)] = sim.town_problems(["Town01", "NTU"], carla, alias)
+    assert (m, town) == ("NTU", "NTU") and dirs == [content]
+    pkgs = tmp_path / "packages"
+    (pkgs / "NTU" / "Maps" / "NTU").mkdir(parents=True)
+    (pkgs / "NTU" / "Maps" / "NTU" / "NTU.umap").write_text("")
+    assert sim.town_problems(["NTU"], {"map_packages": [str(pkgs)]}, alias) == []
+    # a CARLA elsewhere (no root, no packages): not checked
+    assert sim.town_problems(["NTU"], {}, alias) == []

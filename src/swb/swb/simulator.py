@@ -412,3 +412,54 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+# --- the towns this host's CARLA has (roadmap 077, G13) ------------------------------------
+
+# CARLA matches a town by its exact name; a map whose directory name differs from CARLA's
+# town has an alias in the CARLA world server's config (map_alias). These are its defaults.
+TOWN_ALIAS = {"Town10": "Town10HD"}
+
+
+def town_alias() -> dict:
+    """The CARLA world server's map_alias (its installed config), else TOWN_ALIAS."""
+    try:
+        import yaml
+        from ament_index_python.packages import get_package_share_directory
+        p = Path(get_package_share_directory("swb_carla_world")) / "config" / \
+            "swb_carla_world.yaml"
+        return dict((yaml.safe_load(p.read_text()) or {}).get("map_alias") or TOWN_ALIAS)
+    except Exception:  # noqa: BLE001 (not installed: the defaults)
+        return dict(TOWN_ALIAS)
+
+
+def map_package_dirs(carla: dict) -> list:
+    """Where this host's CARLA towns are: ``carla.map_packages``, else the install's own
+    Content directory; [] when neither is known (a CARLA elsewhere: not checked)."""
+    dirs = carla.get("map_packages") or []
+    if isinstance(dirs, str):
+        dirs = [dirs]
+    if not dirs and carla.get("root"):
+        dirs = [Path(os.path.expanduser(str(carla["root"]))) / "CarlaUE4" / "Content"]
+    return [Path(os.path.expanduser(str(d))) for d in dirs]
+
+
+def has_town(dirs, town: str) -> bool:
+    """A ``<town>.umap`` in a package's Maps (``<dir>/<package>/Maps/[<map>/]<town>.umap``)."""
+    return any(any(Path(d).glob(pattern)) for d in dirs
+               for pattern in (f"*/Maps/{town}.umap", f"*/Maps/*/{town}.umap",
+                               f"Maps/{town}.umap", f"Maps/*/{town}.umap"))
+
+
+def town_problems(maps, carla: dict, alias=None) -> list:
+    """``(map, town, dirs)`` for each project map this host's CARLA has no town for."""
+    dirs = map_package_dirs(carla)
+    if not dirs or not any(Path(d).is_dir() for d in dirs):
+        return []
+    alias = town_alias() if alias is None else alias
+    out = []
+    for m in maps or []:
+        town = alias.get(m, m)
+        if isinstance(m, str) and m and not has_town(dirs, town):
+            out.append((m, town, dirs))
+    return out

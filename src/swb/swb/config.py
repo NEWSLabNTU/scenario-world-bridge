@@ -26,9 +26,11 @@ DEFAULTS = {
     "logs": "~/.local/state/swb/logs",
     "cache": "~/.cache/swb",
     # start: auto (start CARLA from root when nothing serves host:port), start, external;
-    # ready_timeout: s a started CARLA has to serve RPC (swb.simulator)
+    # ready_timeout: s a started CARLA has to serve RPC (swb.simulator); map_packages: the
+    # directories this host's CARLA towns are installed in (default: <root>/CarlaUE4/Content),
+    # a town installed into the binary being a host fact (roadmap 077, G13)
     "carla": {"root": "", "host": "localhost", "port": 2000, "start": "auto",
-              "ready_timeout": 300},
+              "ready_timeout": 300, "map_packages": []},
     "isaac": {"root": ""},
     # dds.profile: a Cyclone DDS XML for every process of the stack and every tool that talks
     # to it (a host whose network needs another, e.g. unicast on loopback); "": swb_launch's

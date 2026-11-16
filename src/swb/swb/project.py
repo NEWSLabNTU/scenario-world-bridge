@@ -691,6 +691,18 @@ def check_project(path) -> list:
             out.append(Finding(config.PROJECT_FILE, f"maps: {m} is not fetched (assets/maps/{m})",
                                _map_fix(m, settings), refused=True))
     sim = settings.get("simulator") if isinstance(settings.get("simulator"), str) else ""
+    if sim == "carla" and isinstance(maps, list):
+        from swb import simulator as simmod
+        try:
+            carla = config.host_settings(project).get("carla") or {}
+        except config.ConfigError:
+            carla = {}
+        for m, town, dirs in simmod.town_problems(maps, carla):
+            out.append(Finding(config.PROJECT_FILE, f"maps: {m}: this host's CARLA has no town "
+                               f"{town} (no {town}.umap under {', '.join(map(str, dirs))})",
+                               "install its CARLA map package, or name where this host's are: "
+                               "carla: {map_packages: [<dir>]} in ~/.config/swb/host.yaml",
+                               refused=True))
     shape = set(worldmod.problems(settings, sim))
     for where, msg in worldmod.problems(settings, sim, project):
         if (where, msg) not in shape:   # the files (check_schema reported the rest)

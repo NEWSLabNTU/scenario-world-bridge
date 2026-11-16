@@ -641,6 +641,17 @@ Isaac's rear contact (inventory row 18).
     24 m ahead of the ego at 11.11 m/s, and the ego brakes from an 8 m gap. A scenario
     question for 025 (timed for this ego, or too tight for it), not a migration fault;
     incident_judge has no rows for i7 and i8 and records `error` for both, as designed.
+- **G13 built (2026-11-16; the user's ruling, through 133: CARLA map packages are a host
+  setting, like `CARLA_DIR`).** `carla.map_packages`, the directories this host's CARLA towns
+  are installed in (default the install's `CarlaUE4/Content`); `project check` refuses a
+  CARLA project map whose town (after the world server's `map_alias`, Town10 to Town10HD) has
+  no `.umap` there, naming the key. A CARLA with no root and no packages set is not checked.
+  On this host: Town01 to Town10 found, NTU not (its package is not installed here).
+- **075 step 9 (2026-11-16; the user's ruling, through 133: public only what is built from
+  public assets).** Already so: carla-town-autoware-maps, carla-0.9.16-isaac-usd,
+  isaac-road-physics-stages, haruna-tsukuba-courses and newslab-golfcart-models are public;
+  shalun-map and ntu-campus-maps are private. Nothing flipped. Open for the user: whether
+  the golf cart's models count as private NTU material.
 - **Item 12 migrated (swb 118, 2026-11-16, 918cf60).** `scenarios/projects/gap`, suite
   `gap`: entity_bodies and motorbike_body passed twice (oracle 0/0/0), npc_shoulder passed
   twice (0/1/0, 20 spawn infos, as 032), truck_pass failed twice as expected (G1 1 ego and

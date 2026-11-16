@@ -157,7 +157,7 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
      the steps that render nothing ran. Its findings are 077's G47 to G51; NAS:
      `2026-11-16 075 step 8 Isaac guides`. The Town01 steps of tutorials 6 and 7 are
      handed to swb 241.
-9. [~] Hugging Face (2026-11-14): seven dataset repos under the user's account, all **private**
+9. [x] Hugging Face (2026-11-14): seven dataset repos under the user's account, all **private**
    for the user to review and open (decision: "Create them private first"), each with a card
    (source, licence, how made, use with swb):
 
@@ -184,6 +184,10 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    (`raw/dem5a/`, `raw/seamlessphoto/`, the debug mosaic and a stray DEM tile, unmodified
    server responses) were removed from the courses and its history squashed, so no revision
    serves them; `raw/jobs.txt` lists their URLs. `shalun-map` and `ntu-campus-maps` stay private.
+
+   **Closed 2026-11-16** (the user, through 133: public only what is built from public
+   assets, and keep `newslab-golfcart-models` public): five public as above, `shalun-map`
+   and `ntu-campus-maps` private. Checked on the Hub that day; nothing changed.
 
 ## Gaps found writing tutorials 6 and 7 (2026-11-14)
 

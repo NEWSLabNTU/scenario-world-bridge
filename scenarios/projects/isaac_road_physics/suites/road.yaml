@@ -1,0 +1,9 @@
+# Item 20: the road_physics example's two drives on Isaac, one stack: over a wet stretch,
+# wet mud that ruts and a gravel patch (mud_and_gravel), then the same road moist with the
+# gravel turned to dirt by the scenario (after_rain). Reference: roadmap 075 step 8, both
+# passed on 241 (2026-11-16, tutorial 7).
+scenarios:
+  - ../../../src/swb_examples/projects/road_physics/scenarios/mud_and_gravel.xosc
+  - ../../../src/swb_examples/projects/road_physics/scenarios/after_rain.xosc
+retry: {on: error, times: 1}
+expect: {}

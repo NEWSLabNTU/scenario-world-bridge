@@ -1,0 +1,16 @@
+# isaac_road_physics: swb_examples' road_physics as a regression project (roadmap 077 step 4,
+# inventory item 20): one Autoware ego on Isaac Sim over mud, gravel and a wet road on Town01.
+# The scenarios and the ground file stay where they are (swb_examples' projects/road_physics/).
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+ground:
+  Town01:
+    surfaces: ../../../src/swb_examples/projects/road_physics/ground/town01.yaml
+logging:
+  keep: {passed: result, failed: full, error: full}

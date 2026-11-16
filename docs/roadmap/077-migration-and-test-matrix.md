@@ -1297,7 +1297,9 @@ Isaac's rear contact (inventory row 18).
   file:` (`kit_<date>_<time>.log`), no "does not exist (yet)", the files growing to 3.4 to
   5.1 MB. A probe: a `[Fatal] [test]` line appended to a standalone world server's Kit log
   ended it about 5 s later (the watchdog's "fatal in ..."); its launch respawned it, which
-  watched its own new log and answered Hello ready.
+  watched its own new log and answered Hello ready. Follow-up (241, reviewed by 243):
+  swb_isaac_world 3043e47, pinned 81268e3: a Kit log still missing after the preload, at
+  least 60 s after Kit's start (`KIT_LOG_GRACE`), is an ERROR, checked inline, not by a timer.
 - **Item 26, the speed ladder, ready to run (swb 139, 2026-11-17, 9270d87; reviewed by 243);
   not migrated.** `scenarios/projects/speed_ladder`: one lap of Town05's ring (the dataset's
   map at 110 km/h) per rung, 10 to 30 m/s as Autoware's `max_velocity` (`lifetime: run`, a
@@ -1314,6 +1316,23 @@ Isaac's rear contact (inventory row 18).
   failed them. Rung 10 at the same pace would take at most about 187 s, so the 400 s limit
   stands. The full ladder has not run on any host (the GPU was taken by other work); its
   next host is 118 (GPU 0) if it has Isaac, else 241 after item 55.
+- **Item 55, `just isaac-world`'s options (swb 241, 2026-11-17, on 81268e3), a standalone
+  world server without a bridge, host load 55 to 62.** Checked, kept as a developer recipe:
+  - `world:=<Town01 world.yaml>,<Town02 world.yaml> record:=<dir> record_view:=road
+    physics_hz:=60 render:=headless`, the default ego: both worlds preloaded in reverse order
+    (Town02 40 s, then Town01 43 s, so the first listed stays loaded), each with the preload
+    ego warmed; up in 98.6 s, physics at 60 Hz, ready on 5590, Kit's log watched. `record:=`
+    left its directory empty, as no ego drove (a recording with a drive not checked).
+  - `ego:= physics_hz:=30 render:=headless`: no `--ego`, no ego vehicle; up in 20.7 s,
+    physics at 30 Hz, ready.
+  - `bogus:=1` refused (exit 2), naming the arguments the recipe takes.
+  - `render:=window` without a display: the world server refuses ("render window needs
+    DISPLAY", exit 2), and its launch respawns it every 10 s, 12 times in 120 s, until
+    stopped. Open (issue 044, 241): a usage error should end the launch, not loop. A
+    project's `isaac.render: window` on a host without a display may meet the same loop
+    (not checked); the fix covers both.
+  - Not run: `follow:=true` (it needs a display; Isaac's window crashed on TurboVNC before).
+  No process left: each server stopped by its group.
 - **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e
   src/swb_examples/scenarios/basic/town01_ego_drive.xosc project:=scenarios/projects/isaac_basic`
   passed in 6 min 9 s at host load 72; e2e stopped the stack it started, and no play_launch

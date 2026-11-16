@@ -290,7 +290,7 @@ G32. An item with no open gap can be migrated now.
 | 52 | `just run` long-lived dev stack | CARLA | - | checked 2026-11-16 on CARLA (swb 118, 2788710): kept for developers, works with G55, G58, G59; Isaac half 241's |
 | 53 | `just ego-av`, `ego-isaac`, `bg-av` | CARLA | - | ready to migrate |
 | 54 | `just carla-start map:= quality:= render:=` | CARLA | - | ready to migrate |
-| 55 | `just isaac-world ego:= world:= follow:= render:= record:= ... | Isaac | - | ready to migrate |
+| 55 | `just isaac-world ego:= world:= follow:= render:= record:= ...` | Isaac | - | checked 2026-11-17 (swb 241: world, ego, physics_hz, render headless, refusals; `render:=window` without a display respawns in a loop, see 077; follow:= not run) |
 | 56 | `just world-health`, `world-check` | sim host | - | migrated 2026-11-17 (swb 118 and 241, `scripts/test_world_conformance.py`: CARLA 28/0, Isaac 25/0) |
 | 57 | Two checkouts on one host | two hosts; CARLA | G17 | blocked |
 | 58 | CARLA 0.10.0 `scenarios/carla0100/town10_ego_drive` | CARLA | G20 | blocked |

@@ -78,7 +78,7 @@ system `python3`, 3.10), not into a virtual environment: `colcon` and `ros2` run
 Python and must find them.
 
 ```bash
-python3 -m pip install --user colcon-cargo-ros2 'play_launch>=0.30.0'
+python3 -m pip install --user colcon-cargo-ros2==0.5.3 'play_launch>=0.30.0'
 export PATH=$HOME/.local/bin:$PATH    # where pip --user puts play_launch
 play_launch --version
 ```
@@ -144,6 +144,10 @@ colcon build \
     --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
     --cargo-args --release
 ```
+
+On a machine with less than 64 GB of memory, cap the parallel compiles, or the build can run
+out of memory part way: add `--parallel-workers 4` after `colcon build` and set
+`export CARGO_BUILD_JOBS=4` first (each compile of SSv2 or a Rust crate takes 2 to 4 GB).
 
 `-DBUILD_TESTING=OFF` leaves out the packages' own tests, which need test-only packages
 (`ros-humble-replay-testing` for SSv2's test runner) that only a full `rosdep install`

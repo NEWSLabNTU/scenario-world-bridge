@@ -89,7 +89,7 @@ setup:
         echo "Removing conflicting colcon-cargo/colcon-ros-cargo..."
         pip uninstall -y colcon-cargo colcon-ros-cargo
     fi
-    python3 -c "import colcon_cargo_ros2" &>/dev/null || pip install colcon-cargo-ros2
+    python3 -c "import colcon_cargo_ros2" &>/dev/null || pip install colcon-cargo-ros2==0.5.3
 
     # Initialise missing submodules only: a plain `update` would move a submodule you are
     # working in back to its pinned commit.

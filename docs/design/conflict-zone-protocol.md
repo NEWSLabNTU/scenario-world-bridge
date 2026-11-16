@@ -257,7 +257,14 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   comfortably (`commit_release: turn`); a plain commit failed G0. `mode_hold` 1.5 s: a held module
   stays manual until the decision has been stock-equivalent that long, and meanwhile the node sends
   what the module's own `safe` says. The entry band corrects the arrival read from a track by
-  `role_time_bias` (reading − truth), and tracks younger than 0.5 s are not read. Own pose:
+  `arrival_bias` (reading − truth, −0.24 s), and tracks younger than 0.5 s are not read. The rest
+  stamp read from a track lags (+0.7 s median, 0.45-3.55 s); `rest_stamp_bias` orders
+  `stopped_first` only. **A guard never takes a correction that shortens it** (P2c: the corrected
+  fresh-rest guard, 2.3 s, let 2 s-patience cars restart into the go). A go from rest stays latched
+  until the car first moves (`go_latch_motion_timeout` 3 s). **Own rest:** Autoware stops before its
+  own stop line, which can lie metres before the zone's edge, so the own rest window is wider than
+  the other's (`own_rest_window`). **A partner that drops out of the conflict set** without being
+  seen to leave keeps the last decision for `mode_hold`; it is not read as clear. Own pose:
   Autoware's `kinematic_state` is base_link (rear axle), so the node shifts it to the centre by
   `own_base_to_centre` from the spec. Autoware takes about 1.4 s from ACTIVATE at rest to motion,
   so a go from rest must stay latched until the car moves.

@@ -14,7 +14,8 @@ study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 the all-way stop, the narrow passage and the lane drop stay stock. G1 passed for the crossing
 (the node drives that relation only). Phase 2 on the crossing (2026-11-16): with a committed go that gives way to
 a seen start, G0 for the crossing passes again; e 0.55 s confirmed on held-out runs; a base_link pose
-bug fixed. Next: the post-fix swb rerun, EV5, the right-hand deny path.
+bug fixed. Phase 2c: a second own-rest bug found; G0 at a fresh seed failed by one cell; the guards
+must not take the rest-stamp correction. Next: G0 on three fresh seed sets, then the swb rerun.
 
 ## Inputs, already in place
 
@@ -322,6 +323,46 @@ c05c85b, bcafc5a, f7bbeeb; NAS `logs/2026 SSv2 on CARLA/2026-11-16 078 P2 crossi
   a go from rest latched until motion, or `launch_dead` from Autoware's 1.4 s; `role_time_bias`
   split into arrival and rest-stamp biases.
 
+**Phase 2c on the crossing (133's subagent, 2026-11-16; b7adf9d, 75e00ab on main; 938d5dd on branch
+`p2c-own-rest-window`; NAS `logs/2026 SSv2 on CARLA/2026-11-16 078 P2 crossing final/`). Stopped
+at the G0 fresh-seed check, as the brief said.**
+- **Done:** a go from rest is latched until the car first moves (`go_latch_motion_timeout` 3 s),
+  for Autoware's 1.4 s launch. `role_time_bias` is split into `arrival_bias` −0.24 s (entry band)
+  and `rest_stamp_bias` +0.7 s (`stopped_first`, rest_tie and fresh-rest guards, claim, second-round
+  epoch). Replaying P2b's bag, rest_tie still binds, 0.7 s earlier.
+- **G0 at fresh noise (`--seed 3`, 5 seeds): fail.** With the arena's biases 0, czp is worse in
+  1 of 12 cells (1 contact as B vs t0.5yp2; stock 0). On the same seed the code before this round
+  passes 0 of 12, so the latch is the only difference. But stock cells move by up to 3 contacts
+  between runs, so the cell is not clearly the latch. With `rest_stamp_bias` 0.7: 3 of 12, up to
+  58 of 90 contacts. **The correction shortens the guards** (3.0 → 2.3 s), and a 2 s-patience
+  car restarts into the go. On Autoware the stamp lag is 0.45-3.55 s, so the median correction can
+  leave a guard short. Formal checks pass in both variants.
+- **A second own-rest bug:** Autoware stops 0.6 m before its intersection stop line, which at j979
+  lies 2.7-3.2 m before czp's zone edge. So the ego rests at s_entry 3.3-3.8 m, outside
+  `rest_window` 2 m, and rest_tie never binds. That, as much as the base_link offset, is why the
+  node lost its band runs in P2 and P2b. The branch fix `own_rest_window` 4.5 m binds rest_tie
+  in a replay; it is not yet G0-checked.
+- **A flicker:** the other car dropped from the conflict set for a moment. Under the mode
+  hysteresis the node then sent the module's `safe` = true, and the ego crept 1 m while A was at
+  rest.
+- **swb:** 2 node runs before the stop, 0 contacts. In the band run, A went first and the ego
+  cleared at 20.9 s against stock's 12.6 s (the own-rest bug).
+
+**Rulings (manager, 2026-11-16).**
+- **Guards take no rest-stamp correction.** `rest_stamp_bias` orders `stopped_first` only.
+  rest_tie's guard, the fresh-rest guard, the claim and the second-round epoch use the raw stamp.
+  A correction may only lengthen a guard, never shorten it.
+- **A dropped conflict partner is not clear.** A car that leaves the conflict set without being
+  seen to exit the zone, or to turn away, keeps the last decision for `mode_hold`. It does not
+  hand over to the module's `safe`.
+- **`own_rest_window` merges after G0**, together with the two rulings above.
+- **G0 for the crossing is re-run on three fresh seed sets** (5 seeds each, not used before), so
+  that one contact is told from noise. The criterion is unchanged: 0 cells worse in each set. If one
+  set shows a single-contact cell, the cell is rerun at 20 seeds, and it fails only if it stays
+  worse.
+- The latch stays unless that rerun pins the contact on it.
+- Seeds used for G0 so far: V4 base, `--seed 2` (P2b), `--seed 3` (P2c).
+
 ### Phase 3: test runs
 
 | step | what | measures |
@@ -400,3 +441,6 @@ and G2.
   crossing reopened with `commit: on_move`; e set to 0.55 s provisionally.
 - 2026-11-16: Phase 2b: G0 for the crossing passed with `commit_release: turn`; e 0.55 s confirmed
   (held out 0.56 s); the node's base_link bug fixed; the post-fix swb rerun is next.
+- 2026-11-16: Phase 2c stopped at G0 (`--seed 3`: 1 of 12, and 3 of 12 with the rest-stamp
+  correction on the guards). Ruled: guards uncorrected, a dropped partner keeps the decision,
+  `own_rest_window` merged after G0 on three fresh seed sets.

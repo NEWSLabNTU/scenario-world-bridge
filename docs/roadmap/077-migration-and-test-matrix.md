@@ -1222,10 +1222,16 @@ Isaac's rear contact (inventory row 18).
   Nothing blocks it: G3 gives `ssv2: managed_ego: false` per scenario, and the runner hands
   that ego to no pilot; CARLA's rear_contact already runs in basic's `suites/town01.yaml`
   (item 1). Wanted: isaac/town01_rear_contact in an Isaac project's suite, one live run.
-- **Item 56, assigned (133, 2026-11-17): swb 118.** The tools exist (`just world-health`,
-  `just world-check`, `ros2 run swb_world_check swb_world_check conformance`), but no T1 cell
-  runs them. Wanted: a T1 conformance cell over each world server, proven on CARLA and
-  runnable on Isaac.
+- **Item 56 migrated on CARLA (swb 118, 2026-11-17, 57f65ac); Isaac open (241 or 139).**
+  `scripts/test_world_conformance.py`, a T1 cell: `swb_world_check conformance` against a
+  running world server with no bridge, passing on exit 0, no FAIL line and `N passed, 0
+  failed`. Opt-in (`SWB_WORLD_CHECK=carla|isaac`, `SWB_WORLD_ENDPOINT`, `SWB_WORLD_MAP`;
+  a CARLA town needs its map), so `just test` lists it and skips it. CARLA: 28 passed,
+  0 failed, 2 skipped (`--slope`, none given; autopilot, which needs a road and which the
+  scenario suites cover). NAS "2026-11-17 077 item 56 world conformance". The same commit
+  pair (c6e3399) has the fresh-install wording below: the `ros2 launch` note without its
+  roadmap reference, no web port on the first line under `ros2 launch`, and `seat show`
+  naming the seat an `auto` user holds.
 - **079 closed (swb 118, 2026-11-17, 420d801).** Every step is on main. `ros2 launch` is the
   default path, the one the tutorials and how-tos show (6007c77, 15520bd; 133 ruled it stays
   for this release), and play_launch is recommended, not required. A fresh clone without

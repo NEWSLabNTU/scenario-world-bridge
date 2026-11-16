@@ -599,7 +599,7 @@ export into it, `just isaac-assets manifest`), `AUTOWARE_TENSORRT_LIB`; CARLA 0.
 
 The space problem is solved by moving old runs, not by logging elsewhere: `just prune-logs
 [days:=7] [dest:=<dir>] [dry_run:=true]` moves runs untouched for that long to
-`$SWB_LOG_ARCHIVE` (default `/mnt/disk1/csb-play_log-archive`, where a spinning disk is
+`$SWB_LOG_ARCHIVE` (a host setting with no default since 077 G75; a spinning disk is
 fine), kind by kind. It never deletes or overwrites, and keeps each kind's `latest` and any
 run a live process holds open (a running play_launch). `src/autoware_carla_bridge/play_log`
 is acb's own and not touched. Check before blaming code:

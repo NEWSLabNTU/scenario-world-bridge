@@ -133,16 +133,20 @@ The ego's pilot (Autoware, with the **vehicle bridge** that carries the car's se
 controls between CARLA and Autoware) starts when the first run needs it, on that run's
 map; appending `map:=Town01` to the launch command starts it at once.
 
-**What you see**, in order (paths shortened; the two CARLA lines only when the stack
-starts CARLA):
+**What you see**, among `ros2 launch`'s own lines on the processes it starts (paths
+shortened; the two CARLA lines only when the stack starts CARLA):
 
 ```
 swb: project .../my_first_drive on seat 0 (carla, maps Town01; pilots on the first ...
-swb stack 2026-11-15T10-15-42_seat0: seat 0; scenario domain 1, SSv2 5555, ...
-swb stack: CARLA started on localhost:2000 (pid ..., log ...); waiting for its RPC, ...
-swb stack: CARLA serves RPC (0.9.16)
-swb stack 2026-11-15T10-15-42_seat0: ready
+[stack_keeper-1] swb stack 2026-11-15T10-15-42_seat0: seat 0; scenario domain 1, ...
+[stack_keeper-1] swb stack: CARLA started on localhost:2000 (pid ..., log ...)
+[stack_keeper-1] swb stack: CARLA serves RPC (0.9.16)
+[stack_keeper-1] swb stack: the bridge serves SSv2 (its world server is up)
+[stack_keeper-1] swb stack 2026-11-15T10-15-42_seat0: ready
 ```
+
+`ros2 launch` leads each line of a process with the process's name; under play_launch the
+same lines appear without it.
 
 Each process of the stack writes its log under the log root
 (`<logs>/my_first_drive/seat-<n>-current/proc/`). The recommended launcher,

@@ -6,6 +6,8 @@ uses; the markers go to a temporary directory.
     python3 -m pytest scripts/test_ego_used.py
 """
 
+import os
+import signal
 import subprocess
 import tempfile
 import time
@@ -18,8 +20,10 @@ BASE = 59100  # a web port base no stack here uses: ego +2, stack +4
 
 def fake_stack(*args):
     """a process whose command line is `... play_launch launch <args>`"""
+    # its own session, so tearDown ends bash and its `sleep` together (killing bash alone
+    # left the sleep to init for its 300 s)
     p = subprocess.Popen(["bash", "-c", "sleep 300; :", "play_launch", "play_launch", "launch",
-                          *args, "end"])
+                          *args, "end"], start_new_session=True)
     time.sleep(0.05)
     return p
 
@@ -36,7 +40,10 @@ class EgoUsed(unittest.TestCase):
 
     def tearDown(self):
         for p in self.procs:
-            p.kill()
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
             p.wait()
         self.tmp.cleanup()
 
@@ -72,7 +79,7 @@ class EgoUsed(unittest.TestCase):
     def test_a_stale_marker_whose_process_is_gone_is_removed(self):
         gone = fake_stack(*web(BASE + 2))
         self.sh(f"ego_used_mark {gone.pid}")
-        gone.kill()
+        os.killpg(gone.pid, signal.SIGKILL)  # the stack and its sleep (its own session)
         gone.wait()
         self.assertEqual(len(list(self.dir.iterdir())), 1)
         ego = self.stack(*web(BASE + 2))

@@ -1257,6 +1257,11 @@ Isaac's rear contact (inventory row 18).
   pair (c6e3399) has the fresh-install wording below: the `ros2 launch` note without its
   roadmap reference, no web port on the first line under `ros2 launch`, and `seat show`
   naming the seat an `auto` user holds.
+  Isaac's leg (241, 2026-11-17, on 70df975, a standalone Isaac world server, no bridge): 24
+  passed, 1 failed, `spawn the ego: no answer within 20 s`. The ego spawned about 27 s in,
+  its sensors warm after 4 renders (18 s): past the check's 20 s, inside the bridge's 120 s
+  (G65's slow first ego). Open: 241 proposes the check give the ego's spawn the bridge's
+  budget; the manager decides.
 - **079 closed (swb 118, 2026-11-17, 420d801).** Every step is on main. `ros2 launch` is the
   default path, the one the tutorials and how-tos show (6007c77, 15520bd; 133 ruled it stays
   for this release), and play_launch is recommended, not required. A fresh clone without

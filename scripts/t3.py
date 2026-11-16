@@ -5,6 +5,7 @@
     scripts/t3.py run [--only P/S ...]       # run them (ros2 run swb run, a stack per project)
     scripts/t3.py record [--only P/S ...]    # write each suite's latest results as its reference
     scripts/t3.py compare [--only P/S ...]   # this host's latest results against the references
+    ... --part i/n                           # host i of n: its share, whole projects
 
 The manifest is scenarios/t3.yaml. A reference is ``<references>/<project>/<suite>.csv``: one
 row per run (scenario file name, repetition, seed) with its verdict and judges' verdicts,
@@ -43,12 +44,34 @@ def load(path=MANIFEST) -> dict:
     return doc
 
 
-def selected(doc: dict, only) -> list:
+def selected(doc: dict, only, part=None) -> list:
     out = [e for e in doc["suites"] if not only or e["key"] in only]
     unknown = set(only or ()) - {e["key"] for e in doc["suites"]}
     if unknown:
         raise SystemExit(f"t3: not in the manifest: {', '.join(sorted(unknown))}")
-    return out
+    return split(out, part) if part else out
+
+
+def split(entries: list, part: str) -> list:
+    """Part i of n (``i/n``, 1-based) of the suites, for n hosts: whole projects (they share a
+    stack), longest first onto the host with least so far, by the manifest's ``minutes:``
+    (default 10). Every host computes the same split from the same manifest."""
+    try:
+        i, n = (int(x) for x in part.split("/"))
+        assert 1 <= i <= n
+    except (ValueError, AssertionError):
+        raise SystemExit(f"t3: --part {part}: i/n with 1 <= i <= n")
+    projects = {}
+    for e in entries:
+        projects.setdefault(e["project"], []).append(e)
+    load = [0.0] * n
+    owner = {}
+    for project, es in sorted(projects.items(),
+                              key=lambda kv: (-sum(e.get("minutes", 10) for e in kv[1]), kv[0])):
+        k = min(range(n), key=lambda j: (load[j], j))
+        owner[project] = k
+        load[k] += sum(e.get("minutes", 10) for e in es)
+    return [e for e in entries if owner[e["project"]] == i - 1]
 
 
 def work_dir(e: dict, work: Path) -> Path:
@@ -203,13 +226,16 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("action", choices=["list", "run", "record", "compare"])
     ap.add_argument("--only", nargs="*", default=[], help="<project>/<suite> keys")
+    ap.add_argument("--part", help="i/n: this host's share of the suites, for n hosts (whole "
+                                   "projects, balanced by minutes:); each host records or "
+                                   "compares its own suites' references")
     ap.add_argument("--manifest", type=Path, default=MANIFEST)
     ap.add_argument("--logs", type=Path, help="the host's log root (default: its settings')")
     ap.add_argument("--work", type=Path, default=Path(f"/var/tmp/{os.environ.get('USER', 'swb')}/t3"))
     ap.add_argument("--dry-run", action="store_true", help="run: print the commands only")
     a = ap.parse_args(argv)
     doc = load(a.manifest)
-    entries = selected(doc, a.only)
+    entries = selected(doc, a.only, a.part)
     refs = ROOT / doc["references"]
     if a.action == "run":
         return run(entries, a.work, a.dry_run)

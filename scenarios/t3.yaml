@@ -3,28 +3,29 @@
 # references (`record`) and compares a host's latest results with them (`compare`).
 #
 # Each entry: project (a directory holding swb.yaml), suite (under its suites/), sim, and
-# what the host needs (`long: true`: tens of minutes). c2b, e2 and s5 reach into scripts/coop:
+# what the host needs; minutes, a rough wall time with the stack's start, splits the set
+# across hosts (`--part i/n`) (`long: true`: tens of minutes). c2b, e2 and s5 reach into scripts/coop:
 # they run in this repository, never a copy. A scenario expected to fail says so in its suite's `expect:`, so the
 # suite still exits 0 on it; the reference records the verdict either way.
 references: scenarios/t3-references
 suites:
   # CARLA 0.9.16, one GPU host
-  - {project: scenarios/projects/basic, suite: town01, sim: carla}
-  - {project: scenarios/projects/basic, suite: towns, sim: carla}
-  - {project: scenarios/projects/basic, suite: episode_change, sim: carla}
-  - {project: scenarios/projects/basic, suite: tutorial, sim: carla}
-  - {project: scenarios/projects/two_av, suite: two_av, sim: carla}
-  - {project: scenarios/projects/demo, suite: incidents, sim: carla, needs: [tensorrt]}
-  - {project: scenarios/projects/demo, suite: i6_centerpoint, sim: carla, needs: [tensorrt]}
-  - {project: scenarios/projects/demo, suite: cut_in_rear, sim: carla, needs: [tensorrt]}
-  - {project: scenarios/projects/demo, suite: tour, sim: carla, needs: [tensorrt]}
-  - {project: scenarios/projects/gap, suite: gap, sim: carla}
-  - {project: scenarios/projects/bench, suite: bench, sim: carla}        # no Autoware; frame_budget p95 <= 10 ms
-  - {project: scenarios/projects/set050, suite: default, sim: carla}     # truck_pass expected failed
-  - {project: scenarios/projects/set050, suite: bench, sim: carla}       # npc_20
-  - {project: scenarios/projects/set050, suite: two_av, sim: carla}      # two Autoware stacks
-  - {project: scenarios/projects/set050_tour, suite: tour, sim: carla, needs: [tensorrt], long: true}  # ~20 min
-  - {project: scenarios/projects/c2b, suite: c2b, sim: carla}
-  - {project: scenarios/projects/e2, suite: e2, sim: carla}
-  - {project: src/swb_examples/projects/safety_suite, suite: nightly, sim: carla, copy: true}
-  - {project: src/swb_examples/projects/multi_pilot, suite: cut_in_seeds, sim: carla, copy: true}
+  - {project: scenarios/projects/basic, suite: town01, sim: carla, minutes: 10}
+  - {project: scenarios/projects/basic, suite: towns, sim: carla, minutes: 12}
+  - {project: scenarios/projects/basic, suite: episode_change, sim: carla, minutes: 4}
+  - {project: scenarios/projects/basic, suite: tutorial, sim: carla, minutes: 4}
+  - {project: scenarios/projects/two_av, suite: two_av, sim: carla, minutes: 15}
+  - {project: scenarios/projects/demo, suite: incidents, sim: carla, minutes: 15, needs: [tensorrt]}
+  - {project: scenarios/projects/demo, suite: i6_centerpoint, sim: carla, minutes: 6, needs: [tensorrt]}
+  - {project: scenarios/projects/demo, suite: cut_in_rear, sim: carla, minutes: 7, needs: [tensorrt]}
+  - {project: scenarios/projects/demo, suite: tour, sim: carla, minutes: 13, needs: [tensorrt]}
+  - {project: scenarios/projects/gap, suite: gap, sim: carla, minutes: 15}
+  - {project: scenarios/projects/bench, suite: bench, sim: carla, minutes: 10}        # no Autoware; frame_budget p95 <= 10 ms
+  - {project: scenarios/projects/set050, suite: default, sim: carla, minutes: 20}     # truck_pass expected failed
+  - {project: scenarios/projects/set050, suite: bench, sim: carla, minutes: 10}       # npc_20
+  - {project: scenarios/projects/set050, suite: two_av, sim: carla, minutes: 15}      # two Autoware stacks
+  - {project: scenarios/projects/set050_tour, suite: tour, sim: carla, minutes: 25, needs: [tensorrt], long: true}  # ~20 min
+  - {project: scenarios/projects/c2b, suite: c2b, sim: carla, minutes: 40}
+  - {project: scenarios/projects/e2, suite: e2, sim: carla, minutes: 10}
+  - {project: src/swb_examples/projects/safety_suite, suite: nightly, sim: carla, minutes: 55, copy: true}
+  - {project: src/swb_examples/projects/multi_pilot, suite: cut_in_seeds, sim: carla, minutes: 15, copy: true}

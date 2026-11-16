@@ -46,3 +46,15 @@ def test_the_manifest_names_existing_suites():
     for e in doc["suites"]:
         assert (t3.ROOT / e["project"] / "suites" / f"{e['suite']}.yaml").is_file(), e["key"]
     assert len({e["key"] for e in doc["suites"]}) == len(doc["suites"])
+
+
+def test_parts_cover_every_suite_once_keeping_projects_whole():
+    doc = t3.load()
+    parts = [t3.selected(doc, [], f"{i}/3") for i in (1, 2, 3)]
+    keys = [e["key"] for p in parts for e in p]
+    assert sorted(keys) == sorted(e["key"] for e in doc["suites"])
+    owners = {}
+    for i, p in enumerate(parts):
+        for e in p:
+            assert owners.setdefault(e["project"], i) == i
+    assert all(parts)

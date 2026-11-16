@@ -931,3 +931,12 @@ Isaac's rear contact (inventory row 18).
   `--disable-diagnostics` (in play_launch since 0.30, the floor). Open: a stack's own
   `stacks/<id>/proc/` logs are pruned by nothing (`runs prune` and `keep:` cover runs), and
   play_launch itself could cap or deduplicate nested recording (the user's repository).
+- **Release criterion (a) on the CARLA host (swb 118, 2026-11-16): met on both hosts.** A
+  fresh clone of 63b5233 in an empty HOME, install.md, carla.md and T1 as written: 68 packages,
+  none failed, 6 min 39 s (peak RSS 3.0 GB); build/ 11 GB and install/ 1.0 GB, 13 GB with the
+  clone; colcon-cargo-ros2 0.5.4, tomli met by Ubuntu's python3-tomli 1.2.2; one generated
+  config per Cargo workspace root; T1's drive_to_goal passed in 49.3 s, the stack starting
+  CARLA itself. Without sudo `rosdep install` stops on python3-pygame (and lacks lanelet2,
+  shapely, networkx): install.md now says what to install for the user and what is optional.
+  Seen again at a stack's stop: stack_keeper not out within 5 s and SIGKILLed (known). NAS:
+  "2026-11-16 077 criterion a fresh clone".

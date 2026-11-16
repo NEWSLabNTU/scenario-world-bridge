@@ -127,6 +127,19 @@ would walk into the components' own `deps/` copies and stop on their templates. 
 not have, so it is skipped and installed with pip. Among others, rosdep installs
 pygame, lanelet2, shapely and networkx.
 
+Without sudo, and with no administrator having run `rosdep install` on the host, it stops on
+the first apt package it cannot install. The build does not need them: it builds without,
+and what the runs need installs for your user:
+
+```bash
+python3 -m pip install --user shapely networkx pygame
+```
+
+shapely and networkx are CARLA's own agents' (a `carla_basic` pilot); pygame only
+`carla_manual_control`'s window. lanelet2's Python bindings are not needed by the build or
+the tutorials. `rosdep check --from-paths $(colcon list --base-paths src -p) --ignore-src`
+lists what is still missing.
+
 Two settings for compilers newer than Ubuntu 22.04's own, set before the build. Neither
 harms an Ubuntu 22.04 toolchain:
 

@@ -117,6 +117,14 @@ ls state/Town01/ruts/runs/
 
 lists them.
 
+<p align="center">
+  <img src="../media/t7_ruts.webp" alt="A top-down map of the mud_road zone: two straight ruts 1.6 m apart along the driving direction, about 1 cm deep, deepest 1.4 cm under the right wheels" width="720"><br>
+  <em>One saved set of ruts, seen from above: the two wheel tracks of one drive west
+  across the <code>mud_road</code> zone, 1.6 m apart (the car's track width), up to
+  1.4 cm of lasting depth. The ruts are too shallow to see in the rendered image; the
+  saved set records them.</em>
+</p>
+
 ## 4. The road after rain
 
 `scenarios/after_rain.xosc` is the same drive with the road's state set by the scenario:

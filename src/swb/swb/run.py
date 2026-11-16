@@ -551,6 +551,7 @@ class Context:
     turn: object = None               # the stack's run lock while this process runs (take_turn)
     lost_probe: object = None         # callable(rec, entities) -> {entity: why} (tests; G32)
     end_episodes: object = None       # callable(rec, entities, verdict, reason, run_id) (tests; G57)
+    pilots_broken: str = None         # the pilots did not come back after a crash (079 step 5)
 
 
 def scenario_map(path: Path, sc=None):
@@ -692,9 +693,22 @@ _PL_NODE = re.compile(r"\[node:/?([^\]]+)\] (Exited with code -?\d+|Exited witho
 _ROS2_NODE_NAME = re.compile(r"__node:=(\S+?)['\s]")
 
 
+# Processes that only display (RViz and the marker publishers it shows): their crash says
+# nothing about the autopilot under test, and rviz2 is the stack's most crash-prone process
+# (no DISPLAY, a GPU reset). Their death during a run is a warning in the run's output and
+# its timeline, never `error` (079 step 5).
+DISPLAY_ONLY = ("rviz2", "goal_pose_visualizer", "traffic_light_map_visualizer_node")
+
+
+def _display_only(name: str) -> bool:
+    base = timeline.process_name(name.rstrip("/").rsplit("/", 1)[-1])
+    return base in DISPLAY_ONLY
+
+
 class RunCrashWatch:
     """The first crash of a pilot's process its console notes after the watch starts (the
-    run's start), before a shutdown of its launch; None while there is none."""
+    run's start), before a shutdown of its launch; None while there is none. A display-only
+    process's crash is not one: it goes to ``warnings``."""
 
     def __init__(self, path: Path):
         self.path = Path(path)
@@ -703,29 +717,43 @@ class RunCrashWatch:
         except OSError:
             self.offset = 0
 
-    def crashed(self):
+    def _scan(self):
+        """``(crashes, display-only crashes)``, each a list of reasons, in order."""
         try:
             with open(self.path, "rb") as f:
                 f.seek(self.offset)
                 text = f.read().decode("utf-8", "replace")
         except OSError:
-            return None
+            return [], []
+        crashes, display = [], []
         for line in timeline._ANSI.sub("", text).splitlines():
             if timeline.SHUTDOWN.match(line) or "Shutting down gracefully" in line:
-                return None  # the stack's stop, not a crash
+                break  # the stack's stop, not a crash
             m = _PL_COMPONENT.search(line)
             if m:
-                return f"component {m.group(1)} crashed ({m.group(2)}) during the run"
-            m = _PL_NODE.search(line)
-            if m:
-                return f"node {m.group(1)}: {m.group(2).lower()} during the run"
-            m = timeline.DIED.match(line)
-            if m:
-                name = timeline.process_name(m.group(1))
-                node = _ROS2_NODE_NAME.search(line)
-                what = f"{name} ({node.group(1)})" if node else name
-                return f"{what} died (exit code {m.group(2)}) during the run"
-        return None
+                name, why = m.group(1), f"component {m.group(1)} crashed ({m.group(2)})"
+            else:
+                m = _PL_NODE.search(line)
+                if m:
+                    name, why = m.group(1), f"node {m.group(1)}: {m.group(2).lower()}"
+                else:
+                    m = timeline.DIED.match(line)
+                    if not m:
+                        continue
+                    name = timeline.process_name(m.group(1))
+                    node = _ROS2_NODE_NAME.search(line)
+                    what = f"{name} ({node.group(1)})" if node else name
+                    why = f"{what} died (exit code {m.group(2)})"
+            (display if _display_only(name) else crashes).append(f"{why} during the run")
+        return crashes, display
+
+    def crashed(self):
+        crashes, _ = self._scan()
+        return crashes[0] if crashes else None
+
+    def warnings(self):
+        """The display-only processes' crashes, once each."""
+        return list(dict.fromkeys(self._scan()[1]))
 
 
 def crash_probe(watches, base):
@@ -997,6 +1025,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         # every pilot ready (none waited for when the stack already failed the run); a pilot
         # whose node keeps crashing fails the run now, not at the readiness timeout
         deadline = time.time() + ctx.ready_timeout
+        if ctx.pilots_broken and not infra:
+            infra.append(ctx.pilots_broken)  # said once by restart_pilots; no second wait
         waiting = list(pilots) if not infra else []
         watches = {p["entity"]: CrashWatch(pilot_console(rec, p, logs)) for p in waiting}
         why = {p["entity"]: [] for p in waiting}
@@ -1043,6 +1073,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                     run_events.append({"t_wall": time.time(), "event": "record.error",
                                        "name": name, "message": str(e)})
             env = stackmod.ros_env(rec, rec["domains"]["scenario"])
+            # from before SSv2 starts: a crash as the scenario begins is the run's too
+            crashes = {p["entity"]: RunCrashWatch(pilot_console(rec, p, logs)) for p in pilots}
             try:
                 ssv2 = _start(ssv2_argv, env, logs / "scenario" / "console.log", cwd=str(project))
             except OSError as e:
@@ -1051,13 +1083,17 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             if ssv2 is not None:
                 # SSv2's global_timeout is per variant; a distribution runs them all in one go
                 limit = (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN
-                crashes = {p["entity"]: RunCrashWatch(pilot_console(rec, p, logs))
-                           for p in pilots}
                 code, lost = wait_ssv2(ssv2, limit, rec, [p["entity"] for p in pilots],
                                        crash_probe(crashes, ctx.lost_probe or lost_goals))
                 if not lost:  # a crash in SSv2's last poll interval
                     lost = {e: w.crashed() for e, w in crashes.items() if w.crashed()}
                 crashed = [e for e, w in crashes.items() if w.crashed()]
+                for e, w in crashes.items():
+                    for why in w.warnings():
+                        (ctx.out or sys.stdout).write(f"warning  pilot {e}: {why} (display "
+                                                      "only; the run stands)\n")
+                        run_events.append({"t_wall": time.time(), "event": "pilot.warning",
+                                           "entity": e, "message": why})
                 if lost:
                     infra += [f"pilot {e}: {why}" for e, why in lost.items()]
                 elif code is None:
@@ -1147,9 +1183,37 @@ def restart_pilots(ctx: Context, crashed):
     out.write(f"pilots   restarting after the crash of {', '.join(sorted(crashed))}\n")
     out.flush()
     msg = ensure_map(ctx, ctx.stack.get("map"), restart=True)
+    if not msg:
+        msg = wait_pilots_ready(ctx)
     if msg:
-        out.write(f"warning  the pilots' restart: {msg}\n")
-        out.flush()
+        # said once; this command's later runs end `error` at once with it, rather than
+        # each waiting out the readiness timeout
+        ctx.pilots_broken = f"the pilots did not come back after the crash: {msg}"
+        out.write(f"warning  {ctx.pilots_broken}\n")
+    else:
+        out.write("pilots   ready again\n")
+    out.flush()
+
+
+def wait_pilots_ready(ctx: Context):
+    """None once every stack pilot of ``ctx.stack`` is ready, else why not (within
+    ``ctx.ready_timeout``)."""
+    rec = ctx.stack
+    waiting = [p for p in rec.get("pilots", []) if p.get("lifetime", "stack") != "run"]
+    why = {p["entity"]: [] for p in waiting}
+    deadline = time.time() + ctx.ready_timeout
+    while waiting:
+        for p in list(waiting):
+            if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
+                                    why=why[p["entity"]]):
+                waiting.remove(p)
+        if waiting and time.time() >= deadline:
+            return "; ".join(f"pilot {p['entity']} never became ready ({ctx.ready_timeout:.0f} s)"
+                             + (f": {why[p['entity']][0]}" if why[p["entity"]] else "")
+                             for p in waiting)
+        if waiting:
+            time.sleep(2.0)
+    return None
 
 
 def outcome(result: results.RunResult, expect=None) -> int:

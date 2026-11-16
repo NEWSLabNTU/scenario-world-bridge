@@ -1164,6 +1164,39 @@ def test_a_pilot_crash_during_the_run_ends_it_error_under_either_launcher(live, 
     assert starts() > before
 
 
+def test_a_display_only_crash_during_the_run_is_a_warning_and_the_run_stands(live, where):
+    """079 step 5: rviz2 shows, it does not drive; its death mid-run is a warning in the
+    run's output and timeline, and a passing run stays `passed`."""
+    import io
+    d, _ = live
+    line = ("[ERROR] [rviz2-32]: process has died [pid 9, exit code -6, cmd "
+            "'/opt/ros/humble/lib/rviz2/rviz2 -d x']")
+    out = io.StringIO()
+
+    def cmd(rec, *a):
+        console = str(Path(rec["proc"]) / "pilot-ego" / "console.log")
+        return ["sh", "-c", 'printf "%s\\n" "$1" >> "$0"; shift; exec "$@"', console, line,
+                *fake(where)(rec, *a)]
+    r = api.run_one(d, "scenarios/three_pilots.xosc", {"scenario_command": cmd, "out": out})
+    assert r.verdict == results.PASSED, r.reason
+    assert "warning  pilot ego: rviz2 died (exit code -6) during the run" in out.getvalue()
+    tl = timeline.read(where["tmp"] / "logs" / "proj" / "runs" / r.run_id / "timeline.jsonl")
+    assert any(e.get("event") == "pilot.warning" and e.get("level") == "WARN" for e in tl)
+
+
+def test_pilots_that_do_not_come_back_are_said_once(monkeypatch):
+    """079 step 5: a restart after a crash whose pilots never become ready is reported once;
+    the command's later runs end `error` with it at once, not after their own wait."""
+    import types
+    monkeypatch.setattr(stack, "check_ready", lambda *a, **k: False)
+    ctx = types.SimpleNamespace(
+        stack={"pilots": [{"entity": "ego", "domain": 2, "ready": ["false"]}],
+               "domains": {"scenario": 1}, "env": {}},
+        ready_timeout=0.1)
+    msg = run.wait_pilots_ready(ctx)
+    assert msg.startswith("pilot ego never became ready")
+
+
 def test_each_run_ends_its_pilots_episodes_at_the_relay(live, where):
     """G57: the relay forgets a standing goal only at an episode boundary; run_suite sent
     episode_end, swb run did not, and the next run's agent got the old goal."""

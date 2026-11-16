@@ -268,6 +268,8 @@ def run_event(e: dict) -> dict:
     out.setdefault("group", "run")
     if out["event"] == "stack.error":
         out.setdefault("level", "ERROR")
+    elif out["event"] == "pilot.warning":  # a display-only process's crash (079 step 5)
+        out.setdefault("level", "WARN")
     return out
 
 

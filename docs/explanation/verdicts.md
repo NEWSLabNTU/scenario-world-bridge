@@ -9,7 +9,7 @@ SSv2's verdict, and why a judge's verdict never replaces the run's.
 |---|---|---|
 | `passed` | SSv2 passed the scenario | 0 |
 | `failed` | SSv2 failed the scenario: its `exitFailure` fired, a condition was not met in time, the ego collided where the scenario says it must not | 1 |
-| `error` | the run cannot be judged, for the stack's fault: a world server or bridge error, a pilot that never became ready, a pilot's process that crashed during the run, a map switch that failed, SSv2 ending on an infrastructure error | 2 |
+| `error` | the run cannot be judged: the stack failed (a world server or bridge error, a pilot that never became ready, a map switch that failed, SSv2 ending on an infrastructure error), or a pilot's process crashed during the run | 2 |
 
 The difference between `failed` and `error` is the one a test table needs: a `failed` run
 says something about the autopilot, an `error` says something about the setup. A suite's
@@ -20,7 +20,13 @@ in any process's log.
 A pilot whose process crashes while the scenario runs (an Autoware component, a node)
 ends the run `error`, with the crash in `reason` ("pilot ego: component euclidean_cluster
 crashed (killed by signal 11) during the run"): part of the autopilot was not running, so
-the run did not test it as configured. The verdict is the same under either launcher, and
+the run did not test it as configured. A crash is a finding about the autopilot or its
+environment, which swb cannot tell apart: it is not counted as `failed`, and it is never
+hidden: `reason` names the component and the signal, `runs list` shows the run as
+`error`, and a suite's `summary.csv` carries the reason, so its crashes can be picked out
+("during the run"). A process that only displays (RViz and the marker publishers it shows)
+is not part of the autopilot: its crash is a warning in the run's output and timeline, and
+the run stands. The verdict is the same under either launcher, and
 so is what follows: swb then starts the stack's pilots again before any other run (`swb
 run` says `pilots   restarting after the crash of ego`). The launchers differ underneath.
 play_launch runs each component in a process of its own and restarts it alone; under `ros2

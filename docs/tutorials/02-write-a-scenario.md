@@ -37,7 +37,8 @@ ls $E/isaac_first_drive/scenarios/follow_to_goal.xosc
 Scenarios place entities in the frame of the Autoware map. For the CARLA towns this frame
 is CARLA's world with y mirrored and headings negated, a conversion that is error-prone by
 hand. `carla_poses` reads the town that CARLA has loaded, without modifying it (so it is
-safe beside a running stack), and prints positions already converted:
+safe beside a running stack), and prints positions already converted. It finds CARLA through
+the host settings and the seat that holds the stack, so no address need be given:
 
 ```bash
 ros2 run swb_launch carla_poses spawn-points

@@ -142,3 +142,25 @@ Scratch: `/tmp/claude-1000005/-home-aeon-repos-carla-scenario-bridge/f372598a-d3
 test builds, `test_*_{before,after}.log`, `runs/i<N>/{cp,ov}_*`, `starters/`, `drafts.md`);
 `.../s_runaway` for the follow-up (`rec.py` the recorder, `repro.sh` the process stops,
 `runs/b*` before the fix, `runs/a*` after, `starters/`).
+
+## Follow-up (2026-11-16): incident 6's margin
+
+The 0.15 m above was not a margin of this fix's making but the whole margin the scenario left.
+i6's margin was zero by construction, and Autoware's stop comes late. The cyclist rode 1.47 m
+right of the ego lane's centre, so a 0.6 m bicycle passed the 2.16 m Model 3 with 0.10-0.15 m
+to its side (042's 0.13-0.15 m). Autoware 1.5.0 (CenterPoint, the overlay's blind_spot fix)
+does not stop the ego before a cyclist coming up on the inside reaches it: it slows through
+the pass and stops once the cyclist is by, so the stand of 1.2-2.2 s is a yield to a cyclist
+already beside or ahead of it, and under load the stop comes later still. In 133's run
+2026-11-16T15-32-24 r0 the ego was at 3.0 m/s and turning in (yaw -1.61 against the lane's
+-1.57) as the cyclist passed its front, and stopped only 2 m past the turn's entry: box gap
+-0.15 m, an SSv2 contact; 118's quiet-GPU tours overlapped by 0.3-1.8 cm the same way. The
+side clearance is the only margin, and on Town01 the lane caps it: 4 m wide, with
+blind_spot's attention area ending at the lane's right bound (x 332.72) and taking an
+object by its centre. Re-pathed 0.40 m toward the kerb (096df33; timing, speed, trigger and
+row 6 unchanged; i1-i5, i7, i8 regenerate byte-identically), the cyclist passes with
+0.54-0.57 m and the ego still yields: 3 of 3 i6_centerpoint and 3 of 3 tours (6 of 6
+incidents, no contact), on 133 with GPU 0 97-99 % busy from another user. Open: a turn-in as
+late as r0's would still leave about 0.3 m; the cyclist's centre is 9 cm inside the attention
+area (it yielded 12 of 12); the margin on a quiet GPU (118 measures it).
+Recorded in 077 with the re-path.

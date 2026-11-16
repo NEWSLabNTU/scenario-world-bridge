@@ -21,7 +21,7 @@ logging:
   keep: {passed: result, failed: full, error: full}
 judges:
   # the incident's number from the scenario's name (town01_i<N>_...); a scenario with no row
-  # in incident_judge's table (i7, i8) records an error here, and SSv2's verdict stands
+  # in incident_judge's table (i8) records an error here, and SSv2's verdict stands
   - name: incident
     run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
     needs: [gap_trace, context]

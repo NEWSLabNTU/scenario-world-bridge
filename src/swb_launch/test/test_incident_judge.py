@@ -165,6 +165,39 @@ class IncidentJudge(unittest.TestCase):
         self.assertFalse(m["ego_yielded"])
         self.assertTrue(any("never came within" in r for r in m["reasons"]))
 
+    @staticmethod
+    def cut_in_frames(ego_decel):
+        """the ego drives east at 11 m/s; a car standing 30 m ahead pulls out at t=1 (3 m/s2
+        to 6 m/s) and the ego brakes at `ego_decel` from t=1.5 down to the car's speed"""
+        frames = []
+        ex, ev, cx, cv = 0.0, 11.0, 30.0, 0.0
+        for k in range(int(10 / 0.05)):
+            t = round(k * 0.05, 2)
+            if t >= 1.0:
+                cv = min(6.0, cv + 3.0 * 0.05)
+            if t >= 1.5 and ev > cv:
+                ev = max(cv, ev - ego_decel * 0.05)
+            ex, cx = ex + ev * 0.05, cx + cv * 0.05
+            frames.append((t, {"ego": state(ex, ev), "i7_cut": state(cx, cv)}))
+        return frames
+
+    def test_cut_in_avoided(self):
+        m = self.judge(trace_lines(self.cut_in_frames(4.0), actors=("i7_cut",)), 7,
+                       context(("i7_pull_out", 1.0)))
+        self.assertEqual(m["verdict"], "PASS", m["reasons"])
+        self.assertGreaterEqual(m["cut_min_gap"], ij.I7_MIN_GAP_M)
+        self.assertEqual(m["at_pull_out"]["ego_mps"], 11.0)
+
+    def test_cut_in_too_close_fails(self):
+        m = self.judge(trace_lines(self.cut_in_frames(0.0), actors=("i7_cut",)), 7,
+                       context(("i7_pull_out", 1.0)))
+        self.assertEqual(m["verdict"], "FAIL")
+        self.assertTrue(any("min gap" in r for r in m["reasons"]), m["reasons"])
+
+    def test_cut_in_that_never_pulled_out_fails(self):
+        m = self.judge(trace_lines(self.cut_in_frames(4.0), actors=("i7_cut",)), 7, context())
+        self.assertTrue(any("never pulled out" in r for r in m["reasons"]), m["reasons"])
+
 
 if __name__ == "__main__":
     unittest.main()

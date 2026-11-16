@@ -268,11 +268,13 @@ incidents:
       y: -330.47
       yaw: -0.0001
       route_m: 407.5
+    # cut_gap_m 28 m (the trigger 28 m behind cut_spawn), timed for the 11.11 m/s tour ego
+    # (roadmap 077 item 10; it was 20 m, never timed for that speed)
     trigger:
-      x: 150.0
+      x: 142.0
       y: -330.47
       yaw: -0.0001
-      route_m: 457.5
+      route_m: 449.5
     # on the shoulder lanelet 10281 (a road lanelet, 4 m wide, centre y -334.76)
     cut_spawn:
       x: 170.0

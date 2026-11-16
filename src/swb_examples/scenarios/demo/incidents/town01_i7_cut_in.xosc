@@ -82,7 +82,7 @@
 						</FollowTrajectoryAction></RoutingAction></PrivateAction></Action><Action name="i7_pull_out_log"><UserDefinedAction><CustomCommandAction type="test(i7, pull_out, i7_cut)" /></UserDefinedAction></Action><Action name="i7_pull_out_running"><GlobalAction><ParameterAction parameterRef="i7_busy"><SetAction value="1" /></ParameterAction></GlobalAction></Action>
 						<StartTrigger><ConditionGroup><Condition name="i7_trigger" delay="0" conditionEdge="none"><ByEntityCondition>
 							<TriggeringEntities triggeringEntitiesRule="any"><EntityRef entityRef="ego" /></TriggeringEntities>
-							<EntityCondition><ReachPositionCondition tolerance="3.0"><Position><WorldPosition x="150.0" y="-330.47" z="0.00" h="-0.0001" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition>
+							<EntityCondition><ReachPositionCondition tolerance="3.0"><Position><WorldPosition x="142.0" y="-330.47" z="0.00" h="-0.0001" p="0" r="0" /></Position></ReachPositionCondition></EntityCondition>
 						</ByEntityCondition></Condition><Condition name="i7_pull_out_live_0" delay="0" conditionEdge="none"><ByValueCondition><ParameterCondition parameterRef="i7_phase" value="1" rule="equalTo" /></ByValueCondition></Condition></ConditionGroup></StartTrigger>
 					</Event><Event name="i7_pull_out_done" priority="parallel" maximumExecutionCount="1">
 						<Action name="i7_pull_out_finished"><GlobalAction><ParameterAction parameterRef="i7_busy"><SetAction value="2" /></ParameterAction></GlobalAction></Action>

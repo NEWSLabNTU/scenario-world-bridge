@@ -153,7 +153,7 @@ could not see), else `passed`; `--fail-on never` keeps the findings as data only
 directory). `--incident auto` takes the incident's number from the scenario's name
 (`town01_i3_red_light.xosc` is incident 3), so one judge serves a suite of incidents; a number
 works too. No trace, no storyboard log, or an incident without a row in `incident_judge`'s
-table (i7 and i8 have none yet) is `error`, never `passed`.
+table (i8 has none yet) is `error`, never `passed`.
 
 ## World
 

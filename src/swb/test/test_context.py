@@ -85,7 +85,8 @@ def test_incident_auto_takes_the_number_from_the_scenario_name(tmp_path, capsys)
         "town01_i3_red_light.xosc}\n")
     assert gap.incident_number(tmp_path, "auto") == (3, None)
     assert gap.incident_number(tmp_path, "5") == (5, None)
-    n, why = gap.incident_number(tmp_path, "7")
+    assert gap.incident_number(tmp_path, "7") == (7, None)
+    n, why = gap.incident_number(tmp_path, "8")
     assert n is None and "no criteria" in why
     (tmp_path / "resolved.yaml").write_text("scenario: {file: town01_ego_drive.xosc}\n")
     n, why = gap.incident_number(tmp_path, "auto")
@@ -119,8 +120,8 @@ def test_a_tour_is_judged_on_every_incident_its_storyboard_names(tmp_path, monke
     ctx = tmp_path / "context.jsonl"
     ctx.write_text("\n".join(json.dumps({"ev": "state", "element": e, "to": "completeState"})
                              for e in ("tour/act/i1/m/i1_lead_brake", "tour/act/i3/m/i3_red",
-                                       "tour/act/x/m/ambient_go", "tour/act/i7/m/i7_cut")))
-    assert gap.context_incidents(ctx) == [1, 3]          # 7 has no row; ambient is not one
+                                       "tour/act/x/m/ambient_go", "tour/act/i8/m/i8_rear")))
+    assert gap.context_incidents(ctx) == [1, 3]          # 8 has no row; ambient is not one
     calls = []
 
     def one(run_dir, n, c, sl, numbered=False):

@@ -159,9 +159,9 @@ def apply_cyclist(S, v):
 def apply_cut_in(S, v):
     set_if_changed(S, "cut_mps", v["cut_mps"], 6.0)
     set_if_changed(S, "cut_accel", v["cut_accel"], 3.0)
-    # the ego's trigger `cut_gap_m` behind the parked car (20 m in the sites file), the
-    # merge point `merge_len_m` past it (15 m)
-    S["trigger"] = shift(S["trigger"], along=round(20.0 - v["cut_gap_m"], DECIMALS))
+    # the ego's trigger `cut_gap_m` behind the parked car (28 m in the sites file, timed for
+    # the 11.11 m/s tour ego, roadmap 077 item 10), the merge point `merge_len_m` past it (15 m)
+    S["trigger"] = shift(S["trigger"], along=round(28.0 - v["cut_gap_m"], DECIMALS))
     for k in ("cut_in_lane", "cut_settle"):
         S[k] = shift(S[k], along=round(v["merge_len_m"] - 15.0, DECIMALS))
     body(S, "i7_cut", v["cut_body"], (v["cut_length"], v["cut_width"], v["cut_height"]))
@@ -218,7 +218,7 @@ FAMILIES = {
         "cyclist_lateral_m": Real(-0.6, 0.6, 0.15, const(0.0)),
     }, apply_cyclist),
     "cut_in": Family(7, {
-        "cut_gap_m": Real(5.0, 40.0, 3.0, const(20.0)),
+        "cut_gap_m": Real(5.0, 40.0, 3.0, const(28.0)),
         "merge_len_m": Real(6.0, 30.0, 3.0, const(15.0)),
         "cut_mps": Real(2.0, 10.0, 1.0, site("cut_mps", 6.0)),
         "cut_accel": Real(1.0, 5.0, 0.5, site("cut_accel", 3.0)),

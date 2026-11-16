@@ -29,6 +29,8 @@ or, with --junit, a scenario that did not pass. Per row:
   6 cyclist           no contact, and the two met (min gap < 5 m: a cyclist that came too
                       early or too late tested nothing); min gap reported, and whether the
                       ego yielded (below 1 m/s while the cyclist was within 10 m)
+  7 cut-in            the parked car pulled out, no contact, and the ego's min gap to it
+                      >= 2 m; the ego's speed and the gap when it pulled out reported
 
 Distances are CARLA's: the signed distance between blueprint boxes at CARLA's transforms
 (`gap_geometry.carla_box`), negative when they overlap.
@@ -57,6 +59,7 @@ I4_PROCEED_M = 10.0
 I6_MET_M = 5.0
 I6_NEAR_M = 10.0
 I6_YIELD_MPS = 1.0
+I7_MIN_GAP_M = 2.0
 
 
 def events_from_context(lines):
@@ -349,6 +352,24 @@ def judge(trace, incident, done, junit_ok=None, stop_line=None):
             if not g or min(d for _, d, _, _ in g) >= I6_MET_M:
                 fail.append(f"the cyclist never came within {I6_MET_M} m of the ego (timing)")
 
+    elif incident == 7:
+        tp = run.t("i7_pull_out")
+        m["pull_out_sim"] = tp
+        g = run.gaps("i7_cut")
+        if tp is None:
+            fail.append("the parked car never pulled out")
+        else:
+            at = [(d, ev) for t, d, ev, _ in g if t >= tp][:1]
+            if at:
+                m["at_pull_out"] = dict(ego_mps=round(at[0][1] or 0, 2), gap_m=round(at[0][0], 2))
+        if not g:
+            fail.append("no gap to i7_cut in the trace")
+        else:
+            d = min(g, key=lambda r: r[1])
+            m["cut_min_gap"] = round(d[1], 2)
+            if d[1] < I7_MIN_GAP_M:
+                fail.append(f"min gap {m['cut_min_gap']} m to the cut-in car < {I7_MIN_GAP_M}")
+
     m["verdict"] = "FAIL" if fail else "PASS"
     m["reasons"] = fail
     return m
@@ -357,7 +378,7 @@ def judge(trace, incident, done, junit_ok=None, stop_line=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("trace", type=Path)
-    ap.add_argument("--incident", type=int, required=True, choices=range(1, 7))
+    ap.add_argument("--incident", type=int, required=True, choices=range(1, 8))
     ap.add_argument("--context", type=Path, required=True)
     ap.add_argument("--junit", type=Path)
     ap.add_argument("--stop-line", type=float, nargs=3, metavar=("X", "Y", "YAW"))

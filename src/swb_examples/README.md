@@ -107,7 +107,7 @@ Judge a run with `ros2 run swb_launch incident_judge` (gap trace plus a log of
 | `town01_i4_blocked_lane.xosc` | Town01 | A broken-down car stands in the ego's lane with oncoming traffic; the ego waits behind it until it is cleared 12 s later (the staged watchdog), then proceeds. |
 | `town01_i5_cross_turn.xosc` | Town01 | Two cars cross the junction the ego turns left into; the ego yields, then turns. |
 | `town01_i6_cyclist_inside.xosc` | Town01 | A cyclist comes up on the inside as the ego brakes for a right turn; the ego waits for it (`blind_spot`, which needs CenterPoint's BICYCLE label and the overlay's fix). |
-| `town01_i7_cut_in.xosc` | Town01 | A cut-in template, not on the tour: a car parked on the shoulder pulls out into the ego's lane 20 m ahead of it; the ego slows and follows. Not yet run against the live stack. |
+| `town01_i7_cut_in.xosc` | Town01 | A cut-in template, not on the tour: a car parked on the shoulder pulls out into the ego's lane 28 m ahead of it (timed for the 11.11 m/s tour ego, roadmap 077 item 10); the ego slows and follows. incident_judge row 7: no contact, min gap >= 2 m. |
 | `town01_i8_rear_approach.xosc` | Town01 | A rear-approach template, not on the tour: incident 3's red light, with a car closing from behind at 12 m/s as the ego brakes; SSv2 stops it behind the ego. Not yet run against the live stack. |
 
 ## awf/ -- AWF ODD use cases

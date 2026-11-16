@@ -757,8 +757,11 @@ def project_notes(path) -> list:
         return []
 
 
-def check_project(path) -> list:
-    """Every finding for the project at ``path`` (a directory or pkg://<package>)."""
+def check_project(path, scenarios: bool = True) -> list:
+    """Every finding for the project at ``path`` (a directory or pkg://<package>).
+    ``scenarios=False``: the project's own findings only, what a stack starts on; each
+    scenario's (`check_scenario`) refuses the run that names it instead (`scenario_problems`,
+    G66: one CARLA-only scenario in an Isaac project must not stop the others)."""
     try:
         project = config.find_project(path)
         settings = config.project_settings(project)
@@ -814,14 +817,29 @@ def check_project(path) -> list:
     out += found
     if not files:
         out.append(Finding("scenarios/", "no scenario", "add one, e.g. scenarios/drive.xosc"))
+    if scenarios:
+        out += scenario_problems(project, files, settings)
+    return out
+
+
+def check_stack(path) -> list:
+    """What a stack refuses to start on: the project's findings, without its scenarios'."""
+    return check_project(path, scenarios=False)
+
+
+def scenario_problems(project: Path, files, settings: dict = None) -> list:
+    """The findings of each scenario in ``files`` against the project (its pilots, its
+    simulator, its maps): what refuses a run of it."""
+    settings = config.project_settings(project) if settings is None else settings
     unmanaged = unmanaged_scenarios(project, settings)
+    out = []
     for f in files:
         try:
             sc = read_scenario(f)
         except (ValueError, OSError) as e:
             out.append(Finding(_rel(project, f), str(e)))
             continue
-        out += check_scenario(project, sc, settings, managed=f.resolve() not in unmanaged)
+        out += check_scenario(project, sc, settings, managed=Path(f).resolve() not in unmanaged)
     return out
 
 

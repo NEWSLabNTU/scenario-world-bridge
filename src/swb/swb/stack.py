@@ -577,7 +577,7 @@ def isaac_kit_args(given: str, gpu) -> str:
     return f"{given} {pin}".strip()
 
 def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=None, gpu=None,
-         stack_args=None, check=projectmod.check_project, now=None, simulator_start=None,
+         stack_args=None, check=projectmod.check_stack, now=None, simulator_start=None,
          probe=None) -> Plan:
     """Everything the stack is, before anything starts; StackRefused says why it must not."""
     retired = retired_args(stack_args or {})

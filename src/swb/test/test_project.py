@@ -486,3 +486,14 @@ def test_profile_arguments_refused_at_check(host):
     assert f.file == "suites/s.yaml"
     assert f.what.startswith("pilot_args.ego: localization_error_monitor_param_path:= does not"
                              " reach ndt:=cuda")
+
+
+@pytest.mark.skipif(not AUTOPILOT.is_file(), reason="swb_examples not here")
+def test_a_carla_only_scenario_refuses_its_runs_not_the_stack(host):
+    """swb 241 (G66): with autopilot.xosc in an Isaac project, the other scenarios still run."""
+    from swb.project import check_stack, scenario_problems
+    d = make(host["tmp"], BASE.replace("simulator: carla", "simulator: isaac"),
+             {"autopilot.xosc": AUTOPILOT.read_text()})
+    assert not [f for f in check_stack(d) if "simulator_autopilot" in f.what]
+    found = scenario_problems(d, [d / "scenarios" / "autopilot.xosc"])
+    assert any("simulator_autopilot" in f.what for f in found)

@@ -1198,9 +1198,28 @@ def main(argv=None, out=None, stack_command=None) -> int:
     return _main(args, out, stack_command)
 
 
+def check_scenarios(project: Path, specs) -> None:
+    """Refuse a run whose scenario the project cannot run (its pilots, its simulator; G66):
+    the stack starts without them, so one CARLA-only scenario in an Isaac project refuses
+    only the runs that name it."""
+    files = list(dict.fromkeys(s.scenario for s in specs if not s.distribution))
+    found = projectmod.scenario_problems(project, files)
+    if found:
+        raise Refused("project check found problems in the scenario:\n" +
+                      "\n".join(str(f) for f in found))
+
+
 def _main(args, out, stack_command=None) -> int:
     ctx = None
     try:
+        # the scenarios first, before any stack starts for them
+        try:
+            early = config.find_project(args.project or None)
+        except config.ConfigError:
+            early = None   # context() refuses it, in its own words
+        if early is not None:
+            check_scenarios(early, expand(Path(args.target), early, args.repeat,
+                                          _parse_params(args.param))[0])
         ctx = context(args.project, args.seat, args.logs, args.wait,
                       start=args.start_stack or args.stop_stack, stack_command=stack_command,
                       stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,

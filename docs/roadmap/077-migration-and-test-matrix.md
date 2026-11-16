@@ -1365,6 +1365,11 @@ Isaac's rear contact (inventory row 18).
   simulated time. The stack was ready in 45 s; Town05 had no DEVICE_LOST (a render probe
   passed 2000 frames beforehand). NAS "2026 SSv2 on CARLA/2026-11-17 077 item 26 speed
   ladder on 118".
+  A harness trap the run met: `swb run` started as a script's `&` job inherited SIGINT
+  ignored and sat through `kill -INT -<pgid>`, only SIGTERM stopping it. Fixed (139, review
+  243, 2026-11-17, dc350cd): `swb run`, `swb drive` and `assets fetch` take SIGINT back at
+  their start (`swb.signals.take_sigint`); live, a group SIGINT stopped such a run in 9 s
+  with nothing left, against still up after 61 s without the fix.
 - **Item 55, `just isaac-world`'s options (swb 241, 2026-11-17, on 81268e3), a standalone
   world server without a bridge, host load 55 to 62.** Checked, kept as a developer recipe:
   - `world:=<Town01 world.yaml>,<Town02 world.yaml> record:=<dir> record_view:=road

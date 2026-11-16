@@ -84,6 +84,7 @@ def lines_outside_code(text):
 
 
 def check_rules(rel: str, text: str, out: list):
+    check_tables(rel, text, out)
     for i, line, code in lines_outside_code(text):
         for ch, name in BANNED.items():
             if ch in line:
@@ -105,6 +106,21 @@ def check_rules(rel: str, text: str, out: list):
             m = README_WORDS.search(re.sub(r"\([^)]*\)", "", line))
             if m:
                 out.append(f"{rel}:{i}: '{m.group(0)}' in a README")
+
+
+TABLE_RULE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$")
+
+
+def check_tables(rel: str, text: str, out: list):
+    """A table whose header row is all blank (`| | |`): GitHub renders it as an empty first
+    row. Name the columns instead."""
+    rows = list(lines_outside_code(text))
+    for (i, line, code), (_, nxt, ncode) in zip(rows, rows[1:]):
+        if code or ncode or not line.lstrip().startswith("|") or not TABLE_RULE.match(nxt):
+            continue
+        cells = line.strip().strip("|").split("|")
+        if all(not c.strip() for c in cells):
+            out.append(f"{rel}:{i}: a table with an empty header row (name its columns)")
 
 
 def check_tutorial(rel: str, text: str, out: list):

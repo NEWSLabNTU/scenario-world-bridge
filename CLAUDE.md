@@ -56,7 +56,11 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
   opts out to CARLA's blueprint physics; before 077 G55, fa539b5, the default left even a lone
   ego on blueprint physics). On CARLA the world server applies
   the spec's physics and acb_bridge verifies it (stand-alone, acb applies it), both again
-  after every spawn (CARLA 0.9.16 resets a blueprint's tires when another car of it spawns).
+  after every spawn (CARLA 0.9.16 resets a blueprint's tires when another car of it spawns:
+  the car applied last shares the blueprint's tyre object). So every physics apply hands that
+  object to a short-lived decoy of the blueprint and sets the car's velocity back, since an
+  apply rebuilds the car's PhysX vehicle at rest (swb_carla_world f669bca, acb 47f443a); the
+  re-apply after a spawn is only a backstop, logged as a WARN.
   A hero still off 20 frames after one ends the run: acb exits 4 (`Physics drift:` names
   field, expected and read value); the ego's respawn here is unconditional, so acb bounds it,
   refusing that hero after 2 such exits in one episode
@@ -428,7 +432,9 @@ ego; `just isaac-world` (web 8085) and `just ego-isaac` remain for running the p
 and leave it up (`e2e` stops what it started); they refuse a stack of the other simulator (or
 the old `*_simulation.launch.xml`) on 8084 and a separate `just isaac-world` on 8085 rather
 than replace them, replace a stack on another map or without the ego the scenario needs, and
-use a separate `just ego-av` on 8082 as the ego when one is up. `just world-health sim:=isaac` is the Hello probe. The world server holds
+use a separate `just ego-av` on 8082 as the ego when one is up. A separate ego stack serves
+one scenario: restart it before the next (a reused one planned from a stale pose and gave a
+wrong collision verdict; `scenario-direct` refuses it, roadmap 077 G64). `just world-health sim:=isaac` is the Hello probe. The world server holds
 ~17.5 GB of RAM with Town01's SimReady world: on a host whose memory other work has taken,
 the kernel's OOM killer picks it first (seen once, as the ego stack started), and the
 respawned one preloads again for ~7 minutes; the bridge forgets the old one's entities and

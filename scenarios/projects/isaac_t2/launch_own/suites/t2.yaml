@@ -1,0 +1,4 @@
+# T2 smoke: one run of the launch_own cell (drive_to_goal on Town01).
+scenarios:
+  - ../../../../src/swb_examples/projects/isaac_first_drive/scenarios/drive_to_goal.xosc
+retry: {on: error, times: 1}

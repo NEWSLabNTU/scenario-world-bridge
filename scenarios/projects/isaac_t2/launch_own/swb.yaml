@@ -1,0 +1,10 @@
+# isaac_t2/launch_own: roadmap 077 T2 on Isaac Sim, the launch_own cell. A user's own launch file as the driver, registering the ego itself (agent: own).
+# One short run, before a merge that touches the stack, the pilots or a world server.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego: {kind: launch, launch: pilots/own_driver.launch.py, agent: own, vehicle: tesla_model3, inputs: [ground_truth]}

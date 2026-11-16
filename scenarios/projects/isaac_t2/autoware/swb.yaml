@@ -1,0 +1,10 @@
+# isaac_t2/autoware: roadmap 077 T2 on Isaac Sim, the autoware cell. Autoware on aib's rig.
+# One short run, before a merge that touches the stack, the pilots or a world server.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}

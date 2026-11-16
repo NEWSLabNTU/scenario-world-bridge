@@ -1,0 +1,15 @@
+# isaac_t2/command: roadmap 077 T2 on Isaac Sim, the command cell. A program of its own, simple_pilot through pilots/simple_cmd.py, with the vehicle side.
+# One short run, before a merge that touches the stack, the pilots or a world server.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego:
+    kind: command
+    vehicle: tesla_model3
+    inputs: [ground_truth]
+    run: [python3, pilots/simple_cmd.py]
+    args: {vehicle_side: true}

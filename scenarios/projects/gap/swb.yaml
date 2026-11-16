@@ -1,0 +1,20 @@
+# gap: the gap scenarios (scenarios/gap/) as a regression project (roadmap 077 step 4,
+# inventory item 12). Each run is judged three ways: SSv2's verdict, CARLA's own contacts
+# (physical_verdict) and the gap oracle on the bridge's trace of both worlds. The scenarios
+# stay where they are; the suite names them.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+logging:
+  # standard for a pass too: the gap judge can fail a run SSv2 passed, and its trace is the
+  # evidence (keep follows SSv2's verdict only, 077 G52)
+  keep: {passed: standard, failed: full, error: full}
+judges:
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+  - name: gap
+    run: [python3, -m, swb.gap, oracle]
+    needs: [gap_trace]

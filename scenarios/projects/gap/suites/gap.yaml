@@ -1,0 +1,17 @@
+# Item 12: the four gap scenarios, twice each. References (roadmaps 022, 024, 032):
+# - town01_entity_bodies: SSv2 PASS 2/2, the oracle agrees (no G1 to G4; 032: 310 frames).
+# - town01_motorbike_body: SSv2 PASS, agree (032's accept: x3, G1 0, G2 0).
+# - town01_npc_shoulder (no ego; 024's old 20-NPC bench): SSv2 PASS 2/2, 1202 frames,
+#   agree (032: G1 0, G2 1 low, the npc_05-pole contact at frame 25).
+# - town01_truck_pass, the oracle's positive control: SSv2 FAILS by design (its 12 m
+#   declared truck overlaps the ego in SSv2's world only), and the oracle must DISAGREE
+#   (G1 at frames 179-238, penetration 2.30 m): the gap judge's `failed` is the expected
+#   result there.
+scenarios:
+  - ../../gap/town01_entity_bodies.xosc
+  - ../../gap/town01_motorbike_body.xosc
+  - ../../gap/town01_npc_shoulder.xosc
+  - ../../gap/town01_truck_pass.xosc
+repetitions: 2
+retry: {on: error, times: 1}
+expect: {town01_truck_pass.xosc: failed}

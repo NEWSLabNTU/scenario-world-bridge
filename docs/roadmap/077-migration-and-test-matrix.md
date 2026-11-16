@@ -135,6 +135,13 @@ accepts 243's GPU; if that GPU is still held by other work when 118 finishes par
 moves to 118, or to 133 or 139, whichever frees first (133 decides). Docs-only commits after
 the RC (Tutorial 1 and 5's terminal screenshots) are allowed; `t3.py compare` runs on the
 tag commit. Tutorial 3 states G65 as a known limit (243, after the RC call).
+`t3.py record` after the RC call (139, review 243, 2026-11-17, 876f8b3; tooling only): the
+busy check judges only the stack's GPU (host `gpu`, the seat's `seats.gpus`,
+CUDA_VISIBLE_DEVICES, else every card; the load stays host-wide), and the reference names it
+(`gpu_gated`); the reference's commit is the results' (their result.json provenance; a mix
+refused, t3.py's own as `recorded_with`); a dirty checkout is recorded with a note (G79),
+while a submodule off its pin (`sha+`, `sha-`) is refused by name. The busy check is the
+host at record time, not while the suite ran.
 
 **Known limits, for the release notes** (drafted by 243 for 133, 2026-11-17; the text is
 for users, so it names no host and no roadmap item):

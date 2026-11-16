@@ -1,0 +1,24 @@
+# T3, live regression (roadmap 077): the migrated studies' suites, each against the reference
+# result recorded on the release commit. scripts/t3.py runs them (`run`), records the
+# references (`record`) and compares a host's latest results with them (`compare`).
+#
+# Each entry: project (a directory holding swb.yaml), suite (under its suites/), sim, and
+# what the host needs. A scenario expected to fail says so in its suite's `expect:`, so the
+# suite still exits 0 on it; the reference records the verdict either way.
+references: scenarios/t3-references
+suites:
+  # CARLA 0.9.16, one GPU host
+  - {project: scenarios/projects/basic, suite: town01, sim: carla}
+  - {project: scenarios/projects/basic, suite: towns, sim: carla}
+  - {project: scenarios/projects/basic, suite: episode_change, sim: carla}
+  - {project: scenarios/projects/basic, suite: tutorial, sim: carla}
+  - {project: scenarios/projects/two_av, suite: two_av, sim: carla}
+  - {project: scenarios/projects/demo, suite: incidents, sim: carla, needs: [tensorrt]}
+  - {project: scenarios/projects/demo, suite: i6_centerpoint, sim: carla, needs: [tensorrt]}
+  - {project: scenarios/projects/demo, suite: cut_in_rear, sim: carla, needs: [tensorrt]}
+  - {project: scenarios/projects/demo, suite: tour, sim: carla, needs: [tensorrt]}
+  - {project: scenarios/projects/gap, suite: gap, sim: carla}
+  - {project: scenarios/projects/c2b, suite: c2b, sim: carla}
+  - {project: scenarios/projects/e2, suite: e2, sim: carla}
+  - {project: src/swb_examples/projects/safety_suite, suite: nightly, sim: carla, copy: true}
+  - {project: src/swb_examples/projects/multi_pilot, suite: cut_in_seeds, sim: carla, copy: true}

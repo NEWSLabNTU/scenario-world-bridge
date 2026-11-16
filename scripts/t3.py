@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""T3, live regression (roadmap 077): the migrated studies' suites against their references.
+
+    scripts/t3.py list                       # the manifest's suites, and which have a reference
+    scripts/t3.py run [--only P/S ...]       # run them (ros2 run swb run, a stack per project)
+    scripts/t3.py record [--only P/S ...]    # write each suite's latest results as its reference
+    scripts/t3.py compare [--only P/S ...]   # this host's latest results against the references
+
+The manifest is scenarios/t3.yaml. A reference is ``<references>/<project>/<suite>.csv``: one
+row per run (scenario file name, repetition, seed) with its verdict and judges' verdicts,
+plus the commit and host it was recorded on in ``<suite>.json``. ``compare`` fails on a run
+whose verdict or a judge's verdict differs from the reference, or that is missing; a duration
+more than 1.5 times the reference's is reported, not failed (hosts differ). Record only on the
+release commit, so each reference names one commit.
+
+A project marked ``copy: true`` (an example under src/swb_examples) runs from a copy made
+with ``ros2 run swb project new --from``, under ``--work`` (default /var/tmp/$USER/t3), fetched
+there; its results are under that copy's name.
+"""
+import argparse
+import csv
+import json
+import os
+import re
+import socket
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = ROOT / "scenarios" / "t3.yaml"
+SLOW = 1.5
+STARTED = re.compile(r"^stack\s+starting on seat \d+ \(pid (\d+)")
+
+
+def load(path=MANIFEST) -> dict:
+    doc = yaml.safe_load(Path(path).read_text()) or {}
+    doc.setdefault("references", "scenarios/t3-references")
+    for e in doc.get("suites") or []:
+        e["key"] = f"{Path(e['project']).name}/{e['suite']}"
+    return doc
+
+
+def selected(doc: dict, only) -> list:
+    out = [e for e in doc["suites"] if not only or e["key"] in only]
+    unknown = set(only or ()) - {e["key"] for e in doc["suites"]}
+    if unknown:
+        raise SystemExit(f"t3: not in the manifest: {', '.join(sorted(unknown))}")
+    return out
+
+
+def work_dir(e: dict, work: Path) -> Path:
+    """Where the suite runs: the project itself, or its copy for an example."""
+    return work / f"t3_{Path(e['project']).name}" if e.get("copy") else ROOT / e["project"]
+
+
+def summary_path(e: dict, logs: Path, work: Path) -> Path:
+    return logs / work_dir(e, work).name / "suites" / e["suite"] / "summary.csv"
+
+
+def read_summary(path: Path) -> list:
+    """The runs of a suite's summary.csv, keyed for comparison."""
+    rows = []
+    with open(path, newline="") as f:
+        for r in csv.DictReader(f):
+            rows.append({"scenario": Path(r["scenario"]).name, "repetition": r["repetition"],
+                         "seed": r.get("seed", ""), "params": r.get("params", ""),
+                         "verdict": r["verdict"], "judges": r.get("judges", ""),
+                         "duration": r.get("duration", ""), "reason": r.get("reason", "")})
+    return latest(rows)
+
+
+def latest(rows: list) -> list:
+    """One row per run: a retried run's last try (summary.csv lists every try in order)."""
+    seen = {}
+    for r in rows:
+        seen[key(r)] = r
+    return list(seen.values())
+
+
+def key(r: dict) -> tuple:
+    return (r["scenario"], r["params"], r["repetition"], r["seed"])
+
+
+def judges_of(text: str) -> dict:
+    return dict(p.split("=", 1) for p in text.split() if "=" in p)
+
+
+def compare_rows(ref: list, got: list) -> tuple:
+    """(problems, notes): a changed or missing verdict is a problem; a slow run a note."""
+    problems, notes = [], []
+    have = {key(r): r for r in got}
+    for r in ref:
+        name = f"{r['scenario']} r{r['repetition']}" + (f" {r['params']}" if r["params"] else "")
+        g = have.pop(key(r), None)
+        if g is None:
+            problems.append(f"{name}: no result (the reference has {r['verdict']})")
+            continue
+        if g["verdict"] != r["verdict"]:
+            problems.append(f"{name}: {g['verdict']}, the reference {r['verdict']}"
+                            + (f" ({g['reason']})" if g["reason"] else ""))
+        rj, gj = judges_of(r["judges"]), judges_of(g["judges"])
+        for j in sorted(set(rj) | set(gj)):
+            if rj.get(j) != gj.get(j):
+                problems.append(f"{name}: judge {j} {gj.get(j, 'absent')}, "
+                                f"the reference {rj.get(j, 'absent')}")
+        try:
+            if float(g["duration"]) > SLOW * float(r["duration"]):
+                notes.append(f"{name}: {float(g['duration']):.0f} s, the reference "
+                             f"{float(r['duration']):.0f} s")
+        except ValueError:
+            pass
+    for g in have.values():
+        notes.append(f"{g['scenario']} r{g['repetition']}: not in the reference ({g['verdict']})")
+    return problems, notes
+
+
+def write_reference(rows: list, csv_path: Path, meta: dict):
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    fields = ["scenario", "params", "repetition", "seed", "verdict", "judges", "duration"]
+    with open(csv_path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+        w.writeheader()
+        for r in sorted(rows, key=key):
+            w.writerow(r)
+    csv_path.with_suffix(".json").write_text(json.dumps(meta, indent=2) + "\n")
+
+
+def commit() -> str:
+    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+                           capture_output=True, text=True).stdout.strip()
+    return head + ("+dirty" if dirty else "")
+
+
+def logs_root() -> Path:
+    sys.path.insert(0, str(ROOT / "src" / "swb"))
+    from swb import config
+    return Path(config.host_settings()["logs"]).expanduser()
+
+
+def run(entries: list, work: Path, dry_run: bool) -> int:
+    worst = 0
+    by_project = {}
+    for e in entries:
+        by_project.setdefault(e["project"], []).append(e)
+    for project, es in by_project.items():
+        d = work_dir(es[0], work)
+        steps = []
+        if es[0].get("copy") and not (d / "swb.yaml").is_file():
+            pkg = f"pkg://swb_examples/projects/{Path(project).name}"
+            steps += [["ros2", "run", "swb", "project", "new", str(d), "--from", pkg],
+                      ["ros2", "run", "swb", "assets", "fetch"]]
+        for i, e in enumerate(es):
+            argv = ["ros2", "run", "swb", "run", f"suites/{e['suite']}.yaml", "--start-stack",
+                    "--ready-timeout", "1800"]
+            if i == len(es) - 1:
+                argv.append("--stop-stack")
+            steps.append(argv)
+        started = None
+        for argv in steps:
+            cwd = d if argv[3] != "project" else d.parent
+            print(f"[t3] ({cwd}) {' '.join(argv)}", flush=True)
+            if dry_run:
+                continue
+            cwd.mkdir(parents=True, exist_ok=True)
+            p = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 text=True)
+            for line in p.stdout:
+                sys.stdout.write(line)
+                m = STARTED.match(line)
+                if m:
+                    started = int(m.group(1))
+            worst = max(worst, p.wait())
+        # --stop-stack stops only a stack that same command started: stop the one an earlier
+        # suite of this project started, so each project leaves nothing up
+        if started and not dry_run:
+            stop_group(started)
+    return worst
+
+
+def stop_group(pid: int, grace: float = 60.0):
+    import signal
+    import time
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pid, sig)
+        except ProcessLookupError:
+            return
+        end = time.time() + grace
+        while time.time() < end:
+            try:
+                os.killpg(pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(1)
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("action", choices=["list", "run", "record", "compare"])
+    ap.add_argument("--only", nargs="*", default=[], help="<project>/<suite> keys")
+    ap.add_argument("--manifest", type=Path, default=MANIFEST)
+    ap.add_argument("--logs", type=Path, help="the host's log root (default: its settings')")
+    ap.add_argument("--work", type=Path, default=Path(f"/var/tmp/{os.environ.get('USER', 'swb')}/t3"))
+    ap.add_argument("--dry-run", action="store_true", help="run: print the commands only")
+    a = ap.parse_args(argv)
+    doc = load(a.manifest)
+    entries = selected(doc, a.only)
+    refs = ROOT / doc["references"]
+    if a.action == "run":
+        return run(entries, a.work, a.dry_run)
+    logs = a.logs or logs_root()
+    failed = 0
+    for e in entries:
+        ref = refs / f"{e['key']}.csv"
+        summ = summary_path(e, logs, a.work)
+        if a.action == "list":
+            print(f"{e['key']:32} {e['sim']:6} reference: {'yes' if ref.is_file() else 'no'}"
+                  f"  results: {'yes' if summ.is_file() else 'no'}")
+            continue
+        if not summ.is_file():
+            print(f"{e['key']}: no results on this host ({summ})")
+            failed += 1
+            continue
+        rows = read_summary(summ)
+        if a.action == "record":
+            write_reference(rows, ref, {"commit": commit(), "host": socket.gethostname(),
+                                        "summary": str(summ), "runs": len(rows)})
+            print(f"{e['key']}: reference of {len(rows)} runs at {commit()}")
+            continue
+        if not ref.is_file():
+            print(f"{e['key']}: no reference ({ref})")
+            failed += 1
+            continue
+        with open(ref, newline="") as f:
+            ref_rows = list(csv.DictReader(f))
+        problems, notes = compare_rows(ref_rows, rows)
+        print(f"{e['key']}: {'regressed' if problems else 'as the reference'} "
+              f"({len(rows)} runs)")
+        for p in problems:
+            print(f"  problem: {p}")
+        for n in notes:
+            print(f"  note: {n}")
+        failed += bool(problems)
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

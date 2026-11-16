@@ -28,6 +28,7 @@ setup(
             'runs = swb.runs:main',
             'isaac = swb.isaac:main',
             'drive = swb.drive:main',
+            'autoware = swb.autoware:main',
         ],
     },
 )

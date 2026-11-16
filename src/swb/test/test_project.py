@@ -392,7 +392,7 @@ def test_world_isaac_ssv2_keys_checked(host):
     assert "ssv2.frame_rate: 0 is not a positive number" in w
     assert "ssv2.managed_ego: 'maybe' is not true or false" in w
     assert "logging.gap_trace: 'yes please' is not true or false" in w
-    assert "judges[0]: needs: a list of gap_trace" in w
+    assert "judges[0]: needs: a list of gap_trace, context" in w
     clean = make(host["tmp"], BASE + "world: {weather: {preset: ClearNoon, cloudiness: 30}}\n"
                  "ssv2: {global_timeout: 900, frame_rate: 100}\nlogging: {gap_trace: true}\n")
     assert scenario_checks(clean) == []

@@ -884,9 +884,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         episodes = episodesmod.Mark.take(rec.get("episodes") or {})
         t_start = time.time()
         if not infra:
+            wants = judgesmod.needed(config.project_settings(project).get("judges"))
             for name, domain, rargv in recordmod.plan(run_dir, capture, pilots,
                                                       rec["domains"]["scenario"],
-                                                      lg.get("topics")):
+                                                      lg.get("topics"),
+                                                      context="context" in wants):
                 try:
                     recorders.append(_start(rargv, stackmod.ros_env(rec, domain),
                                             logs / "record" / f"{name}.log", cwd=str(run_dir)))

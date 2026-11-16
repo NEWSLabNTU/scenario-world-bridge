@@ -1,0 +1,8 @@
+# Item 10: incidents i7 (cut-in) and i8 (rear approach), never run live before roadmap 077:
+# the first runs are the reference. incident_judge has no rows for them, so its judge records
+# an error and the runs stand on SSv2's verdict and physical_verdict.
+scenarios:
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i7_cut_in.xosc
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i8_rear_approach.xosc
+retry: {on: error, times: 1}
+expect: {}

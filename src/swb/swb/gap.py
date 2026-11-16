@@ -8,9 +8,9 @@ A judge gets the run directory (swb.judges); these two read a gap trace. With
       - name: gap
         run: [python3, -m, swb.gap, oracle]          # + gap_oracle's own options
         needs: [gap_trace]
-      - name: incident_2
-        run: [python3, -m, swb.gap, incident, --incident, "2", --context, context.jsonl]
-        needs: [gap_trace]
+      - name: incident
+        run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+        needs: [gap_trace, context]
 
 ``oracle``: ``ros2 run swb_launch gap_oracle`` on each trace of the run (a TIER IV scenario's
 variants are several), with the run's JUnit for G4, findings beside each trace
@@ -18,11 +18,15 @@ variants are several), with the run's JUnit for G4, findings beside each trace
 disagreement (``PASS+contact``, ``PASS+overlap-only-in-CARLA``, ``FAIL(collision)+...``),
 ``passed`` otherwise (``agree``, ``unknown``); ``--fail-on never`` makes the findings data
 only. ``incident``: ``incident_judge`` on the run's trace with ``--context`` (a log of SSv2's
-storyboard states, relative to the run directory) and the run's JUnit; its PASS or FAIL is the
-verdict. No trace, or no context log, is an ``error`` (exit 2), never a pass.
+storyboard states, relative to the run directory; ``needs: [context]`` records it, swb.context)
+and the run's JUnit; its PASS or FAIL is the verdict. ``--incident auto`` takes the number from
+the run's scenario file name (``..._i<N>_...``, as the demo incidents are named), so one judge
+serves a suite of them. No trace, no context log, or no incident to judge by is an ``error``
+(exit 2), never a pass.
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -91,7 +95,39 @@ def oracle(run_dir: Path, extra: list, fail_on: str) -> int:
     return _emit({"verdict": worst, "message": msg, "traces": out}, 0 if worst == "passed" else 1)
 
 
-def incident(run_dir: Path, number: int, context: str, stop_line) -> int:
+INCIDENTS = range(1, 7)   # incident_judge's rows (roadmap 033)
+INCIDENT_NAME = re.compile(r"_i(\d+)_")
+
+
+def incident_number(run_dir: Path, given: str):
+    """``(number, None)`` from ``--incident`` (a number, or ``auto``: the run's scenario file
+    name), else ``(None, why)``."""
+    if given != "auto":
+        try:
+            n = int(given)
+        except ValueError:
+            return None, f"--incident {given}: a number or auto"
+    else:
+        try:
+            import yaml
+            sc = ((yaml.safe_load((Path(run_dir) / "resolved.yaml").read_text()) or {})
+                  .get("scenario") or {}).get("file") or ""
+        except (OSError, ValueError) as e:
+            return None, f"--incident auto: no scenario for the run ({e})"
+        m = INCIDENT_NAME.search(Path(sc).name)
+        if not m:
+            return None, f"--incident auto: {Path(sc).name} is not named ..._i<N>_..."
+        n = int(m.group(1))
+    if n not in INCIDENTS:
+        return None, (f"incident {n}: incident_judge has no criteria for it (it judges "
+                      f"{INCIDENTS.start} to {INCIDENTS.stop - 1})")
+    return n, None
+
+
+def incident(run_dir: Path, number, context: str, stop_line) -> int:
+    number, why = incident_number(run_dir, str(number))
+    if why:
+        return _emit({"verdict": "error", "message": why}, 2)
     found = traces(run_dir)
     if len(found) != 1:
         return _emit({"verdict": "error", "message": f"{len(found)} gap traces in "
@@ -127,7 +163,7 @@ def main(argv=None) -> int:
     o = sub.add_parser("oracle", help="gap_oracle on the run's traces")
     o.add_argument("--fail-on", choices=("g4", "never"), default="g4")
     i = sub.add_parser("incident", help="incident_judge on the run's trace")
-    i.add_argument("--incident", type=int, required=True)
+    i.add_argument("--incident", required=True, help="its number, or auto (the scenario's name)")
     i.add_argument("--context", required=True, help="the context log, relative to the run dir")
     i.add_argument("--stop-line", type=float, nargs=3, metavar=("X", "Y", "YAW"))
     args, rest = ap.parse_known_args(sys.argv[1:] if argv is None else argv)

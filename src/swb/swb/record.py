@@ -6,6 +6,7 @@ when every pilot is ready and stopped (SIGINT, so the bag closes) when SSv2 ends
 project's ``logging.topics``); ``debug`` records every topic in each pilot's domain and in the
 scenario domain (``record/scenario/``). A topic that never appears is simply absent.
 """
+import sys
 from pathlib import Path
 
 KEY_TOPICS = (
@@ -37,13 +38,27 @@ def argv(out_dir: Path, level: str, topics=None) -> list:
     return base + list(topics or KEY_TOPICS)
 
 
-def plan(run_dir: Path, level: str, pilots, scenario_domain, topics=None) -> list:
+CONTEXT_LOG = "context.jsonl"
+
+
+def context_argv(run_dir: Path) -> list:
+    """The storyboard log's recorder (swb.context), into ``<run>/context.jsonl``."""
+    return [sys.executable, "-m", "swb.context", str(Path(run_dir) / CONTEXT_LOG)]
+
+
+def plan(run_dir: Path, level: str, pilots, scenario_domain, topics=None,
+         context=False) -> list:
     """``[(name, domain, argv)]`` for a run: one per pilot domain (pilots sharing a domain
-    share a recorder, named after the first), plus the scenario domain at ``debug``."""
+    share a recorder, named after the first), plus the scenario domain at ``debug``; and, at
+    any level, the storyboard log in the scenario domain when ``context`` (a judge
+    ``needs: [context]``)."""
+    out = []
+    if context and scenario_domain is not None:
+        out.append(("context", scenario_domain, context_argv(run_dir)))
     if level not in LEVELS:
-        return []
+        return out
     rec_dir = Path(run_dir) / "record"
-    out, seen = [], set()
+    seen = set()
     for p in pilots:
         d = p.get("domain")
         if d is None or d in seen:

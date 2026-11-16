@@ -23,7 +23,7 @@ LEVELS = ("result", "standard", "full", "debug")
 LEVEL_KEEPS = {
     "result": {"result.json", "resolved.yaml", "junit.xml", "timeline.jsonl", "judges",
                "contacts"},
-    "standard": {"logs", "gap_trace"},
+    "standard": {"logs", "gap_trace", "context.jsonl"},
     "full": {"record", "host.json"},
     "debug": None,  # everything
 }

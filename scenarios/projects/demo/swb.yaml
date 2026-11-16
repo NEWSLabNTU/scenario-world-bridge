@@ -1,0 +1,23 @@
+# demo: the demo incidents of swb_examples (scenarios/demo/incidents/) as a regression project
+# (roadmap 077 step 4, inventory items 8-10). Each incident is judged by incident_judge, by its
+# row of roadmap 033's table, over the run's gap trace and its storyboard log.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    args: {lidar_detection_model: clustering}
+    lifetime: run            # Autoware afresh for each run, so the i6 suite can swap its detector
+logging:
+  keep: {passed: result, failed: full, error: full}
+judges:
+  # the incident's number from the scenario's name (town01_i<N>_...); a scenario with no row
+  # in incident_judge's table (i7, i8) records an error here, and SSv2's verdict stands
+  - name: incident
+    run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+    needs: [gap_trace, context]
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

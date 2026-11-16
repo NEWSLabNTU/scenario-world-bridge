@@ -116,7 +116,7 @@ judges:
     version: "1"
     on: [passed, failed]              # default; error runs are not judged
     timeout: 120                      # s, default
-    needs: []                         # gap_trace: the stack records the gap trace
+    needs: []                         # gap_trace: the gap trace; context: the storyboard log
 ```
 
 A judge runs in the project directory after each run whose verdict is in `on`. It is
@@ -127,16 +127,21 @@ scenario file) stands in `run`, and as `SWB_RUN_DIR`. It may print one JSON obje
 timeout is `error`. swb writes the record, with the judge's name, version, exit code and
 duration, to `judges/<name>.json`, beside the run's verdict, never in its place.
 
-Two judges come with swb, both over the run's gap trace (`needs: [gap_trace]`):
+`needs` turns on what a judge reads that a run records only on request: `gap_trace`, the
+bridge's gap trace (for the whole stack), and `context`, a log of SSv2's storyboard state
+changes for each run, `context.jsonl` (one JSON object per line: `sim`, `element`, `from`,
+`to`).
+
+Two judges come with swb, both over the run's gap trace:
 
 ```yaml
 judges:
   - name: gap                         # gap_oracle on each trace of the run
     run: [python3, -m, swb.gap, oracle]
     needs: [gap_trace]
-  - name: incident_2                  # incident_judge, a demo incident's row
-    run: [python3, -m, swb.gap, incident, --incident, "2", --context, context.jsonl]
-    needs: [gap_trace]
+  - name: incident                    # incident_judge, a demo incident's row
+    run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+    needs: [gap_trace, context]
 ```
 
 `oracle` runs `gap_oracle` with the run's JUnit and writes its findings beside each trace
@@ -144,8 +149,11 @@ judges:
 the outcome (a G4 class such as `PASS+contact`: SSv2 passed while the ego hit something it
 could not see), else `passed`; `--fail-on never` keeps the findings as data only, and
 `gap_oracle`'s own options (`--pos 0.3`, ...) pass through. `incident` runs
-`incident_judge`, which also needs a log of SSv2's storyboard states (`--context`, relative
-to the run directory). No trace, or no context log, is `error`, never `passed`.
+`incident_judge`, which also reads the storyboard log (`--context`, relative to the run
+directory). `--incident auto` takes the incident's number from the scenario's name
+(`town01_i3_red_light.xosc` is incident 3), so one judge serves a suite of incidents; a number
+works too. No trace, no storyboard log, or an incident without a row in `incident_judge`'s
+table (i7 and i8 have none yet) is `error`, never `passed`.
 
 ## World
 

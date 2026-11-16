@@ -21,7 +21,8 @@ place of it: scoring stays with the judges, and a third-party evaluator reads th
 ``needs`` names what the judge reads that a stack records only on request: ``gap_trace``
 turns the bridge's gap trace on for the project's stack (as ``logging.gap_trace: true``), each
 run's in ``gap_trace/`` (swb.episodes; ``python3 -m swb.gap`` runs gap_oracle and
-incident_judge as judges).
+incident_judge as judges); ``context`` records SSv2's storyboard state changes for each run, in
+``context.jsonl`` (swb.context; incident_judge's ``--context``).
 
 A judge that exits other than 0 or 1, prints JSON that is not an object, or overruns records
 ``verdict: error`` with the reason; the run itself is unaffected.
@@ -39,7 +40,7 @@ from swb import results
 DEFAULT_ON = (results.PASSED, results.FAILED)
 DEFAULT_TIMEOUT = 120.0
 KEYS = ("name", "run", "version", "on", "timeout", "needs")
-NEEDS = ("gap_trace",)
+NEEDS = ("gap_trace", "context")
 JUDGE_VERDICTS = (results.PASSED, results.FAILED, results.ERROR)
 
 

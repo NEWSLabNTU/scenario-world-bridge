@@ -1,0 +1,9 @@
+# Item 9: incident i6 (a cyclist on the inside of a right turn) on CenterPoint, the overlay on.
+# Reference: roadmap 042, 3/3 with the ego yielding (2026-10-18).
+scenarios:
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i6_cyclist_inside.xosc
+repetitions: 3
+pilot_args:
+  ego: {lidar_detection_model: centerpoint}
+retry: {on: error, times: 1}
+expect: {}

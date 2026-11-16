@@ -184,8 +184,11 @@ driver decides those: the scenario fails naming the action rather than ignoring 
 
 On Isaac Sim the same files run as far as the simulator can drive them: scripted
 pedestrians, obstacles and cars the same way; `simulator_autopilot` is refused (Isaac has no
-driver of its own), and only one entity can have a pilot (the ego). Every rule for each kind
-of road user: [What a scenario may use](../reference/scenarios.md).
+driver of its own), and only one entity can have a pilot (the ego). The first spawn of a
+walker or of the ego on a freshly started Isaac world server can take more than two minutes,
+longer than the run waits for it, so the first run on a new stack may end `error`; a second
+run of the same scenario spawns quickly and is judged normally. Every rule for each kind of
+road user: [What a scenario may use](../reference/scenarios.md).
 
 ## Exercises
 
@@ -205,6 +208,7 @@ of road user: [What a scenario may use](../reference/scenarios.md).
 | `project check`: `LogicFile ... does not name a project map` | a scenario from elsewhere names its map another way: set its `LogicFile` to `$(env SWB_MAPS)/Town01` |
 | The light never changes; the bridge's log says `Cannot read the signal table` | the world server found no signal table: for a map without one it writes `state/<map>/traffic_lights.yaml`, so the project directory must be writable |
 | `project check` (or the stack at start) refuses: `controller simulator_autopilot runs on CARLA only, the simulator is isaac ...` | the project is on Isaac Sim, which has no driver of its own |
+| On Isaac Sim, the first run on a new stack ends `error` while an entity spawns | the first spawn on a fresh Isaac world server is slow; run the scenario again, or give a suite a retry on error |
 | The pedestrian run fails on the clearance check | Autoware did not perceive the walker in time: `runs why <run id>` (the id from `runs list`, since a name that matches several runs is refused) and the perception logs in `runs/<id>/logs/pilot-ego/` show why |
 
 ## Next

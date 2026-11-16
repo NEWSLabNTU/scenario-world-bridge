@@ -128,6 +128,14 @@ reruns; step 7's T3 references; step 8's developer recipes.
   timed out at every rung it reached (below); a quiet rerun follows T3 part 1 and does not
   gate the release.
 
+**Release candidate called (133, 2026-11-17) at swb 36e4da4**: check_pins 0 mismatches,
+check_docs ok. T3 references are recorded on it in three parts: part 1 is swb 118's, part 2
+(the Isaac suites) swb 241's, part 3 (demo, c2b, multi_pilot) swb 243's once `t3.py record`
+accepts 243's GPU; if that GPU is still held by other work when 118 finishes part 1, part 3
+moves to 118, or to 133 or 139, whichever frees first (133 decides). Docs-only commits after
+the RC (Tutorial 1 and 5's terminal screenshots) are allowed; `t3.py compare` runs on the
+tag commit. Tutorial 3 states G65 as a known limit (243, after the RC call).
+
 **Known limits, for the release notes** (drafted by 243 for 133, 2026-11-17; the text is
 for users, so it names no host and no roadmap item):
 

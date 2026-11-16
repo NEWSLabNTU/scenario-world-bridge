@@ -32,10 +32,15 @@ Isaac Sim needs much more (an RTX card with 24 GB, 64 GB of RAM): [Isaac Sim](is
 
 ## What you need
 
-- **Ubuntu 22.04 and ROS 2 Humble** ([install](https://docs.ros.org/en/humble/Installation.html)).
-- **Autoware 1.5.0**, for example the binary packages under `/opt/autoware/1.5.0`
-  ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/)).
-  The build and every terminal source its `setup.bash`.
+- **Ubuntu 22.04 and ROS 2 Humble** ([install](https://docs.ros.org/en/humble/Installation.html)),
+  the fixed requirement.
+- **An Autoware workspace**, built, or Autoware's binary packages: the build compiles against
+  Autoware's interface messages whichever autopilot later drives, and the Autoware pilot
+  runs from it. Its `setup.bash` is sourced by the build and named in the host settings
+  (`autoware.setup`). swb's launch files and configuration for the car are tested with
+  Autoware 1.5.0
+  ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/));
+  the commands below use its binary packages under `/opt/autoware/1.5.0` as the example.
 - **Network access** to GitHub (the clone), crates.io (Rust crates, during the build),
   PyPI (two tools below) and Hugging Face (the maps, later).
 
@@ -73,7 +78,7 @@ cargo --version
 ```
 
 colcon's Rust plugin and [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or
-newer, which rosdep cannot install. Install them for your user into Humble's Python (the
+newer, which rosdep cannot install. Both are installed for the user into Humble's Python (the
 system `python3`, 3.10), not into a virtual environment: `colcon` and `ros2` run on that
 Python and must find them.
 
@@ -92,7 +97,7 @@ sudo apt install python3-shapely python3-networkx
 
 (or `python3 -m pip install --user shapely networkx` without sudo).
 
-Check that pip did not install a newer setuptools for your user as well: one in `~/.local`
+pip must not also have installed a newer setuptools for the user: one in `~/.local`
 shadows Ubuntu's and breaks a later `colcon build --symlink-install`
 (`error: option --editable not recognized`):
 
@@ -129,7 +134,7 @@ pygame, lanelet2, shapely and networkx.
 
 Without sudo, and with no administrator having run `rosdep install` on the host, it stops on
 the first apt package it cannot install. The build does not need them: it builds without,
-and what the runs need installs for your user:
+and what the runs need is installed for the user:
 
 ```bash
 python3 -m pip install --user shapely networkx pygame
@@ -148,7 +153,7 @@ harms an Ubuntu 22.04 toolchain:
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
 ```
 
-and, only if your `g++ --version` is newer than 11, add
+and, only when `g++ --version` reports a version newer than 11, add
 `-DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized` to `--cmake-args` below (boost's headers
 warn under newer GCCs, and SSv2 builds with warnings as errors). Then:
 
@@ -191,8 +196,8 @@ ros2 run autoware_sim_profile setup_autoware_data
 
 ## The environment file
 
-Every terminal sources one file, say `~/swb.bash`. It sources Autoware (which sources ROS)
-and the workspace, and nothing else. Write the path of your clone:
+Every terminal sources one file, here `~/swb.bash`. It sources Autoware (which sources ROS)
+and the workspace, and nothing else; the second line names the clone's path:
 
 ```bash
 # ~/swb.bash
@@ -201,15 +206,14 @@ source ~/scenario-world-bridge/install/setup.bash    # your clone's install/
 ```
 
 The ROS domains, the DDS settings and the ports are not exported here: the stack sets them
-for every process it starts, from your seat (below). A terminal of your own that should see
+for every process it starts, from the seat (below). Another terminal that is to see
 the stack's topics asks for them with `ros2 run swb seat env`
 ([ROS domains and DDS](../explanation/domains-and-dds.md)).
 
 ## The host settings file
 
 What differs between machines lives in `~/.config/swb/host.yaml`, never in a project and
-never in an export. Every key is optional; these are the defaults you are most likely to
-change:
+never in an export. Every key is optional; these are the defaults most often changed:
 
 ```yaml
 # ~/.config/swb/host.yaml
@@ -224,20 +228,22 @@ ignores. Every key, and the seat table an administrator sets in `/etc/swb/host.y
 
 ## Autoware's fixes
 
-Autoware 1.5.0 lacks three fixes this workspace carries: a right turn that the blind spot
-module stops on, NDT's two-point cycle that triggers an emergency stop now and then, and a
-node that aborts on the time a simulator's clock gives it. Build them once, in the checkout,
-after the build (a few minutes):
+This step applies to Autoware 1.5.0, its binary packages in particular; another Autoware
+workspace omits it. Autoware 1.5.0 lacks three fixes this workspace carries: a right turn on
+which the blind spot module stops, NDT's two-point cycle, which triggers an occasional
+emergency stop, and a node that aborts on the time a simulator's clock supplies. They are
+built once, in the checkout, after the build (a few minutes):
 
 ```bash
 ros2 run swb autoware overlay
 ```
 
 Without them a stack runs stock Autoware and its log says so; the tutorials still pass, but
-the ego may stop where it should not. Running CenterPoint (`lidar_detection_model:
-centerpoint`)? Autoware 1.5.0 also needs its own TensorRT, 10.8.0, or it rebuilds the
-detector's engines at every start: `ros2 run swb autoware tensorrt` fetches it (3 GB). The
-default detector needs nothing. `ros2 run swb autoware where` prints where each goes.
+the ego may stop where it should not. With CenterPoint as the lidar detector
+(`lidar_detection_model: centerpoint`), Autoware 1.5.0's binary packages also need the
+TensorRT version they were compiled against, 10.8.0, without which the detector's engines
+are rebuilt at every start: `ros2 run swb autoware tensorrt` fetches it (3 GB). The default
+detector needs neither. `ros2 run swb autoware where` prints where each is placed.
 
 ## Check
 

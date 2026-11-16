@@ -1,16 +1,18 @@
 # Getting started on CARLA
 
-CARLA 0.9.16 installed and found by swb. Mostly the download (the unpacked release
-measured 30 GB). Do [Install](install.md) first.
+This page installs CARLA 0.9.16 and makes it known to swb. The CARLA version is fixed when
+swb is built (a build feature of its CARLA client), and 0.9.16 is the version that build
+targets and has been tested with. Most of the time goes to the download: the unpacked
+release measures 30 GB. [Install](install.md) comes first.
 
 ## CARLA itself
 
 Download the packaged release, `CARLA_0.9.16.tar.gz`, from
 [CARLA's releases](https://github.com/carla-simulator/carla/releases/tag/0.9.16) and unpack
-it, say into `~/CARLA_0.9.16`
-([CARLA's quick start](https://carla.readthedocs.io/en/0.9.16/start_quickstart/)). Then its
-Python client, which the pose helper and CARLA's BasicAgent pilot use. Install it for your
-user into Humble's Python (the system `python3`, 3.10), as the tools of
+it, for example into `~/CARLA_0.9.16`
+([CARLA's quick start](https://carla.readthedocs.io/en/0.9.16/start_quickstart/)). Its
+Python client is used by the pose helper and by CARLA's BasicAgent pilot; it is installed
+for the user into Humble's Python (the system `python3`, 3.10), as are the tools of
 [Install](install.md#your-tools):
 
 ```bash
@@ -20,7 +22,7 @@ python3 -c 'import carla; print(carla.__file__)'
 
 ## Let the stack start it (recommended)
 
-Tell swb where CARLA is installed, in `~/.config/swb/host.yaml`:
+The host settings (`~/.config/swb/host.yaml`) record where CARLA is installed:
 
 ```yaml
 carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}

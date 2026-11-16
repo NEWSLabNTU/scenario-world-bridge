@@ -1,12 +1,13 @@
 # scenario-world-bridge
 
-Test [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/) on
+scenario-world-bridge (swb) evaluates an autopilot on
 [OpenSCENARIO](https://www.asam.net/standards/detail/openscenario/) scenarios in
-[CARLA](https://carla.org/) or [Isaac Sim](https://developer.nvidia.com/isaac/sim), with
-Autoware driving on **simulated sensors**: cameras and lidar feed its full perception,
-localization, planning and control, while
-[scenario_simulator_v2](https://github.com/tier4/scenario_simulator_v2) (SSv2) runs the
-scenario and gives the verdict.
+[CARLA](https://carla.org/) or [Isaac Sim](https://developer.nvidia.com/isaac/sim). The
+autopilot drives on **simulated sensors**: the simulator's cameras and lidar feed its own
+perception, localization, planning and control, while
+[scenario_simulator_v2](https://github.com/tier4/scenario_simulator_v2) (SSv2) executes the
+scenario and returns the verdict. [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/)
+is the autopilot most of the examples use; it is one choice among several.
 
 <p align="center">
   <img src="docs/media/hero_carla_vs_isaac.webp" alt="The same Autoware drives the same Town10HD route in CARLA (left) and Isaac Sim (right)" width="840"><br>
@@ -52,9 +53,9 @@ traffic light. For someone who already writes SSv2 scenarios:
   the simulator's cameras and lidar.
 - **The verdict is SSv2's**, with CARLA's own contact check and judges of your own beside
   it.
-- **Any autopilot.** Autoware is the default; CARLA's BasicAgent, a launch file of yours or
-  a Python program drive other vehicles in the same scenario. An autopilot of your own
-  drives its car through Autoware's vehicle interface (Autoware's control and status
+- **Any autopilot.** Autoware, CARLA's BasicAgent, a launch file or a Python program may
+  drive any vehicle of a scenario, several of them at once. An autopilot built on another
+  stack drives its car through Autoware's vehicle interface (its control and status
   messages), whatever it is built on.
 
 ## How it works
@@ -88,14 +89,23 @@ The run ends with one line, `passed   <run id>  <run directory>`, and exits 0.
 
 ## Requirements
 
+The fixed requirements are the platform and the build tools:
+
 | | |
 |---|---|
 | OS, ROS | Ubuntu 22.04, [ROS 2 Humble](https://docs.ros.org/en/humble/Installation.html) |
-| Autoware | [1.5.0](https://autowarefoundation.github.io/autoware-documentation/main/installation/): the binary packages in `/opt/autoware/1.5.0`, or your own build of that release |
-| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (packaged release), or Isaac Sim 6.1 (pip install) |
+| Autoware's messages | the build compiles against Autoware's interface messages (`autoware_adapi_v1_msgs` and the vehicle and control messages), which any built Autoware workspace or Autoware's binary packages provide, whichever autopilot then drives |
 | Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer |
 | Build tools | Rust ([rustup](https://rustup.rs/)) and colcon's Rust plugin, `colcon-cargo-ros2` |
-| Hardware | an NVIDIA GPU that runs the simulator beside Autoware. Isaac Sim: an RTX GPU with 24 GB and 64 GB of RAM |
+
+The simulator and the autopilot are choices, each with the versions it has been tested
+with:
+
+| | |
+|---|---|
+| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is compiled in, below), or Isaac Sim 6.1 (pip install) |
+| Autopilot | Autoware: a built Autoware workspace, whose `setup.bash` a host setting names; swb provides the car's launch files and configuration, tested with [Autoware 1.5.0](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (its binary packages or a build of that release). Or CARLA's BasicAgent, a simple pilot on the ground truth, a launch file or a program of your own |
+| Hardware | an NVIDIA GPU that runs the simulator beside the autopilot. Isaac Sim: an RTX GPU with 24 GB and 64 GB of RAM |
 
 SSv2 is bundled (a fork, as a submodule). Maps, USD worlds and cars come from public
 datasets on Hugging Face, fetched by name into a project (below).
@@ -127,7 +137,8 @@ fetch` downloads only what it takes:
 | [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages) | Isaac test stages for road surfaces, a proving ground, a rough road | Apache-2.0 |
 | [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models) | a golf cart for Isaac Sim and RViz | Apache-2.0 |
 
-**Other CARLA versions.** CARLA 0.9.16 is tested; 0.9.14 and 0.9.15 build but are
+**Other CARLA versions.** The CARLA version is fixed when swb is built (a build feature of
+its CARLA client). CARLA 0.9.16 is the tested version; 0.9.14 and 0.9.15 build but are
 untested, and 0.10 is not supported
 ([Supported and not supported](docs/reference/limits.md#platform)).
 

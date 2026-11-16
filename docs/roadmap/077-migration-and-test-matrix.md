@@ -1038,18 +1038,18 @@ Isaac's rear contact (inventory row 18).
   - **G66 (built, 0f36b3f):** `project check` passed `simulator_autopilot` on Isaac, and the
     run ended in SSv2's `Spawn entity ... resulted in failure`, the reason only in the
     bridge's log; it is now refused at check, as carla_basic is.
-  - **G67 (118):** `runs why` showed SSv2's SemanticError and an unrelated play_launch WARN
+  - **G67 (118; built 331fb94):** `runs why` showed SSv2's SemanticError and an unrelated play_launch WARN
     (`cap_sys_ptrace`) as `first`. Ruling: a refusal or failure line of swb's own processes
     (the bridge's or a world server's `Cannot spawn ...`, `refuses`, `failed`) in the run's
     slices outranks SSv2's generic error, and play_launch's capability warnings (`getcap`,
     `cap_sys_ptrace`) are never `first`; a test from 241's run's slices.
-  - **G68 (118):** a stack refusal raised while play_launch parses swb.launch.xml arrives
+  - **G68 (118; built 331fb94):** a stack refusal raised while play_launch parses swb.launch.xml arrives
     wrapped ("Rust parser error ... Python error ... RuntimeError: swb: the stack is refused
     (3): ...") with play_launch's misleading `--parser python` hint. Ruling: `run
     --start-stack` plans the stack in its own process before starting play_launch and prints a
     refusal plainly (exit 3); swb.launch.py also prints the refusal on its own line to stderr
     before raising, so a reader starting play_launch directly sees it first.
-  - **G69 (118):** the timeline stamps a world server's log lines 28800 s late on a UTC+8 host:
+  - **G69 (118; built 331fb94):** the timeline stamps a world server's log lines 28800 s late on a UTC+8 host:
     their timestamps carry no zone and were read as UTC. Ruling: a log line's naive timestamp
     is the host's local time when read; a test under `TZ=Asia/Taipei`.
   - **G70 (a release must-have in part):** the Isaac world server hung at the first step after
@@ -1063,3 +1063,10 @@ Isaac's rear contact (inventory row 18).
     takes a time-boxed diagnosis; (iii) without a fix by the RC, T3's Isaac paragraph states
     the limit. pedestrian_crossing's first walker render took 75 s inside frame 2: G65's
     warm-up should cover walkers too.
+- **G67 to G69 built (swb 118, 331fb94; reviewed here).** `runs why` names the first refusal
+  or failure of swb's own processes ahead of SSv2's generic error and never shows
+  play_launch's capability notes (on 241's run: "Cannot spawn 'npc_autopilot'
+  (simulator_autopilot): the isaac world server does not offer AUTOPILOT"; the run's slices
+  are a test fixture); `run --start-stack` plans the stack in its own process first, so a
+  refusal (a refused CARLA, G39, among them) is printed plainly with exit 3 and nothing starts;
+  a log stamp without a zone is the host's local time.

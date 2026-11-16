@@ -1,0 +1,121 @@
+<?xml version="1.0"?>
+<OpenSCENARIO>
+	<FileHeader author="autoware-drift" date="2026-10-27T00:00:00+00:00" description="A lap of Town05 ring highway in drift_mustang, Autoware driving at up to 100 km/h, drift_controller taking each bend (swb roadmap 057)" revMajor="1" revMinor="2" />
+	<ParameterDeclarations />
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork>
+		<LogicFile filepath="$(env SWB_MAPS)/Town05" />
+	</RoadNetwork>
+	<Entities>
+		<ScenarioObject name="ego">
+			<CatalogReference catalogName="vehicles" entryName="drift_mustang">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController>
+				<Controller name="Autoware">
+					<Properties>
+						<Property name="maxJerk" value="1.5" />
+						<Property name="minJerk" value="-1.5" />
+					</Properties>
+				</Controller>
+			</ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init>
+			<Actions>
+				<!-- The start and the goal are on different lanelets: the ring's north straight from x 127
+				     to 48 belongs to lanelet 73626 (641 m, half the ring), and a goal behind the car on its
+				     own lanelet is a loop Autoware's mission planner does not route (its trajectory is a
+				     stopped stub at the goal). Start on 123842 (x 48 to 19), goal on 73626: the route is the
+				     whole ring less 60 m. y is the lanelets' centre line in Autoware's map frame (the
+				     TransverseMercator of the nodes' lat/lon, which is also the simulator's). -->
+				<Private entityRef="ego">
+					<PrivateAction>
+						<TeleportAction>
+							<Position>
+								<WorldPosition x="30.0" y="204.0" z="0.3" h="3.14159" p="0" r="0" />
+							</Position>
+						</TeleportAction>
+					</PrivateAction>
+					<PrivateAction>
+						<RoutingAction>
+							<AcquirePositionAction>
+								<Position>
+									<WorldPosition x="90.0" y="204.1" z="0.0" h="3.14159" p="0" r="0" />
+								</Position>
+							</AcquirePositionAction>
+						</RoutingAction>
+					</PrivateAction>
+				</Private>
+			</Actions>
+		</Init>
+		<Story name="town05_ring_lap">
+			<Act name="drive_act">
+				<ManeuverGroup maximumExecutionCount="1" name="ego_maneuvers">
+					<Actors selectTriggeringEntities="false">
+						<EntityRef entityRef="ego" />
+					</Actors>
+					<Maneuver name="end_conditions">
+						<Event name="success" priority="parallel">
+							<Action name="exit_success">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitSuccess" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="reach_goal" delay="0" conditionEdge="none">
+										<ByEntityCondition>
+											<TriggeringEntities triggeringEntitiesRule="any">
+												<EntityRef entityRef="ego" />
+											</TriggeringEntities>
+											<EntityCondition>
+												<ReachPositionCondition tolerance="5.0">
+													<Position>
+														<WorldPosition x="90.0" y="204.1" z="0.0" h="3.14159" p="0" r="0" />
+													</Position>
+												</ReachPositionCondition>
+											</EntityCondition>
+										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="timeout" priority="parallel">
+							<Action name="exit_failure">
+								<UserDefinedAction>
+									<CustomCommandAction type="exitFailure" />
+								</UserDefinedAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="timeout_condition" delay="0" conditionEdge="none">
+										<ByValueCondition>
+											<SimulationTimeCondition value="400" rule="greaterThan" />
+										</ByValueCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+					</Maneuver>
+				</ManeuverGroup>
+				<StartTrigger>
+					<ConditionGroup>
+						<Condition name="start" delay="0" conditionEdge="none">
+							<ByValueCondition>
+								<SimulationTimeCondition value="0" rule="greaterThan" />
+							</ByValueCondition>
+						</Condition>
+					</ConditionGroup>
+				</StartTrigger>
+			</Act>
+		</Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

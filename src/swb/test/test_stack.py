@@ -10,6 +10,7 @@ import yaml
 
 from conftest import fake_isaac
 from swb import assets, config, project, seat, stack
+from swb import vehicles as vehiclesmod
 
 LAUNCH = Path(__file__).resolve().parents[2] / "swb_launch" / "launch"
 
@@ -52,7 +53,11 @@ def test_plan_multi_pilot(where, maps_hub):
     assert a["ego_launch"] == "none" and a["nest_side"] == "true"
     assert a["map_path"] == "" and "pilots" not in a  # the keeper runs the pilots
     # the world server writes the signal table into the state dir, the bridge reads it there
-    assert a["sim_args"] == f"state_dir:={d / 'state'}"
+    # and an installed car runs its spec's physics (G55), which the pilots read back
+    physics = vehiclesmod.installed_physics("tesla_model3")
+    assert a["sim_args"] == f"state_dir:={d / 'state'} vehicle_physics:={physics}"
+    assert p.record["pilot_contract"]["carla_physics"] == str(physics)
+    assert p.record["pilot_contract"]["carla_physics_mode"] == "verify"
     contacts = where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "episodes" / "contacts"
     # each run's contact reports: the bridge writes them under the stack, the run moves them
     assert a["side_args"] == f"state_dir:={d / 'state'} contact_report_dir:={contacts}"
@@ -544,7 +549,8 @@ def test_world_reaches_the_side_beside_swbs(where, maps_hub):
                     "weather": "WetNoon", "npc_motion": "kinematic",
                     "config_file": str((d / "config" / "bridge.yaml").resolve())}
     assert sim == {"state_dir": str(d / "state"),
-                   "config_file": str((d / "config" / "carla.yaml").resolve())}
+                   "config_file": str((d / "config" / "carla.yaml").resolve()),
+                   "vehicle_physics": str(vehiclesmod.installed_physics("tesla_model3"))}
     assert p.record["weather"] == {"parameters": {"cloudiness": 30.0}, "state": "pending"}
     stack.write_plan(p)
     assert (stack_dir / "episodes" / "gap_trace").is_dir()
@@ -556,6 +562,10 @@ def test_world_reaches_the_side_beside_swbs(where, maps_hub):
         "state_dir": str(d / "state"), "config_file": str((d / "config" / "carla.yaml").resolve()),
         "vehicle_physics": "/p.yaml"}
     assert p.record["pilot_contract"]["carla_physics"] == "/p.yaml"
+    # none keeps CARLA's blueprint: nothing for the pilots to read back
+    p = stack.plan(project_arg=str(d), stack_args={"sim_args": "vehicle_physics:=none"})
+    assert stack._named(p.launch_args["sim_args"])["vehicle_physics"] == "none"
+    assert "carla_physics" not in p.record["pilot_contract"]
     for args, name in (({"side_args": "state_dir:=/elsewhere"}, "state_dir"),
                        ({"side_args": "gap_trace_dir:=/t"}, "gap_trace_dir"),
                        ({"sim_args": "port:=1"}, "port")):

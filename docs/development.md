@@ -26,7 +26,7 @@ recipes. The ones you will use most:
 | `just ci` | build + check + test |
 | `just format` | format the Rust code |
 | `just carla-start` / `carla-status` / `carla-stop` / `carla-health` | CARLA as a background service, and whether it is fit to run a scenario |
-| `just run` | the whole stack (`swb_launch carla.launch.xml`, `sim:=isaac`: `isaac.launch.xml`): world server + bridge + agent relay + the ego (Autoware and its agent, nested, respawned; `ego_launch:=none` for none), play_launch, web UI on 8084 |
+| `just run` | the whole stack (`swb_launch carla.launch.xml`, `sim:=isaac`: `isaac.launch.xml`): world server + bridge + agent relay + the ego (Autoware and its agent, nested, respawned; `ego_launch:=none` for none), play_launch, web UI on 8084. On CARLA every car of the ego's model, the agents' too, runs the spec's physics (`vehicle_physics:=spec`, the default; a path for another file; `none` for the blueprints' own) |
 | `just world-check` | the conformance check against the running world server (`sim:=isaac` for Isaac's) |
 | `just ego-av` | the vehicle side for the ego, web UI on 8082 (`just ego-av rviz:=true` for RViz; any acb_launch argument as `name:=value`) |
 | `just build-autoware-overlay` | Autoware fixes 1.5.0 lacks, built from a pinned fork commit into `third_party/autoware_overlay/`; `ego-av` / `bg-av` source it by default (`autoware_overlay:=false`: off; roadmap 042) |

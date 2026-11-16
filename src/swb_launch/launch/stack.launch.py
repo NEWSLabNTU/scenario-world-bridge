@@ -289,6 +289,26 @@ def pilot_launches(pilots, pilots_dir, common):
     return out
 
 
+def spec_physics(value, vehicle_model, spec_hash_file, share=None):
+    """The world server's vehicle_physics on CARLA: `spec` (carla.launch.xml's default) is the
+    spec car's generated carla_physics.yaml, from sim_vehicle_spec, so that every car of the
+    ego's model runs the spec, the vehicle agents' too (without it they kept the blueprint's
+    physics while the ego ran the spec's; roadmap 074, the Y merge). A path or none is kept."""
+    if value != "spec":
+        return value
+    if spec_hash_file:
+        raise RuntimeError("stack: vehicle_physics spec names sim_vehicle_spec's cars; for a car "
+                           "of another repository (spec_hash_file:=) give "
+                           "vehicle_physics:=<its carla_physics.yaml>, or none")
+    car = vehicle_model or "tesla_model3"
+    share = share or get_package_share_directory("sim_vehicle_spec")
+    path = os.path.join(share, "generated", car, "carla_physics.yaml")
+    if not os.path.isfile(path):
+        raise RuntimeError(f"stack: vehicle_physics spec: no {path} (sim_vehicle_spec has no "
+                           f"car {car!r}); give vehicle_physics:=<carla_physics.yaml>, or none")
+    return path
+
+
 def _stack(context):
     get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
     sim = get("sim")
@@ -322,6 +342,9 @@ def _stack(context):
         endpoint = endpoint or f"tcp://127.0.0.1:{port}"
         sim_args = {"port": port, "ssv2_port": ssv2_port,
                     "carla_host": carla_host, "carla_port": carla_port, **sim_args}
+        if "vehicle_physics" in sim_args:
+            sim_args["vehicle_physics"] = spec_physics(sim_args["vehicle_physics"],
+                                                       get("vehicle_model"), get("spec_hash_file"))
         sim_env = {}
         # above CARLA's own watchdogs (carla_simulation.launch.xml)
         timeouts = {"world_request_timeout_seconds": "90", "world_load_timeout_seconds": "300"}

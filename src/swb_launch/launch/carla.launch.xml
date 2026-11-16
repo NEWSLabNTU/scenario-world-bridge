@@ -9,18 +9,23 @@
   always synchronous under swb: the world server steps it, frame by frame.
 
     play_launch launch swb_launch carla.launch.xml map_path:=<map dir> \
-        [vehicle_physics:=<carla_physics.yaml>|none] [npc_contact_sensors:=false] \
+        [vehicle_physics:=spec|<carla_physics.yaml>|none] [npc_contact_sensors:=false] \
         [world_config:=<swb_carla_world.yaml>] \
         [ego_launch:=<path>|'<package> <file>'] [ego_launch_args:='a:=1 b:=2'] \
         [vehicle_model:=...] [spec_hash_file:=...] [vehicle_catalogs:=...] \
         [scenario:=<path to .xosc>] [scenario_args:='...'] [exit_on_scenario_end:=false]
         [spawn:=x,y,z,yaw [vehicle:=<catalog entry>] [realtime:=true]]   (free drive, no scenario)
 
+  vehicle_physics: the physics of every car of the ego's model, the ego's and the vehicle
+  agents' (roadmap 051): spec, the default, is the spec car's (vehicle_model's) generated
+  carla_physics.yaml from sim_vehicle_spec; a path names another; none keeps the
+  blueprints' own, as before 2026-11-16.
+
   Host settings (CARLA_HOST, CARLA_PORT, WORLD_PORT, ports, domains) are the environment's:
   stack.launch.py.
 -->
 <launch>
-  <arg name="vehicle_physics" default="none" description="the vehicle spec's carla_physics.yaml on the ego and agent vehicles; none: the blueprints' own"/>
+  <arg name="vehicle_physics" default="spec" description="the physics of the ego and agent vehicles: spec (the spec car's generated carla_physics.yaml, from sim_vehicle_spec), a carla_physics.yaml, or none (the blueprints' own)"/>
   <arg name="world_config" default="" description="the CARLA world server's config file (swb_carla_world.yaml: map_alias, traffic_manager, spectator, weather presets); empty: the installed one"/>
   <arg name="npc_contact_sensors" default="" description="true: contact sensors on the NPC vehicles too (CARLA's contacts in the verdict); empty: the world server config's"/>
   <arg name="map_path" default="" description="the default autopilot's map directory"/>

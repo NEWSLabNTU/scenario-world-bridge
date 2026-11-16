@@ -664,7 +664,8 @@ _require-agent entity:
 # the Town01 map), ego_launch:=none (no ego: the scenario's own, `just ego-av`, or none),
 # ego_launch:=<launch> ego_launch_args:="a:=1 ...", vehicle_model:=, spec_hash_file:=,
 # vehicle_catalogs:=, scenario:=<xosc>, scenario_args:=, side_args:=; on CARLA
-# vehicle_physics:=, npc_contact_sensors:=; on Isaac the world server's ego:=, world:=,
+# vehicle_physics:= (default spec: the spec car's carla_physics.yaml on every car of its
+# model; none: the blueprints'), npc_contact_sensors:=; on Isaac the world server's ego:=, world:=,
 # render:=, follow:=, physics_hz:= (as `just isaac-world`). The simulation side's own
 # config_file:=, weather:=, gap_trace_dir:=, npc_motion:=, contact_report_dir:=, world_render:=
 # go to it (side_args). The recipe's own: overlay:=<setup.bash> and autoware_overlay:=false as

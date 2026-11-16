@@ -732,9 +732,20 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     sim_side.update(worldmod.sim_args(project, sim, world, isaac))
     ego_car = cars.get(vehicle) if vehicle else None
     if sim == "carla" and ego_car is not None:
-        # the world server applies an own car's physics to it (the installed cars keep
-        # CARLA's blueprint unless given; acb then checks them against the spec)
+        # the world server applies an own car's physics to it, on every car of its model
+        # (the agents' too); the pilot's vehicle bridge then checks them against the spec
         sim_side["vehicle_physics"] = ego_car["carla_physics"]
+    elif sim == "carla" and vehicle:
+        # an installed car runs its spec's physics too (077 G55: it ran CARLA's blueprint's,
+        # so a project's Model 3 was not the car the spec describes);
+        # stack_args:="sim_args:='vehicle_physics:=none'" keeps the blueprint's
+        physics = vehiclesmod.installed_physics(vehicle)
+        if physics is None:
+            raise StackRefused(f"vehicle {vehicle}: sim_vehicle_spec has no generated "
+                               f"{vehicle}/carla_physics.yaml; give stack_args:=\"sim_args:="
+                               f"'vehicle_physics:=<its carla_physics.yaml>'\" (or none for "
+                               "the blueprint's own)")
+        sim_side["vehicle_physics"] = str(physics)
     # stack_args (the developers'): side_args and sim_args merge into swb's, by name; a name
     # swb owns is refused (they used to replace swb's whole text, state_dir with it)
     user = dict(stack_args or {})

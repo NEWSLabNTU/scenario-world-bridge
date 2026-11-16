@@ -40,6 +40,19 @@ def installed_catalog() -> Path:
         return Path(__file__).resolve().parents[2] / "sim_vehicle_spec" / "catalogs" / CATALOG
 
 
+def installed_physics(car: str):
+    """An installed car's CARLA physics (sim_vehicle_spec's generated/<car>/carla_physics.yaml,
+    the installed share's, else the workspace's), or None when sim_vehicle_spec has no such
+    car."""
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        root = Path(get_package_share_directory("sim_vehicle_spec"))
+    except Exception:
+        root = Path(__file__).resolve().parents[2] / "sim_vehicle_spec"
+    f = root / "generated" / car / "carla_physics.yaml"
+    return f if f.is_file() else None
+
+
 def catalog_dir(project) -> Path:
     """What ``$(env SWB_VEHICLES)`` names for a project: its merged catalog's directory when
     it has own cars, else the installed one's."""

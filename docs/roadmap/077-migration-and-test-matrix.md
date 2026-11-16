@@ -1274,9 +1274,15 @@ Isaac's rear contact (inventory row 18).
   before `just build`, as colcon need not re-run configure_file on a mode change). With the
   fix `road_detail check` prints `1 corridor(s)` and `corridor 0: 250 m`, as the tutorial
   says. The stack then was not ready in 3600 s: the Isaac world server went silent after
-  `rock pool: 992 prims ...`. 241 is reproducing it with thread dumps and files it as issue
-  042. Until it is fixed, exercise 2's "the stack starts again without a problem" does not
-  hold, and item 21 stays out of T3.
+  `rock pool: 992 prims ...`. Issue 042 (241, cause in 5ea2554; the fix 133's to choose): a
+  deadlock in the preload of a road with rocks. The main thread holds the GIL in a physics
+  step and waits on a PhysX cooking task; that task waits for the GIL to hand a log message
+  to the world server's Python omni.log consumer. Nothing ends the preload at that stage, so
+  the stack never becomes ready, on any host. Until it is fixed, exercise 2's "the stack
+  starts again without a problem" does not hold, and item 21 stays out of T3.
+  Issue 043 (241, fixed in eb08cd3): with `road_detail:` naming a file under `assets/`, the
+  restart was refused, "state/Town01/road_detail.yaml is not a link swb made"; the
+  tutorial's steps are unchanged by it.
   Tutorial 7 (ruling 243, 2026-11-17): no note now. Issue 041 needs none, since a fresh
   build has the executable entries (removing `build/swb_isaac_world` is for an existing
   developer workspace). The tutorials describe the release, so 042 is fixed before it, or

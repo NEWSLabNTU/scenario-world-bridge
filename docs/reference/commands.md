@@ -155,7 +155,7 @@ the same codes.
 
 | Command | Does |
 |---|---|
-| `ros2 run swb_launch carla_poses spawn-points \| ahead <i> --distance <m> \| at <x> <y>` | poses on the town CARLA has loaded, in the scenario's frame, as `<WorldPosition>` elements |
+| `ros2 run swb_launch carla_poses spawn-points \| ahead <i> --distance <m> \| at <x> <y>` | poses on the town CARLA has loaded, in the scenario's frame, as `<WorldPosition>` elements; CARLA is the host settings' `carla.host` and `carla.port` (your seat's own CARLA when the seat table gives one), or `--host` and `--port`, before or after the subcommand |
 | `ros2 run swb_launch ego_ready --timeout S` | exits 0 once an Autoware in this domain can take a route |
 | `ros2 run swb_launch physical_verdict <junit> --scenario <file>` | CARLA's contacts for a run as a JUnit testcase (a judge) |
 | `ros2 run swb_launch chase_view` | a chase camera window on CARLA's ego |

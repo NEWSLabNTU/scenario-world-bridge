@@ -220,6 +220,28 @@ def resolve(settings: dict, source: str = None, usable=None) -> Seat:
     return seats[choice]
 
 
+def carla_endpoint(settings: dict, source: str = None) -> tuple:
+    """CARLA's (host, RPC port) as the stack resolves them: the host settings' ``carla.host``
+    and ``carla.port``, or, when the seat table gives each seat its own CARLA
+    (``seats.carla``), your seat's. ``seat: auto`` is then the one seat a stack of yours
+    holds; none or several raise ConfigError."""
+    carla = settings.get("carla") or {}
+    host = str(carla.get("host") or "localhost")
+    port = int(carla.get("port") or 2000)
+    seats = table(settings, source)
+    if all(s.carla_port is None for s in seats):
+        return host, port
+    if parse_choice(settings.get("seat"), source or "host settings") != "auto":
+        return host, resolve(settings, source).carla_port
+    me = getpass.getuser()
+    held = [s for s in seats if (holder(s.index, s.lock_dir) or {}).get("user") == me]
+    if len(held) != 1:
+        raise ConfigError("each seat has its own CARLA (seats.carla), your seat is auto and no "
+                          "single stack of yours holds one: run `ros2 run swb seat take <n>`, "
+                          "or give --port")
+    return host, held[0].carla_port
+
+
 def busy_ports(s: Seat, web: bool = True) -> list:
     """``[(what, port)]`` of the seat's ports something on this host already listens on (a
     stack started outside the seat table, e.g. a checkout's ``just run`` on its own

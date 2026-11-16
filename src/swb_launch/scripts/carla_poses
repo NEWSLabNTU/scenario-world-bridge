@@ -11,16 +11,43 @@ the map CARLA has loaded and prints poses already converted, ready to paste into
 
 It only reads the world: no actor is spawned and no setting is changed, so it is safe beside
 a running scenario. Maps not in CARLA's frame (carla/map_origin.yaml) are not handled.
+
+CARLA's host and port are swb's: the host settings' carla.host and carla.port (the project's
+.swb/local.yaml, ~/.config/swb/host.yaml), or your seat's own CARLA when the seat table gives
+each seat one (seats.carla). --host and --port, before or after the subcommand, override them.
 """
 import argparse
 import math
 import signal
 import sys
 
-try:
-    import carla
-except ImportError:
-    sys.exit("carla_poses: the CARLA Python API is needed: pip install carla==<your CARLA version>")
+carla = None  # the CARLA Python API, imported when a command runs (main)
+
+DEFAULT_HOST, DEFAULT_PORT = "localhost", 2000
+
+
+def carla_endpoint(args):
+    """(host, port): --host/--port when given, else swb's host settings (with the seat's own
+    CARLA, swb.seat.carla_endpoint), else localhost:2000 when swb is not installed."""
+    host, port = getattr(args, "host", None), getattr(args, "port", None)
+    if host is not None and port is not None:
+        return host, port
+    try:
+        from swb import config, seat
+    except ImportError:
+        return host or DEFAULT_HOST, port or DEFAULT_PORT
+    try:
+        try:
+            project = config.find_project()
+        except config.ConfigError:
+            project = None
+        settings = config.host_settings(project)
+        if port is not None:   # the seat's CARLA is only a port
+            return host or str((settings.get("carla") or {}).get("host") or DEFAULT_HOST), port
+        h, p = seat.carla_endpoint(settings, seat.seats_source(project))
+    except config.ConfigError as e:
+        sys.exit(f"carla_poses: {e}")
+    return (host if host is not None else h), p
 
 
 def ros_pose(transform):
@@ -83,23 +110,39 @@ def cmd_at(m, args):
     print(f"lane   {world_position(wp.transform)}  <!-- {off:.2f} m from the given point, {lane_note(wp)} -->")
 
 
-def main():
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `| head` ends quietly
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--host", default="localhost")
-    ap.add_argument("--port", type=int, default=2000)
+def parser():
+    # --host/--port before or after the subcommand; SUPPRESS: a subparser's default would
+    # overwrite a value given before it
+    where = argparse.ArgumentParser(add_help=False)
+    where.add_argument("--host", default=argparse.SUPPRESS,
+                       help="CARLA's host (default: the host settings' carla.host)")
+    where.add_argument("--port", type=int, default=argparse.SUPPRESS,
+                       help="CARLA's RPC port (default: the host settings' carla.port, or your seat's)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 parents=[where])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("spawn-points", help="list CARLA's spawn points as WorldPositions")
-    a = sub.add_parser("ahead", help="the lane pose some distance along the road from a spawn point")
+    sub.add_parser("spawn-points", parents=[where], help="list CARLA's spawn points as WorldPositions")
+    a = sub.add_parser("ahead", parents=[where], help="the lane pose some distance along the road from a spawn point")
     a.add_argument("index", type=int, help="spawn point number (from spawn-points)")
     a.add_argument("--distance", type=float, default=50.0, help="metres along the lane (default 50)")
     a.add_argument("--step", type=float, default=2.0, help="waypoint step, m (default 2)")
     a.add_argument("--turn", action="store_true", help="at junctions take the sharpest turn, not the straightest")
     a.add_argument("--every", action="store_true", help="also print every step on the way")
-    t = sub.add_parser("at", help="snap a ROS-frame x/y to the nearest driving lane")
+    t = sub.add_parser("at", parents=[where], help="snap a ROS-frame x/y to the nearest driving lane")
     t.add_argument("x", type=float)
     t.add_argument("y", type=float)
-    args = ap.parse_args()
+    return ap
+
+
+def main(argv=None):
+    global carla
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `| head` ends quietly
+    args = parser().parse_args(argv)
+    args.host, args.port = carla_endpoint(args)
+    try:
+        import carla
+    except ImportError:
+        sys.exit("carla_poses: the CARLA Python API is needed: pip install carla==<your CARLA version>")
     m = connect(args)
     {"spawn-points": cmd_spawn_points, "ahead": cmd_ahead, "at": cmd_at}[args.cmd](m, args)
 

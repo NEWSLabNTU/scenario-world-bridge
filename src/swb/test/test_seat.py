@@ -322,3 +322,18 @@ def test_auto_skips_a_seat_whose_ports_a_foreign_stack_holds(env):
     finally:
         sock.close()
     assert ("web UI", s0.web_port) not in seat.busy_ports(s0)
+
+
+def test_carla_endpoint(env, capsys):
+    user, _, _ = env
+    assert seat.carla_endpoint(config.host_settings()) == ("localhost", 2000)
+    (user / "host.yaml").write_text("carla: {host: box, port: 2600}\n")
+    assert seat.carla_endpoint(config.host_settings()) == ("box", 2600)
+    table = "seats: {count: 3, carla: {base: 2700, stride: 10}}\n"
+    (user / "host.yaml").write_text("carla: {host: box}\nseat: 2\n" + table)
+    assert seat.carla_endpoint(config.host_settings()) == ("box", 2720)
+    (user / "host.yaml").write_text(table)
+    with pytest.raises(ConfigError, match="seat take"):
+        seat.carla_endpoint(config.host_settings())
+    with seat.acquire(seat.table(config.host_settings())[1], "p"):
+        assert seat.carla_endpoint(config.host_settings()) == ("localhost", 2710)

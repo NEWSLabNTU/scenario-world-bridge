@@ -1549,11 +1549,7 @@ scenario scenario_file *args:
         esac
     done
     file=$(realpath "{{scenario_file}}")
-    if [ -z "$project" ]; then
-        d=$(dirname "$file")
-        while [ "$d" != "/" ] && [ ! -f "$d/swb.yaml" ]; do d=$(dirname "$d"); done
-        if [ -f "$d/swb.yaml" ]; then project="$d"; else project="{{project}}/scenarios/projects/dev"; fi
-    fi
+    [ -n "$project" ] || project=$(swb_scenario_project "$file" "{{project}}")
     [ -f "$project/swb.yaml" ] || { echo "scenario: $project has no swb.yaml" >&2; exit 2; }
     source "{{autoware_setup}}"
     source "{{project}}/install/setup.bash"
@@ -1645,17 +1641,64 @@ _scenario-map scenario_file:
 _scenario-has-ego scenario_file:
     @grep -qE '<Controller +name="Autoware"|name="isEgo" +value="(true|True|1)"' "{{scenario_file}}" && echo 1 || echo 0
 
-# Run the full stack and one scenario, then take down what it started: the stacks
-# `just scenario sim:=<sim>` brings up (scripts/<sim>_up.sh; those already running are reused
-# and left), the scenario, its verdict, then the stacks this run started are stopped
-# (keep_stacks:=true leaves them; CARLA itself, a long-lived unit, is never stopped here).
+# One scenario, start to stop, on the project workflow (roadmap 077 step 8, inventory item
+# 51): `ros2 run swb run <xosc> --stop-stack` in the project that holds the scenario (the
+# nearest swb.yaml above it), else in scenarios/projects/dev, as `just scenario` finds it. A
+# stack that is not up is started for the run and stopped after it, whatever the verdict,
+# with the pilots and a CARLA it started; a stack that was up already is used and left up.
+# The run's result, timeline and logs are under the host settings' logs (`ros2 run swb runs
+# show <id>`). project:=<dir> names the project (an Isaac one for Isaac: its `simulator:`);
+# global_timeout:=<s> is SSv2's. Keeping the stack is `just scenario`; a map argument, sim:=,
+# worlds:=, keep_stacks:= and output_directory:= belong to the stack-based path,
+# `just e2e-direct`, which keeps them.
+#
+# Usage: just e2e [xosc] [project:=<dir>] [global_timeout:=<s>]
+[positional-arguments]
+e2e *args:
+    #!/usr/bin/env bash
+    set -e
+    source "{{lib}}"; swb_reject_env
+    scenario="{{project}}/src/swb_examples/scenarios/basic/town01_ego_drive.xosc"
+    project=""; run_args=(); n=0
+    for a in "$@"; do
+        case "$a" in
+            project:=?*) project="${a#*:=}" ;;
+            global_timeout:=?*) run_args+=(--timeout "${a#*:=}") ;;
+            sim:=*)
+                echo "e2e: sim:= is the stack-based path's: \`just e2e-direct $a\`; on the project workflow the project's simulator: decides (project:=<dir>) (roadmap 077 step 8)" >&2; exit 2 ;;
+            keep_stacks:=*)
+                echo "e2e: keep_stacks:= is the stack-based path's: \`just e2e-direct $a\`; on the project workflow \`just scenario <xosc>\` leaves the stack up (roadmap 077 step 8)" >&2; exit 2 ;;
+            worlds:=*|output_directory:=*)
+                echo "e2e: ${a%%:=*}:= is the stack-based path's: \`just e2e-direct $a\` (roadmap 077 step 8)" >&2; exit 2 ;;
+            *:=*) echo "e2e: unknown argument '$a' (project:=<dir>, global_timeout:=<s>)" >&2; exit 2 ;;
+            *) n=$((n + 1)); case $n in
+                   1) scenario="$a" ;;
+                   2) echo "e2e: a map argument is the stack-based path's: \`just e2e-direct <xosc> $a\`; the project's stack moves to the scenario's map itself (roadmap 077 step 8)" >&2; exit 2 ;;
+                   *) echo "e2e: too many arguments" >&2; exit 2 ;; esac ;;
+        esac
+    done
+    [ -f "$scenario" ] || { echo "e2e: $scenario: no such file" >&2; exit 2; }
+    file=$(realpath "$scenario")
+    [ -n "$project" ] || project=$(swb_scenario_project "$file" "{{project}}")
+    [ -f "$project/swb.yaml" ] || { echo "e2e: $project has no swb.yaml" >&2; exit 2; }
+    source "{{autoware_setup}}"
+    source "{{project}}/install/setup.bash"
+    echo "[e2e] project $project"
+    cd "$project"
+    exec ros2 run swb run "$file" --stop-stack "${run_args[@]}"
+
+# The stack-based path (roadmap 073 S9), for developers: the full stack and one scenario, then
+# take down what it started: the stacks `just scenario-direct sim:=<sim>` brings up
+# (scripts/<sim>_up.sh; those already running are reused and left), the scenario, its
+# verdict, then the stacks this run started are stopped (keep_stacks:=true leaves them;
+# CARLA itself, a long-lived unit, is never stopped here).
 # output_directory:=<dir> (default $SWB_LOG_ROOT/e2e/<time>) gets the scenario's output.
 # swb_launch carla.launch.xml scenario:=<xosc> exit_on_scenario_end:=true is the one-launch
 # version of the same on CARLA.
 #
-# Usage: just e2e [xosc] [map] [sim:=carla|isaac] [worlds:=..] [keep_stacks:=true] [output_directory:=<dir>]
+# Usage: just e2e-direct [xosc] [map] [sim:=carla|isaac] [worlds:=..] [keep_stacks:=true] [output_directory:=<dir>]
 [positional-arguments]
-e2e *args:
+e2e-direct *args:
     #!/usr/bin/env bash
     set -e
     source "{{lib}}"; swb_reject_env
@@ -1664,17 +1707,17 @@ e2e *args:
     for a in "$@"; do
         case "$a" in
             sim:=*) sim="${a#sim:=}" ;;
-            backend:=*) echo "e2e: backend:= is now sim:= (roadmap 046)" >&2; exit 2 ;;
+            backend:=*) echo "e2e-direct: backend:= is now sim:= (roadmap 046)" >&2; exit 2 ;;
             worlds:=*) extra+=("$a") ;;
             keep_stacks:=*) keep_stacks="${a#*:=}" ;;
             output_directory:=?*) out="${a#*:=}" ;;
-            *:=*) echo "e2e: unknown argument '$a' (sim:=, worlds:=, keep_stacks:=, output_directory:=)" >&2; exit 2 ;;
+            *:=*) echo "e2e-direct: unknown argument '$a' (sim:=, worlds:=, keep_stacks:=, output_directory:=)" >&2; exit 2 ;;
             *) n=$((n + 1)); case $n in 1) scenario="$a" ;; 2) map="$a" ;;
-                   *) echo "e2e: too many arguments" >&2; exit 2 ;; esac ;;
+                   *) echo "e2e-direct: too many arguments" >&2; exit 2 ;; esac ;;
         esac
     done
     up="{{project}}/scripts/${sim}_up.sh"
-    [ -x "$up" ] || { echo "e2e: no simulator '$sim' (no scripts/${sim}_up.sh)" >&2; exit 2; }
+    [ -x "$up" ] || { echo "e2e-direct: no simulator '$sim' (no scripts/${sim}_up.sh)" >&2; exit 2; }
     export CARLA_MAPS="{{maps_dir}}"
     started=$(mktemp)
     [ -n "$out" ] || out="$(swb_log_dir "{{project}}" e2e)/$(date +%Y-%m-%d_%H-%M-%S)"

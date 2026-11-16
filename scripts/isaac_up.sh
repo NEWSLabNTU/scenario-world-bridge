@@ -2,7 +2,7 @@
 # Bring up what a scenario on Isaac Sim needs, reusing whatever already runs (roadmaps 043,
 # 073 S9): the stack (`just run sim:=isaac`, web SWB_WEB_PORT+4: the Isaac world server, the
 # bridge, the agent relay and the ego -- aib's Autoware and its vehicle agent, nested,
-# respawned -- in one launch), waited for part by part. Run by `just scenario-direct|acceptance|e2e
+# respawned -- in one launch), waited for part by part. Run by `just scenario-direct|acceptance|e2e-direct
 # ... sim:=isaac` (roadmap 046: each simulator's bring-up is scripts/<sim>_up.sh, with this
 # contract; carla_up.sh is CARLA's; both share scripts/stack_up.bash).
 #
@@ -13,7 +13,7 @@
 # replaced, and so is a separate world server (`just isaac-world`, +5): the stack starts its
 # own on the same port. SIM_UP_EGO=0 and a separate ego on +2 as in carla_up.sh. Stacks
 # started here stay up for the next run; their pids are appended to $SIM_UP_STARTED when that
-# is set, so a caller can take them down (`just e2e`).
+# is set, so a caller can take them down (`just e2e-direct`).
 #
 # Environment, host settings all (from the justfile): ISAAC_PORT, SSV2_PORT, AGENT_PORT,
 # SWB_WEB_PORT, SWB_LOG_ROOT (the stack's console goes there; default the repo's play_log),

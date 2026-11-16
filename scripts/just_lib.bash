@@ -8,16 +8,16 @@
 # that replaced it. `swb_reject_env` refuses to run while any of them is set (even empty),
 # so a stale shell or .env cannot change a run silently.
 SWB_RETIRED_ENV=(
-    "MAP_NAME|map_path:=<dir> (ego-av, bg-av, ego-isaac, isaac-world-gen) or the map argument (e2e)"
+    "MAP_NAME|map_path:=<dir> (ego-av, bg-av, ego-isaac, isaac-world-gen) or the map argument (e2e-direct)"
     "CSB_CONFIG_DIR|config_file:=<dir>/bridge_config.yaml (just run)"
     "CSB_BACKEND|sim:=carla|isaac (just run)"
     "WEATHER|weather:=<preset> (just run)"
     "GAP_TRACE_DIR|gap_trace_dir:=<dir> (just run)"
     "NPC_CONTACT_SENSORS|npc_contact_sensors:=<value> (just run)"
-    "KEEP_STACKS|keep_stacks:=true (two-av, e2e)"
-    "RECORD|record:=true (two-av)"
-    "EGO_RVIZ_CONFIG|ego_rviz_config:=<file> (two-av)"
-    "BG_RVIZ_CONFIG|bg_rviz_config:=<file> (two-av)"
+    "KEEP_STACKS|keep_stacks:=true (two-av-direct, e2e-direct)"
+    "RECORD|record:=true (two-av-direct)"
+    "EGO_RVIZ_CONFIG|ego_rviz_config:=<file> (two-av-direct)"
+    "BG_RVIZ_CONFIG|bg_rviz_config:=<file> (two-av-direct)"
     "EGO_OVERLAY|overlay:=<setup.bash> (ego-av, ego-isaac)"
     "EGO_GOAL_POSES_FILE|goal_poses_file:=<file> (ego-av)"
     "EGO_RELAY|relay:=<endpoint>, or relay:= for none (ego-av)"
@@ -41,7 +41,7 @@ SWB_RETIRED_ENV=(
     "EGO_LAUNCH_ARGS|the name:=value arguments themselves (ego-av, ego-isaac)"
     "EGO_CONTAINER_MODE|container_mode:=isolated|observable (ego-av, ego-isaac)"
     "EGO_PLAY_LAUNCH_ARGS|play_launch_args:=\"<options>\" (ego-av, ego-isaac)"
-    "OUTPUT_DIR|output_directory:=<dir> (scenario, two-av, e2e)"
+    "OUTPUT_DIR|output_directory:=<dir> (scenario-direct, two-av-direct, e2e-direct)"
     "AUTOWARE_OVERLAY|autoware_overlay:=false (ego-av, ego-isaac, bg-av)"
 )
 
@@ -153,4 +153,14 @@ swb_log_dir() {
         fi
     fi
     echo "$root/$kind"
+}
+
+# swb_scenario_project SCENARIO PROJECT_ROOT: the project a scenario runs in on the project
+# workflow (roadmap 077 step 8), the nearest directory above the scenario that holds a
+# swb.yaml, else PROJECT_ROOT/scenarios/projects/dev.
+swb_scenario_project() {
+    local d
+    d=$(dirname "$(realpath "$1")")
+    while [ "$d" != "/" ] && [ ! -f "$d/swb.yaml" ]; do d=$(dirname "$d"); done
+    if [ -f "$d/swb.yaml" ]; then echo "$d"; else echo "$2/scenarios/projects/dev"; fi
 }

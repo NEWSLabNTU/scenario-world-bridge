@@ -3,7 +3,7 @@
 # S9): CARLA itself (`just carla-start`, a systemd unit), then the stack (`just run
 # sim:=carla`, web SWB_WEB_PORT+4: the CARLA world server, the bridge, the agent relay and
 # the ego -- Autoware and its vehicle agent, nested, respawned -- in one launch), each waited
-# for. Run by `just scenario-direct|acceptance|e2e ... sim:=carla` (the default). Each simulator's
+# for. Run by `just scenario-direct|acceptance|e2e-direct ... sim:=carla` (the default). Each simulator's
 # bring-up is scripts/<sim>_up.sh with this contract; isaac_up.sh is Isaac's; both share
 # scripts/stack_up.bash.
 #
@@ -13,7 +13,7 @@
 # the scenario asks. A stack on +4 that is not `just run sim:=carla` (an Isaac one, or the
 # old carla_simulation.launch.xml) is refused, not replaced. Stacks started here stay up for
 # the next run; their pids are appended to $SIM_UP_STARTED when that is set, so a caller can
-# take them down (`just e2e`).
+# take them down (`just e2e-direct`).
 #
 # The ego is the stack's (ego_launch, the default); with SIM_UP_EGO=0 (`_scenario-has-ego`) a
 # stack started here has none (ego_launch:=none). A separate ego stack already up on +2

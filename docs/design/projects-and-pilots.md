@@ -387,8 +387,8 @@ on the first free seat, web UI on its port, in its own session, its console in
 TensorRT engines for minutes), runs, and leaves it up, printing how to stop it. `--stop-stack`
 does the same and stops the stack it started after the runs, whatever their verdict (SIGINT
 to its process group, then SIGTERM and SIGKILL; the keeper stops the pilots and a CARLA it
-started on the way out), which is the old `just e2e`. A stack that was up already is used and
-never stopped; one whose fingerprint differs is refused, as always, not replaced. A started
+started on the way out), which `just e2e` runs (the stack-based one is `just e2e-direct`). A
+stack that was up already is used and never stopped; one whose fingerprint differs is refused, as always, not replaced. A started
 stack that the launch refuses is refused (3); one that ends or times out before it is ready
 is an error (2), and the runner stops it. From Python: `run_one(..., {"start_stack": True})`
 starts and keeps one; `with swb.api.stack(project) as ctx:` holds one for a block and stops

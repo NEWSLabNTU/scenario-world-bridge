@@ -35,6 +35,7 @@ recipes. The ones you will use most:
 | `just two-av` | two Autoware stacks, one scenario, on the project workflow (`scenarios/projects/two_av`, its suite `two_av`); `just two-av-direct` is the stack-based path, where `record:=true` records a screencast |
 | `just demo-tour` | the demo tour (one Town01 drive through six incidents) on the project workflow (`scenarios/projects/demo`, its suite `tour`, every incident judged); `just demo-tour-direct` is the stack-based path, with the windows, the captions and `record:=true` |
 | `just prune-logs [days:=7]` | move runs older than that out of the log root into the archive on `/mnt/disk1` (never deletes) |
+| `just e2e [<file>]` | one scenario on the project workflow, as `just scenario` finds its project, starting the stack for it and stopping it after (`ros2 run swb run <file> --stop-stack`); `just e2e-direct` is the stack-based path (`sim:=`, a map, `keep_stacks:=`, `output_directory:=`) |
 | `just acceptance <file> <runs>` | repeat a scenario and summarise |
 
 The `just` recipes use [play_launch](https://pypi.org/project/play-launch/) (per-node logs

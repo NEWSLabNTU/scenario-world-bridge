@@ -96,7 +96,7 @@ The fixed requirements are the platform and the build tools:
 |---|---|
 | OS, ROS | Ubuntu 22.04, [ROS 2 Humble](https://docs.ros.org/en/humble/Installation.html) |
 | Autoware's messages | Autoware's interface messages (`autoware_adapi_v1_msgs` and the vehicle and control messages), from an Autoware workspace or its binary packages (required to build, whichever autopilot drives) |
-| Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer, recommended for its per-node logs, web interface and process supervision. The runner currently starts the stack and the scenario with it; support for plain `ros2 launch` is the subject of [roadmap 079](docs/roadmap/README.md) |
+| Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer, recommended for its per-node logs, web interface and process supervision. The runner currently starts the stack and the scenario with it; support for plain `ros2 launch` is in progress |
 | Build tools | Rust ([rustup](https://rustup.rs/)) and colcon's Rust plugin, `colcon-cargo-ros2` |
 
 The simulator and the autopilot are choices, each with the versions it has been tested

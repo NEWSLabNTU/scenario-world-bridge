@@ -280,7 +280,7 @@ test:
     # SSv2's protos in swb_world_protocol are the fork's (roadmap 051)
     # no pytest plugins: ROS's launch_testing hook would import scripts/test_phase1.py, a
     # live ZMQ client (pyzmq, the runtime's protobuf), and fail where those differ (swb 139)
-    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py scripts/test_ego_used.py
     # run_suite's discovery and JUnit aggregation (stdlib only, no ROS graph needed)
     python3 -m pytest -q src/swb_launch/test
     # the user commands (project, assets, seat, stack, run, runs), roadmap 076
@@ -1593,10 +1593,17 @@ scenario-direct scenario_file *args:
     for w in "${entries[@]}"; do
         case "$w" in */*) resolved+=("$w") ;; *) resolved+=("$CARLA_MAPS/$w") ;; esac
     done
-    SIM_UP_EGO=$(just _scenario-has-ego "{{scenario_file}}") \
+    has_ego=$(just _scenario-has-ego "{{scenario_file}}")
+    # A separate ego or background-AV stack serves one scenario (roadmap 077, G64): refuse one
+    # that already ran one, and mark the ones this run uses (scripts/ego_used.bash).
+    source "{{project}}/scripts/ego_used.bash"
+    separate=$(ego_used_separate "{{scenario_file}}" "$has_ego" "$SWB_WEB_PORT")
+    ego_used_refuse "$separate"
+    SIM_UP_EGO=$has_ego \
         CARLA_PORT={{carla_port}} WORLD_PORT={{world_port}} ISAAC_PORT={{isaac_port}} \
         SSV2_PORT={{ssv2_port}} AGENT_PORT={{agent_port}} \
         "$up" "$map_dir" "$(IFS=,; echo "${resolved[*]}")"
+    separate=$(ego_used_separate "{{scenario_file}}" "$has_ego" "$SWB_WEB_PORT")
     just _clear-stale-scenario
     # The interpreter resolves the vehicle description package (tesla_model3_description).
     source "{{autoware_setup}}"
@@ -1614,6 +1621,8 @@ scenario-direct scenario_file *args:
     # The scenario file is read, never modified: SSv2's runner preprocesses a copy in its
     # output directory (fork, roadmap 017).
     log_dir=$(swb_log_dir "{{project}}" scenario)
+    # Marked as the scenario starts, so an interrupted run counts too (G64).
+    ego_used_mark_all "$separate"
     exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SWB_WEB_PORT + 1)) \
         --log-dir "$log_dir" \
         swb_launch scenario.launch.xml \

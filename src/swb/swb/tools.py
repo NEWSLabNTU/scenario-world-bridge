@@ -82,7 +82,7 @@ def launcher_line(setting="auto", version_fn=None) -> str:
 
 
 ROS2_CONTAINERS_NOTE = ("under ros2 launch, a crashed Autoware component ends its container "
-                        "(play_launch restarts it alone; roadmap 079 step 5)")
+                        "(play_launch restarts the component alone)")
 
 
 def launcher_notes(launcher_name, pilot_kinds) -> list:

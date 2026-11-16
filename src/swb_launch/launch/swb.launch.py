@@ -120,10 +120,7 @@ def _swb(context):
         _refused(e)
     stack.write_plan(plan)
     here = os.path.dirname(os.path.abspath(__file__))
-    on = plan.map or "the first run's map"
-    print(f"swb: project {plan.project} on seat {plan.seat.index} ({plan.simulator}, maps "
-          f"{', '.join(plan.record['maps'])}; pilots on {on}); stack {plan.stack_dir}; web UI "
-          f"port {plan.seat.web_port}", flush=True)
+    print(first_line(plan), flush=True)
     actions = [SetEnvironmentVariable(k, v) for k, v in plan.env.items()]
     actions.append(ExecuteProcess(cmd=["python3", "-m", "swb.stack", "keep", str(plan.stack_dir)],
                                   name="stack_keeper", output="screen", on_exit=Shutdown(),
@@ -138,6 +135,16 @@ def _swb(context):
         AnyLaunchDescriptionSource(os.path.join(here, "stack.launch.py")),
         launch_arguments=list(plan.launch_args.items())))
     return actions
+
+
+def first_line(plan):
+    """The stack's first line. Under ros2 launch it names no web UI port: there is none, and
+    the keeper's own line says so (tutorial 1's sample)."""
+    on = plan.map or "the first run's map"
+    return (f"swb: project {plan.project} on seat {plan.seat.index} ({plan.simulator}, maps "
+            f"{', '.join(plan.record['maps'])}; pilots on {on}); stack {plan.stack_dir}"
+            + ("" if plan.record.get("launcher") == "ros2" else
+               f"; web UI port {plan.seat.web_port}"))
 
 
 def generate_launch_description():

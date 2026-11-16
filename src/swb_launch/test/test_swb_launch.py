@@ -46,6 +46,15 @@ def test_stack_takes_the_plans_arguments():
     assert plan_args <= names
 
 
+def test_the_first_line_names_a_web_ui_port_only_under_play_launch():
+    from types import SimpleNamespace as NS
+    plan = NS(map=None, project="/p", seat=NS(index=0, web_port=8080), simulator="carla",
+              record={"maps": ["Town01"], "launcher": "ros2"}, stack_dir="/s")
+    assert "web UI" not in swb.first_line(plan)
+    plan.record["launcher"] = "play_launch"
+    assert swb.first_line(plan).endswith("; stack /s; web UI port 8080")
+
+
 def test_named_args():
     assert swb.named_args("a:=1 'b:=x y'") == {"a": "1", "b": "x y"}
 

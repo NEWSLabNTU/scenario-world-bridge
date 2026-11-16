@@ -206,6 +206,19 @@ def test_show(env, capsys):
     assert "free" in rows[0] and "yours" not in rows[0]
 
 
+def test_show_auto_names_the_seat_held(env, capsys):
+    """seat: auto with a stack of yours up: the line says which seat it holds, beside that
+    row's `<- yours` (077, the fresh-install run)."""
+    assert seat.main(["show"]) == 0
+    assert "your seat: auto (the first free one when the stack starts)" in \
+        capsys.readouterr().out
+    seats = seat.table(config.host_settings())
+    with seat.acquire(seats[2], "p"):
+        assert seat.main(["show"]) == 0
+    out = capsys.readouterr().out
+    assert "your seat: auto (holding seat 2)" in out and "first free" not in out
+
+
 def test_release(env, capsys):
     user, _, _ = env
     assert seat.main(["take", "2"]) == 0

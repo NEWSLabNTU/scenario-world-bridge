@@ -556,14 +556,21 @@ def main(argv=None) -> int:
         if args.cmd == "show":
             mine = parse_choice(settings.get("seat"))
             print(f"seats ({source}); locks in {settings['seat_locks']}")
+            held = []
             for s in seats:
                 h = holder(s.index, s.lock_dir)
+                if h is not None and h.get("user") == me:
+                    held.append(s.index)
                 state = f"held by {describe_holder(h)}" if h is not None else "free"
                 tag = "  <- yours" if (mine == s.index or
                                        (h is not None and h.get("user") == me)) else ""
                 print(f"{_format_numbers(s)}; {state}{tag}")
             if mine == "auto":
-                print("your seat: auto (the first free one when the stack starts)")
+                # a stack of yours holds one: say which, beside its `<- yours`
+                print("your seat: auto (" + (
+                    f"holding seat{'s' if len(held) > 1 else ''} "
+                    f"{', '.join(str(i) for i in held)})" if held else
+                    "the first free one when the stack starts)"))
             from swb import tools as toolsmod
             print(toolsmod.launcher_line(settings.get("launcher")))
             return EXIT_OK

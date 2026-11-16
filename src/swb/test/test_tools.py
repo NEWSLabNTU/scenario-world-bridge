@@ -167,6 +167,10 @@ def test_a_centerpoint_pilot_without_autowares_tensorrt_is_warned(tmp_path):
 
 def test_ros2_launch_says_once_that_containers_are_not_isolated():
     assert tools.launcher_notes("ros2", ["autoware", "carla_basic"]) == [tools.ROS2_CONTAINERS_NOTE]
+    # the tutorials' sample shows this prefix; no roadmap reference in user output
+    assert tools.ROS2_CONTAINERS_NOTE.startswith(
+        "under ros2 launch, a crashed Autoware component ends its container")
+    assert "roadmap" not in tools.ROS2_CONTAINERS_NOTE
     assert tools.launcher_notes("ros2", ["carla_basic"]) == []
     assert tools.launcher_notes("play_launch", ["autoware"]) == []
 

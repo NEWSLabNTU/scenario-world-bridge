@@ -1,0 +1,7 @@
+# Item 17: UC-ACC-001-0001 on Isaac, the one variant roadmap 044 ran (ego 8.333 m/s, NPC
+# 5.556 -> 1.944 m/s; scenarios/UC-ACC-001-0001_one_variant.yaml). Reference: 044, passed
+# 2026-10-22.
+scenarios:
+  - scenarios/UC-ACC-001-0001_one_variant.yaml
+retry: {on: error, times: 1}
+expect: {}

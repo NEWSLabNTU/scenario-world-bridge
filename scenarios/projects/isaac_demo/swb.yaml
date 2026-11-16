@@ -1,0 +1,25 @@
+# isaac_demo: the demo incidents and UC-ACC on Isaac Sim as a regression project (roadmap 077
+# step 4, inventory item 17), the demo project's ego on aib's rig, as roadmap 044 ran them on
+# Isaac. Each incident is judged by incident_judge (gap trace and storyboard log), as on CARLA.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    # the demo tour's ego, which the incidents are timed for (scenarios/projects/demo)
+    args: {max_velocity: 11.11, lidar_detection_model: centerpoint,
+           use_multi_channel_tracker_merger: false}
+    lifetime: stack          # one Autoware for the suite: its detector loads once
+logging:
+  keep: {passed: result, failed: full, error: full}
+judges:
+  - name: incident
+    run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+    needs: [gap_trace, context]
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

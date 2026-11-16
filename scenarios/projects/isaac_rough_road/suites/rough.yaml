@@ -1,0 +1,7 @@
+# Item 21: the ego's drive to its goal on Town01's straight (isaac_first_drive's
+# drive_to_goal, x 190.8 -> 120 at y -130), all of it on the rough corridor. Autoware had
+# not been validated on the rough road before (066).
+scenarios:
+  - ../../../src/swb_examples/projects/isaac_first_drive/scenarios/drive_to_goal.xosc
+retry: {on: error, times: 1}
+expect: {}

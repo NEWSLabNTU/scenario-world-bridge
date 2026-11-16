@@ -1,0 +1,20 @@
+# isaac_rough_road: Town01's rough gravel road (roadmap 066's corridor, the road physics
+# stages dataset) under an Autoware ego on Isaac Sim (roadmap 077 step 4, inventory item 21).
+# Only the road's detail: no surface zones, so what the ego meets is the rough road alone.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+  - dataset: isaac-road-physics-stages
+    take: [procedural/spikes/road_town]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+ground:
+  Town01:
+    # the straight at y -131.1, x 95-345, both lanes: class C roughness, crown, ruts,
+    # potholes, a washboard zone, two water bars, rocks (066 R4/R5)
+    road_detail: assets/isaac-road-physics-stages/procedural/spikes/road_town/road_detail.yaml
+logging:
+  keep: {passed: result, failed: full, error: full}

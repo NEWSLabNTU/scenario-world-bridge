@@ -61,11 +61,16 @@ def apply(project: Path, ground, state_dir: Path = None) -> list:
                 continue
             dst = state / m / KINDS[k]
             want.add(dst)
-            src = (project / f).resolve()
+            # the link names the file's path in the project, not its resolved one: a file under
+            # assets/ resolves into the shared dataset cache, outside the project, and the
+            # next start would not know the link for its own (issue 043)
+            src = project.resolve() / f
             if not src.is_file():
                 raise GroundError(f"ground.{m}.{k}: {f} is not a file in the project")
             if dst.exists() or dst.is_symlink():
-                if not _ours(dst, project):
+                # also ours: a link an older swb made to the resolved file (issue 043)
+                if not (_ours(dst, project) or
+                        (dst.is_symlink() and Path(os.path.realpath(dst)) == src.resolve())):
                     raise GroundError(f"{dst} is not a link swb made: move it into the project "
                                       f"and name it under ground.{m}.{k}")
                 dst.unlink()

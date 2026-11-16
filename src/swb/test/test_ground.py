@@ -4,6 +4,7 @@ from swb import ground
 
 
 def proj(tmp_path):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "ground").mkdir()
     (tmp_path / "ground" / "t1.yaml").write_text("surfaces: []\n")
     (tmp_path / "ground" / "rough.yaml").write_text("rocks: []\n")
@@ -41,3 +42,25 @@ def test_apply_refuses_a_hand_placed_file(tmp_path):
     (p / "state" / "Town01" / "surfaces.yaml").write_text("mine\n")
     with pytest.raises(ground.GroundError, match="not a link swb made"):
         ground.apply(p, {"Town01": {"surfaces": "ground/t1.yaml"}})
+
+
+def test_apply_again_with_a_file_in_a_linked_dataset(tmp_path):
+    """Issue 043: a ground file under assets/, a link into a cache outside the project."""
+    cache = tmp_path / "cache" / "ds"
+    cache.mkdir(parents=True)
+    (cache / "rough.yaml").write_text("rocks: []\n")
+    p = proj(tmp_path / "p")
+    (p / "assets").mkdir()
+    (p / "assets" / "ds").symlink_to(cache)
+    g = {"Town01": {"road_detail": "assets/ds/rough.yaml"}}
+    dst = p / "state" / "Town01" / "road_detail.yaml"
+    ground.apply(p, g)
+    assert dst.read_text() == "rocks: []\n"
+    ground.apply(p, g)  # the second start knows its own link
+    # a link an older swb made, to the resolved file in the cache, is taken too
+    dst.unlink()
+    dst.symlink_to(cache / "rough.yaml")
+    ground.apply(p, g)
+    assert str(dst.readlink()).startswith(str(p.resolve()))
+    ground.apply(p, None)
+    assert not dst.exists()

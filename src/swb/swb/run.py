@@ -968,10 +968,12 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
         provenance=prov)
     result.write(run_dir / "result.json")
-    judgesmod.run_all(config.project_settings(project).get("judges"), run_dir, project, verdict)
+    judged = judgesmod.run_all(config.project_settings(project).get("judges"), run_dir,
+                               project, verdict)
     if capture == "result":
         runsmod.downgrade(run_dir, "result")
-    runsmod.apply_keep(run_dir, verdict, lg.get("keep") or {})
+    runsmod.apply_keep(run_dir, verdict, lg.get("keep") or {},
+                       judged=[(r or {}).get("verdict") for r in judged])
     return result
 
 

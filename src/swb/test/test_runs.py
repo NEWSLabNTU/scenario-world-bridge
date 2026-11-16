@@ -155,6 +155,21 @@ def test_apply_keep_levels(tmp_path):
         runs.apply_keep(d, "error", {"error": "everything"})
 
 
+def test_a_judges_failure_keeps_what_a_failed_run_keeps(tmp_path):
+    """G52: SSv2 passed, the incident judge failed; the run kept no logs to look into."""
+    keep = {"passed": "result", "failed": "full", "error": "standard"}
+    d = make_run(tmp_path, "judged", "passed")
+    assert runs.apply_keep(d, "passed", keep, judged=["passed", "failed"]) == "full"
+    assert "logs" in names(d) and "record" in names(d)
+    d = make_run(tmp_path, "judge_error", "passed")
+    assert runs.apply_keep(d, "passed", keep, judged=["error"]) == "standard"
+    assert "logs" in names(d) and "record" not in names(d)
+    d = make_run(tmp_path, "all_good", "passed")
+    assert runs.apply_keep(d, "passed", keep, judged=["passed"]) == "result"
+    d = make_run(tmp_path, "unnamed", "passed")
+    assert runs.apply_keep(d, "passed", {"passed": "result"}, judged=["failed"]) == "debug"
+
+
 def test_summary(root, tmp_path):
     (root / "2026-11-14T10-00-00_cut_in_r0" / "junit.xml").unlink()  # synthesised from verdict
     code, out = call("summary", "--root", str(root))

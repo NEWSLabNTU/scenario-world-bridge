@@ -99,7 +99,7 @@ pilot](../how-to/your-autopilot.md).
 | Key | |
 |---|---|
 | `capture` | what a run records: `result` (result, resolved inputs, JUnit, timeline), `standard` (+ each process's log for the run, SSv2's logs), `full` (+ a rosbag of the key topics per pilot, host samples), `debug` (+ every topic, the scenario domain's too). Default `standard` |
-| `keep` | per verdict, the level kept once the verdict is known: `{passed: result, failed: full, error: full}` (default) |
+| `keep` | per verdict, the level kept once the verdict is known: `{passed: result, failed: full, error: full}` (default). A judge's `failed` or `error` keeps what that verdict keeps, when that is more |
 | `budget` | `{per_run: 2GB, total: 200GB}`: refuse a run or suite that cannot fit on the log disk |
 | `topics` | the topics `full` records, instead of the key topics |
 | `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `swb.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |

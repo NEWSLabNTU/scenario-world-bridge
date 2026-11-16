@@ -65,13 +65,17 @@ def downgrade(run_dir, level: str, dry_run=False) -> list:
     return removed
 
 
-def apply_keep(run_dir, verdict: str, keep: dict) -> str:
+def apply_keep(run_dir, verdict: str, keep: dict, judged=()) -> str:
     """Prune a finished run to the level ``keep`` names for its verdict (the project's
     ``logging.keep``, e.g. ``{passed: result, failed: full, error: full}``); a verdict it does
-    not name keeps everything. Returns the level kept."""
-    level = (keep or {}).get(verdict)
-    if level is None:
+    not name keeps everything. ``judged``: its judges' verdicts; a judge's ``failed`` or
+    ``error`` keeps what that verdict keeps when it is more (roadmap 077, G52: a run SSv2
+    passed and a judge failed kept no logs to look into). Returns the level kept."""
+    verdicts = [verdict] + [v for v in judged if v in (results.FAILED, results.ERROR)]
+    levels = [(keep or {}).get(v) for v in verdicts]
+    if any(lv is None for lv in levels):
         return "debug"
+    level = max(levels, key=LEVELS.index)
     downgrade(run_dir, level)
     return level
 

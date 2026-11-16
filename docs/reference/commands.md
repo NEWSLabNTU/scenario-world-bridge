@@ -64,6 +64,8 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 ## The stack: `swb_launch swb.launch.xml`
 
 ```bash
+ros2 launch swb_launch swb.launch.xml [name:=value ...]
+# or, with play_launch (recommended, see Launchers below):
 play_launch launch --web-addr 127.0.0.1:<seat web port> \
     swb_launch swb.launch.xml [name:=value ...]
 ```
@@ -83,13 +85,31 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 or in `stack_args`: who drives each entity is the project's pilots in `swb.yaml` ([Project
 file](project-file.md)), and the map is `map:=`.
 
-play_launch binds its web UI and opens its own log directory (`./play_log/`) before the
-launch file is read, so `--web-addr` (the seat's web port, `seat show`) and `--log-dir`
-are its command line's. `ros2 launch swb_launch swb.launch.xml` takes the same arguments.
-The stack runs its world server, its pilots and each run's SSv2 as launches of their own,
+Both launchers take the same arguments. play_launch binds its web UI and opens its own log
+directory (`./play_log/`) before the launch file is read, so `--web-addr` (the seat's web
+port, `seat show`) and `--log-dir` are its command line's. The stack runs its world server, its pilots and each run's SSv2 as launches of their own,
 each with the host setting `launcher` ([Host settings](host-settings.md)): play_launch
 when it is installed at 0.30 or later, else `ros2 launch`; `launcher:=` overrides it for
 one stack. Ctrl-C (SIGINT) stops the stack and everything it started.
+
+### Launchers
+
+The stack runs under ROS 2's own `ros2 launch` or under
+[play_launch](https://pypi.org/project/play-launch/) 0.30 or later; the verdicts, the
+results and the run's logs are the same under both, and each run's `result.json` names the
+launcher in its provenance. play_launch is recommended for the following:
+
+| | `ros2 launch` | play_launch |
+|---|---|---|
+| Logs | each process's output in the launch's `console.log`, led by `[<name>-<n>]`, and rcl's per-process files | a directory per process (`node/<name>/out`, `err`) |
+| Web interface | none | every process, its state and its log, at the seat's web port |
+| A crashed Autoware component | ends its whole container; swb ends the run `error` and starts the pilots again | restarted alone; swb ends the run `error` and starts the pilots again |
+| Stop | Ctrl-C; swb stops each launch it started by its process group | the same |
+
+`runs show`, `runs why` and the timeline read either layout
+([Results and logs](results-and-logs.md#the-timeline)). The host setting `launcher:`
+chooses which one starts the stack's own launches (the world server, the pilots, each run's
+SSv2); `project check` and `seat show` print the choice.
 
 ## `ros2 run swb run`
 

@@ -35,8 +35,7 @@ through the stack; it is merged with what the stack gives the world server itsel
 state directory, the ports):
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
+ros2 launch swb_launch swb.launch.xml \
     stack_args:="sim_args:='vehicle_physics:=none'"
 ```
 

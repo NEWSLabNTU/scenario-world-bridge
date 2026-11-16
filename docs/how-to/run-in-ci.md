@@ -17,8 +17,7 @@ cd "$PROJECT"
 ros2 run swb assets fetch || exit 3
 ros2 run swb project check || exit 3
 
-setsid play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml map:=Town01 > stack.log 2>&1 &
+setsid ros2 launch swb_launch swb.launch.xml map:=Town01 > stack.log 2>&1 &
 STACK=$!
 
 ros2 run swb run suites/nightly.yaml --wait 1200 | tee run.out

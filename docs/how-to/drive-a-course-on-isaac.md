@@ -36,8 +36,7 @@ An Isaac stack serves one world for its whole life, so it is stopped (Ctrl-C) an
 again on the course:
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
+ros2 launch swb_launch swb.launch.xml \
     map:=haruna
 ```
 

@@ -95,8 +95,7 @@ PASS: 16/16 rules
 With `carla.root` set (Before you start):
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
+ros2 launch swb_launch swb.launch.xml \
     map:=Town01
 ```
 

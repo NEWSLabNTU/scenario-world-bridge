@@ -119,8 +119,7 @@ In a terminal of its own, in the project directory:
 
 ```bash
 cd ~/my_first_drive
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml
+ros2 launch swb_launch swb.launch.xml
 ```
 
 The **stack** is the long-lived set of processes that every run uses. It checks the
@@ -132,7 +131,7 @@ simulator; and the **agent relay**, through which SSv2 reaches each pilot
 
 The ego's pilot (Autoware, with the **vehicle bridge** that carries the car's sensors and
 controls between CARLA and Autoware) starts when the first run needs it, on that run's
-map; appending `map:=Town01` to the `play_launch` command starts it at once.
+map; appending `map:=Town01` to the launch command starts it at once.
 
 **What you see**, in order (paths shortened; the two CARLA lines only when the stack
 starts CARLA):
@@ -145,8 +144,18 @@ swb stack: CARLA serves RPC (0.9.16)
 swb stack 2026-11-15T10-15-42_seat0: ready
 ```
 
-The web UI at `http://127.0.0.1:8080` (seat 0's port; `seat show` names another seat's)
-lists every process with its log.
+Each process of the stack writes its log under the log root
+(`<logs>/my_first_drive/seat-<n>-current/proc/`). The recommended launcher,
+[play_launch](https://pypi.org/project/play-launch/), starts the same stack with a log
+directory per process and a web interface that lists every process with its state and log:
+
+```bash
+play_launch launch --web-addr 127.0.0.1:8080 \
+    swb_launch swb.launch.xml
+```
+
+where 8080 is seat 0's web port (`seat show` names another seat's). The tutorials use
+`ros2 launch`; either serves every step ([Launchers](../reference/commands.md#launchers)).
 
 **Check**, in a second terminal:
 

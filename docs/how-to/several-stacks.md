@@ -58,9 +58,9 @@ ros2 run swb seat release      # back to auto
 ```
 
 A seat for one checkout only goes in its `.swb/local.yaml` (`seat: 2`), and `seat:=2` on
-`swb.launch.xml` or `--seat 2` on `swb run` set it for one command. Start the stack with
-the seat's web port: `play_launch` binds its web UI before the launch file is read, so the
-port is the command line's:
+`swb.launch.xml` or `--seat 2` on `swb run` set it for one command. Under `ros2 launch`
+the stack needs nothing more. Under play_launch, which binds its web interface before the
+launch file is read, give it the seat's web port on its command line:
 
 ```bash
 play_launch launch --web-addr 127.0.0.1:8100 \

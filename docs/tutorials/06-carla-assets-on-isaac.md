@@ -99,8 +99,7 @@ check` prints `project: ok`.
 ## 3. Bring up the stack
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml
+ros2 launch swb_launch swb.launch.xml
 ```
 
 On Isaac the world server is part of the stack and loads its world at start: the first
@@ -217,7 +216,7 @@ project.
 |---|---|
 | The first `assets check` takes long | it hashes the whole USD set, from a few minutes to a quarter of an hour; later checks hash only files that changed |
 | `assets fetch` stops with `HTTP Error 429`, then waits and retries | Hugging Face limits anonymous downloads; `hf auth login` with a free account's token raises the limit |
-| The world server never says ready | the first load compiles materials: wait, and watch its log in the stack's web UI; `hello --wait` shows whether it answers |
+| The world server never says ready | the first load compiles materials: wait, and watch its log (the stack's `proc/simulator/` directory, or play_launch's web interface); `hello --wait` shows whether it answers |
 | The world server dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself: close other GPU work; on two GPUs pick one with the host setting `gpu:` |
 | `refused: the scenario is on map ..., the stack's Isaac world on ...` | the Isaac stack serves one world: restart it with the `map:=` the message names |
 

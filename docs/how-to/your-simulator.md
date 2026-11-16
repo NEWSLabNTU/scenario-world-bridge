@@ -44,8 +44,7 @@ A ROS package with `launch/world.launch.xml`, which starts the world server on t
 `world_endpoint` it is given, is a simulator to the lower-level stack launch:
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch stack.launch.py \
+ros2 launch swb_launch stack.launch.py \
     sim:=my_simulator
 ```
 

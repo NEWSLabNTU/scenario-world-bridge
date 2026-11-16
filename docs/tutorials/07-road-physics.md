@@ -71,14 +71,13 @@ and the surface map accepts it by name (`allow_unvalidated: [mud_wet]`).
 ## 2. Bring up the stack
 
 ```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml
+ros2 launch swb_launch swb.launch.xml
 ```
 
 **What you see**: as in Tutorial 6, ending `swb stack ...: ready`.
 
-**Check**: `ls -l state/Town01/` shows `surfaces.yaml -> .../ground/town01.yaml`. In the
-stack's web UI, the world server's log (the simulator group) warns about `mud_wet` and has
+**Check**: `ls -l state/Town01/` shows `surfaces.yaml -> .../ground/town01.yaml`. The world
+server's log (the stack's `proc/simulator/` directory) warns about `mud_wet` and has
 the lines `soil zone mud_road: cut (...) out of 8 mesh(es)` and
 `soil zone mud_road: 32 tiles of 1.6 m at z 0.00`, which show that it read the project's
 surface map.

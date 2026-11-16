@@ -15,7 +15,10 @@ place, next to SSv2's own testcases (which are never edited):
   - error:   no report in the window, or one cut short by a CARLA restart
 
 The window is [--since, --until] on each report's ego spawn time (Unix seconds or ISO 8601);
-without either, the newest report alone is judged. A scenario that means to collide says so
+without either, the newest report alone is judged. As a swb judge (`SWB_RUN_DIR` set) and
+without --contacts, it reads the run's own reports, `<run dir>/contacts/` (swb.episodes moves
+them there), and judges every one of them: they are that run's and no other's (roadmap 077,
+G42: the default directory held some other run's report, or none on a fresh host). A scenario that means to collide says so
 with `<ParameterDeclaration name="csbExpectedContacts" parameterType="string"
 value="npc_rear"/>` (comma-separated entity names; `static` allows the static world); pass
 --scenario so it is read, and so a scenario with no ego (no entity with isEgo=true or
@@ -290,8 +293,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("junit", type=Path, help="SSv2 result.junit.xml, edited in place")
     ap.add_argument("--scenario", type=Path,
                     help="the scenario file: its csbExpectedContacts, and whether it has an ego")
-    ap.add_argument("--contacts", type=Path, default=default_contacts_dir(), metavar="DIR",
-                    help=f"bridge contact_report_dir (default {default_contacts_dir()})")
+    ap.add_argument("--contacts", type=Path, default=None, metavar="DIR",
+                    help="bridge contact_report_dir (default: $SWB_RUN_DIR/contacts as a swb "
+                         f"judge, else {default_contacts_dir()})")
     ap.add_argument("--since", type=parse_time, metavar="T",
                     help="window start: Unix seconds or ISO 8601")
     ap.add_argument("--until", type=parse_time, metavar="T", help="window end")
@@ -301,7 +305,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not args.junit.is_file():
         print(f"[physical_verdict] no such file: {args.junit}", file=sys.stderr)
         return 2
-    kind, type_, message, notes = verdict_for_run(args.scenario, args.contacts, args.since,
+    since = args.since
+    if args.contacts is None and os.environ.get("SWB_RUN_DIR"):
+        args.contacts = Path(os.environ["SWB_RUN_DIR"]) / "contacts"
+        if since is None and args.until is None:
+            since = float("-inf")   # the run's own directory: every report in it is the run's
+    elif args.contacts is None:
+        args.contacts = default_contacts_dir()
+    kind, type_, message, notes = verdict_for_run(args.scenario, args.contacts, since,
                                                   args.until, args.min_impulse)
     apply_to_junit(args.junit, kind, type_, message, notes)
     print(f"[physical_verdict] {TESTCASE}: {kind.upper()} -- {message}")

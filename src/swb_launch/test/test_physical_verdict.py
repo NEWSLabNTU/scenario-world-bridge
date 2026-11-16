@@ -267,6 +267,22 @@ class Cli(Scratch):
         scen.write_text(XOSC.format(params=param))
         self.assertEqual(pv.main(argv), 0)
 
+    def test_as_a_swb_judge_it_reads_every_report_of_the_run_and_no_other(self):
+        """G42: without --contacts, SWB_RUN_DIR's contacts/ (the run's own reports, all of
+        them: a contact in the older of two variants still fails), never ~/.ros's."""
+        import os
+        from unittest import mock
+        junit = self.write("result.junit.xml", JUNIT)
+        self.write_report(report(1000.0, [contact()], episode=1))
+        self.write_report(report(2000.0, [], episode=2))
+        with mock.patch.dict(os.environ, {"SWB_RUN_DIR": str(self.dir),
+                                          "ROS_HOME": str(self.dir / "elsewhere")}):
+            self.assertEqual(pv.main([str(junit)]), 1)
+            for f in self.contacts.glob("*.json"):
+                f.unlink()
+            self.write_report(report(3000.0, [], episode=1))
+            self.assertEqual(pv.main([str(junit)]), 0)
+
     def test_missing_junit_is_a_usage_error(self):
         self.assertEqual(pv.main([str(self.dir / "none.xml")]), 2)
 

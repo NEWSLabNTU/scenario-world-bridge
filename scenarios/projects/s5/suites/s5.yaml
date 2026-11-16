@@ -1,0 +1,11 @@
+# 074 S5, full CenterPoint (2026-11-15, swb 118, NAS "2026-11-15 coop S5 detectors"): A at
+# 10 m/s, gaps 5.5 to 9 s, two runs each, 12 runs. Reference: B yields at 6.5 s and below (6 of
+# 6), goes at 8 s and above (4 of 4); at 7 s one go (a contact) and one yield; critical lag
+# 6.92 s. Measured here (2026-11-16, the spec's physics): the same, 12 of 12 decisions, the
+# go at 7 s a contact again (physical_verdict fails it, s5_score passes it).
+scenarios: [scenarios/]
+repetitions: 2
+seed: 0
+retry: {on: error, times: 1}
+ssv2: {global_timeout: 600}
+expect: {}

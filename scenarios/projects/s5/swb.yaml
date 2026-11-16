@@ -1,0 +1,29 @@
+# s5: roadmap 074 S5 on the real stack, the unprotected left turn at Town03's junction 861, as a
+# project (077 step 4, inventory item 36). B is the ego, Autoware with full CenterPoint at
+# max_velocity 8, started afresh for every run as s5_aw.py did (lifetime: run); A, coop_a, is a
+# light agent oncoming at 10 m/s (pilots/oncoming_pilot.py over scripts/coop/oncoming_agent.py),
+# timed to the run's gap. The judge scores each run as s5_aw.py did and compares B's decision
+# with the reference batch's at that gap.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town03]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    lifetime: run
+    args: {max_velocity: "8", lidar_detection_model: centerpoint}
+  coop_a:
+    kind: command
+    vehicle: tesla_model3
+    lifetime: run
+    run: [python3, pilots/oncoming_pilot.py, --b-vmax, "8"]
+    inputs: [ground_truth]
+logging:
+  keep: {passed: standard, failed: full, error: full}
+judges:
+  - name: s5_score
+    run: [python3, judges/s5_score.py]
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

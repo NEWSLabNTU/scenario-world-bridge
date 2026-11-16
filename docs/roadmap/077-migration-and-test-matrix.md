@@ -597,6 +597,23 @@ Isaac's rear contact (inventory row 18).
   timeout`, 400 s by default) is cut off as `error` before it decides. `run` should give SSv2
   the scenario's limit plus a margin when it is larger, or `project check` name the mismatch;
   until then T6 says `--timeout 700`. After items 8 to 10.
+- **G32's false loss (2026-11-16, item 8).** i3's rerun ended `error` 13 s in: "its agent
+  registered again while DRIVING, and the relay holds no goal to hand back". The relay had
+  kept i1's pilot's last phase (DRIVING: i1 ends with the ego moving), and i3's fresh
+  `lifetime: run` pilot registered after SSv2 started. With no goal standing, a new agent
+  is a new start: an agent restarted mid-goal has its goal standing and takes the replay
+  path. That branch now logs and marks nothing.
+- **Item 8's i1, explained (2026-11-16).** The ego held 4.17 m/s in every incident: the
+  profile's default `max_velocity` (upstream's `max_vel`). 62eae3c (2026-10-20) re-timed all
+  six templates for the demo tour's ego (`max_velocity` 11.11, CenterPoint, the 042
+  overlay): i1's lead cruises at 8 m/s and brakes at an 18 m gap, which a 4.17 m/s ego never
+  closes, so the lead brakes at its fallback point 107 m ahead. 034's 5 of 5 (2026-10-16)
+  predates it. Not a regression: inventory rows 8 to 10 named the wrong pilot. The demo
+  project's ego takes item 11's arguments.
+- **Item 12 migrated (swb 118, 2026-11-16, 918cf60).** `scenarios/projects/gap`, suite
+  `gap`: entity_bodies and motorbike_body passed twice (oracle 0/0/0), npc_shoulder passed
+  twice (0/1/0, 20 spawn infos, as 032), truck_pass failed twice as expected (G1 1 ego and
+  G3 1, fail_collision: 024's positive control); physical_verdict passed all 8.
 - **075 step 8, Isaac guides (swb 118, 2026-11-16).** isaac.md, T6 and T7 by a fresh reader
   on origin/main 75e00ab: the install (Isaac 6.1.0.0, 6 min) and the message build work as
   written; Haruna ran. That host's driver (615.71.09) loses the GPU on every Town01 render

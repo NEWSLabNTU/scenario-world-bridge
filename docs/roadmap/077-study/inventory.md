@@ -247,7 +247,7 @@ G32. An item with no open gap can be migrated now.
 | 9 | Demo incident i6 | CARLA + CUDA | G33 | blocked |
 | 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA | G33 | blocked |
 | 11 | Demo tour `demo/town01_tour` | CARLA | G4 | blocked |
-| 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | ready to migrate |
+| 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | migrated 2026-11-16 (scenarios/projects/gap, suite gap, 8 of 8 as expected) |
 | 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | ready to migrate |
 | 14 | 050 measurement set | CARLA | - | ready to migrate |
 | 15 | Free-standing scenario on upstream SSv2 | CARLA | not built (068 step 9: upstream SSv2) | planned |

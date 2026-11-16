@@ -1410,3 +1410,21 @@ Isaac's rear contact (inventory row 18).
   CARLA, and Isaac's cyclist body meets the ego. For the release notes: on Isaac, i6's
   judges may report contact with the cyclist while SSv2 passes. i6 on Isaac stays out of T3
   (63345e5); 241's quiet rerun is useful, not a release gate.
+- **G75, a lab path as a user default (found by swb 118 on a fresh host, numbered by 243,
+  2026-11-17).** With `isaac.root` unset the Isaac world server falls back to
+  `/mnt/disk1/isaac-sim`, the lab host's install; the A12 audit of lab paths missed it. On
+  another host the stack then fails far from the cause. Fix (139, review 243): no lab path in
+  any default a user meets; an unset root is refused by name (G76).
+- **G76, `project check` passes an Isaac project with no `isaac.root` (118, numbered by 243,
+  2026-11-17).** It printed `project: ok`, and the stack then failed (G75, G77). Fix (139,
+  review 243): `project check` and the stack refuse an Isaac project when `isaac.root` is
+  unset or holds no Isaac install, naming the host setting and Getting started on Isaac Sim.
+  Docs (243, with the fix): Host settings shows `isaac: {root: ""}` among the defaults and
+  does not say the key is required for Isaac; its row says so with the fix. Getting started
+  on Isaac Sim already sets it as a step; install.md does not mention it.
+- **G77, a crash-looping required node reported only as a timeout (118, numbered by 243,
+  2026-11-17).** The Isaac world server, required, exited and was respawned 180 times, and
+  `swb run --start-stack` reported only "not ready within 1800 s". Fix (139, review 243): a
+  start ends when a required node exits 5 times before ready, naming the node, its exit code
+  and its last err line. Also checked by 139: whether `seat auto` skips a seat whose ports
+  another checkout's live stack holds.

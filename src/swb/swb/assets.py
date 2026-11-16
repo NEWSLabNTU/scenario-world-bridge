@@ -454,8 +454,48 @@ def _under(f: str, d: str) -> bool:
     return d == "." or f == d or f.startswith(d + "/")
 
 
-def plan_links(project: Path, lock: dict, cache) -> dict:
-    """``{path under assets/: target}`` for the lock's datasets and paths."""
+# --- datasets a host keeps itself (roadmap 077, G8) ----------------------------------------
+#
+# A dataset this host has a copy of (a private one on the lab's NAS, say) is named in the host
+# settings, ``datasets: {<name>: <directory>}``: `assets fetch` links it from there, with the
+# project's own ``take:``, instead of fetching it, so the project file names it the same way
+# on every host. Its file list is the host's, kept in the project's state (git-ignored), and
+# swb.lock keeps only what came from the Hub.
+LOCAL_FILE = "assets.local.json"
+
+
+def local_sources(host: dict) -> dict:
+    """``{dataset name: directory}`` from the host settings' ``datasets:``."""
+    d = host.get("datasets") if isinstance(host.get("datasets"), dict) else {}
+    return {str(k): Path(os.path.expanduser(str(v))) for k, v in d.items() if v}
+
+
+def local_entry(spec, root: Path) -> dict:
+    """The dataset's files under ``root`` that its ``take:`` selects; AssetError when
+    ``root`` is not a directory or a ``take:`` pattern matches nothing."""
+    if not root.is_dir():
+        raise AssetError(f"{spec.name}: the host's copy {root} is not a directory (fix: mount "
+                         "it, or drop datasets: {" + spec.name + ": ...} from the host settings)")
+    files = [p.relative_to(root).as_posix() for p in root.rglob("*")
+             if p.is_file() or (p.is_symlink() and not p.is_dir())]
+    taken, unmatched = select(files, spec.take)
+    if unmatched:
+        raise AssetError(f"{spec.name}: take: {', '.join(unmatched)} matches nothing in the "
+                         f"host's copy {root}")
+    return {"dir": str(root), "files": taken}
+
+
+def read_local(project: Path) -> dict:
+    p = Path(project) / "state" / LOCAL_FILE
+    try:
+        return json.loads(p.read_text()) if p.is_file() else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def plan_links(project: Path, lock: dict, cache, local=None) -> dict:
+    """``{path under assets/: target}`` for the lock's datasets and paths, and the datasets
+    the host keeps itself (``local``: ``{name: {dir, files}}``)."""
     want = {}
 
     def put(key, target, who):
@@ -464,9 +504,13 @@ def plan_links(project: Path, lock: dict, cache) -> dict:
                              f" assets/{key} (fix: take one of them, or rename a path with as:)")
         want[key] = target
 
+    local = local or {}
+    sources = [(n, Path(e["dir"]), list(e["files"])) for n, e in local.items()]
     for name, e in (lock.get("datasets") or {}).items():
-        cdir = commit_dir(cache, e["repo"], e["commit"])
-        files = list((e.get("files") or {}).keys())
+        if name not in local:
+            sources.append((name, commit_dir(cache, e["repo"], e["commit"]),
+                            list((e.get("files") or {}).keys())))
+    for name, cdir, files in sources:
         map_dirs = sorted({str(PurePosixPath(f).parent) for f in files
                            if PurePosixPath(f).name == MAP_MARKER})
         for d in map_dirs:
@@ -525,7 +569,15 @@ def fetch(project: Path, update=False, hub=None, out=print) -> dict:
     cache = Path(settings["cache"])
     old = read_lock(project)
     lock = {"version": LOCK_VERSION, "datasets": {}, "paths": {}}
+    mine, local = local_sources(settings), {}
     for spec in datasets:
+        if spec.name in mine:
+            local[spec.name] = local_entry(spec, mine[spec.name])
+            if spec.name in old.get("datasets", {}):
+                lock["datasets"][spec.name] = old["datasets"][spec.name]   # the Hub's, kept
+            out(f"{spec.name}: the host's copy {mine[spec.name]}, "
+                f"{len(local[spec.name]['files'])} file(s)")
+            continue
         if hub is None:
             hub = make_hub(settings)
         entry, what = fetch_dataset(hub, cache, spec, old.get("datasets", {}).get(spec.name),
@@ -540,9 +592,14 @@ def fetch(project: Path, update=False, hub=None, out=print) -> dict:
     for name in old.get("datasets", {}):
         if name not in lock["datasets"]:
             out(f"{name}: dropped (no longer in {config.PROJECT_FILE})")
-    for msg in apply_links(project, plan_links(project, lock, cache)):
+    for msg in apply_links(project, plan_links(project, lock, cache, local)):
         out(msg)
     (project / "state").mkdir(exist_ok=True)
+    lp = project / "state" / LOCAL_FILE
+    if local:
+        lp.write_text(json.dumps(local, indent=1) + "\n")
+    elif lp.exists():
+        lp.unlink()
     path = project / config.LOCK_FILE
     text = lock_text(lock)
     if not path.is_file() or path.read_text() != text:
@@ -643,7 +700,17 @@ def check(project: Path, settings: dict = None) -> list:
                                     refused=True))
         return findings
     locked = lock["datasets"]
+    mine, local = local_sources(config.host_settings(project)), read_local(project)
     for spec in datasets:
+        if spec.name in mine:
+            if not mine[spec.name].is_dir():
+                findings.append(Finding("host", f"{spec.name}: the host's copy {mine[spec.name]}"
+                                        " is not a directory", "mount it, or drop it from the "
+                                        "host settings' datasets:", refused=True))
+            elif local.get(spec.name, {}).get("dir") != str(mine[spec.name]):
+                findings.append(Finding(lf, f"{spec.name} is not linked from the host's copy",
+                                        FETCH, refused=True))
+            continue
         e = locked.get(spec.name)
         if e is None:
             findings.append(Finding(lf, f"{spec.name} is not fetched", FETCH, refused=True))
@@ -662,6 +729,8 @@ def check(project: Path, settings: dict = None) -> list:
             findings.append(Finding(lf, f"{name} is locked but not in {config.PROJECT_FILE}",
                                     FETCH))
     for name, e in locked.items():
+        if name in mine:
+            continue
         cdir = commit_dir(cache, e["repo"], e["commit"])
         for f, h in (e.get("files") or {}).items():
             p = cdir / f
@@ -672,7 +741,8 @@ def check(project: Path, settings: dict = None) -> list:
                 findings.append(Finding(lf, f"{name}: {f} differs from the lock",
                                         f"delete {cdir} (chmod -R u+w first), then {FETCH}"))
     try:
-        want = plan_links(project, lock, cache)
+        want = plan_links(project, lock, cache,
+                          {n: e for n, e in local.items() if n in mine})
     except AssetError as e:
         return findings + [Finding(config.PROJECT_FILE, str(e))]
     for key, target in sorted(want.items()):

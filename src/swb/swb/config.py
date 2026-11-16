@@ -25,6 +25,8 @@ DEFAULTS = {
     "gpu": None,  # None: the seat table's
     "logs": "~/.local/state/swb/logs",
     "cache": "~/.cache/swb",
+    # datasets this host keeps a copy of itself, {<name>: <directory>} (roadmap 077, G8)
+    "datasets": {},
     # start: auto (start CARLA from root when nothing serves host:port), start, external;
     # ready_timeout: s a started CARLA has to serve RPC (swb.simulator); map_packages: the
     # directories this host's CARLA towns are installed in (default: <root>/CarlaUE4/Content),

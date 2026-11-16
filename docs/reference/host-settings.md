@@ -36,6 +36,7 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `gpu` | the stack | `CUDA_VISIBLE_DEVICES` for the stack's processes |
 | `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |
+| `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A project's `- dataset: <name>` entry is then linked from that directory, with the project's `take:`, instead of fetched; `swb.lock` keeps only what came from the Hub, so the project reads the same on every host |
 | `carla.host`, `carla.port` | the stack, pilots | where CARLA serves its RPC port |
 | `carla.root` | the stack, pilots | CARLA's install: the `carla_basic` pilot's `agents` package (`<root>/PythonAPI/carla`), and the CARLA the stack starts (`carla.start`) |
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |

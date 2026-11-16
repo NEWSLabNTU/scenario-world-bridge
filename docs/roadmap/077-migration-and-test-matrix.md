@@ -647,6 +647,14 @@ Isaac's rear contact (inventory row 18).
   CARLA project map whose town (after the world server's `map_alias`, Town10 to Town10HD) has
   no `.umap` there, naming the key. A CARLA with no root and no packages set is not checked.
   On this host: Town01 to Town10 found, NTU not (its package is not installed here).
+- **G8 built (2026-11-16; the user's ruling, through 133: public assets from Hugging Face,
+  private ones from the NAS or a local path; user docs name only the public datasets).** A
+  host names the datasets it keeps a copy of, `datasets: {<name>: <directory>}` in its host
+  settings; `assets fetch` links such a dataset from there with the project's `take:`, its
+  file list in the project's git-ignored `state/assets.local.json`, and `swb.lock` keeps only
+  the Hub's entries, so a project naming `- dataset: ntu-campus-maps` reads the same on a
+  host with the NAS copy and on one fetching it with a token. `assets check` refuses a copy
+  that is not there. host-settings.md documents the key without naming a private dataset.
 - **075 step 9 (2026-11-16; the user's ruling, through 133: public only what is built from
   public assets).** Already so: carla-town-autoware-maps, carla-0.9.16-isaac-usd,
   isaac-road-physics-stages, haruna-tsukuba-courses and newslab-golfcart-models are public;

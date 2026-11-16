@@ -313,3 +313,28 @@ def test_prune_keeps_what_a_lock_names(host, maps_hub):
     # the project gone: its commit goes too
     (p / "swb.lock").unlink()
     assert assets.prune(host["cache"], out=out.append) == [cdir]
+
+
+def test_a_dataset_the_host_keeps_is_linked_from_its_copy_and_never_locked(host, maps_hub):
+    """G8: a private dataset from the lab's disk: the project names it as any other."""
+    p = project(host["tmp"], MAP_PROJECT.replace("carla-town-autoware-maps", "private-maps"))
+    copy = host["tmp"] / "nas" / "private-maps"
+    (copy / "Town01").mkdir(parents=True)
+    (copy / "Town01" / "lanelet2_map.osm").write_text("<osm private/>")
+    (copy / "Town05").mkdir()
+    (copy / "Town05" / "lanelet2_map.osm").write_text("<osm other/>")
+    hy = host["tmp"] / "user" / "host.yaml"
+    h = yaml.safe_load(hy.read_text())
+    h["datasets"] = {"private-maps": str(copy)}
+    hy.write_text(yaml.safe_dump(h))
+    out = []
+    assets.fetch(p, out=out.append)
+    link = p / "assets" / "maps" / "Town01"
+    assert Path(os.readlink(link)) == copy / "Town01"
+    assert not (p / "assets" / "maps" / "Town05").exists()      # take: [Town01]
+    assert "private-maps" not in (lock(p).get("datasets") or {})  # nothing host's in the lock
+    assert assets.check(p) == []
+    import shutil
+    shutil.rmtree(copy)
+    [f] = assets.check(p)
+    assert f.refused and "is not a directory" in f.what

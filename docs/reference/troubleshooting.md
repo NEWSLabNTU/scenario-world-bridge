@@ -79,6 +79,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | The ego never leaves `INITIALIZING`; the localizer's log ends at `Call align server` with no answer | the host is too busy for the first alignment in time (seen at a load of 70 to 83 on 24 cores, the align taking 30 s): run when the load is lower, or give `ros2 run swb run --ready-timeout` more |
 | The ego never leaves `INITIALIZING`; `ndt_scan_matcher` logs `No InputSource`, the world server `sensors not ready after N warm-up frames` | on a two-GPU host the renderer is on another card than CUDA, so the sensors never publish: name the card with the host setting `gpu:` and take any `--/renderer/activeGpu` out of `ISAAC_KIT_ARGS` |
 | It is gone for minutes after dying | the stack respawns it and it loads the world again |
+| A first run ends `error` after SSv2 logs `change_to_stop` 30 times, while the world server logs the ego's spawn with `sensors warm after ... 60 s` or more | the ego's sensors took longer on their first spawn than SSv2 waits for its vehicle (about 90 s); a second spawn on the same world server is fast. A suite's `retry: {on: error, times: 1}` passes it |
 | `... SWB_CARLA_USD not set` | the world server was started outside a project's stack |
 
 ## Autoware

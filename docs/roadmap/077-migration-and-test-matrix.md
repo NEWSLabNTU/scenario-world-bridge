@@ -1022,3 +1022,14 @@ Isaac's rear contact (inventory row 18).
   against it for weeks); (a) the reset itself: the route was set from x 190.8 to a goal at x
   120, both at yaw pi, then "ego pose is beyond goal", so which pose behavior_path_planner held
   after the reset is the question.
+- **G65 (found 2026-11-16, swb 139, item 26; a known limit for the release).** On Isaac a
+  run's first ego spawn can take longer than SSv2 waits for its vehicle: speed_ladder's rung 10
+  (a quiet GPU) ended `error` after SSv2's `change_to_stop` 30 times (about 90 s), while the
+  world server spawned the Mustang with zed_left and lidar in 68.2 s ("sensors warm after 4
+  render(s)"). The world itself was loaded at the stack's start, and the stack's readiness was
+  right; the spawn happens inside SSv2's initialize, so swb cannot wait for it beforehand. The
+  preload's warm-up ego never warmed this rig ("sensors not ready after 1200 warm-up
+  frames"), and ego_ready passed for the lifetime: run pilot before the run's ego existed.
+  A suite's retry on error passes on the warm second spawn; troubleshooting names it. After
+  the release: profile the spawn in swb_isaac_world and make the warm-up cover a camera rig.
+  The "GNSS pose has not arrived" lines were automatic_pose_initializer's, not the cause.

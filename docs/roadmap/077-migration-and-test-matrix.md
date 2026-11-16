@@ -1151,3 +1151,15 @@ Isaac's rear contact (inventory row 18).
   G65: the walker's first render took 122 s, past the bridge's 120 s Spawn limit, so the first
   pedestrian run on a fresh Isaac stack can end `error`; a retry passes. 241's Isaac stack now
   starts in 2.5 min.
+- **G70 recovery confirmed (swb 118 on 241, 2026-11-16, swb b844a24, swb_world_protocol
+  b7fbf4d; suite g70.yaml, one stack, retry on error once).** pedestrian_crossing's first try
+  ended `error` on the walker's first render (122.3 s, G65); its retry hung after the reload,
+  the bridge erred at 10 s and the watchdog ended the world server at 180.1 s ("step 2 (3 x
+  0.0166667 s at sim time 0.050 s) has run 180.1 s ..."); red_light's first try ended `error`
+  while it respawned, ready 1 min 44 s after the kill; red_light's retry and drive_to_goal
+  passed. Suite 2 of 3 in 20 min 42 s, exit 2, a clean stop. So a hang costs the hung run, its
+  retry and at most the next run's first try, all `error`, never a hang, and the stack
+  recovers. This supersedes "inconclusive" from 139's host (the OOM kills were the confound);
+  the rerun with headroom is done. A wart, 118's follow-up: every stop logs "[Error] request
+  deadline: the watchdog process is gone" because the watchdog child takes the stop's
+  SIGTERM first.

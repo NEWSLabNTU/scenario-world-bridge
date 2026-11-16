@@ -122,6 +122,8 @@ reruns; step 7's T3 references; step 8's developer recipes.
 - the private-asset items (22, 23, 27, 28, 30, 59): the user checks those with their own
   configuration;
 - 076's Haruna drift, the golf cart twin and Isaac own cars.
+- item 24, Haruna under Autoware on Isaac (swb 139): localization passes 058 C9, the run
+  stops for good before the first hairpin (below); Tsukuba not run yet.
 
 ## Progress and rulings
 
@@ -940,3 +942,15 @@ Isaac's rear contact (inventory row 18).
   shapely, networkx): install.md now says what to install for the user and what is optional.
   Seen again at a stack's stop: stack_keeper not out within 5 s and SIGKILLed (known). NAS:
   "2026-11-16 077 criterion a fresh clone".
+- **Item 24, Haruna (swb 139, 2026-11-16; deferred).** `courses`, haruna_down with
+  drift_mustang under Autoware (`max_velocity` 8) on Isaac: the nvtl judge passed 058 C9 (p05
+  3.13, least 3.08, median 3.16 over 6399 samples, 262 m), but both tries ended `error`: the
+  ego stopped for good at (82.1, 431.4), 18.8 m before H1, about 80 s in, and SSv2 timed out
+  at 780 s (G53's raise). The trajectory's zero-velocity point jumped from 85 m ahead to 31.7 m
+  at t = 80.6 s and settled about 1 m behind the car; no planning node logged and every
+  planning validator stayed OK. A candidate, not proven: voxel_based_compare_map_filter in
+  ERROR all run ("number of voxels overflows int32"; Haruna's map is one 15.8 M-point PCD of
+  907 x 1216 x 370 m, untiled, so dynamic loading is off), so map points are never removed
+  from the obstacle cloud. Next, outside the release: tile the PCD (`pointcloud_map/` and its
+  metadata) or raise the filter's leaf size, and rerun with velocity_factors and
+  steering_factors recorded (now in the project's `logging.topics`).

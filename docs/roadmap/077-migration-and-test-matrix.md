@@ -897,3 +897,11 @@ Isaac's rear contact (inventory row 18).
   (two_av, set050_tour, s5, safety_suite; about 125 min), 2 swb 241 (basic, gap, bench,
   set050, e2; 110), 3 swb 243 (demo, c2b, multi_pilot; 96), with 133 the fallback for 2 and
   3. Dry runs on this host's results compare clean. No reference is recorded before the RC.
+- **Release criterion (a) on the Isaac host (swb 241, 2026-11-16).** A fresh clone of
+  d5cbd4f in an empty HOME, install.md as written: rustup's cargo 1.100.0; the pip line put in
+  colcon-cargo-ros2 0.5.4 with tomli 2.5.0 as its dependency (nothing by hand), xmlschema
+  4.3.2 and play_launch 0.35.1; setuptools 59.6.0 (the system's); `rosdep install` not run (no
+  sudo). The page's `colcon build ... -DBUILD_TESTING=OFF --cargo-args --release`: 68 packages
+  finished, none failed or aborted, 47 min 12 s at a load of 55 to 80; one workspace
+  `src/autoware_carla_bridge/.cargo/config.toml`, none per crate. Open for (a): the CARLA
+  host's clean build.

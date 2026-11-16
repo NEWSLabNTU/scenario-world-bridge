@@ -15,6 +15,8 @@ pilots:
     args: {max_velocity: 11.11, lidar_detection_model: centerpoint,
            use_multi_channel_tracker_merger: false}
     lifetime: stack          # one Autoware for the suite: its detector loads once
+world:
+  weather: ClearNoon        # the demo tour's (033); the incidents are timed for the tour
 logging:
   keep: {passed: result, failed: full, error: full}
 judges:

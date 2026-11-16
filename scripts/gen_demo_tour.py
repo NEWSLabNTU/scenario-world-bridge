@@ -220,6 +220,11 @@ def tour(sites, ambient=None):
     body = "".join(groups)
     params = sorted(set(re.findall(r'parameterRef="([^"]+)"', body)))
     decls = "".join(f'<ParameterDeclaration name="{p}" parameterType="integer" value="0" />' for p in params)
+    sl = sites["incidents"][3].get("stop_line")
+    if sl:
+        # incident_judge's --stop-line for incident 3, read by `swb.gap incident` (roadmap 077)
+        decls += (f'<ParameterDeclaration name="csbIncidentStopLine" parameterType="string" '
+                  f'value="{sl["x"]},{sl["y"]},{sl["yaw"]}" />')
     route = "".join(f'<Waypoint routeStrategy="shortest"><Position>{G.world(p)}</Position></Waypoint>'
                     for p in WAYPOINTS + [GOAL])
     desc = ("033 demo tour: Town01 route C (1438 m), incidents 2, 1, 3, 4, 5, 6"

@@ -111,3 +111,23 @@ def test_the_stop_line_comes_from_the_scenario(tmp_path):
     assert gap.scenario_stop_line(tmp_path) == (325.73, -330.61, -0.0)
     sc.write_text("<OpenSCENARIO/>")
     assert gap.scenario_stop_line(tmp_path) is None
+
+
+def test_a_tour_is_judged_on_every_incident_its_storyboard_names(tmp_path, monkeypatch, capsys):
+    from swb import gap
+    (tmp_path / "resolved.yaml").write_text("scenario: {file: town01_tour.xosc}\n")
+    ctx = tmp_path / "context.jsonl"
+    ctx.write_text("\n".join(json.dumps({"ev": "state", "element": e, "to": "completeState"})
+                             for e in ("tour/act/i1/m/i1_lead_brake", "tour/act/i3/m/i3_red",
+                                       "tour/act/x/m/ambient_go", "tour/act/i7/m/i7_cut")))
+    assert gap.context_incidents(ctx) == [1, 3]          # 7 has no row; ambient is not one
+    calls = []
+
+    def one(run_dir, n, c, sl, numbered=False):
+        calls.append(n)
+        return {"incident": n, "verdict": "failed" if n == 3 else "passed", "message": "x"}
+    monkeypatch.setattr(gap, "_judge_one", one)
+    assert gap.incident(tmp_path, "auto", "context.jsonl", None) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert calls == [1, 3] and out["verdict"] == "failed"
+    assert out["message"].startswith("1 of 2 incidents passed; i3: x")

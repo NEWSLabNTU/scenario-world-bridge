@@ -1,0 +1,10 @@
+# Item 11: the demo tour, one continuous drive of Town01 through incidents 2, 1, 3, 4, 5, 6 with
+# ambient traffic and walkers, on the project's ego (the tour's). Judged by incident_judge on
+# each incident and by CARLA's contacts. Without the recording, captions, chase view and
+# RViz cast of `just demo-tour` (077's G4, deferred). Reference: roadmap 033, take_1
+# 2026-10-21: PASS, incident_judge 6/6, no contact, 4.6 min sim, 5.7 min wall.
+scenarios:
+  - ../../../src/swb_examples/scenarios/demo/town01_tour.xosc
+ssv2: {global_timeout: 1200}
+retry: {on: error, times: 1}
+expect: {}

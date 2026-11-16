@@ -149,22 +149,64 @@ def scenario_stop_line(run_dir: Path):
     return None
 
 
+CONTEXT_INCIDENT = re.compile(r"/i(\d+)_[^/]*$")
+
+
+def context_incidents(ctx: Path) -> list:
+    """The incidents (incident_judge's rows) whose events the storyboard log names."""
+    out = set()
+    try:
+        for line in ctx.read_text().splitlines():
+            try:
+                m = CONTEXT_INCIDENT.search(json.loads(line).get("element") or "")
+            except ValueError:
+                continue
+            if m and int(m.group(1)) in INCIDENTS:
+                out.add(int(m.group(1)))
+    except OSError:
+        pass
+    return sorted(out)
+
+
 def incident(run_dir: Path, number, context: str, stop_line) -> int:
-    number, why = incident_number(run_dir, str(number))
-    if why:
-        return _emit({"verdict": "error", "message": why}, 2)
-    stop_line = stop_line or scenario_stop_line(run_dir)
-    found = traces(run_dir)
-    if len(found) != 1:
-        return _emit({"verdict": "error", "message": f"{len(found)} gap traces in "
-                      f"{run_dir}/gap_trace; incident_judge reads one"}, 2)
+    """incident_judge on the run; ``--incident auto`` on a scenario whose name has no number
+    (the demo tour) judges every incident its storyboard log names, passing when all pass."""
     ctx = Path(context)
     if not ctx.is_absolute():
         ctx = Path(run_dir) / ctx
+    if str(number) == "auto":
+        n, why = incident_number(run_dir, "auto")
+        if n is None and "is not named" in (why or "") and ctx.is_file():
+            several = context_incidents(ctx)
+            if several:
+                docs = [_judge_one(run_dir, k, ctx, stop_line, numbered=True) for k in several]
+                bad = [d for d in docs if d["verdict"] != "passed"]
+                verdict = "error" if any(d["verdict"] == "error" for d in docs) else \
+                    "failed" if bad else "passed"
+                msg = (f"{len(docs) - len(bad)} of {len(docs)} incidents passed"
+                       + ("; " + "; ".join(f"i{d.get('incident')}: {d.get('message')}"
+                                           for d in bad) if bad else ""))
+                return _emit({"verdict": verdict, "message": msg, "incidents": docs},
+                             {"passed": 0, "failed": 1}.get(verdict, 2))
+    doc = _judge_one(run_dir, number, ctx, stop_line)
+    return _emit(doc, {"passed": 0, "failed": 1}.get(doc["verdict"], 2))
+
+
+def _judge_one(run_dir: Path, number, ctx: Path, stop_line, numbered=False) -> dict:
+    """One incident's record: incident_judge's, with ``verdict`` passed, failed or error."""
+    number, why = incident_number(run_dir, str(number))
+    if why:
+        return {"verdict": "error", "message": why}
+    stop_line = stop_line or scenario_stop_line(run_dir)
+    found = traces(run_dir)
+    if len(found) != 1:
+        return {"verdict": "error", "message": f"{len(found)} gap traces in "
+                f"{run_dir}/gap_trace; incident_judge reads one"}
     if not ctx.is_file():
-        return _emit({"verdict": "error", "message": f"no context log {ctx} (SSv2's "
-                      "storyboard states, /simulation/context)"}, 2)
-    out = Path(run_dir) / episodes.GAP_TRACE / f"{found[0].stem}.incident.json"
+        return {"verdict": "error", "message": f"no context log {ctx} (SSv2's "
+                "storyboard states, /simulation/context)"}
+    out = Path(run_dir) / episodes.GAP_TRACE / (f"{found[0].stem}.incident{number}.json" if numbered
+                                             else f"{found[0].stem}.incident.json")
     argv = tool("incident_judge") + [str(found[0]), "--incident", str(number), "--context",
                                      str(ctx), "--json", str(out)]
     junit = _junit(run_dir)
@@ -175,12 +217,11 @@ def incident(run_dir: Path, number, context: str, stop_line) -> int:
     p = subprocess.run(argv, capture_output=True, text=True)
     if p.returncode not in (0, 1) or not out.is_file():
         why = (p.stderr or p.stdout).strip().splitlines()[-1:] or [f"exit {p.returncode}"]
-        return _emit({"verdict": "error", "message": f"incident_judge: {why[0]}"}, 2)
+        return {"verdict": "error", "message": f"incident_judge: {why[0]}"}
     doc = json.loads(out.read_text())
     verdict = "passed" if doc.get("verdict") == "PASS" else "failed"
-    return _emit({**doc, "verdict": verdict,
-                  "message": "; ".join(doc.get("reasons") or []) or doc.get("verdict", "")},
-                 0 if verdict == "passed" else 1)
+    return {**doc, "verdict": verdict,
+            "message": "; ".join(doc.get("reasons") or []) or doc.get("verdict", "")}
 
 
 def main(argv=None) -> int:

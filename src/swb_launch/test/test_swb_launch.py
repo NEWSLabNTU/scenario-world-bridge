@@ -87,9 +87,10 @@ def test_nested_launches_under_each_launcher(tmp_path):
         p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, str(tmp_path),
                          extra=("--container-mode", "isolated"))
         cmd = [c[0].text for c in p.cmd]
-        # its output into its own log directory's console.log, by an exec (same pid)
+        # its output into its own log directory's console.log, by an exec (same pid), with
+        # SIGINT, SIGTERM and SIGQUIT at their defaults whatever the stack inherited (F1)
         assert cmd == ["sh", "-c", 'exec "$@" >> "$0" 2>&1', str(tmp_path / "console.log"),
-                       "ros2", "launch", "swb_launch", "a.launch.xml", "k:=v"]
+                       "env", "--default-signal=INT,TERM,QUIT", "ros2", "launch", "swb_launch", "a.launch.xml", "k:=v"]
         env = {k[0].text: v[0].text for k, v in p.additional_env}
         assert env == {"ROS_LOG_DIR": str(tmp_path), "ROS_DOMAIN_ID": "7"}
         # the nested launch's own stop (SIGINT, 5 s, SIGTERM) ends before its SIGTERM

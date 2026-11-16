@@ -205,6 +205,10 @@ class RelayNode(Node):
             publisher.publish(message)
 
     def _publish_all(self):
+        # closing: main()'s stop closes the agent sessions after Ctrl-C shut the context
+        # down, and their presence callback lands here (it exited 1 on every stop)
+        if getattr(self, "closing", False) or not rclpy.ok():
+            return
         with self._publish_lock:
             self._publish_all_locked()
 

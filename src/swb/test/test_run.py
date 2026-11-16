@@ -1162,6 +1162,13 @@ def test_a_pilot_crash_during_the_run_ends_it_error_under_either_launcher(live, 
     assert r.reason.startswith("pilot ego: ") and "during the run" in r.reason
     assert ("euclidean_cluster" in r.reason) or ("pointcloud_container" in r.reason)
     assert starts() > before
+    # `runs why` names the crash (079's exit criterion)
+    import io
+    from swb import runs as runsmod
+    out = io.StringIO()
+    runsmod.main(["why", "--root", str(where["tmp"] / "logs" / "proj" / "runs"), r.run_id],
+                 out=out)
+    assert "reason   pilot ego: " in out.getvalue() and "during the run" in out.getvalue()
 
 
 def test_a_display_only_crash_during_the_run_is_a_warning_and_the_run_stands(live, where):

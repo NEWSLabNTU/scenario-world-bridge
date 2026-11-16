@@ -6,8 +6,9 @@ workspace (built or binary; tested with 1.5.0) and CARLA 0.9.16 can install swb,
 with `ros2 run swb run`. play_launch stays the recommended launcher: when it is installed swb
 uses it, and nothing requires it.
 
-**Status**: approved, 2026-11-16 (the roadmap; the schema and the docs ruled in steps 1 and
-8). Nothing is built yet.
+**Status**: done, 2026-11-17. Every step is on main, and the exit criteria passed on
+2026-11-16 and 2026-11-17 (Outcome, below). Approved 2026-11-16 (the roadmap; the schema and
+the docs ruled in steps 1 and 8).
 
 **Source**: user, 2026-11-16: "Our stack should be ROS compatible and work without my
 play_launch." Then: ROS 2 compatibility is its own phase, a campaign; with the warning that a
@@ -136,3 +137,37 @@ order. Each step is pushed after review, with its tests.
 - Under ros2, a component crash that ends the pilot's episode ends the run `error`, and
   `runs why` names the crash (step 5's rule).
 - check_docs, the tests (with step 10's guard) and check_pins pass.
+
+## Outcome (2026-11-17)
+
+Steps 1, 2, 3, 6 and 10 landed in 97c8af0, step 4 in d0fcc07, step 5 in 7fc9e1d, step 7 in
+c94b12c and step 8 in 6007c77, each with its review commit. The exit runs (step 9), against
+the criteria above:
+
+- **Fresh install without play_launch.** A fresh clone of main at c94b12c, with a private
+  home and play_launch not on `PATH`, installed by Install and built (68 packages). Tutorials
+  1 to 5 passed as written under `ros2 launch`: 31 runs, 31 passed. `project check` printed
+  `launcher: auto -> ros2 (play_launch not on PATH)`. The run found one defect, F1 below, and
+  a handful of doc mismatches, sent to the docs owner.
+- **A stop part way.** SIGINT and SIGTERM to `ros2 run swb run` part way through a run
+  stopped it under both launchers (exit 130, the stack stopped, `carla.stop` and
+  `stack.stop` recorded), with no process left in its groups and no new orphan.
+- **The same runs with play_launch.** T1's drive and the four-pilot scenario passed under
+  both launchers, as did the stop part way.
+- **A crash.** A pilot crash during a run ends it `error` under both launchers, and
+  `runs why` names the crash (`reason   pilot ego: ...`, asserted in test_run.py).
+- check_docs, the tests and check_pins pass.
+
+**F1, fixed here.** A stack started in the background of a script (`ros2 launch swb_launch
+swb.launch.xml &`, as the exit run started it) has SIGINT ignored, and every `ros2 launch`
+below it inherited that. The group's SIGINT then ended the nodes, which set their own
+handler, and not their nested launch, which respawned them: the relay outlived every stop and
+held its seat's port, so the next stack took the next seat, and each stop took 60 s (the
+nested launches' SIGTERM after 30 s). A terminal's Ctrl-C does not hit it, since a foreground
+job has SIGINT at its default. `stack.nested()` now starts each nested `ros2 launch` under
+`env --default-signal=INT,TERM,QUIT`; the same stack stopped in 4 s with nothing left
+(test_launchers_parity.py starts one with SIGINT ignored). The relay also exited 1 on every
+stop: closing its agent sessions after Ctrl-C published into the shut-down context. It now
+publishes nothing while closing. play_launch was not affected: it handles the group's SIGINT
+whatever it inherited.
+

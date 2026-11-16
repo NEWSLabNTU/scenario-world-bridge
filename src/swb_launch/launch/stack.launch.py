@@ -173,10 +173,16 @@ def nested(name, target, args, domain, log_dir, respawn=False, extra=(), require
         # in the stack's console: into <log_dir>/console.log instead, beside its launch.log and
         # rcl files, as play_launch keeps a launch's output in its --log-dir (roadmap 079 step
         # 4: the readers take each process's lines from that console). exec: same pid, so the
-        # launch's signals reach `ros2 launch` itself
+        # launch's signals reach `ros2 launch` itself. env --default-signal: a stack started
+        # in the background of a script (`ros2 launch swb_launch swb.launch.xml &`) has
+        # SIGINT ignored, inherited by every launch below it; `ros2 launch` then ignores the
+        # group's SIGINT while its rclpy nodes (which set their own handler) die on it and are
+        # respawned, outliving the stack (roadmap 079 exit criterion 1, F1).
+        # --default-signal needs coreutils 8.31 or later; Humble's Ubuntu 22.04 has 8.32
         os.makedirs(str(log_dir), exist_ok=True)
         cmd = ["sh", "-c", 'exec "$@" >> "$0" 2>&1',
-               os.path.join(str(log_dir), "console.log"), *cmd]
+               os.path.join(str(log_dir), "console.log"),
+               "env", "--default-signal=INT,TERM,QUIT", *cmd]
     return ExecuteProcess(cmd=cmd, name=name, output="screen", respawn=respawn,
                           respawn_delay=5.0 if respawn else 0.0,
                           # longer than the nested launch's own stop (SIGINT to its nodes,

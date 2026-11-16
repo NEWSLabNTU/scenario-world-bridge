@@ -4,10 +4,16 @@ Why scenario-world-bridge (swb) is shaped the way it is: the parts of a run, and
 project, stack and run a user works with. No steps here; the tutorials have them.
 
 <p align="center">
-  <img src="../figures/architecture.svg" alt="SSv2 drives the bridge and the agent relay; the bridge drives a world server for CARLA or Isaac Sim; Autoware connects to the simulator through a vehicle bridge" width="820">
+  <img src="../figures/how-it-works.svg" alt="An OpenSCENARIO file (the ego, a Tesla Model 3 with an Autoware controller, and a walker who crosses its lane) drives the scenario runner; the world bridge moves the simulator, CARLA or Isaac Sim; the agent relay hands goals to the autopilot, which reaches the car through a vehicle bridge" width="900"><br>
+  <em>A formal scenario, a simulator, and the bridge between them and the autopilot.</em>
 </p>
 
 ## The parts of a run
+
+<p align="center">
+  <img src="../figures/architecture.svg" alt="SSv2 drives the bridge and the agent relay; the bridge drives a world server for CARLA or Isaac Sim; Autoware connects to the simulator through a vehicle bridge" width="820"><br>
+  <em>The processes of a run and the two boundaries every simulator implements (teal).</em>
+</p>
 
 - **The scenario side.** scenario_simulator_v2 (SSv2) runs an OpenSCENARIO scenario and
   judges it. It talks to a simulator over its `simulation_interface` protocol; the

@@ -61,8 +61,8 @@ traffic light. For someone who already writes SSv2 scenarios:
 ## How it works
 
 <p align="center">
-  <img src="docs/figures/architecture.svg" alt="SSv2 drives the bridge and the agent relay; the bridge drives a world server for CARLA or Isaac Sim; Autoware connects to the simulator through a vehicle bridge" width="820"><br>
-  <em>A scenario run. The two teal lines are the boundaries every simulator implements.</em>
+  <img src="docs/figures/how-it-works.svg" alt="An OpenSCENARIO file (the ego, a Tesla Model 3 with an Autoware controller, and a walker who crosses its lane) drives the scenario runner; the world bridge moves the simulator, CARLA or Isaac Sim; the agent relay hands goals to the autopilot, which reaches the car through a vehicle bridge" width="900"><br>
+  <em>A formal scenario, a simulator, and the bridge between them and the autopilot.</em>
 </p>
 
 Work is organised in **projects**: a project is a directory with a `swb.yaml` that names the simulator, the

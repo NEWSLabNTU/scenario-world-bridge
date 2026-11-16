@@ -1104,3 +1104,11 @@ Isaac's rear contact (inventory row 18).
   a judge's threshold: row 6 fails on contact only, about 0.5 m away, and stays so. The
   quiet-GPU point of the re-path entry is closed; the late turn-in and the attention area's
   edge stay open as written there.
+- **G72 (found 2026-11-16 by swb 118 during 079; numbered by 133, G71 unused; 118 builds it,
+  reviewed here).** swb_agent's vehicle_agent never exits on SIGINT: under play_launch it is
+  killed after 5 s ("did not exit within 5s, sending SIGKILL"), under `ros2 launch` it dies
+  with -11 (3 of 3), and stand-alone it aborts on the way out ("terminate called without an
+  active exception"): its step thread keeps calling into a shut-down rclpy context. Ruling: the
+  agent stops on the context's shutdown, bounds its close steps, joins its spin threads, and a
+  SIGINT test requires exit 0 and no abort. A commit of its own, apart from 079, so the release
+  carries it.

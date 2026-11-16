@@ -116,7 +116,7 @@ judges:
     version: "1"
     on: [passed, failed]              # default; error runs are not judged
     timeout: 120                      # s, default
-    needs: []                         # gap_trace: the gap trace; context: the storyboard log
+    needs: []                         # gap_trace, context: what the run must record
 ```
 
 A judge runs in the project directory after each run whose verdict is in `on`. It is

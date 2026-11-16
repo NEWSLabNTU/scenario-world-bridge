@@ -6,6 +6,7 @@ Hugging Face Hub (http.server on localhost) with host settings pointing at it.
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import sys
 import threading
@@ -236,7 +237,17 @@ def pins_kept(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def agent_modules_present(monkeypatch):
-    """CARLA's agents' modules taken as importable (the tests of G38 give their own)."""
+def agent_modules_present(monkeypatch, tmp_path_factory):
+    """CARLA's agents' modules taken as importable (the tests of G38 give their own), in
+    this process and in the stacks the tests start: a ``python3`` first on PATH that answers
+    the check's ``-c "import shapely"`` and ``networkx`` itself and runs everything else on
+    the real one (a host without them failed every stack test, swb 118 2026-11-16)."""
     from swb import tools
     monkeypatch.setattr(tools, "missing_modules", lambda modules, python="python3": [])
+    d = tmp_path_factory.mktemp("agent_python")
+    w = d / "python3"
+    w.write_text("#!/bin/sh\n"
+                 'case "$1 $2" in "-c import shapely"|"-c import networkx") exit 0;; esac\n'
+                 f'exec {sys.executable} "$@"\n')
+    w.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{d}:{os.environ.get('PATH', '')}")

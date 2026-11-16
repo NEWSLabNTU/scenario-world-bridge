@@ -523,7 +523,12 @@ Isaac's rear contact (inventory row 18).
   beside. As a swb judge (`SWB_RUN_DIR` set) without `--contacts` it now reads the run's own
   `contacts/` and judges every report in it. No other judge reads a shared path (gap_oracle
   and incident_judge get the run's files from swb.gap; run_suite, which also defaults to it,
-  is not a judge). Those passes are to be rerun before they are counted.
+  is not a judge). Re-judged (2026-11-16) with the fixed judge on each run's own reports,
+  the records left as they were: 16 of the 18 passes recorded here hold (basic's 12; the
+  safety use cases, now judged over all 27 and 9 variants, not the newest alone). Two
+  safety_suite runs of 2026-11-15 (02:23 UC-ACC, 03:03 UC-AEB) kept no reports of their own:
+  their passes were a stale report's, and they now read `error`; that suite's later runs
+  (05:59, 06:41) pass. So no live rerun is needed.
 - **G40 built (2026-11-16).** install.md's rosdep line is the justfile's (`--from-paths
   $(colcon list --base-paths src -p) --skip-keys python-yamale-pip`, then pip's yamale);
   `rosdep install --simulate` exits 0 with it. rustup runs with `-s -- -y`.

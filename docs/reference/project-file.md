@@ -87,8 +87,9 @@ choices (`ndt:` is `autoware`, `cuda` or `none`) and a pair that cannot work tog
 (`ndt: none` with a diagnostic graph that judges NDT) are refused with the profile's message.
 A value holding a substitution is known per run only and is not checked.
 
-Substitutions in `args` and `run`: `{seed}`, `{run_dir}`, `{run_id}`, `{param:<name>}`. A
-pilot using `{param:...}` must be `lifetime: run`. Every pilot's launch receives the
+Substitutions in `args` and `run`: `{seed}`, `{run_dir}`, `{run_id}`, `{map_path}` (the
+run's map directory, the one a launch pilot gets as `map_path`), `{param:<name>}`. A pilot
+using `{param:...}` or `{map_path}` must be `lifetime: run`. Every pilot's launch receives the
 contract `entity`, `relay`, `map_path`, `vehicle`, `seed`, `run_dir`, `sim`,
 `use_sim_time:=true`; a `command` program gets `--relay --entity --seed [--run-dir]`. On
 Isaac only one pilot has a vehicle side (the ego). [Your autopilot as a

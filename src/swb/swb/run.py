@@ -834,7 +834,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     if raised:   # recorded, not printed: a suite's output stays one line per run
         run_events.append({"t_wall": t0, "event": "ssv2.timeout_raised", **raised})
     sub = {"run_dir": str(run_dir), "seed": spec.seed if spec.seed is not None else 0,
-           "run_id": run_id, "params": spec.parameters}
+           "run_id": run_id, "params": spec.parameters, "map_path": rec.get("map_path") or ""}
     run_pilots = []
     for p in pilots:
         if p.get("lifetime") != "run":

@@ -220,8 +220,9 @@ def map_of(sc) -> str:
 
 
 def substitute(value, ctx: dict, where: str):
-    """``{run_dir}``, ``{seed}``, ``{run_id}``, ``{param:<name>}`` in strings, lists, dicts.
-    A ``{param:x}`` the context lacks raises StackRefused naming ``where``."""
+    """``{run_dir}``, ``{seed}``, ``{run_id}``, ``{map_path}``, ``{param:<name>}`` in strings,
+    lists, dicts. A ``{param:x}`` the context lacks raises StackRefused naming ``where``; so
+    does ``{map_path}`` outside a run (a ``lifetime: stack`` pilot outlives a map switch)."""
     if isinstance(value, dict):
         return {k: substitute(v, ctx, where) for k, v in value.items()}
     if isinstance(value, list):
@@ -248,6 +249,11 @@ def substitute(value, ctx: dict, where: str):
                                    + ("" if ctx.get("run_id") else
                                       " (a lifetime: stack pilot has no run; lifetime: run)"))
             out.append(str(params[p]))
+        elif name == "map_path":
+            if not ctx.get("map_path"):
+                raise StackRefused(f"{where}: {{map_path}} is the run's map; a lifetime: stack "
+                                   "pilot outlives a map switch (lifetime: run)")
+            out.append(str(ctx["map_path"]))
         elif name in ("run_dir", "seed", "run_id"):
             v = ctx.get(name)
             out.append("" if v is None else str(v))

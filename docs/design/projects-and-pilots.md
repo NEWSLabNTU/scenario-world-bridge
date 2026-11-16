@@ -416,7 +416,7 @@ logging: {capture: full, keep: {passed: result}}
 ```
 
 Pilots receive per-run values by substitution in their `args`/`run`: `{run_dir}`, `{seed}`,
-`{run_id}`, `{param:<name>}`.
+`{run_id}`, `{map_path}`, `{param:<name>}` (the last two for a `lifetime: run` pilot only).
 
 A `scenarios:` item may be a mapping, `{path: <file or directory>, ssv2: {...}}`: run
 settings for that item's runs.

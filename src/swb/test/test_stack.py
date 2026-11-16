@@ -244,6 +244,14 @@ def test_substitute():
         == ["--s", "7", "/r/x", "3", "{other}"]
 
 
+def test_map_path_is_a_runs_only():
+    """swb 241: a command pilot had no map path; a lifetime: stack one outlives a switch."""
+    ctx = {"seed": 0, "run_dir": "/r", "run_id": "id", "params": {}, "map_path": "/p/maps/Town01"}
+    assert stack.substitute(["--map", "{map_path}"], ctx, "w") == ["--map", "/p/maps/Town01"]
+    with pytest.raises(stack.StackRefused, match="lifetime: run"):
+        stack.substitute("{map_path}", dict(ctx, map_path=""), "pilots.b (b)")
+
+
 def test_keeper_marks_ready_and_links(where, maps_hub):
     d = make(where)
     p = stack.plan(project_arg=str(d), map_name="Town01")

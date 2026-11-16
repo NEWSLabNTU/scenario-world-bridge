@@ -40,8 +40,16 @@ def load(path=MANIFEST) -> dict:
     doc = yaml.safe_load(Path(path).read_text()) or {}
     doc.setdefault("references", "scenarios/t3-references")
     for e in doc.get("suites") or []:
-        e["key"] = f"{Path(e['project']).name}/{e['suite']}"
+        e["key"] = f"{project_key(e['project'])}/{e['suite']}"
     return doc
+
+
+def project_key(project: str) -> str:
+    """A project's name in keys and reference paths: its path under a projects directory."""
+    for root in ("scenarios/projects/", "src/swb_examples/projects/"):
+        if project.startswith(root):
+            return project[len(root):]
+    return Path(project).name
 
 
 def selected(doc: dict, only, part=None) -> list:

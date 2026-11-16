@@ -68,3 +68,19 @@ def _text(v) -> str:
 def launch_args(settings: dict) -> dict:
     """``scenario.launch.xml`` arguments for the keys ``settings`` names, as text."""
     return {k: _text(settings[k]) for k in KEYS if k in (settings or {})}
+
+
+# A scenario's own time limit (a stop on simulation time, swb.project.time_limit) against the
+# wall clock SSv2 is given (roadmap 077, G53): the run gives SSv2 at least the limit, at the
+# real-time factor, plus the concealer's initialization and this margin.
+LIMIT_MARGIN = 60   # s
+
+
+def timeout_for_limit(limit, settings: dict):
+    """The ``global_timeout`` (s, whole) a scenario that ends itself by ``limit`` s of
+    simulation time needs under ``settings``, or None without a limit."""
+    if not limit or limit <= 0:
+        return None
+    s = {**DEFAULTS, **(settings or {})}
+    rtf = s["global_real_time_factor"] if _positive(s["global_real_time_factor"]) else 1.0
+    return int(-(-(limit + s["initialize_duration"]) // rtf)) + LIMIT_MARGIN

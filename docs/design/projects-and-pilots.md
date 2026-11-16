@@ -431,6 +431,14 @@ keys it names: `swb.yaml`'s `ssv2:`, the suite's, the suite item's, then the cal
 result (`ssv2.settings`). The runner's own wait is `global_timeout` times the scenario's
 variants plus 120 s.
 
+A scenario that ends itself on simulation time (its Storyboard's StopTrigger, or an Event
+that exits through `CustomCommandAction exitSuccess|exitFailure`, each on a lone
+`SimulationTimeCondition`; the earliest of them) is given at least that limit: `global_timeout`
+becomes `(limit + initialize_duration) / global_real_time_factor + 60` s when that is larger
+than the layers' (G53; haruna_down's 600 s against the default 400 s gets 780 s), and
+`resolved.yaml` records it (`ssv2.timeout_raised`). The call's `--timeout` is the last word
+and is never raised.
+
 `managed_ego: false` is SSv2's switch for an ego the concealer does not drive (it stands,
 or the scenario moves it): no pilot is handed SSv2's ego (the entity with `isEgo` or the
 controller `Autoware`), so `project check` asks for none for a scenario some layer runs

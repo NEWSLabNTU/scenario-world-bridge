@@ -94,6 +94,7 @@ class Scenario:
     entities: list = field(default_factory=list)
     distribution_of: str = None  # a ParameterValueDistribution's ScenarioFile
     variants: int = 1  # runs SSv2 makes of it: TIER IV ScenarioModifiers, or a distribution's
+    time_limit: float = None  # s of simulation time by which the scenario ends itself (G53)
 
 
 # --- reading scenarios: --------------------------------------------------------------------
@@ -159,6 +160,61 @@ def _distribution_variants(root) -> int:
     return n
 
 
+TIME_RULES = ("greaterThan", "greaterOrEqual", "equalTo")
+
+
+def _parameters(root) -> dict:
+    return {d.get("name"): d.get("value")
+            for d in root.iterfind("ParameterDeclarations/ParameterDeclaration")}
+
+
+def _seconds(v, params):
+    v = str(v or "").strip()
+    if v.startswith("$"):
+        v = str(params.get(v[1:].strip("{}"), ""))
+    try:
+        return float(v)
+    except ValueError:
+        return None   # an expression: not worked out here
+
+
+def _time_alone(trigger, params) -> list:
+    """The times (s) at which ``trigger`` fires on simulation time alone: each ConditionGroup
+    (its conditions ANDed; the groups ORed) of one SimulationTimeCondition, plus its delay."""
+    out = []
+    for group in trigger.iterfind("ConditionGroup"):
+        conds = group.findall("Condition")
+        if len(conds) != 1:
+            continue
+        stc = conds[0].find("ByValueCondition/SimulationTimeCondition")
+        if stc is None or stc.get("rule") not in TIME_RULES:
+            continue
+        t, delay = _seconds(stc.get("value"), params), _seconds(conds[0].get("delay") or 0,
+                                                                params)
+        if t is not None:
+            out.append(t + (delay or 0))
+    return out
+
+
+def time_limit(root):
+    """The simulation time (s) by which a scenario ends itself, or None: the earliest of its
+    Storyboard's StopTrigger and the StartTrigger of any Event that exits
+    (``CustomCommandAction type="exitSuccess|exitFailure"``), on simulation time alone.
+    haruna_down's is 600 s (roadmap 077, G53)."""
+    params = _parameters(root)
+    times = []
+    stop = root.find("Storyboard/StopTrigger")
+    if stop is not None:
+        times += _time_alone(stop, params)
+    for ev in root.iter("Event"):
+        if any(str(c.get("type") or "").startswith("exit")
+               for c in ev.iterfind("Action/UserDefinedAction/CustomCommandAction")):
+            st = ev.find("StartTrigger")
+            if st is not None:
+                times += _time_alone(st, params)
+    return min(times) if times else None
+
+
 def read_scenario(path: Path) -> Scenario:
     """A scenario's map and entities; raises ValueError naming what does not parse."""
     path = Path(path)
@@ -183,7 +239,15 @@ def read_scenario(path: Path) -> Scenario:
     sf = root.find("ParameterValueDistribution/ScenarioFile")
     if sf is not None:
         sc.distribution_of = sf.get("filepath")
+        target = Path(sc.distribution_of or "")
+        target = target if target.is_absolute() else path.parent / target
+        if "$(" not in str(sc.distribution_of) and target.is_file() and target != path:
+            try:   # each variant is the scenario file's run, with its limit
+                sc.time_limit = read_scenario(target).time_limit
+            except (ValueError, OSError):
+                pass
         return sc
+    sc.time_limit = time_limit(root)
     lf = root.find("RoadNetwork/LogicFile")
     sc.logic_file = lf.get("filepath") if lf is not None else None
     for obj in root.iterfind("Entities/ScenarioObject"):

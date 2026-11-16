@@ -747,11 +747,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     # SSv2's run settings: swb.yaml's ssv2:, then the spec's (suite, item, call), then
     # --timeout / overrides["timeout"]
     settings = ssv2mod.merge(psettings.get("ssv2"), spec.ssv2)
+    called = spec.timeout   # the call's --timeout: the last word, never raised
     if spec.timeout:
         settings["global_timeout"] = spec.timeout
-    spec = dataclasses.replace(spec, ssv2=settings,
-                               timeout=settings.get("global_timeout") or spec.timeout)
-    managed = ssv2mod.managed(settings)
     sc_rel = _rel(project, spec.scenario)
     infra, events, run_events = [], [], []
 
@@ -762,6 +760,17 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         sc = None
         infra.append(f"the scenario cannot be read: {e}")
     variants = sc.variants if sc is not None else 1
+    # G53: a scenario that ends itself later than the timeout SSv2 would get gets its own
+    # limit plus a margin (haruna_down: 600 s against the default 400 s)
+    raised = None
+    need = ssv2mod.timeout_for_limit(sc.time_limit if sc is not None else None, settings)
+    have = settings.get("global_timeout") or DEFAULT_TIMEOUT
+    if need and not called and need > have:
+        raised = {"scenario_limit_s": sc.time_limit, "configured_s": have, "given_s": need}
+        settings["global_timeout"] = need
+    spec = dataclasses.replace(spec, ssv2=settings,
+                               timeout=settings.get("global_timeout") or spec.timeout)
+    managed = ssv2mod.managed(settings)
     pilots = []
     if sc is not None and sc.distribution_of is None:
         by_entity = {p["entity"]: p for p in rec.get("pilots", [])}
@@ -797,6 +806,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     logs.mkdir()
     t0 = time.time()
     run_events.append({"t_wall": t0, "event": "run.start", "run_id": run_id})
+    if raised:   # recorded, not printed: a suite's output stays one line per run
+        run_events.append({"t_wall": t0, "event": "ssv2.timeout_raised", **raised})
     sub = {"run_dir": str(run_dir), "seed": spec.seed if spec.seed is not None else 0,
            "run_id": run_id, "params": spec.parameters}
     run_pilots = []
@@ -833,7 +844,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         "run_pilots": {p["entity"]: e for p, e in run_pilots},
         "logging": lg,
         "ssv2": {"argv": ssv2_argv, "variants": variants, "settings": settings,
-                 "timeout_s": (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN},
+                 "timeout_s": (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN,
+                 **({"timeout_raised": raised} if raised else {})},
         "env": {**(rec.get("env") or {}), "ROS_DOMAIN_ID": str(rec["domains"]["scenario"])},
     }
     (run_dir / "resolved.yaml").write_text(yaml.safe_dump(resolved, sort_keys=False))
@@ -1120,7 +1132,9 @@ def main(argv=None, out=None, stack_command=None) -> int:
     ap.add_argument("--seat", help="the stack's seat (default: the host settings' seat:)")
     ap.add_argument("--param", action="append", metavar="NAME=VALUE",
                     help="a scenario parameter (repeatable; with a suite, one more grid axis)")
-    ap.add_argument("--timeout", type=float, help=f"SSv2's global_timeout, s ({DEFAULT_TIMEOUT})")
+    ap.add_argument("--timeout", type=float,
+                    help=f"SSv2's global_timeout, s (default {DEFAULT_TIMEOUT}, or a scenario's own"
+                         " time limit plus a margin when longer; this value is not raised)")
     ap.add_argument("--wait", type=float, default=0.0,
                     help="seconds to wait for the stack to become ready (default: refuse now)")
     ap.add_argument("--ready-timeout", type=float, default=READY_TIMEOUT,

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from swb import api, assets, project, record as recordmod, results, run, stack, timeline
+from swb import api, assets, project, record as recordmod, results, run, ssv2, stack, timeline
 
 SWB_ROOT = Path(__file__).resolve().parents[1]
 
@@ -1019,7 +1019,8 @@ def test_managed_ego_false_hands_the_ego_to_no_pilot(live, where):
                     {"scenario_command": cmd, "ready_timeout": 5, "logging": {"keep": {}},
                      "ssv2": {"managed_ego": False, "frame_rate": 100}})
     assert r.verdict == "passed"
-    assert seen == [{"managed_ego": False, "frame_rate": 100}]
+    # global_timeout: three_pilots ends itself by 300 s of simulation time (G53)
+    assert seen == [{"managed_ego": False, "frame_rate": 100, "global_timeout": 480}]
     run_dir = where["tmp"] / "logs" / "proj" / "runs" / r.run_id
     resolved = yaml.safe_load((run_dir / "resolved.yaml").read_text())
     assert set(resolved["pilots"]) == {"lead", "follower"}   # no ego: SSv2 drives it not
@@ -1089,3 +1090,103 @@ def test_a_lost_goal_ends_the_run_error_with_the_relays_reason(live, where):
                      "lost_probe": lambda rec, entities, since: lost if "ego" in entities else {}})
     assert r.verdict == results.ERROR
     assert "pilot ego: its agent registered again (it was DRIVING)" in r.reason
+
+
+HARUNA_LIKE = """<?xml version="1.0"?>
+<OpenSCENARIO>
+  <ParameterDeclarations><ParameterDeclaration name="limit" parameterType="double" value="600"/>
+  </ParameterDeclarations>
+  <RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town01"/></RoadNetwork>
+  <Entities><ScenarioObject name="ego"><ObjectController><Controller name="Autoware"/>
+  </ObjectController></ScenarioObject></Entities>
+  <Storyboard><Story name="s"><Act name="a"><ManeuverGroup name="g"><Maneuver name="m">
+    <Event name="arrived" priority="parallel">
+      <Action name="ok"><UserDefinedAction><CustomCommandAction type="exitSuccess"/>
+      </UserDefinedAction></Action>
+      <StartTrigger><ConditionGroup>
+        <Condition name="t" delay="0" conditionEdge="none"><ByValueCondition>
+          <SimulationTimeCondition value="5" rule="greaterThan"/></ByValueCondition></Condition>
+        <Condition name="there" delay="0" conditionEdge="rising"><ByEntityCondition/>
+        </Condition>
+      </ConditionGroup></StartTrigger>
+    </Event>
+    <Event name="say" priority="parallel">
+      <Action name="note"><UserDefinedAction><CustomCommandAction type="echo"/>
+      </UserDefinedAction></Action>
+      <StartTrigger><ConditionGroup><Condition name="t" delay="0" conditionEdge="none">
+        <ByValueCondition><SimulationTimeCondition value="30" rule="greaterThan"/>
+        </ByValueCondition></Condition></ConditionGroup></StartTrigger>
+    </Event>
+  </Maneuver></ManeuverGroup></Act></Story>
+  <StopTrigger><ConditionGroup><Condition name="limit" delay="0" conditionEdge="none">
+    <ByValueCondition><SimulationTimeCondition value="$limit" rule="greaterThan"/>
+    </ByValueCondition></Condition></ConditionGroup></StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>
+"""
+
+
+def test_a_scenarios_own_limit(tmp_path):
+    """G53: the simulation time by which a scenario ends itself, as haruna_down's 600 s."""
+    f = tmp_path / "h.xosc"
+    f.write_text(HARUNA_LIKE)
+    # the StopTrigger's 600 s (a parameter); the 5 s is ANDed with an arrival, the 30 s
+    # event does not exit
+    assert project.read_scenario(f).time_limit == 600
+    f.write_text(HARUNA_LIKE.replace('type="echo"', 'type="exitFailure"'))
+    assert project.read_scenario(f).time_limit == 30   # the earliest exit
+    f.write_text(HARUNA_LIKE.replace('value="$limit"', 'value="${limit} * 2"'))
+    assert project.read_scenario(f).time_limit is None   # an expression: not worked out
+    # a TIER IV YAML scenario
+    acc = (Path(__file__).resolve().parents[2] / "swb_examples" / "scenarios" / "awf"
+           / "UC-ACC-001-0001_Preceding_vehicle_partial_deceleration.yaml")
+    if acc.is_file():
+        assert project.read_scenario(acc).time_limit == 180
+    # a distribution's variants are its scenario file's runs
+    (tmp_path / "d.xosc").write_text(
+        '<OpenSCENARIO><ParameterValueDistribution><ScenarioFile filepath="h.xosc"/>'
+        "</ParameterValueDistribution></OpenSCENARIO>")
+    f.write_text(HARUNA_LIKE)
+    assert project.read_scenario(tmp_path / "d.xosc").time_limit == 600
+
+
+def test_timeout_for_limit():
+    assert ssv2.timeout_for_limit(None, {}) is None
+    # haruna_down: 600 s of simulation time, the concealer's 120 s, a 60 s margin
+    assert ssv2.timeout_for_limit(600, {}) == 780
+    assert ssv2.timeout_for_limit(600, {"global_real_time_factor": 0.5,
+                                        "initialize_duration": 60}) == 1380
+
+
+def test_a_scenario_longer_than_the_timeout_gets_its_own_limit(live, where):
+    """G53: haruna_down (600 s) against SSv2's default 400 s ran out as error before it
+    decided; the run now gives SSv2 its limit plus the margin, unless the call says."""
+    d, _ = live
+    sc = (d / "scenarios" / "three_pilots.xosc")
+    sc.write_text(sc.read_text().replace('SimulationTimeCondition value="300"',
+                                         'SimulationTimeCondition value="600"'))
+    seen = []
+
+    def cmd(rec, spec, run_dir, scenario):
+        seen.append(run.scenario_argv(rec, spec, run_dir, scenario))
+        return fake(where)(rec, spec, run_dir, scenario)
+    base = {"scenario_command": cmd, "ready_timeout": 5, "logging": {"keep": {}}}
+    r = api.run_one(d, "scenarios/three_pilots.xosc", base)
+    assert r.verdict == "passed"
+    assert "global_timeout:=780" in seen[-1]
+    run_dir = where["tmp"] / "logs" / "proj" / "runs" / r.run_id
+    resolved = yaml.safe_load((run_dir / "resolved.yaml").read_text())
+    assert resolved["ssv2"]["timeout_raised"] == {"scenario_limit_s": 600.0, "configured_s": 400,
+                                                  "given_s": 780}
+    assert resolved["ssv2"]["timeout_s"] == 780 + run.END_MARGIN
+    assert any(e["event"] == "ssv2.timeout_raised"
+               for e in timeline.read(run_dir / "timeline.jsonl"))
+    # a configured timeout already long enough is kept
+    r = api.run_one(d, "scenarios/three_pilots.xosc", {**base, "ssv2": {"global_timeout": 900}})
+    assert "global_timeout:=900" in seen[-1]
+    resolved = yaml.safe_load((where["tmp"] / "logs" / "proj" / "runs" / r.run_id
+                               / "resolved.yaml").read_text())
+    assert "timeout_raised" not in resolved["ssv2"]
+    # the call's --timeout is the last word, even shorter
+    api.run_one(d, "scenarios/three_pilots.xosc", {**base, "timeout": 300})
+    assert "global_timeout:=300" in seen[-1]

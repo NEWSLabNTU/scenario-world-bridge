@@ -222,14 +222,15 @@ on haruna`.
 **Check**:
 
 ```bash
-ros2 run swb run scenarios/haruna_down.xosc --timeout 700
+ros2 run swb run scenarios/haruna_down.xosc
 ```
 
 ends with a verdict line; a run on Town01 against this stack is refused, naming the
 `map:=` to restart with. The course is long: its scenario allows 600 s of simulation time,
-more than SSv2's default 400 s (`--timeout`), so give the run more. Without it, a run with
-the Model 3 ended `error` when SSv2's limit ran out (2026-11-16). The course was made for a
-drift controller; how far the Model 3 under Autoware gets down it has not been measured.
+more than SSv2's default 400 s, and the run gives SSv2 the scenario's own limit plus a
+margin (780 s with the default settings; the run's `resolved.yaml` records it under
+`ssv2`). The course was made for a drift controller; how far the Model 3 under Autoware
+gets down it has not been measured.
 
 ## What happened
 

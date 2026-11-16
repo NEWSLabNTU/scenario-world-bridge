@@ -14,8 +14,9 @@ study [074](074-cooperation-study.md), whose P1 rows this phase carries out.
 the all-way stop, the narrow passage and the lane drop stay stock. G1 passed for the crossing
 (the node drives that relation only). Phase 2 on the crossing (2026-11-16): with a committed go that gives way to
 a seen start, G0 for the crossing passes again; e 0.55 s confirmed on held-out runs; a base_link pose
-bug fixed. Phase 2c: a second own-rest bug found; G0 at a fresh seed failed by one cell; the guards
-must not take the rest-stamp correction. Next: G0 on three fresh seed sets, then the swb rerun.
+bug fixed. Phase 2c: a second own-rest bug found; the guards must not take the rest-stamp
+correction. Phase 2d: G0 fails on two fresh seed sets: the protocol car goes against a car that has
+just come to rest. **Parked behind the UX release**; the fix is specified.
 
 ## Inputs, already in place
 
@@ -363,6 +364,55 @@ at the G0 fresh-seed check, as the brief said.**
 - The latch stays unless that rerun pins the contact on it.
 - Seeds used for G0 so far: V4 base, `--seed 2` (P2b), `--seed 3` (P2c).
 
+**Phase 2d on the crossing (133's subagent, 2026-11-16; 4f8702a, 7d84821, bda27ef, 2205a32; NAS
+`logs/2026 SSv2 on CARLA/2026-11-17 078 P2 crossing P2d/`). Stopped at G0.**
+- **The 2c rulings are in czp:** `own_rest_window` 4.5 m merged; guards read the raw rest stamp
+  (`rest_stamp_bias` orders `stopped_first` only); a partner dropping out unseen keeps the last
+  decision for `mode_hold`, and the node logs each hold. 54 czp tests pass.
+- **G0 on fresh seed sets** (arena; 0 self-play contacts and 0 deadlocks in every set):
+
+  | set | cells worse than stock (of 12) | result |
+  |---|---|---|
+  | `--seed 4` | 0 | pass |
+  | `--seed 5` | 1 (B vs t0.5yp2: 1 contact, stock 0; 1 of 360 against 0 of 360 at 20 seeds) | **fail** |
+  | `--seed 6` | 0 | pass |
+  | `--seed 3`, `rest_stamp_bias` 0.7 | 1 (B vs go; P2c had 3 cells, up to 58 contacts) | **fail** |
+  | formal, e 0.55, 2 and 3 cars | safe, live (worst wait 7.3 / 10.9 s) | pass |
+
+- **Diagnosis: the protocol car goes against a car that has only just come to rest.** Pinned
+  at B vs t0.5yp2, Δt −0.7, 200 fresh seeds per speed: czp 8 of 200 contacts at v 10 (0 at v 14),
+  stock 0 of 400. Three go paths lack a guard counted from the moment both cars are at rest:
+  - `rest_tie` counts its guard from the other's rest: its go at that rest + 3.0 s meets an
+    impatient car's restart, about 1.5 s after the protocol car's own rest;
+  - a band `clear` go 0.6-1.7 s after the other's rest (the fresh-rest guard covers only the
+    stopped-first go);
+  - `tie: right_before_left` 0.7-0.8 s after the other's rest, while the protocol car is still
+    rolling.
+
+  The go latch is not involved.
+- **Two arena-only experiments, negative:**
+  - the rest_tie guard counted from the later rest: 2 of 12 worse;
+  - plus the fresh-rest guard on `clear`: 0 of 12 worse, but the protocol car's contacts against two
+    patient rules rise from 0 to 10 and 9 (stock 54 and 51). Too blunt.
+- **The formal check misses it:** its other cars never restart after a mutual rest, as S2's
+  impatient and never-yield rules do.
+
+**Rulings (manager, 2026-11-16).**
+- **The fix, specified:** every go made against a car that is at rest or has just come to rest
+  (`rest_tie`, `clear`, a tie) waits for one guard counted from the later of the two rests. The
+  tie path also needs the own car at rest, or committed past its commit point. The design must
+  meet G0 without exp2's cost on patient rules.
+- **The formal checker gets the missing adversary:** a car that ignores the rule and restarts after
+  a mutual rest, after a patience of 0.5 s, plus a never-yield car stopped only by its own shield.
+  A fix is checked there first.
+- **G0 procedure, made sharper (the criterion is unchanged):** a single-contact cell is no longer
+  rerun at 20 seeds, where 1 against 0 can only repeat. Its Δt is pinned and run at ≥ 200 seeds
+  per speed, with traces. Seeds used so far: V4 base, 2, 3, 4, 5, 6 for G0; 7 and 8 for diagnosis
+  (no longer fresh).
+- **078 is parked behind the UX release** (user, 2026-11-17: the UX campaign first). The next
+  round is the fix above, then G0, then the swb grid (`grid.sh` and the EV4 addendum are ready).
+  The node is off by default, so nothing on the car is affected.
+
 ### Phase 3: test runs
 
 | step | what | measures |
@@ -444,3 +494,6 @@ and G2.
 - 2026-11-16: Phase 2c stopped at G0 (`--seed 3`: 1 of 12, and 3 of 12 with the rest-stamp
   correction on the guards). Ruled: guards uncorrected, a dropped partner keeps the decision,
   `own_rest_window` merged after G0 on three fresh seed sets.
+- 2026-11-16: Phase 2d: the 2c rulings merged; G0 fails at `--seed 5` and at bias 0.7 (a go against a
+  freshly stopped car). Fix specified; G0's single-cell rerun now pinned at ≥ 200 seeds. 078 parked
+  behind the UX release (user, 2026-11-17).

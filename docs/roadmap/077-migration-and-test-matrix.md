@@ -1199,3 +1199,15 @@ Isaac's rear contact (inventory row 18).
   exists" (three times on 241 in a day; 133's stale locks likely the same). Every swb git call
   that can take the lock passes `--no-optional-locks`; a test checks that the provenance's
   calls all do.
+- **Issue 040 fixed: the Isaac hang's cause (swb 139, 2026-11-16; bbb8416, swb_isaac_world
+  ce2aac3; docs/issues/040).** World.despawn buried every non-ego at one point (0, 0, -1000)
+  for a step, and two kinematic bodies there made a pair whose PhysX step never returned
+  ("Resolving contacts between two kinematic objects is invalid"); two props were enough, a
+  walker alone was not (241's split). Each buried entity now goes to its own point (a 100 m
+  grid at z -1000, `motion.bury_point`), its colliders off before the step, and is deleted
+  after it, as before; the one-step bury the RTX lidar needs (044 step 7) stays. Tests on the
+  points; swb_isaac_world 254 passed. Verified on 241 before the push: the two-barrier reload
+  then drive_to_goal (the pair that hung) and pedestrian_crossing, red_light, drive_to_goal
+  reloaded cleanly, no PhysX warning, no deadline, no respawn; 241 confirms on the pinned
+  build. G70's watchdog stays as the safety net. T3's held note loses its hang sentence; the
+  recovery after a respawn is the issue's second finding, post-release. Item 17 is unblocked.

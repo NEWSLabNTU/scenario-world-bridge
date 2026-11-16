@@ -58,3 +58,10 @@ def test_parts_cover_every_suite_once_keeping_projects_whole():
         for e in p:
             assert owners.setdefault(e["project"], i) == i
     assert all(parts)
+
+
+def test_a_busy_gpu_is_one_at_half_its_memory_or_load():
+    quiet = [{"gpu": 0, "used_mib": 3000, "total_mib": 32000, "util_pct": 10}]
+    assert not t3.busy(quiet)
+    assert t3.busy([dict(quiet[0], util_pct=97)])
+    assert t3.busy([dict(quiet[0], used_mib=25000)])

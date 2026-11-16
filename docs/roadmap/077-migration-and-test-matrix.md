@@ -98,6 +98,11 @@ run on the exact commit to be tagged and `scripts/t3.py compare` checks them aga
 references; any changed verdict or judge verdict is reported to the user. A change landed
 after the references that alters a result is resolved before the tag: either that suite's
 reference is recorded again on the tag commit, or the change is held out of the release.
+The references are recorded on a quiet GPU (below half its memory and load: `t3.py
+record` refuses otherwise and keeps the GPU's state in the reference): on 133, with another
+user's training at 98 %, two runs failed on near-miss box overlaps with the ego slow or
+standing (i6 r0, a tour's i2), the kind perception lag under load makes. A run that fails
+so on a quiet GPU is a real margin of Autoware's and is written up, not recorded as passed.
 
 Must-have, in order: the fresh-clone build (241's three package failures); G55 and the
 vehicle_physics default (118), then items 1 to 6 and 8 to 10 again on the spec's physics;

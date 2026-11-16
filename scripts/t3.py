@@ -166,6 +166,28 @@ def commit() -> str:
     return head + ("+dirty" if dirty else "")
 
 
+def gpu_state() -> list:
+    """Each GPU's memory in use and load now, and the other users' processes on it: a
+    reference recorded on a busy GPU (another user's training) may hold perception-lag
+    failures, so the release's are recorded on a quiet one (roadmap 077)."""
+    try:
+        q = subprocess.run(["nvidia-smi", "--query-gpu=index,memory.used,memory.total,"
+                            "utilization.gpu", "--format=csv,noheader,nounits"],
+                           capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    out = []
+    for line in q.strip().splitlines():
+        i, used, total, util = (x.strip() for x in line.split(","))
+        out.append({"gpu": int(i), "used_mib": int(used), "total_mib": int(total),
+                    "util_pct": int(util)})
+    return out
+
+
+def busy(gpus: list) -> bool:
+    return any(g["util_pct"] >= 50 or g["used_mib"] > 0.5 * g["total_mib"] for g in gpus)
+
+
 def logs_root() -> Path:
     sys.path.insert(0, str(ROOT / "src" / "swb"))
     from swb import config
@@ -241,6 +263,8 @@ def main(argv=None) -> int:
     ap.add_argument("--logs", type=Path, help="the host's log root (default: its settings')")
     ap.add_argument("--work", type=Path, default=Path(f"/var/tmp/{os.environ.get('USER', 'swb')}/t3"))
     ap.add_argument("--dry-run", action="store_true", help="run: print the commands only")
+    ap.add_argument("--busy-ok", action="store_true",
+                    help="record although the GPU is busy (the reference says so)")
     a = ap.parse_args(argv)
     doc = load(a.manifest)
     entries = selected(doc, a.only, a.part)
@@ -262,8 +286,15 @@ def main(argv=None) -> int:
             continue
         rows = read_summary(summ)
         if a.action == "record":
+            gpus = gpu_state()
+            if busy(gpus) and not a.busy_ok:
+                print(f"{e['key']}: not recorded, the GPU is busy now ({gpus}); record on a "
+                      "quiet GPU, or give --busy-ok")
+                failed += 1
+                continue
             write_reference(rows, ref, {"commit": commit(), "host": socket.gethostname(),
-                                        "summary": str(summ), "runs": len(rows)})
+                                        "summary": str(summ), "runs": len(rows),
+                                        "gpu_at_record": gpus})
             print(f"{e['key']}: reference of {len(rows)} runs at {commit()}")
             continue
         if not ref.is_file():

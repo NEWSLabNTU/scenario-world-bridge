@@ -119,7 +119,8 @@ isaac:
 | `wheels_topic` | `true` (default): publish `/swb/wheels` |
 
 Isaac's own options go in `ISAAC_KIT_ARGS` ([Getting started on Isaac
-Sim](../getting-started/isaac.md)).
+Sim](../getting-started/isaac.md)); its GPU is the host setting `gpu:`, which the stack gives
+both its CUDA and its renderer.
 
 ## The weather
 
@@ -159,7 +160,7 @@ rain; there is no weather service.
 
 | Wait | Default | Where |
 |---|---|---|
-| One scenario (each variant) | 400 s | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `ros2 run swb run --timeout` |
+| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `ros2 run swb run --timeout` (never raised) |
 | A run's pilots to become ready | 600 s | `ros2 run swb run --ready-timeout` |
 | The stack to become ready | none (refuse at once) | `ros2 run swb run --wait` |
 | A map switch of the pilots | 180 s | fixed |

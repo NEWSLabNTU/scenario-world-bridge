@@ -59,9 +59,10 @@ Run it again after Autoware is updated: `project check` and the stack refuse an 
 while a message package the world server needs is missing or was built from another
 Autoware, naming the package.
 
-On a machine with two GPUs, keep the world server on one: add
-`export ISAAC_KIT_ARGS="--/renderer/multiGpu/enabled=false --/renderer/activeGpu=0"` to
-`~/swb.bash`. The stack's terminal sources it, and the world server reads it from there.
+On a machine with two GPUs, name the card in the host settings (`gpu: 1` in
+`~/.config/swb/host.yaml`): the stack puts the world server on it, its CUDA and its renderer
+both. Other Kit options go in `ISAAC_KIT_ARGS` in `~/swb.bash`; leave the renderer's GPU to the
+stack, since a renderer on another card than CUDA leaves the sensors silent.
 
 **Check**:
 

@@ -553,6 +553,14 @@ def current_link(logs: str, name: str, index: int) -> Path:
     return project_root(logs, name) / f"seat-{index}-current"
 
 
+def isaac_kit_args(given: str, gpu) -> str:
+    """Kit's renderer on the CUDA card: CUDA_VISIBLE_DEVICES does not reach Vulkan, which
+    still sees every card, so the renderer would pick its own (GPU 0) while CUDA, the RTX
+    lidar's interop and PhysX, ran on ``gpu``; the sensors then never publish (roadmap 077,
+    swb 241: "ndt No InputSource"). Appended after the user's own, so this one wins."""
+    pin = f"--/renderer/multiGpu/enabled=false --/renderer/activeGpu={gpu}"
+    return f"{given} {pin}".strip()
+
 def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=None, gpu=None,
          stack_args=None, check=projectmod.check_project, now=None, simulator_start=None,
          probe=None) -> Plan:
@@ -663,6 +671,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         env["SWB_VEHICLE_USD"] = str(usd / "vehicles")
     if host.get("gpu") is not None or (host.get("seats") or {}).get("gpus") is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(s.gpu)
+        if sim == "isaac":
+            env["ISAAC_KIT_ARGS"] = isaac_kit_args(os.environ.get("ISAAC_KIT_ARGS", ""), s.gpu)
     # Isaac's world server finds its install by ISAAC_ROOT; the host settings' isaac.root
     isaac_root = str((host.get("isaac") or {}).get("root") or "")
     if sim == "isaac" and isaac_root:

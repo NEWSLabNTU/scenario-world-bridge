@@ -31,7 +31,8 @@ recipes. The ones you will use most:
 | `just ego-av` | the vehicle side for the ego, web UI on 8082 (`just ego-av rviz:=true` for RViz; any acb_launch argument as `name:=value`) |
 | `just build-autoware-overlay` | Autoware fixes 1.5.0 lacks, built from a pinned fork commit into `third_party/autoware_overlay/`; `ego-av` / `bg-av` source it by default (`autoware_overlay:=false`: off; roadmap 042) |
 | `just setup-tensorrt` | the TensorRT 10.8.0 runtime Autoware 1.5.0 was compiled against, from NVIDIA's pip wheel into `AUTOWARE_TENSORRT_LIB` (default `third_party/tensorrt/lib`); `ego-av` / `ego-isaac` / `bg-av` put it first on `LD_LIBRARY_PATH`, so CenterPoint's engines survive a restart |
-| `just scenario <file>` | one scenario (web UI on 8081) against `just run`'s stack, which it starts when it is not up; verdict in `<output_directory>/scenario_test_runner/` (`output_directory:=`, default `/tmp`) |
+| `just scenario <file>` | one scenario on the project workflow (`ros2 run swb run <file> --start-stack`) in the project holding it (the nearest `swb.yaml` above it, links not followed), else `scenarios/projects/dev`; the stack stays up. `project:=`, `global_timeout:=`; result under the host's logs (`ros2 run swb runs show <id>`) |
+| `just scenario-direct <file>` | the stack-based path: one scenario (web UI on 8081) against `just run`'s stack, which it starts when it is not up; verdict in `<output_directory>/scenario_test_runner/` (`output_directory:=`, default `/tmp`; `sim:=`, `worlds:=`) |
 | `just two-av` | two Autoware stacks, one scenario, on the project workflow (`scenarios/projects/two_av`, its suite `two_av`); `just two-av-direct` is the stack-based path, where `record:=true` records a screencast |
 | `just demo-tour` | the demo tour (one Town01 drive through six incidents) on the project workflow (`scenarios/projects/demo`, its suite `tour`, every incident judged); `just demo-tour-direct` is the stack-based path, with the windows, the captions and `record:=true` |
 | `just prune-logs [days:=7]` | move runs older than that out of the log root into the archive on `/mnt/disk1` (never deletes) |
@@ -143,9 +144,9 @@ sides need no shared domain. Details: [architecture](design/architecture.md),
 - **Unit tests** (`just test`): the coordinator's policies, coordinate conversion, the
   blueprint chooser, the contact report, `run_suite` and `physical_verdict`. Pure logic is
   kept apart from the CARLA calls so it can be tested without a server.
-- **Live runs**: `just run` (with its ego), then `just scenario <file>` or `ros2 run
-  swb_launch run_suite <dir> --physical-verdict`. The starter scenarios are the regression
-  set; `scenarios/gap/` holds reproducers for fixed SSv2-vs-CARLA disagreements.
+- **Live runs**: `just scenario <file>` (the project workflow, its stack started for it),
+  or `just run` (with its ego), then `just scenario-direct <file>` or `ros2 run swb_launch
+  run_suite <dir> --physical-verdict`. The starter scenarios are the regression set; `scenarios/gap/` holds reproducers for fixed SSv2-vs-CARLA disagreements.
 - Before trusting a surprising measurement, check the running binaries against the source
   (`ls -l install/.../acb_bridge`, `/proc/<pid>/cmdline`) and the host's load (`uptime`):
   stale builds and other users' jobs have both looked like regressions here.

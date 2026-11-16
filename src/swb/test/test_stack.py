@@ -831,3 +831,12 @@ def test_the_web_ui_line_names_the_address_the_launcher_was_given(tmp_path):
     assert stack.launcher_web_addr(42, tmp_path / "proc") == "0.0.0.0:8090"
     (d / "cmdline").write_bytes(b"play_launch\x00launch\x00swb_launch\x00")
     assert stack.launcher_web_addr(42, tmp_path / "proc") is None
+
+
+def test_isaac_renders_on_the_cuda_card():
+    """swb 241: CUDA on GPU 1 and the renderer on GPU 0 left the sensors silent."""
+    assert stack.isaac_kit_args("", 1) == \
+        "--/renderer/multiGpu/enabled=false --/renderer/activeGpu=1"
+    # the user's own come first; the stack's activeGpu, the last one, wins
+    assert stack.isaac_kit_args("--/x=1 --/renderer/activeGpu=0", 1).endswith(
+        "--/renderer/activeGpu=0 --/renderer/multiGpu/enabled=false --/renderer/activeGpu=1")

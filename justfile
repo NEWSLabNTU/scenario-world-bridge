@@ -1548,7 +1548,7 @@ scenario scenario_file *args:
             *) echo "scenario: unknown argument '$a' (project:=<dir>, global_timeout:=<s>)" >&2; exit 2 ;;
         esac
     done
-    file=$(realpath "{{scenario_file}}")
+    file=$(realpath -s "{{scenario_file}}")
     [ -n "$project" ] || project=$(swb_scenario_project "$file" "{{project}}")
     [ -f "$project/swb.yaml" ] || { echo "scenario: $project has no swb.yaml" >&2; exit 2; }
     source "{{autoware_setup}}"
@@ -1678,7 +1678,7 @@ e2e *args:
         esac
     done
     [ -f "$scenario" ] || { echo "e2e: $scenario: no such file" >&2; exit 2; }
-    file=$(realpath "$scenario")
+    file=$(realpath -s "$scenario")
     [ -n "$project" ] || project=$(swb_scenario_project "$file" "{{project}}")
     [ -f "$project/swb.yaml" ] || { echo "e2e: $project has no swb.yaml" >&2; exit 2; }
     source "{{autoware_setup}}"

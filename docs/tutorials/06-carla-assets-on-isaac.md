@@ -270,7 +270,7 @@ developers, how the asset set is made: [Isaac assets](../design/isaac-assets.md)
 | Symptom | Fix |
 |---|---|
 | The world server never says ready | the first load compiles materials: wait, and watch its log in the stack's web UI; `hello --wait` shows whether it answers |
-| The world server dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself: close other GPU work; on two GPUs pin one (`ISAAC_KIT_ARGS`, [Getting started on Isaac Sim](../getting-started/isaac.md)) |
+| The world server dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself: close other GPU work; on two GPUs pick one with the host setting `gpu:` ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
 | It restarts after dying and is gone for minutes | the stack respawns it and it loads the world again: wait for `hello` |
 | `... SWB_CARLA_USD not set` in the world server's log | the world server was started outside the stack: start it with `swb.launch.xml` |
 | `refused: the scenario is on map ..., the stack's Isaac world on ...` | the Isaac stack serves one world: restart it with the `map:=` the message names |

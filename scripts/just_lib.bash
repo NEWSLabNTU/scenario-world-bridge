@@ -160,7 +160,7 @@ swb_log_dir() {
 # swb.yaml, else PROJECT_ROOT/scenarios/projects/dev.
 swb_scenario_project() {
     local d
-    d=$(dirname "$(realpath "$1")")
+    d=$(dirname "$(realpath -s "$1")")  # -s: a linked scenario runs in the project holding the link
     while [ "$d" != "/" ] && [ ! -f "$d/swb.yaml" ]; do d=$(dirname "$d"); done
     if [ -f "$d/swb.yaml" ]; then echo "$d"; else echo "$2/scenarios/projects/dev"; fi
 }

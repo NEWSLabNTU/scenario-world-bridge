@@ -1,4 +1,4 @@
-# multi_pilot: four pilots of four kinds in one scenario on CARLA's Town01.
+# multi_pilot: four pilots of three kinds in one scenario on CARLA's Town01.
 simulator: carla
 assets:
   - dataset: carla-town-autoware-maps

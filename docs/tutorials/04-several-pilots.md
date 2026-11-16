@@ -2,7 +2,7 @@
 
 **Goal**: one run on Town01 in which four vehicles are driven by four pilots of three
 kinds: the ego and a second car by Autoware, each in its own ROS domain, a lead car by
-CARLA's BasicAgent, and a car that cuts in by a Python program of your own.
+CARLA's BasicAgent, and a car that cuts in by a user-written Python program.
 
 ```
 $ ros2 run swb run scenarios/four_pilots.xosc
@@ -11,30 +11,26 @@ passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-
 
 ## You will learn
 
-- what a pilot is (a vehicle side plus a driver) and the kinds swb starts:
+- what a pilot consists of (a vehicle side and a driver), and the kinds swb starts:
   `autoware`, `carla_basic`, `simple`, `launch`, `command`, `none`;
-- to bind scenario entities to pilots in `swb.yaml`, by name or by pattern;
-- to check an agent of your own without a simulator;
+- binding scenario entities to pilots in `swb.yaml`, by name or by pattern;
+- checking a user-written agent without a simulator;
 - the difference between a pilot that lives with the stack and one started per run.
 
 ## Before you start
 
 - [Tutorial 3](03-other-road-users.md), so that the stack, runs and controllers are
-  familiar. Stop that project's stack first (Ctrl-C): this tutorial has its own.
+  familiar. Stop that project's stack first (Ctrl-C), since this tutorial uses its own.
 - Two Autowares and CARLA on one host: one NVIDIA GPU with room for both Autowares'
   perception beside CARLA, and 32 GB of RAM or more.
-- CARLA's install named in `~/.config/swb/host.yaml`, for the two pilots that use CARLA's
-  Python API:
+- CARLA's install named in `~/.config/swb/host.yaml`: the BasicAgent and the cut-in
+  pilot use CARLA's Python API and its `agents` package, which ship with CARLA:
 
   ```yaml
   carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
   ```
 
 - About 45 minutes.
-
-The example passed end to end on a live stack on 2026-11-15, with all four pilots: two
-Autowares, the BasicAgent and the command agent. If a run fails on the cut-in's timing,
-exercise 2 is where to start.
 
 ## 1. Copy the example
 
@@ -59,18 +55,19 @@ pilots:
     lifetime: run                             # a fresh process per run
 ```
 
-`scenarios/four_pilots.xosc` has the four entities, `ego` with the controller `Autoware`
-and the other three with `agent`: driven from outside SSv2. Each key of `pilots:` is an
-entity name or a pattern (`bg_av_*` matches `bg_av_1`).
+`scenarios/four_pilots.xosc` has the four entities: `ego` with the controller `Autoware`,
+the other three with `agent`, so all four are driven from outside SSv2. Each key of
+`pilots:` is an entity name or a pattern (`bg_av_*` matches `bg_av_1`).
 
-**Check**: `ros2 run swb project check` prints `project: ok`. It refuses an `agent`
-entity with no pilot, and a pilot kind the simulator cannot run (`carla_basic` on Isaac).
+**Check**: `ros2 run swb project check` prints `project: ok`. It would refuse an `agent`
+entity with no pilot, or a pilot kind the simulator cannot run.
 
 ## 2. Check your own pilot without a simulator
 
-`pilots/cut_in.py` is an agent on swb's SDK: a subclass of the SDK's `carla_basic` adapter
-that holds the goal the scenario gives it until the ego is within its trigger distance,
-then goes. swb starts it as
+An **agent** is the process that registers an entity with the agent relay and drives it.
+`pilots/cut_in.py` is an agent on swb's SDK, built on the SDK's `carla_basic` adapter: it
+withholds the goal that the scenario gives it until the ego is within its trigger
+distance, then proceeds. swb starts it as
 
 ```
 python3 <project>/pilots/cut_in.py --trigger-m 40 \
@@ -95,13 +92,7 @@ PASS: 16/16 rules
 
 ## 3. Bring up the stack
 
-The BasicAgent pilot needs CARLA's Python `agents` package, which ships with CARLA. Tell
-swb where CARLA is installed, once per host, in `~/.config/swb/host.yaml`:
-
-```yaml
-carla:
-  root: ~/CARLA_0.9.16
-```
+With `carla.root` set (Before you start):
 
 ```bash
 play_launch launch --web-addr 127.0.0.1:8080 \
@@ -109,12 +100,10 @@ play_launch launch --web-addr 127.0.0.1:8080 \
     map:=Town01
 ```
 
-`map:=Town01` starts the pilots at once, on Town01, rather than at the first run, so that
-you can watch them come up before running anything.
-
-The stack starts the pilots that live with it: both Autowares and the BasicAgent, each
-nested play_launch in its own pilot domain of the seat. `cut_in` is `lifetime: run`: each
-run starts it afresh.
+`map:=Town01` starts the pilots at once rather than at the first run, so that their
+start can be observed. These are the pilots that live with the stack: both Autowares and
+the BasicAgent, each in its own ROS domain of the seat. `cut_in` is `lifetime: run`, so
+each run starts it afresh.
 
 **What you see**: `swb stack: pilot lead ready on Town01` almost at once,
 `pilot ego ready` and `pilot bg_av_1 ready` once each Autoware can drive, then
@@ -124,11 +113,11 @@ run starts it afresh.
 
 ```bash
 grep -E '"(entity|domain)"' \
-    ~/.local/state/swb/logs/multi_pilot/seat-0-current/stack.json
+    ~/.local/state/swb/logs/multi_pilot/seat-*-current/stack.json
 ```
 
-(with another `logs:` in your host settings, that directory instead). Each entity has its
-own domain.
+(or the corresponding directory under another `logs:` of the host settings). Each entity
+has its own domain.
 
 ## 4. Run the scenario
 
@@ -160,9 +149,9 @@ shows the trigger distance the cut-in chose for this run.
 ros2 run swb run suites/cut_in_seeds.yaml
 ```
 
-The suite runs the scenario five times, run k with seed 1000 + k. `cut_in.py` draws its
-trigger distance from the seed (40 m, give or take up to 5 m), so each repetition cuts in at
-another gap, and a run's seed repeats it exactly.
+The suite runs the scenario five times, repetition k with seed 1000 + k. `cut_in.py`
+draws its trigger distance from the seed (40 m, plus or minus up to 5 m), so each
+repetition cuts in at a different gap, and the same seed reproduces a run exactly.
 
 **What you see**: five run lines, `..._r0` to `..._r4`, then `summary: .../summary.csv`.
 
@@ -171,8 +160,8 @@ another gap, and a run's seed repeats it exactly.
 ## What happened
 
 A **pilot** is what drives one entity: a **vehicle side** swb starts (on CARLA, the
-vehicle bridge with the car's sensors and vehicle interface, in the pilot's domain) plus a
-**driver**, plus the agent that registers the entity with the relay. The kinds:
+vehicle bridge with the car's sensors), a **driver**, and the agent that registers the
+entity with the relay. The kinds:
 
 | kind | Driver | Agent |
 |---|---|---|
@@ -183,13 +172,12 @@ vehicle bridge with the car's sensors and vehicle interface, in the pilot's doma
 | `command` | a program of yours, given `--relay --entity --seed --run-dir` | the program itself |
 | `none` | started by you | yours |
 
-Every pilot gets its own ROS domain, because every Autoware uses the same topic names;
-the scenario reaches each through the relay's TCP port. A `lifetime: stack` pilot lives
-as long as the stack and serves run after run; a `lifetime: run` pilot starts with each
-run and can take per-run values (`{seed}`, `{run_dir}`, `{param:<name>}`).
-[Your autopilot as a pilot](../how-to/your-autopilot.md) shows `launch` and `command` for
-your own driver; the [project file reference](../reference/project-file.md#pilots) lists
-every key.
+Every pilot gets its own ROS domain, because every Autoware uses the same topic names; the
+scenario reaches each through the relay. A `lifetime: stack` pilot serves run after run; a
+`lifetime: run` pilot starts with each run and can take per-run values (`{seed}`,
+`{run_dir}`, `{param:<name>}`). [Your autopilot as a pilot](../how-to/your-autopilot.md)
+shows `launch` and `command` for a driver of one's own; the
+[project file reference](../reference/project-file.md#pilots) lists every key.
 
 ## Exercises
 
@@ -199,17 +187,16 @@ every key.
 2. **Medium.** Make the cut-in later: `--trigger-m` 30 in `swb.yaml`, then restart the
    stack (a run refuses a stack started from another `swb.yaml`). Check: `cut_in.json`
    shows a distance between 25 and 35 m.
-3. **Open.** Write a pilot of your own: `ros2 run swb_agent swb-agent new my-pilot` makes
-   a skeleton that passes `swb-agent check`; give it to an entity as a `command` pilot.
-   Check: `swb-agent check` passes, and a run with your pilot ends `passed` or `failed`,
-   not `error`.
+3. **Open.** Write a new pilot: `ros2 run swb_agent swb-agent new my-pilot` makes a
+   skeleton that passes `swb-agent check`; assign it to an entity as a `command` pilot.
+   Check: `swb-agent check` passes, and a run with the new pilot ends `passed` or
+   `failed`, not `error`.
 
 ## If it does not work
 
 | Symptom | Fix |
 |---|---|
 | `pilot lead` restarts again and again; its log says `No module named 'agents'` | `carla.root` is missing from `~/.config/swb/host.yaml` (step 3); restart the stack |
-| `swb run: refused: the stack ... was started from another project state: ... differ` | `swb.yaml` (or the lock) changed since the stack started: restart the stack |
 | One Autoware never becomes ready | two Autowares need GPU memory and RAM: close other GPU work; read `runs why` and the pilot's log under the stack's `proc/pilot-<entity>/` |
 | `refused: entity bg_av_1 ... has no pilot in the stack` | the stack started before the pilot was added: restart it |
 

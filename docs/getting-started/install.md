@@ -167,10 +167,19 @@ out of memory part way: add `--parallel-workers 4` after `colcon build` and set
 brings. colcon prints `Summary: <n> packages finished` at the end. A package that failed is
 named in `Summary: ... failed`; its log is under `log/latest_build/<package>/`.
 
-The build adds `[[patch.unused]]` entries to `Cargo.lock` and to
-`src/autoware_carla_bridge/Cargo.lock` (the message crates it generates). They are the build's,
-not yours: before a `git pull --rebase`, drop them with
-`git checkout -- Cargo.lock && git -C src/autoware_carla_bridge checkout -- Cargo.lock`.
+The build adds `[[patch.unused]]` entries (the message crates it generates) to five lock
+files: the repository root's `Cargo.lock` and those of `src/autoware_carla_bridge`,
+`src/swb_carla_world`, `src/swb_world_protocol` and `third_party/cuda_ndt_matcher`. These
+entries belong to the build, not to the source: before a `git pull --rebase`, discard them
+with
+
+```bash
+git checkout -- Cargo.lock
+for d in src/autoware_carla_bridge src/swb_carla_world src/swb_world_protocol \
+         third_party/cuda_ndt_matcher; do
+    git -C "$d" checkout -- Cargo.lock
+done
+```
 
 Once per user, give Autoware a writable data directory, `~/autoware_data` (TensorRT writes
 its engines there, so they are built once and kept):
@@ -209,14 +218,26 @@ cache: ~/.cache/swb              # the downloaded datasets, shared by all your p
 carla: {host: localhost, port: 2000}
 ```
 
-Running CenterPoint (`lidar_detection_model: centerpoint`)? Autoware 1.5.0 needs its own
-TensorRT, 10.8.0, or it rebuilds the detector's engines at every start: set
-`autoware: {tensorrt_lib: <dir>}` as [Your Autoware](../how-to/your-autoware.md#tensorrt-1080)
-shows. The default detector needs nothing.
-
 A project can override a key for one checkout in `<project>/.swb/local.yaml`, which git
 ignores. Every key, and the seat table an administrator sets in `/etc/swb/host.yaml`:
 [Host settings](../reference/host-settings.md).
+
+## Autoware's fixes
+
+Autoware 1.5.0 lacks three fixes this workspace carries: a right turn that the blind spot
+module stops on, NDT's two-point cycle that triggers an emergency stop now and then, and a
+node that aborts on the time a simulator's clock gives it. Build them once, in the checkout,
+after the build (a few minutes):
+
+```bash
+ros2 run swb autoware overlay
+```
+
+Without them a stack runs stock Autoware and its log says so; the tutorials still pass, but
+the ego may stop where it should not. Running CenterPoint (`lidar_detection_model:
+centerpoint`)? Autoware 1.5.0 also needs its own TensorRT, 10.8.0, or it rebuilds the
+detector's engines at every start: `ros2 run swb autoware tensorrt` fetches it (3 GB). The
+default detector needs nothing. `ros2 run swb autoware where` prints where each goes.
 
 ## Check
 

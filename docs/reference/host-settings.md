@@ -57,5 +57,10 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 
 Every domain of the seat table must be 0 to 57 (the localhost DDS profile's limit), and
 seats must not overlap; a table that breaks either is refused when read, naming the file.
+Seat `n` takes the domains from `domains.base + stride n` up to the next seat's, so the
+last seat ends near `domains.base + stride count`: the default table (base 1, stride 8,
+count 7) ends at domain 56. Raising `domains.base` therefore means lowering `count` (or
+`stride`) to match. ROS itself allows domains up to 232, but the Cyclone profile used here
+keeps them at 57 or below.
 `SWB_CONFIG_HOME` and `SWB_SYSTEM_CONFIG` move the user's and the host's directory (for
 tests and containers); nothing else is read from the environment.

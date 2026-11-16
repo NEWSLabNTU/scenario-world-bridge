@@ -1,7 +1,7 @@
 # Tutorial 2: Write a scenario
 
-**Goal**: a scenario of your own, from nothing but the map: the ego drives 80 m down a
-Town01 road to a goal, behind a slower car it must not touch, and the run passes.
+**Goal**: a new scenario, written from the map alone, in which the ego drives 80 m along a
+Town01 road to a goal behind a slower car that it must not touch, and the run passes.
 
 ```
 $ ros2 run swb run scenarios/follow_to_goal.xosc
@@ -10,11 +10,11 @@ passed   2026-11-15T11-02-13_follow_to_goal_r0  .../runs/2026-11-15T11-02-13_fol
 
 ## You will learn
 
-- to find poses on a CARLA map in the scenario's frame, with `carla_poses`;
-- the four parts of a scenario you write yourself: the map, the entities, the Init, the
-  verdict;
-- to give a scenario a parameter and change it per run with `--param`;
-- which rules of the bridge a first scenario meets.
+- finding poses on a CARLA map in the scenario's frame, with `carla_poses`;
+- the four parts of a scenario that its author writes: the map, the entities, the Init and
+  the verdict;
+- declaring a scenario parameter and changing it per run with `--param`;
+- the rules of the bridge that a first scenario meets.
 
 ## Before you start
 
@@ -24,9 +24,8 @@ passed   2026-11-15T11-02-13_follow_to_goal_r0  .../runs/2026-11-15T11-02-13_fol
   [Getting started on CARLA](../getting-started/carla.md).
 - About 30 minutes.
 
-The finished file ships with the workspace, so you can compare against it. It lives in
-the Isaac Sim example project, because Tutorial 6 runs this same file there unchanged; it
-is the same scenario on CARLA:
+The finished file ships with the workspace for comparison. It resides in the Isaac Sim
+example project, because Tutorial 6 runs the same file there unchanged:
 
 ```bash
 E=$(ros2 pkg prefix --share swb_examples)/projects
@@ -35,10 +34,10 @@ ls $E/isaac_first_drive/scenarios/follow_to_goal.xosc
 
 ## 1. Find poses on the map
 
-Scenarios place entities in the frame of the Autoware map. For the CARLA towns that is
-CARLA's world with y flipped and headings negated, which is easy to get wrong by hand.
-`carla_poses` reads the town CARLA has loaded (it only reads; it is safe beside a running
-stack) and prints positions already converted, as OpenSCENARIO elements:
+Scenarios place entities in the frame of the Autoware map. For the CARLA towns this frame
+is CARLA's world with y mirrored and headings negated, a conversion that is error-prone by
+hand. `carla_poses` reads the town that CARLA has loaded, without modifying it (so it is
+safe beside a running stack), and prints positions already converted:
 
 ```bash
 ros2 run swb_launch carla_poses spawn-points
@@ -57,8 +56,8 @@ ros2 run swb_launch carla_poses spawn-points
    ...
 ```
 
-Spawn point 2 starts on a long straight road heading west. Walk along its lane for the
-lead car's start (20 m) and the goal (80 m):
+Spawn point 2 lies on a long straight road heading west. The lead car's start (20 m) and
+the goal (80 m) are found by following its lane:
 
 ```bash
 ros2 run swb_launch carla_poses ahead 2 --distance 20
@@ -72,31 +71,30 @@ end    <WorldPosition x="279.40" y="-129.49" z="0.00" h="3.14115" p="0" r="0" />
 end    <WorldPosition x="219.40" y="-129.47" z="0.00" h="3.14115" p="0" r="0" />
 ```
 
-(Each line also ends with a comment naming the road and lane.) The `start` line is the lane
-centre at spawn point 2: the ego's start. `ahead` follows the lane and, at a junction,
-keeps the straightest branch (`--turn` takes the sharpest, `--every` prints the way);
-`at X Y` snaps a point you picked elsewhere, in RViz for example, onto the nearest lane.
-`--host` and `--port` reach a CARLA elsewhere.
+The `start` line is the lane centre at spawn point 2: the ego's start. `ahead` follows the
+lane and, at a junction, keeps the straightest branch; `carla_poses --help` lists the other
+ways to find a pose, such as `at X Y`, which snaps an arbitrary point onto the nearest
+lane.
 
-**Check**: the first line names `map Town01`. If it names another town, run Tutorial 1's
-scenario once: the stack loads Town01 into CARLA for it.
+**Check**: the first line names `map Town01`. If it names another town, running Tutorial
+1's scenario once makes the stack load Town01 into CARLA.
 
 ## 2. Write the scenario
 
-Start from a copy of the scenario you already have, and keep its frame: `FileHeader`,
+The new scenario starts from a copy of the existing one, keeping its frame: `FileHeader`,
 `ParameterDeclarations`, `CatalogLocations`, and the `Storyboard`'s `Story` / `Act` /
-`ManeuverGroup` / `Maneuver` nesting with the Act's own `StartTrigger` and the empty
-`StopTrigger`. OpenSCENARIO requires them and every scenario repeats them.
+`ManeuverGroup` / `Maneuver` nesting with its triggers. OpenSCENARIO requires these
+elements, and every scenario repeats them.
 
 ```bash
 cd ~/my_first_drive
 cp scenarios/drive_to_goal.xosc scenarios/follow_to_goal.xosc
 ```
 
-What you write yourself are four parts.
+Four parts remain to be written.
 
-**The map**, by name. `$(env SWB_MAPS)` is the project's `assets/maps/`, set by the stack
-for every process, so the same file works in any project that fetched Town01:
+**The map**, by name. `$(env SWB_MAPS)` is the project's `assets/maps/`, which the stack
+sets, so the same file works in any project that fetched Town01:
 
 ```xml
 <RoadNetwork>
@@ -104,9 +102,9 @@ for every process, so the same file works in any project that fetched Town01:
 </RoadNetwork>
 ```
 
-**The entities.** Keep the ego as it is: the catalog car `tesla_model3` with the controller
-`Autoware`, which the project's `pilots: ego:` drives. Add a lead car whose controller name
-is empty, which means SSv2 drives it:
+**The entities.** The ego stays as it is: the catalog car `tesla_model3` with the
+controller `Autoware`. A lead car is added with an empty controller name, which means that
+SSv2 drives it:
 
 ```xml
 <ScenarioObject name="lead">
@@ -128,11 +126,12 @@ is empty, which means SSv2 drives it:
 </ScenarioObject>
 ```
 
-The bridge spawns the CARLA vehicle closest in size to the declared box within its
-`vehicleCategory`; to force a body, set `model3d="vehicle.audi.tt"` on the `Vehicle`.
+The bridge spawns the CARLA vehicle closest in size to the declared box; to force a body,
+set `model3d="vehicle.audi.tt"` on the `Vehicle`.
 
-**Init**: teleport both, give the ego its goal, start the lead car at a parameterized
-speed. Paste the poses from step 1; the ego's goal is the `AcquirePositionAction`:
+**Init**: the initial actions teleport both cars, give the ego its goal and start the lead
+car at a parameterized speed. The poses come from step 1; the ego's goal is the
+`AcquirePositionAction`:
 
 ```xml
 <Private entityRef="ego">
@@ -154,9 +153,17 @@ speed. Paste the poses from step 1; the ego's goal is the `AcquirePositionAction
 </Private>
 ```
 
-with `<ParameterDeclaration name="leadSpeed" parameterType="double" value="4.0" />` in
-`ParameterDeclarations`. The `z` is not critical: the bridge places every actor on the
-ground under its x and y.
+`$leadSpeed` requires a declaration. The copied file has an empty element,
+`<ParameterDeclarations />`; expand it into an opening and a closing tag, and place the
+declaration between them:
+
+```xml
+<ParameterDeclarations>
+  <ParameterDeclaration name="leadSpeed" parameterType="double" value="4.0" />
+</ParameterDeclarations>
+```
+
+The `z` is not critical: the bridge places every actor on the ground under its x and y.
 
 **The verdict**: three events in one maneuver of the story, each ending the run.
 
@@ -168,8 +175,8 @@ ground under its x and y.
 
 Each is a `UserDefinedAction` with a `CustomCommandAction type="exitSuccess"` (or
 `exitFailure`) and a `StartTrigger` holding the condition; the shipped file has all three
-written out. Simulation time starts when the ego is engaged, so the timeout does not count
-Autoware's start.
+written out. Simulation time starts when the ego is engaged, so Autoware's start does not
+count against the timeout.
 
 **Check**:
 
@@ -177,8 +184,8 @@ Autoware's start.
 ros2 run swb project check
 ```
 
-prints `project: ok`. It parses every scenario under `scenarios/`, checks that its map is
-fetched and that every entity driven from outside (`Autoware` or `agent`) has a pilot.
+prints `project: ok`: every scenario parses, its map is fetched, and every entity driven
+from outside (`Autoware` or `agent`) has a pilot.
 
 ## 3. Run it
 
@@ -186,9 +193,9 @@ fetched and that every entity driven from outside (`Autoware` or `agent`) has a 
 ros2 run swb run scenarios/follow_to_goal.xosc
 ```
 
-In CARLA (or RViz) the lead car pulls away ahead, the ego follows it at a distance, and
-the run ends when the ego reaches the goal, about 35 s of simulation time. Autoware has to
-see the lead car with its own lidar: nothing tells it where the car is.
+The lead car pulls away, the ego follows it at a distance, and the run ends when the ego
+reaches the goal, after about 35 s of simulation time. Autoware perceives the lead car
+only through its own lidar.
 
 **What you see**: `passed   <run id>  <run directory>`.
 
@@ -201,8 +208,8 @@ ros2 run swb run scenarios/follow_to_goal.xosc --param leadSpeed=2.0
 ```
 
 **What you see**: a run id with the parameter in it,
-`..._follow_to_goal_leadSpeed-2.0_r0`, and the verdict. The scenario file is not changed:
-SSv2 receives the value as an override of its `ParameterDeclaration`.
+`..._follow_to_goal_leadSpeed-2.0_r0`, and the verdict. The file itself is unchanged: SSv2
+receives the value as an override of the declaration.
 
 **Check**:
 
@@ -214,24 +221,21 @@ shows `"leadSpeed": 2.0`.
 
 ## What happened
 
-A scenario owns its map, its entities, their cars and which of them are driven from
-outside (controller `Autoware` or `agent`); the project only says *who* drives each of
-those (`pilots:`). So the same `.xosc` runs in any project that fetched its map and
-binds its entities, on CARLA or on Isaac Sim.
+A scenario defines its map, its entities, their cars and which of them are driven from
+outside; the project states only *who* drives each of those (`pilots:`). The same `.xosc`
+therefore runs in any project that fetched its map, on CARLA or on Isaac Sim.
 
-Rules worth knowing from [What a scenario may use](../reference/scenarios.md), the ones a
-first scenario meets:
+A first scenario meets the following rules ([What a scenario may use](../reference/scenarios.md)
+lists all of them):
 
-- **SSv2-driven cars go where SSv2 says.** They follow SSv2's pose every frame; a
-  collision does not change their path. For vehicles that drive with physics, use the controller
-  `simulator_autopilot` (CARLA's Traffic Manager) or `agent` (a pilot of the project,
-  [Tutorial 4](04-several-pilots.md)).
-- **Uncommanded traffic lights are green.** CARLA's own light cycling is frozen; command
-  the lights your scenario depends on.
-- **The ego's body is its catalog car's.** The bridge refuses an ego whose body in the
-  simulator is more than 2 cm off its catalog box; keep the catalog reference as it is.
+- **SSv2-driven cars follow SSv2's poses** at every frame, and a collision does not alter
+  their path. Cars that drive with physics take the controller `simulator_autopilot`
+  (CARLA's Traffic Manager) or `agent` ([Tutorial 4](04-several-pilots.md)).
+- **Uncommanded traffic lights are green.** A scenario commands the lights it depends on.
+- **The ego's body is its catalog car's**, within 2 cm, so the catalog reference stays as
+  it is.
 - **The ego takes goals and speed limits, not lane changes.** SSv2 refuses relative-speed
-  and lane-change actions for an ego by design.
+  and lane-change actions for an ego.
 
 ## Exercises
 
@@ -240,17 +244,15 @@ first scenario meets:
    the run passes, and `runs list` shows a longer duration than before.
 2. **Medium.** Make the lead car stop halfway: a second `SpeedAction` to 0, in a new
    event triggered by `SimulationTimeCondition` > 10. Check: the run ends `failed` on the
-   timeout (the ego waits behind it), and `ros2 run swb runs show follow_to_goal` shows the
-   ego never reaching the goal.
-3. **Open.** Find the speed at which the lead car is too slow for the 120 s limit: run
-   `--param leadSpeed=` with smaller values. Check: the fastest failing value, and its
-   `runs why` line.
+   timeout, because the ego waits behind the lead car.
+3. **Open.** Find the speed at which the lead car becomes too slow for the 120 s limit, by
+   running `--param leadSpeed=` with smaller values. Check: the fastest failing value, and
+   its `runs why` line.
 
 ## If it does not work
 
 | Symptom | Fix |
 |---|---|
-| `carla_poses` names another map | CARLA has another town loaded: run a Town01 scenario once |
 | `carla_poses`: `No module named 'carla'` | `pip install carla==0.9.16` |
 | `project check`: `LogicFile ... does not name a project map` | the `LogicFile` must be `$(env SWB_MAPS)/<map>`, the fix it prints |
 | `project check`: `entity ... has no pilot` | an entity with controller `Autoware` or `agent` needs a pilot in `swb.yaml` (or rename the controller to `""` for SSv2 to drive it) |

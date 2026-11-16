@@ -248,8 +248,8 @@ G32. An item with no open gap can be migrated now.
 | 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA + CUDA | - | migrated 2026-11-16 (suites/cut_in_rear; first live runs: i8 passed, i7 a contact, see 077) |
 | 11 | Demo tour `demo/town01_tour` | CARLA | G4 | blocked |
 | 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | migrated 2026-11-16 (scenarios/projects/gap, suite gap, 8 of 8 as expected) |
-| 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | ready to migrate |
-| 14 | 050 measurement set | CARLA | - | ready to migrate |
+| 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | migrated 2026-11-16 (swb 118, scenarios/projects/bench, 3 of 3 with a frame_budget judge) |
+| 14 | 050 measurement set | CARLA | - | migrated 2026-11-16 (swb 118, scenarios/projects/set050 and set050_tour; the tour's static-mesh contact open, see 077) |
 | 15 | Free-standing scenario on upstream SSv2 | CARLA | not built (068 step 9: upstream SSv2) | planned |
 | 16 | `basic/town01_ego_drive`, town02_ego_drive on Isaac | Isaac | - | ready to migrate |
 | 17 | Incidents 1-6 and UC-ACC on Isaac | Isaac | - | ready to migrate |

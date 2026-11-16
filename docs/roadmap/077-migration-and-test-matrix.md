@@ -77,6 +77,34 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 8. [ ] The developer recipes on the project workflow; what remains of the old paths for
    developers only, documented.
 
+## The release cut (2026-11-16)
+
+The user asked for the campaign to end in a release (through 133, 2026-11-16). **Release
+ready** means: (a) install.md's commands build from a fresh clone on two clean hosts, one for
+CARLA and one for Isaac; (b) tutorials 1 to 7 pass for a fresh reader; (c) every ready
+inventory item is migrated, with a reference result on the release commit; (d) no open gap
+gives a wrong verdict (the class of G42, G54, G55) or blocks (a) to (c); (e) check_pins,
+check_docs and the tests pass; (f) the release notes list what is deferred, below.
+
+Must-have, in order: the fresh-clone build (241's three package failures); G55 and the
+vehicle_physics default (118), then items 1 to 6 and 8 to 10 again on the spec's physics;
+G34, G35, G53; 075 step 8's Isaac Town01 steps (241); step 4's ready items (CARLA 7, 11, 32,
+34, 36, 37, 52 to 54; Isaac 16 to 18, 20, 21, 24 to 26, 51, 55; 56); step 6's Isaac plain
+reruns; step 7's T3 references; step 8's developer recipes.
+
+**Deferred, for the release notes:**
+- recording and its tools (G4): screencast, chase view, captions, the RViz config, per-leg
+  videos, Isaac's `record:=`; items 7 and 11 run without them;
+- ground per scenario (G7) and the acceptance judge from a bag (G11): items 19, 50;
+- a gate before a batch (G16), two hosts sharing one suite (G17; the copy-then-summarise
+  step has no command), per-pilot ROS parameter overrides (G18), harness mode (G19): items
+  31, 33, 35, 38 to 40, 43, 49, 57;
+- CARLA 0.10 (G20, a branch): item 58;
+- item 15 (upstream SSv2), item 44 (no lanelet map);
+- the private-asset items (22, 23, 27, 28, 30, 59): the user checks those with their own
+  configuration;
+- 076's Haruna drift, the golf cart twin and Isaac own cars.
+
 ## Progress and rulings
 
 - Inventory (2026-11-15): 73 items, 24 gaps (G1 to G24), [077-study/inventory.md](077-study/inventory.md).
@@ -610,6 +638,11 @@ Isaac's rear contact (inventory row 18).
   closes, so the lead brakes at its fallback point 107 m ahead. 034's 5 of 5 (2026-10-16)
   predates it. Not a regression: inventory rows 8 to 10 named the wrong pilot. The demo
   project's ego takes item 11's arguments.
+- **G55 (found 2026-11-16, swb 118, item 14): an installed car runs CARLA's blueprint
+  physics.** On a project stack the tesla_model3 ran with acb's "carla_physics none": the
+  stack sets `vehicle_physics` only for an own car, so the spec's tires and mass reach CARLA
+  only through `just run`. Every project result to date ran that way. 118 takes it with the
+  `just run` default (carla.launch.xml); items 1 to 6 and 8 to 10 run again after it.
 - **G54 (found and built 2026-11-16): the ego drove blind.** On the tour's arguments i1
   collided: the gap trace shows the ego at 11.11 m/s from 48 s to the impact at 57.05 s
   without braking, behind a lead at 8 m/s and through its stop; the lead's "10.35 m/s^2"

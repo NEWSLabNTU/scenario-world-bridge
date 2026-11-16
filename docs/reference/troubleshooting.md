@@ -66,6 +66,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | `nothing serves CARLA on localhost:2000 and carla.root is not set` | the stack cannot start CARLA without knowing where it is. Set `carla: {root: <CARLA_0.9.16 directory>}` in `~/.config/swb/host.yaml` (or the project's `.swb/local.yaml`) and the stack starts it; or start CARLA yourself; or pass `simulator_start:=external` to wait for one |
 | CARLA dies mid-run | the run fails within about 30 s. A CARLA the stack started (`carla.root`) is started again by the stack; one you started, restart yourself. The next run waits for it and runs |
 | The stack stops: CARLA did not serve its RPC within `carla.ready_timeout` | the CARLA it started is slow on this host, or failed: read its log, `proc/simulator/carla.log` in the stack's directory; raise `carla.ready_timeout` |
+| The ego hits a chair, table or cone of the town that a car knocked into its lane (a contact with a `static.prop.mesh`) | the town's own props were simulated: the world server's `map_props` is `live`, or its log has `Map props: could not freeze`. With `map_props: frozen` (the default since 2026-11-16) it logs `Map props: froze N of N static.prop.mesh actor(s)` at each world load and they stay put; a run's `result.json` names the setting (`provenance.world_server.map_props`). The contact still counts |
 | The light never changes; `Cannot read the signal table` | the world server could not write the map's signal table into `state/<map>/`: the project directory must be writable |
 
 ## Isaac Sim

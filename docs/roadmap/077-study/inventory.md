@@ -243,9 +243,9 @@ G32. An item with no open gap can be migrated now.
 | 5 | `awf/` with CenterPoint | CARLA + CUDA | - | migrated 2026-11-16 (safety_suite centerpoint, 27/27 and 9/9) |
 | 6 | `tutorial/town01_follow_to_goal` | CARLA | - | migrated 2026-11-16 (`scenarios/projects/basic` suites/tutorial) |
 | 7 | `multi_av/town01_two_av` | CARLA, two Autoware | G4 | blocked |
-| 8 | Demo incidents i1 to i5 | CARLA | G33 | blocked |
-| 9 | Demo incident i6 | CARLA + CUDA | G33 | blocked |
-| 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA | G33 | blocked |
+| 8 | Demo incidents i1 to i5 | CARLA + CUDA | - | migrated 2026-11-16 (`scenarios/projects/demo` suites/incidents, 5 of 5 on SSv2, incident_judge and physical_verdict; the tour's ego, as the incidents are timed for since 2026-10-20) |
+| 9 | Demo incident i6 | CARLA + CUDA | - | migrated 2026-11-16 (suites/i6_centerpoint, 3 of 3, the ego yielding) |
+| 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA + CUDA | - | migrated 2026-11-16 (suites/cut_in_rear; first live runs: i8 passed, i7 a contact, see 077) |
 | 11 | Demo tour `demo/town01_tour` | CARLA | G4 | blocked |
 | 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | migrated 2026-11-16 (scenarios/projects/gap, suite gap, 8 of 8 as expected) |
 | 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | ready to migrate |

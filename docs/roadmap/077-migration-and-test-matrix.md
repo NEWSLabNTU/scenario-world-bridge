@@ -625,6 +625,22 @@ Isaac's rear contact (inventory row 18).
   `autoware.tensorrt_lib` with a libnvinfer.so.10; install.md and the how-to name the key.
   Audits: 133's 078 runs (the 10.8 runtime set) and 118's 074 runs (N5: 172 starts on cached
   engines; S5d: two first-start builds, tracking non-empty throughout) were not affected.
+- **Items 8 to 10 migrated (2026-11-16, `scenarios/projects/demo`).** The ego is the demo
+  tour's (`max_velocity` 11.11, CenterPoint, `use_multi_channel_tracker_merger: false`, the
+  042 overlay, built on this host for it), `lifetime: stack`, on Autoware's TensorRT 10.8;
+  judges `incident` (`--incident auto`, needs gap_trace and context) and physical_verdict.
+  - Item 8, suite incidents: 5 of 5 passed SSv2 and both judges. i1 against 033's route C
+    reference: brake with the ego 32.2 m behind at 8.85 m/s (7.6 to 8.2 m/s, 22.6 to 45.7 m),
+    the lead's peak 6.0 m/s^2 (6.0), stop gap 5.19 m (4.9 to 5.6), stood 5.7 s (5.6 to 6.2).
+  - Item 9, suite i6_centerpoint: 3 of 3 passed both judges, the ego at 0 m/s near the
+    cyclist each time (042: 3 of 3 yielding).
+  - Item 10, suite cut_in_rear, the first live runs (025 only rendered them): i8 passed SSv2
+    and physical_verdict. i7 hit the cutting car twice: the first run ended `error` at SSv2's
+    acceleration bound (the ego at -17.4 m/s^2 on a 198 N s touch), the retry passed SSv2 and
+    failed physical_verdict (2289 N s, 25 frames). In the trace `i7_cut` pulls out from rest
+    24 m ahead of the ego at 11.11 m/s, and the ego brakes from an 8 m gap. A scenario
+    question for 025 (timed for this ego, or too tight for it), not a migration fault;
+    incident_judge has no rows for i7 and i8 and records `error` for both, as designed.
 - **Item 12 migrated (swb 118, 2026-11-16, 918cf60).** `scenarios/projects/gap`, suite
   `gap`: entity_bodies and motorbike_body passed twice (oracle 0/0/0), npc_shoulder passed
   twice (0/1/0, 20 spawn infos, as 032), truck_pass failed twice as expected (G1 1 ego and

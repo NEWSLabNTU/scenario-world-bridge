@@ -1294,3 +1294,12 @@ Isaac's rear contact (inventory row 18).
   the classifying check, i6 on CARLA at current main with both judges, is 118 (reporting to
   133 and 241). Rule (133): CARLA clean makes G74 an Isaac-only known limit for the release,
   recorded as G65 is; CARLA failing too blocks the release until a cause is found.
+  **Classified (133, 2026-11-17): an Isaac-only known limit for the release.** 118 ran i6 on
+  CARLA at 63345e5 (2026-11-17T02-14-44_town01_i6_cyclist_inside_r0, host load 35-45 on 48
+  cores): SSv2, incident_judge and physical_verdict passed ("no unexpected contact"); the
+  ego yielded (0.0 m/s, a 1.3 s wait), min_gap 0.56 m at 3.88 m/s as before (0.55-0.57 m),
+  no contact. NAS "2026-11-17 i6 on CARLA at 63345e5". So the bridge and the scenario are
+  clean and the touch is Isaac's: Autoware closes to about 0.2 m there, against 0.56 m on
+  CARLA, and Isaac's cyclist body meets the ego. For the release notes: on Isaac, i6's
+  judges may report contact with the cyclist while SSv2 passes. i6 on Isaac stays out of T3
+  (63345e5); 241's quiet rerun is useful, not a release gate.

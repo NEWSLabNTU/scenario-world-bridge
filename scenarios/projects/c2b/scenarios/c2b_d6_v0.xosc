@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<!-- Roadmap 074 C2b: the cut-in with two light-policy agents, d0 6.0 dv 0.0; written by make_scenarios.py -->
+<OpenSCENARIO>
+	<FileHeader author="scenario-world-bridge" date="2026-11-13T00:00:00+00:00" description="074 C2b cut-in d0 6.0 dv 0.0" revMajor="1" revMinor="2" />
+	<ParameterDeclarations>
+		<ParameterDeclaration name="d0" parameterType="double" value="6.0" />
+		<ParameterDeclaration name="dv" parameterType="double" value="0.0" />
+		<ParameterDeclaration name="pair" parameterType="string" value="eq" />
+		<ParameterDeclaration name="start_shift" parameterType="double" value="120.4" />
+	</ParameterDeclarations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town03" /></RoadNetwork>
+	<Entities>
+		<ScenarioObject name="coop_a">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="agent"><Properties /></Controller></ObjectController>
+		</ScenarioObject>
+		<ScenarioObject name="coop_b">
+			<CatalogReference catalogName="vehicles" entryName="tesla_model3">
+				<ParameterAssignments>
+					<ParameterAssignment parameterRef="maxSpeed" value="50" />
+					<ParameterAssignment parameterRef="maxAcceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxDeceleration" value="15.0" />
+					<ParameterAssignment parameterRef="maxSteering" value="0.5" />
+				</ParameterAssignments>
+			</CatalogReference>
+			<ObjectController><Controller name="agent"><Properties /></Controller></ObjectController>
+		</ScenarioObject>
+	</Entities>
+	<Storyboard>
+		<Init><Actions>
+			<Private entityRef="coop_a">
+				<PrivateAction><TeleportAction><Position><WorldPosition x="239.94" y="-85.61" z="0.3" h="1.5458" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="245.43" y="134.0" z="0.0" h="1.5458" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+			</Private>
+			<Private entityRef="coop_b">
+				<PrivateAction><TeleportAction><Position><WorldPosition x="243.17" y="-96.4" z="0.3" h="1.5458" p="0" r="0" /></Position></TeleportAction></PrivateAction>
+				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="248.93" y="134.0" z="0.0" h="1.5458" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
+			</Private>
+		</Actions></Init>
+		<Story name="c2b"><Act name="c2b_act">
+			<ManeuverGroup maximumExecutionCount="1" name="end"><Actors selectTriggeringEntities="false"><EntityRef entityRef="coop_b" /></Actors>
+			<Maneuver name="end_m">
+				<Event name="done" priority="parallel" maximumExecutionCount="1">
+					<Action name="done_a"><UserDefinedAction><CustomCommandAction type="exitSuccess" /></UserDefinedAction></Action>
+					<StartTrigger><ConditionGroup><Condition name="time" delay="0" conditionEdge="none"><ByValueCondition><SimulationTimeCondition value="50.0" rule="greaterThan" /></ByValueCondition></Condition></ConditionGroup></StartTrigger>
+				</Event>
+			</Maneuver></ManeuverGroup>
+			<StartTrigger><ConditionGroup><Condition name="start" delay="0" conditionEdge="none"><ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan" /></ByValueCondition></Condition></ConditionGroup></StartTrigger>
+		</Act></Story>
+		<StopTrigger />
+	</Storyboard>
+</OpenSCENARIO>

@@ -1,0 +1,13 @@
+# 074 C2b: the six cells, each with both rule pairs (eq: A_eq/B_eq, the double oracle's
+# equilibrium; aw: A_aw_perm/B_aw, the Autoware-like pair), two seeds: 24 runs. Reference
+# (074, 2026-11-15, swb 241): outcomes agree with the arena in 24 of 24, world-frame
+# payoffs inside its interval 42 of 48 (88 %). Measured here (2026-11-16): 24 of 24 and
+# 46 of 48 (96 %); the start now keeps the scored window on the straight (074), and the two
+# misses are uB at 10/0 with the eq pair, the pair 074's lane-frame score also misses.
+scenarios: [scenarios/]
+parameters:
+  pair: [eq, aw]
+repetitions: 2
+seed: 0
+retry: {on: error, times: 1}
+expect: {}

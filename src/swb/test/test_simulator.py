@@ -17,7 +17,8 @@ import yaml
 
 from swb import assets, project, simulator as sim, stack
 
-REPLY = b"\x94\x01\x01\xc0\xa60.9.16"
+# what CARLA answers (Response<std::string>: [[1, "0.9.16"]]), measured 2026-11-16
+REPLY = b"\x94\x01\x01\xc0\x91\x92\x01\xa60.9.16"
 
 FAKE_CARLA = textwrap.dedent('''\
     import json, os, signal, socket, sys, time
@@ -45,7 +46,7 @@ FAKE_CARLA = textwrap.dedent('''\
         c, _ = s.accept()
         try:
             c.recv(256)
-            c.sendall(b"\\x94\\x01\\x01\\xc0\\xa60.9.16")
+            c.sendall(b"\\x94\\x01\\x01\\xc0\\x91\\x92\\x01\\xa60.9.16")
         finally:
             c.close()
 ''')

@@ -48,7 +48,12 @@ PROBE_EVERY = 1.0
 LOG = Path("simulator") / "carla.log"
 
 # msgpack-rpc request [0, 1, "version", []]
-_VERSION_REQUEST = bytes([0x94, 0x00, 0x01, 0xa7]) + b"version" + bytes([0x90])
+# [0, 1, "version", [[false]]]: LibCarla's client sends a Metadata ([asynchronous: false]) as
+# a call's first argument; without it CARLA's server refuses the call ("invalid number of
+# arguments"), whose error reply still says the server is CARLA's, but not its version
+# (roadmap 077, G45: "CARLA serves RPC (None)"). Measured on CARLA 0.9.15 and 0.9.16.
+_VERSION_REQUEST = (bytes([0x94, 0x00, 0x01, 0xa7]) + b"version"
+                    + bytes([0x91, 0x91, 0xc2]))
 
 
 class SimulatorRefused(RuntimeError):
@@ -88,10 +93,16 @@ def probe(host, port, timeout=3.0):
 
 
 def _version(data: bytes):
-    """The result string of a msgpack-rpc reply whose error is nil, else None."""
+    """The result string of a msgpack-rpc reply whose error is nil, else None: a string, or
+    CARLA's Response wrapping it (``[[<index>, "0.9.16"]]``)."""
     if len(data) < 5 or data[3] != 0xc0:
         return None
-    b, rest = data[4], data[5:]
+    i = 4
+    while i < len(data) and (0x90 <= data[i] <= 0x9f or data[i] <= 0x7f):
+        i += 1   # array headers and the variant's index (positive fixints)
+    if i >= len(data):
+        return None
+    b, rest = data[i], data[i + 1:]
     if 0xa0 <= b <= 0xbf:
         n = b & 0x1f
     elif b == 0xd9 and rest:

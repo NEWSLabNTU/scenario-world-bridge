@@ -1495,6 +1495,14 @@ Isaac's rear contact (inventory row 18).
   start ends when a required node exits 5 times before ready, naming the node, its exit code
   and its last err line. Also checked by 139: whether `seat auto` skips a seat whose ports
   another checkout's live stack holds.
+- **G79, `just build` leaves the tracked Cargo.lock dirty (found by swb 118, numbered by 133,
+  2026-11-17).** The build appends `[[patch.unused]]` entries (the ROS message crates the
+  colcon-cargo-ros2 `[patch]` table names but the graph does not use: `action_msgs`,
+  `example_interfaces`, ...) to Cargo.lock in swb, swb_carla_world and swb_world_protocol,
+  so every built checkout's provenance reads `+dirty` (seen on 118, 133 and 243). Not a wrong
+  verdict: the code run is the commit's. For the RC, `t3.py` accepts a dirty state that is
+  Cargo.lock alone, with a note (139, review 243). Fix after the release: drop the unused
+  `[patch]` entries, or commit the lock as the build leaves it.
 - **G75-G77 landed (139, reviewed by 243, 2026-11-17):** aib 007d4f9, swb_isaac_world
   c9a72de, csb 89fe7a0 (G75, G76), 4bad9c1 (G77), 356a742 (`seat take auto` skips a seat
   whose ports are bound, as `swb run` does). Refusal texts are in host-settings' `isaac.root`

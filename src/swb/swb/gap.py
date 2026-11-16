@@ -96,7 +96,7 @@ def oracle(run_dir: Path, extra: list, fail_on: str) -> int:
     return _emit({"verdict": worst, "message": msg, "traces": out}, 0 if worst == "passed" else 1)
 
 
-INCIDENTS = range(1, 8)   # incident_judge's rows (roadmap 033; i7 since 077 item 10)
+INCIDENTS = range(1, 9)   # incident_judge's rows (roadmap 033; i7 and i8 since 077 item 10)
 INCIDENT_NAME = re.compile(r"_i(\d+)_")
 
 

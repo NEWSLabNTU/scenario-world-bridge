@@ -198,6 +198,72 @@ class IncidentJudge(unittest.TestCase):
         m = self.judge(trace_lines(self.cut_in_frames(4.0), actors=("i7_cut",)), 7, context())
         self.assertTrue(any("never pulled out" in r for r in m["reasons"]), m["reasons"])
 
+    @staticmethod
+    def rear_frames(rest_gap, rear_v=10.0, cap=None):
+        """i8: the ego stands at a red light (front 1.5 m short of x 40, red 2..14) while
+        i8_rear, from 60 m behind at `rear_v` m/s, brakes at 6 m/s2 and stops `rest_gap` m
+        behind the ego's rear (box to box); after green both drive on"""
+        frames, dt = [], 0.05
+        cap = 40 - 1.5 - 2.25 if cap is None else cap
+        x, rx, rv, braking = 0.0, -60.0, rear_v, False
+        for k in range(int(24 / dt)):
+            t = round(k * dt, 2)
+            if t < 15.0:
+                x = min(x + 4.0 * dt, cap)
+                v = 0.0 if x >= cap else 4.0
+                target = cap - 4.5 - rest_gap   # behind where the ego will stand
+                if not braking and rv > 0 and target - rx <= rv * rv / 12.0:
+                    braking = True
+                if braking:
+                    rv = max(0.0, rv - 6.0 * dt)
+                rx = min(rx + rv * dt, target)
+                if braking and rv == 0.0:
+                    rx = target   # the last few cm of the stop, so the rest gap is exact
+                if rx >= target:
+                    rv = 0.0
+            else:
+                v = 4.0
+                x += v * dt
+                rv = 4.0
+                rx += rv * dt
+            frames.append((t, {"ego": state(x, v), "i8_rear": state(rx, rv)}))
+        return frames
+
+    I8_CTX = (("i8_red", 2.0), ("i8_green", 14.0))
+
+    def test_rear_approach_pass(self):
+        m = self.judge(trace_lines(self.rear_frames(2.0), actors=("i8_rear",)), 8,
+                       context(*self.I8_CTX), stop_line=(40.0, 0.0, 0.0))
+        self.assertEqual(m["verdict"], "PASS", m["reasons"])
+        self.assertAlmostEqual(m["rear_rest_gap"], 2.0, places=1)
+        self.assertGreaterEqual(m["rear_closing_mps"], 3.0)
+        self.assertAlmostEqual(m["stop_line_gap_m"], 1.5, places=1)
+
+    def test_rear_approach_too_close_fails(self):
+        m = self.judge(trace_lines(self.rear_frames(0.5), actors=("i8_rear",)), 8,
+                       context(*self.I8_CTX), stop_line=(40.0, 0.0, 0.0))
+        self.assertEqual(m["verdict"], "FAIL")
+        self.assertTrue(any("rested 0.5 m" in r for r in m["reasons"]), m["reasons"])
+
+    def test_rear_car_that_never_closed_fails(self):
+        m = self.judge(trace_lines(self.rear_frames(2.0, rear_v=2.0), actors=("i8_rear",)), 8,
+                       context(*self.I8_CTX), stop_line=(40.0, 0.0, 0.0))
+        self.assertTrue(any("rear car never closed" in r for r in m["reasons"]), m["reasons"])
+
+    def test_rear_approach_keeps_row_3s_red_light(self):
+        m = self.judge(trace_lines(self.rear_frames(2.0), actors=("i8_rear",)), 8,
+                       context(*self.I8_CTX), stop_line=(36.0, 0.0, 0.0))
+        self.assertTrue(any("past the stop line" in r for r in m["reasons"]), m["reasons"])
+
+    def test_rear_approach_fails_on_any_ego_contact(self):
+        cone = {"type": "contact", "frame": 10, "carla_frame": 10, "sim_time": 0.5, "ego_id": 103,
+                "other_id": 130, "name": None, "other_type": "static.prop.mesh",
+                "other_kind": "unknown", "impulse": 53.0}
+        m = self.judge(trace_lines(self.rear_frames(2.0), actors=("i8_rear",), contacts=[cone]), 8,
+                       context(*self.I8_CTX), stop_line=(40.0, 0.0, 0.0))
+        self.assertEqual(m["verdict"], "FAIL")
+        self.assertEqual(m["contacts_other"], ["static.prop.mesh"])
+
 
 if __name__ == "__main__":
     unittest.main()

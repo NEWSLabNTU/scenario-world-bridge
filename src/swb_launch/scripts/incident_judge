@@ -31,6 +31,12 @@ or, with --junit, a scenario that did not pass. Per row:
                       ego yielded (below 1 m/s while the cyclist was within 10 m)
   7 cut-in            the parked car pulled out, no contact, and the ego's min gap to it
                       >= 2 m; the ego's speed and the gap when it pulled out reported
+  8 rear approach     row 3's red light on i8's events (i8_red, i8_green), and a faster
+                      car from behind (i8_rear): no ego contact with it or anything else,
+                      it closed in (>= 3 m/s faster than the ego within 40 m behind it),
+                      and it came to rest behind the standing ego >= 1 m away (its front
+                      to the ego's rear, box to box); closing speed, min gap and rest gap
+                      reported
 
 Distances are CARLA's: the signed distance between blueprint boxes at CARLA's transforms
 (`gap_geometry.carla_box`), negative when they overlap.
@@ -60,6 +66,9 @@ I6_MET_M = 5.0
 I6_NEAR_M = 10.0
 I6_YIELD_MPS = 1.0
 I7_MIN_GAP_M = 2.0
+I8_CLOSING_MIN_MPS = 3.0
+I8_BEHIND_M = 40.0
+I8_REST_GAP_MIN_M = 1.0
 
 
 def events_from_context(lines):
@@ -209,6 +218,42 @@ def peak_decel(gaps_rows, window=DECEL_WINDOW_S):
     return best
 
 
+def red_light(run, m, fail, stop_line, prefix):
+    """Row 3's criteria on the red and green events named `<prefix>red`, `<prefix>green` (or
+    `<prefix>watchdog`): the ego stands while red with its front short of the stop line and
+    goes on after green. Adds to `m` and `fail`."""
+    tr = run.t(f"{prefix}red")
+    tg = run.t(f"{prefix}green") or run.t(f"{prefix}watchdog")
+    m["red_sim"], m["green_sim"] = tr, tg
+    if tr is None or tg is None:
+        fail.append("the light never went red and back to green")
+    elif stop_line is None:
+        fail.append("--stop-line not given")
+    else:
+        sx, sy, syaw = stop_line
+        ux, uy = math.cos(syaw), math.sin(syaw)
+        past = [((front_point(eb)[0] - sx) * ux + (front_point(eb)[1] - sy) * uy, t, v)
+                for t, v, eb, *_ in run.rows if tr <= t <= tg and eb is not None]
+        far = max(past) if past else None
+        m["front_vs_stop_line_max_m"] = round(far[0], 2) if far else None
+        stood = run.standing(tr, tg)
+        m["ego_wait_s"] = round(sum(b - a for a, b in stood), 1)
+        if not stood:
+            fail.append("the ego never stood at the red light")
+        if far and far[0] > STOP_LINE_SLACK_M:
+            fail.append(f"front {far[0]:.2f} m past the stop line while red")
+        stand_at = [d for d, t, v in past if v is not None and v < STILL_MPS]
+        if stand_at:
+            m["stop_line_gap_m"] = round(-max(stand_at), 2)
+        moved = run.travelled(tg)
+        m["after_green_m"] = round(moved, 1)
+        if moved < 10.0:
+            fail.append("the ego did not go on after green")
+        starts = [t for t, v, *_ in run.rows if t >= tg and v is not None and v > MOVING_MPS]
+        if starts:
+            m["green_to_move_s"] = round(starts[0] - tg, 1)
+
+
 def judge(trace, incident, done, junit_ok=None, stop_line=None):
     offset = context_offset(trace, done)
     done = {k: [t + offset for t in v if t is not None and t == t] for k, v in done.items()}
@@ -281,35 +326,7 @@ def judge(trace, incident, done, junit_ok=None, stop_line=None):
             m["ego_min_mps_after_dart"] = round(min(vs), 2) if vs else None
 
     elif incident == 3:
-        tr, tg = run.t("i3_red"), run.t("i3_green") or run.t("i3_watchdog")
-        m["red_sim"], m["green_sim"] = tr, tg
-        if tr is None or tg is None:
-            fail.append("the light never went red and back to green")
-        elif stop_line is None:
-            fail.append("--stop-line not given")
-        else:
-            sx, sy, syaw = stop_line
-            ux, uy = math.cos(syaw), math.sin(syaw)
-            past = [((front_point(eb)[0] - sx) * ux + (front_point(eb)[1] - sy) * uy, t, v)
-                    for t, v, eb, *_ in run.rows if tr <= t <= tg and eb is not None]
-            far = max(past) if past else None
-            m["front_vs_stop_line_max_m"] = round(far[0], 2) if far else None
-            stood = run.standing(tr, tg)
-            m["ego_wait_s"] = round(sum(b - a for a, b in stood), 1)
-            if not stood:
-                fail.append("the ego never stood at the red light")
-            if far and far[0] > STOP_LINE_SLACK_M:
-                fail.append(f"front {far[0]:.2f} m past the stop line while red")
-            stand_at = [d for d, t, v in past if v is not None and v < STILL_MPS]
-            if stand_at:
-                m["stop_line_gap_m"] = round(-max(stand_at), 2)
-            moved = run.travelled(tg)
-            m["after_green_m"] = round(moved, 1)
-            if moved < 10.0:
-                fail.append("the ego did not go on after green")
-            starts = [t for t, v, *_ in run.rows if t >= tg and v is not None and v > MOVING_MPS]
-            if starts:
-                m["green_to_move_s"] = round(starts[0] - tg, 1)
+        red_light(run, m, fail, stop_line, "i3_")
 
     elif incident == 4:
         tc = run.t("i4_broken_clear")
@@ -370,15 +387,57 @@ def judge(trace, incident, done, junit_ok=None, stop_line=None):
             if d[1] < I7_MIN_GAP_M:
                 fail.append(f"min gap {m['cut_min_gap']} m to the cut-in car < {I7_MIN_GAP_M}")
 
+    elif incident == 8:
+        red_light(run, m, fail, stop_line, "i8_")
+        others = sorted({c.name or c.other_type or "?" for c in run.trace.contacts
+                         if c.ego_side and not (c.name or "").startswith(run.prefix)})
+        m["contacts_other"] = others
+        if others:
+            fail.append("contact with " + ", ".join(others))
+        rear_rows(run, m, fail)
+
     m["verdict"] = "FAIL" if fail else "PASS"
     m["reasons"] = fail
     return m
 
 
+def rear_rows(run, m, fail, rear="i8_rear"):
+    """Row 8's rear car: it closed in on the ego from behind, then rested behind it."""
+    closing, closed_at, gaps = None, None, []
+    for t, ev, eb, others, _ in run.rows:
+        if rear not in others or eb is None or others[rear][0] is None:
+            continue
+        rb, rv = others[rear]
+        (ux, uy), _ = eb.axes()
+        ahead = (rb.cx - eb.cx) * ux + (rb.cy - eb.cy) * uy
+        d = gg.signed_distance(eb, rb)
+        gaps.append((t, d, ev, rv))
+        if ahead < 0 and d <= I8_BEHIND_M and rv is not None and ev is not None:
+            c = rv - ev
+            if closing is None or c > closing:
+                closing, closed_at = c, t
+    m["rear_closing_mps"] = round(closing, 2) if closing is not None else None
+    if gaps:
+        m["rear_min_gap"] = round(min(d for _, d, _, _ in gaps), 2)
+    if closing is None or closing < I8_CLOSING_MIN_MPS:
+        fail.append(f"rear car never closed ({m['rear_closing_mps']} m/s < "
+                    f"{I8_CLOSING_MIN_MPS} within {I8_BEHIND_M:g} m behind)")
+        return
+    rest = [d for t, d, ev, rv in gaps if t >= closed_at and ev is not None and rv is not None
+            and ev < STILL_MPS and rv < STILL_MPS]
+    if not rest:
+        fail.append("the rear car never came to rest behind the standing ego")
+        return
+    m["rear_rest_gap"] = round(min(rest), 2)
+    if m["rear_rest_gap"] < I8_REST_GAP_MIN_M:
+        fail.append(f"rear car rested {m['rear_rest_gap']} m behind the ego "
+                    f"(< {I8_REST_GAP_MIN_M})")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("trace", type=Path)
-    ap.add_argument("--incident", type=int, required=True, choices=range(1, 8))
+    ap.add_argument("--incident", type=int, required=True, choices=range(1, 9))
     ap.add_argument("--context", type=Path, required=True)
     ap.add_argument("--junit", type=Path)
     ap.add_argument("--stop-line", type=float, nargs=3, metavar=("X", "Y", "YAW"))

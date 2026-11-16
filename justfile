@@ -278,7 +278,9 @@ test:
     # tutorial in the tutorial format (roadmap 076 B6)
     python3 scripts/check_docs.py
     # SSv2's protos in swb_world_protocol are the fork's (roadmap 051)
-    python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py
+    # no pytest plugins: ROS's launch_testing hook would import scripts/test_phase1.py, a
+    # live ZMQ client (pyzmq, the runtime's protobuf), and fail where those differ (swb 139)
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py
     # run_suite's discovery and JUnit aggregation (stdlib only, no ROS graph needed)
     python3 -m pytest -q src/swb_launch/test
     # the user commands (project, assets, seat, stack, run, runs), roadmap 076
@@ -295,7 +297,7 @@ test:
     python3 -m pytest -q src/autoware_sim_vehicle/test
     # Scenario cars come from sim_vehicle_spec's catalog (roadmap 051); every other vehicle
     # named by a CARLA blueprint declares that car's measured box and axles (roadmap 050)
-    python3 -m pytest -q scripts/test_scenario_vehicle.py scripts/test_catalog_scenarios.py
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_scenario_vehicle.py scripts/test_catalog_scenarios.py
     python3 scripts/check_scenario_vehicles.py
 
 # Run CI checks: build, check (format + clippy), and tests

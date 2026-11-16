@@ -1117,3 +1117,20 @@ Isaac's rear contact (inventory row 18).
   named before os._exit; an exception out of the run is logged once, exits 1 and takes the same
   close. Tests run the agent as a real subprocess on SIGINT, SIGTERM and a raising run: exit 0
   (1 for the raise), one traceback at most, no "terminate called". swb_agent 173 passed.
+- **G70 (ii) verified live (swb 139, 2026-11-16, 2e14590 with b844a24).** The hang reproduced as
+  on 241 (the world reload after pedestrian_crossing at 21:28:51, PhysX's "Resolving contacts
+  between two kinematic objects is invalid", step 3 hung). The watchdog child ended it:
+  "step 3 (3 x 0.0166667 s at sim time 0.100 s) has run 180.1 s, past its deadline of 180 s:
+  ending world server 49536 for a fresh one"; faulthandler put the main thread in
+  isaacsim.core.api physics_context.py:582 `_step` under swb_isaac_world world.py:1226. The
+  server was respawned in 10 s and ready 3.5 min later. Every run ended, none hung. Recovery is
+  not yet good, and is a known limit for the release: red_light r0, already waiting, ran out
+  SSv2's 300 s initialize; the ego pilot restarted with the episode, but red_light's retry and
+  drive_to_goal r0 then ended `error` with "pilot ego never became ready (600 s): ...
+  nothing publishes clusters/pointcloud_map_filtered", although its composables were loaded;
+  the respawned world server later exited without a code or log line (21:55:55, no OOM).
+  Until those are fixed, a stack whose Isaac world server was ended by the deadline is
+  restarted before further runs (T3's Isaac paragraph says so). Open: (i) the PhysX hang
+  itself (241); the pilot's perception after a world-server respawn; the silent exit.
+  pedestrian_crossing's first walker render (19.8 s, then a 16.2 s step past the bridge's
+  10 s) belongs to G65's walker warm-up.

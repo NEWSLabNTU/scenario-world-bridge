@@ -1123,12 +1123,17 @@ Isaac's rear contact (inventory row 18).
   "step 3 (3 x 0.0166667 s at sim time 0.100 s) has run 180.1 s, past its deadline of 180 s:
   ending world server 49536 for a fresh one"; faulthandler put the main thread in
   isaacsim.core.api physics_context.py:582 `_step` under swb_isaac_world world.py:1226. The
-  server was respawned in 10 s and ready 3.5 min later. Every run ended, none hung. Recovery is
-  not yet good, and is a known limit for the release: red_light r0, already waiting, ran out
-  SSv2's 300 s initialize; the ego pilot restarted with the episode, but red_light's retry and
-  drive_to_goal r0 then ended `error` with "pilot ego never became ready (600 s): ...
-  nothing publishes clusters/pointcloud_map_filtered", although its composables were loaded;
-  the respawned world server later exited without a code or log line (21:55:55, no OOM).
+  server was SIGKILLed, respawned in 10 s and ready 3.5 min later (Town01 preloaded in 110 s).
+  Every run ended, none hung. Recovery was not shown and is inconclusive, a known limit for the
+  release: red_light r0, already waiting, ran out SSv2's 300 s initialize; the ego pilot
+  (lifetime: stack) restarted with the episode at 21:33:56, before the respawned world server
+  was ready (21:35:33), and never became ready ("planning is up but perception is not": no
+  lidar publisher on the ego domain), so red_light's retry and drive_to_goal r0 ended `error`.
+  World servers #2 and #3 were then SIGKILLed with no watchdog line just after another user's
+  vLLM server started on the host (free memory 19-31 GB against Isaac's 17.5 GB): most likely
+  the OOM killer, the kernel log being unreadable from that account. Open: rerun the recovery
+  half on a host with memory headroom (does the respawned world server's ego lidar reach the
+  restarted pilot, and does the run after a hang pass?).
   Until those are fixed, a stack whose Isaac world server was ended by the deadline is
   restarted before further runs. Open: (i) the PhysX hang itself, now 139's root fix (issue
   040: the shared bury point in `_load_env`), with its live repro; with it in, recovery after a

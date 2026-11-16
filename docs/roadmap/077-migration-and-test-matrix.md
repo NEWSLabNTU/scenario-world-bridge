@@ -75,7 +75,13 @@ Every live run records its `result.json`; a T3 suite keeps a reference table
 6. [ ] T2 matrix live, every cell, on CARLA (this host) and Isaac (an Isaac host).
 7. [ ] T3 suites live; references recorded.
 8. [ ] The developer recipes on the project workflow; what remains of the old paths for
-   developers only, documented.
+   developers only, documented. Plan (2026-11-16): `just scenario <xosc>` runs `ros2 run swb
+   run` on the project holding the scenario (the nearest `swb.yaml` above it), else on
+   `scenarios/projects/dev` (Town01 to Town10, the default Autoware ego, physical_verdict),
+   `project:=` naming another; the old path stays as `just scenario-direct`, for developers.
+   `demo-tour` runs the demo project's tour suite (item 11), `two-av` item 7's project,
+   `acceptance` and `e2e` their own, each switched once its item is migrated, and announced
+   to the team first (other sessions' tools call `just scenario`).
 
 ## The release cut (2026-11-16)
 

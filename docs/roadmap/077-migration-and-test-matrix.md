@@ -1142,3 +1142,12 @@ Isaac's rear contact (inventory row 18).
   root fix misses the RC.
   pedestrian_crossing's first walker render (19.8 s, then a 16.2 s step past the bridge's
   10 s) belongs to G65's walker warm-up.
+- **G70 (ii) confirmed again, and recovered (swb 241, 2026-11-16, its NVMe Isaac).** The hang
+  reproduced 4 of 4; the watchdog ended the world server at 180.1 s in step 2 after the reload
+  (physics_context.py:582 `_step` under world.py:1226), which was respawned and ready in
+  1 min 44 s; after two errors, red_light's retry and drive_to_goal passed. Recovery after a
+  respawn: recovered on 241, not on 139 (there the pilot restarted before the world server was
+  ready, and memory ran short); not systematic, and the rerun with headroom stays open. For
+  G65: the walker's first render took 122 s, past the bridge's 120 s Spawn limit, so the first
+  pedestrian run on a fresh Isaac stack can end `error`; a retry passes. 241's Isaac stack now
+  starts in 2.5 min.

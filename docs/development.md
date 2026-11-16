@@ -33,6 +33,7 @@ recipes. The ones you will use most:
 | `just setup-tensorrt` | the TensorRT 10.8.0 runtime Autoware 1.5.0 was compiled against, from NVIDIA's pip wheel into `AUTOWARE_TENSORRT_LIB` (default `third_party/tensorrt/lib`); `ego-av` / `ego-isaac` / `bg-av` put it first on `LD_LIBRARY_PATH`, so CenterPoint's engines survive a restart |
 | `just scenario <file>` | one scenario (web UI on 8081) against `just run`'s stack, which it starts when it is not up; verdict in `<output_directory>/scenario_test_runner/` (`output_directory:=`, default `/tmp`) |
 | `just two-av` | two Autoware stacks, one scenario, on the project workflow (`scenarios/projects/two_av`, its suite `two_av`); `just two-av-direct` is the stack-based path, where `record:=true` records a screencast |
+| `just demo-tour` | the demo tour (one Town01 drive through six incidents) on the project workflow (`scenarios/projects/demo`, its suite `tour`, every incident judged); `just demo-tour-direct` is the stack-based path, with the windows, the captions and `record:=true` |
 | `just prune-logs [days:=7]` | move runs older than that out of the log root into the archive on `/mnt/disk1` (never deletes) |
 | `just acceptance <file> <runs>` | repeat a scenario and summarise |
 

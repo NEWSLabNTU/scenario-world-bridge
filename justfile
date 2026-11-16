@@ -500,17 +500,44 @@ two-av-direct *args: _require-carla
         echo "[two-av] no junit written: the run did not reach a verdict"
     fi
 
-# Succeed if an agent is registered with the agent relay as `entity` (the relay's commander
-# `query`; docs/design/user-workflow.md). A scenario entity with controller `agent` fails its
-# first goal without one.
-# One continuous drive of Town01 through six incidents, ambient traffic and walkers (roadmap
-# 033), in tutorial 4's layout -- CARLA's chase camera top left, the ego's RViz on the right
-# half, a caption strip (demo_captions) under the chase view.
+# The demo tour on the project workflow (roadmap 077 step 8, inventory item 11): one
+# continuous drive of Town01 through six incidents, ambient traffic and walkers (roadmap 033),
+# as `ros2 run swb run suites/tour.yaml --start-stack` in scenarios/projects/demo. The
+# project's ego is the tour's (Autoware, max_velocity 11.11, CenterPoint without the lidar
+# merger), its weather ClearNoon, SSv2's global_timeout 1200 s, and the incident judge rules
+# on every incident of the tour, physical_verdict on CARLA's contacts. It starts the
+# project's stack when it is not up and leaves it up. The run's result, timeline and logs are
+# under the host settings' logs (`ros2 run swb runs show <id>`). The windows, the captions
+# and the screencast (record:=true, 077's G4), a scenario file of your own and stacks of your
+# own belong to the stack-based path, `just demo-tour-direct`.
+# Usage: just demo-tour [global_timeout:=<s>]
+[positional-arguments]
+demo-tour *args:
+    #!/usr/bin/env bash
+    set -e
+    source "{{lib}}"; swb_reject_env
+    run_args=()
+    for a in "$@"; do
+        case "$a" in
+            global_timeout:=?*) run_args+=(--timeout "${a#*:=}") ;;
+            record:=*|rviz:=*|keep_stacks:=*|scenario:=*|output_directory:=*)
+                echo "demo-tour: ${a%%:=*}:= is the stack-based path's: \`just demo-tour-direct $a\` (roadmap 077 step 8)" >&2; exit 2 ;;
+            *) echo "demo-tour: unknown argument '$a' (global_timeout:=<s>; the windows, captions and screencast: \`just demo-tour-direct\`)" >&2; exit 2 ;;
+        esac
+    done
+    source "{{autoware_setup}}"
+    source "{{project}}/install/setup.bash"
+    cd "{{project}}/scenarios/projects/demo"
+    exec ros2 run swb run suites/tour.yaml --start-stack "${run_args[@]}"
+
+# The stack-based path, for developers: the demo tour against `just run`'s simulation side and
+# `just ego-av`, in tutorial 4's layout -- CARLA's chase camera top left, the ego's RViz on the
+# right half, a caption strip (demo_captions) under the chase view.
 # The demo tour, in tutorial 4's layout: [record:=true] [rviz:=] [keep_stacks:=] [scenario:=]
 [positional-arguments]
-demo-tour *args: _require-carla
+demo-tour-direct *args: _require-carla
     #!/usr/bin/env bash
-    # Usage: just demo-tour [record:=true] [rviz:=true|false] [keep_stacks:=true|false]
+    # Usage: just demo-tour-direct [record:=true] [rviz:=true|false] [keep_stacks:=true|false]
     #            [scenario:=<xosc>] [output_directory:=<dir>]
     #   record:=true       screencast of the display to play_log/demo/<time>/demo-tour.mp4
     #   rviz:=false        no RViz (default true when a display is set)
@@ -531,7 +558,7 @@ demo-tour *args: _require-carla
             keep_stacks:=*) keep_stacks="${a#*:=}" ;;
             scenario:=?*) scenario="${a#*:=}" ;;
             output_directory:=?*) output_directory="${a#*:=}" ;;
-            *) echo "demo-tour: unknown argument '$a' (record:=, rviz:=, keep_stacks:=, scenario:=, output_directory:=)" >&2; exit 2 ;;
+            *) echo "demo-tour-direct: unknown argument '$a' (record:=, rviz:=, keep_stacks:=, scenario:=, output_directory:=)" >&2; exit 2 ;;
         esac
     done
     logs="$(swb_log_dir "{{project}}" demo-tour)/$(date +%Y-%m-%d_%H-%M-%S)"
@@ -539,12 +566,12 @@ demo-tour *args: _require-carla
     output_directory="${output_directory:-$logs/out}"
     display="${RECORD_DISPLAY:-${DISPLAY:-}}"
     if [ -n "$display" ] && ! DISPLAY="$display" xdpyinfo > /dev/null 2>&1; then
-        echo "demo-tour: display $display is not usable; running headless" >&2; display=""
+        echo "demo-tour-direct: display $display is not usable; running headless" >&2; display=""
     fi
     [ -z "$rviz" ] && rviz=$([ -n "$display" ] && echo true || echo false)
     [ -z "$display" ] && rviz=false
     if [ "$record" = true ] && [ -z "$display" ]; then
-        echo "demo-tour: record:=true needs RECORD_DISPLAY or DISPLAY" >&2; exit 2
+        echo "demo-tour-direct: record:=true needs RECORD_DISPLAY or DISPLAY" >&2; exit 2
     fi
     source "{{autoware_setup}}"
     if [ -f "{{acb_src}}/install/setup.bash" ]; then source "{{acb_src}}/install/setup.bash"; fi
@@ -654,6 +681,9 @@ demo-tour *args: _require-carla
     fi
     echo "[demo-tour] captions: $logs/captions.jsonl"
 
+# Succeed if an agent is registered with the agent relay as `entity` (the relay's commander
+# `query`; docs/design/user-workflow.md). A scenario entity with controller `agent` fails its
+# first goal without one.
 _require-agent entity:
     #!/usr/bin/env python3
     import json, socket, sys

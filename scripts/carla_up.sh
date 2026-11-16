@@ -16,9 +16,9 @@
 # take them down (`just e2e`).
 #
 # The ego is the stack's (ego_launch, the default); with SIM_UP_EGO=0 (`_scenario-has-ego`) a
-# stack started here has none (ego_launch:=none). A separate ego stack already up on +2 (`just
-# ego-av`, as two-av and demo-tour start one) is used instead, and the stack is started
-# without its own. The stack's ego ends with its episode (a world load, a restarted CARLA:
+# stack started here has none (ego_launch:=none). A separate ego stack already up on +2
+# (`just ego-av`, as two-av-direct and demo-tour-direct start one) is used instead, and the
+# stack is started without its own. The stack's ego ends with its episode (a world load, a restarted CARLA:
 # acb_bridge exits) and the stack starts it again. A stack found on another map than the
 # scenario's, or without an ego the scenario needs, is replaced.
 #

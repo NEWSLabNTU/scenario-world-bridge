@@ -1170,3 +1170,11 @@ Isaac's rear contact (inventory row 18).
   runs and about 5 min (G70 ends the hang). The walker's first render on a fresh world server
   measured 122 s once (past the 120 s Spawn limit), 75 s and 3 s other times (G65). T3's
   (iii) note is redrafted on the props, not pedestrians.
+- **076 step 9's shards rerun on G55: closed (133, 2026-11-16, 013c28e, a clean rebuild).**
+  cut_in_seeds shard 2 of 2 passed 2 of 2, each on its first attempt: r1 seed 1001, cut-in at
+  42.9 m (drawn 43.0); r3 seed 1003, at 39.8 m (drawn 40.0); no contact, SSv2 junit 0 of 0 (the
+  suite has no judges). With shard 1 of 2's 3 of 3, also on 133, the suite is 5 of 5 on the
+  spec's physics and the spawn fix. GPU 0 was 97-98 % busy from another user's process; the
+  load peaked at 707 as the four Autoware stacks started, then about 60. NAS "2026 SSv2 on
+  CARLA/2026-11-16 077 shard 2 of 2 on 133" (615 files, SHA256SUMS verified). 241 is released
+  from shard 2.

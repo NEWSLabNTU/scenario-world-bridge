@@ -686,6 +686,8 @@ sharing a project.
     directories, copied side by side, summarise into one table with `runs summary`; that copy
     has no command of its own (077 G17). Report on the NAS, "2026-11-16 swb 076 step 9 shard 2
     of 2".
+    Both shards ran on the blueprint's physics (before 077 G55); rerun on the spec's physics on
+    133 (2026-11-16, 013c28e): shard 1 of 2 3 of 3, shard 2 of 2 2 of 2, 5 of 5 (077).
   - `vehicles:` is checked, not loaded: a project's own car needs its catalog entry and
     physics generated from its spec and handed to the bridge and world server. Its own phase,
     with an example of three different cars in one run.

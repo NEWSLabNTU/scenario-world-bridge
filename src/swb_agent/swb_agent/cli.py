@@ -39,7 +39,7 @@ def main(argv=None):
     if args.command == "new":
         from .skeleton import create
         root, spec = create(args.name, args.dir)
-        print(f"created {root}; check it with: cd {root} && swb-agent check {spec}")
+        print(f"created {root}; check it with: cd {root} && ros2 run swb_agent swb-agent check {spec}")
         return 0
     return 2
 

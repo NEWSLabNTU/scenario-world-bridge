@@ -85,6 +85,25 @@ def test_new_generates_a_project_that_passes_check(tmp_path, capsys):
     assert "PASS: 16/16 rules" in capsys.readouterr().out
 
 
+def test_new_project_checks_from_its_directory_as_printed(tmp_path, monkeypatch, capsys):
+    """075 step 8 (G44): in the skeleton's directory, with nothing added to sys.path, the
+    module forms its files print load (as under `ros2 run`, whose sys.path[0] is the entry
+    point's directory, not the working one)."""
+    root, spec = create("cut-in", tmp_path)
+    assert cli(["new", "other", "--dir", str(tmp_path)]) == 0
+    printed = capsys.readouterr().out
+    assert "ros2 run swb_agent swb-agent check other.agent:OtherAgent" in printed
+    assert "ros2 run swb_agent swb-agent check cut_in:CutInAgent" in (root / "README.md").read_text()
+    monkeypatch.chdir(root)
+    monkeypatch.setattr(sys, "path", [p for p in sys.path if p not in ("", str(root))])
+    try:
+        assert load_class(spec).__name__ == "CutInAgent"
+        assert load_class("cut_in:CutInAgent").__name__ == "CutInAgent"
+    finally:
+        for m in [m for m in sys.modules if m == "cut_in" or m.startswith("cut_in.")]:
+            del sys.modules[m]
+
+
 def test_check_loads_a_file_path(tmp_path):
     path = tmp_path / "solo.py"
     path.write_text("import swb_agent\n\nclass Solo(swb_agent.Agent):\n    pass\n")

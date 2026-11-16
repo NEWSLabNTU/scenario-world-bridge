@@ -7,7 +7,7 @@ fills in the bodies.
 import pathlib
 import re
 
-AGENT = '''"""{title}: a swb_agent agent. Fill in the hooks; run `swb-agent check {module}:{cls}`."""
+AGENT = '''"""{title}: a swb_agent agent. Fill in the hooks; run `ros2 run swb_agent swb-agent check {module}:{cls}`."""
 
 import swb_agent
 
@@ -70,8 +70,8 @@ README = '''# {title}
 
 An agent for scenario-world-bridge scenarios (swb_agent SDK).
 
-    swb-agent check {module}:{cls}                         # protocol conformance, no simulator
-    python -m {module} --config agent.yaml                 # drive: register with the relay
+    ros2 run swb_agent swb-agent check {module}:{cls}   # protocol conformance, no simulator
+    python3 -m {module} --config agent.yaml                # drive: register with the relay
 '''
 
 MAIN = '''import swb_agent

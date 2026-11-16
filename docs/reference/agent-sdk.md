@@ -355,8 +355,8 @@ without one), `lateral_accel` (2.0 m/s^2 in curves), `accel_max` (1.5), `decel` 
 reset), `route` (`auto` | `lanelet` | `direct`), `world` (`ros` | `fake`).
 
 With `world: fake` (and no map: straight lines between the points) it drives a kinematic
-car without ROS, so `swb-agent check swb_agent.adapters.simple_pilot:SimplePilotAgent
---config fake.yaml` checks it as above.
+car without ROS, so `ros2 run swb_agent swb-agent check
+swb_agent.adapters.simple_pilot:SimplePilotAgent --config fake.yaml` checks it as above.
 
 ## Checking an agent
 

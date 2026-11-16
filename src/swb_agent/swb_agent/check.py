@@ -186,6 +186,12 @@ def load_class(spec):
         module = importlib.util.module_from_spec(loader_spec)
         loader_spec.loader.exec_module(module)
     else:
+        # As `python -m` does: a module of the directory it is run in. `ros2 run` starts the
+        # entry point with its own directory first on sys.path, not the working one, so
+        # `swb-agent check my_pilot:MyPilotAgent` in a skeleton's directory found nothing.
+        cwd = str(pathlib.Path.cwd())
+        if cwd not in sys.path and "" not in sys.path:
+            sys.path.insert(0, cwd)
         module = importlib.import_module(module_name)
     return getattr(module, class_name)
 

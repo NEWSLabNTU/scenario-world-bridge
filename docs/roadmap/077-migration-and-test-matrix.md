@@ -1187,3 +1187,8 @@ Isaac's rear contact (inventory row 18).
   stack ready in about 1 min 20 s on NVMe. mud_and_gravel's first try ended `error` with
   Autoware held in INITIALIZING (load 41-70; no MiscObject, so not issue 040). It and item
   16's isaac_basic/towns join scenarios/t3.yaml's part 2.
+- **G70's stop-time follow-up (swb 118, ee7d6e1: swb_world_protocol 7c9bc2b, swb_carla_world
+  59f9011, swb_isaac_world 8267d66).** The watchdog child ignores SIGTERM as well as SIGINT and
+  dies with its parent (SIGKILL), ending only on the closed pipe or with the world server: no
+  "watchdog process is gone" at a stop, and a stop that blocks stays under the deadline. The
+  same commit has the keeper print its lines once under `ros2 launch` (T1 shows that form).

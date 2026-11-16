@@ -819,7 +819,8 @@ run *args:
     export ROS_DOMAIN_ID={{scenario_domain}}
     for kind in ego agent scenario; do swb_log_dir "{{project}}" "$kind" > /dev/null; done
     log_dir=$(swb_log_dir "{{project}}" bridge)
-    exec play_launch launch --web-addr 0.0.0.0:$((SWB_WEB_PORT + 4)) \
+    # no /diagnostics recording: nothing reads diagnostics.csv, about 0.5 GB an hour (077 G59)
+    exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SWB_WEB_PORT + 4)) \
         --log-dir "$log_dir" \
         swb_launch "$sim.launch.xml" "${args[@]}"
 
@@ -893,7 +894,7 @@ isaac-world *args:
     # Built from this checkout's swb_isaac_world; a moved checkout points it here again.
     export SWB_ISAAC_DIR="{{project}}/src/swb_isaac_world"
     log_dir=$(swb_log_dir "{{project}}" isaac)
-    exec play_launch launch --web-addr 0.0.0.0:$((SWB_WEB_PORT + 5)) --log-dir "$log_dir" \
+    exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SWB_WEB_PORT + 5)) --log-dir "$log_dir" \
         swb_isaac_world swb_isaac_world.launch.xml "${args[@]}"
 
 # Is a world server up? One probe Hello (it changes nothing on the server): its simulator,
@@ -1331,7 +1332,7 @@ ego-av *args: _require-carla
     # container_mode:=observable: on rmw_zenoh_cpp every process is a zenoh peer and the
     # peers mesh, so isolated's ~200 processes cost far more than observable's ~80 (one per
     # container); observable gives up reloading one crashed composable alone.
-    exec play_launch launch --web-addr 0.0.0.0:$((SWB_WEB_PORT + 2)) \
+    exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SWB_WEB_PORT + 2)) \
         --container-mode "$container_mode" --composable-respawn on-crash \
         --log-dir "$log_dir" \
         $play_launch_args \
@@ -1395,7 +1396,7 @@ ego-isaac *args:
         extra_launch:="$(ros2 pkg prefix swb_launch)/share/swb_launch/launch/vehicle_agent.launch.xml" \
         -- "${given[@]}"
     log_dir=$(swb_log_dir "{{project}}" ego)
-    exec play_launch launch --web-addr 0.0.0.0:$((SWB_WEB_PORT + 2)) \
+    exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SWB_WEB_PORT + 2)) \
         --container-mode "$container_mode" --composable-respawn on-crash \
         --log-dir "$log_dir" \
         $play_launch_args \
@@ -1458,7 +1459,7 @@ bg-av *args: _require-carla
         release_ack_endpoint:="tcp://127.0.0.1:$(({{ssv2_port}} + 2))" \
         -- "${given[@]}"
     log_dir=$(swb_log_dir "{{project}}" "bg-$entity")
-    exec play_launch launch --web-addr 0.0.0.0:"$web_port" \
+    exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:"$web_port" \
         --container-mode isolated --composable-respawn on-crash \
         --load-node-timeout 120 \
         --load-total-budget 180 \
@@ -1613,7 +1614,7 @@ scenario-direct scenario_file *args:
     # The scenario file is read, never modified: SSv2's runner preprocesses a copy in its
     # output directory (fork, roadmap 017).
     log_dir=$(swb_log_dir "{{project}}" scenario)
-    exec play_launch launch --web-addr 0.0.0.0:$((SWB_WEB_PORT + 1)) \
+    exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SWB_WEB_PORT + 1)) \
         --log-dir "$log_dir" \
         swb_launch scenario.launch.xml \
         scenario:="$(realpath "{{scenario_file}}")" \

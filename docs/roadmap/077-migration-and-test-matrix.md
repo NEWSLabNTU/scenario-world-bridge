@@ -533,6 +533,11 @@ Isaac's rear contact (inventory row 18).
   `--start-stack`'s console log has them. The first line names the web UI the launcher was
   given (`--web-addr`), the hint only when none was. "CARLA serves RPC (None)": the probe's
   reading of CARLA's version, checked on the next live CARLA.
+- **G47 built (2026-11-16): the wait was kept, the message misled.** 118's log shows the
+  check started at 07:48:11 and the next command at 08:18:59: `hello --wait 1800` waited the
+  full 30 min for a world server that kept dying on that host's GPU, then printed only its
+  last try's "no answer within 2 s". A failed wait now says how long it waited in all
+  ("... (the last of N tries over T s)"); swb_world_protocol 0349578.
 - **075 step 8, Isaac guides (swb 118, 2026-11-16).** isaac.md, T6 and T7 by a fresh reader
   on origin/main 75e00ab: the install (Isaac 6.1.0.0, 6 min) and the message build work as
   written; Haruna ran. That host's driver (615.71.09) loses the GPU on every Town01 render

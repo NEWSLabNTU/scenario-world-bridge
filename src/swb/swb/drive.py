@@ -31,7 +31,7 @@ from pathlib import Path
 import yaml
 
 from swb import launcher as launchermod
-from swb import config, results, run as runmod, stack as stackmod
+from swb import config, results, run as runmod, signals as signalsmod, stack as stackmod
 
 DEFAULT_TIMEOUT = 600.0
 UP_TIMEOUT = 300.0     # s for the entity's pilot to be on the episode after the spawn
@@ -281,6 +281,7 @@ def main(argv=None, out=None) -> int:
         print(f"swb drive: refused: {e}", file=sys.stderr)
         return runmod.EXIT_REFUSED
     signal.signal(signal.SIGTERM, runmod._on_term)
+    signalsmod.take_sigint()   # even inherited ignored (a script's `&` job)
     ctx = None
     try:
         ctx = runmod.context(args.project, seat=args.seat, wait=args.wait,

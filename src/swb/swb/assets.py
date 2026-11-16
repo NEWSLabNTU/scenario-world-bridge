@@ -875,6 +875,8 @@ def list_assets(project, out=print):
 
 
 def main(argv=None):
+    from swb import signals
+    signals.take_sigint()   # a fetch of GBs stops on its group's SIGINT, even from a `&` job
     parser = argparse.ArgumentParser(prog="ros2 run swb assets",
                                      description="A project's assets: fetch, list, check.")
     sub = parser.add_subparsers(dest="cmd", required=True)

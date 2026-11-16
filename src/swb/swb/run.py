@@ -56,7 +56,7 @@ import yaml
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
 from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
-from swb import crashloop, launcher as launchermod, world as worldmod
+from swb import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -1467,7 +1467,9 @@ def _on_term(signum, frame):
 
 
 def cli(argv=None) -> int:
-    """The command line: main() with SIGTERM turned into an interrupt."""
+    """The command line: main() with SIGTERM turned into an interrupt, and SIGINT one too
+    even when it was inherited ignored (a script's `&` job; swb.signals)."""
+    previous_int = signalsmod.take_sigint()
     previous = signal.signal(signal.SIGTERM, _on_term)
     try:
         return main(argv)
@@ -1476,6 +1478,7 @@ def cli(argv=None) -> int:
         return 130
     finally:
         signal.signal(signal.SIGTERM, previous)
+        signal.signal(signal.SIGINT, previous_int)
 
 
 if __name__ == "__main__":

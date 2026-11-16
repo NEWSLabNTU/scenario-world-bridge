@@ -251,12 +251,12 @@ G32. An item with no open gap can be migrated now.
 | 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | migrated 2026-11-16 (swb 118, scenarios/projects/bench, 3 of 3 with a frame_budget judge) |
 | 14 | 050 measurement set | CARLA | - | migrated 2026-11-16 (swb 118, scenarios/projects/set050 and set050_tour; the tour's static-mesh contact open, see 077) |
 | 15 | Free-standing scenario on upstream SSv2 | CARLA | not built (068 step 9: upstream SSv2) | planned |
-| 16 | `basic/town01_ego_drive`, town02_ego_drive on Isaac | Isaac | - | ready to migrate |
-| 17 | Incidents 1-6 and UC-ACC on Isaac | Isaac | - | ready to migrate |
-| 18 | `isaac/town01_rear_contact` | Isaac | - | ready to migrate |
+| 16 | `basic/town01_ego_drive`, town02_ego_drive on Isaac | Isaac | - | migrated 2026-11-16 (`scenarios/projects/isaac_basic` suites/towns, 2 of 2, 542a50d) |
+| 17 | Incidents 1-6 and UC-ACC on Isaac | Isaac | G74 | migrated 2026-11-17 in part (swb 241, `scenarios/projects/isaac_demo`, 12d284d: i1 to i5 5 of 5; i6 an Isaac-only known limit, out of T3; UC-ACC open) |
+| 18 | `isaac/town01_rear_contact` | Isaac | - | migrated 2026-11-17 (swb 241, isaac_basic suites/rear_contact, 70df975; T3 part 2) |
 | 19 | `scenarios/surfaces/` snow, soil, mud, wet, weather, zones, ... | Isaac | G7, G11 | blocked |
 | 20 | `road_physics` example | Isaac | - | ready to migrate |
-| 21 | Rough road on Town01 | Isaac | - | ready to migrate |
+| 21 | Rough road on Town01 | Isaac | - | open 2026-11-17: the stack hangs at start under Autoware (swb 241, see 077) |
 | 22 | NTU twin on Isaac: `ntu_twin_r01`, `_r02`, `_r01_lead`, ... | private assets (the user checks these, 077 ruling); Isaac | G4, G8 | blocked |
 | 23 | NTU open-data roads `scenarios/ntu/` | private assets (the user checks these, 077 ruling); Isaac | G8 | blocked |
 | 24 | Haruna `haruna_down.xosc` through swb, Tsukuba | Isaac | - | ready to migrate |
@@ -291,7 +291,7 @@ G32. An item with no open gap can be migrated now.
 | 53 | `just ego-av`, `ego-isaac`, `bg-av` | CARLA | - | ready to migrate |
 | 54 | `just carla-start map:= quality:= render:=` | CARLA | - | ready to migrate |
 | 55 | `just isaac-world ego:= world:= follow:= render:= record:= ... | Isaac | - | ready to migrate |
-| 56 | `just world-health`, `world-check` | sim host | - | ready to migrate |
+| 56 | `just world-health`, `world-check` | sim host | - | migrated 2026-11-17 (swb 118 and 241, `scripts/test_world_conformance.py`: CARLA 28/0, Isaac 25/0) |
 | 57 | Two checkouts on one host | two hosts; CARLA | G17 | blocked |
 | 58 | CARLA 0.10.0 `scenarios/carla0100/town10_ego_drive` | CARLA | G20 | blocked |
 | 59 | NTU twin in CARLA: `ntu_carla_r01`, `_r02`, `_r01_lead`, ... | private assets (the user checks these, 077 ruling); CARLA | G4, G8, G13 | blocked |

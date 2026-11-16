@@ -1247,7 +1247,7 @@ Isaac's rear contact (inventory row 18).
   when it sees the declared contact. Live on 45b8e0f: passed (02-05-50), about 11 min with
   the stack started and stopped (isaac_basic preloads Town02 too). In T3 part 2 as its own
   key, isaac_basic/rear_contact, so its reference stands apart from `towns`.
-- **Item 56 migrated on CARLA (swb 118, 2026-11-17, 57f65ac); Isaac open (241 or 139).**
+- **Item 56 migrated (swb 118 and 241, 2026-11-17; CARLA 57f65ac, Isaac on 2bf9f30).**
   `scripts/test_world_conformance.py`, a T1 cell: `swb_world_check conformance` against a
   running world server with no bridge, passing on exit 0, no FAIL line and `N passed, 0
   failed`. Opt-in (`SWB_WORLD_CHECK=carla|isaac`, `SWB_WORLD_ENDPOINT`, `SWB_WORLD_MAP`;
@@ -1260,8 +1260,28 @@ Isaac's rear contact (inventory row 18).
   Isaac's leg (241, 2026-11-17, on 70df975, a standalone Isaac world server, no bridge): 24
   passed, 1 failed, `spawn the ego: no answer within 20 s`. The ego spawned about 27 s in,
   its sensors warm after 4 renders (18 s): past the check's 20 s, inside the bridge's 120 s
-  (G65's slow first ego). Open: 241 proposes the check give the ego's spawn the bridge's
-  budget; the manager decides.
+  (G65's slow first ego). 241 proposed the check give the ego's spawn the bridge's budget;
+  133 agreed, and 118 made it one constant, `DEFAULT_LOAD_TIMEOUT_SECONDS` (120 s) in
+  `swb_core::config`, read by the bridge's world config and by the check (swb_world_protocol
+  d09f26a, pinned 172ed91). Rerun on Isaac (241, 2026-11-17, on 2bf9f30, a standalone
+  Isaac world server, host load 76): 25 passed, 0 failed. Closed (133).
+- **Item 21, the rough road under Autoware (swb 241, 2026-11-17): open, the stack hangs at
+  start.** Tutorial 7's exercise 2: `road_detail:` under `ground: Town01:` in road_physics'
+  `swb.yaml`, the stack started again. Before it, issue 041: on a `just build` workspace
+  `surfaces check` and `road_detail check` printed "No executable found", the entry template
+  committed 100644 and `--symlink-install` linking the installed entry to it (swb_isaac_world
+  5e28b17, pinned e8e9e9d; an existing workspace may need `build/swb_isaac_world` removed
+  before `just build`, as colcon need not re-run configure_file on a mode change). With the
+  fix `road_detail check` prints `1 corridor(s)` and `corridor 0: 250 m`, as the tutorial
+  says. The stack then was not ready in 3600 s: the Isaac world server went silent after
+  `rock pool: 992 prims ...`. 241 is reproducing it with thread dumps and files it as issue
+  042. Until it is fixed, exercise 2's "the stack starts again without a problem" does not
+  hold, and item 21 stays out of T3.
+  Tutorial 7 (ruling 243, 2026-11-17): no note now. Issue 041 needs none, since a fresh
+  build has the executable entries (removing `build/swb_isaac_world` is for an existing
+  developer workspace). The tutorials describe the release, so 042 is fixed before it, or
+  at the RC exercise 2 keeps only its `road_detail check` and says the stack has not yet
+  been run on the rough road; a user doc names no open issue.
 - **079 closed (swb 118, 2026-11-17, 420d801).** Every step is on main. `ros2 launch` is the
   default path, the one the tutorials and how-tos show (6007c77, 15520bd; 133 ruled it stays
   for this release), and play_launch is recommended, not required. A fresh clone without

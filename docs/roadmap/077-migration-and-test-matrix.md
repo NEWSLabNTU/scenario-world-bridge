@@ -1192,3 +1192,10 @@ Isaac's rear contact (inventory row 18).
   dies with its parent (SIGKILL), ending only on the closed pipe or with the world server: no
   "watchdog process is gone" at a stop, and a stop that blocks stays under the deadline. The
   same commit has the keeper print its lines once under `ros2 launch` (T1 shows that form).
+- **G73 (found by swb 241, numbered and built by 133, 2026-11-16, 482e743).** A run's
+  provenance ran `git status`, `git submodule status` and `git diff` under timeouts; git
+  refreshes the index under `index.lock`, and a call killed at its timeout on a loaded host
+  left the lock behind, so the user's next commit or pull failed with "index.lock: File
+  exists" (three times on 241 in a day; 133's stale locks likely the same). Every swb git call
+  that can take the lock passes `--no-optional-locks`; a test checks that the provenance's
+  calls all do.

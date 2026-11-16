@@ -1,6 +1,7 @@
 # Getting started on Isaac Sim
 
-Isaac Sim 6.1 installed and found by swb. About an hour, mostly downloads. Do
+Isaac Sim 6.1 installed and found by swb. The install took 6 minutes on one host
+(2026-11-16), mostly downloads; the long download is Tutorial 6's USD assets. Do
 [Install](install.md) first. The Isaac tutorials (6 and 7) start from here; the CARLA
 tutorials before them are worth doing first, since everything but the simulator works the
 same.
@@ -58,9 +59,9 @@ Run it again after Autoware is updated: `project check` and the stack refuse an 
 while a message package the world server needs is missing or was built from another
 Autoware, naming the package.
 
-On a machine with two GPUs, keep the world server on one by adding
-`export ISAAC_KIT_ARGS="--/renderer/multiGpu/enabled=false --/renderer/activeGpu=0"` as
-well.
+On a machine with two GPUs, keep the world server on one: add
+`export ISAAC_KIT_ARGS="--/renderer/multiGpu/enabled=false --/renderer/activeGpu=0"` to
+`~/swb.bash`. The stack's terminal sources it, and the world server reads it from there.
 
 **Check**:
 

@@ -85,8 +85,8 @@ play_launch launch --web-addr 127.0.0.1:8080 \
 **What you see**: as in Tutorial 6, ending `swb stack ...: ready`.
 
 **Check**: in the stack's web UI, the world server's log (the simulator group) warns about
-`mud_wet` and has the line `soil zone mud_road (mud_wet): grid at ...`: it read the
-project's surface map.
+`mud_wet` and has the lines `soil zone mud_road: cut (...) out of 8 mesh(es)` and
+`soil zone mud_road: 32 tiles of 1.6 m at z 0.00`: it read the project's surface map.
 
 ## 4. Drive through the mud, and watch the wheels
 

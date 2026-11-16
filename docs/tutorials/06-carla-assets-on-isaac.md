@@ -27,8 +27,9 @@ then on another world, the Mount Haruna mountain road.
   with Town01, Autoware another 10 to 20 GB; run no CARLA stack beside it.
 - Several GB of disk in swb's cache (`cache:` of the host settings, on a fast disk: a
   town's first load reads 1 to 2 GB of small files).
-- About an hour the first time: the download, and a town's first load compiles its
-  materials (up to a quarter of an hour).
+- Several hours the first time: the USD download (19 GB for Town01 and the vehicles, 2 h
+  28 min on one host, 2026-11-16), and a town's first load compiles its materials (up to a
+  quarter of an hour).
 
 ## 1. Copy the Isaac example
 
@@ -48,7 +49,7 @@ assets:
   - dataset: carla-town-autoware-maps
     take: [Town01]               # the Autoware map and Town01's Isaac world file
   - dataset: carla-0.9.16-isaac-usd
-    take: [Town01, vehicles]     # the town and the cars in USD: several GB of the 25.5
+    take: [Town01, vehicles]     # the town and the cars in USD: 19 GB of the 25.5
 pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
 ```
@@ -220,11 +221,14 @@ on haruna`.
 **Check**:
 
 ```bash
-ros2 run swb run scenarios/haruna_down.xosc
+ros2 run swb run scenarios/haruna_down.xosc --timeout 700
 ```
 
 ends with a verdict line; a run on Town01 against this stack is refused, naming the
-`map:=` to restart with.
+`map:=` to restart with. The course is long: its scenario allows 600 s of simulation time,
+more than SSv2's default 400 s (`--timeout`), so give the run more. Without it, a run with
+the Model 3 ended `error` when SSv2's limit ran out (2026-11-16). The course was made for a
+drift controller; how far the Model 3 under Autoware gets down it has not been measured.
 
 ## What happened
 

@@ -5,14 +5,28 @@ What swb does not do: [Supported and not supported](reference/limits.md).
 
 ## By reader
 
-| You are | Start with | Then |
-|---|---|---|
-| **New to swb** | [Install](getting-started/install.md), [Getting started on CARLA](getting-started/carla.md) | the [tutorials](#tutorials) in order |
-| **Adopting swb** for your project | [Start a project of your own](how-to/start-a-project.md) | [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md), [your Autoware](how-to/your-autoware.md), the [reference](#reference) |
-| **Teaching** | [Teaching with swb](teaching.md) | [several stacks on one host](how-to/several-stacks.md), the tutorials as labs |
-| **Writing scenarios** | [Tutorial 2](tutorials/02-write-a-scenario.md), [Tutorial 3](tutorials/03-other-road-users.md) | [What a scenario may use](reference/scenarios.md) |
-| **Integrating an autopilot** | [Your autopilot as a pilot](how-to/your-autopilot.md) | [the agent SDK](reference/agent-sdk.md), [Tutorial 4](tutorials/04-several-pilots.md) |
-| **Developing swb** | the [Developer Guide](development.md) | the design documents, [design/](design/) (for developers) |
+Every reader begins with [Install](getting-started/install.md). After installation, each
+continues from the point that matches their role:
+
+- **A new user** continues with [Getting started on CARLA](getting-started/carla.md) (or
+  [on Isaac Sim](getting-started/isaac.md)), then the [tutorials](#tutorials) in order.
+- **A project adopting swb**, with its own car, autopilot and maps, continues with
+  [Start a project of your own](how-to/start-a-project.md), then
+  [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md),
+  [your Autoware](how-to/your-autoware.md) and the [reference](#reference).
+- **A scenario author** continues with [Tutorial 2](tutorials/02-write-a-scenario.md) and
+  [Tutorial 3](tutorials/03-other-road-users.md), then
+  [What a scenario may use](reference/scenarios.md).
+- **An autopilot integrator** continues with
+  [Your autopilot as a pilot](how-to/your-autopilot.md), then
+  [the agent SDK](reference/agent-sdk.md) and [Tutorial 4](tutorials/04-several-pilots.md).
+- **An instructor** continues with [Teaching with swb](teaching.md), then
+  [several stacks on one host](how-to/several-stacks.md); the tutorials serve as laboratory
+  sessions.
+- **A developer of swb itself** continues with the [Developer Guide](development.md) and the
+  design documents in [design/](design/).
+
+The sections below list every page, in the order a new user reads them.
 
 ## Getting started
 

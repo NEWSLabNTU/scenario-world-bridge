@@ -124,6 +124,35 @@ reruns; step 7's T3 references; step 8's developer recipes.
 - 076's Haruna drift, the golf cart twin and Isaac own cars.
 - item 24, Haruna under Autoware on Isaac (swb 139): localization passes 058 C9, the run
   stops for good before the first hairpin (below); Tsukuba not run yet.
+- item 26, the vision-only speed ladder on Isaac (133, 2026-11-17): 118's ladder at 6098ad5
+  timed out at every rung it reached (below); a quiet rerun follows T3 part 1 and does not
+  gate the release.
+
+**Known limits, for the release notes** (drafted by 243 for 133, 2026-11-17; the text is
+for users, so it names no host and no roadmap item):
+
+> - **Isaac Sim: a slow first spawn.** A run's first ego on Isaac can take longer to spawn
+>   (about 70 s with a camera and a lidar) than scenario_simulator_v2 waits for it, and the
+>   run then ends `error`. A suite's retry on error passes on the second spawn, which is
+>   fast.
+> - **Isaac Sim: contact with the cyclist in the i6 demo.** On Isaac, the i6 scenario's
+>   judges may report contact with the cyclist while scenario_simulator_v2 passes the run:
+>   Autoware stops closer to the cyclist on Isaac than on CARLA, and Isaac's cyclist body
+>   touches the ego. On CARLA the same scenario passes every judge.
+> - **Isaac Sim on a VNC display.** Isaac Sim's window renderer crashed at start on the
+>   TurboVNC displays tested, and the world server opens a window whenever `DISPLAY` is
+>   set. On a VNC display, set `isaac: {render: headless}` in the project's `swb.yaml`.
+> - **play_launch and a refused world server.** Under play_launch, a world server refused
+>   for a usage error that the launch file cannot check in advance is restarted every 10 s
+>   until the stack is stopped, since play_launch does not run the launch file's exit
+>   handlers (play_launch issue #0090); `ros2 launch` ends the launch instead. Two related
+>   play_launch issues are open: #0091 (`--parser python` ignores a shutdown handler) and
+>   #0092 (the Rust parser does not apply `SetEnvironmentVariable` to the launch file's
+>   environment).
+> - **A crash loop outside `swb run`.** `swb run` ends a stack's start when a node exits
+>   five times before the stack is ready, naming the node. A stack started directly, with
+>   `ros2 launch swb_launch swb.launch.xml` or play_launch, has no such limit: a node that
+>   fails at every start is restarted until the stack is stopped.
 
 ## Progress and rulings
 
@@ -1318,6 +1347,13 @@ Isaac's rear contact (inventory row 18).
   Assigned (133, 2026-11-17) to swb 118, whose Town05 render probe passed 2000 frames: the
   ladder at 9270d87 with autoware-drift b9165dd, without `--capture full`, so it checks the
   rungs and keeps no replay dataset. The RC follows it and 044.
+  **Ran, deferred to the release's deferred list (133, 2026-11-17).** 118's ladder at
+  6098ad5: rungs 10 and 15, and rung 20's first attempt, each ended "simulation has timed
+  out", at a real-time factor of 0.16 under host load 65 to 72. The ego never moved after
+  DRIVING (0.0 m; `control_cmd` peaked at 0.25 m/s); whether load alone explains that is
+  open. The run did confirm G75 and G76's fix on a fresh host: `isaac.root` from
+  `host.yaml` brought the world server up and the stack became ready. A quiet rerun follows
+  T3 part 1 and does not gate the release; 118 sends 243 the run summary.
 - **Item 55, `just isaac-world`'s options (swb 241, 2026-11-17, on 81268e3), a standalone
   world server without a bridge, host load 55 to 62.** Checked, kept as a developer recipe:
   - `world:=<Town01 world.yaml>,<Town02 world.yaml> record:=<dir> record_view:=road

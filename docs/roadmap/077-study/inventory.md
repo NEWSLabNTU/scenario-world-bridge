@@ -261,7 +261,7 @@ G32. An item with no open gap can be migrated now.
 | 23 | NTU open-data roads `scenarios/ntu/` | private assets (the user checks these, 077 ruling); Isaac | G8 | blocked |
 | 24 | Haruna `haruna_down.xosc` through swb, Tsukuba | Isaac | - | ready to migrate |
 | 25 | Town05 ring drift lap | Isaac | - | ready to migrate |
-| 26 | Vision-only speed ladder | Isaac | G65 | project ready to run 2026-11-17 (swb 139, `scenarios/projects/speed_ladder`, 9270d87); the ladder not yet run; assigned to swb 118 |
+| 26 | Vision-only speed ladder | Isaac | G65 | deferred (133, 2026-11-17): 118's ladder at 6098ad5 timed out at rungs 10, 15 and 20 (real-time factor 0.16 at load 65-72; the ego never moved); a quiet rerun after T3 part 1, not a gate |
 | 27 | Shalun map | private assets (the user checks these, 077 ruling); Isaac | no scenario, no Autoware run yet | blocked (no scenario) |
 | 28 | Golf cart Isaac twin | private assets (the user checks these, 077 ruling); Isaac | G5 (Isaac rig) | blocked |
 | 29 | Several Autoware egos on Isaac, V2X | Isaac | one ego on Isaac (076 ruling) | by design |

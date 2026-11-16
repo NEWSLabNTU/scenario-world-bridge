@@ -937,7 +937,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     junit = run_dir / "junit.xml"
     if junit_src.is_file():
         shutil.copyfile(junit_src, junit)
-    verdict, reason = results.verdict_from(junit if junit.is_file() else None, infra)
+    verdict, reason = results.verdict_from(
+        junit if junit.is_file() else None, infra,
+        hint="" if junit.is_file() else results.ssv2_hint(logs / "scenario"))
     for msg in infra:
         events.append({"t_sim": None, "t_wall": time.time(), "type": results.STACK_ERROR,
                        "message": msg})

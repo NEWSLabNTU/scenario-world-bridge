@@ -207,3 +207,24 @@ def test_provenance_names_the_build_and_the_checkout_apart(tmp_path):
     assert p["swb"] == built["swb"] and p["checkout"] != built["swb"] and p["built"]
     assert results.installed_build(tmp_path / "nowhere") is None
     assert results.provenance(ws)["swb"] == p["checkout"]   # no stamp: the checkout, as before
+
+
+def test_no_junit_says_why_from_ssv2s_own_log(tmp_path):
+    """G48: an SSv2 that timed out wrote no JUnit; the reason said only that."""
+    from swb import results
+    err = tmp_path / "2026-11-16_01-46-25" / "node" / "scenario_test_runner" / "err"
+    err.parent.mkdir(parents=True)
+    err.write_text("[INFO] [1.0] [simulation.scenario_test_runner]: starting\n"
+                   "[ERROR] [1794765193.07] [simulation.scenario_test_runner]: The simulation "
+                   "has timed out. Forcibly inactivate.\n")
+    interp = tmp_path / "2026-11-16_01-46-25" / "node" / "openscenario_interpreter_node-1" / "err"
+    interp.parent.mkdir(parents=True)
+    interp.write_text("[ERROR] [1794765032.6] [status_monitor]: main is unresponsive\n")
+    hint = results.ssv2_hint(tmp_path)
+    assert hint == "The simulation has timed out. Forcibly inactivate."
+    v, why = results.verdict_from(None, (), hint=hint)
+    assert v == results.ERROR and why == "SSv2 wrote no JUnit: " + hint
+    err.write_text("[INFO] [1.0] [x]: fine\n")
+    assert results.ssv2_hint(tmp_path) == "main is unresponsive"
+    assert results.ssv2_hint(tmp_path / "none") == ""
+    assert "say nothing why" in results.verdict_from(None)[1]

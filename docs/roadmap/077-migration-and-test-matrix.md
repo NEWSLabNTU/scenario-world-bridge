@@ -538,6 +538,12 @@ Isaac's rear contact (inventory row 18).
   full 30 min for a world server that kept dying on that host's GPU, then printed only its
   last try's "no answer within 2 s". A failed wait now says how long it waited in all
   ("... (the last of N tries over T s)"); swb_world_protocol 0349578.
+- **G48 built (2026-11-16).** A run without SSv2's JUnit gives SSv2's own word for it: its
+  timeout line (`SSv2 wrote no JUnit: The simulation has timed out. Forcibly inactivate.`),
+  else the last ERROR or FATAL line of its test runner or interpreter, read from the run's
+  `logs/scenario/`; `runs why` shows it with the reason. Checked on c_command's four_pilots
+  run of 2026-11-16 01:46, which said only "(None)". A troubleshooting row says what the
+  timeout means.
 - **075 step 8, Isaac guides (swb 118, 2026-11-16).** isaac.md, T6 and T7 by a fresh reader
   on origin/main 75e00ab: the install (Isaac 6.1.0.0, 6 min) and the message build work as
   written; Haruna ran. That host's driver (615.71.09) loses the GPU on every Town01 render

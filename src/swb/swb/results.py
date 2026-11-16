@@ -7,6 +7,7 @@ runner's infrastructure errors into the verdict; ``provenance`` records what ran
 import dataclasses
 import hashlib
 import json
+import re
 import socket
 import subprocess
 import xml.etree.ElementTree as ET
@@ -238,19 +239,44 @@ def _one_line(s: str, limit=300) -> str:
     return s if len(s) <= limit else s[:limit - 3] + "..."
 
 
-def verdict_from(junit_path, infra_errors=()) -> tuple:
+SSV2_NODES = ("scenario_test_runner", "openscenario_interpreter_node")
+_ROS_LINE = re.compile(r"^\[(ERROR|FATAL|WARN)\] \[[0-9.]+\] \[[^\]]*\]: ?(.*)$")
+
+
+def ssv2_hint(scenario_logs) -> str:
+    """Why SSv2 ended without a JUnit, from its own logs (``<run>/logs/scenario/``): its
+    timeout line when it timed out (``The simulation has timed out ...``), else the last
+    ERROR or FATAL line of its test runner or interpreter; "" when neither says (roadmap 077,
+    G48: the reason named only the missing file)."""
+    lines = []
+    for node in SSV2_NODES:
+        for f in sorted(Path(scenario_logs).glob(f"*/node/{node}*/err")):
+            try:
+                lines += f.read_text(errors="replace").splitlines()
+            except OSError:
+                pass
+    found = [m for m in (_ROS_LINE.match(x.strip()) for x in lines) if m]
+    for m in found:
+        if "timed out" in m.group(2):
+            return m.group(2).strip()
+    bad = [m.group(2).strip() for m in found if m.group(1) in ("ERROR", "FATAL")]
+    return bad[-1] if bad else ""
+
+
+def verdict_from(junit_path, infra_errors=(), hint="") -> tuple:
     """``(verdict, reason)`` for a run.
 
     ``infra_errors``: what the runner saw go wrong on the stack's side (a world server or
     bridge error, a pilot never ready, SSv2 not starting); any makes the verdict ``error``,
     whatever SSv2 said. Otherwise SSv2's JUnit decides: any ``<error>`` is ``error``, else a
     ``<failure>`` (SSv2's SimulationFailure) is ``failed``, else a testcase is ``passed``.
-    A missing, unreadable or empty JUnit is ``error``."""
+    A missing, unreadable or empty JUnit is ``error``; ``hint`` (``ssv2_hint``) says why."""
     infra = [e for e in (infra_errors or ()) if e]
     if infra:
         return ERROR, _one_line(infra[0])
     if junit_path is None or not Path(junit_path).is_file():
-        return ERROR, f"SSv2 wrote no JUnit ({junit_path})"
+        return ERROR, _one_line("SSv2 wrote no JUnit" + (f": {hint}" if hint else
+                                                          " (and its logs say nothing why)"))
     try:
         j = read_junit(junit_path)
     except (OSError, ET.ParseError) as e:

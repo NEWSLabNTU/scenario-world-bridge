@@ -69,7 +69,10 @@ cargo --version
 ```
 
 colcon's Rust plugin and [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or
-newer, which rosdep cannot install. Both are installed for the user into Humble's Python (the
+newer, which rosdep cannot install. play_launch is the recommended launcher: it keeps a log
+per node, offers a web interface and supervises the processes. swb's runner currently starts
+the stack and the scenario with it, and support for plain `ros2 launch` is in preparation, so
+the commands of these pages use it. Both are installed for the user into Humble's Python (the
 system `python3`, 3.10), not into a virtual environment: `colcon` and `ros2` run on that
 Python and must find them.
 

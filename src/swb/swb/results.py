@@ -240,6 +240,7 @@ def _one_line(s: str, limit=300) -> str:
 
 
 SSV2_NODES = ("scenario_test_runner", "openscenario_interpreter_node")
+_EXC_LINE = re.compile(r"^[A-Za-z_][\w.]*(Error|Exception): .+")
 _ROS_LINE = re.compile(r"^\[(ERROR|FATAL|WARN)\] \[[0-9.]+\] \[[^\]]*\]: ?(.*)$")
 
 
@@ -259,6 +260,10 @@ def ssv2_hint(scenario_logs) -> str:
     for m in found:
         if "timed out" in m.group(2):
             return m.group(2).strip()
+    # a Python traceback's last line (the runner died on an import, say: no xmlschema)
+    exc = [x.strip() for x in lines if _EXC_LINE.match(x.strip())]
+    if exc:
+        return exc[-1]
     bad = [m.group(2).strip() for m in found if m.group(1) in ("ERROR", "FATAL")]
     return bad[-1] if bad else ""
 

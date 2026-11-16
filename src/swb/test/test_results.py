@@ -228,3 +228,13 @@ def test_no_junit_says_why_from_ssv2s_own_log(tmp_path):
     assert results.ssv2_hint(tmp_path) == "main is unresponsive"
     assert results.ssv2_hint(tmp_path / "none") == ""
     assert "say nothing why" in results.verdict_from(None)[1]
+
+
+def test_no_junit_names_the_runners_traceback(tmp_path):
+    """swb 241: the runner died on a missing module and the reason said nothing."""
+    from swb import results
+    err = tmp_path / "t" / "node" / "scenario_test_runner" / "err"
+    err.parent.mkdir(parents=True)
+    err.write_text("Traceback (most recent call last):\n  File \"x.py\", line 3, in <module>\n"
+                   "    import xmlschema\nModuleNotFoundError: No module named 'xmlschema'\n")
+    assert results.ssv2_hint(tmp_path) == "ModuleNotFoundError: No module named 'xmlschema'"

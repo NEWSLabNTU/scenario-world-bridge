@@ -79,7 +79,7 @@ system `python3`, 3.10), not into a virtual environment: `colcon` and `ros2` run
 Python and must find them.
 
 ```bash
-python3 -m pip install --user colcon-cargo-ros2==0.5.3 tomli 'play_launch>=0.30.0'
+python3 -m pip install --user colcon-cargo-ros2==0.5.3 tomli xmlschema 'play_launch>=0.30.0'
 export PATH=$HOME/.local/bin:$PATH    # where pip --user puts play_launch
 play_launch --version
 ```

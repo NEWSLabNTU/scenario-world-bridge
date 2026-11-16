@@ -968,3 +968,46 @@ Isaac's rear contact (inventory row 18).
   incident judge, so row 6 did not see it): a real margin of Autoware's at i6, not load. Ruled:
   i6 is re-timed for at least 0.5 m, as i7 was, and the near-zero margin is written up as an
   Autoware finding. NAS: "2026-11-16 077 G58 tour reruns".
+- **Item 53, the separate ego and background stacks (swb 118, 2026-11-16, 2788710).** `just
+  ego-av` and `bg-av`, fresh: ego_ready answered, the G1 environment loaded (the overlay's
+  blind_spot, pose_instability and NDT, TensorRT 10.8), ego_drive and two_av passed. G1 stands.
+  **G64**: an ego-av reused for a second scenario failed it 3 times of 3 (once a collision
+  with bg_av_1 that is a wrong verdict, then PLANNING timeouts; behavior_path_planner "ego pose
+  is beyond goal" 70 times after an OK reset): nothing resets a separate ego between
+  scenarios. Ruled: for the release `scenario-direct` refuses an ego stack that already served
+  a scenario (a marker on the play_launch's pid and start time; 118 builds it), and CLAUDE.md
+  says a separate ego-av serves one scenario (5de256d); after it, the reset is diagnosed and
+  fixed. G59 extended: these recipes and the other developer launches record no /diagnostics
+  either (41e4485). NAS: "2026-11-16 077 item 53 ego-av bg-av".
+- **Item 54, `just carla-start` (swb 118, 2026-11-16).** Town01 at Epic offscreen and Town02
+  at Low each served RPC in 16 s; `just carla-stop` left no process and no port. The gap
+  stands: the project path sets neither the boot map, the render mode nor extra arguments,
+  and runs Epic only. NAS: "2026-11-16 077 item 54 carla-start".
+- **G60 built (swb 139, 13c9333; reviewed here).** A pilot's own ROS workspaces:
+  `overlays: [<setup.bash>, ...]` on `autoware` and `launch` pilots, sourced after this
+  workspace's installs and before the TensorRT runtime; entries project-relative or
+  `{workspace:<name>}/...` under the host's `workspaces: {<name>: <dir>}` (as G8's
+  `datasets:`), also a substitution in `args` and `run`; `project check` refuses an unknown
+  workspace and a missing file and warns on a host path; stack.json and provenance record
+  each setup file and its workspace's commit. Live: item 25's drift_controller ran from
+  autoware-drift's install, its commit recorded.
+- **Item 25, the Town05 ring drift lap (swb 139, 76843b3): deferred, needs a quiet GPU.**
+  Two runs ended `error`: a first Step of 18.4 s past the bridge's 10 s, then 128 s simulated
+  in 820 s wall (0.16x real time, another user's job at 97 % of the GPU), so the scenario never
+  left its 300 s initialization. **G61** (after the release): `global_timeout` and G53's raise
+  use the configured real-time factor, not the achieved one; a run far below it should warn.
+- **G62 built (da06fd0): Autoware's fixes without just.** `ros2 run swb autoware
+  overlay|tensorrt|where` runs the workspace's own scripts into the directories an autoware
+  pilot reads; install.md's step and the stack's warning name it. Both apply to Autoware 1.5.0.
+- **Release criterion (b), tutorials 2 to 5 on CARLA (133's subagent, 2026-11-16, d06ed00).**
+  A fresh clone in a sandbox HOME, install.md and carla.md as written: 68 packages, none failed;
+  22 runs, none failed or errored, on a GPU 98 % busy from another user. Its findings went into
+  the tutorials' editing pass (5e2da37: a formal register, about 1000 prose words each, prose
+  1855/1259/1093/1177/935/1647/1101 to 1533/1154/1057/1095/962/1474/1150) and G62; **G63**:
+  `carla_poses` ignores the host settings' CARLA port (133's subagent). The docs now state ROS 2
+  Humble as the requirement and the simulator and autopilot as choices (5e89b3c); the build
+  still compiles against Autoware's interface messages, so an Autoware install remains a
+  build requirement (after the release: vendor or split them).
+- **`just test` on any host (9b385fc).** The scripts/ tests run without pytest plugins: ROS's
+  launch_testing hook imported scripts/test_phase1.py, a live ZMQ client, and failed where
+  pyzmq or protobuf differed (swb 139; verified there).

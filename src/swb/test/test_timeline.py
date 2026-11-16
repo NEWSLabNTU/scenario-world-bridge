@@ -125,3 +125,13 @@ def test_why_prefers_swbs_own_refusal_and_skips_capability_notes():
     pilot = e(4.0, "pilot-ego", "planning", "WARN", "planning failed to find a path")
     assert timeline.why([cap, pilot, semantic, ws]) is ws
     assert timeline.why([cap, setcap]) is None
+    # G70: the world server's watchdog names the request it ended
+    dog = e(7.0, "simulator", "swb_isaac_world", "ERROR",
+            "step 1 (3 x 0.0166667 s at sim time 0.000 s) has run 180.0 s, past its deadline "
+            "of 180 s: ending world server 4242 for a fresh one")
+    bridge = e(6.5, "bridge", "scenario_world_bridge", "ERROR",
+               "update_frame{frame=1}: the isaac world server did not answer Step within 10 s")
+    # the errored run sees the bridge give up (10 s); the watchdog's line (180 s) comes after
+    # it, in the stack's log or the next run's slices
+    assert timeline.why([cap, semantic, bridge, dog]) is bridge
+    assert timeline.why([cap, semantic, dog]) is dog

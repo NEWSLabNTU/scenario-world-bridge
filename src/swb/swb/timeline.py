@@ -225,9 +225,12 @@ def is_problem(e, min_level="WARN") -> bool:
 # play_launch's notes on capabilities its helpers lack: never a run's reason (roadmap 077, G67)
 _NOISE = re.compile(r"cap_sys_ptrace|\bgetcap\b|\bsetcap\b")
 # swb's own processes (the bridge and the relay, the world servers), and what they say when
-# they refuse a scenario or fail it: "Cannot spawn 'x' ...", "... refused", "... failed"
+# they refuse a scenario or fail it: "Cannot spawn 'x' ...", "... refused", "... failed", and
+# a world server that stopped answering ("... did not answer Step within 10 s"), and its
+# watchdog ending the blocked request ("... past its deadline ...", G70)
 _SWB_GROUPS = {"bridge", "relay", "simulator"}
-_REFUSAL = re.compile(r"\bCannot spawn\b|\brefus(?:e|es|ed)\b|\bfailed\b", re.I)
+_REFUSAL = re.compile(r"\bCannot spawn\b|\brefus(?:e|es|ed)\b|\bfailed\b|\bdid not answer\b"
+                      r"|\bpast its deadline\b", re.I)
 
 
 def is_noise(e) -> bool:

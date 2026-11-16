@@ -137,8 +137,9 @@ for users, so it names no host and no roadmap item):
 >   fast.
 > - **Isaac Sim: contact with the cyclist in the i6 demo.** On Isaac, the i6 scenario's
 >   judges may report contact with the cyclist while scenario_simulator_v2 passes the run:
->   Autoware stops closer to the cyclist on Isaac than on CARLA, and Isaac's cyclist body
->   touches the ego. On CARLA the same scenario passes every judge.
+>   the ego, approaching at low speed before it yields, comes within about 0.2 m of the
+>   cyclist's bounding box, and Isaac's cyclist body touches it. On CARLA the same scenario
+>   passes every judge, with about 0.56 m of clearance.
 > - **Isaac Sim on a VNC display.** Isaac Sim's window renderer crashed at start on the
 >   TurboVNC displays tested, and the world server opens a window whenever `DISPLAY` is
 >   set. On a VNC display, set `isaac: {render: headless}` in the project's `swb.yaml`.

@@ -1274,15 +1274,20 @@ Isaac's rear contact (inventory row 18).
   before `just build`, as colcon need not re-run configure_file on a mode change). With the
   fix `road_detail check` prints `1 corridor(s)` and `corridor 0: 250 m`, as the tutorial
   says. The stack then was not ready in 3600 s: the Isaac world server went silent after
-  `rock pool: 992 prims ...`. Issue 042 (241, cause in 5ea2554; the fix 133's to choose): a
-  deadlock in the preload of a road with rocks. The main thread holds the GIL in a physics
+  `rock pool: 992 prims ...`. Issue 042 (241, cause in 5ea2554): a deadlock in the preload
+  of a road with rocks, which can also strike mid-drive. The main thread holds the GIL in a physics
   step and waits on a PhysX cooking task; that task waits for the GIL to hand a log message
   to the world server's Python omni.log consumer. Nothing ends the preload at that stage, so
   the stack never becomes ready, on any host. Until it is fixed, exercise 2's "the stack
-  starts again without a problem" does not hold, and item 21 stays out of T3.
-  Issue 043 (241, fixed in eb08cd3): with `road_detail:` naming a file under `assets/`, the
-  restart was refused, "state/Town01/road_detail.yaml is not a link swb made"; the
-  tutorial's steps are unchanged by it.
+  starts again without a problem" does not hold, and item 21 stays out of T3. Fix assigned
+  (133, 2026-11-17) to 241, before items 51 and 55: (a) FATAL detection moves out of Kit's
+  process; (b) the G70 child starts before Kit, with a 1200 s startup deadline. Review: 243.
+  Tutorial 7's fallback (exercise 2 keeps only its `road_detail check`, the rough-road drive
+  not yet run) is held unpushed until the fix is verified, then dropped or pushed at the RC.
+  Issue 043 (241, fixed in eb08cd3): a `ground:` file under `assets/` was linked into
+  `state/` through the cache's path, and the next start refused it, "state/Town01/
+  road_detail.yaml is not a link swb made"; exercise 2's restart hit it. The tutorial's
+  steps are unchanged by the fix.
   Tutorial 7 (ruling 243, 2026-11-17): no note now. Issue 041 needs none, since a fresh
   build has the executable entries (removing `build/swb_isaac_world` is for an existing
   developer workspace). The tutorials describe the release, so 042 is fixed before it, or

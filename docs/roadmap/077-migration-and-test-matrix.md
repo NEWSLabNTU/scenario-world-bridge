@@ -1298,6 +1298,22 @@ Isaac's rear contact (inventory row 18).
   5.1 MB. A probe: a `[Fatal] [test]` line appended to a standalone world server's Kit log
   ended it about 5 s later (the watchdog's "fatal in ..."); its launch respawned it, which
   watched its own new log and answered Hello ready.
+- **Item 26, the speed ladder, ready to run (swb 139, 2026-11-17, 9270d87; reviewed by 243);
+  not migrated.** `scenarios/projects/speed_ladder`: one lap of Town05's ring (the dataset's
+  map at 110 km/h) per rung, 10 to 30 m/s as Autoware's `max_velocity` (`lifetime: run`, a
+  stack per rung), drift_mustang on Isaac with the ZED left camera at 30 Hz, Autoware on the
+  ground-truth pose (`ndt:=none`), autoware-drift as a host workspace (G60), SSv2's
+  `frame_rate` 100; retry on error once (G65's slow first ego). The judge `rung_check` reads
+  each rung's recording: ground truth at 90 Hz or more, the camera at 25 images per simulated
+  second or more, the top speed within 10 % of the rung, the lap finished (within 10 m of the
+  finish after 1000 m or more). A passed rung is kept at `standard`; 063 step 5's replay
+  dataset needs the suite run with `--capture full` (about 25 GB for the ladder). Proven only
+  in part, on 139: rung 15 drove the whole lap (1477 m, top 16.2 m/s, finish 4.8 m,
+  124.8 s of simulated time including the initialization, inside the scenario's 400 s), and
+  rung_check read it; that run predates `frame_rate` 100, so both rates were 20 Hz and it
+  failed them. Rung 10 at the same pace would take at most about 187 s, so the 400 s limit
+  stands. The full ladder has not run on any host (the GPU was taken by other work); its
+  next host is 118 (GPU 0) if it has Isaac, else 241 after item 55.
 - **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e
   src/swb_examples/scenarios/basic/town01_ego_drive.xosc project:=scenarios/projects/isaac_basic`
   passed in 6 min 9 s at host load 72; e2e stopped the stack it started, and no play_launch

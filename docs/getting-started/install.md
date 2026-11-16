@@ -67,7 +67,7 @@ Rust, from [rustup](https://rustup.rs/). The installer adds Rust to new terminal
 load it into this one:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source ~/.cargo/env
 cargo --version
 ```
@@ -116,8 +116,16 @@ cd ~/scenario-world-bridge
 source /opt/ros/humble/setup.bash
 source /opt/autoware/1.5.0/setup.bash
 rosdep update
-rosdep install --from-paths src --ignore-src -y   # apt packages: asks for sudo
+rosdep install --from-paths $(colcon list --base-paths src -p) --ignore-src -y \
+    --skip-keys python-yamale-pip                    # apt packages: asks for sudo
+python3 -m pip install --user yamale
 ```
+
+rosdep reads the packages colcon builds (`colcon list`), not the whole `src/`: its crawl
+would walk into the components' own `deps/` copies and stop on their templates. One key,
+`python-yamale-pip` (SSv2's test runner), resolves only from a rosdep source most hosts do
+not have, so it is skipped and installed with pip. Among others, rosdep installs
+pygame, lanelet2, shapely and networkx.
 
 Two settings for compilers newer than Ubuntu 22.04's own, set before the build. Neither
 harms an Ubuntu 22.04 toolchain:

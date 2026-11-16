@@ -272,7 +272,8 @@ def test_seat_table_gives_each_seat_a_carla(tmp_path):
         seat.table(cfg.merge(cfg.DEFAULTS, {"seats": {"carla": {"base": 2000, "stride": 2}}}))
 
 
-def _listen(port):
+def _listen(port=0):
+    """A listener on ``port``; 0 lets the kernel pick one (read it from getsockname)."""
     import socket
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -281,15 +282,36 @@ def _listen(port):
     return s
 
 
+def _foreign_web_stack(env, tries=20):
+    """Settings whose seat 0 web UI port is a listener the kernel picked (port 0), with
+    every other port of seats 0 and 1 free; and that listener.
+
+    Fixed ports are flaky: the kernel's picks and outgoing connections come from the
+    ephemeral range (32768-60999 on many hosts), so any fixed port there may be taken by
+    the time the test binds it. The listener's port is the kernel's own pick, the SSv2,
+    relay and world server ports sit below the ephemeral range (only a listener can hold
+    them), and seat 1's web UI port, the one other port in that range, is checked free;
+    a layout whose check fails is dropped and another port picked."""
+    for _ in range(tries):
+        sock = _listen()
+        web = sock.getsockname()[1]
+        st = config.merge(settings(ports={"base": 20055, "stride": 100},
+                                   web={"base": web, "stride": 10}),
+                          {"seat_locks": str(env[2])})
+        s0, s1 = seat.table(st)[:2]
+        if not seat.busy_ports(s0, web=False) and not seat.busy_ports(s1):
+            return st, sock
+        sock.close()
+    pytest.skip(f"no free seat layout in {tries} tries (ports 20055-20291 held?)")
+
+
 def test_auto_skips_a_seat_whose_ports_a_foreign_stack_holds(env):
     """roadmap 077, G30: a stack outside the seat table (a checkout's `just run` on its own
     SWB_WEB_PORT) holds seat 0's numbers without its lock; auto takes seat 1 instead."""
-    st = config.merge(settings(ports={"base": 47055, "stride": 100},
-                               web={"base": 47900, "stride": 10}),
-                      {"seat_locks": str(env[2])})
+    st, sock = _foreign_web_stack(env)
     s0 = seat.table(st)[0]
-    sock = _listen(s0.web_port)
     try:
+        assert s0.web_port == sock.getsockname()[1]
         assert seat.busy_ports(s0) == [("web UI", s0.web_port)]
         assert seat.busy_ports(s0, web=False) == []
         got = seat.resolve(st, usable=lambda s: not seat.busy_ports(s))
@@ -299,4 +321,4 @@ def test_auto_skips_a_seat_whose_ports_a_foreign_stack_holds(env):
         assert f"web UI {s0.web_port}" in msg and "seat take auto" in msg
     finally:
         sock.close()
-    assert seat.busy_ports(s0) == []
+    assert ("web UI", s0.web_port) not in seat.busy_ports(s0)

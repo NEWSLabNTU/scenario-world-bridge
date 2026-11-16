@@ -1011,3 +1011,14 @@ Isaac's rear contact (inventory row 18).
 - **`just test` on any host (9b385fc).** The scripts/ tests run without pytest plugins: ROS's
   launch_testing hook imported scripts/test_phase1.py, a live ZMQ client, and failed where
   pyzmq or protobuf differed (swb 139; verified there).
+- **G64 (b) built (swb 118, ea0a188; reviewed here).** `scenario-direct` refuses a separate
+  ego-av, or a bg-av whose entity the scenario names, that already served a scenario: a
+  marker per user under /tmp keyed on the stack's first-started play_launch's pid and start
+  time, written as the scenario starts (an interrupted run counts); stale markers go when
+  checked; scripts/test_ego_used.py (6 tests). Live: a fresh ego passed and was marked, the
+  next scenario-direct and a two-av-direct on it were refused at once, and after a restart
+  the next passed. Open, after the release: two-av-direct starts its bg-av before the
+  refusal; `just run`'s own ego is not marked and not measured (050's and the coop batches ran
+  against it for weeks); (a) the reset itself: the route was set from x 190.8 to a goal at x
+  120, both at yaw pi, then "ego pose is beyond goal", so which pose behavior_path_planner held
+  after the reset is the question.

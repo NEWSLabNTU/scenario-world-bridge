@@ -1,0 +1,9 @@
+# 074 E2 (2026-11-13), one run of each scenario. Reference, on the default perception:
+# the lane change's lateral move starts 4.05-4.10 s after the ego starts moving and takes
+# 4.80-4.85 s; against the lead braking at 4 m/s^2, Autoware commands braking 2.3 s after
+# and the ego's speed falls 2.7 s after. e2_speed allows 1 s either way. Measured here
+# (2026-11-16, two passes, the spec's physics): lane change 4.6 s and 4.5-4.55 s; lead
+# brake 2.3-2.35 s and 2.55-2.7 s.
+scenarios: [scenarios/]
+retry: {on: error, times: 1}
+expect: {}

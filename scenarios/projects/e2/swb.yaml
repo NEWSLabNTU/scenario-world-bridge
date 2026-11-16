@@ -1,0 +1,26 @@
+# e2: roadmap 074 E2, Autoware's timing on CARLA, as a project (077 step 4, inventory item 34):
+# the lane change on Town03's west straight and the ego's response to a braking lead. The ego
+# is Autoware on its default perception (clustering) at max_velocity 10 m/s (the profile's
+# 4.17 never closes on the lead). Each run records the ego's kinematic state and control
+# command (capture full) and the bridge's gap trace; the judge e2_speed measures them as
+# scripts/coop/e2_bag.py did and holds them to E2's numbers.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town03]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    args: {max_velocity: "10"}
+logging:
+  gap_trace: true
+  capture: full
+  topics: [/clock, /localization/kinematic_state, /control/command/control_cmd]
+  keep: {passed: full, failed: full, error: full}
+judges:
+  - name: e2_speed
+    run: [python3, judges/e2_speed.py]
+    needs: [gap_trace]
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

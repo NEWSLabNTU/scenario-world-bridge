@@ -175,8 +175,9 @@ def run(entries: list, work: Path, dry_run: bool) -> int:
         steps = []
         if es[0].get("copy") and not (d / "swb.yaml").is_file():
             pkg = f"pkg://swb_examples/projects/{Path(project).name}"
-            steps += [["ros2", "run", "swb", "project", "new", str(d), "--from", pkg],
-                      ["ros2", "run", "swb", "assets", "fetch"]]
+            steps.append(["ros2", "run", "swb", "project", "new", str(d), "--from", pkg])
+        # every project fetched first (nothing to download when it is; G35 skips the hashes)
+        steps.append(["ros2", "run", "swb", "assets", "fetch"])
         for i, e in enumerate(es):
             argv = ["ros2", "run", "swb", "run", f"suites/{e['suite']}.yaml", "--start-stack",
                     "--ready-timeout", "1800"]

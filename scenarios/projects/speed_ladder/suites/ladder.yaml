@@ -1,0 +1,8 @@
+# The speed ladder (roadmap 063 step 4; 077 step 4 item 25's sibling, item 26): one lap of
+# Town05's ring (110 km/h) per rung, Autoware's max_velocity the rung, on the ground-truth pose.
+scenarios:
+  - scenarios/town05_ring_lap.xosc
+parameters:
+  rung: [10, 15, 20, 25, 30]
+retry: {on: error, times: 1}
+expect: {}

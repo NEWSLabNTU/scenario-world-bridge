@@ -1,0 +1,76 @@
+# speed_ladder: roadmap 063's vision-only localization speed ladder, step 4 (the recordings),
+# as a project (077 step 4, inventory item 26). One lap of Town05's ring per rung, 10 to 30 m/s
+# (Autoware's max_velocity), drift_mustang on Isaac with its ZED X left camera at 30 Hz,
+# Autoware on the ground-truth pose (ndt:=none, no lidar matching), the drift controller off.
+# The recording (camera, IMU, wheel speed, steering, ground truth) is what rig_localization
+# is replayed on (063 step 5) and scored by its ladder_score.py. The map is the dataset's copy
+# of Town05 with the ring at 110 km/h, so the 30 m/s rung is max_velocity's and not the
+# lanelets'. autoware-drift is a host workspace: workspaces: {autoware-drift: <dir>} (G60).
+#
+# The judge, rung_check, checks each rung's recording: ground truth at >= 90 Hz, the camera at
+# >= 25 images per simulated second, the top speed within 10 % of the rung, and the lap finished
+# (the ground truth's end within 10 m of the finish line after >= 1000 m). rig_localization's
+# ladder_score.py joins as a second judge once rig's Isaac replay is pushed (063 step 5); not in
+# this release. keep holds a passed run at standard (the verdicts and rung_check's numbers,
+# not the ~25 GB of bags a full ladder records): to make 063 step 5's replay dataset, run the
+# suite with --capture full, after checking free space (the stack does not).
+#
+# G65 (077, 2026-11-16): on a fresh stack the first run's ego spawn took 68 s (its sensors'
+# first readiness; the preload's warm-up ego never got warm sensors), past SSv2's
+# change_to_stop budget (~90 s from its first try), so rung 10's first attempt ended `error`
+# before Autoware was initialized (run 2026-11-16T18-09-09). The suite's retry runs on a warm
+# world server; until G65 is fixed, a first attempt that errors this way is expected.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [town05_ring_110kmh]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town05, vehicles/vehicle.ford.mustang, "vehicles/*.json"]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: drift_mustang
+    lifetime: run                      # max_velocity is a launch argument: a stack per rung
+    overlays: ["{workspace:autoware-drift}/install/setup.bash"]
+    # 063 step 4's ego stack: 057's drift settings less extra_launch, under ndt:=none with
+    # autoware-drift's diagnostic graph without NDT's unit
+    args:
+      max_velocity: "{param:rung}"
+      ndt: none
+      diagnostic_graph_path: "{workspace:autoware-drift}/install/drift_launch/share/\
+        drift_launch/config/diagnostics/drift_ndt_none.yaml"
+      velocity_smoother_param_path: "{workspace:autoware-drift}/install/drift_launch/share/\
+        drift_launch/config/velocity_smoother.param.yaml"
+      planning_common_param_base: "{workspace:autoware-drift}/install/drift_launch/share/\
+        drift_launch/config/common.param.yaml"
+      vehicle_cmd_gate_param_path: "{workspace:autoware-drift}/install/drift_launch/share/\
+        drift_launch/config/vehicle_cmd_gate.param.yaml"
+      launch_lane_departure_checker: false
+      launch_autonomous_emergency_braking: false
+      launch_control_validator: false
+isaac:
+  ego: config/ego_rec.yaml             # ground truth as the pose, the camera on, no lockstep
+ssv2:
+  frame_rate: 100                      # a 10 ms step: aib publishes the ground truth and the
+                                       # camera once per frame (20 Hz at SSv2's default 50 ms)
+  initialize_duration: 300             # as 063 step 4 (057's laps)
+logging:
+  capture: full
+  topics:
+    - /sensing/camera/zed/image_raw
+    - /sensing/camera/zed/camera_info
+    - /sensing/imu/imu_link/imu_raw
+    - /vehicle/status/velocity_status
+    - /vehicle/status/steering_status
+    - /ground_truth/odom
+    - /localization/kinematic_state
+    - /localization/pose_estimator/pose_with_covariance
+    - /control/command/control_cmd
+    - /api/operation_mode/state
+    - /tf_static
+  keep: {passed: standard, failed: full, error: full}
+judges:
+  - name: rung_check
+    run: [python3, judges/rung_check.py, --min-gt-hz, "90", --min-camera-hz, "25",
+          --speed-tol, "0.10"]
+    timeout: 900                       # reads the whole recording, ~8 GB at the 10 m/s rung

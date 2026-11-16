@@ -1,0 +1,12 @@
+# The ladder's ego on Isaac (roadmap 063 step 4): drift_mustang's rig (zed_left at 30 Hz, the
+# lidar on for perception), Autoware's command straight to the car (no drift controller), no
+# lockstep, and the ground truth both on /ground_truth/odom and as NDT's pose, which the EKF
+# takes under ndt:=none. Paths are relative to this file; the domain follows the stack's.
+rig: ../../../../src/autoware_isaac_bridge/src/aib/config/drift_mustang.rig.yaml
+domain: 1
+node_name: isaac_vehicle
+control_topic: /control/command/control_cmd
+vehicle: {}
+ecu: {}
+sensors: {}
+ground_truth: {pose_estimate: true}

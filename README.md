@@ -112,14 +112,42 @@ SSv2 is bundled (a fork, as a submodule).
 
 ## Start here
 
-| You are | Read |
-|---|---|
-| **New to swb** | [Install](docs/getting-started/install.md), [Getting started on CARLA](docs/getting-started/carla.md), then the [tutorials](docs/README.md#tutorials) in order |
-| **Adopting swb** for your project: your car, your autopilot, your maps | [Start a project of your own](docs/how-to/start-a-project.md), the [how-to guides](docs/README.md#how-to-guides) and the [reference](docs/README.md#reference) |
-| **Teaching** a course or a lab | [Teaching with swb](docs/teaching.md): seats on one host, the tutorials as labs, grading with judges |
-| **Writing scenarios** | [Tutorial 2: write a scenario](docs/tutorials/02-write-a-scenario.md), [What a scenario may use](docs/reference/scenarios.md) |
-| **Integrating an autopilot** | [Your autopilot as a pilot](docs/how-to/your-autopilot.md), [the agent SDK](docs/reference/agent-sdk.md) |
-| **Developing swb itself** | the [Developer Guide](docs/development.md) |
+Every reader begins with [Install](docs/getting-started/install.md), which builds swb and
+its dependencies. The documentation is then organised as follows:
+
+1. **Getting started**: [Install](docs/getting-started/install.md),
+   [CARLA](docs/getting-started/carla.md), [Isaac Sim](docs/getting-started/isaac.md)
+2. **Tutorials**, to be read in order:
+   1. [First drive](docs/tutorials/01-first-drive.md)
+   2. [Write a scenario](docs/tutorials/02-write-a-scenario.md)
+   3. [Other road users](docs/tutorials/03-other-road-users.md)
+   4. [Several pilots](docs/tutorials/04-several-pilots.md)
+   5. [Suites](docs/tutorials/05-suites.md)
+   6. [The same project on Isaac Sim](docs/tutorials/06-carla-assets-on-isaac.md)
+   7. [Road physics](docs/tutorials/07-road-physics.md)
+3. **How-to guides**, for a specific task: [the list](docs/README.md#how-to-guides)
+4. **Reference**, for exact behaviour: [the list](docs/README.md#reference)
+5. **Explanation**, for the design: [How it works](docs/explanation/how-it-works.md),
+   [Verdicts](docs/explanation/verdicts.md), [ROS domains and DDS](docs/explanation/domains-and-dds.md)
+6. **Teaching** and **development**: [Teaching with swb](docs/teaching.md),
+   [the Developer Guide](docs/development.md)
+
+After installation, each reader continues from the point that matches their role:
+
+- **A new user** continues with [Getting started on CARLA](docs/getting-started/carla.md)
+  (or [on Isaac Sim](docs/getting-started/isaac.md)), then the tutorials in order.
+- **A project adopting swb**, with its own car, autopilot and maps, continues with
+  [Start a project of your own](docs/how-to/start-a-project.md), then the how-to guides
+  and the reference.
+- **A scenario author** continues with
+  [Tutorial 2: Write a scenario](docs/tutorials/02-write-a-scenario.md) and
+  [What a scenario may use](docs/reference/scenarios.md).
+- **An autopilot integrator** continues with
+  [Your autopilot as a pilot](docs/how-to/your-autopilot.md) and
+  [the agent SDK](docs/reference/agent-sdk.md).
+- **An instructor** continues with [Teaching with swb](docs/teaching.md): seats on one
+  host, the tutorials as laboratory sessions, and grading with judges.
+- **A developer of swb itself** continues with [the Developer Guide](docs/development.md).
 
 [All documentation](docs/README.md). What swb does not do, on one page:
 [Supported and not supported](docs/reference/limits.md).

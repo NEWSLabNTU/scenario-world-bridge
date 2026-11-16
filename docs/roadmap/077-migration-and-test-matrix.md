@@ -1163,3 +1163,10 @@ Isaac's rear contact (inventory row 18).
   the rerun with headroom is done. A wart, 118's follow-up: every stop logs "[Error] request
   deadline: the watchdog process is gone" because the watchdog child takes the stop's
   SIGTERM first.
+- **Issue 040's split (swb 241, 2026-11-16):** two static props buried together on a world
+  reload (T3's barriers) are enough to hang the Isaac world server; a walker alone is not.
+  139 takes the fix in `_load_env` and commits the issue. Until it lands, on Isaac any scenario
+  with two or more props followed by another run on the same stack costs about two `error`
+  runs and about 5 min (G70 ends the hang). The walker's first render on a fresh world server
+  measured 122 s once (past the 120 s Spawn limit), 75 s and 3 s other times (G65). T3's
+  (iii) note is redrafted on the props, not pedestrians.

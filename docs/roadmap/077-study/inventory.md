@@ -286,7 +286,7 @@ G32. An item with no open gap can be migrated now.
 | 48 | Autoware on Isaac without SSv2 | Isaac | - | migrated 2026-11-16 (`swb drive`, Isaac, simple and Autoware) |
 | 49 | `vehicle-check` | CARLA; Isaac | G19 | blocked |
 | 50 | `just acceptance <xosc> N [sim:=]` | Isaac | G11 | blocked |
-| 51 | `just e2e [xosc] sim:=carla | Isaac | - | ready to migrate |
+| 51 | `just e2e [xosc]` on Isaac | Isaac | - | checked 2026-11-17 (swb 241: town01_ego_drive with `project:=scenarios/projects/isaac_basic` passed in 6 min 9 s, the stack it started stopped, nothing left) |
 | 52 | `just run` long-lived dev stack | CARLA | - | checked 2026-11-16 on CARLA (swb 118, 2788710): kept for developers, works with G55, G58, G59; Isaac half 241's |
 | 53 | `just ego-av`, `ego-isaac`, `bg-av` | CARLA | - | ready to migrate |
 | 54 | `just carla-start map:= quality:= render:=` | CARLA | - | ready to migrate |

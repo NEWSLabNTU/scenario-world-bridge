@@ -1291,7 +1291,17 @@ Isaac's rear contact (inventory row 18).
   same code. In T3 part 2 (243). Tutorial 7's fallback is dropped: exercise 2 holds as
   written. Review (243, after the push): no must-fix; 241 to show, from a live run, that the
   path the world server logs as Kit's log is the file Kit writes (a `/log/file` holding a
-  time token would resolve to another name and silently watch nothing).
+  time token would resolve to another name and silently watch nothing). Shown (241,
+  2026-11-17): every world server since 5d66ba5 (two rough-road starts, the towns smoke, item
+  51, two probe servers) logged as Kit's log the file Kit reports in `[carb] Logging to
+  file:` (`kit_<date>_<time>.log`), no "does not exist (yet)", the files growing to 3.4 to
+  5.1 MB. A probe: a `[Fatal] [test]` line appended to a standalone world server's Kit log
+  ended it about 5 s later (the watchdog's "fatal in ..."); its launch respawned it, which
+  watched its own new log and answered Hello ready.
+- **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e
+  src/swb_examples/scenarios/basic/town01_ego_drive.xosc project:=scenarios/projects/isaac_basic`
+  passed in 6 min 9 s at host load 72; e2e stopped the stack it started, and no play_launch
+  or world server was left. Kept as it is (a developer recipe on the project workflow).
   Issue 043 (241, fixed in eb08cd3): a `ground:` file under `assets/` was linked into
   `state/` through the cache's path, and the next start refused it, "state/Town01/
   road_detail.yaml is not a link swb made"; exercise 2's restart hit it. The tutorial's

@@ -1839,6 +1839,25 @@ NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/`).
     scenarios.
 - **Still open:** N5 (b), Town06's lane drop, still needs a Lanelet2 map.
 
+### Audit: did any Autoware run drive blind? (2026-11-17)
+
+077 G54 (swb 243) found that an Autoware pilot can start a run while lidar_centerpoint is still
+building its TensorRT engine, so the ego drives with no lidar objects (a demo incident collided at
+11 m/s). Every Autoware run in 074 and 078 was audited, by grepping each start's lidar_centerpoint
+log for an engine build and checking that the other car was tracked while in range. **None was
+affected:**
+- **078's crossing rounds (host 133):** 112 CenterPoint logs, none with a build (the 10.8 runtime
+  is set in .env); A tracked in 40 of 40 runs.
+- **swb 241 (C3a's half, every C3c batch, the Isaac and multi-pilot cells):** no CenterPoint at all,
+  only ground-truth objects or clustering. A was never missing within acb's 100 m ground-truth
+  range.
+- **swb 118, N5 with Autoware as B** (first batch, rerun, occlusion on; 172 starts): every start
+  loaded a cached engine; A was tracked in every run where it drove. **S5 detectors:** two starts
+  built an engine (full CenterPoint 31 s, TransFusion 58 s, both at stack start), and every run had
+  objects. TransFusion's blindness on the old lidar persists after cached restarts, so it is the
+  intensity input, not a build. **S5 closed loop and S5e:** the stack logs are gone, but every
+  run's rows show tracked objects. **E3** ran on ground-truth objects.
+
 ### C8: the four-way stop as a verified protocol, no V2X (2026-11-15)
 
 133's subagent (8481ce6, 6fecc16, 9475e10: `c8_fourway_check.py`, an explicit-state checker over

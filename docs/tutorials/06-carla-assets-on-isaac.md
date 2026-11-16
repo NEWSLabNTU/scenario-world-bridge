@@ -129,6 +129,12 @@ ros2 run swb run scenarios/follow_to_goal.xosc
 
 The ego drives west as on CARLA, in the second scenario behind a slower car.
 
+<p align="center">
+  <img src="../media/t6_isaac_drive.webp" alt="The Tesla Model 3 seen from behind on a Town01 street rendered by Isaac Sim, with CARLA's buildings, trees and road markings" width="720"><br>
+  <em>The same Tesla Model 3 on CARLA's Town01, here rendered by Isaac Sim: the town's USD
+  export, the car from the vehicle specification, Autoware driving.</em>
+</p>
+
 **What you see**: two `passed` lines.
 
 **Check**: `grep '"simulator"' runs/*follow_to_goal*/result.json` shows `isaac`: the

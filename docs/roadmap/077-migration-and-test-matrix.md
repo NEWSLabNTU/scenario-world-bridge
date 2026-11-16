@@ -1414,7 +1414,14 @@ Isaac's rear contact (inventory row 18).
   2026-11-17).** With `isaac.root` unset the Isaac world server falls back to
   `/mnt/disk1/isaac-sim`, the lab host's install; the A12 audit of lab paths missed it. On
   another host the stack then fails far from the cause. Fix (139, review 243): no lab path in
-  any default a user meets; an unset root is refused by name (G76).
+  any default a user meets; an unset root is refused by name (G76). **`ISAAC_ROOT` has no
+  default anywhere now**, the justfiles included (csb's, swb_isaac_world's, aib's): a recipe
+  or world server that names the install refuses with `ISAAC_ROOT is not set` (exit 2) on a
+  host whose `.env` (or, for swb, `isaac.root` in `~/.config/swb/host.yaml`) does not set
+  it; a host that relied on `/mnt/disk1/isaac-sim` sets it there. So do the asset tools'
+  `CARLA_SRC`, `CARLA_USD` and `SWB_VEHICLE_USD`, and `just prune-logs`' archive
+  (`SWB_LOG_ARCHIVE` or `dest:=`). `/opt/autoware/1.5.0` stays a default: it is where
+  Autoware 1.5.0's binary packages install (install.md), not a lab path.
 - **G76, `project check` passes an Isaac project with no `isaac.root` (118, numbered by 243,
   2026-11-17).** It printed `project: ok`, and the stack then failed (G75, G77). Fix (139,
   review 243): `project check` and the stack refuse an Isaac project when `isaac.root` is

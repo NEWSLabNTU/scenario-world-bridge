@@ -45,9 +45,15 @@ def required_packages(script: Path) -> list:
     return m.group(1).split()
 
 
+# What scripts/install_isaac.sh (swb_isaac_world) makes under the root, and what the world
+# server's isaac_env.sh checks before it starts (roadmap 077 G76)
+INSTALL = ("venv/bin/activate", "venv/lib/python3.12/site-packages/isaacsim")
+HOST_FIX = "set isaac.root in ~/.config/swb/host.yaml (or export ISAAC_ROOT)"
+
+
 def root(host: dict) -> str:
     """Isaac's install: the host setting ``isaac.root``, else the ISAAC_ROOT the world
-    server inherits; "" when neither is set (the world server's own default)."""
+    server inherits; "" when neither is set (refused: there is no default, 077 G75)."""
     r = str((host.get("isaac") or {}).get("root") or "") or os.environ.get("ISAAC_ROOT", "")
     return os.path.expanduser(r)
 
@@ -97,11 +103,18 @@ def findings(host: dict, prefixes=None) -> list:
     """``project check``'s findings for an Isaac project on this host."""
     r = root(host)
     if not r:
-        return []
-    if not (Path(r) / "venv" / "bin" / "python").is_file():
-        return [Finding("host settings", f"isaac.root {r} is not an Isaac Sim install "
-                        "(no venv/bin/python)", "set isaac.root in ~/.config/swb/host.yaml",
-                        refused=True)]
+        return [Finding("host settings", "isaac.root is not set (nor ISAAC_ROOT): an Isaac "
+                        "project needs Isaac Sim 6.1's install, and there is no default",
+                        HOST_FIX, refused=True)]
+    missing = [n for n in INSTALL if not (Path(r) / n).exists()]
+    if missing:
+        return [Finding("host settings", f"isaac.root {r} is not an Isaac Sim install (no "
+                        f"{' or '.join(missing)})", HOST_FIX, refused=True)]
+    return binding_findings(host, r, prefixes)
+
+
+def binding_findings(host: dict, r: str, prefixes=None) -> list:
+    """The Isaac message bindings in ``<r>/msgs`` against the Autoware install (G25)."""
     script = build_script(prefixes)
     if script is None:
         return [Finding("host settings", "aib is not installed (no share/aib/scripts/"

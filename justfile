@@ -837,11 +837,12 @@ carla-start *args:
     "{{acb_src}}/scripts/carla_start.sh" {{carla_port}} "$@"
 
 # Isaac Sim (roadmap 036): install root, and the VNC display Isaac opens its window on
-isaac_root := env_var_or_default("ISAAC_ROOT", "/mnt/disk1/isaac-sim")
+isaac_root := env_var_or_default("ISAAC_ROOT", "")  # no default (077 G75): set ISAAC_ROOT in .env
 isaac_display := env_var_or_default("ISAAC_DISPLAY", ":8")
 
 # Isaac Sim smoke test: version, start time, step time (headless; DISPLAY set = windowed)
 isaac-check:
+    @[ -n "{{isaac_root}}" ] || { echo "isaac-check: ISAAC_ROOT is not set: Isaac Sim 6.1's pip install; set it in .env (no default, 077 G75)" >&2; exit 2; }
     ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/swb_isaac_world/spikes/run_spike.sh" fastrtps {{isaac_root}}/logs/isaac-check.log "{{justfile_directory()}}/src/swb_isaac_world/spikes/smoke.py"; grep SMOKE {{isaac_root}}/logs/isaac-check.log
 
 # The Isaac Sim world server (roadmaps 037, 038, 046), supervised (043):
@@ -989,13 +990,14 @@ isaac-assets command *args:
     source "{{lib}}"; swb_reject_env
     command=$1; shift
     case "$command" in check|manifest) ;; *) echo "isaac-assets: check or manifest, not '$command'" >&2; exit 2 ;; esac
-    root="${CARLA_USD:-/mnt/disk1/carla-usd}"
+    root="${CARLA_USD:-}"   # no default (077 G75); root:= or CARLA_USD
     for a in "$@"; do
         case "$a" in
             root:=*) root=$(realpath "${a#root:=}") ;;
             *) echo "isaac-assets: unknown argument '$a' (root:=)" >&2; exit 2 ;;
         esac
     done
+    [ -n "$root" ] || { echo "isaac-assets: no asset root: root:=<dir> or CARLA_USD" >&2; exit 2; }
     cd "{{justfile_directory()}}/src/swb_isaac_world"
     python3 -m swb_isaac_world.asset_set "$command" "$root"
 
@@ -1769,7 +1771,7 @@ e2e-direct *args:
 # Move play_launch runs older than `days` out of $SWB_LOG_ROOT into an archive, kind by
 # kind (<dest>/<kind>/<time>). Never deletes, never overwrites; skips each kind's `latest`,
 # and runs a live process still has open (a running play_launch). dest defaults to
-# $SWB_LOG_ARCHIVE (a host setting; default /mnt/disk1/csb-play_log-archive, a spinning disk,
+# $SWB_LOG_ARCHIVE (a host setting, required: no default (077 G75); a spinning disk,
 # fine for an archive and not for live logs: CLAUDE.md). dry_run:=true lists only.
 #
 # Usage: just prune-logs [days:=7] [dest:=<dir>] [dry_run:=true]
@@ -1777,7 +1779,7 @@ e2e-direct *args:
 prune-logs *args:
     #!/usr/bin/env bash
     set -e
-    days=7; dest="${SWB_LOG_ARCHIVE:-/mnt/disk1/csb-play_log-archive}"; dry=()
+    days=7; dest="${SWB_LOG_ARCHIVE:-}"; dry=()
     for a in "$@"; do
         case "$a" in
             days:=?*) days="${a#*:=}" ;;
@@ -1787,6 +1789,7 @@ prune-logs *args:
             *) echo "prune-logs: unknown argument '$a' (days:=, dest:=, dry_run:=true)" >&2; exit 2 ;;
         esac
     done
+    [ -n "$dest" ] || { echo "prune-logs: no archive: dest:=<dir> or SWB_LOG_ARCHIVE (a slow disk is fine)" >&2; exit 2; }
     exec python3 "{{project}}/scripts/prune_logs.py" --root "$SWB_LOG_ROOT" --dest "$dest" \
         --days "$days" "${dry[@]}"
 

@@ -53,10 +53,30 @@ def test_a_library_older_than_the_install_is_stale(tmp_path, monkeypatch):
     assert "autoware_control_msgs is stale" in f.what and "older than" in f.what
 
 
-def test_no_root_is_no_check_and_a_wrong_root_is_refused(tmp_path, monkeypatch):
-    assert isaac.findings({"isaac": {"root": ""}}) == []
+def test_no_root_and_a_wrong_root_are_refused(tmp_path, monkeypatch):
+    """077 G75/G76: no isaac.root and no ISAAC_ROOT is refused (no lab default), and so is a
+    root without install_isaac.sh's venv and Isaac Sim in it."""
+    monkeypatch.delenv("ISAAC_ROOT", raising=False)
+    [f] = isaac.findings({"isaac": {"root": ""}})
+    assert f.refused and f.what.startswith("isaac.root is not set (nor ISAAC_ROOT)")
+    assert f.fix == "set isaac.root in ~/.config/swb/host.yaml (or export ISAAC_ROOT)"
     [f] = isaac.findings({"isaac": {"root": str(tmp_path / "nowhere")}})
-    assert f.refused and "not an Isaac Sim install" in f.what
+    assert f.refused and "not an Isaac Sim install (no venv/bin/activate or " in f.what
+    root, setup = fake_isaac(tmp_path, monkeypatch)
+    (root / "venv" / "lib" / "python3.12" / "site-packages" / "isaacsim").rmdir()
+    [f] = isaac.findings(host_of(root, setup))
+    assert f.what.endswith("(no venv/lib/python3.12/site-packages/isaacsim)")
+
+
+def test_project_check_refuses_an_isaac_project_without_a_root(host, maps_hub, monkeypatch):
+    """118's fresh host (077 G76): `project check` printed ok with isaac.root unset."""
+    d = _isaac_project(host, monkeypatch, built=PKGS)
+    (d / ".swb" / "local.yaml").write_text(yaml.safe_dump({"isaac": {"root": ""}}))
+    monkeypatch.delenv("ISAAC_ROOT", raising=False)
+    found = [f for f in project.check_project(str(d)) if "isaac.root" in f.what]
+    assert len(found) == 1 and found[0].refused
+    with pytest.raises(stack.StackRefused, match="isaac.root is not set"):
+        stack.plan(project_arg=str(d))
 
 
 def test_the_environment_root_counts_when_the_setting_is_unset(tmp_path, monkeypatch):

@@ -164,9 +164,20 @@ def carla_serving(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def no_isaac_root(monkeypatch):
-    """The host's ISAAC_ROOT is not the tests' (swb.isaac reads it when isaac.root is unset)."""
+def no_isaac_root(monkeypatch, tmp_path_factory, request):
+    """The host's ISAAC_ROOT is not the tests' (swb.isaac reads it when isaac.root is unset).
+    An Isaac project needs a root (077 G76): outside test_isaac, which tests the check itself,
+    ISAAC_ROOT is an empty install of the tests' own and the message bindings are not checked."""
     monkeypatch.delenv("ISAAC_ROOT", raising=False)
+    if request.module.__name__ == "test_isaac":
+        return
+    from swb import isaac
+    root = tmp_path_factory.mktemp("isaac-sim")
+    for n in isaac.INSTALL:
+        (root / n).parent.mkdir(parents=True, exist_ok=True)
+        (root / n).write_text("") if n.endswith("activate") else (root / n).mkdir()
+    monkeypatch.setenv("ISAAC_ROOT", str(root))
+    monkeypatch.setattr(isaac, "binding_findings", lambda host, r, prefixes=None: [])
 
 
 PKGS = ("autoware_vehicle_msgs", "autoware_control_msgs", "autoware_perception_msgs")
@@ -179,7 +190,9 @@ def fake_isaac(tmp, monkeypatch, built=PKGS, autoware_msgs=("_traffic_light_grou
     ``(isaac root, autoware setup.bash)``."""
     root, aw, ament = tmp / "isaac-sim", tmp / "autoware", tmp / "ament"
     (root / "venv" / "bin").mkdir(parents=True, exist_ok=True)
-    (root / "venv" / "bin" / "python").write_text("")
+    (root / "venv" / "bin" / "activate").write_text("")   # what install_isaac.sh makes
+    (root / "venv" / "lib" / "python3.12" / "site-packages" / "isaacsim").mkdir(
+        parents=True, exist_ok=True)
     script = ament / "share" / "aib" / "scripts" / "build_msgs.sh"
     script.parent.mkdir(parents=True, exist_ok=True)
     script.write_text("#!/usr/bin/env bash\nPKGS=(\"$@\")\n"

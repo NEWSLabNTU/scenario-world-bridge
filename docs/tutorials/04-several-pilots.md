@@ -132,6 +132,13 @@ south arm's stop line and turns into the ego's road immediately ahead of it.
 cutting in and both Autowares reach their goals; `failed` when the ego touches any of the
 others.
 
+<p align="center">
+  <img src="../media/t4_four_pilots.webp" alt="Town01 from above: at a T junction the car cut_in turns out of the side road into the main road, while the ego approaches along the main road from the right" width="720"><br>
+  <em>The cut-in, seen from a fixed camera above the junction: <code>cut_in</code>, driven by
+  the Python pilot, turns into the road ahead of the ego, which approaches from the right and
+  must yield. The lead car is already further west, beyond the frame.</em>
+</p>
+
 **Check**:
 
 ```bash

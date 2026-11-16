@@ -1428,3 +1428,20 @@ Isaac's rear contact (inventory row 18).
   start ends when a required node exits 5 times before ready, naming the node, its exit code
   and its last err line. Also checked by 139: whether `seat auto` skips a seat whose ports
   another checkout's live stack holds.
+- **G78, Isaac's window crashes Kit on a VNC display, and the respawn never stops (found by
+  swb 241 sorting the world server's exit 139s, numbered by 243, 2026-11-17).** 241's logs
+  hold 118 exits 139 (not 236: each was counted twice through `latest`), all in one stack,
+  shots_road 2026-11-16T23-36-52_seat0 (`render:=window follow:=true` on TurboVNC, for the
+  T6/T7 screenshots; swb a4c0159, swb_isaac_world ce2aac3, Isaac Sim 6.1.0, Kit 110.3.0),
+  from 23:37:25 to 00:06:40 (+0800), one every ~14 s: each died 1.5 to 4 s into Kit's start
+  at `omni.kit.renderer.init` (SimulationApp's `_start_app`, Kit's crash dumps one per exit),
+  none reached ready. None at shutdown and none mid-run: the night's three shots_road runs
+  ran on the next stack, which had none, so no recorded verdict is suspect. Headless and the
+  recorder work there. Two gaps: (i) a windowed Isaac on a VNC display segfaults at every
+  start (seen on 241's TurboVNC; whether other displays do is not known); `render: auto`
+  opens a window whenever DISPLAY is set, so a user on VNC meets it by default; (ii) a crash
+  before ready respawns forever, which neither 044 (usage errors) nor G70 (hangs) covers.
+  G77's fix ends an `swb run --start-stack` after 5 exits before ready; a stack started by
+  hand (`ros2 launch`, Tutorial 6 and 7's path) still loops, and play_launch ignores exit
+  handlers (#0090), so a cap there cannot live in the launch file. Owner and fix: 133's to
+  choose.

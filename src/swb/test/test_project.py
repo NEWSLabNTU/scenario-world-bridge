@@ -126,6 +126,31 @@ def test_entity_without_pilot(host):
     assert project.main(["check", str(d)]) == 1
 
 
+def test_kind_none_on_an_autoware_controller_is_refused(host, capsys):
+    """G34: kind none starts no vehicle side, which SSv2's Autoware ego waits for."""
+    d = make(host["tmp"], "simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n")
+    [f] = scenario_checks(d)
+    assert f.refused and f.file == "scenarios/drive.xosc"
+    assert f.what.startswith("entity ego (controller Autoware) is bound to pilot ego of kind"
+                             " none, which starts no vehicle side")
+    assert "pilots: {ego: {kind: autoware}}" in f.fix and 'Controller name="agent"' in f.fix
+    assert project.main(["check", str(d)]) == 3
+    assert "entity ego (controller Autoware)" in capsys.readouterr().out
+    # a pattern binds it too; the finding names the pilot's key
+    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {'*': {kind: none}}\n")
+    [f] = scenario_checks(d)
+    assert "bound to pilot * of kind none" in f.what
+    # the same entity under controller agent: kind none is the user's own process, fine
+    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n")
+    (d / "scenarios" / "drive.xosc").write_text(DRIVE.replace('name="Autoware"', 'name="agent"'))
+    assert scenario_checks(d) == []
+    # managed_ego: false: SSv2 hands its ego to nobody, so nothing waits for a vehicle side
+    (d / "scenarios" / "drive.xosc").write_text(DRIVE)
+    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n"
+                                "ssv2: {managed_ego: false}\n")
+    assert scenario_checks(d) == []
+
+
 TWO_AV = (EXAMPLES / "multi_av" / "town01_two_av.xosc")
 
 

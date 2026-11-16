@@ -604,6 +604,15 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
                                f" {config.PROJECT_FILE}"))
             continue
         p = pilots[key] if isinstance(pilots[key], dict) else {}
+        if p.get("kind") == "none" and ent.controller.lower() == "autoware" and managed:
+            # G34: SSv2's managed ego waits for a vehicle side, and kind none starts none
+            out.append(Finding(rel, f"entity {ent.name} (controller {ent.controller}) is bound"
+                               f" to pilot {key} of kind none, which starts no vehicle side;"
+                               " SSv2's Autoware ego needs one",
+                               f"pilots: {{{key}: {{kind: autoware}}}} in {config.PROJECT_FILE};"
+                               " or, for a process of your own, the scenario's"
+                               ' <Controller name="agent"> on that entity',
+                               refused=True))
         car = p.get("vehicle")
         if car and ent.catalog_entry and car != ent.catalog_entry:
             out.append(Finding(rel, f"entity {ent.name} is a {ent.catalog_entry}, its pilot"

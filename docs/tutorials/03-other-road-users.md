@@ -102,6 +102,13 @@ ros2 run swb run scenarios/pedestrian_crossing.xosc
 [Tutorial 1, step 4](01-first-drive.md#4-run-the-scenario)), the walker appears as a
 detected object, since Autoware perceives it only with its own sensors.
 
+<p align="center">
+  <img src="../media/t3_pedestrian_crossing.webp" alt="The ego stopped on a Town01 street while a pedestrian crosses ahead of it, beside RViz's speed bar at 0 km/h and Autoware's state panel showing Motion Stopped" width="720"><br>
+  <em>The ego waits for the walker: 0 km/h, and the state panel shows <code>Motion |
+  Stopped</code> while the route stays set. A pass ends with the ego past the crossing and
+  at its goal.</em>
+</p>
+
 **Check**: `echo $?` prints `0`.
 
 ## 2. A traffic light

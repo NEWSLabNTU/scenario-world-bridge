@@ -183,6 +183,13 @@ autoware, vehicle: tesla_model3, rviz: true}` in `swb.yaml`, then a restart of t
 [started by hand](../getting-started/carla.md#or-start-it-yourself) with its window shows
 the drive; without a display, the timeline of step 5 records it.
 
+<p align="center">
+  <img src="../media/t1_drive_to_goal.webp" alt="The Tesla Model 3 on a Town01 street seen from behind, beside RViz's speed bar (11 km/h, 4.8 m to the goal) and Autoware's state panel: routing set, localization initialized, motion moving, control autonomous" width="720"><br>
+  <em>The last frame of a passing run: the ego is 4.8 m from its goal. SSv2 ends the run
+  when the ego reaches the goal, so the car is still moving. Routing set, localization
+  initialized and autonomous control are the states to look for.</em>
+</p>
+
 **What you see**: the map line on the first run, then, after about a minute of driving,
 one line: the verdict, the run id and the run directory.
 

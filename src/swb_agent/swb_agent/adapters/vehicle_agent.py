@@ -34,6 +34,8 @@ Usage:
 """
 
 import logging
+import os
+import signal
 import sys
 import threading
 import time
@@ -41,6 +43,7 @@ import time
 import rclpy
 import yaml
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 
 import swb_agent
@@ -148,28 +151,81 @@ def run_local(node, stop):
     return 1
 
 
+CLOSE_BUDGET = 3.0  # s for the whole close, well under play_launch's 2 s + 5 s to SIGKILL
+JOIN_TIMEOUT = 1.0  # s per thread join: a stuck thread costs this, never a hang
+
+
+def install_stop_handlers(stop: threading.Event):
+    """SIGINT and SIGTERM set ``stop``. rclpy's own handlers are not installed
+    (`SignalHandlerOptions.NO`): on SIGTERM they shut the context down and raise nothing, so
+    the agent's threads failed on a dead context while the process ran on until play_launch
+    SIGKILLed it; on SIGINT the context went while the executor still spun, and the process
+    aborted ("terminate called without an active exception", 077 G72)."""
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, lambda *_: stop.set())
+
+
+def close_in_order(steps, budget=CLOSE_BUDGET, log=None) -> bool:
+    """Run ``steps`` (``(name, fn)``) in order on a thread, within ``budget`` seconds in all.
+    False, naming the step it was in, when the budget ran out: the caller then leaves at once
+    (os._exit) rather than wait on a stuck rclpy call."""
+    at = {"step": None}
+
+    def run():
+        for name, fn in steps:
+            at["step"] = name
+            try:
+                fn()
+            except Exception as e:  # a step that fails must not stop the ones after it
+                if log is not None:
+                    log.warning(f"close: {name} failed: {e}")
+        at["step"] = None
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout=budget)
+    if t.is_alive():
+        if log is not None:
+            log.error(f"close: still in {at['step']} after {budget:g} s; exiting without it")
+        return False
+    return True
+
+
 def main():
     # the SDK logs through `logging` (commands, phases, reconnects): to stderr, as before
     logging.basicConfig(level=logging.INFO,
                         format="[%(levelname)s] [%(created).6f] [%(name)s]: %(message)s")
-    rclpy.init()
+    stop = threading.Event()
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    install_stop_handlers(stop)
     node = AgentNode()
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
-    stop = threading.Event()
     spinner = threading.Thread(target=executor.spin, daemon=True)
     spinner.start()
     code = 1
+    log = logging.getLogger("swb_agent.vehicle_agent")
     try:
         code = (run_relay if node.relay else run_local)(node, stop)
     except KeyboardInterrupt:
         code = 0
-    finally:
-        stop.set()
-        node.agent.close()
-        executor.shutdown()
-        node.destroy_node()
-        rclpy.try_shutdown()
+    except Exception:  # an adapter or protocol bug: said once, then the same bounded close
+        log.exception("the agent failed")
+        code = 1
+    stop.set()
+    # the agent's step thread before the executor, the executor (and its spin thread) before
+    # the node, the node before the context: nothing left running on what is torn down
+    clean = close_in_order([
+        ("agent.close", lambda: node.agent.close(timeout=JOIN_TIMEOUT)),
+        ("executor.shutdown", lambda: executor.shutdown(timeout_sec=JOIN_TIMEOUT)),
+        ("spin thread", lambda: spinner.join(timeout=JOIN_TIMEOUT)),
+        ("destroy_node", node.destroy_node),
+        ("rclpy shutdown", rclpy.try_shutdown),
+    ], log=log)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    if not clean:
+        os._exit(code)
     sys.exit(code)
 
 

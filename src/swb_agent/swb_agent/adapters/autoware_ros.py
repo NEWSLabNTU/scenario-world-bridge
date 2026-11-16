@@ -371,10 +371,13 @@ class _NodePort(AutowarePort):
         super().__init__(node)
         self._executor = MultiThreadedExecutor(num_threads=4)
         self._executor.add_node(node)
-        threading.Thread(target=self._executor.spin, daemon=True).start()
+        self._spinner = threading.Thread(target=self._executor.spin, daemon=True)
+        self._spinner.start()
 
-    def close(self):
-        self._executor.shutdown()
+    def close(self, timeout=1.0):
+        # the executor and its spin thread before the node (077 G72), each bounded
+        self._executor.shutdown(timeout_sec=timeout)
+        self._spinner.join(timeout=timeout)
         self.node.destroy_node()
 
 

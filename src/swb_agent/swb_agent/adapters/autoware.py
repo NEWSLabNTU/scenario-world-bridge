@@ -403,8 +403,12 @@ class AutowareAgent(swb_agent.Agent):
             caps = [c for c in caps if c not in (P.COOPERATE, P.COOPERATE_AUTO)]
         return caps
 
-    def close(self):
+    def close(self, timeout=1.0):
+        """Stop the step thread (waiting up to ``timeout``), then the port."""
         self._closing.set()
+        t = self._thread
+        if t is not None and t is not threading.current_thread():
+            t.join(timeout=timeout)
         self.port.close()
 
     # -- internals ------------------------------------------------------------------------

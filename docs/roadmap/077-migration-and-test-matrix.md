@@ -1242,6 +1242,11 @@ Isaac's rear contact (inventory row 18).
   Nothing blocks it: G3 gives `ssv2: managed_ego: false` per scenario, and the runner hands
   that ego to no pilot; CARLA's rear_contact already runs in basic's `suites/town01.yaml`
   (item 1). Wanted: isaac/town01_rear_contact in an Isaac project's suite, one live run.
+  **Migrated (241, 2026-11-17, 70df975)**: isaac_basic's `suites/rear_contact.yaml`, the
+  starter as `{path: ..., ssv2: {managed_ego: false}}`, retry on error once; SSv2 passes only
+  when it sees the declared contact. Live on 45b8e0f: passed (02-05-50), about 11 min with
+  the stack started and stopped (isaac_basic preloads Town02 too). In T3 part 2 as its own
+  key, isaac_basic/rear_contact, so its reference stands apart from `towns`.
 - **Item 56 migrated on CARLA (swb 118, 2026-11-17, 57f65ac); Isaac open (241 or 139).**
   `scripts/test_world_conformance.py`, a T1 cell: `swb_world_check conformance` against a
   running world server with no bridge, passing on exit 0, no FAIL line and `N passed, 0

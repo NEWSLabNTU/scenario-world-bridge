@@ -188,6 +188,10 @@ class InteractionStrategy(Node):
         recent = sorted(self.cycle_times[-SELF_WINDOW:]) or [0.0]
         acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, recent[len(recent) // 2])
         self.heartbeat()  # names the modules this cycle switches to manual before the switch is sent
+        if acts.held_dropped != getattr(self, "_held_dropped", ()):
+            self._held_dropped = acts.held_dropped
+            if acts.held_dropped:  # 078 P2c: a partner dropped out of the conflict set unseen holds the decision
+                self.get_logger().info(f"dropped partner {','.join(acts.held_dropped)}: holding {acts.decision.kind}")
         self.apply(acts)
         for rec in acts.records:
             line = to_json(rec)

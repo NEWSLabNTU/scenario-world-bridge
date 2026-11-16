@@ -1,0 +1,15 @@
+# 050's default group: four starters and the four gap scenarios on Autoware's defaults.
+# Reference, 050's "after" (2026-10-23): all pass but truck_pass (fails by design); no ego
+# contact; oracle G1 ego / G2 / G3 0/0/0 except simulator_autopilot 0/0/1, npc_shoulder
+# 0/1/0 and truck_pass 1/0/0-1.
+scenarios:
+  - ../../../src/swb_examples/scenarios/basic/town01_ego_drive.xosc
+  - ../../../src/swb_examples/scenarios/basic/town01_pedestrian.xosc
+  - ../../../src/swb_examples/scenarios/basic/town01_traffic_light.xosc
+  - ../../../src/swb_examples/scenarios/basic/town01_simulator_autopilot.xosc
+  - ../../gap/town01_entity_bodies.xosc
+  - ../../gap/town01_motorbike_body.xosc
+  - ../../gap/town01_npc_shoulder.xosc
+  - ../../gap/town01_truck_pass.xosc
+retry: {on: error, times: 1}
+expect: {town01_truck_pass.xosc: failed}

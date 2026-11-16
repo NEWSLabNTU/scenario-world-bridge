@@ -1,0 +1,25 @@
+# set050: roadmap 050's measurement set (scripts/run_050_set.sh) as a project (roadmap 077
+# step 4, inventory item 14). One suite per group of the script: default, bench, two_av; the
+# tour group is ../set050_tour, whose Autoware differs (40 km/h, CenterPoint). Every run
+# records the bridge's gap trace and is judged by SSv2, by CARLA's contacts
+# (physical_verdict) and by the gap oracle, the three columns of 050's before/after table.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    lifetime: run            # afresh per run, so the tour suite can give its own arguments
+  bg_av_*: {kind: autoware, vehicle: tesla_model3, lifetime: run}
+logging:
+  gap_trace: true            # 050 ran the whole set with the bridge's traces on
+  # standard for a pass too: the gap judge can fail a run SSv2 passed (G52)
+  keep: {passed: standard, failed: full, error: full}
+judges:
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+  - name: gap
+    run: [python3, -m, swb.gap, oracle]
+    needs: [gap_trace]

@@ -1,0 +1,18 @@
+# 050's tour group: incidents i1 to i6 (i7 and i8 came later and are not in it) and the
+# six-incident tour, on the tour's Autoware (this project's swb.yaml). Reference, 050's
+# "after" (2026-10-23): all pass; no ego contact; oracle as "before" (i2 0/0/4, i6 0/0/1,
+# the tour 0/1/21). Measured here (2026-11-16): i1 to i6 as the reference. The tour passes in
+# SSv2 and both judges fail it: the ego touches a static road mesh (static.prop.mesh) on the
+# straight at y -195, x 215 to 254, in 2 of 2 runs (oracle 0/1/23 and 0/2/20), as 050's
+# "before" did; not yet explained.
+scenarios:
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i1_lead_brake.xosc
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i2_ped_dart.xosc
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i3_red_light.xosc
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i4_blocked_lane.xosc
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i5_cross_turn.xosc
+  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i6_cyclist_inside.xosc
+  - ../../../src/swb_examples/scenarios/demo/town01_tour.xosc
+ssv2: {global_timeout: 1200}   # the tour is about 20 min of driving
+retry: {on: error, times: 1}
+expect: {}

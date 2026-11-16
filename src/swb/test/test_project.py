@@ -165,6 +165,20 @@ def test_patterns_and_isaac_limit(host):
     assert "2 externally driven entities (ego, bg_av_1); Isaac drives one" == f.what
 
 
+AUTOPILOT = (EXAMPLES / "basic" / "town01_simulator_autopilot.xosc")
+
+
+@pytest.mark.skipif(not AUTOPILOT.is_file(), reason="swb_examples not here")
+def test_simulator_autopilot_is_refused_on_isaac(host):
+    """swb 241 (T3 on Isaac, G66): check passed it, and the run ended in SSv2's SemanticError."""
+    text = AUTOPILOT.read_text()
+    d = make(host["tmp"], BASE, {"autopilot.xosc": text})
+    assert not [f for f in scenario_checks(d) if "simulator_autopilot" in f.what]
+    (d / "swb.yaml").write_text(BASE.replace("simulator: carla", "simulator: isaac"))
+    f = next(f for f in scenario_checks(d) if "simulator_autopilot" in f.what)
+    assert f.refused and "runs on CARLA only, the simulator is isaac" in f.what
+
+
 def test_pilot_car_must_be_the_scenario_car(host):
     d = make(host["tmp"], BASE.replace("tesla_model3", "golf_cart"))
     [f] = scenario_checks(d)

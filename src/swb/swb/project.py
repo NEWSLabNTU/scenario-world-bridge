@@ -695,6 +695,16 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
                                    f"use the catalog's {car} (a CatalogReference), or its"
                                    " numbers; the bridge refuses an ego more than"
                                    f" {GEOMETRY_TOLERANCE * 100:g} cm off", refused=True))
+    if sim == "isaac":
+        # Isaac has no driver of its own (roadmap 077, G66): the world server refuses the
+        # spawn, and SSv2 reports only "Spawn entity ... resulted in failure"
+        for ent in sc.entities:
+            if ent.controller.lower() == "simulator_autopilot":
+                out.append(Finding(rel, f"entity {ent.name}: controller simulator_autopilot runs"
+                                   " on CARLA only, the simulator is isaac (Isaac has no"
+                                   " driver of its own)",
+                                   "script the entity's motion (a route or trajectory), or"
+                                   " simulator: carla", refused=True))
     if sim == "isaac" and len(external) > 1:
         out.append(Finding(rel, f"{len(external)} externally driven entities"
                            f" ({', '.join(e.name for e in external)}); Isaac drives one",

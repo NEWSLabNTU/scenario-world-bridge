@@ -67,3 +67,9 @@ def test_a_busy_gpu_is_one_at_half_its_memory_or_load():
     assert t3.busy([dict(quiet[0], used_mib=25000)])
     assert t3.busy(quiet, load=330.0, cores=48)
     assert not t3.busy(quiet, load=11.0, cores=48)
+
+
+def test_list_runs_on_the_shipped_manifest(capsys):
+    """main() end to end on scenarios/t3.yaml (a local once shadowed load(): list crashed)."""
+    assert t3.main(["list", "--part", "2/3"]) == 0
+    assert "isaac_road_physics/road" in capsys.readouterr().out

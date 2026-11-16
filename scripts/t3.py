@@ -304,16 +304,16 @@ def main(argv=None) -> int:
         rows = read_summary(summ)
         if a.action == "record":
             gpus = gpu_state()
-            load, cores = host_load()
-            if busy(gpus, load, cores) and not a.busy_ok:
-                print(f"{e['key']}: not recorded, the host is busy now (load {load:.0f} on "
+            hload, cores = host_load()
+            if busy(gpus, hload, cores) and not a.busy_ok:
+                print(f"{e['key']}: not recorded, the host is busy now (load {hload:.0f} on "
                       f"{cores} cores; GPU {gpus}); record on a quiet host, or give --busy-ok")
                 failed += 1
                 continue
             write_reference(rows, ref, {"commit": commit(), "host": socket.gethostname(),
                                         "summary": str(summ), "runs": len(rows),
                                         "gpu_at_record": gpus,
-                                        "load_at_record": [round(load, 1), cores]})
+                                        "load_at_record": [round(hload, 1), cores]})
             print(f"{e['key']}: reference of {len(rows)} runs at {commit()}")
             continue
         if not ref.is_file():

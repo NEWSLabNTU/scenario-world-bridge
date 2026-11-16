@@ -1111,4 +1111,9 @@ Isaac's rear contact (inventory row 18).
   active exception"): its step thread keeps calling into a shut-down rclpy context. Ruling: the
   agent stops on the context's shutdown, bounds its close steps, joins its spin threads, and a
   SIGINT test requires exit 0 and no abort. A commit of its own, apart from 079, so the release
-  carries it.
+  carries it. **Built (634ca72, reviewed here):** rclpy's own signal handlers are off and SIGINT
+  and SIGTERM set the agent's stop; the close (agent, executor, spin thread, node, context) runs
+  in order on a thread within 3 s in all, each join bounded at 1 s, and a step past the budget is
+  named before os._exit; an exception out of the run is logged once, exits 1 and takes the same
+  close. Tests run the agent as a real subprocess on SIGINT, SIGTERM and a raising run: exit 0
+  (1 for the raise), one traceback at most, no "terminate called". swb_agent 173 passed.

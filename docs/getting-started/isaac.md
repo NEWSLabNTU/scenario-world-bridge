@@ -64,6 +64,10 @@ On a machine with two GPUs, name the card in the host settings (`gpu: 1` in
 both. Other Kit options go in `ISAAC_KIT_ARGS` in `~/swb.bash`; leave the renderer's GPU to the
 stack, since a renderer on another card than CUDA leaves the sensors silent.
 
+Isaac Sim's window renderer crashed at start on the TurboVNC displays we tested, and the
+world server opens a window whenever `DISPLAY` is set, so on a VNC display set
+`isaac: {render: headless}` in the project's `swb.yaml`.
+
 **Check**:
 
 ```bash

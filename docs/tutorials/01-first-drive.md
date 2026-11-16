@@ -33,8 +33,8 @@ The words this tutorial uses (project, stack, pilot, seat, run, ego, SSv2, ...) 
   starts it: recommended for this tutorial) or serving its port.
 - Every terminal: `source ~/swb.bash`.
 - Network access to Hugging Face for step 2.
-- About 30 minutes once the install is done. The first Autoware start on a machine can take
-  several minutes longer (step 4 says why).
+- About 30 minutes once the install is done. With the CenterPoint detector, the first
+  Autoware start on a machine takes several minutes longer (step 4 says why).
 - An NVIDIA GPU with room for CARLA and Autoware (on one host they held about 2.0 to 2.5 GB
   and 1 to 2 GB of video memory), and about 0.1 GB of disk for the map.
 
@@ -78,7 +78,10 @@ exits 1 instead ([Exit codes](../reference/commands.md#exit-codes)):
 ```
 problem: swb.lock: missing: the assets were never fetched (fix: ros2 run swb assets ...
 problem: scenarios/drive_to_goal.xosc: map Town01 is not fetched (assets/maps/Town0...
+[ros2run]: Process exited with failure 3
 ```
+
+The last line is `ros2 run`'s own, after every command that exits with a code other than 0.
 
 ## 2. Fetch the map
 
@@ -172,12 +175,16 @@ The run asks the stack to start the pilots on Town01, waits until Autoware can t
 route, then starts SSv2 on the scenario, which teleports the ego to its start, gives
 Autoware the goal and engages it. The car drives west and stops at the goal.
 
-**The first Autoware start on a machine** builds TensorRT engines for its neural networks
-and writes them to `~/autoware_data`; later starts load them. Meanwhile the run prints
-nothing, the machine is busy on every core, and the pilot's logs grow under
+**The pilot's first start.** With the default lidar detector, `clustering`, there is
+nothing to build: on one host (2026-11-16) the pilot was ready 10 s after the run asked
+for it. With `lidar_detection_model: centerpoint`
+([Your Autoware](../how-to/your-autoware.md)) the first start on a machine builds TensorRT
+engines for its neural networks and writes them to `~/autoware_data`, for minutes; later
+starts load them. Meanwhile the run prints nothing, the machine is busy on every core, and
+the pilot's logs grow under
 `~/.local/state/swb/logs/my_first_drive/seat-0-current/proc/pilot-ego/` (and in the web
-UI). That is not a hang: the run waits up to 600 s for the pilot (`--ready-timeout`). Later
-starts take about a minute, and later runs against the same stack none.
+UI). That is not a hang: the run waits up to 600 s for the pilot (`--ready-timeout`).
+Later runs against the same stack wait for nothing.
 
 **Watching the drive.** CARLA started by the stack runs off-screen, without a window. On a
 machine with a display:
@@ -231,7 +238,8 @@ The run's directory holds the record:
 | `resolved.yaml` | everything the run was given, after defaults |
 | `junit.xml` | SSv2's verdict as JUnit |
 | `timeline.jsonl` | the timeline above |
-| `logs/<group>/` | each process's log for the time of the run |
+| `contacts/` | what CARLA's contact sensor saw, for the `physical_verdict` judge ([Tutorial 5](05-suites.md)) |
+| `logs/<group>/` | each process's log for the time of the run; by default kept for a run that did not pass, not for a passed one (`logging.keep`, [Tutorial 5](05-suites.md)) |
 
 **Check**:
 

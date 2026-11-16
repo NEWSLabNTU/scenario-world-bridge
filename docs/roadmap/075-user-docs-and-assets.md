@@ -144,8 +144,19 @@ Not ours to publish: the NAS's terramechanics test data (third-party reports).
    and "With the stack", scenario-authoring's config homes, user-workflow marked a design
    record. Checked: no `just` recipe, no code line over 88 columns, no dash characters, no
    broken relative link in the user docs. Not yet run live (step 8).
-8. [ ] Acceptance: every command in the guides run once on a quiet host (CARLA, Isaac);
-   one guide followed verbatim by a fresh reader with nothing else.
+8. [~] Acceptance: every command in the guides run once on a quiet host (CARLA, Isaac);
+   one guide followed verbatim by a fresh reader with nothing else. The guides are the set
+   since 076, not "Doc set, proposed" above: README, getting-started `install.md`,
+   `carla.md` and `isaac.md`, tutorials 01 to 07.
+   - **CARLA half** (swb 118, 2026-11-16, origin/main 11a2407): a fresh reader with a
+     sandboxed HOME, fresh clone and build, through install.md, carla.md and tutorials 01
+     to 05, reached passed runs in every one. Its findings are 077's G40 to G46; NAS:
+     `2026-11-16 075 step 8 CARLA guides`.
+   - **Isaac half** (swb 118, 2026-11-16, 75e00ab): isaac.md and tutorials 06 to 07 as
+     far as that host's driver allows (it loses the GPU on any Town01 render). Haruna and
+     the steps that render nothing ran. Its findings are 077's G47 to G51; NAS:
+     `2026-11-16 075 step 8 Isaac guides`. The Town01 steps of tutorials 6 and 7 are
+     handed to swb 241.
 9. [~] Hugging Face (2026-11-14): seven dataset repos under the user's account, all **private**
    for the user to review and open (decision: "Create them private first"), each with a card
    (source, licence, how made, use with swb):

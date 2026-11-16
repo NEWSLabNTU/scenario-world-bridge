@@ -137,10 +137,12 @@ keeps a passed run's result only, and everything of a failed one. Old runs go wi
 
 ```bash
 ros2 run swb runs prune --older-than 7 --dry-run
+ros2 run swb runs prune --older-than 0 --dry-run
 ```
 
-**Check**: the dry run lists `would remove <run>` lines and removes nothing (`runs list`
-is unchanged).
+**Check**: runs made today are not older than 7 days, so the first says `nothing to
+prune`; the second lists every run as `would remove <run>` and removes nothing (`runs
+list` is unchanged).
 
 ## What happened
 
@@ -164,8 +166,10 @@ rewriting history. [Verdicts](../explanation/verdicts.md) explains `passed`, `fa
    `failed (expected failed)` and the command exits 0.
 3. **Open.** Run the Autoware Foundation's use cases: copy
    `pkg://swb_examples/projects/safety_suite`, fetch, start its stack and run
-   `suites/nightly.yaml` (about 45 minutes). Check: two `passed` lines, the ACC use case's
-   JUnit with 27 testcases and the AEB one's with 9, each judged by `physical_verdict`.
+   `suites/nightly.yaml` (about 45 minutes; 61 on a loaded host with one run retried,
+   2026-11-16). Check: two `passed` lines, the ACC use case's JUnit with 28 testcases and
+   the AEB one's with 10 (27 and 9 variants, plus the `carla_contact` testcase
+   `physical_verdict` adds), each judged by `physical_verdict`.
 
 ## If it does not work
 

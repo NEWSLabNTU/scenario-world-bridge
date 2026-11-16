@@ -161,7 +161,7 @@ ros2 run swb run suites/cut_in_seeds.yaml
 ```
 
 The suite runs the scenario five times, run k with seed 1000 + k. `cut_in.py` draws its
-trigger distance from the seed (40 m, plus up to 5 m), so each repetition cuts in at
+trigger distance from the seed (40 m, give or take up to 5 m), so each repetition cuts in at
 another gap, and a run's seed repeats it exactly.
 
 **What you see**: five run lines, `..._r0` to `..._r4`, then `summary: .../summary.csv`.
@@ -198,7 +198,7 @@ every key.
    `pilot bg_av_2 ready`, and `stack.json` lists a third Autoware domain.
 2. **Medium.** Make the cut-in later: `--trigger-m` 30 in `swb.yaml`, then restart the
    stack (a run refuses a stack started from another `swb.yaml`). Check: `cut_in.json`
-   shows a distance between 30 and 35 m.
+   shows a distance between 25 and 35 m.
 3. **Open.** Write a pilot of your own: `ros2 run swb_agent swb-agent new my-pilot` makes
    a skeleton that passes `swb-agent check`; give it to an entity as a `command` pilot.
    Check: `swb-agent check` passes, and a run with your pilot ends `passed` or `failed`,

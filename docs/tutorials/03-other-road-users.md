@@ -118,8 +118,10 @@ of the signal, and green again at 150 s:
 </TrafficSignalAction>
 ```
 
-The world server knows which CARLA light that id is from the map's signal table, which
-it writes into the project's `state/Town01/` the first time the stack loads Town01.
+The world server knows which CARLA light that id is from the map's signal table. The
+fetched Town01 ships one, `assets/maps/Town01/carla/traffic_lights.yaml`; for a map whose
+table is missing or stale, the world server writes one into the project's `state/<map>/`
+the first time the stack loads it.
 
 ```bash
 ros2 run swb run scenarios/red_light.xosc
@@ -128,7 +130,7 @@ ros2 run swb run scenarios/red_light.xosc
 **What you see**: the ego stops at the stop line, waits, and drives on when the light turns
 green; the run passes in about three minutes.
 
-**Check**: `ls state/Town01/` lists `traffic_lights.yaml`.
+**Check**: `ls assets/maps/Town01/carla/` lists `traffic_lights.yaml`.
 
 ## 3. A car the simulator drives
 

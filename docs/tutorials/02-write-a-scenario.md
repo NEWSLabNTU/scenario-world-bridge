@@ -116,7 +116,12 @@ is empty, which means SSv2 drives it:
       <Dimensions width="2.1" height="1.8" length="4.5" />
     </BoundingBox>
     <Performance maxSpeed="20" maxAcceleration="3.0" maxDeceleration="8.0" />
-    <Axles> ... </Axles>
+    <Axles>
+      <FrontAxle maxSteering="0.5" wheelDiameter="0.6" trackWidth="1.8"
+                 positionX="3.1" positionZ="0.3" />
+      <RearAxle maxSteering="0.0" wheelDiameter="0.6" trackWidth="1.8"
+                positionX="0.0" positionZ="0.3" />
+    </Axles>
     <Properties />
   </Vehicle>
   <ObjectController><Controller name=""><Properties /></Controller></ObjectController>

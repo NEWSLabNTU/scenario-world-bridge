@@ -14,7 +14,7 @@ Autoware are already installed. What takes the time:
 |---|---|---|
 | ROS 2 Humble and Autoware 1.5.0's binary packages | as their own install guides say; mostly downloads | Autoware's `/opt/autoware/1.5.0` measured 4.8 GB, plus its apt dependencies |
 | Cloning this workspace with its submodules | minutes, on a good connection | small beside the build |
-| The first `colcon build` | the longest wait of the install: Rust, SSv2 and the bridges compile from source (not timed for this page; it depends on the cores) | budget 100 GB free. A long-used development checkout measured 66 GB in `build/`, 16 GB in `target/` and 2 GB in `install/`; a fresh Release build has not been measured and should be smaller |
+| The first `colcon build` | the longest wait of the install: Rust, SSv2 and the bridges compile from source. A fresh Release build took about 7 to 8 minutes on 48 cores (2026-11-16); it depends on the cores | a fresh Release build measured 11 GB in `build/` and 1 GB in `install/`, 14 GB with the clone (2026-11-16). A long-used development checkout grows: one measured 66 GB in `build/`, 16 GB in `target/` and 2 GB in `install/`; budget 100 GB free for that |
 | CARLA 0.9.16 ([next page](carla.md)) | the download | one unpacked CARLA 0.9.16 measured 30 GB |
 | A project's map | seconds | about 0.1 GB for Town01 |
 

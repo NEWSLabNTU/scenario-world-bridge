@@ -316,6 +316,76 @@ def commit_dir(cache, repo, commit) -> Path:
     return Path(cache) / "datasets" / repo / commit
 
 
+# --- what was hashed last (roadmap 077, G35) -----------------------------------------------
+#
+# Hashing a 19 GB dataset takes minutes on a spinning disk, and `assets fetch`, `assets check`,
+# `project check` and the stack's start each did it on every call. A file is hashed once; its
+# digest is kept beside the cache, ``<cache>/verified/<repo>/<commit>.json``, under the file's
+# stat key (size, mtime, ctime, inode), and a later call hashes only a file whose key changed.
+# Rewriting a file moves its mtime and ctime, and ctime cannot be set back by hand, so a
+# changed file is still hashed and caught. ``assets check --hash`` and ``assets fetch
+# --verify`` hash every file regardless.
+VERIFIED_DIR = "verified"
+
+
+def _stat_key(path: Path) -> list:
+    st = os.stat(path)
+    return [st.st_size, st.st_mtime_ns, st.st_ctime_ns, st.st_ino]
+
+
+class Verified:
+    """The digests of one commit's files, by stat key; ``digest()`` hashes only what changed."""
+
+    def __init__(self, cache, repo, commit, force=False):
+        self.path = Path(cache) / VERIFIED_DIR / repo / f"{commit}.json"
+        self.force = force
+        self.hashed = 0
+        self.dirty = False
+        try:
+            data = json.loads(self.path.read_text())
+            self.known = data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            self.known = {}
+
+    def digest(self, rel: str, path: Path, want: str = None) -> str:
+        """``path``'s sha256 (hex). From the record when its stat key is unchanged and the
+        recorded digest is ``want`` (if given); hashed otherwise, and recorded."""
+        key = _stat_key(path)
+        rec = self.known.get(rel)
+        if (not self.force and isinstance(rec, dict) and rec.get("stat") == key
+                and (want is None or rec.get("sha256") == want)):
+            return rec["sha256"]
+        d = sha256(path)
+        self.hashed += 1
+        if _stat_key(path) == key:   # not changed while it was read
+            self.known[rel] = {"stat": key, "sha256": d}
+            self.dirty = True
+        return d
+
+    def record(self, rel: str, path: Path, digest: str):
+        """A digest computed elsewhere (a file just downloaded and checked)."""
+        self.known[rel] = {"stat": _stat_key(path), "sha256": digest}
+        self.dirty = True
+
+    def save(self):
+        if not self.dirty:
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            try:   # another process's records of other files stay
+                cur = json.loads(self.path.read_text())
+                cur = cur if isinstance(cur, dict) else {}
+            except (OSError, ValueError):
+                cur = {}
+            cur.update(self.known)
+            tmp = self.path.with_name(f".{self.path.name}.{os.getpid()}")
+            tmp.write_text(json.dumps(cur, sort_keys=True) + "\n")
+            os.replace(tmp, self.path)
+            self.dirty = False
+        except OSError:
+            pass   # a cache we cannot write to: the next call hashes again, nothing worse
+
+
 def select(files, take):
     """``(taken, unmatched patterns)``: files under or matching each ``take`` glob."""
     if not take:
@@ -385,15 +455,30 @@ class _Store:
             shutil.rmtree(tmpd, ignore_errors=True)
 
 
-def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False):
-    """``(lock entry, what changed or None)`` for one dataset."""
+def _differs(path: Path, cdir: Path) -> AssetError:
+    return AssetError(f"{path}: differs from the manifest (fix: delete {cdir} after chmod -R"
+                      f" u+w, then {FETCH})")
+
+
+def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, verify=False):
+    """``(lock entry, what changed or None)`` for one dataset. ``verify``: hash every file
+    already in the cache (otherwise only what its record says changed, G35)."""
     old_commit = entry.get("commit") if entry else None
     if entry and not update and _entry_matches(entry, spec):
         files = dict(entry.get("files") or {})
         cdir = commit_dir(cache, spec.repo, entry["commit"])
         missing = [f for f in files if not (cdir / f).is_file()]
+        if verify:
+            ver = Verified(cache, spec.repo, entry["commit"], force=True)
+            try:
+                for f in files:
+                    if f not in missing and \
+                            ver.digest(f, cdir / f) != files[f].split(":", 1)[-1]:
+                        raise _differs(cdir / f, cdir)
+            finally:
+                ver.save()
         if not missing:
-            return entry, None
+            return entry, (f"{len(files)} file(s) hashed, as locked" if verify else None)
         with _Store(hub, cache, spec.repo, entry["commit"]) as store:
             for f in missing:
                 want = files[f].split(":", 1)[-1]
@@ -414,6 +499,7 @@ def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False):
         known = {f: h.split(":", 1)[-1] for f, h in (entry.get("files") or {}).items()}
     new = 0
     files = {}
+    ver = Verified(cache, spec.repo, info.commit, force=verify)
     with _Store(hub, cache, spec.repo, info.commit) as store:
         manifest = {}
         name = next((m for m in MANIFESTS if m in info.files), None)
@@ -425,14 +511,17 @@ def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False):
             # a dataset's card and notices are edited on the Hub after its manifest is made
             want = None if f in ROOT_DOCS else manifest.get(f)
             if (cdir / f).is_file():
-                digest = known.get(f) or sha256(cdir / f)
+                digest = None if verify else known.get(f)
+                digest = digest or ver.digest(f, cdir / f, want)
                 if want and digest != want:
-                    raise AssetError(f"{cdir / f}: differs from the manifest (fix: delete"
-                                     f" {cdir} after chmod -R u+w, then {FETCH})")
+                    ver.save()
+                    raise _differs(cdir / f, cdir)
             else:
                 digest = store.add(f, want)
+                ver.record(f, cdir / f, digest)
                 new += 1
             files[f] = "sha256:" + digest
+    ver.save()
     out = {"repo": spec.repo, "commit": info.commit}
     if spec.revision:
         out["revision"] = spec.revision
@@ -559,8 +648,9 @@ def apply_links(project: Path, want: dict) -> list:
 
 # --- the commands: -------------------------------------------------------------------------
 
-def fetch(project: Path, update=False, hub=None, out=print) -> dict:
-    """Fetch the project's assets, write its lock and links; returns the lock."""
+def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dict:
+    """Fetch the project's assets, write its lock and links; returns the lock. ``verify``:
+    hash every cached file, not only those whose record says they changed (G35)."""
     project = Path(project)
     settings = config.host_settings(project)
     datasets, paths, findings = parse_assets(project, config.project_settings(project))
@@ -581,7 +671,7 @@ def fetch(project: Path, update=False, hub=None, out=print) -> dict:
         if hub is None:
             hub = make_hub(settings)
         entry, what = fetch_dataset(hub, cache, spec, old.get("datasets", {}).get(spec.name),
-                                    update)
+                                    update, verify)
         lock["datasets"][spec.name] = entry
         out(f"{spec.name}: {what or 'unchanged'}")
     for spec in paths:
@@ -672,6 +762,7 @@ def prune(cache, dry_run=False, out=print) -> list:
                 if f.is_file() and not f.is_symlink():
                     os.chmod(f, 0o644)
             shutil.rmtree(cdir)
+            (cache / VERIFIED_DIR / repo / f"{cdir.name}.json").unlink(missing_ok=True)
     if not dry_run:
         tmp = cache / (PROJECTS_FILE + ".tmp")
         if cache.is_dir():
@@ -682,8 +773,10 @@ def prune(cache, dry_run=False, out=print) -> list:
     return removed
 
 
-def check(project: Path, settings: dict = None) -> list:
-    """Findings: assets not fetched, not matching the lock, or not linked."""
+def check(project: Path, settings: dict = None, full_hash=False) -> list:
+    """Findings: assets not fetched, not matching the lock, or not linked. A file is hashed
+    when its stat key differs from the one it was last hashed under (G35); ``full_hash``:
+    every file."""
     project = Path(project)
     if settings is None:
         settings = config.project_settings(project)
@@ -732,14 +825,16 @@ def check(project: Path, settings: dict = None) -> list:
         if name in mine:
             continue
         cdir = commit_dir(cache, e["repo"], e["commit"])
+        ver = Verified(cache, e["repo"], e["commit"], force=full_hash)
         for f, h in (e.get("files") or {}).items():
             p = cdir / f
             if not p.is_file():
                 findings.append(Finding(lf, f"{name}: {f} is missing from the cache ({cdir})",
                                         FETCH, refused=True))
-            elif "sha256:" + sha256(p) != h:
+            elif "sha256:" + ver.digest(f, p, h.split(":", 1)[-1]) != h:
                 findings.append(Finding(lf, f"{name}: {f} differs from the lock",
                                         f"delete {cdir} (chmod -R u+w first), then {FETCH}"))
+        ver.save()
     try:
         want = plan_links(project, lock, cache,
                           {n: e for n, e in local.items() if n in mine})
@@ -787,7 +882,12 @@ def main(argv=None):
     f.add_argument("--update", action="store_true",
                    help="resolve every dataset's revision again instead of keeping the lock's")
     ls = sub.add_parser("list", help="the known datasets and what this project has fetched")
-    c = sub.add_parser("check", help="re-hash the linked files against swb.lock")
+    f.add_argument("--verify", action="store_true",
+                   help="hash every cached file again (otherwise only files whose size or"
+                        " times changed since they were last hashed)")
+    c = sub.add_parser("check", help="the linked files against swb.lock: each file whose size"
+                                     " or times changed since it was last hashed, hashed again")
+    c.add_argument("--hash", action="store_true", help="hash every file, changed or not")
     pr = sub.add_parser("prune", help="remove cached commits no project's swb.lock names")
     pr.add_argument("--dry-run", action="store_true", help="say what would go, remove nothing")
     add_project_option(parser, f, ls, c)
@@ -806,9 +906,9 @@ def main(argv=None):
         project = config.find_project(args.project)
         if args.cmd == "fetch":
             config.writable_project(project)
-            fetch(project, update=args.update)
+            fetch(project, update=args.update, verify=args.verify)
             return 0
-        findings = check(project)
+        findings = check(project, full_hash=args.hash)
         for x in findings:
             print(x)
         if not findings:

@@ -98,8 +98,9 @@ The stack sets `SWB_CARLA_USD` to the project's `assets/carla-usd` for every pro
 the world file works in any project, on any host. `Town01_physics.usda` is a layer over
 CARLA's export that gives the road meshes their colliders and surface labels.
 
-**Check**: `ros2 run swb assets check` prints `assets: ok` (every file re-hashed against
-`swb.lock`; on the USD set this takes a minute), and `ros2 run swb project check` prints
+**Check**: `ros2 run swb assets check` prints `assets: ok` (every file against
+`swb.lock`; the first check hashes the whole USD set, which takes from a few minutes to a
+quarter of an hour by disk, and later checks hash only files that changed), and `ros2 run swb project check` prints
 `project: ok`.
 
 ## 3. Bring up the stack

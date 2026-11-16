@@ -39,8 +39,10 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 |---|---|
 | `assets fetch` | resolves each dataset to its commit (`revision:`, else the newest tag, else `main`; a dataset already locked keeps its commit), downloads what `take:` names into the cache, verifies each file against the dataset's manifest, writes `swb.lock`, links `assets/` |
 | `assets fetch --update` | resolves every dataset again and rewrites the lock |
+| `assets fetch --verify` | also hashes every file already in the cache again |
 | `assets list` | the known datasets and their sizes, and what this project has fetched |
-| `assets check` | re-hashes every linked file against `swb.lock`; prints `assets: ok` |
+| `assets check` | checks every linked file against `swb.lock`, hashing a file only when its size or times changed since it was last hashed; prints `assets: ok` |
+| `assets check --hash` | hashes every file, changed or not |
 
 ## `ros2 run swb seat`
 

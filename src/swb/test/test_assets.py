@@ -225,6 +225,98 @@ def test_check(host, maps_hub, capsys):
     assert any("changed since the fetch" in x.what and x.refused for x in assets.check(p))
 
 
+@pytest.fixture
+def hashed(monkeypatch):
+    """The files swb.assets hashes, in order."""
+    seen = []
+    real = assets.sha256
+
+    def counting(path):
+        seen.append(Path(path).name)
+        return real(path)
+
+    monkeypatch.setattr(assets, "sha256", counting)
+    return seen
+
+
+def test_unchanged_files_are_not_hashed_again(host, maps_hub, hashed, capsys):
+    """G35: fetch, check and project check hash a file only when its size or times moved."""
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    n = len(lock(p)["datasets"]["carla-town-autoware-maps"]["files"])
+    hashed.clear()
+    assert assets.check(p) == []   # what fetch downloaded is recorded as it was checked
+    assert assets.fetch(p, out=lambda s: None) and assets.check(p) == []
+    assert hashed == []
+    # a second project on the same cache, the same files: a fetch with nothing to download
+    q = host["tmp"] / "other"
+    q.mkdir()
+    (q / "swb.yaml").write_text(MAP_PROJECT)
+    out = []
+    assets.fetch(q, out=out.append)
+    assert out[0].endswith(f"{n} file(s), 0 downloaded") and hashed == []
+    # a cache the record does not know yet (fetched before G35): hashed once, then not
+    (host["cache"] / assets.VERIFIED_DIR).rename(host["tmp"] / "gone")
+    assert assets.check(p) == [] and len(hashed) == n
+    hashed.clear()
+    assert assets.check(p) == [] and hashed == []
+    # --hash hashes every file
+    assert assets.main(["--project", str(p), "check", "--hash"]) == 0
+    assert len(hashed) == n
+
+
+def test_a_changed_file_is_caught(host, maps_hub, hashed):
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    f = host["cache"] / "datasets" / MAPS / commit / "Town01/pointcloud_map.pcd"
+    st = os.stat(f)
+    os.chmod(f, 0o644)
+    f.write_text("pcd99")   # the same size
+    os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns))   # and the old mtime, set back by hand
+    hashed.clear()
+    [x] = assets.check(p)
+    assert x.what == "carla-town-autoware-maps: Town01/pointcloud_map.pcd differs from the lock"
+    assert hashed == ["pointcloud_map.pcd"]   # only the changed one
+    # a fetch into a fresh project over that cache refuses it too
+    q = host["tmp"] / "other"
+    q.mkdir()
+    (q / "swb.yaml").write_text(MAP_PROJECT)
+    with pytest.raises(assets.AssetError, match="differs from the manifest"):
+        assets.fetch(q, out=lambda s: None)
+
+
+def test_fetch_verify_hashes_everything(host, maps_hub, hashed, capsys):
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    files = lock(p)["datasets"]["carla-town-autoware-maps"]["files"]
+    hashed.clear()
+    out = []
+    assets.fetch(p, out=out.append)
+    assert out == ["carla-town-autoware-maps: unchanged"] and hashed == []
+    assert assets.main(["fetch", "--verify", f"project:={p}"]) == 0
+    assert sorted(hashed) == sorted(Path(f).name for f in files)
+    assert f"{len(files)} file(s) hashed, as locked" in capsys.readouterr().out
+    # a file changed under the lock: --verify refuses it, a plain fetch does not look
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    f = host["cache"] / "datasets" / MAPS / commit / "Town01/pointcloud_map.pcd"
+    os.chmod(f, 0o644)
+    f.write_text("changed")
+    assert assets.main(["fetch", "--verify", f"project:={p}"]) == 3
+    assert "pointcloud_map.pcd: differs from the manifest" in capsys.readouterr().err
+
+
+def test_prune_drops_the_hash_record(host, maps_hub):
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    rec = host["cache"] / assets.VERIFIED_DIR / MAPS / f"{commit}.json"
+    assert rec.is_file()
+    (p / "swb.lock").unlink()
+    assets.prune(host["cache"], out=lambda s: None)
+    assert not rec.exists()
+
+
 def test_check_finds_a_broken_link(host, maps_hub):
     p = project(host["tmp"], MAP_PROJECT)
     assets.fetch(p, out=lambda s: None)

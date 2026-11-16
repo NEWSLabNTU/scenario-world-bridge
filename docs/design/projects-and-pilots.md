@@ -125,7 +125,11 @@ paths:
   my_map: {path: ../shared/my_map}
 ```
 
-Runs read the lock, never the tag. `check` re-hashes the linked files against it. A dataset
+Runs read the lock, never the tag. `check` compares the linked files against it. A file is
+hashed once: its digest is kept in `<cache>/verified/<repo>/<commit>.json` under its stat key
+(size, mtime, ctime, inode), and `assets fetch`, `assets check`, `project check` and the
+stack's start hash only a file whose key changed (G35; rewriting a file moves its ctime,
+which cannot be set back). `assets check --hash` and `assets fetch --verify` hash every file. A dataset
 without huggingface_hub installed is fetched over plain HTTPS
 (`https://huggingface.co/datasets/<repo>/resolve/<commit>/<file>`).
 

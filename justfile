@@ -281,6 +281,9 @@ test:
     # no pytest plugins: ROS's launch_testing hook would import scripts/test_phase1.py, a
     # live ZMQ client (pyzmq, the runtime's protobuf), and fail where those differ (swb 139)
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py scripts/test_ego_used.py
+    # T1, world-server conformance (077 item 56): skipped unless SWB_WORLD_CHECK=carla|isaac
+    # names a running world server (SWB_WORLD_ENDPOINT, SWB_WORLD_MAP; scripts/test_world_conformance.py)
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q -rs scripts/test_world_conformance.py
     # run_suite's discovery and JUnit aggregation (stdlib only, no ROS graph needed)
     python3 -m pytest -q src/swb_launch/test
     # the user commands (project, assets, seat, stack, run, runs), roadmap 076

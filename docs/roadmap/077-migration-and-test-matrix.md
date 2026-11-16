@@ -1314,8 +1314,10 @@ Isaac's rear contact (inventory row 18).
   124.8 s of simulated time including the initialization, inside the scenario's 400 s), and
   rung_check read it; that run predates `frame_rate` 100, so both rates were 20 Hz and it
   failed them. Rung 10 at the same pace would take at most about 187 s, so the 400 s limit
-  stands. The full ladder has not run on any host (the GPU was taken by other work); its
-  next host is 118 (GPU 0) if it has Isaac, else 241 after item 55.
+  stands. The full ladder has not run on any host (the GPU was taken by other work).
+  Assigned (133, 2026-11-17) to swb 118, whose Town05 render probe passed 2000 frames: the
+  ladder at 9270d87 with autoware-drift b9165dd, without `--capture full`, so it checks the
+  rungs and keeps no replay dataset. The RC follows it and 044.
 - **Item 55, `just isaac-world`'s options (swb 241, 2026-11-17, on 81268e3), a standalone
   world server without a bridge, host load 55 to 62.** Checked, kept as a developer recipe:
   - `world:=<Town01 world.yaml>,<Town02 world.yaml> record:=<dir> record_view:=road
@@ -1328,9 +1330,10 @@ Isaac's rear contact (inventory row 18).
   - `bogus:=1` refused (exit 2), naming the arguments the recipe takes.
   - `render:=window` without a display: the world server refuses ("render window needs
     DISPLAY", exit 2), and its launch respawns it every 10 s, 12 times in 120 s, until
-    stopped. Open (issue 044, 241): a usage error should end the launch, not loop. A
-    project's `isaac.render: window` on a host without a display may meet the same loop
-    (not checked); the fix covers both.
+    stopped. Issue 044, fix assigned (133, 2026-11-17) to 241, both parts: the launch file
+    refuses `render` window without DISPLAY, so a project's `isaac.render: window` is
+    covered too; and the world server's exit 2 ends its launch through Shutdown, never a
+    respawn, tested under both launchers.
   - Not run: `follow:=true` (it needs a display; Isaac's window crashed on TurboVNC before).
   No process left: each server stopped by its group.
 - **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e

@@ -1353,7 +1353,17 @@ Isaac's rear contact (inventory row 18).
   DRIVING (0.0 m; `control_cmd` peaked at 0.25 m/s); whether load alone explains that is
   open. The run did confirm G75 and G76's fix on a fresh host: `isaac.root` from
   `host.yaml` brought the world server up and the stack became ready. A quiet rerun follows
-  T3 part 1 and does not gate the release; 118 sends 243 the run summary.
+  T3 part 1 and does not gate the release. 118's summary (newslab-118-server, GPU 0, driver
+  615.71.09, `swb run suites/ladder.yaml --stop-stack`, no capture): runs
+  2026-11-17T05-25-37 and 05-39-08 (rung 10 and its retry), 05-52-41 and 06-06-21 (rung
+  15), 06-19-54 (rung 20), each `error`, "SSv2 wrote no JUnit: The simulation has timed out";
+  rung 20's retry (06-33-40) stopped by hand, rungs 25 and 30 not run. Rung 10's retry: 12800
+  frames at 100 Hz (128 s of simulated time) in 791 s of wall time; AUTONOMOUS from about
+  74 s, 0.0 m driven. Host load 13 at the start, then 65 to 72 from other users' builds; at
+  a real-time factor of 0.16, SSv2's 760 s wall budget cannot cover the lap's ~187 s of
+  simulated time. The stack was ready in 45 s; Town05 had no DEVICE_LOST (a render probe
+  passed 2000 frames beforehand). NAS "2026 SSv2 on CARLA/2026-11-17 077 item 26 speed
+  ladder on 118".
 - **Item 55, `just isaac-world`'s options (swb 241, 2026-11-17, on 81268e3), a standalone
   world server without a bridge, host load 55 to 62.** Checked, kept as a developer recipe:
   - `world:=<Town01 world.yaml>,<Town02 world.yaml> record:=<dir> record_view:=road

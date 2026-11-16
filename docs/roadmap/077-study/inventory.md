@@ -287,7 +287,7 @@ G32. An item with no open gap can be migrated now.
 | 49 | `vehicle-check` | CARLA; Isaac | G19 | blocked |
 | 50 | `just acceptance <xosc> N [sim:=]` | Isaac | G11 | blocked |
 | 51 | `just e2e [xosc] sim:=carla | Isaac | - | ready to migrate |
-| 52 | `just run` long-lived dev stack | CARLA | - | ready to migrate |
+| 52 | `just run` long-lived dev stack | CARLA | - | checked 2026-11-16 on CARLA (swb 118, 2788710): kept for developers, works with G55, G58, G59; Isaac half 241's |
 | 53 | `just ego-av`, `ego-isaac`, `bg-av` | CARLA | - | ready to migrate |
 | 54 | `just carla-start map:= quality:= render:=` | CARLA | - | ready to migrate |
 | 55 | `just isaac-world ego:= world:= follow:= render:= record:= ... | Isaac | - | ready to migrate |

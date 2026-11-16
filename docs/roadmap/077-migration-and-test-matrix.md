@@ -954,3 +954,17 @@ Isaac's rear contact (inventory row 18).
   from the obstacle cloud. Next, outside the release: tile the PCD (`pointcloud_map/` and its
   metadata) or raise the filter's leaf size, and rerun with velocity_factors and
   steering_factors recorded (now in the project's `logging.topics`).
+- **Item 52, `just run` (swb 118, 2026-11-16, 2788710).** Kept as the developer path and
+  checked on main, both workspaces rebuilt clean, its own web port, world server port and
+  CARLA: the world server loaded tesla_model3's generated physics and acb_bridge verified it
+  (G55); "Map props: froze 115 of 115" (G58); no diagnostics.csv under play_log/bridge or
+  play_log/ego (G59); `just scenario-direct` town01_ego_drive passed; stopping its play_launch
+  by process group left nothing in 12 s, every port free. G57 is swb run's (scenario-direct
+  sends no episode_end). Isaac's half is 241's (Town01's render crashes on 118's host). NAS:
+  "2026-11-16 077 item 52 just run".
+- **The G58 follow-up on a quiet GPU (swb 118, e4d9ae9).** set050_tour's tour 3 of 3, no ego
+  or prop contact, the GPU at most 5.8 GB and 47 %. `i6_cyclist`'s box overlapped the ego's by
+  1.8, 0.3 and 1.2 cm in SSv2's and CARLA's geometry with no CARLA contact (set050_tour has no
+  incident judge, so row 6 did not see it): a real margin of Autoware's at i6, not load. Ruled:
+  i6 is re-timed for at least 0.5 m, as i7 was, and the near-zero margin is written up as an
+  Autoware finding. NAS: "2026-11-16 077 G58 tour reruns".

@@ -1348,8 +1348,12 @@ Isaac's rear contact (inventory row 18).
     v0.36.0. For the release notes, citing #0090: "under play_launch, a world server refused
     for an unforeseen usage error restarts every 10 s until stopped; ros2 launch ends the
     launch". Rework 2f50171 (243): every cheap usage error refused at parse time, the
-    world server's pre-Kit refusals exit 2 (they exited 1 and looped under both launchers);
-    to push after `~` in world entries is expanded as the server does.
+    world server's pre-Kit refusals exit 2 (they exited 1 and looped under both launchers).
+    **Fixed (241, 2026-11-17): swb_isaac_world 180a3f5, pinned 0a4d2be with
+    docs/issues/044.** World entries expand `~` and `$VAR` as the server does (a test with
+    HOME moved). Nothing after Kit's start exits 2 (SimulationApp exits 0 or 1, the watchdog
+    -9, an exception 1, a crash a signal; every 2 in 241's world-server logs was an entry
+    script refusal), so an exit 2 that ends the launch is always a usage error.
   - Not run: `follow:=true` (it needs a display; Isaac's window crashed on TurboVNC before).
   No process left: each server stopped by its group.
 - **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e

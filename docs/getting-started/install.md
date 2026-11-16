@@ -185,6 +185,11 @@ cache: ~/.cache/swb              # the downloaded datasets, shared by all your p
 carla: {host: localhost, port: 2000}
 ```
 
+Running CenterPoint (`lidar_detection_model: centerpoint`)? Autoware 1.5.0 needs its own
+TensorRT, 10.8.0, or it rebuilds the detector's engines at every start: set
+`autoware: {tensorrt_lib: <dir>}` as [Your Autoware](../how-to/your-autoware.md#tensorrt-1080)
+shows. The default detector needs nothing.
+
 A project can override a key for one checkout in `<project>/.swb/local.yaml`, which git
 ignores. Every key, and the seat table an administrator sets in `/etc/swb/host.yaml`:
 [Host settings](../reference/host-settings.md).

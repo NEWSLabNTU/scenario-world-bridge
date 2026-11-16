@@ -106,13 +106,23 @@ Autoware 1.5.0 was compiled against TensorRT 10.8.0 and rebuilds any cached engi
 another version made. If the first `libnvinfer.so.10` your loader finds is another version
 (CUDA 12.8's 10.9 under `/usr/local/cuda`, say), CenterPoint rebuilds its engines at every
 start: minutes, with `Plan was created with a different version of TensorRT` in its log.
-Fetch NVIDIA's `tensorrt-cu12-libs==10.8.0.43` wheel from `https://pypi.nvidia.com`, unzip
-its `tensorrt_libs/` directory anywhere, and add it to the front of `LD_LIBRARY_PATH` at
-the end of `~/swb.bash`:
+Fetch NVIDIA's `tensorrt-cu12-libs==10.8.0.43` wheel (3.1 GB) and unpack its libraries
+into a directory of your own, from the workspace:
 
 ```bash
-export LD_LIBRARY_PATH=~/tensorrt-10.8.0/lib:$LD_LIBRARY_PATH
+bash -c 'source scripts/autoware_tensorrt.bash; \
+    swb_tensorrt_setup ~/tensorrt-10.8.0/lib'
+```
+
+and name that directory in your host settings; every autoware pilot then puts it first on
+its library path:
+
+```yaml
+# ~/.config/swb/host.yaml
+autoware: {tensorrt_lib: ~/tensorrt-10.8.0/lib}
 ```
 
 The first start on 10.8 rebuilds once; after that the engine loads (CenterPoint ready in
 about 20 s instead of minutes). On the default detector (`clustering`) no engine is built.
+`project check` warns when a pilot runs CenterPoint and this is not set, and a pilot is not
+ready while its detector is still loading, so no run starts with the ego blind.

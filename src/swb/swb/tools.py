@@ -6,9 +6,11 @@ Python modules CARLA's agents import (G38).
 workflow needs: an older one parses the stack's launch differently and fails later, far from
 the cause (a host with 0.18.3 needed another install before a run, 2026-11-15).
 """
+import os
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 from .findings import Finding
 
@@ -184,3 +186,46 @@ def agent_findings(settings: dict, missing_fn=None) -> list:
     return [Finding("host", f"python3 cannot import {', '.join(missing)}, which CARLA's agents "
                     f"need (the carla_basic pilot{'s' if len(users) > 1 else ''} "
                     f"{', '.join(users)})", AGENT_FIX, refused=True)]
+
+
+# Autoware 1.5.0's TensorRT; another version rebuilds CenterPoint's engines at every Autoware
+# start (minutes; CLAUDE.md, scripts/autoware_tensorrt.bash). A lifetime: run pilot starts
+# Autoware for each run (roadmap 077, G54: the ego drove i1 blind while they built).
+TENSORRT_FIX = ("just setup-tensorrt in the swb checkout, then autoware: {tensorrt_lib: "
+                "<its lib directory>} in ~/.config/swb/host.yaml")
+
+
+def centerpoint_pilots(project, settings: dict) -> list:
+    """The autoware pilots that run CenterPoint (its ``args``, or a suite's ``pilot_args``)."""
+    pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
+    aw = {k for k, p in pilots.items() if isinstance(p, dict) and p.get("kind") == "autoware"}
+
+    def cp(args):
+        return isinstance(args, dict) and \
+            str(args.get("lidar_detection_model") or "").startswith("centerpoint")
+    out = {k for k in aw if cp(pilots[k].get("args"))}
+    import yaml
+    for f in sorted((Path(project) / "suites").glob("*.yaml")) if project else []:
+        try:
+            pa = (yaml.safe_load(f.read_text()) or {}).get("pilot_args") or {}
+        except (OSError, yaml.YAMLError, AttributeError):
+            continue
+        out |= {k for k, a in pa.items() if k in aw and cp(a)} if isinstance(pa, dict) else set()
+    return sorted(out)
+
+
+def tensorrt_ok(lib) -> bool:
+    return bool(lib) and any(Path(os.path.expanduser(str(lib))).glob("libnvinfer.so.10*"))
+
+
+def tensorrt_note(project, settings: dict, host: dict) -> str:
+    """A warning when a CenterPoint pilot will run on a TensorRT other than Autoware's."""
+    users = centerpoint_pilots(project, settings)
+    lib = (host.get("autoware") or {}).get("tensorrt_lib")
+    if not users or tensorrt_ok(lib):
+        return ""
+    why = f"autoware.tensorrt_lib {lib} has no libnvinfer.so.10" if lib else \
+        "autoware.tensorrt_lib is not set"
+    return (f"the pilot{'s' if len(users) > 1 else ''} {', '.join(users)} run CenterPoint and "
+            f"{why}: its engines are rebuilt at every Autoware start (minutes; each run with "
+            f"lifetime: run). Fix: {TENSORRT_FIX}")

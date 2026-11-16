@@ -108,3 +108,26 @@ def test_missing_modules_imports_each(tmp_path, monkeypatch):
     monkeypatch.undo()   # the autouse stub of missing_modules
     assert tools.missing_modules(["json", "surely_not_a_module_x"], sys.executable) == \
         ["surely_not_a_module_x"]
+
+
+def test_a_centerpoint_pilot_without_autowares_tensorrt_is_warned(tmp_path):
+    """G54: CenterPoint's engines rebuilt at every start on a host's other TensorRT."""
+    from swb import tools
+    (tmp_path / "suites").mkdir()
+    settings = {"pilots": {"ego": {"kind": "autoware", "args": {}},
+                           "lead": {"kind": "carla_basic"}}}
+    assert tools.tensorrt_note(tmp_path, settings, {}) == ""
+    (tmp_path / "suites" / "cp.yaml").write_text(
+        "pilot_args: {ego: {lidar_detection_model: centerpoint}}\n")
+    assert tools.centerpoint_pilots(tmp_path, settings) == ["ego"]
+    note = tools.tensorrt_note(tmp_path, settings, {})
+    assert "ego run CenterPoint" in note and "tensorrt_lib is not set" in note
+    lib = tmp_path / "trt"
+    lib.mkdir()
+    assert "no libnvinfer.so.10" in tools.tensorrt_note(
+        tmp_path, settings, {"autoware": {"tensorrt_lib": str(lib)}})
+    (lib / "libnvinfer.so.10").write_text("")
+    assert tools.tensorrt_note(tmp_path, settings, {"autoware": {"tensorrt_lib": str(lib)}}) == ""
+    settings["pilots"]["ego"]["args"] = {"lidar_detection_model": "centerpoint/centerpoint_tiny"}
+    (tmp_path / "suites" / "cp.yaml").unlink()
+    assert tools.centerpoint_pilots(tmp_path, settings) == ["ego"]

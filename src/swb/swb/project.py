@@ -816,6 +816,14 @@ def main(argv=None):
     findings = check_project(args.dir or args.project)
     for f in findings:
         print(f)
+    try:
+        where = config.find_project(args.dir or args.project)
+        note = toolsmod.tensorrt_note(where, config.project_settings(where),
+                                      config.host_settings(where))
+    except config.ConfigError:
+        note = ""
+    if note:
+        print(f"warning: {note}")
     if not findings:
         print("project: ok")
     return exit_code(findings)

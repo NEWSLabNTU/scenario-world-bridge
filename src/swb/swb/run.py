@@ -391,8 +391,12 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
     except config.ConfigError:
         sim = None
     ws = stackmod.workspace_root()
+    try:
+        trt = toolsmod.tensorrt_note(project, config.project_settings(project), host)
+    except config.ConfigError:
+        trt = ""
     for note in (toolsmod.gpu_note(s.gpu, sim, toolsmod.gpu_state(s.gpu)),
-                 toolsmod.drift_note(toolsmod.submodule_drift(ws)) if ws else ""):
+                 toolsmod.drift_note(toolsmod.submodule_drift(ws)) if ws else "", trt):
         if note:
             (out or sys.stdout).write(f"warning  {note}\n")
     (out or sys.stdout).flush()

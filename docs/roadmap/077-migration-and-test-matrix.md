@@ -610,6 +610,21 @@ Isaac's rear contact (inventory row 18).
   closes, so the lead brakes at its fallback point 107 m ahead. 034's 5 of 5 (2026-10-16)
   predates it. Not a regression: inventory rows 8 to 10 named the wrong pilot. The demo
   project's ego takes item 11's arguments.
+- **G54 (found and built 2026-11-16): the ego drove blind.** On the tour's arguments i1
+  collided: the gap trace shows the ego at 11.11 m/s from 48 s to the impact at 57.05 s
+  without braking, behind a lead at 8 m/s and through its stop; the lead's "10.35 m/s^2"
+  was the impact. lidar_centerpoint was still building its TensorRT engine all through the
+  scenario (this host had no Autoware 10.8 runtime, so every Autoware start rebuilt it, and
+  `lifetime: run` started Autoware for each run), while `ego_ready` counted the pilot ready
+  on the ADAPI and planning alone. Measured on a stack brought up alone: the detector's
+  output (`.../detection/centerpoint/objects`) had a subscriber and no publisher until the
+  engine was built, 2.3 min after the pilot was called ready; on a ready stack only debug
+  topics and the traffic light pipeline's absent camera6 stay unpublished. `ego_ready` now
+  holds an object recognition topic (debug excepted) with a subscriber and no publisher as
+  not ready, naming it; `project check` and the stack warn when a CenterPoint pilot has no
+  `autoware.tensorrt_lib` with a libnvinfer.so.10; install.md and the how-to name the key.
+  Audits: 133's 078 runs (the 10.8 runtime set) and 118's 074 runs (N5: 172 starts on cached
+  engines; S5d: two first-start builds, tracking non-empty throughout) were not affected.
 - **Item 12 migrated (swb 118, 2026-11-16, 918cf60).** `scenarios/projects/gap`, suite
   `gap`: entity_bodies and motorbike_body passed twice (oracle 0/0/0), npc_shoulder passed
   twice (0/1/0, 20 spawn infos, as 032), truck_pass failed twice as expected (G1 1 ego and

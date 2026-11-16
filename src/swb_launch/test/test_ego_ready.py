@@ -70,3 +70,20 @@ class LaunchesSetTheTransport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Perception(unittest.TestCase):
+    """G54: a detector still building its engine has no publisher; the ego is not ready."""
+
+    def test_a_subscribed_perception_topic_without_a_publisher_is_a_loading_node(self):
+        er = _load("ego_ready")
+        cp = "/perception/object_recognition/detection/centerpoint/objects"
+        dbg = "/perception/object_recognition/tracking/multi_object_tracker/debug/processing_time_ms"
+        merged = "/perception/object_recognition/objects"
+        cam6 = "/perception/traffic_light_recognition/camera6/camera_info"
+        subs = {cp: 1, dbg: 1, merged: 2, "/planning/x": 1, cam6: 1}
+        pubs = {cp: 0, dbg: 0, merged: 1, "/planning/x": 0, cam6: 0}
+        topics = list(subs)
+        self.assertEqual(er.unpublished_inputs(topics, subs.get, pubs.get), [cp])
+        pubs[cp] = 1   # the engine is built: the node exists
+        self.assertEqual(er.unpublished_inputs(topics, subs.get, pubs.get), [])

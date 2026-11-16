@@ -9,8 +9,12 @@ pilots:
   ego:
     kind: autoware
     vehicle: tesla_model3
-    args: {lidar_detection_model: clustering}
-    lifetime: run            # Autoware afresh for each run, so the i6 suite can swap its detector
+    # the demo tour's ego (inventory item 11), which the incidents are timed for since
+    # 2026-10-20 (62eae3c: route C at 40 km/h); at the profile's default 4.17 m/s i1's lead
+    # outruns the ego and brakes 100 m ahead of it
+    args: {max_velocity: 11.11, lidar_detection_model: centerpoint,
+           use_multi_channel_tracker_merger: false}
+    lifetime: stack          # one Autoware for the suite: its detector loads once
 logging:
   keep: {passed: result, failed: full, error: full}
 judges:

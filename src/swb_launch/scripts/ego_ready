@@ -59,6 +59,24 @@ PLANNING_TOPICS = (
 )
 
 
+# Ready also means perception is up (roadmap 077, G54). A detector builds its TensorRT engine
+# inside its constructor (CenterPoint: minutes on a TensorRT other than Autoware's), and until
+# it returns its node has no publisher, while the planners already answer; the ego then drove
+# a scenario blind and hit the lead at 11 m/s (2026-11-16). A perception topic that something
+# subscribes to and nothing publishes is a node still loading. Object recognition only, and
+# not its debug topics: timing checkers subscribe to debug topics no node ever publishes, and
+# the traffic light pipeline subscribes to cameras a sensor kit may not have (camera6),
+# both for good (measured on a ready stack, 2026-11-16).
+PERCEPTION = "/perception/object_recognition"
+
+
+def unpublished_inputs(topics, subscribers, publishers):
+    """The object recognition topics (``/debug/`` excepted) with a subscriber and no
+    publisher."""
+    return sorted(t for t in topics if t.startswith(PERCEPTION + "/") and "/debug/" not in t
+                  and subscribers(t) > 0 and publishers(t) == 0)
+
+
 def play_launch_get(port: int, path: str):
     """One GET against the stack's play_launch web API, or None if it cannot be asked."""
     try:
@@ -167,6 +185,8 @@ def main() -> int:
         while time.time() < deadline:
             if node.count_publishers(REQUIRED_TOPIC) > 0:
                 dead = [t for t in PLANNING_TOPICS if node.count_publishers(t) == 0]
+                loading = unpublished_inputs([t for t, _ in node.get_topic_names_and_types()],
+                                             node.count_subscribers, node.count_publishers)
                 failed = failed_composables(args.web_port) or []
                 if failed and args.reload_failed:
                     for name in failed:
@@ -180,6 +200,16 @@ def main() -> int:
                     deadline = max(deadline, time.time() + 30.0)
                     rclpy.spin_once(node, timeout_sec=1.0)
                     continue
+                if loading and not (dead or failed):
+                    if time.time() + 0.2 < deadline:
+                        rclpy.spin_once(node, timeout_sec=0.2)
+                        continue
+                    print("[ego-health] not ready: planning is up but perception is not -- "
+                          f"nothing publishes {', '.join(loading)} yet (a detector still "
+                          "loading: CenterPoint builds its TensorRT engine at its first start, "
+                          "or at every start on a TensorRT other than Autoware's 10.8; see "
+                          "the pilot's load_node/lidar_centerpoint/err)")
+                    return 1
                 if dead or failed:
                     if time.time() + 0.2 < deadline:  # discovery may still be settling
                         rclpy.spin_once(node, timeout_sec=0.2)
@@ -196,8 +226,8 @@ def main() -> int:
                         f"{args.web_port}/api/nodes/<name>/load`, or restart `just ego-av`."
                     )
                     return 1
-                print(f"[ego-health] ok: {REQUIRED_TOPIC} has a publisher and planning "
-                      "publishes; the ego stack is up"
+                print(f"[ego-health] ok: {REQUIRED_TOPIC} has a publisher, planning "
+                      "publishes and perception's inputs have publishers; the ego stack is up"
                       + (f" (reloaded {', '.join(reloaded)})" if reloaded else ""))
                 return 0
             rclpy.spin_once(node, timeout_sec=0.2)

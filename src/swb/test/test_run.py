@@ -197,8 +197,8 @@ def test_scenario_argv_parameters():
     rec = {"ports": {"ssv2": 5655}, "pilots": [{"entity": "ego", "vehicle": "golf_cart"}]}
     spec = run.RunSpec(Path("/p/s.xosc"), {"gap_m": 6}, timeout=100)
     argv = run.scenario_argv(rec, spec, Path("/r"), Path("/p/s.xosc"))
-    assert argv[:6] == ["play_launch", "launch", "--disable-web-ui", "--log-dir", "/r/logs/scenario",
-                        "swb_launch"]
+    assert argv[:7] == ["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics",
+                        "--log-dir", "/r/logs/scenario", "swb_launch"]
     assert "port:=5655" in argv and "vehicle_model:=golf_cart" in argv
     assert 'override_parameters:={"gap_m": "6"}' in argv
     assert "output_directory:=/r/logs/ssv2" in argv and "global_timeout:=100" in argv
@@ -546,8 +546,9 @@ def test_run_pilot_started_and_stopped(where, maps_hub):
         proc.wait(timeout=10)
     assert r.verdict == "passed"
     argv = json.loads(seen.read_text())
-    assert argv[:4] == ["play_launch", "launch", "--disable-web-ui", "--log-dir"]
-    assert argv[4].endswith("/logs/pilot-follower")
+    assert argv[:5] == ["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics",
+                        "--log-dir"]
+    assert argv[5].endswith("/logs/pilot-follower")
     assert argv[argv.index("--composable-respawn") + 2].endswith("command.launch.py")
     words = dict(w.split(":=", 1) for w in argv if ":=" in w)
     assert words["entity"] == "follower" and words["seed"] == "11"

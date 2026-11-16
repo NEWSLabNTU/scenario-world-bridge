@@ -145,8 +145,11 @@ def include(path, args):
 
 def nested(name, target, args, domain, log_dir, respawn=False, extra=(), required=False,
            env=None):
-    """A launch as its own play_launch process: its own lifetime, its own log directory."""
-    cmd = ["play_launch", "launch", "--disable-web-ui", "--log-dir", log_dir, *extra, *target]
+    """A launch as its own play_launch process: its own lifetime, its own log directory.
+    No /diagnostics recording: nothing reads diagnostics.csv, and each nested launch kept its
+    own unbounded copy of the ego's, 0.75 GB an hour each (roadmap 077, G59)."""
+    cmd = ["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
+           log_dir, *extra, *target]
     cmd += [f"{k}:={v}" for k, v in args.items()]
     return ExecuteProcess(cmd=cmd, name=name, output="screen", respawn=respawn,
                           respawn_delay=5.0 if respawn else 0.0,

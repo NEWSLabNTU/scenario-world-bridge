@@ -481,7 +481,7 @@ def scenario_argv(rec: dict, spec: RunSpec, run_dir: Path, scenario: Path) -> li
         args["vehicle_model"] = ego["vehicle"]
     if spec.parameters and not spec.distribution:
         args["override_parameters"] = json.dumps({k: str(v) for k, v in spec.parameters.items()})
-    return (["play_launch", "launch", "--disable-web-ui", "--log-dir",
+    return (["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
              str(run_dir / "logs" / "scenario"), "swb_launch", "scenario.launch.xml"]
             + [f"{k}:={v}" for k, v in args.items()])
 

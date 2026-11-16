@@ -301,7 +301,9 @@ def test_pilot_argv_has_the_maps_contract(where, maps_hub):
     ego = rec["pilots"][0]
     argv = stack.pilot_argv(rec, ego, rec["pilot_entries"][0], Path("/l"))
     argv = argv[argv.index("--") + 1:]   # after the autoware environment's prelude
-    assert argv[:5] == ["play_launch", "launch", "--disable-web-ui", "--log-dir", "/l"]
+    # G59: no unbounded diagnostics.csv per nested launch
+    assert argv[:6] == ["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics",
+                        "--log-dir", "/l"]
     assert argv[argv.index("--composable-respawn") + 2].endswith("pilots/autoware.launch.xml")
     words = dict(w.split(":=", 1) for w in argv if ":=" in w)
     assert words["map_path"] == str(d / "assets" / "maps" / "Town01")

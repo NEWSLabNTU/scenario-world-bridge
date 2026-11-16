@@ -910,3 +910,24 @@ Isaac's rear contact (inventory row 18).
   finished, none failed or aborted, 47 min 12 s at a load of 55 to 80; one workspace
   `src/autoware_carla_bridge/.cargo/config.toml`, none per crate. Open for (a): the CARLA
   host's clean build.
+- **The reruns on the fixed physics (133's subagent on 133, 2026-11-16, d92e51a: the spawn
+  fix, G55, G58, i7's re-time, row 8; both workspaces rebuilt clean; GPU 0 97 to 99 % busy
+  from another user's process throughout).** basic town01 6 of 6, physical_verdict on each;
+  i1 to i5 5 of 5, both judges; i6 3 of 3 SSv2, r0's incident judge failed on SSv2's
+  contact with the cyclist (box gap -0.15 m at 2.8 m/s, the ego yielding; no CARLA contact,
+  physical passed), r1 and r2 all passed; cut_in_rear 3 times: i7 3 of 3 and i8 3 of 3,
+  both judges (row 8 live); the tour, a first batch 2 of 3 (r0: incident 5 of 6 and physical
+  failed, the ego standing about 1 m over i2's crossing, box gap -0.36 m, 0 N s; no prop near)
+  and a second 3 of 3, so G58's bar of three clean tours is met; shard 1 of 2 3 of 3. The two
+  near misses fit the busy GPU; the references are recorded on a quiet one (above). G58:
+  `map_props: frozen|live` (default frozen, swb_carla_world 8b90053, 38b2d06), "Map props:
+  froze 115 of 115" on Town01, `provenance.world_server.map_props` in result.json; 56
+  samples over three tours, no prop moved more than 1 cm or 0.5 degrees.
+- **G59 (found 2026-11-16, swb 118; built here): diagnostics.csv grew without bound.** Each
+  nested play_launch of a stack (the simulation side, each pilot) recorded the ego's
+  /diagnostics in its own `diagnostics.csv`, 0.75 GB an hour each (1.5 GB in 2 h, 10.4 M
+  rows, 4 M of them topic_state_monitor); nothing reads them (the timeline skips them). The
+  stack's nested launches, its pilots' and the run's scenario launch now pass
+  `--disable-diagnostics` (in play_launch since 0.30, the floor). Open: a stack's own
+  `stacks/<id>/proc/` logs are pruned by nothing (`runs prune` and `keep:` cover runs), and
+  play_launch itself could cap or deduplicate nested recording (the user's repository).

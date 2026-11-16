@@ -983,7 +983,9 @@ def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
             words.append(f"{k}:={v}")
     extra = ([] if p["kind"] == "carla_basic"
              else ["--container-mode", "isolated", "--composable-respawn", "on-crash"])
-    argv = (["play_launch", "launch", "--disable-web-ui", "--log-dir", str(log_dir), *extra,
+    # no /diagnostics recording (G59: an unbounded copy per nested launch, read by nothing)
+    argv = (["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
+             str(log_dir), *extra,
              os.path.join(rec["pilots_dir"], name)] + words)
     return autoware_env_argv(rec.get("autoware_env"), argv) if p["kind"] == "autoware" else argv
 

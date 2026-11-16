@@ -169,7 +169,8 @@ def write_reference(rows: list, csv_path: Path, meta: dict):
 def commit() -> str:
     head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
                           capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run(["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+    dirty = subprocess.run(["git", "--no-optional-locks", "-C", str(ROOT), "status", "--porcelain",
+                            "--untracked-files=no"],
                            capture_output=True, text=True).stdout.strip()
     return head + ("+dirty" if dirty else "")
 

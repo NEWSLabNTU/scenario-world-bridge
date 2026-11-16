@@ -1333,7 +1333,17 @@ Isaac's rear contact (inventory row 18).
     stopped. Issue 044, fix assigned (133, 2026-11-17) to 241, both parts: the launch file
     refuses `render` window without DISPLAY, so a project's `isaac.render: window` is
     covered too; and the world server's exit 2 ends its launch through Shutdown, never a
-    respawn, tested under both launchers.
+    respawn, tested under both launchers. Review of 240a14e (243): the DISPLAY refusal at
+    parse time holds under both launchers and on the project path; the exit-2 Shutdown holds
+    under `ros2 launch`, but play_launch 0.35.0 ignores OnProcessExit handlers (also with
+    `--parser python`), so there an exit 2 still respawns every 10 s. Must-fix: every usage
+    error that can be checked cheaply (render's values, physics_hz, the world paths) is
+    refused at parse time too, so only an unforeseen refusal can loop. Ruling (133): the
+    play_launch respawn does not gate the RC (`ros2 launch` is the required path); it ships
+    as a known limit, with 133's report in play_launch's repo once 241 rechecks it on
+    0.36.0. For the release notes, if it still reproduces: "under play_launch, a world
+    server refused for an unforeseen usage error restarts every 10 s until stopped;
+    ros2 launch ends the launch".
   - Not run: `follow:=true` (it needs a display; Isaac's window crashed on TurboVNC before).
   No process left: each server stopped by its group.
 - **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e

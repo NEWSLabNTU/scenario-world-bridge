@@ -125,9 +125,9 @@ run() {  # name xosc [scenario args...]
 two_av() {
     local dir="$out/town01_two_av" start end code verdict
     rm -rf "$dir"; mkdir -p "$dir"
-    say "run town01_two_av (just two-av)"
+    say "run town01_two_av (just two-av-direct)"
     start=$(date +%s.%N)
-    just two-av output_directory:="$dir" > "$dir/run.log" 2>&1 < /dev/null
+    just two-av-direct output_directory:="$dir" > "$dir/run.log" 2>&1 < /dev/null
     code=$?
     end=$(date +%s.%N)
     verdict=missing

@@ -301,9 +301,37 @@ test:
 # Run CI checks: build, check (format + clippy), and tests
 ci: build check test
 
-# Two Autoware stacks, one scenario, end to end. record:=true for a screencast.
+# Two Autoware stacks, one scenario, on the project workflow (roadmap 077 step 4, item 7):
+# `ros2 run swb run suites/two_av.yaml --start-stack` in scenarios/projects/two_av, whose
+# pilots are the ego and bg_av_1, each an Autoware in its own domain, judged by SSv2,
+# physical_verdict and the gap oracle. It starts the project's stack when it is not up and
+# leaves it up. The run's result, timeline and logs are under the host settings' logs
+# (`ros2 run swb runs show <id>`). The screencast (record:=true), and a scenario file or
+# stacks of your own, belong to the stack-based path, `just two-av-direct`.
+# Usage: just two-av [global_timeout:=<s>]
 [positional-arguments]
-two-av *args: _require-carla
+two-av *args:
+    #!/usr/bin/env bash
+    set -e
+    source "{{lib}}"; swb_reject_env
+    run_args=()
+    for a in "$@"; do
+        case "$a" in
+            global_timeout:=?*) run_args+=(--timeout "${a#*:=}") ;;
+            record:=*|keep_stacks:=*|ego_rviz_config:=*|bg_rviz_config:=*|output_directory:=*)
+                echo "two-av: ${a%%:=*}:= is the stack-based path's: \`just two-av-direct $a\` (roadmap 077 step 4)" >&2; exit 2 ;;
+            *) echo "two-av: unknown argument '$a' (global_timeout:=<s>; a scenario file: \`just two-av-direct <xosc>\`)" >&2; exit 2 ;;
+        esac
+    done
+    source "{{autoware_setup}}"
+    source "{{project}}/install/setup.bash"
+    cd "{{project}}/scenarios/projects/two_av"
+    exec ros2 run swb run suites/two_av.yaml --start-stack "${run_args[@]}"
+
+# The stack-based path, for developers: two Autoware stacks, one scenario, end to end,
+# against `just run`'s simulation side. record:=true for a screencast.
+[positional-arguments]
+two-av-direct *args: _require-carla
     #!/usr/bin/env bash
     set -u
     source "{{lib}}"; swb_reject_env
@@ -314,7 +342,7 @@ two-av *args: _require-carla
     # relay -- teleported, then the scenario's goal -- so SSv2 sees it (collisions, reach
     # conditions) and the ego's Autoware perceives real, Autoware-driven traffic.
     #
-    # Usage: just two-av [scenario_file] [keep_stacks:=true] [record:=true]
+    # Usage: just two-av-direct [scenario_file] [keep_stacks:=true] [record:=true]
     #            [ego_rviz_config:=<file>] [bg_rviz_config:=<file>] [output_directory:=<dir>]
     #   keep_stacks:=true  leave the stacks this run started up afterwards
     #   record:=true       screencast to play_log/two-av/two-av.mp4, both stacks' RViz on
@@ -334,8 +362,8 @@ two-av *args: _require-carla
             ego_rviz_config:=?*) ego_rviz=("rviz_config:=${a#*:=}") ;;
             bg_rviz_config:=?*) bg_rviz=("rviz_config:=${a#*:=}") ;;
             output_directory:=?*) output_directory="${a#*:=}" ;;
-            *:=*) echo "two-av: unknown argument '$a' (keep_stacks:=, record:=, ego_rviz_config:=, bg_rviz_config:=, output_directory:=)" >&2; exit 2 ;;
-            *) n=$((n + 1)); [ $n = 1 ] || { echo "two-av: too many arguments" >&2; exit 2; }
+            *:=*) echo "two-av-direct: unknown argument '$a' (keep_stacks:=, record:=, ego_rviz_config:=, bg_rviz_config:=, output_directory:=)" >&2; exit 2 ;;
+            *) n=$((n + 1)); [ $n = 1 ] || { echo "two-av-direct: too many arguments" >&2; exit 2; }
                scenario_file="$a" ;;
         esac
     done

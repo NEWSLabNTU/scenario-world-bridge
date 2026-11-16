@@ -1,0 +1,20 @@
+# two_av: two Autoware stacks on one road (roadmap 077 step 4, inventory item 7; `just
+# two-av`'s scenario). The ego and bg_av_1 are each an Autoware in its own ROS domain, on
+# the Model 3 and its spec's physics. Recording (the old recipe's record:=true screencast)
+# is deferred (G4).
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: autoware, vehicle: tesla_model3}
+  bg_av_*: {kind: autoware, vehicle: tesla_model3}
+logging:
+  gap_trace: true
+  keep: {passed: standard, failed: full, error: full}
+judges:
+  - name: physical_verdict
+    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+  - name: gap
+    run: [python3, -m, swb.gap, oracle]
+    needs: [gap_trace]

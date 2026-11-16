@@ -113,11 +113,14 @@ ends `passed`.
 
 **Check**:
 
+The ruts this run left in the mud are saved when the world server next loads the world,
+which the next run's start does: after step 5's drive,
+
 ```bash
 ls state/Town01/ruts/runs/
 ```
 
-lists the ruts this run left in the mud, saved when the scenario ended.
+lists them.
 
 ## 5. The road after rain
 

@@ -75,6 +75,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | The world server never says ready | the first load of a town compiles its materials (up to a quarter of an hour): `swb_world_check hello <url> --wait 1800` waits for it |
 | `not up after 1200 s`; its Kit log ends at `omni.client`, 100 % CPU | a Kit cache link points at a deleted directory: [Getting started on Isaac Sim](../getting-started/isaac.md#if-it-does-not-work) |
 | It dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself; on two GPUs pick one with the host setting `gpu:` |
+| The ego never leaves `INITIALIZING`; the localizer's log ends at `Call align server` with no answer | the host is too busy for the first alignment in time (seen at a load of 70 to 83 on 24 cores, the align taking 30 s): run when the load is lower, or give `ros2 run swb run --ready-timeout` more |
 | The ego never leaves `INITIALIZING`; `ndt_scan_matcher` logs `No InputSource`, the world server `sensors not ready after N warm-up frames` | on a two-GPU host the renderer is on another card than CUDA, so the sensors never publish: name the card with the host setting `gpu:` and take any `--/renderer/activeGpu` out of `ISAAC_KIT_ARGS` |
 | It is gone for minutes after dying | the stack respawns it and it loads the world again |
 | `... SWB_CARLA_USD not set` | the world server was started outside a project's stack |

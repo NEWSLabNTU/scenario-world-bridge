@@ -155,8 +155,10 @@ model:
 <Vehicle name="lead" vehicleCategory="car" model3d="vehicle.mercedes.sprinter">
 ```
 
-and keep its `BoundingBox` the size of the model: the body for physics, contacts and the
-lidar is still the box. The ids the set holds, with each vehicle's size:
+and give its `BoundingBox` the model's size: its `Dimensions` and its `Center` (the box's
+middle from the car's origin, mostly a forward `x` and an upward `z`) are the vehicle's row
+of the list below. The body for physics, contacts and the lidar is still the box. A model's
+first render can take tens of seconds. The ids the set holds, with each vehicle's size:
 
 ```bash
 less assets/carla-usd/vehicles/vehicles.md

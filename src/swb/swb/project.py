@@ -961,8 +961,14 @@ def main(argv=None):
     for n in project_notes(args.dir or args.project):
         print(f"warning: {n}")
     try:
-        print(toolsmod.launcher_line(config.host_settings(
-            config.find_project(args.dir or args.project)).get("launcher")))
+        where = config.find_project(args.dir or args.project)
+        setting = config.host_settings(where).get("launcher")
+        print(toolsmod.launcher_line(setting))
+        pilots = config.project_settings(where).get("pilots")
+        kinds = [p.get("kind") for p in pilots.values() if isinstance(p, dict)] \
+            if isinstance(pilots, dict) else []
+        for n in toolsmod.launcher_notes(toolsmod.launcher(setting)[0], kinds):
+            print(f"note: {n}")
     except config.ConfigError:
         pass
     if not findings:

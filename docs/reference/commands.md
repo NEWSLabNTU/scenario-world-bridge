@@ -31,7 +31,7 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 |---|---|
 | `project new <dir>` | writes a starter project into a new (or empty) directory; `--template carla-first-drive` (default), `multi-pilot` or `isaac` |
 | `project new <dir> --from <project>` | copies a project (a directory or `pkg://<package>/<dir>`) without `assets/`, `state/`, `runs/`, `.swb/` |
-| `project check [<dir>]` | validates `swb.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints the launcher it resolved (`launcher: auto -> play_launch 0.30.0`), then `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
+| `project check [<dir>]` | validates `swb.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints the launcher it resolved (`launcher: auto -> play_launch 0.30.0`; under `ros2 launch` with an Autoware pilot, a note that a crashed component ends its container), then `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
 
 ## `ros2 run swb assets`
 

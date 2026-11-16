@@ -163,3 +163,9 @@ def test_a_centerpoint_pilot_without_autowares_tensorrt_is_warned(tmp_path):
     settings["pilots"]["ego"]["args"] = {"lidar_detection_model": "centerpoint/centerpoint_tiny"}
     (tmp_path / "suites" / "cp.yaml").unlink()
     assert tools.centerpoint_pilots(tmp_path, settings) == ["ego"]
+
+
+def test_ros2_launch_says_once_that_containers_are_not_isolated():
+    assert tools.launcher_notes("ros2", ["autoware", "carla_basic"]) == [tools.ROS2_CONTAINERS_NOTE]
+    assert tools.launcher_notes("ros2", ["carla_basic"]) == []
+    assert tools.launcher_notes("play_launch", ["autoware"]) == []

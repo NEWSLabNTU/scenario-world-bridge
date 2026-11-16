@@ -1056,8 +1056,21 @@ def stop_processes(procs, grace=STOP_GRACE):
     """SIGINT to every process group, then SIGTERM, then SIGKILL, waiting for all at once.
     A group is stopped when none of it is left, not when its leader exits: `ros2 launch`
     can exit on SIGINT before its children do (roadmap 079, step 3), and what it leaves in
-    the group gets the next signal."""
-    live = [p for p in procs if p is not None and (p.poll() is None or _group_alive(p.pid))]
+    the group gets the next signal. The leader is polled every 50 ms; the group, a scan of
+    /proc, only once its leader is gone and at most every GROUP_POLL."""
+    procs = [p for p in procs if p is not None]
+    checked = {}  # pid -> when the group was last scanned
+
+    def alive(p):
+        if p.poll() is None:
+            return True
+        now = time.time()
+        if now - checked.get(p.pid, 0.0) < GROUP_POLL:
+            return True
+        checked[p.pid] = now
+        return _group_alive(p.pid)
+
+    live = [p for p in procs if alive(p)]
     for sig, wait in ((signal.SIGINT, grace), (signal.SIGTERM, 10.0), (signal.SIGKILL, 5.0)):
         if not live:
             return
@@ -1066,18 +1079,22 @@ def stop_processes(procs, grace=STOP_GRACE):
                 os.killpg(p.pid, sig)
             except (ProcessLookupError, PermissionError):
                 pass
+        checked.clear()  # after a signal, look again at once
         deadline = time.time() + wait
         while time.time() < deadline:
-            live = [p for p in live if p.poll() is None or _group_alive(p.pid)]
+            live = [p for p in live if alive(p)]
             if not live:
                 return
             time.sleep(0.05)
 
 
+GROUP_POLL = 0.5  # s between scans of /proc for what a leader left in its group
+
+
 def _group_alive(pgid) -> bool:
     """Any process left in group ``pgid`` (zombies excluded: init reaps them)."""
     try:
-        os.killpg(pgid, 0)
+        os.killpg(pgid, 0)  # cheap: nothing of the group, not even a zombie
     except ProcessLookupError:
         return False
     except PermissionError:

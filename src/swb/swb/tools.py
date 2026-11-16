@@ -81,6 +81,18 @@ def launcher_line(setting="auto", version_fn=None) -> str:
     return f"launcher: {setting}" if setting == "ros2" else f"launcher: play_launch ({why})"
 
 
+ROS2_CONTAINERS_NOTE = ("under ros2 launch, a crashed Autoware component ends its container "
+                        "(play_launch restarts it alone; roadmap 079 step 5)")
+
+
+def launcher_notes(launcher_name, pilot_kinds) -> list:
+    """What the resolved launcher changes for these pilots, said once: under `ros2 launch`
+    the pilots' isolated containers (play_launch's) are not there."""
+    if launcher_name == "ros2" and any(k != "carla_basic" for k in pilot_kinds):
+        return [ROS2_CONTAINERS_NOTE]
+    return []
+
+
 def findings(setting="auto", version_fn=None) -> list:
     """Problems with the launcher: an unknown setting, or an explicit ``play_launch`` that is
     missing or older than the workflow needs (``auto`` falls back to ros2 instead)."""

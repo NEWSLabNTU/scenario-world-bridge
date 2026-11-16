@@ -155,6 +155,8 @@ def _launcher_module():
 
 
 # the launcher of the nested launches, `launcher:=` (set by _stack before any nested())
+# The launcher of every nested launch: set by _stack from `launcher:=` before it builds any
+# action, so nested() must not be called before _stack runs (one stack per process).
 LAUNCHER = {"name": "play_launch"}
 NESTED_STOP_TIMEOUT = "30"  # s, a nested launch's whole stop before its SIGTERM
 

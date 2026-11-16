@@ -34,15 +34,15 @@
   <arg name="interaction_strategy_modules" default="[intersection]" description="the RTC modules the node drives"/>
   <arg name="interaction_strategy_log" default="" description="a file for the decision records (JSON lines); empty = topic only"/>
 
-  <!-- Two node blocks rather than one with optional params: an empty string parameter is
-       written as "-p name:=", which rcl rejects. -->
+  <!-- Two node blocks: relay mode (respawned; registers with the relay) and local mode
+       (drives once to goal_poses_file's goal, then exits). -->
   <node pkg="swb_agent" exec="vehicle_agent" name="vehicle_agent" output="screen" respawn="true"
         if="$(eval '&quot;$(var relay)&quot; != &quot;&quot;')">
     <param name="relay" value="$(var relay)"/>
     <param name="entity" value="$(var entity)"/>
     <param name="agent_config" value="$(var agent_config)"/>
     <param name="vehicle_model" value="$(var vehicle_model)"/>
-    <param name="spec_hash_file" value="$(eval &quot;'$(var spec_hash_file)' if '$(var spec_hash_file)' != '' else 'none'&quot;)"/>
+    <param name="spec_hash_file" value="$(var spec_hash_file)"/>
   </node>
   <node pkg="swb_agent" exec="vehicle_agent" name="vehicle_agent" output="screen"
         if="$(eval '&quot;$(var relay)&quot; == &quot;&quot; and &quot;$(var goal_poses_file)&quot; != &quot;&quot;')">

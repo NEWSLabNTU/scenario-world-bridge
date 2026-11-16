@@ -1134,6 +1134,36 @@ def test_a_lost_goal_ends_the_run_error_with_the_relays_reason(live, where):
 
 
 
+@pytest.mark.parametrize("line", [
+    "ERROR container:/pc: Composable node 'composable:/euclidean_cluster' crashed: killed by "
+    "signal 11 (Segmentation fault)",
+    "[ERROR] [component_container_mt-58]: process has died [pid 9, exit code -11, cmd "
+    "'component_container_mt --ros-args -r __node:=pointcloud_container -r __ns:=/']."])
+def test_a_pilot_crash_during_the_run_ends_it_error_under_either_launcher(live, where, line):
+    """079 step 5: part of the autopilot crashed, so the run did not test it as configured:
+    `error`, naming the crash, whichever launcher's line says so; then the stack's pilots
+    start afresh, before any other run finds them broken."""
+    d, _ = live
+
+    def starts():
+        rec = _stack_json(where)
+        text = (Path(rec["proc"]).parent / "events.jsonl").read_text()
+        return sum(json.loads(x).get("event") == "pilot.start" for x in text.splitlines())
+
+    crasher = where["tmp"] / "crasher.py"
+    crasher.write_text("import sys, time\ntime.sleep(0.5)\n"
+                       "open(sys.argv[1], 'a').write(sys.argv[2] + '\\n')\ntime.sleep(60)\n")
+    before = starts()
+    r = api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"scenario_command": lambda rec, *a: [
+                        sys.executable, str(crasher),
+                        str(Path(rec["proc"]) / "pilot-ego" / "console.log"), line]})
+    assert r.verdict == results.ERROR, r.reason
+    assert r.reason.startswith("pilot ego: ") and "during the run" in r.reason
+    assert ("euclidean_cluster" in r.reason) or ("pointcloud_container" in r.reason)
+    assert starts() > before
+
+
 def test_each_run_ends_its_pilots_episodes_at_the_relay(live, where):
     """G57: the relay forgets a standing goal only at an episode boundary; run_suite sent
     episode_end, swb run did not, and the next run's agent got the old goal."""

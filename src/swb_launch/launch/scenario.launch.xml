@@ -135,11 +135,6 @@
     <arg name="managed_ego" value="$(var managed_ego)" />
     <arg name="launch_rviz" value="false" />
     <arg name="record" value="false" />
-    <!-- play_launch serializes empty-string parameters as "-p name:=", which rcl
-         rejects at node startup. Both are unused while record:=false; they only
-         need to be non-empty. -->
-    <arg name="record_storage_id" value="sqlite3" />
-    <arg name="record_option" value="unused" />
 
     <!-- 20 Hz simulation stepping (was 10). Measured under 014, where /clock advanced
          once per SSv2 frame (with clock_source:=simulator acb's /clock advances once per

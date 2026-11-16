@@ -1256,11 +1256,14 @@ class Pilots:
 
 # --- the map switch -------------------------------------------------------------------------
 
-def request_switch(stack_dir: Path, name: str, request_id: str = None) -> str:
-    """Ask the keeper of ``stack_dir`` to move its pilots to map ``name``; the request's id."""
+def request_switch(stack_dir: Path, name: str, request_id: str = None,
+                   restart: bool = False) -> str:
+    """Ask the keeper of ``stack_dir`` to move its pilots to map ``name`` (``restart``: start
+    them again even when they are on it); the request's id."""
     rid = request_id or f"{os.getpid()}-{time.time_ns()}"
     write_json(Path(stack_dir) / SWITCH_REQUEST,
-               {"id": rid, "map": name, "requested": iso_now(), "by": os.getpid()})
+               {"id": rid, "map": name, "requested": iso_now(), "by": os.getpid(),
+                **({"restart": True} if restart else {})})
     return rid
 
 
@@ -1347,7 +1350,7 @@ def switch_map(stack_dir: Path, rec: dict, req: dict, pilots: Pilots) -> bool:
         event(stack_dir, "map.switch_failed", map=name, error=problem)
         print(f"swb stack: no switch to map {name}: {problem}", file=sys.stderr, flush=True)
         return False
-    if name == rec.get("map") and pilots.procs:
+    if name == rec.get("map") and pilots.procs and not req.get("restart"):
         sw.update(state=DONE, ended=iso_now())
         write_json(path, rec)
         return True

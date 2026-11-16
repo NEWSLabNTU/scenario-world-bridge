@@ -9,13 +9,23 @@ SSv2's verdict, and why a judge's verdict never replaces the run's.
 |---|---|---|
 | `passed` | SSv2 passed the scenario | 0 |
 | `failed` | SSv2 failed the scenario: its `exitFailure` fired, a condition was not met in time, the ego collided where the scenario says it must not | 1 |
-| `error` | the run cannot be judged, for the stack's fault: a world server or bridge error, a pilot that never became ready, a map switch that failed, SSv2 ending on an infrastructure error | 2 |
+| `error` | the run cannot be judged, for the stack's fault: a world server or bridge error, a pilot that never became ready, a pilot's process that crashed during the run, a map switch that failed, SSv2 ending on an infrastructure error | 2 |
 
 The difference between `failed` and `error` is the one a test table needs: a `failed` run
 says something about the autopilot, an `error` says something about the setup. A suite's
 `retry: {on: error}` runs an `error` again; it never retries a `failed` run. `result.json`
 holds the first cause in `reason`, and `ros2 run swb runs why` the first warning or error
 in any process's log.
+
+A pilot whose process crashes while the scenario runs (an Autoware component, a node)
+ends the run `error`, with the crash in `reason` ("pilot ego: component euclidean_cluster
+crashed (killed by signal 11) during the run"): part of the autopilot was not running, so
+the run did not test it as configured. The verdict is the same under either launcher, and
+so is what follows: swb then starts the stack's pilots again before any other run (`swb
+run` says `pilots   restarting after the crash of ego`). The launchers differ underneath.
+play_launch runs each component in a process of its own and restarts it alone; under `ros2
+launch` a component's crash ends its whole container, and the pilot's launch runs on
+without it, which is why the pilots start afresh.
 
 ## The verdict is SSv2's
 

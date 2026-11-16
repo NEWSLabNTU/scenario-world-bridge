@@ -585,13 +585,13 @@ def order_by_map(specs: list, current=None) -> list:
     return [s for m in order for s in groups[m]]
 
 
-def ensure_map(ctx: Context, name: str, timeout: float = SWITCH_TIMEOUT):
+def ensure_map(ctx: Context, name: str, timeout: float = SWITCH_TIMEOUT, restart=False):
     """The stack's pilots on map ``name``: nothing when they are; else the keeper is asked to
     move them and the answer waited for. Refused when the stack cannot serve the map; an
     infrastructure message (str) when the switch failed; None when done. ``ctx.stack``
     becomes the stack.json after the switch."""
     rec = ctx.stack
-    if rec.get("map") == name:
+    if rec.get("map") == name and not restart:
         return None
     problem = stackmod.switch_problem(rec, name)
     if problem:
@@ -599,7 +599,7 @@ def ensure_map(ctx: Context, name: str, timeout: float = SWITCH_TIMEOUT):
     stack_dir = Path(rec["proc"]).parent
     out = ctx.out or sys.stdout
     t0 = time.time()
-    rid = stackmod.request_switch(stack_dir, name)
+    rid = stackmod.request_switch(stack_dir, name, restart=restart)
     while True:
         try:
             cur = stackmod.read_json(stack_dir / stackmod.STACK_JSON)
@@ -679,6 +679,67 @@ class CrashWatch:
                 if n >= self.limit and (worst is None or n > worst[1]):
                     worst = (timeline.process_name(m.group(1)), n)
         return worst
+
+
+# A pilot's process crashing while the scenario runs (roadmap 079, step 5): the run did not
+# test the autopilot as configured, so it ends `error`, naming the crash, under either
+# launcher. play_launch restarts an isolated component (or a respawning node) and the
+# stack is healthy for the next run; under ros2 launch a component's crash ends its
+# container, and the keeper's respawn brings the pilot back for the next run. In passing
+# runs no pilot process dies before shutdown (nine pilot consoles, both launchers, 2026-11-16).
+_PL_COMPONENT = re.compile(r"Composable node '(?:composable:)?/?([^']+)' crashed: (.+?)\s*$")
+_PL_NODE = re.compile(r"\[node:/?([^\]]+)\] (Exited with code -?\d+|Exited without code)")
+_ROS2_NODE_NAME = re.compile(r"__node:=(\S+?)['\s]")
+
+
+class RunCrashWatch:
+    """The first crash of a pilot's process its console notes after the watch starts (the
+    run's start), before a shutdown of its launch; None while there is none."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        try:
+            self.offset = self.path.stat().st_size
+        except OSError:
+            self.offset = 0
+
+    def crashed(self):
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.offset)
+                text = f.read().decode("utf-8", "replace")
+        except OSError:
+            return None
+        for line in timeline._ANSI.sub("", text).splitlines():
+            if timeline.SHUTDOWN.match(line) or "Shutting down gracefully" in line:
+                return None  # the stack's stop, not a crash
+            m = _PL_COMPONENT.search(line)
+            if m:
+                return f"component {m.group(1)} crashed ({m.group(2)}) during the run"
+            m = _PL_NODE.search(line)
+            if m:
+                return f"node {m.group(1)}: {m.group(2).lower()} during the run"
+            m = timeline.DIED.match(line)
+            if m:
+                name = timeline.process_name(m.group(1))
+                node = _ROS2_NODE_NAME.search(line)
+                what = f"{name} ({node.group(1)})" if node else name
+                return f"{what} died (exit code {m.group(2)}) during the run"
+        return None
+
+
+def crash_probe(watches, base):
+    """``base``'s lost goals, and each pilot whose process crashed (``watches``: entity ->
+    RunCrashWatch): the probe wait_ssv2 polls, so a crash ends SSv2 rather than letting the
+    run go on without part of its autopilot."""
+    def probe(rec, entities, since):
+        lost = dict(base(rec, entities, since) or {})
+        for entity, w in watches.items():
+            why = w.crashed()
+            if why and entity not in lost:
+                lost[entity] = why
+        return lost
+    return probe
 
 
 def logging_for(*layers) -> dict:
@@ -923,6 +984,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
 
     procs, recorders = [], []
     ssv2 = None
+    crashed = []   # pilots whose process crashed during the run
     try:
         for p, entry in (run_pilots if not infra else []):
             log_dir = logs / f"pilot-{p['entity']}"
@@ -989,8 +1051,13 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             if ssv2 is not None:
                 # SSv2's global_timeout is per variant; a distribution runs them all in one go
                 limit = (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN
+                crashes = {p["entity"]: RunCrashWatch(pilot_console(rec, p, logs))
+                           for p in pilots}
                 code, lost = wait_ssv2(ssv2, limit, rec, [p["entity"] for p in pilots],
-                                       ctx.lost_probe or lost_goals)
+                                       crash_probe(crashes, ctx.lost_probe or lost_goals))
+                if not lost:  # a crash in SSv2's last poll interval
+                    lost = {e: w.crashed() for e, w in crashes.items() if w.crashed()}
+                crashed = [e for e, w in crashes.items() if w.crashed()]
                 if lost:
                     infra += [f"pilot {e}: {why}" for e, why in lost.items()]
                 elif code is None:
@@ -1066,7 +1133,23 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         runsmod.downgrade(run_dir, "result")
     runsmod.apply_keep(run_dir, verdict, lg.get("keep") or {},
                        judged=[(r or {}).get("verdict") for r in judged])
+    if crashed and rec.get("map"):
+        restart_pilots(ctx, crashed)
     return result
+
+
+def restart_pilots(ctx: Context, crashed):
+    """After a pilot's process crashed during a run: the stack's pilots afresh, before any
+    other run (this command's or the next one's) finds them broken. Under ros2 launch a
+    component's crash took its whole container, and the pilot's launch runs on without it;
+    play_launch restarted the component alone, and the restart costs only time (079 step 5)."""
+    out = ctx.out or sys.stdout
+    out.write(f"pilots   restarting after the crash of {', '.join(sorted(crashed))}\n")
+    out.flush()
+    msg = ensure_map(ctx, ctx.stack.get("map"), restart=True)
+    if msg:
+        out.write(f"warning  the pilots' restart: {msg}\n")
+        out.flush()
 
 
 def outcome(result: results.RunResult, expect=None) -> int:

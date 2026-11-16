@@ -237,3 +237,41 @@ def test_ssv2_hint_same_under_either_launcher(tmp_path):
     _append(pl / PL / "node" / "scenario_test_runner" / "err", t)
     _append(r2 / "console.log", f"[scenario_test_runner.py-1] {t}")
     assert results.ssv2_hint(pl) == results.ssv2_hint(r2) == "The simulation has timed out (400 s)"
+
+
+# --- a crash during the run (roadmap 079, step 5) -------------------------------------------
+# as each launcher logged a component's SIGSEGV, 2026-11-16 (composition::Talker in a
+# component_container_mt; play_launch with --container-mode isolated)
+PL_COMPONENT = ("2026-11-16T14:10:15.030817Z ERROR container:/comp_container: Composable node "
+                "'composable:/comp_talker' crashed: killed by signal 11 (Segmentation fault) "
+                "(core dumped)")
+R2_CONTAINER = ("[ERROR] [component_container_mt-1]: process has died [pid 1567037, exit code "
+                "-11, cmd '/opt/ros/humble/lib/rclcpp_components/component_container_mt "
+                "--ros-args -r __node:=comp_container -r __ns:=/'].")
+
+
+def _run_watch(tmp_path, name, before, after):
+    log = tmp_path / name
+    log.write_text("".join(x + "\n" for x in before))
+    w = run.RunCrashWatch(log)
+    with open(log, "a") as f:
+        f.write("".join(x + "\n" for x in after))
+    return w.crashed()
+
+
+def test_a_crash_during_the_run_is_named_under_either_launcher(tmp_path):
+    pl = _run_watch(tmp_path, "pl.log", [], [PL_COMPONENT])
+    r2 = _run_watch(tmp_path, "r2.log", [], [R2_CONTAINER])
+    assert pl == ("component comp_talker crashed (killed by signal 11 (Segmentation fault) "
+                  "(core dumped)) during the run")
+    assert r2 == "component_container_mt (comp_container) died (exit code -11) during the run"
+    assert _run_watch(tmp_path, "node.log", [], [_pl_crash(1)]) == (
+        "node command_follower: exited with code 1 during the run")
+
+
+def test_no_crash_from_before_the_run_or_from_the_stop(tmp_path):
+    assert _run_watch(tmp_path, "before.log", [PL_COMPONENT, R2_CONTAINER], ["ok"]) is None
+    assert _run_watch(tmp_path, "stop.log", [], [STOP, R2_CONTAINER]) is None
+    assert _run_watch(tmp_path, "plstop.log", [], [
+        "2026-11-16T13:18:31.336433Z  INFO Shutting down gracefully (SIGTERM)...",
+        PL_COMPONENT]) is None

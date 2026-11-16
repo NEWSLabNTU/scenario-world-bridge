@@ -36,6 +36,13 @@ just check    # Format + clippy
 just test     # Run tests (with the pin check, scripts/check_pins.py)
 ```
 
+`just scenario <xosc>`, `just e2e [xosc]`, `just two-av` and `just demo-tour` run on the project
+workflow (`ros2 run swb run` in the scenario's project, else `scenarios/projects/dev`; roadmap
+077 step 8). Each `*-direct` recipe (`scenario-direct`, `e2e-direct`, `two-av-direct`,
+`demo-tour-direct`) keeps the old stack path and its arguments (`output_directory:=`,
+`record:=`, `keep_stacks:=`) for developers; the project recipes refuse those arguments,
+naming the `-direct` one. `just acceptance` is unchanged.
+
 Without SSv2: acb's `just sim` / `just autoware`, aib's `just isaac-ego` / `just autoware`,
 and each one's `just vehicle-check` (the car's contract and dynamics, no Autoware).
 
@@ -44,7 +51,10 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 - **AWSIM pattern**: SSv2 puppeteers NPCs via `set_transform()`, the simulator owns ego physics
 - **One car, one source**: the spec in `sim_vehicle_spec`; every output names its `spec_hash`.
   The bridge refuses an ego whose world server, vehicle agent and catalog name different
-  specs, or whose body is more than 2 cm from the catalog's. On CARLA the world server applies
+  specs, or whose body is more than 2 cm from the catalog's. Every spec car runs its spec's
+  physics by default, on `just run` and on project stacks alike (`vehicle_physics:=none`
+  opts out to CARLA's blueprint physics; before 077 G55, fa539b5, the default left even a lone
+  ego on blueprint physics). On CARLA the world server applies
   the spec's physics and acb_bridge verifies it (stand-alone, acb applies it), both again
   after every spawn (CARLA 0.9.16 resets a blueprint's tires when another car of it spawns).
   A hero still off 20 frames after one ends the run: acb exits 4 (`Physics drift:` names
@@ -113,9 +123,10 @@ All launch commands use `play_launch launch` (with `--web-addr` for the web UI),
 
 ### Project settings are arguments, host settings are environment
 
-Recipes take project settings -- map, rviz, vehicle and launch choices, scenario output,
-`keep_stacks`, `record` -- as `name:=value` arguments, as a launch file does (`just ego-av
-map_path:=<dir> rviz:=true`, `just scenario <xosc> output_directory:=<dir>`); `ego-av`,
+Recipes take project settings -- map, rviz, vehicle and launch choices, `vehicle_physics`,
+scenario output, `keep_stacks`, `record` -- as `name:=value` arguments, as a launch file does
+(`just ego-av map_path:=<dir> rviz:=true`, `just scenario-direct <xosc>
+output_directory:=<dir>`); `ego-av`,
 `ego-isaac` and `bg-av` hand any argument they do not know to the launch file. Host
 settings come from the environment, made permanent in `.env` (just's `dotenv-load`) or
 `.envrc`: ports (`CARLA_PORT`, `SSV2_PORT`, `AGENT_PORT`, `ISAAC_PORT`, `WORLD_PORT` for the CARLA world
@@ -381,7 +392,7 @@ logs `play_log/bridge/`): the CARLA world server `swb_carla_world`, the bridge d
 agent relay (TCP 5560) in the scenario domain (9), each `respawn="true"`, and the ego -- acb's
 Autoware and swb's vehicle agent, nested play_launches, respawned -- in the ego domain (1),
 with `just ego-av`'s environment and defaults (`ego_launch:=none`: no ego; then `just ego-av`
-can be the ego). `just scenario` runs only the scenario against it and starts it (setsid,
+can be the ego). `just scenario-direct` runs only the scenario against it and starts it (setsid,
 `play_log/stack.console`) when it is not up. Scenario launches never include it, so it
 outlives sessions -- one bridge was once found serving scenarios 44 hours later,
 running code from two rebuilds earlier. Treat it as a tracked singleton: check its age
@@ -411,7 +422,7 @@ just world-health                           # its simulator, owner, readiness
 **On Isaac** `just run sim:=isaac` (`isaac.launch.xml`) holds the world server too
 (`ego:=`, `world:=`, `render:=` as `just isaac-world` takes them), with aib's Autoware as the
 ego; `just isaac-world` (web 8085) and `just ego-isaac` remain for running the parts apart.
-`just scenario|acceptance|e2e <xosc> [sim:=isaac]` start the stack when it is absent
+`just scenario-direct|acceptance|e2e-direct <xosc> [sim:=isaac]` start the stack when it is absent
 (`scripts/isaac_up.sh`, `scripts/carla_up.sh` -- which starts CARLA itself too -- over
 `scripts/stack_up.bash`; without an ego for a scenario that has none, `_scenario-has-ego`)
 and leave it up (`e2e` stops what it started); they refuse a stack of the other simulator (or
@@ -470,7 +481,7 @@ For a process tree you started yourself, give it its own process group with `set
 signal the group, which needs no pattern at all:
 
 ```bash
-setsid just scenario "$SCENARIO" > run.log 2>&1 &
+setsid just scenario-direct "$SCENARIO" > run.log 2>&1 &
 SPID=$!
 kill -TERM -$SPID        # the whole tree, and only that tree
 ```

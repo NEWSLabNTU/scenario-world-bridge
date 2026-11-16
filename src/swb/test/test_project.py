@@ -18,7 +18,7 @@ def whats(findings):
 def test_templates_check_clean_after_fetch(host, maps_hub, template, capsys):
     d = host["tmp"] / "p"
     assert project.main(["new", str(d), "--template", template]) == 0
-    assert (d / ".gitignore").read_text().split()[-4:] == ["assets/", "state/", "runs/", ".swb/"]
+    assert (d / ".gitignore").read_text().split()[-5:] == ["assets/", "state/", "runs", ".swb/", "play_log/"]
     assert "@PROJECT@" not in (d / "README.md").read_text()
     assert "# p:" in (d / "swb.yaml").read_text()
     # before fetching: refused, the map not fetched
@@ -248,7 +248,7 @@ def test_example_projects_check_clean_after_fetch(host, examples_hub, name):
     assert not (src / "swb.lock").exists(), "the examples ship without a lock"
     d = host["tmp"] / name
     assert project.main(["new", str(d), "--from", str(src)]) == 0
-    assert (d / ".gitignore").read_text().split()[-4:] == ["assets/", "state/", "runs/", ".swb/"]
+    assert (d / ".gitignore").read_text().split()[-5:] == ["assets/", "state/", "runs", ".swb/", "play_log/"]
     assert (d / "README.md").is_file()
     files = project._scenarios_in(d / "scenarios")
     assert files

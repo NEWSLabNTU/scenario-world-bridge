@@ -29,7 +29,7 @@ DEFAULT_TEMPLATE = "carla-first-drive"
 # a template's files whose names a package cannot carry as they are
 RENAMES = {"gitignore": ".gitignore"}
 # what `new --from` leaves behind: made on each host, never part of a project's source
-NOT_COPIED = ("assets", "state", "runs", ".swb")
+NOT_COPIED = ("assets", "state", "runs", ".swb", "play_log")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
             "world", "isaac", "ssv2")
@@ -762,8 +762,8 @@ def source_project(src) -> Path:
 
 def copy_project(src, dest: Path) -> Path:
     """A copy of the project ``src`` (e.g. an installed, read-only example) in the new
-    directory ``dest``: its files, without what each host makes (assets/, state/, runs/,
-    .swb/). The copies are the user's own: writable, symlinks followed."""
+    directory ``dest``: its files, without what each host makes (assets/, state/, runs,
+    .swb/, play_log/). The copies are the user's own: writable, symlinks followed."""
     root = source_project(src)
     dest = _empty_dest(dest)
     full = dest.resolve()

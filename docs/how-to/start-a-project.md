@@ -17,8 +17,8 @@ ros2 run swb project new ~/my_project \
 
 The templates are `carla-first-drive` (the default), `multi-pilot` and `isaac`. `--from`
 copies any project directory (an installed example, or a colleague's checkout) without
-what each host makes: `assets/`, `state/`, `runs/`, `.swb/`. The installed examples, each
-`pkg://swb_examples/projects/<name>`:
+what each host makes: `assets/`, `state/`, `runs`, `.swb/`, `play_log/`. The installed
+examples, each `pkg://swb_examples/projects/<name>`:
 
 | Example | Simulator | Shows |
 |---|---|---|
@@ -47,11 +47,12 @@ my_project/
   scenarios/        .xosc and TIER IV .yaml scenarios                         (commit)
   suites/           suite files                                               (commit)
   pilots/, judges/  your own programs, if any                                 (commit)
-  .gitignore        assets/ state/ runs/ .swb/
+  .gitignore        assets/ state/ runs .swb/ play_log/
   assets/           links into swb's cache, made by fetch                     (per host)
   state/            what the stack writes for a map: signal tables, ruts      (per host)
   runs/             a link to this project's runs under the log root          (per host)
   .swb/local.yaml   host settings for this checkout only                      (per host)
+  play_log/         play_launch's own logs, when it runs in the project       (per host)
 ```
 
 Every key of `swb.yaml` and of a suite: [The project file](../reference/project-file.md).

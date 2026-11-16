@@ -2,7 +2,7 @@
 # Bring up what a scenario on Isaac Sim needs, reusing whatever already runs (roadmaps 043,
 # 073 S9): the stack (`just run sim:=isaac`, web SWB_WEB_PORT+4: the Isaac world server, the
 # bridge, the agent relay and the ego -- aib's Autoware and its vehicle agent, nested,
-# respawned -- in one launch), waited for part by part. Run by `just scenario|acceptance|e2e
+# respawned -- in one launch), waited for part by part. Run by `just scenario-direct|acceptance|e2e
 # ... sim:=isaac` (roadmap 046: each simulator's bring-up is scripts/<sim>_up.sh, with this
 # contract; carla_up.sh is CARLA's; both share scripts/stack_up.bash).
 #

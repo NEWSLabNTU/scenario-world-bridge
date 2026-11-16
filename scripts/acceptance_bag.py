@@ -8,7 +8,7 @@ judgement -- the scenario's verdict, the ego drove and got somewhere, no node di
 acceptance.py's own tracking formulas and limits -- but records the ego's domain once across
 the batch (`tracking_probe.py`'s topics, plus the MRM state: 043 wants none) and scores each
 run from the message stamps afterwards. The stacks must be up or startable: each run is
-`just scenario <xosc> sim:=<sim>`.
+`just scenario-direct <xosc> sim:=<sim>`.
 
     acceptance_bag.py --scenario x.xosc [--runs 3] [--sim isaac] [--worlds Town01,Town02]
                       [--domain 1] [--out DIR] [--json FILE]
@@ -129,14 +129,14 @@ def main() -> int:
     ap.add_argument("--scenario", required=True)
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--sim", default="isaac")
-    ap.add_argument("--worlds", default="", help="passed on as `just scenario worlds:=`")
+    ap.add_argument("--worlds", default="", help="passed on as `just scenario-direct worlds:=`")
     ap.add_argument("--domain", type=int, default=1, help="the ego's ROS domain")
     ap.add_argument("--out", help="run outputs and the bag (default $SWB_LOG_ROOT/acceptance/<time>)")
     ap.add_argument("--play-log", default=str(LOG_ROOT / "ego"))
     ap.add_argument("--discovery", type=float, default=120.0,
                     help="s to wait for the recorder to subscribe")
     ap.add_argument("--run-timeout", type=float, default=900.0,
-                    help="s one `just scenario` may take, bring-up included")
+                    help="s one `just scenario-direct` may take, bring-up included")
     ap.add_argument("--json", help="write the full result here")
     args = ap.parse_args()
 
@@ -149,7 +149,7 @@ def main() -> int:
           f" output in {out}", flush=True)
 
     # Bring the stacks up (and wait for them) before the recorder joins, through the first
-    # run's own bring-up path: `just scenario` of the Isaac backend starts what is missing.
+    # run's own bring-up path: `just scenario-direct` of the Isaac backend starts what is missing.
     if args.sim == "isaac":
         maps = os.environ.get("CARLA_MAPS", str(PROJECT / "data/carla-autoware-bridge"))
         map_dir = subprocess.run(["just", "_scenario-map", scenario], capture_output=True,
@@ -171,14 +171,14 @@ def main() -> int:
             print(f"--- run {run}/{args.runs}", flush=True)
             started = time.time()
             with open(run_dir / "scenario.log", "w") as log:
-                child = subprocess.Popen(["just", "scenario", scenario, *extra,
+                child = subprocess.Popen(["just", "scenario-direct", scenario, *extra,
                                           f"output_directory:={run_dir}"], cwd=PROJECT,
                                          stdout=log, stderr=subprocess.STDOUT,
                                          start_new_session=True)
                 try:
                     child.wait(timeout=args.run_timeout)
                 except subprocess.TimeoutExpired:
-                    print(f"    `just scenario` outlasted {args.run_timeout:.0f} s")
+                    print(f"    `just scenario-direct` outlasted {args.run_timeout:.0f} s")
                     stop(child, signal.SIGTERM)
                 except BaseException:
                     stop(child, signal.SIGTERM)  # the scenario stack goes with this harness

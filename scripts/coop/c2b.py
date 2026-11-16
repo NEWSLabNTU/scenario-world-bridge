@@ -3,7 +3,7 @@
 
 Each run: a scenario with two `agent` entities on Town03's east straight (coop_b in CARLA's
 lane 3 of road 65, coop_a in lane 2 beside it; no Autoware), two cutin_agent.py
-processes with the run's context and rules, `just scenario` against a stack started with
+processes with the run's context and rules, `just scenario-direct` against a stack started with
 `ego_launch:=none` on Town03, then the payoffs from the agents' logs (their own and the other
 car's true states each tick) with cutin_game's utility, the run judged as arena.py judges it.
 
@@ -276,7 +276,7 @@ def run_one(out, d0, dv, pa, pb, seed, port, relay):
                                       stdout=open(rd / f"{ent}.log", "w"), stderr=subprocess.STDOUT, start_new_session=True))
     time.sleep(3)
     env = dict(os.environ, CARLA_PORT=str(port))
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT)
     for p in procs:
         try:

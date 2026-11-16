@@ -271,7 +271,7 @@ def run_one(out, d0, dv, seed, port):
     env = dict(os.environ, CARLA_PORT=str(port))
     # two Autoware stacks on a shared host: the ego's initialisation (its pose seeded on attach)
     # took longer than the scenario's default 120 s at load 80-100
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}",
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}",
                         f"initialize_duration:={INIT_S:g}"], cwd=ROOT, env=env,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT)
     lg.stop.set()

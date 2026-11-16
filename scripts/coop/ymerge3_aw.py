@@ -285,7 +285,7 @@ def run_one(out, lanes_path, lanes, dt, v, h, a, seed, port, relay, park=False):
     AGENT[:] = procs + [bag]
     time.sleep(3)
     t_wall = time.monotonic()
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=dict(os.environ, CARLA_PORT=str(port)),
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=dict(os.environ, CARLA_PORT=str(port)),
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT)
     wall = time.monotonic() - t_wall
     for p, sig in [(p, signal.SIGTERM) for p in procs] + [(bag, signal.SIGINT)]:

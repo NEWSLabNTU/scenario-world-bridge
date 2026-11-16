@@ -7,7 +7,7 @@ A is crossing_agent.py, a light agent on the crossing road, paced to reach Z dt 
 (`just ego-av`, its own process group) with the interaction_strategy node on (arm "on", or "commit": on, with
 the czp config directory --commit-config, e.g. the crossing row with `commit: on_move`;
 interaction_strategy:=true, Town05's czp zones, its decision log) or off (arm "off": stock), records
-a bag of the ego's domain, runs the scenario (`just scenario`) against the long-lived simulation side
+a bag of the ego's domain, runs the scenario (`just scenario-direct`) against the long-lived simulation side
 (`just run ego_launch:=none`, started by crossing_aw_run.sh), and scores the run from A's log (both
 cars' truth): who entered Z first, contact, clearance, PET, 2D TTC, each car's wait before Z, both
 stopped. The bag is read by crossing_aw_bag.py (RTC, the node, planning factors, EV4's tracks).
@@ -273,7 +273,7 @@ def run_one(out, arm, dt, rule, seed, side, a):
     PROCS[:] = [ego, agent, bag]
     time.sleep(3)
     tw = time.monotonic()
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}"], cwd=ROOT,
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT, start_new_session=True)
     wall = round(time.monotonic() - tw, 1)
     killpg(agent)

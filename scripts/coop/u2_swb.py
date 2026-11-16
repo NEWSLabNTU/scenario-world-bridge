@@ -4,7 +4,7 @@ scores it.
 
 Each run: a scenario with two `agent` entities (no Autoware) on Town03's roundabout -- coop_a at rest at
 its yield line on the entry from the south, coop_b on the ring's outer lane upstream -- two
-roundabout_agent.py processes with the run's context and rules, `just scenario` against a stack started
+roundabout_agent.py processes with the run's context and rules, `just scenario-direct` against a stack started
 with `ego_launch:=none` on Town03, then the payoffs from coop_a's log (both cars' true states each tick)
 with roundabout_game's utility, the run judged as roundabout_arena.py judges it. B warms up to v and its
 context, A holds; the scored window starts when the warm-up ends and stays on the ring (B circulates;
@@ -217,7 +217,7 @@ def run_one(out, fr, lanes, tb, a, b, seed, port, relay):
     time.sleep(3)
     env = dict(os.environ, CARLA_PORT=str(port))
     t_wall = time.monotonic()
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT)
     wall = time.monotonic() - t_wall
     for p in procs:

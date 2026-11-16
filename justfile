@@ -459,7 +459,7 @@ two-av *args: _require-carla
     echo "[two-av] running $(basename "$scenario_file")"
     junit="$output_directory/scenario_test_runner/result.junit.xml"
     rm -f "$junit"
-    just scenario "$scenario_file" output_directory:="$output_directory" 2>&1 | tail -5 || true
+    just scenario-direct "$scenario_file" output_directory:="$output_directory" 2>&1 | tail -5 || true
 
     stop_recording
     if [ -f "$junit" ]; then
@@ -619,7 +619,7 @@ demo-tour *args: _require-carla
     # The runner's cap is wall time and the tour runs ~5 min of simulation at a real-time
     # factor of ~0.8 (SSv2's own frame, roadmap 033 step 8): 400 s is too tight, and a loaded
     # host stretches it further. The tour's own stop trigger is 600 s of simulation time.
-    just scenario "$scenario" output_directory:="$output_directory" global_timeout:=1200 2>&1 | tail -3 || true
+    just scenario-direct "$scenario" output_directory:="$output_directory" global_timeout:=1200 2>&1 | tail -3 || true
     if [ -f "$junit" ] && grep -q 'failures="0" errors="0"' "$junit"; then
         echo "[demo-tour] tour PASSED"
     else
@@ -1464,9 +1464,50 @@ _clear-stale-scenario:
 # simulated seconds per wall-clock second (default 1.0); below 1 on a loaded host gives Autoware
 # more wall time per simulated second (roadmap 057: NDT starved at 1.0 under a load of 60-90).
 #
-# Usage: just scenario <xosc> [sim:=carla|isaac] [worlds:=Town01,..] [output_directory:=<dir>]
+# Run one scenario on the project workflow (roadmap 077 step 8): `ros2 run swb run` in the
+# project that holds the scenario (the nearest swb.yaml above it), else in
+# scenarios/projects/dev (CARLA's towns, the default Autoware ego), starting that project's
+# stack when it is not up and leaving it up. The run's result, timeline and logs are under
+# the host settings' logs (`ros2 run swb runs show <id>`). project:=<dir> names the project;
+# global_timeout:=<s> is SSv2's. The other SSv2 settings (frame_rate, initialize_duration,
+# real_time_factor, vehicle_model) are the project's `ssv2:`; output_directory:= and worlds:=
+# belong to the stack-based path, `just scenario-direct`, which keeps them.
+#
+# Usage: just scenario <xosc> [project:=<dir>] [global_timeout:=<s>]
 [positional-arguments]
 scenario scenario_file *args:
+    #!/usr/bin/env bash
+    set -e
+    shift
+    source "{{lib}}"; swb_reject_env
+    project=""; run_args=()
+    for a in "$@"; do
+        case "$a" in
+            project:=?*) project="${a#*:=}" ;;
+            global_timeout:=?*) run_args+=(--timeout "${a#*:=}") ;;
+            sim:=*|worlds:=*|output_directory:=*|initialize_duration:=*|frame_rate:=*|vehicle_model:=*|real_time_factor:=*)
+                echo "scenario: ${a%%:=*}:= is the stack-based path's: \`just scenario-direct {{scenario_file}} $a\`, or the project's ssv2: settings (roadmap 077 step 8)" >&2; exit 2 ;;
+            *) echo "scenario: unknown argument '$a' (project:=<dir>, global_timeout:=<s>)" >&2; exit 2 ;;
+        esac
+    done
+    file=$(realpath "{{scenario_file}}")
+    if [ -z "$project" ]; then
+        d=$(dirname "$file")
+        while [ "$d" != "/" ] && [ ! -f "$d/swb.yaml" ]; do d=$(dirname "$d"); done
+        if [ -f "$d/swb.yaml" ]; then project="$d"; else project="{{project}}/scenarios/projects/dev"; fi
+    fi
+    [ -f "$project/swb.yaml" ] || { echo "scenario: $project has no swb.yaml" >&2; exit 2; }
+    source "{{autoware_setup}}"
+    source "{{project}}/install/setup.bash"
+    echo "[scenario] project $project"
+    cd "$project"
+    exec ros2 run swb run "$file" --start-stack "${run_args[@]}"
+
+# The stack-based path (roadmap 073 S9), for developers: the scenario against `just run`'s
+# stack, outside any project.
+# Usage: just scenario-direct <xosc> [sim:=carla|isaac] [worlds:=Town01,..] [output_directory:=<dir>]
+[positional-arguments]
+scenario-direct scenario_file *args:
     #!/usr/bin/env bash
     set -e
     shift
@@ -1599,7 +1640,7 @@ e2e *args:
         CARLA_PORT={{carla_port}} WORLD_PORT={{world_port}} \
         ISAAC_PORT={{isaac_port}} SSV2_PORT={{ssv2_port}} AGENT_PORT={{agent_port}} \
         "$up" "$CARLA_MAPS/$map" "$CARLA_MAPS/$map"
-    just scenario "$scenario" sim:="$sim" output_directory:="$out" "${extra[@]}" || true
+    just scenario-direct "$scenario" sim:="$sim" output_directory:="$out" "${extra[@]}" || true
     junit="$out/scenario_test_runner/result.junit.xml"
     if [ ! -f "$junit" ]; then echo "[e2e] no verdict: $junit not written"; exit 1; fi
     if grep -q 'failures="0"' "$junit" && grep -q 'errors="0"' "$junit"; then

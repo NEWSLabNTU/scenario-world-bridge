@@ -105,7 +105,7 @@ run() {  # name xosc [scenario args...]
     rm -rf "$dir"; mkdir -p "$dir"
     say "run $name"
     start=$(date +%s.%N)
-    just scenario "$xosc" output_directory:="$dir" "$@" > "$dir/run.log" 2>&1 < /dev/null
+    just scenario-direct "$xosc" output_directory:="$dir" "$@" > "$dir/run.log" 2>&1 < /dev/null
     code=$?
     end=$(date +%s.%N)
     verdict=missing
@@ -176,7 +176,7 @@ for g in "${groups[@]}"; do
             ;;
         bench)
             stop_stack $((web + 2))
-            # No ego: `just scenario` starts no ego stack for it. SSv2 alone takes ~370 ms a
+            # No ego: `just scenario-direct` starts no ego stack for it. SSv2 alone takes ~370 ms a
             # frame with 20 NPCs here, so 60 s of simulation is ~7.5 min: past the 400 s cap.
             run bench_town01_npc_20 scenarios/bench/town01_npc_20.xosc global_timeout:=1200
             ;;

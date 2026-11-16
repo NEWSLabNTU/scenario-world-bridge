@@ -61,7 +61,7 @@ CHK="$OUT/check"; rm -rf "$CHK"; mkdir -p "$CHK"
 ( set +u; source "$ENVSH" >/dev/null 2>&1  # ROS setup scripts read unset variables
   exec ros2 bag record -s mcap -o "$CHK/bag" -e '^/localization/kinematic_state$' ) > "$CHK/bag.log" 2>&1 &
 BAG=$!; sleep 5
-just scenario "$R/scenarios/coop/town03_e2_lane_change_west.xosc" output_directory:="$CHK" > "$CHK/scenario.log" 2>&1
+just scenario-direct "$R/scenarios/coop/town03_e2_lane_change_west.xosc" output_directory:="$CHK" > "$CHK/scenario.log" 2>&1
 kill -INT $BAG; wait $BAG
 VMAX=$(in_env python3 - "$CHK/bag" <<'PY'
 import sys, rosbag2_py

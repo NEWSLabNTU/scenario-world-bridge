@@ -228,7 +228,7 @@ def run_one(out, d0, dv, pa, seed, port, relay):
     AGENT[:] = [agent, bag]
     time.sleep(3)
     env = dict(os.environ, CARLA_PORT=str(port))
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT)
     for p, sig in ((agent, signal.SIGTERM), (bag, signal.SIGINT)):
         try:

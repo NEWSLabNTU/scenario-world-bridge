@@ -5,7 +5,7 @@ against the arena (ymerge3_arena.py) on D2's yardstick.
 Each run: a scenario with three `agent` entities (no Autoware) on Town03 -- coop_a on the diagonal
 (road 44), coop_b on the main road (road 21) and coop_c behind it, each where its warm-up starts
 (ymerge3_town03's lanes, through the junctions before j1901) -- three ymerge3_agent.py processes
-with the run's context and A's rule, `just scenario` against a stack started with
+with the run's context and A's rule, `just scenario-direct` against a stack started with
 `ego_launch:=none` on Town03, then ymerge3.score3 on coop_a's log (all three cars' true states
 each tick), as the arena scores. A run whose warm-up missed its context (dt or C's headway off
 by more than 0.25 s, or a speed off by more than 10 %) is invalid and redone once.
@@ -156,7 +156,7 @@ def run_one(out, lanes_path, lanes, dt, v, h, a, seed, port, relay):
     time.sleep(3)
     env = dict(os.environ, CARLA_PORT=str(port))
     t_wall = time.monotonic()
-    r = subprocess.run(["just", "scenario", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
+    r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT, env=env,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT)
     wall = time.monotonic() - t_wall
     for p in procs:

@@ -72,13 +72,14 @@ source ~/.cargo/env
 cargo --version
 ```
 
-colcon's Rust plugin and [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or
-newer, which rosdep cannot install. Install them for your user into Humble's Python (the
+colcon's Rust plugin (with `tomli`, which it needs on Python 3.10 and does not pull in)
+and [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer, which rosdep
+cannot install. Install them for your user into Humble's Python (the
 system `python3`, 3.10), not into a virtual environment: `colcon` and `ros2` run on that
 Python and must find them.
 
 ```bash
-python3 -m pip install --user colcon-cargo-ros2==0.5.3 'play_launch>=0.30.0'
+python3 -m pip install --user colcon-cargo-ros2==0.5.3 tomli 'play_launch>=0.30.0'
 export PATH=$HOME/.local/bin:$PATH    # where pip --user puts play_launch
 play_launch --version
 ```

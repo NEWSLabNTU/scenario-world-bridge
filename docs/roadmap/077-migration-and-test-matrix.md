@@ -652,7 +652,12 @@ Isaac's rear contact (inventory row 18).
   Here a fresh clone at 05a2214, the same colcon-cargo-ros2 0.5.3 and install.md's command
   built acb_bridge, carla_manual_control and carla_pcd_gen (the plugin wrote one workspace
   `src/autoware_carla_bridge/.cargo/config.toml` with every patch), 60 packages before the
-  build was stopped for the host's memory; the acb failure is 241's host's, asked of 241.
+  build was stopped for the host's memory. 241 found the cause: colcon-cargo-ros2 0.5.3
+  reads Cargo.toml with `tomllib`, else `tomli`, and with neither (Python 3.10, a fresh
+  HOME) returns nothing and says nothing, so every crate is taken for a standalone one, with
+  only its own patches; this host's `~/.local` had tomli. install.md and `just setup` install
+  it; the plugin itself (the user's) should declare `tomli; python_version < "3.11"` and fail
+  on a TOML it cannot read, a release of its own.
   install.md now builds with `-DBUILD_TESTING=OFF` (as `just build` does; replay_testing
   comes only with a full rosdep install) and says how to drop the `[[patch.unused]]` lock
   entries a plain build leaves before a `git pull --rebase`.

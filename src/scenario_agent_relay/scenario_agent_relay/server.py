@@ -520,11 +520,12 @@ class AgentServer:
             threading.Thread(target=self._replay, args=(session, standing, phase or "?"),
                              daemon=True).start()
         elif phase in DRIVING_PHASES:
-            why = (f"its agent registered again while {phase}, and the relay holds no goal "
-                   "to hand back")
-            with self._lock:
-                self._lost[entity] = (why, time.time())
-            self.log.warning(f"entity {entity!r}: goal lost: {why}")
+            # no goal standing: the last one was cleared, stopped or ended with its episode,
+            # so this is a new agent's start (a `lifetime: run` pilot for the next run), not
+            # a driving agent that lost its goal; a restart mid-goal takes the branch above
+            # (roadmap 077, G32: this was taken for a loss and ended a run that had not begun)
+            self.log.info(f"entity {entity!r}: a new agent registered; the last one reported "
+                          f"{phase} and has no goal standing")
         self.log.info(f"entity {entity!r}: agent {session.agent or '?'} registered from "
                       f"{address[0]}:{address[1]}, protocol v{session.version} (capabilities: "
                       f"{', '.join(session.capabilities) or 'none'}; spec_hash "

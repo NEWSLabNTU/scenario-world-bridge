@@ -122,3 +122,18 @@ def test_a_stopped_car_or_a_new_episode_is_not_given_the_old_goal(server):
         c.recv()
     assert server.lost("ego") is None
     c.close()
+
+
+def test_a_new_agent_after_a_goal_that_ended_is_not_lost(server):
+    """Item 8 (2026-11-16): i1's pilot ended DRIVING with its goal gone at the scenario's
+    end; i3's fresh pilot registered and the run was ended as a lost goal."""
+    drive(server)
+    with server._lock:
+        server._standing["ego"]["goal"] = None    # what CLEAR_GOAL, STOP or a new episode do
+    b = FakeAgent(server.port)
+    state(b, P.IDLE)
+    b.sock.settimeout(0.8)
+    with pytest.raises(OSError):   # nothing handed back
+        b.recv()
+    assert server.lost("ego") is None
+    b.close()

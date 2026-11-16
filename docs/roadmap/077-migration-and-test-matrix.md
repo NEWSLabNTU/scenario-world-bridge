@@ -1271,3 +1271,16 @@ Isaac's rear contact (inventory row 18).
   note drops its roadmap reference (keeping its first words, which the sample shows); under
   `ros2 launch` the stack's first line names no web port; `seat show` with seat `auto` and a
   seat held says which one it holds, rather than `your seat: auto` beside `<- yours`.
+- **G74, i6 on Isaac touches the cyclist (found by swb 241, numbered by 133, 2026-11-17).**
+  Item 17's `isaac_demo/i6` (entry above; 243's ruling 63345e5: not a reference, no expected
+  `failed`, out of T3): two runs on 45b8e0f at host load 100-160 (2026-11-17T01-30-16 and
+  01-48-32, `town01_i6_cyclist_inside_r0`). SSv2 passed both (its boxes never touched);
+  incident_judge and physical_verdict failed both on contact with `i6_cyclist`: min_gap
+  0.17 m at 1.27 m/s (sim 33.8 s) and 0.18 m at 3.1 m/s (sim 34.2 s), Isaac's contact
+  report 6 frames each, peak impulse 55.5 and 45.1 N s; then the ego stopped, waited 2.9 to
+  3.1 s and yielded. So the ego closes within about 0.2 m of the cyclist's box while still
+  moving, and Isaac's cyclist body touches it. CARLA's demo passed i6 3 of 3, and 044 passed
+  it on Isaac (2026-10-23). Owners: the quiet rerun on Isaac is 241, when its load allows;
+  the classifying check, i6 on CARLA at current main with both judges, is 118 (reporting to
+  133 and 241). Rule (133): CARLA clean makes G74 an Isaac-only known limit for the release,
+  recorded as G65 is; CARLA failing too blocks the release until a cause is found.

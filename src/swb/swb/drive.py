@@ -183,6 +183,8 @@ def drive(ctx, entity: str, spawn: tuple, goal: tuple = None, map_name: str = No
                               build=results.installed_build())
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 spec_hash=rec.get("spec_hash") or {})
+    if pilot.get("overlays"):
+        prov["overlays"] = {entity: pilot["overlays"]}   # G60
     # the drive's steps go to its timeline; result.json keeps the schema's events
     with open(run_dir / "timeline.jsonl", "w") as f:
         for e in events:

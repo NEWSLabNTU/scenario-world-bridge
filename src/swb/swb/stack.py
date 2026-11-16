@@ -57,7 +57,7 @@ from pathlib import Path
 
 from swb import config, ground as groundmod, project as projectmod, results, seat as seatmod
 from swb import episodes as episodesmod, judges as judgesmod, simulator as simmod
-from swb import vehicles as vehiclesmod, world as worldmod
+from swb import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
@@ -220,7 +220,8 @@ def map_of(sc) -> str:
 
 
 def substitute(value, ctx: dict, where: str):
-    """``{run_dir}``, ``{seed}``, ``{run_id}``, ``{map_path}``, ``{param:<name>}`` in strings,
+    """``{run_dir}``, ``{seed}``, ``{run_id}``, ``{map_path}``, ``{param:<name>}``,
+    ``{workspace:<name>}`` (the host's ``workspaces:``, G60) in strings,
     lists, dicts. A ``{param:x}`` the context lacks raises StackRefused naming ``where``; so
     does ``{map_path}`` outside a run (a ``lifetime: stack`` pilot outlives a map switch)."""
     if isinstance(value, dict):
@@ -254,6 +255,14 @@ def substitute(value, ctx: dict, where: str):
                 raise StackRefused(f"{where}: {{map_path}} is the run's map; a lifetime: stack "
                                    "pilot outlives a map switch (lifetime: run)")
             out.append(str(ctx["map_path"]))
+        elif name.startswith("workspace:"):
+            w = name[len("workspace:"):]
+            dirs = ctx.get("workspaces") or {}
+            if w not in dirs:
+                raise StackRefused(f"{where}: {{workspace:{w}}} but this host names no "
+                                   f"workspace {w} (workspaces: {{{w}: <dir>}} in "
+                                   f"{overlaysmod.HOST_FILE})")
+            out.append(str(dirs[w]))
         elif name in ("run_dir", "seed", "run_id"):
             v = ctx.get(name)
             out.append("" if v is None else str(v))
@@ -651,7 +660,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         if car is not None:
             b.spec["args"] = {**own_car_args(car, b.kind, sim), **(b.spec.get("args") or {})}
     stack_pilots = [b for b in bound if b.lifetime == "stack"]
-    ctx = {"seed": 0, "run_dir": "", "run_id": "", "params": {}}
+    workspaces = {k: str(v) for k, v in overlaysmod.host_workspaces(host).items()}
+    ctx = {"seed": 0, "run_dir": "", "run_id": "", "params": {}, "workspaces": workspaces}
     entries = []
     for b in stack_pilots:
         entries.append(pilot_entry(b, project, ctx))
@@ -803,6 +813,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                        "ready": ready_command(b.spec, b.entity,
                                               f"tcp://localhost:{s.relay_port}"),
                        "spec": b.spec,
+                       "overlays": overlaysmod.resolved(project, b.spec, host),
                        "ready_at": None})
     numbers = s.numbers()
     record = {
@@ -834,6 +845,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "env": env,
         "pilots": pilots,
         "pilot_entries": entries,
+        "workspaces": workspaces,
         "pilot_contract": common,
         "pilots_dir": str(Path(swb_launch_share()) / "launch" / "pilots"),
         "spec_hash": {b.entity: h for b in bound
@@ -987,9 +999,15 @@ def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
     argv = (["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
              str(log_dir), *extra,
              os.path.join(rec["pilots_dir"], name)] + words)
-    return autoware_env_argv(rec.get("autoware_env"), argv) if p["kind"] == "autoware" else argv
+    extra = overlaysmod.flags(p.get("overlays"))
+    if p["kind"] == "autoware":
+        return autoware_env_argv(rec.get("autoware_env"), argv, extra)
+    if extra:
+        return ["bash", str(OVERLAY_ENV), *extra, "--", *argv]
+    return argv
 
 
+OVERLAY_ENV = Path(__file__).resolve().parent / "overlay_env.bash"
 AUTOWARE_ENV = Path(__file__).resolve().parent / "autoware_env.bash"
 CARLA_DECIDE = simmod.decide   # how plan() settles the stack's CARLA (tests wrap it)
 
@@ -1007,13 +1025,15 @@ def autoware_env(host: dict, workspace) -> dict:
             "cuda_ndt": exp(a.get("cuda_ndt")), "tensorrt_lib": exp(a.get("tensorrt_lib"))}
 
 
-def autoware_env_argv(env: dict, argv: list) -> list:
-    """``argv`` under autoware_env.bash: Autoware, the overlay, CUDA NDT, the installs and
-    TensorRT 10.8 sourced first, as the developer recipes do."""
+def autoware_env_argv(env: dict, argv: list, extra: list = ()) -> list:
+    """``argv`` under autoware_env.bash: Autoware, the overlay, CUDA NDT, the installs, the
+    pilot's own workspaces (``extra``: ``--overlay <setup.bash>`` pairs, G60) and TensorRT
+    10.8 sourced first, as the developer recipes do. Without Autoware's environment the
+    pilot's workspaces still come first (overlay_env.bash)."""
     if not env or not env.get("setup"):
-        return argv
+        return ["bash", str(OVERLAY_ENV), *extra, "--", *argv] if extra else argv
     return ["bash", str(AUTOWARE_ENV), env["workspace"], env["setup"], env["overlay"],
-            env["use_overlay"], env["cuda_ndt"], env["tensorrt_lib"], "--", *argv]
+            env["use_overlay"], env["cuda_ndt"], env["tensorrt_lib"], *extra, "--", *argv]
 
 
 def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):

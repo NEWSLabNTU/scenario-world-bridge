@@ -834,7 +834,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     if raised:   # recorded, not printed: a suite's output stays one line per run
         run_events.append({"t_wall": t0, "event": "ssv2.timeout_raised", **raised})
     sub = {"run_dir": str(run_dir), "seed": spec.seed if spec.seed is not None else 0,
-           "run_id": run_id, "params": spec.parameters, "map_path": rec.get("map_path") or ""}
+           "run_id": run_id, "params": spec.parameters, "map_path": rec.get("map_path") or "",
+           "workspaces": rec.get("workspaces") or {}}
     run_pilots = []
     for p in pilots:
         if p.get("lifetime") != "run":
@@ -998,6 +999,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                               build=results.installed_build())
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 spec_hash=rec.get("spec_hash") or {})
+    overlays = {p["entity"]: p["overlays"] for p in pilots if p.get("overlays")}
+    if overlays:
+        prov["overlays"] = overlays   # each pilot's own workspaces, path and commit (G60)
     world_server = worldmod.carla_world_settings(rec)
     if world_server:
         prov["world_server"] = world_server

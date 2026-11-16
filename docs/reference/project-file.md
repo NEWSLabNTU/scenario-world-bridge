@@ -76,6 +76,7 @@ match one.
 | `inputs` | all | what the pilot uses, recorded in results: `sensors`, `map`, `ground_truth` |
 | `rviz` | all | `true`: open RViz for this pilot |
 | `autoware_launch` | `autoware` | another `autoware.launch.xml` for the profile to include |
+| `overlays` | `autoware`, `launch` | ROS workspaces of your own the pilot sources, in order, after this workspace's installs and before the TensorRT runtime: a list of `setup.bash` files, each relative to the project or `{workspace:<name>}/<path>` under a directory the host settings name (`workspaces:`, [Host settings](host-settings.md)) |
 | `launch` | `launch` | the driver: `"<package> <file>"` or a path |
 | `agent` | `launch` | `own`: the launch registers the entity itself; default swb's vehicle agent |
 | `run` | `command` | the program's words (not a shell), relative paths the project's |
@@ -87,8 +88,31 @@ choices (`ndt:` is `autoware`, `cuda` or `none`) and a pair that cannot work tog
 (`ndt: none` with a diagnostic graph that judges NDT) are refused with the profile's message.
 A value holding a substitution is known per run only and is not checked.
 
+`overlays` is how a driver uses packages built in a workspace of its own, as
+autoware-drift's `drift.launch.xml` includes its `drift_controller`:
+
+```yaml
+pilots:
+  ego:
+    kind: autoware
+    vehicle: drift_mustang
+    overlays: ["{workspace:autoware-drift}/install/setup.bash"]
+    args:
+      extra_launch: "{workspace:autoware-drift}/install/drift_launch/share/\
+        drift_launch/launch/drift.launch.xml"
+```
+
+`project check` refuses a workspace name the host settings do not have and a setup file that
+is not there, naming the key to set. An absolute or `~` path works too, but it is a host path
+in a project file, and `project check` warns about it: name the directory in the host
+settings instead, so the project reads the same on every host. The stack's `stack.json` (each
+pilot's `overlays`) and every run's `result.json` (`provenance.overlays`) record each setup
+file's path and, when its workspace is a git checkout, the commit.
+
 Substitutions in `args` and `run`: `{seed}`, `{run_dir}`, `{run_id}`, `{map_path}` (the
-run's map directory, the one a launch pilot gets as `map_path`), `{param:<name>}`. A pilot
+run's map directory, the one a launch pilot gets as `map_path`), `{param:<name>}`,
+`{workspace:<name>}` (a directory the host settings' `workspaces:` names; an unknown name is
+refused). A pilot
 using `{param:...}` or `{map_path}` must be `lifetime: run`. Every pilot's launch receives the
 contract `entity`, `relay`, `map_path`, `vehicle`, `seed`, `run_dir`, `sim`,
 `use_sim_time:=true`; a `command` program gets `--relay --entity --seed [--run-dir]`. On

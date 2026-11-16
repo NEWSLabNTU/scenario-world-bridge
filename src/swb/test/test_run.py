@@ -228,6 +228,22 @@ def test_not_ready_refused(where, maps_hub, capsys):
     assert "is not running (state stopped)" in capsys.readouterr().err
 
 
+def test_a_runs_provenance_lists_the_pilots_overlays(live, where):
+    d, p = live
+    rec = json.loads(p.stack_json.read_text())
+    ov = [{"entry": "{workspace:drift}/install/setup.bash", "path": "/w/install/setup.bash",
+           "commit": "abc"}]
+    for x in rec["pilots"]:
+        if x["entity"] == "ego":
+            x["overlays"] = ov
+    p.stack_json.write_text(json.dumps(rec))
+    r = api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"logging": {"keep": {}}, "scenario_command": fake(where), "ready_timeout": 5})
+    stored = results.RunResult.read(where["tmp"] / "logs" / "proj" / "runs" / r.run_id /
+                                    "result.json")
+    assert stored.provenance["overlays"] == {"ego": ov}
+
+
 def test_fingerprint_mismatch_refused(live, capsys):
     d, _ = live
     (d / "swb.yaml").write_text((d / "swb.yaml").read_text().replace("kind: carla_basic",
@@ -252,6 +268,7 @@ def test_run_one_end_to_end(live, where):
     assert stored.scenario["file"] == "scenarios/three_pilots.xosc" and stored.scenario["seed"] == 5
     assert stored.provenance["stack_id"] == p.stack_id
     assert stored.provenance["simulator"] == "carla"
+    assert "overlays" not in stored.provenance   # no pilot names a workspace of its own
     assert set(stored.pilots) == {"ego", "lead", "follower"}
     assert stored.ssv2["junit"] == "junit.xml" and (run_dir / "junit.xml").is_file()
     # the slice holds only the run's line of the stack's bridge log

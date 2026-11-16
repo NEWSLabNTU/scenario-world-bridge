@@ -3,15 +3,22 @@
 # (roadmap 077, G1), then the pilot's own command.
 #
 #   autoware_env.bash <workspace> <autoware setup> <overlay dir|""> <overlay on: true|false>
-#                     <cuda ndt dir|""> <tensorrt lib dir|""> -- <command> [args...]
+#                     <cuda ndt dir|""> <tensorrt lib dir|""> [--overlay <setup.bash>]...
+#                     -- <command> [args...]
 #
 # 1. Autoware (its setup.bash); 2. the Autoware overlay (roadmap 042: the blind_spot, NDT step
 # and pose_instability fixes); 3. CUDA NDT, when built (its CUDA libraries first); 4. acb's and
-# this workspace's installs; 5. TensorRT 10.8.0 first on LD_LIBRARY_PATH, after every setup
-# that rewrites it. A missing piece warns, as the developer recipes do, and the pilot starts.
+# this workspace's installs; 5. the pilot's own workspaces (`overlays:`, G60), in order;
+# 6. TensorRT 10.8.0 first on LD_LIBRARY_PATH, after every setup that rewrites it. A missing
+# piece warns, as the developer recipes do, and the pilot starts.
 # no set -e: a setup script that returns non-zero must not stop the pilot
 ws="$1" setup="$2" overlay="$3" overlay_on="$4" ndt="$5" trt="$6"
 shift 6
+extra=()
+while [ "$1" = "--overlay" ]; do
+    extra+=("$2")
+    shift 2
+done
 [ "$1" = "--" ] && shift
 
 # The stack's DDS settings win: Autoware's setup.bash sets its own CYCLONEDDS_URI (and RMW),
@@ -35,6 +42,10 @@ fi
 [ -f "$ws/src/autoware_carla_bridge/install/setup.bash" ] && \
     source "$ws/src/autoware_carla_bridge/install/setup.bash"
 source "$ws/install/setup.bash"
+for f in "${extra[@]}"; do
+    # shellcheck disable=SC1090
+    source "$f"
+done
 source "$ws/scripts/autoware_tensorrt.bash"
 swb_tensorrt_source "${trt:-$ws/third_party/tensorrt/lib}"
 for kv in "${keep_dds[@]}"; do export "$kv"; done

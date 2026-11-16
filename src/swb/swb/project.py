@@ -21,7 +21,8 @@ import yaml
 
 from swb import assets, budget as budgetmod, config, ground as groundmod, isaac as isaacmod
 from swb import judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
-from swb import profile as profilemod, record as recordmod, ssv2 as ssv2mod, world as worldmod
+from swb import overlays as overlaysmod, profile as profilemod, record as recordmod
+from swb import ssv2 as ssv2mod, world as worldmod
 from swb.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -40,8 +41,8 @@ LATER_KINDS = ("container",)
 CARLA_ONLY = ("carla_basic",)
 COMMON_PILOT_KEYS = ("kind", "vehicle", "args", "lifetime", "ready", "inputs", "rviz")
 KIND_KEYS = {
-    "autoware": ("autoware_launch",),
-    "launch": ("launch", "agent"),
+    "autoware": ("autoware_launch", "overlays"),
+    "launch": ("launch", "agent", "overlays"),
     "command": ("run",),
 }
 KIND_REQUIRED = {"launch": "launch", "command": "run"}
@@ -432,6 +433,8 @@ def _check_pilot(name, p, sim) -> list:
         out.append(Finding(pf, f"{where}: args: is not a mapping", "args: {name: value}"))
     if p.get("vehicle") is not None and not isinstance(p["vehicle"], str):
         out.append(Finding(pf, f"{where}: vehicle: is not a catalog name"))
+    if kind in overlaysmod.KINDS:
+        out += overlaysmod.schema_problems(name, p)
     return out
 
 
@@ -736,6 +739,14 @@ def _package_installed(name: str) -> bool:
         return False
 
 
+def project_notes(path) -> list:
+    """Warnings for the project at ``path`` that do not stop it (a host path in swb.yaml)."""
+    try:
+        return overlaysmod.notes(config.project_settings(config.find_project(path)))
+    except config.ConfigError:
+        return []
+
+
 def check_project(path) -> list:
     """Every finding for the project at ``path`` (a directory or pkg://<package>)."""
     try:
@@ -782,6 +793,11 @@ def check_project(path) -> list:
             out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}",
                                refused="not fetched" in msg))
     out += profile_problems(project, settings)
+    try:
+        host = config.host_settings(project)
+    except config.ConfigError:
+        host = {}
+    out += overlaysmod.problems(project, settings, host)
     if sim == "isaac":
         out += isaacmod.findings(config.host_settings(project))
     files, found = collect_scenarios(project)
@@ -909,6 +925,8 @@ def main(argv=None):
         note = ""
     if note:
         print(f"warning: {note}")
+    for n in project_notes(args.dir or args.project):
+        print(f"warning: {n}")
     if not findings:
         print("project: ok")
     return exit_code(findings)

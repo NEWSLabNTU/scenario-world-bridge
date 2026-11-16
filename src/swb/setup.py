@@ -7,7 +7,7 @@ setup(
     version='0.1.0',
     packages=[package_name],
     # `project new`'s starters, read from beside swb/project.py
-    package_data={package_name: ['templates/*/*', 'templates/*/*/*', 'autoware_env.bash']},
+    package_data={package_name: ['templates/*/*', 'templates/*/*/*', 'autoware_env.bash', 'overlay_env.bash']},
     data_files=[
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),

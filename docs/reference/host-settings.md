@@ -17,6 +17,7 @@ seat: auto                       # a seat number, or auto: the first free one
 gpu: null                        # a GPU index over the seat table's
 logs: ~/.local/state/swb/logs    # the log root: on a fast disk (an SSD)
 cache: ~/.cache/swb              # the datasets, read-only, shared by your projects
+# workspaces: {autoware-drift: ~/repos/autoware-drift}   # a pilot's own ROS workspaces
 carla: {root: "", host: localhost, port: 2000}
 isaac: {root: ""}
 autoware: {setup: /opt/autoware/1.5.0/setup.bash}
@@ -37,6 +38,7 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |
 | `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A project's `- dataset: <name>` entry is then linked from that directory, with the project's `take:`, instead of fetched; `swb.lock` keeps only what came from the Hub, so the project reads the same on every host |
+| `workspaces` | `project check`, the stack | `{<name>: <directory>}`: ROS workspaces this host has built, for a pilot's `overlays:` entries `{workspace:<name>}/<path>` ([The project file](project-file.md)), as `datasets` names a dataset's copy; a project naming a workspace this host does not have is refused |
 | `carla.host`, `carla.port` | the stack, pilots | where CARLA serves its RPC port |
 | `carla.root` | the stack, pilots | CARLA's install: the `carla_basic` pilot's `agents` package (`<root>/PythonAPI/carla`), and the CARLA the stack starts (`carla.start`) |
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |

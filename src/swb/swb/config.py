@@ -27,6 +27,8 @@ DEFAULTS = {
     "cache": "~/.cache/swb",
     # datasets this host keeps a copy of itself, {<name>: <directory>} (roadmap 077, G8)
     "datasets": {},
+    # ROS workspaces a pilot's overlays: name, {<name>: <directory>} (roadmap 077, G60)
+    "workspaces": {},
     # start: auto (start CARLA from root when nothing serves host:port), start, external;
     # ready_timeout: s a started CARLA has to serve RPC (swb.simulator); map_packages: the
     # directories this host's CARLA towns are installed in (default: <root>/CarlaUE4/Content),

@@ -1265,8 +1265,7 @@ Isaac's rear contact (inventory row 18).
   `swb_core::config`, read by the bridge's world config and by the check (swb_world_protocol
   d09f26a, pinned 172ed91). Rerun on Isaac (241, 2026-11-17, on 2bf9f30, a standalone
   Isaac world server, host load 76): 25 passed, 0 failed. Closed (133).
-- **Item 21, the rough road under Autoware (swb 241, 2026-11-17): open, the stack hangs at
-  start.** Tutorial 7's exercise 2: `road_detail:` under `ground: Town01:` in road_physics'
+- **Item 21, the rough road under Autoware (swb 241, 2026-11-17): migrated, after issue 042.** Tutorial 7's exercise 2: `road_detail:` under `ground: Town01:` in road_physics'
   `swb.yaml`, the stack started again. Before it, issue 041: on a `just build` workspace
   `surfaces check` and `road_detail check` printed "No executable found", the entry template
   committed 100644 and `--symlink-install` linking the installed entry to it (swb_isaac_world
@@ -1282,8 +1281,17 @@ Isaac's rear contact (inventory row 18).
   starts again without a problem" does not hold, and item 21 stays out of T3. Fix assigned
   (133, 2026-11-17) to 241, before items 51 and 55: (a) FATAL detection moves out of Kit's
   process; (b) the G70 child starts before Kit, with a 1200 s startup deadline. Review: 243.
-  Tutorial 7's fallback (exercise 2 keeps only its `road_detail check`, the rough-road drive
-  not yet run) is held unpushed until the fix is verified, then dropped or pushed at the RC.
+  **Fixed and migrated (241, e3c29e9; swb_world_protocol 6f3aba5, swb_isaac_world 5d66ba5):**
+  the watchdog child, started before Kit, holds Kit's start and the preload as one 1200 s
+  block and reads Kit's log file for a FATAL line; no Python omni.log consumer, no timer in
+  the process (issue 011 updated: a FATAL now ends the world server by the child's SIGKILL,
+  not exit 75). `scenarios/projects/isaac_rough_road`, suite `rough`: isaac_first_drive's
+  drive_to_goal along the whole road_town corridor, retry on error once. Live: the stack
+  ready 2 of 2 (118 s and 98 s), drive_to_goal passed both; isaac_basic towns 2 of 2 on the
+  same code. In T3 part 2 (243). Tutorial 7's fallback is dropped: exercise 2 holds as
+  written. Review (243, after the push): no must-fix; 241 to show, from a live run, that the
+  path the world server logs as Kit's log is the file Kit writes (a `/log/file` holding a
+  time token would resolve to another name and silently watch nothing).
   Issue 043 (241, fixed in eb08cd3): a `ground:` file under `assets/` was linked into
   `state/` through the cache's path, and the next start refused it, "state/Town01/
   road_detail.yaml is not a link swb made"; exercise 2's restart hit it. The tutorial's

@@ -256,7 +256,7 @@ G32. An item with no open gap can be migrated now.
 | 18 | `isaac/town01_rear_contact` | Isaac | - | migrated 2026-11-17 (swb 241, isaac_basic suites/rear_contact, 70df975; T3 part 2) |
 | 19 | `scenarios/surfaces/` snow, soil, mud, wet, weather, zones, ... | Isaac | G7, G11 | blocked |
 | 20 | `road_physics` example | Isaac | - | ready to migrate |
-| 21 | Rough road on Town01 | Isaac | - | open 2026-11-17: the stack hangs at start under Autoware (swb 241, see 077) |
+| 21 | Rough road on Town01 | Isaac | - | migrated 2026-11-17 (swb 241, `scenarios/projects/isaac_rough_road` suites/rough, 2 of 2 after issue 042, e3c29e9; T3 part 2) |
 | 22 | NTU twin on Isaac: `ntu_twin_r01`, `_r02`, `_r01_lead`, ... | private assets (the user checks these, 077 ruling); Isaac | G4, G8 | blocked |
 | 23 | NTU open-data roads `scenarios/ntu/` | private assets (the user checks these, 077 ruling); Isaac | G8 | blocked |
 | 24 | Haruna `haruna_down.xosc` through swb, Tsukuba | Isaac | - | ready to migrate |

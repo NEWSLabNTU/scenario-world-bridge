@@ -1,7 +1,8 @@
 # 011: the Isaac world server hangs instead of exiting when Kit cannot go on
 
-**Severity**: medium. **Status**: fixed (swb_isaac_world: the world server exits 75 on a Kit
-fatal and when it is not up in 20 minutes; its launch respawns it). The fatal's cause is not
+**Severity**: medium. **Status**: fixed (swb_isaac_world: the world server ends on a Kit
+fatal and when it is not up in 20 minutes; its launch respawns it; since 2026-11-17, issue
+042, its watchdog child ends it from outside the process, by SIGKILL). The fatal's cause is not
 found. **Found**: 2026-10-26, roadmap 054 step 8.
 
 ## What is wrong
@@ -45,3 +46,12 @@ one (as `swb_carla_world` exits 75 for a dead CARLA connection):
 Checked: inside Kit, a FATAL on `omni.rtx` makes the process exit 75 at once (a probe); a
 world server with both guards starts as before (Town01 up in 100 s). Tests:
 `test_world_server.py` (the consumer passes only FATAL; the watchdog fires unless cancelled).
+
+Replaced (2026-11-17, [042](042-isaac-world-server-deadlocks-cooking-rocks-under-the-gil.md),
+swb_world_protocol `6f3aba5`, swb_isaac_world `5d66ba5`): the Python consumer deadlocked a
+PhysX cooking task on the GIL, and the in-process timer could not end a main thread holding
+it. Both guards are now the request-deadline child process's (roadmap 077 G70), started
+before Kit: it reads Kit's log file (`/log/file`) for a `] [Fatal] [` line, and holds Kit's
+start and the preload as one block with a 1200 s deadline. Either ends the world server as a
+request past its deadline does, stacks dumped and then SIGKILL, not exit 75; the launch
+respawns it the same way.

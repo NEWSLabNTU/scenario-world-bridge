@@ -40,3 +40,4 @@ suites:
   - {project: scenarios/projects/isaac_basic, suite: towns, sim: isaac, part: 2, parts: 3, minutes: 27}
   - {project: scenarios/projects/isaac_basic, suite: rear_contact, sim: isaac, part: 2, parts: 3, minutes: 11}
   - {project: scenarios/projects/isaac_road_physics, suite: road, sim: isaac, part: 2, parts: 3, minutes: 9}
+  - {project: scenarios/projects/isaac_rough_road, suite: rough, sim: isaac, part: 2, parts: 3, minutes: 9}

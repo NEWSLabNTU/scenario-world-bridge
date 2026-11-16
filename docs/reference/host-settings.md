@@ -17,6 +17,7 @@ seat: auto                       # a seat number, or auto: the first free one
 gpu: null                        # a GPU index over the seat table's
 logs: ~/.local/state/swb/logs    # the log root: on a fast disk (an SSD)
 cache: ~/.cache/swb              # the datasets, read-only, shared by your projects
+launcher: auto                   # auto, play_launch or ros2
 # workspaces: {autoware-drift: ~/repos/autoware-drift}   # a pilot's own ROS workspaces
 carla: {root: "", host: localhost, port: 2000}
 isaac: {root: ""}
@@ -44,6 +45,7 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |
 | `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
 | `carla.map_packages` | `project check` | the directories this host's CARLA towns are installed in (default: `<carla.root>/CarlaUE4/Content`); a project map needs its town there (`<town>.umap` in a package's `Maps/`), so a town you installed into CARLA yourself is this host's, not the project's. Unset with no `carla.root`: not checked |
+| `launcher` | `project check`, `seat show`, the stack, `run` | what starts the stack and each launch of it (its world server, its pilots, a run's SSv2): `auto` (default: play_launch when it is on `PATH` at 0.30 or later, else `ros2 launch`), `play_launch` (refused by `project check` when missing or older) or `ros2`; `launcher:=` on the stack's command line overrides it. `project check` and `seat show` print the choice (`launcher: auto -> play_launch 0.30.0`) |
 | `dds.profile` | the stack, `seat env` | a Cyclone DDS XML for every process of the stack and every exported terminal, in place of swb's localhost profile (a network that needs another, for example unicast on loopback); empty: swb's |
 | `isaac.root` | the stack | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)) |
 | `autoware.setup` | autoware pilots | Autoware's `setup.bash` (`/opt/autoware/1.5.0/setup.bash`); an autoware pilot sources it, then the items below, then this workspace's installs |

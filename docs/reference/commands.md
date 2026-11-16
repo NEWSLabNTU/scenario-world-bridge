@@ -31,7 +31,7 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 |---|---|
 | `project new <dir>` | writes a starter project into a new (or empty) directory; `--template carla-first-drive` (default), `multi-pilot` or `isaac` |
 | `project new <dir> --from <project>` | copies a project (a directory or `pkg://<package>/<dir>`) without `assets/`, `state/`, `runs/`, `.swb/` |
-| `project check [<dir>]` | validates `swb.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
+| `project check [<dir>]` | validates `swb.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints the launcher it resolved (`launcher: auto -> play_launch 0.30.0`), then `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
 
 ## `ros2 run swb assets`
 
@@ -48,7 +48,7 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 
 | Command | Does |
 |---|---|
-| `seat show` | every seat of the host's table, its numbers and its holder |
+| `seat show` | every seat of the host's table, its numbers and its holder, then the launcher line |
 | `seat take <n>` / `seat take auto` | records the seat as yours (`seat:` in `~/.config/swb/host.yaml`) |
 | `seat release` | sets your seat back to `auto` |
 | `seat env scenario` / `seat env <k>` | prints `export ROS_DOMAIN_ID=... RMW_IMPLEMENTATION=... CYCLONEDDS_URI=...` for the seat's scenario domain or its k-th pilot domain (from 0); use as `eval "$(ros2 run swb seat env scenario)"` |
@@ -76,6 +76,7 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 | `map` | CARLA: the first run's map; Isaac: the first map of the project's | the map the stack's pilots start on |
 | `logs` | the host settings' `logs:` | the log root |
 | `gpu` | the seat's | the GPU index (`CUDA_VISIBLE_DEVICES`) |
+| `launcher` | the host settings' `launcher:` | `auto`, `play_launch` or `ros2`: what starts the stack's own launches |
 | `stack_args` | empty | `name:=value ...` for the lower-level `stack.launch.py`: `side_args` and `sim_args` are merged by name with what the stack and `swb.yaml` give (yours win; a name the stack sets itself is refused), the rest (`vehicle_catalogs`, ...) after swb's own |
 
 `ego_launch`, `ego_launch_args`, `agent` and `map_path` are refused by name, given directly
@@ -84,10 +85,11 @@ file](project-file.md)), and the map is `map:=`.
 
 play_launch binds its web UI and opens its own log directory (`./play_log/`) before the
 launch file is read, so `--web-addr` (the seat's web port, `seat show`) and `--log-dir`
-are its command line's. `ros2 launch swb_launch swb.launch.xml` takes the same arguments,
-but play_launch must be installed: the stack runs its pilots and each run's SSv2 as
-play_launch processes of their own. Ctrl-C (SIGINT) stops the stack and everything it
-started.
+are its command line's. `ros2 launch swb_launch swb.launch.xml` takes the same arguments.
+The stack runs its world server, its pilots and each run's SSv2 as launches of their own,
+each with the host setting `launcher` ([Host settings](host-settings.md)): play_launch
+when it is installed at 0.30 or later, else `ros2 launch`; `launcher:=` overrides it for
+one stack. Ctrl-C (SIGINT) stops the stack and everything it started.
 
 ## `ros2 run swb run`
 

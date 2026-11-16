@@ -72,3 +72,38 @@ def test_another_simulator_starts_no_ego():
     import inspect
     src = inspect.getsource(stack._stack)
     assert "sim not in PRESETS" in src and "ego_launch:= your launch" not in src
+
+
+def test_nested_launches_under_each_launcher():
+    """Roadmap 079 step 10: a nested launch is play_launch's command line with its flags, or
+    `ros2 launch` with none of them and ROS_LOG_DIR in its environment."""
+    try:
+        stack.LAUNCHER["name"] = "play_launch"
+        p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, "/l",
+                         extra=("--container-mode", "isolated"))
+        cmd = [c[0].text for c in p.cmd]
+        assert cmd[:2] == ["play_launch", "launch"] and "--container-mode" in cmd
+        stack.LAUNCHER["name"] = "ros2"
+        p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, "/l",
+                         extra=("--container-mode", "isolated"))
+        cmd = [c[0].text for c in p.cmd]
+        assert cmd == ["ros2", "launch", "swb_launch", "a.launch.xml", "k:=v"]
+        env = {k[0].text: v[0].text for k, v in p.additional_env}
+        assert env == {"ROS_LOG_DIR": "/l", "ROS_DOMAIN_ID": "7"}
+        # the nested launch's own stop (SIGINT, 5 s, SIGTERM) ends before its SIGTERM
+        assert float(stack.NESTED_STOP_TIMEOUT) > 10.0
+    finally:
+        stack.LAUNCHER["name"] = "play_launch"
+
+
+def test_every_launch_file_parses_for_ros2_launch():
+    """Roadmap 079 step 10: `ros2 launch <file> --show-args` reads each top-level launch file."""
+    import shutil
+    import subprocess
+    import pytest
+    if shutil.which("ros2") is None:
+        pytest.skip("ros2 not on PATH")
+    for f in ("swb.launch.xml", "stack.launch.py", "scenario.launch.xml"):
+        r = subprocess.run(["ros2", "launch", os.path.join(LAUNCH, f), "--show-args"],
+                           capture_output=True, text=True, timeout=120)
+        assert r.returncode == 0, f"{f}: {r.stderr[-2000:]}"

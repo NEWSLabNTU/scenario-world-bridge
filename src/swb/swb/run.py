@@ -56,7 +56,7 @@ import yaml
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
 from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
-from swb import world as worldmod
+from swb import launcher as launchermod, world as worldmod
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -335,10 +335,10 @@ def stack_argv(project: Path, host: dict, seat: int, log_dir: Path) -> list:
     ``seat``, its web UI on the seat's port."""
     from swb import seat as seatmod
     s = seatmod.table(host, seatmod.seats_source(project))[seat]
-    argv = ["play_launch", "launch", "--web-addr", f"127.0.0.1:{s.web_port}", "--log-dir",
-            str(log_dir), "swb_launch", "swb.launch.xml", f"project:={project}", f"seat:={seat}",
-            f"logs:={host['logs']}"]
-    return argv
+    name = toolsmod.launcher(host.get("launcher"))[0]
+    return launchermod.command(name, ["swb_launch", "swb.launch.xml"],
+                               {"project": project, "seat": seat, "logs": host["logs"]},
+                               log_dir, web_port=s.web_port, diagnostics=True)
 
 
 def stack_env(s, base=None, host=None) -> dict:
@@ -489,9 +489,9 @@ def scenario_argv(rec: dict, spec: RunSpec, run_dir: Path, scenario: Path) -> li
         args["vehicle_model"] = ego["vehicle"]
     if spec.parameters and not spec.distribution:
         args["override_parameters"] = json.dumps({k: str(v) for k, v in spec.parameters.items()})
-    return (["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
-             str(run_dir / "logs" / "scenario"), "swb_launch", "scenario.launch.xml"]
-            + [f"{k}:={v}" for k, v in args.items()])
+    return launchermod.command(launchermod.of(rec), ["swb_launch", "scenario.launch.xml"],
+                               {k: str(v) for k, v in args.items()},
+                               run_dir / "logs" / "scenario")
 
 
 def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
@@ -1006,6 +1006,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     prov = results.provenance(ctx.workspace or stackmod.workspace_root() or project, project,
                               build=results.installed_build())
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
+                launcher=launchermod.of(rec),  # 079: which launcher ran the stack
                 spec_hash=rec.get("spec_hash") or {})
     overlays = {p["entity"]: p["overlays"] for p in pilots if p.get("overlays")}
     if overlays:

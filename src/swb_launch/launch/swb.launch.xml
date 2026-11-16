@@ -5,7 +5,8 @@
 
     play_launch launch swb_launch swb.launch.xml [project:=<dir>|pkg://<package>] \
         [seat:=<n>|auto] [simulator:=carla|isaac] [simulator_start:=auto|start|external] \
-        [map:=<map>] [logs:=<dir>] [gpu:=<n>] [stack_args:='name:=value ...']
+        [map:=<map>] [logs:=<dir>] [gpu:=<n>] [launcher:=auto|play_launch|ros2] \
+        [stack_args:='name:=value ...']
 
   On CARLA the stack starts CARLA itself (carla.root of the host settings) when nothing
   answers on its port (simulator_start auto, the default), always (start), or never
@@ -28,6 +29,7 @@
   <arg name="map" default="" description="the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"/>
   <arg name="logs" default="" description="the log root; empty: the host settings' logs:"/>
   <arg name="gpu" default="" description="the GPU index; empty: the seat's"/>
+  <arg name="launcher" default="" description="auto, play_launch or ros2: the launcher of the stack's nested launches; empty: the host settings' launcher: (auto)"/>
   <arg name="stack_args" default="" description="name:=value ... for stack.launch.py, after swb's own (they win); side_args and sim_args merge by name with swb's, whose own names are refused"/>
 
   <include file="$(find-pkg-share swb_launch)/launch/swb.launch.py">
@@ -38,6 +40,7 @@
     <arg name="map" value="$(var map)"/>
     <arg name="logs" value="$(var logs)"/>
     <arg name="gpu" value="$(var gpu)"/>
+    <arg name="launcher" value="$(var launcher)"/>
     <arg name="stack_args" value="$(var stack_args)"/>
   </include>
 </launch>

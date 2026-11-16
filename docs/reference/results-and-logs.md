@@ -67,7 +67,8 @@ Schema `swb.result/1`:
                      "inputs": ["sensors"], "version": "..."}},
   "provenance": {"swb": "<commit>", "submodules": {}, "simulator": "carla",
                  "swb_lock": "sha256:...", "spec_hash": {"ego": "..."},
-                 "host": "...", "gpu": "...", "stack_id": "..."}
+                 "host": "...", "gpu": "...", "stack_id": "...",
+                 "launcher": "play_launch | ros2"}
 }
 ```
 
@@ -76,6 +77,9 @@ uncommitted changes then) and `provenance.built` when; `provenance.checkout` is 
 checkout's commit at run time, present only when it differs. An install built without the
 workspace's build recipe (a plain `colcon build`) records the checkout's commit at run time
 as `swb`.
+
+`provenance.launcher` is the launcher the stack ran its launches with (the host setting
+`launcher`, resolved), so runs under play_launch and `ros2 launch` can be told apart.
 
 Event types: `collision.vehicle`, `collision.pedestrian`, `collision.static`, `red_light`,
 `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`.

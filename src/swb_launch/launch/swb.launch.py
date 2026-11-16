@@ -64,6 +64,7 @@ ARGS = {
     "map": ("", "the map the stack's pilots start on; empty: the first run's (CARLA), the first the project's scenarios name (Isaac)"),
     "logs": ("", "the log root; empty: the host settings' logs:"),
     "gpu": ("", "the GPU index; empty: the seat's"),
+    "launcher": ("", "auto, play_launch or ros2: the launcher of the stack's nested launches; empty: the host settings' launcher: (auto)"),
     "stack_args": ("", "name:=value ... for stack.launch.py, after swb's own (they win); side_args and sim_args merge by name with swb's, whose own names are refused"),
 }
 
@@ -110,6 +111,7 @@ def _swb(context):
                           simulator=get("simulator") or None, map_name=get("map") or None,
                           logs=get("logs") or None, gpu=get("gpu") or None,
                           simulator_start=get("simulator_start") or None,
+                          launcher=get("launcher") or None,
                           stack_args=named_args(get("stack_args")))
     except stack.StackRefused as e:
         _refused(e)

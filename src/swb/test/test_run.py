@@ -267,6 +267,7 @@ def test_run_one_end_to_end(live, where):
     stored = results.RunResult.read(run_dir / "result.json")
     assert stored.scenario["file"] == "scenarios/three_pilots.xosc" and stored.scenario["seed"] == 5
     assert stored.provenance["stack_id"] == p.stack_id
+    assert stored.provenance["launcher"] in ("play_launch", "ros2")  # 079: from stack.json
     assert stored.provenance["simulator"] == "carla"
     assert "overlays" not in stored.provenance   # no pilot names a workspace of its own
     assert set(stored.pilots) == {"ego", "lead", "follower"}

@@ -768,7 +768,12 @@ def check_project(path, scenarios: bool = True) -> list:
     except config.ConfigError as e:
         return [Finding(str(path or "."), str(e), refused=True)]
     out = check_schema(settings)
-    out += toolsmod.findings()
+    try:
+        launcher = config.host_settings(project).get("launcher")
+    except config.ConfigError:
+        launcher = "auto"
+    out += toolsmod.findings(launcher)
+    out += toolsmod.rmw_findings()
     out += toolsmod.agent_findings(settings)
     out += assets.check(project, settings)
     missing = False
@@ -955,6 +960,11 @@ def main(argv=None):
         print(f"warning: {note}")
     for n in project_notes(args.dir or args.project):
         print(f"warning: {n}")
+    try:
+        print(toolsmod.launcher_line(config.host_settings(
+            config.find_project(args.dir or args.project)).get("launcher")))
+    except config.ConfigError:
+        pass
     if not findings:
         print("project: ok")
     return exit_code(findings)

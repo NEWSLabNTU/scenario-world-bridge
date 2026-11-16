@@ -205,6 +205,10 @@ def fake_isaac(tmp, monkeypatch, built=PKGS, autoware_msgs=("_traffic_light_grou
         for ts in ("generator_c", "typesupport_c", "typesupport_fastrtps_c",
                    "typesupport_introspection_c"):
             (root / "msgs" / "lib" / f"lib{pkg}__rosidl_{ts}.so").write_text("")
+    # what the stack needs of the ROS install itself (project check asks the index)
+    index = ament / "share" / "ament_index" / "resource_index" / "packages"
+    index.mkdir(parents=True, exist_ok=True)
+    (index / "rmw_cyclonedds_cpp").write_text("")
     monkeypatch.setenv("AMENT_PREFIX_PATH", str(ament))
     return root, aw / "setup.bash"
 

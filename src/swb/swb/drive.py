@@ -30,6 +30,7 @@ from pathlib import Path
 
 import yaml
 
+from swb import launcher as launchermod
 from swb import config, results, run as runmod, stack as stackmod
 
 DEFAULT_TIMEOUT = 600.0
@@ -182,6 +183,7 @@ def drive(ctx, entity: str, spawn: tuple, goal: tuple = None, map_name: str = No
     prov = results.provenance(ctx.workspace or stackmod.workspace_root() or project, project,
                               build=results.installed_build())
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
+                launcher=launchermod.of(rec),  # 079: which launcher ran the stack
                 spec_hash=rec.get("spec_hash") or {})
     if pilot.get("overlays"):
         prov["overlays"] = {entity: pilot["overlays"]}   # G60

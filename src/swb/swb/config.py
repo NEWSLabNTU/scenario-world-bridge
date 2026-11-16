@@ -36,6 +36,9 @@ DEFAULTS = {
     "carla": {"root": "", "host": "localhost", "port": 2000, "start": "auto",
               "ready_timeout": 300, "map_packages": []},
     "isaac": {"root": ""},
+    # the launcher of the stack, its pilots and SSv2's scenario: auto (play_launch 0.30 or
+    # later when on PATH, else ros2 launch), play_launch or ros2 (roadmap 079)
+    "launcher": "auto",
     # dds.profile: a Cyclone DDS XML for every process of the stack and every tool that talks
     # to it (a host whose network needs another, e.g. unicast on loopback); "": swb_launch's
     # localhost profile (roadmap 077, G15)

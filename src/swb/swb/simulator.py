@@ -258,7 +258,7 @@ class Carla:
                                              stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                              cwd=str(root) if root else None,
                                              start_new_session=True,
-                                             preexec_fn=_die_with_parent)
+                                             preexec_fn=_carla_child)
             finally:
                 fh.close()
             self.reaper = start_reaper(self.proc.pid)
@@ -333,6 +333,14 @@ class Carla:
         _kill_group(proc.pid, signal.SIGKILL)  # the Shipping binary under the launcher's shell
         self.rec.update(state=STOPPED, pid=None)
         self.events("carla.stop", pid=proc.pid)
+
+
+def _carla_child():
+    """CARLA's launcher before exec: the stop's SIGINT at its default (see
+    swb.stack.default_signals), and SIGTERM when the keeper dies."""
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
+        signal.signal(sig, signal.SIG_DFL)
+    _die_with_parent()
 
 
 REAP_GRACE = 20.0   # a CARLA whose keeper died: SIGTERM, this long, then SIGKILL

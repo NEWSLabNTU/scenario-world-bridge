@@ -1,10 +1,12 @@
 """The host tools the project workflow needs, and their floors (roadmap 077, G26); the
 GPU's state when a stack starts (G27); a workspace checked out off its pins (G31); the
-Python modules CARLA's agents import (G38).
+Python modules CARLA's agents import (G38); the launcher (roadmap 079).
 
-``project check`` (so the stack before it starts) refuses a play_launch older than the
-workflow needs: an older one parses the stack's launch differently and fails later, far from
-the cause (a host with 0.18.3 needed another install before a run, 2026-11-15).
+The launcher is a host setting, ``launcher: auto | play_launch | ros2`` (``auto`` by
+default): play_launch when one at 0.30 or later is on PATH, else ``ros2 launch``. Only an
+explicit ``play_launch`` that is missing or older than 0.30 is refused: an older one parses
+the stack's launch differently and fails later, far from the cause (a host with 0.18.3
+needed another install before a run, 2026-11-15).
 """
 import os
 import re
@@ -38,20 +40,94 @@ def parse_version(out: str):
     return tuple(int(g) for g in m.groups()) if m else None
 
 
-def findings(version_fn=None) -> list:
+LAUNCHERS = ("auto", "play_launch", "ros2")
+
+
+def _version_text(version):
+    return ".".join(map(str, version)) if version else "?"
+
+
+def launcher(setting="auto", version_fn=None):
+    """``(launcher, why)``: the launcher a stack and a run use, ``play_launch`` or ``ros2``,
+    for the host setting ``setting``, and the words that say why ("play_launch 0.35.1",
+    "play_launch not on PATH"). An explicit ``play_launch`` is kept even when it is missing
+    (``findings`` refuses it)."""
+    setting = setting or "auto"
     version, path = (version_fn or play_launch_version)()
-    floor = ".".join(map(str, PLAY_LAUNCH_MIN))
     if path is None:
-        return [Finding("host", "play_launch is not on PATH (the stack runs under it)",
-                        PLAY_LAUNCH_FIX, refused=True)]
+        why = "play_launch not on PATH"
+    elif version is None:
+        why = f"{path}: play_launch's version does not parse"
+    elif version < PLAY_LAUNCH_MIN:
+        why = f"play_launch {_version_text(version)} is older than {_version_text(PLAY_LAUNCH_MIN)}"
+    else:
+        why = f"play_launch {_version_text(version)}"
+    if setting == "ros2":
+        return "ros2", "set"
+    if setting == "play_launch":
+        return "play_launch", why
+    usable = path is not None and version is not None and version >= PLAY_LAUNCH_MIN
+    return ("play_launch" if usable else "ros2"), why
+
+
+def launcher_line(setting="auto", version_fn=None) -> str:
+    """What `project check` and `seat show` print: "launcher: auto -> play_launch 0.35.1",
+    "launcher: auto -> ros2 (play_launch not on PATH)", "launcher: ros2"."""
+    setting = setting or "auto"
+    name, why = launcher(setting, version_fn)
+    if setting == "auto":
+        return f"launcher: auto -> {why}" if name == "play_launch" else \
+            f"launcher: auto -> ros2 ({why})"
+    return f"launcher: {setting}" if setting == "ros2" else f"launcher: play_launch ({why})"
+
+
+def findings(setting="auto", version_fn=None) -> list:
+    """Problems with the launcher: an unknown setting, or an explicit ``play_launch`` that is
+    missing or older than the workflow needs (``auto`` falls back to ros2 instead)."""
+    setting = setting or "auto"
+    if setting not in LAUNCHERS:
+        return [Finding("host settings", f"launcher: {setting!r} is not one of "
+                        f"{', '.join(LAUNCHERS)}", "launcher: auto", refused=True)]
+    if setting != "play_launch":
+        return []
+    version, path = (version_fn or play_launch_version)()
+    floor = _version_text(PLAY_LAUNCH_MIN)
+    if path is None:
+        return [Finding("host settings", "launcher: play_launch, but play_launch is not on "
+                        "PATH", f"{PLAY_LAUNCH_FIX}, or launcher: auto", refused=True)]
     if version is None:
-        return [Finding("host", f"{path}: its version does not parse (`play_launch --version`)"
-                        f"; the workflow needs {floor} or newer", PLAY_LAUNCH_FIX)]
+        return [Finding("host settings", f"launcher: play_launch, but {path}: its version does "
+                        f"not parse (`play_launch --version`); the workflow needs {floor} or "
+                        "newer", PLAY_LAUNCH_FIX)]
     if version < PLAY_LAUNCH_MIN:
-        have = ".".join(map(str, version))
-        return [Finding("host", f"play_launch {have} ({path}) is older than {floor}, which the "
-                        "stack needs", PLAY_LAUNCH_FIX, refused=True)]
+        return [Finding("host settings", f"launcher: play_launch, but play_launch "
+                        f"{_version_text(version)} ({path}) is older than {floor}",
+                        f"{PLAY_LAUNCH_FIX}, or launcher: auto", refused=True)]
     return []
+
+
+RMW = "rmw_cyclonedds_cpp"
+RMW_FIX = ("sudo apt install ros-humble-rmw-cyclonedds-cpp (or rosdep install --from-paths "
+           "src --ignore-src -y in the workspace)")
+
+
+def rmw_installed() -> bool:
+    """Whether Cyclone DDS's RMW, which every launch of the stack uses, is installed."""
+    try:
+        from ament_index_python.packages import get_package_prefix
+        get_package_prefix(RMW)
+        return True
+    except Exception:  # noqa: BLE001 (not found, or no ROS environment)
+        return False
+
+
+def rmw_findings(installed_fn=None) -> list:
+    """Cyclone DDS's RMW missing (roadmap 079, step 6): every process of the stack runs on it
+    (swb_launch's DDS profile), and a stock ROS 2 install may not have it."""
+    if (installed_fn or rmw_installed)():
+        return []
+    return [Finding("host", f"{RMW} is not installed (the stack runs on Cyclone DDS)", RMW_FIX,
+                    refused=True)]
 
 
 # GPU memory a stack's simulator needs on its card, roughly, as measured on Town01 (CARLA 0.9.16

@@ -19,6 +19,9 @@
   <exec_depend>czp</exec_depend>
   <!-- swb.launch.py: the project, seat and pilots plan (swb.stack) -->
   <exec_depend>swb</exec_depend>
+  <!-- every launch here runs on Cyclone DDS (config/cyclonedds-localhost.xml), which a stock
+       ROS 2 Humble install may lack: declared so rosdep installs it (roadmap 079, step 6) -->
+  <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <exec_depend>scenario_test_runner</exec_depend>
   <!-- stack.launch.py: the world servers, the default autopilots, the vehicle catalog -->
   <exec_depend>swb_carla_world</exec_depend>

@@ -73,6 +73,7 @@ CARLA_PORT), log_dir (SWB_LOG_ROOT, the nested launches' logs, default ./play_lo
 CYCLONEDDS_URI (default swb_launch's localhost profile), RMW_IMPLEMENTATION.
 """
 import os
+import sys
 import shlex
 
 from ament_index_python.packages import get_package_share_directory
@@ -143,17 +144,36 @@ def include(path, args):
     return IncludeLaunchDescription(AnyLaunchDescriptionSource(path), launch_arguments=args.items())
 
 
+def _launcher_module():
+    try:
+        from swb import launcher
+    except ImportError:  # a source tree without the swb package installed
+        here = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, os.path.join(here, "..", "..", "swb"))
+        from swb import launcher
+    return launcher
+
+
+# the launcher of the nested launches, `launcher:=` (set by _stack before any nested())
+LAUNCHER = {"name": "play_launch"}
+NESTED_STOP_TIMEOUT = "30"  # s, a nested launch's whole stop before its SIGTERM
+
+
 def nested(name, target, args, domain, log_dir, respawn=False, extra=(), required=False,
            env=None):
-    """A launch as its own play_launch process: its own lifetime, its own log directory.
-    No /diagnostics recording: nothing reads diagnostics.csv, and each nested launch kept its
-    own unbounded copy of the ego's, 0.75 GB an hour each (roadmap 077, G59)."""
-    cmd = ["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
-           log_dir, *extra, *target]
-    cmd += [f"{k}:={v}" for k, v in args.items()]
+    """A launch as its own launcher process (play_launch or `ros2 launch`, roadmap 079): its
+    own lifetime, its own log directory. Built by swb.launcher, which gives play_launch alone
+    its flags (`extra`; no /diagnostics recording, G59) and `ros2 launch` its ROS_LOG_DIR."""
+    cmd, launcher_env = _launcher_module().argv(LAUNCHER["name"], target, args, log_dir,
+                                                play_launch_flags=extra)
     return ExecuteProcess(cmd=cmd, name=name, output="screen", respawn=respawn,
                           respawn_delay=5.0 if respawn else 0.0,
-                          additional_env={**(env or {}), "ROS_DOMAIN_ID": str(domain)},
+                          # longer than the nested launch's own stop (SIGINT to its nodes,
+                          # SIGTERM 5 s later, then SIGKILL): a SIGTERM to it earlier leaves
+                          # its nodes running without a launch (roadmap 079, step 3)
+                          sigterm_timeout=NESTED_STOP_TIMEOUT,
+                          additional_env={**(env or {}), **launcher_env,
+                                          "ROS_DOMAIN_ID": str(domain)},
                           on_exit=Shutdown() if required else None)
 
 
@@ -314,6 +334,9 @@ def spec_physics(value, vehicle_model, spec_hash_file, share=None):
 
 def _stack(context):
     get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
+    LAUNCHER["name"] = get("launcher") or "play_launch"
+    if LAUNCHER["name"] not in ("play_launch", "ros2"):
+        raise RuntimeError(f"stack: launcher:={LAUNCHER['name']}: play_launch or ros2")
     sim = get("sim")
     if not sim:
         raise RuntimeError("stack: sim:= isaac, carla or a package of yours with launch/world.launch.xml")
@@ -521,6 +544,7 @@ def generate_launch_description():
         arg("carla_host", default_value=_env("CARLA_HOST", ""), description="CARLA's RPC host; default CARLA_HOST, else the world server's own default"),
         arg("carla_port", default_value=_env("CARLA_PORT", ""), description="CARLA's RPC port; default CARLA_PORT, else the world server's own default"),
         arg("nest_side", default_value="false", description="true: the world server and the simulation side (bridge, relay) as nested play_launches logging under log_dir/simulator and log_dir/bridge (swb.launch.xml's stack)"),
+        arg("launcher", default_value="play_launch", description="play_launch or ros2: the launcher of every nested launch (roadmap 079); swb.launch.xml's stack passes the host settings' resolved launcher"),
         arg("log_dir", default_value=_env("SWB_LOG_ROOT", "play_log"), description="where the nested launches (ego, agent, scenario, pilots; with nest_side the world server and the bridge) log"),
         # an argument, not the environment: swb.launch.py's SetEnvironmentVariable is not in
         # os.environ when this file is read, and a sourced Autoware exports its own profile

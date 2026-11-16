@@ -564,6 +564,8 @@ def main(argv=None) -> int:
                 print(f"{_format_numbers(s)}; {state}{tag}")
             if mine == "auto":
                 print("your seat: auto (the first free one when the stack starts)")
+            from swb import tools as toolsmod
+            print(toolsmod.launcher_line(settings.get("launcher")))
             return EXIT_OK
 
         if args.cmd == "release":

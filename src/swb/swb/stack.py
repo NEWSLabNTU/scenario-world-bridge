@@ -58,6 +58,7 @@ from pathlib import Path
 from swb import config, ground as groundmod, project as projectmod, results, seat as seatmod
 from swb import episodes as episodesmod, judges as judgesmod, simulator as simmod
 from swb import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
+from swb import launcher as launchermod, tools as toolsmod
 from swb.config import ConfigError
 
 SCHEMA = "swb.stack/1"
@@ -578,7 +579,7 @@ def isaac_kit_args(given: str, gpu) -> str:
 
 def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=None, gpu=None,
          stack_args=None, check=projectmod.check_stack, now=None, simulator_start=None,
-         probe=None) -> Plan:
+         probe=None, launcher=None) -> Plan:
     """Everything the stack is, before anything starts; StackRefused says why it must not."""
     retired = retired_args(stack_args or {})
     if retired:
@@ -594,6 +595,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         overrides["logs"] = logs
     if gpu not in (None, ""):
         overrides["gpu"] = int(gpu)
+    if launcher not in (None, ""):
+        overrides["launcher"] = launcher  # the launch argument beats the host setting
     try:
         host = config.host_settings(project, overrides)
         psettings = config.project_settings(project)
@@ -709,6 +712,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     args = {
         "sim": sim,
         "ego_launch": "none",
+        "launcher": toolsmod.launcher(host.get("launcher"))[0],
         "ego_domain": str(ego_domain),
         "scenario_domain": str(s.scenario_domain),
         "ssv2_port": str(s.ssv2_port),
@@ -830,6 +834,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "weather": ({"parameters": worldmod.weather_parameters(world), "state": WEATHER_PENDING}
                     if worldmod.weather_parameters(world) else None),
         "simulator_start": carla_run["owner"] if carla_run else simmod.WORLD_SERVER,
+        # the launcher of this stack's nested launches, resolved (roadmap 079)
+        "launcher": toolsmod.launcher(host.get("launcher"))[0],
         "carla": carla_run,
         "switch": None,
         "isaac_ego": isaac_ego,
@@ -993,12 +999,9 @@ def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
         v = "" if v is None else str(v)
         if v != "":
             words.append(f"{k}:={v}")
-    extra = ([] if p["kind"] == "carla_basic"
-             else ["--container-mode", "isolated", "--composable-respawn", "on-crash"])
-    # no /diagnostics recording (G59: an unbounded copy per nested launch, read by nothing)
-    argv = (["play_launch", "launch", "--disable-web-ui", "--disable-diagnostics", "--log-dir",
-             str(log_dir), *extra,
-             os.path.join(rec["pilots_dir"], name)] + words)
+    extra = () if p["kind"] == "carla_basic" else launchermod.ISOLATED_CONTAINERS
+    argv = launchermod.command(launchermod.of(rec), [os.path.join(rec["pilots_dir"], name)],
+                               words, log_dir, play_launch_flags=extra)
     extra = overlaysmod.flags(p.get("overlays"))
     if p["kind"] == "autoware":
         return autoware_env_argv(rec.get("autoware_env"), argv, extra)
@@ -1043,14 +1046,18 @@ def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):
     try:
         return subprocess.Popen(argv, env=env, stdout=fh, stderr=subprocess.STDOUT, cwd=cwd,
                                 start_new_session=True,
-                                preexec_fn=_die_with_parent if die_with_parent else None)
+                                preexec_fn=_child_with_death_signal if die_with_parent
+                                else default_signals)
     finally:
         fh.close()
 
 
 def stop_processes(procs, grace=STOP_GRACE):
-    """SIGINT to every process group, then SIGTERM, then SIGKILL, waiting for all at once."""
-    live = [p for p in procs if p is not None and p.poll() is None]
+    """SIGINT to every process group, then SIGTERM, then SIGKILL, waiting for all at once.
+    A group is stopped when none of it is left, not when its leader exits: `ros2 launch`
+    can exit on SIGINT before its children do (roadmap 079, step 3), and what it leaves in
+    the group gets the next signal."""
+    live = [p for p in procs if p is not None and (p.poll() is None or _group_alive(p.pid))]
     for sig, wait in ((signal.SIGINT, grace), (signal.SIGTERM, 10.0), (signal.SIGKILL, 5.0)):
         if not live:
             return
@@ -1061,10 +1068,31 @@ def stop_processes(procs, grace=STOP_GRACE):
                 pass
         deadline = time.time() + wait
         while time.time() < deadline:
-            live = [p for p in live if p.poll() is None]
+            live = [p for p in live if p.poll() is None or _group_alive(p.pid)]
             if not live:
                 return
             time.sleep(0.05)
+
+
+def _group_alive(pgid) -> bool:
+    """Any process left in group ``pgid`` (zombies excluded: init reaps them)."""
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/stat") as f:
+                fields = f.read().rsplit(")", 1)[1].split()
+        except OSError:
+            continue
+        if fields[0] != "Z" and int(fields[2]) == pgid:
+            return True
+    return False
 
 
 class Pilots:
@@ -1265,6 +1293,22 @@ def switch_map(stack_dir: Path, rec: dict, req: dict, pilots: Pilots) -> bool:
 
 
 # --- the keeper -----------------------------------------------------------------------------
+
+def default_signals():
+    """In a child before exec: SIGINT, SIGTERM and SIGQUIT at their defaults. An ignored
+    signal stays ignored across exec, and a command started in the background of a
+    non-interactive shell (`cmd &` in a script) has SIGINT ignored; `ros2 launch` then
+    installs no SIGINT handler, so the group's SIGINT stops its nodes (which set their own)
+    but not the launch, which respawns them (roadmap 079, step 3). A stop by SIGINT must
+    reach every launcher whatever shell started swb."""
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
+        signal.signal(sig, signal.SIG_DFL)
+
+
+def _child_with_death_signal():
+    default_signals()
+    _die_with_parent()
+
 
 def _die_with_parent():
     try:

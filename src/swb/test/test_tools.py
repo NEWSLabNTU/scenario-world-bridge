@@ -1,26 +1,58 @@
-"""swb.tools (roadmap 077, G26): play_launch's floor is checked before a stack starts."""
+"""swb.tools: the launcher (roadmap 079: `launcher: auto | play_launch | ros2`), and
+play_launch's floor when it is the one asked for (roadmap 077, G26)."""
 from swb import tools
 
+NEW = lambda: ((0, 35, 2), "/x/play_launch")  # noqa: E731
+OLD = lambda: ((0, 18, 3), "/x/play_launch")  # noqa: E731
+NONE = lambda: (None, None)  # noqa: E731
+GARBLED = lambda: (None, "/x/play_launch")  # noqa: E731
 
-def test_at_or_above_the_floor_is_fine():
-    assert tools.findings(lambda: ((0, 30, 0), "/x/play_launch")) == []
-    assert tools.findings(lambda: ((0, 35, 2), "/x/play_launch")) == []
+
+def test_auto_takes_play_launch_at_or_above_the_floor_else_ros2():
+    assert tools.launcher("auto", lambda: ((0, 30, 0), "/x/play_launch"))[0] == "play_launch"
+    assert tools.launcher("auto", NEW) == ("play_launch", "play_launch 0.35.2")
+    assert tools.launcher("auto", OLD) == ("ros2", "play_launch 0.18.3 is older than 0.30.0")
+    assert tools.launcher("auto", NONE) == ("ros2", "play_launch not on PATH")
+    assert tools.launcher("auto", GARBLED)[0] == "ros2"
+    assert tools.launcher(None, NEW)[0] == "play_launch"  # unset: auto
+    assert tools.launcher("ros2", NEW) == ("ros2", "set")
+    assert tools.launcher("play_launch", NONE)[0] == "play_launch"  # findings refuses it
 
 
-def test_an_older_play_launch_is_refused_naming_both_versions():
-    [f] = tools.findings(lambda: ((0, 18, 3), "/x/play_launch"))
+def test_the_line_project_check_and_seat_show_print():
+    assert tools.launcher_line("auto", NEW) == "launcher: auto -> play_launch 0.35.2"
+    assert tools.launcher_line("auto", NONE) == "launcher: auto -> ros2 (play_launch not on PATH)"
+    assert tools.launcher_line("ros2", NEW) == "launcher: ros2"
+    assert tools.launcher_line("play_launch", NEW) == "launcher: play_launch (play_launch 0.35.2)"
+
+
+def test_without_play_launch_auto_and_ros2_are_fine():
+    for setting in ("auto", None, "ros2"):
+        for fn in (NEW, OLD, NONE, GARBLED):
+            assert tools.findings(setting, fn) == []
+
+
+def test_an_explicit_play_launch_that_is_missing_or_old_is_refused():
+    [f] = tools.findings("play_launch", OLD)
     assert f.refused and "play_launch 0.18.3 (/x/play_launch) is older than 0.30.0" in f.what
-    assert "play_launch>=0.30.0" in f.fix
-
-
-def test_none_on_path_is_refused():
-    [f] = tools.findings(lambda: (None, None))
+    assert "play_launch>=0.30.0" in f.fix and "launcher: auto" in f.fix
+    [f] = tools.findings("play_launch", NONE)
     assert f.refused and "not on PATH" in f.what
-
-
-def test_an_unparsed_version_is_a_problem_not_a_refusal():
-    [f] = tools.findings(lambda: (None, "/x/play_launch"))
+    [f] = tools.findings("play_launch", GARBLED)
     assert not f.refused and "does not parse" in f.what
+    assert tools.findings("play_launch", NEW) == []
+
+
+def test_an_unknown_launcher_is_refused():
+    [f] = tools.findings("roslaunch", NEW)
+    assert f.refused and "'roslaunch' is not one of auto, play_launch, ros2" in f.what
+
+
+def test_cyclone_dds_missing_is_refused_with_its_install():
+    assert tools.rmw_findings(lambda: True) == []
+    [f] = tools.rmw_findings(lambda: False)
+    assert f.refused and "rmw_cyclonedds_cpp is not installed" in f.what
+    assert "ros-humble-rmw-cyclonedds-cpp" in f.fix
 
 
 def test_the_version_line_parses():

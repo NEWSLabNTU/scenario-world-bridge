@@ -203,7 +203,7 @@ chmod u+w scenarios/haruna_down.xosc
 
 Its ego is the catalog car `drift_mustang`, made for a drift controller that is not part
 of this project: set its `entryName` to `tesla_model3`, the car of the project's pilot.
-`project check` names the mismatch if you forget.
+`project check` names the mismatch, and exits 1, if you forget.
 
 The Isaac stack serves one world for its life. Stop it (Ctrl-C) and start it on the
 course:

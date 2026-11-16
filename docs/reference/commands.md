@@ -19,6 +19,12 @@ copies it; the copy holds its lock, assets, state and runs.
 | 2 | an infrastructure error: a run the stack could not judge, Hugging Face unreachable |
 | 3 | refused: no stack or the wrong one, a missing asset, bad input |
 
+`project check` and `assets check` give 3 only for what leaves the project unusable on this
+host as it stands: an asset or map not fetched, a project file or asset entry that cannot be
+read, a car that is not installed or whose body is off its catalog box. Anything else they
+find in what you wrote is 1: a scenario whose car is not its pilot's, an entity without a
+pilot, a suite key it does not know. The stack refuses to start (3) on either.
+
 ## `ros2 run swb project`
 
 | Command | Does |

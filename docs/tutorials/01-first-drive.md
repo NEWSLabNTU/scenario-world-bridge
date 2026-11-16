@@ -71,7 +71,9 @@ ros2 run swb project check
 echo $?
 ```
 
-It lists two problems, both with the same fix, and exits 3 (refused):
+It lists two problems, both with the same fix, and exits 3 (refused: the assets are
+missing). A problem in what you wrote, such as a scenario whose car is not its pilot's,
+exits 1 instead ([Exit codes](../reference/commands.md#exit-codes)):
 
 ```
 problem: swb.lock: missing: the assets were never fetched (fix: ros2 run swb assets ...

@@ -663,11 +663,17 @@ class CrashWatch:
             n = int(m.group(2))
             if n >= self.limit and (worst is None or n > worst[1]):
                 worst = (m.group(1), n)
-        died = {}
+        died, stopping = {}, False
         for line in text.splitlines():
+            if timeline.LAUNCH_START.match(line):
+                # the launch again (a pilot respawned within the run, appending to the
+                # same console): its own instance, counted afresh
+                died, stopping = {}, False
+                continue
             if timeline.SHUTDOWN.match(line):
-                break  # the stop's deaths, not crashes (timeline.SHUTDOWN says why)
-            m = timeline.DIED.match(line)
+                stopping = True  # the stop's deaths, not crashes (timeline.SHUTDOWN says why)
+                continue
+            m = None if stopping else timeline.DIED.match(line)
             if m:
                 died[m.group(1)] = n = died.get(m.group(1), 0) + 1
                 if n >= self.limit and (worst is None or n > worst[1]):

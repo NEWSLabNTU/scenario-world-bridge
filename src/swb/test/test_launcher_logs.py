@@ -189,6 +189,27 @@ def test_crash_watch_ignores_deaths_at_shutdown(tmp_path):
     assert _watch(tmp_path, "nested.log", [], after) is None
 
 
+START = "[INFO] [launch]: All log files can be found below /logs/2026-11-16-21-24-02-1-host-9"
+STOP = "[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)"
+
+
+def test_crash_watch_counts_each_launch_instance_of_an_appended_console(tmp_path):
+    """A pilot's launch that stops and comes back within the run appends to one console:
+    the first instance's stop does not end the count of the second, its deaths at the stop
+    do not count, and each instance is counted afresh."""
+    # before the watch: a stale stop and deaths, never read
+    stale = [START] + [_r2_died(n) for n in range(9)] + [STOP]
+    first = [START, _r2_died(10), _r2_died(11), STOP] + [_r2_died(20 + n, code=-11)
+                                                          for n in range(6)]
+    second = [START] + [_r2_died(30 + n) for n in range(5)]
+    assert _watch(tmp_path, "two.log", stale, first + second) == ("command_follower", 5)
+    # two deaths in the first instance, three in the second: neither is at the limit
+    second3 = [START] + [_r2_died(30 + n) for n in range(3)]
+    assert _watch(tmp_path, "split.log", stale, first + second3) is None
+    # the first instance's stop alone, its deaths after it: nothing
+    assert _watch(tmp_path, "stop1.log", stale, first) is None
+
+
 # --- SSv2's hint ----------------------------------------------------------------------------
 
 def test_ssv2_hint_same_under_either_launcher(tmp_path):

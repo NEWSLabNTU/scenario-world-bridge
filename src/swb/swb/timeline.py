@@ -65,6 +65,9 @@ _LAUNCH_NUM = re.compile(r"^(.+)-\d+$")
 DIED = re.compile(r"^\[ERROR\] \[([^\]\s]+-\d+)\]: process has died \[pid \d+, exit code (-?\d+)")
 SHUTDOWN = re.compile(r"^\[(?:INFO|WARNING|ERROR)\] \[launch\]: (?:user interrupted with ctrl-c"
                       r"|.*\bshutting down\b)")
+# A launch's first line: a console a respawned launch appends to holds one instance after
+# another, each with its own stop and deaths
+LAUNCH_START = re.compile(r"^\[INFO\] \[launch\]: All log files can be found below ")
 
 # SSv2 milestones: (logger suffix or None, pattern, event)
 _MILESTONES = [

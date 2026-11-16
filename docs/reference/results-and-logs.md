@@ -109,11 +109,11 @@ prints it as a table; `runs why <id>` prints its first WARN or ERROR and its gro
 A slice holds what the launcher wrote, and the two launchers lay it out differently.
 play_launch writes `<time>/node/<name>/out` and `err` per process (`load_node/<name>/` for
 a component in a process of its own), and its own lines to `console.log`. `ros2 launch`
-writes everything a process prints to its screen, `console.log`, each line led by
-`[<name>-<n>]`; beside it are rcl's `<executable>_<pid>_<ms>.log` files and its own
-`<time>-<host>-<pid>/launch.log`, which hold copies of the screen's lines. The timeline
-reads each line once: from play_launch's node files and console, and from the `ros2
-launch` screen, taking rcl's files and `launch.log` only where no `console.log` is beside
+writes everything a process prints (its standard output and error) to `console.log`,
+each line led by `[<name>-<n>]`; beside it are rcl's `<executable>_<pid>_<ms>.log` files
+and its own `<time>-<host>-<pid>/launch.log`, which hold copies of the console's lines.
+The timeline reads each line once: from play_launch's node files and console, and from
+the `ros2 launch` console, taking rcl's files and `launch.log` only where no `console.log` is beside
 them. A process has the same name under either launcher: without the `-<n>`, the
 `_<pid>_<ms>` or a `.py`, and a component in a `component_container` takes its node's
 name, as play_launch names its process.

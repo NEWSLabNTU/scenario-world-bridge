@@ -675,8 +675,17 @@ sharing a project.
     rebuilt (aib's `build_msgs.sh autoware_perception_msgs`), drive_to_goal passed (91 s
     scenario; the command 16 min 20 s, about 15 min of it the stack start) and follow_to_goal
     passed on the same stack (73 s scenario, 1 min 18 s wall). `kill -INT` of the stack left
-    nothing. Its frictions are 077's G25 to G30. The second host of the shard check is still
-    to come (a CARLA batch holds that host).
+    nothing. Its frictions are 077's G25 to G30.
+  - The shard check's second host (swb 241, 2026-11-16, origin/main 979ef22):
+    `cut_in_seeds.yaml --shard 2/2 --start-stack --stop-stack` passed 2 of 2 (seeds 1001 and
+    1003; cut-in at 43.0 and 40.0 m), the stack starting and stopping its own CARLA, 11 min
+    36 s wall with about 2 min of start. One run errored once (Autoware held in INITIALIZING,
+    as once per batch on that host) and its retry passed. The first try errored on CARLA's
+    agents' missing shapely and networkx (077 G38), and the host settings needed `carla:
+    {root: ...}` before `--start-stack` started CARLA (077 G39). The two shards' run
+    directories, copied side by side, summarise into one table with `runs summary`; that copy
+    has no command of its own (077 G17). Report on the NAS, "2026-11-16 swb 076 step 9 shard 2
+    of 2".
   - `vehicles:` is checked, not loaded: a project's own car needs its catalog entry and
     physics generated from its spec and handed to the bridge and world server. Its own phase,
     with an example of three different cars in one run.

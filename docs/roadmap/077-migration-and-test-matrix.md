@@ -477,3 +477,80 @@ Isaac's rear contact (inventory row 18).
   see, not only the picture: the NPCs' bodies come from the same catalogue, so it stays ahead
   of G33. Live: a `simple` drive on Town10 passed with the variable naming the project's set,
   and the world server logged no box stand-in.
+- **G33 built (2026-11-16).** A judge may `need: [context]`: the runner then records SSv2's
+  storyboard state changes (`/simulation/context`, as changes only) into the run's
+  `context.jsonl` (swb.context), kept at `standard`. `python3 -m swb.gap incident --incident
+  auto` takes the incident's number from the scenario's name, so one judge serves a suite of
+  them; i7 and i8 have no row in incident_judge's table and record `error` there. The demo
+  incidents are a study project, `scenarios/projects/demo` (suites for items 8, 9, 10).
+- **G39 (found and built 2026-11-16).** A stack on CARLA with `carla.start: auto` and no
+  `carla.root` used whatever served the port; with nothing there it waited out its 1800 s
+  readiness, the world server's "cannot read the CARLA server version" its only word (item
+  8's first attempt, a project without `.swb/local.yaml`). Now refused at once, naming the
+  three ways out; `simulator_start:=external` still waits.
+- **075 step 8, CARLA guides (swb 118, 2026-11-16).** Every command of README, install.md,
+  carla.md and tutorials 01 to 05 run once on origin/main 11a2407 by a fresh reader (own HOME,
+  fresh clone). All run end to end (68 packages in 8 min; T1 to T5 pass). Report on the NAS,
+  "2026-11-16 075 step 8 CARLA guides". Its findings, as gaps:
+  - **G40**: install.md's `rosdep install --from-paths src --ignore-src -y` fails on
+    `python-yamale-pip` (scenario_test_runner) and installs nothing; needs `-r` (then it adds
+    pygame, lanelet2, shapely, networkx) and `pip install --user yamale`.
+  - **G41**: under play_launch 0.35 the stack's progress lines (seat, CARLA, pilot ready,
+    ready) reach only the keeper's log, not the terminal: a reader cannot tell when the stack
+    is up.
+  - **G42**: the `physical_verdict` judge in T5 and safety_suite fails every clean run ("no
+    contact report from the bridge in the run window"); `--contacts {run_dir}/contacts`
+    passes.
+  - **G43**: play_launch writes `play_log/` into the project; the generated `.gitignore`
+    does not list it.
+  - **G44**: `swb-agent new` prints three check commands that fail; `ros2 run swb_agent
+    swb-agent check <file>:<Class>` works.
+  - **G45**: the stack prints "CARLA serves RPC (None)", not its version, and "web UI: pass
+    --web-addr" when it was passed.
+  - **G46**, doc corrections: T3's `ls state/Town01/` (the dataset ships the signal table);
+    T1 step 5's kept files for a passed run; T4's cut-in jitter (plus or minus 5 m, not plus
+    up to 5); T2's elided `<Axles>`; T5's prune dry run (`--older-than 0`); T5 exercise 3's
+    counts (28 and 10, with the judge's testcase) and time (about 61 min); install.md's
+    interactive rustup (`-s -- -y`) and the first build time (about 8 min on 48 cores); T1
+    step 4's first start (CenterPoint's minutes; clustering ready in 10 s); 075 step 8's page
+    list (the current set is the one above).
+  - Minor: a failing `ros2 run swb` also prints ros2run's "Process exited with failure N".
+- **G42 built (2026-11-16): a false pass as well as a false failure.** physical_verdict read
+  the bridge's default report directory (`~/.ros/swb/contacts`), never the run's. On a fresh
+  host it found nothing and failed every clean run (118's finding); on ours it judged the
+  newest report there, from 2026-11-14, so every `physical_verdict` pass recorded by the
+  basic and safety_suite runs since is a verdict on some other run, not on the run it sits
+  beside. As a swb judge (`SWB_RUN_DIR` set) without `--contacts` it now reads the run's own
+  `contacts/` and judges every report in it. No other judge reads a shared path (gap_oracle
+  and incident_judge get the run's files from swb.gap; run_suite, which also defaults to it,
+  is not a judge). Those passes are to be rerun before they are counted.
+- **G40 built (2026-11-16).** install.md's rosdep line is the justfile's (`--from-paths
+  $(colcon list --base-paths src -p) --skip-keys python-yamale-pip`, then pip's yamale);
+  `rosdep install --simulate` exits 0 with it. rustup runs with `-s -- -y`.
+- **G41 built (2026-11-16), with G45's two lines.** The keeper writes its lines to its
+  launcher's stdout as well (`/proc/<parent>/fd/1`, unless that is its own), so `play_launch
+  launch ... swb.launch.xml` shows seat, CARLA, pilots and ready in its terminal, and
+  `--start-stack`'s console log has them. The first line names the web UI the launcher was
+  given (`--web-addr`), the hint only when none was. "CARLA serves RPC (None)": the probe's
+  reading of CARLA's version, checked on the next live CARLA.
+- **075 step 8, Isaac guides (swb 118, 2026-11-16).** isaac.md, T6 and T7 by a fresh reader
+  on origin/main 75e00ab: the install (Isaac 6.1.0.0, 6 min) and the message build work as
+  written; Haruna ran. That host's driver (615.71.09) loses the GPU on every Town01 render
+  (ERROR_DEVICE_LOST, 22 world-server crashes in 30 min), so T6 steps 3 to 5 and T7 steps 3
+  to 5 were blocked by the host, not the pages. Report on the NAS, "2026-11-16 075 step 8
+  Isaac guides". Its findings, as gaps:
+  - **G47**: `swb_world_check hello ... --wait 1800` gives up after 2 s ("no answer within
+    2 s") while the world server starts; T6 step 3's check relies on the wait.
+  - **G48**: a run that ends because SSv2 timed out ("The simulation has timed out.
+    Forcibly inactivate" in its log) is `error ... SSv2 wrote no JUnit (None)`; `runs why`
+    does not say it timed out (T6 step 6, haruna_down with tesla_model3, 7 min).
+  - **G49**: isaac.md alone installs neither shapely nor networkx (G38's modules); the reader
+    had them from carla.md.
+  - **G50**: `project check` exits 1 on a car mismatch, where T1 calls 3 "refused".
+  - **G51**, doc corrections: isaac.md's check `ls $ISAAC_ROOT/msgs` in a new terminal (the
+    page has just said no export is needed: `ls ~/isaac-sim/msgs`); where the two-GPU
+    `ISAAC_KIT_ARGS` export goes; the install takes 6 min, the hour is T6's fetch; T6 step
+    2's set is 19 GB (11840 files, 2 h 28 min here), not "several GB"; T6 step 6 says
+    nothing of what to expect on the drift course with a Model 3; T7 step 3's quoted log
+    line is stale (now `soil zone mud_road: cut (...) out of 8 mesh(es)` and `32 tiles of
+    1.6 m at z 0.00`).

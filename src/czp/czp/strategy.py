@@ -18,6 +18,11 @@ trajectory is given), nearest first; per zone the objects placed by ``relate`` a
   mode would do, one cycle later. Readings of clear or contested at the band's edges, which used to
   toggle the mode at every flip (078 P2: 216 switches in 26 runs), now change only the command. A failed
   contract, or no status of the module near, releases at once.
+- a dropped partner (078 P2c ruling): a car of the deciding zone's conflict set that leaves it without being
+  seen to exit the zone (it was inside) or to turn away (it is still tracked and moving, placed off the
+  zone's approaches) keeps the last decision for ``mode_hold``; it is not read as clear. A track that drops
+  for a cycle at rest (P2c: the ego crept 1 m under the module's ``safe`` while the other car stood) no
+  longer hands over to the module. A failed contract still releases at once.
 """
 
 from __future__ import annotations
@@ -67,6 +72,7 @@ class Actions:
     records: list = field(default_factory=list)
     decision: object = None
     zone: object = None
+    held_dropped: tuple = ()  # partners that dropped out of the conflict set unseen, holding the decision
 
 
 class Strategy:
@@ -87,6 +93,10 @@ class Strategy:
         self.sent = {}  # uuid -> last command sent
         self.limited = False
         self.equiv_since = None  # since when every decision has been stock or stock-equivalent (the mode hysteresis)
+        self.last_chosen = None  # (decision, zone) of the last cycle with a decision that is not stock's
+        self.partners = {}  # that zone's conflict set as last seen: id -> placed Agent
+        self.drop_since = None  # since when a dropped partner holds the last decision
+        self.dropped = ()  # the partners holding it (for the record)
         self.counts = {"rtc": 0, "auto_mode": 0, "velocity_limit": 0}
 
     def candidates(self, x, y, yaw, traj=None, cache=None):
@@ -109,6 +119,33 @@ class Strategy:
         out.sort(key=lambda r: r[0])
         return out
 
+    def _dropped_hold(self, t, agents, confl_by_zone, s_entry_by_zone, contract):
+        """The last decision, held while a partner of its zone that dropped out of the conflict set unseen is
+        within ``mode_hold`` of its drop (the 078 P2c ruling); None once released (and the memory cleared)."""
+        dec, z = self.last_chosen
+        if contract or z.id not in confl_by_zone:  # a failed contract, or the zone is behind the car
+            self.last_chosen, self.partners, self.drop_since, self.dropped = None, {}, None, ()
+            return None
+        present = {ag.id for ag in confl_by_zone[z.id]}
+        tracked = {ag.id: ag for ag in agents}
+
+        def seen_leaving(last):
+            if last.s_entry <= 0.0:  # it was inside the zone: it exits
+                return True
+            now = tracked.get(last.id)
+            return now is not None and now.v > self.p.moved_speed  # tracked and moving, off the approaches: turned away
+
+        dropped = tuple(i for i, last in self.partners.items() if i not in present and not seen_leaving(last))
+        if dropped and self.drop_since is None:
+            self.drop_since = t
+        if not dropped or t - self.drop_since >= self.p.mode_hold - 1e-9:
+            self.last_chosen, self.partners, self.drop_since, self.dropped = None, {}, None, ()
+            return None
+        for ag in confl_by_zone[z.id]:
+            self.partners[ag.id] = ag
+        self.dropped = dropped
+        return dec, z, s_entry_by_zone[z.id]
+
     def cycle(self, t, ego, objects, traj=None, statuses=(), obs_age=0.0, cycle_time=0.0, max_zones=3):
         """ego: (x, y, yaw, v, a). objects: [Obj]. statuses: [Status] of the driven modules. Returns Actions."""
         t0 = time.perf_counter()
@@ -124,6 +161,8 @@ class Strategy:
         chosen = None
         contract = False
         cache = {}
+        confl_by_zone = {}
+        s_entry_by_zone = {}
         for s_entry, z, ap, s_exit in self.candidates(x, y, yaw, traj, cache)[:max_zones]:
             own = Agent("ego", approach=ap.id, s_entry=s_entry, s_exit=s_exit, v=v, a=a, stamp=t, cap=self.own_cap,
                         pose=(x, y, yaw))
@@ -131,6 +170,7 @@ class Strategy:
             near_agents = [ag for ag in agents if abs(ag.pose[0] - cx) < self.horizon and abs(ag.pose[1] - cy) < self.horizon]
             rel = conflict_set(relate(near_agents, own, [z], cache=cache).get(z.id, []))
             confl = [ag for _, ag in rel]
+            confl_by_zone[z.id], s_entry_by_zone[z.id] = confl, s_entry
             inp = C.Inputs(obs_age=obs_age, cycle_time=cycle_time,
                            track_age={ag.id: ag.track_age for ag in confl},
                            accel={ag.id: (ag.a, ag.cap.a_max, ag.cap.b_max) for ag in confl})
@@ -140,6 +180,14 @@ class Strategy:
             if chosen is None and dec.kind != STOCK and not dec.stock_equivalent:
                 chosen = (dec, z, s_entry)
             contract = contract or (dec.kind == STOCK and dec.reason == "contract")
+        if chosen is not None:
+            self.last_chosen = (chosen[0], chosen[1])
+            self.partners = {ag.id: ag for ag in confl_by_zone.get(chosen[1].id, [])}
+            self.drop_since, self.dropped = None, ()
+        elif self.last_chosen is not None:
+            chosen = self._dropped_hold(t, agents, confl_by_zone, s_entry_by_zone, contract)
+            if chosen is not None:
+                acts.held_dropped = self.dropped
         near = [s for s in statuses if s.module in self.modules]
         if chosen is not None:
             self.equiv_since = None

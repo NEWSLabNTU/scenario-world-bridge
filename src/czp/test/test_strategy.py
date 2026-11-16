@@ -60,11 +60,60 @@ def test_tie_takes_rtc_then_back_to_auto():
     assert acts.decision is not None and acts.decision.kind in ("wait", "yield")
     assert ("intersection", False) in acts.auto_mode
     assert ("intersection", "ab" * 16, False) in acts.rtc
-    # it has gone: for mode_hold the module stays manual and follows its own safe (ACTIVATE here), then auto
+    # its track is gone, unseen leaving (078 P2c ruling): the last decision holds for mode_hold; then for mode_hold
+    # the module stays manual and follows its own safe (ACTIVATE here); then auto
     acts = st.cycle(2.0, (x, y, h, 0.0, 0.0), [], None, stat, 0.1)
-    assert not acts.auto_mode and acts.rtc == [("intersection", "ab" * 16, True)]
+    assert not acts.auto_mode and not acts.rtc and acts.held_dropped == ("o1",)
     acts = st.cycle(2.0 + st.p.mode_hold, (x, y, h, 0.0, 0.0), [], None, stat, 0.1)
+    assert not acts.auto_mode and acts.rtc == [("intersection", "ab" * 16, True)] and not acts.held_dropped
+    acts = st.cycle(2.0 + 2 * st.p.mode_hold, (x, y, h, 0.0, 0.0), [], None, stat, 0.1)
     assert ("intersection", True) in acts.auto_mode and not acts.rtc
+
+
+def test_partner_seen_leaving_is_not_held():
+    """078 P2c ruling: a partner seen inside the zone that then drops out of the conflict set has exited; one still
+    tracked and moving off the approaches has turned away. Neither holds the decision: the mode hysteresis starts
+    at once (the module's own safe)."""
+    zones, z = setup()
+    a0, a1 = z.approaches
+    stat = [Status("intersection", "ab" * 16)]
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    for case in ("exit", "turn"):
+        st = Strategy(zones)
+        acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)], None, stat, 0.1)
+        assert acts.decision is not None
+        if case == "exit":
+            ix, iy, ih = pose_on(a1, -3.0)  # its front 3 m inside
+            acts = st.cycle(0.5, (x, y, h, 0.0, 0.0), [Obj("o1", 1, ix, iy, ih, 6.0, 0.0)], None, stat, 0.1)
+            assert st.partners["o1"].s_entry <= 0.0
+            objs = []
+        else:  # tracked, moving, heading 90 degrees off its approach: placed off the zone
+            objs = [Obj("o1", 1, ox, oy, oh + math.pi / 2, 6.0, 0.0)]
+        acts = st.cycle(1.0, (x, y, h, 0.0, 0.0), objs, None, stat, 0.1)
+        assert not acts.held_dropped and acts.rtc == [("intersection", "ab" * 16, True)], (case, acts)
+
+
+def test_dropped_partner_at_rest_holds_the_wait():
+    """078 P2c: the other car at rest at its line drops from the conflict set for one cycle (its track's yaw flips,
+    or the track is lost). The node keeps its wait (DEACTIVATE stays), not the module's safe = true; a failed
+    contract still releases at once."""
+    zones, z = setup()
+    a0, a1 = z.approaches
+    stat = [Status("intersection", "ab" * 16, safe=True)]
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    st = Strategy(zones)
+    obj = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)]
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1)
+    assert acts.decision.kind in ("wait", "yield") and ("intersection", "ab" * 16, False) in acts.rtc
+    rest = [Obj("o1", 1, ox, oy, oh + math.pi / 2, 0.0, 0.0)]  # at rest, its yaw read 90 degrees off
+    for k in range(1, int(st.p.mode_hold / 0.1)):
+        acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), rest, None, stat, 0.1)
+        assert acts.held_dropped == ("o1",) and not acts.rtc and not acts.auto_mode, k
+        assert acts.decision.kind in ("wait", "yield")
+    acts = st.cycle(0.1 * k + 0.1, (x, y, h, 6.0, 0.0), rest, None, stat, obs_age=5.0)  # the latency contract fails
+    assert ("intersection", True) in acts.auto_mode and not acts.held_dropped
 
 
 def test_mode_hysteresis_band_edge_flicker():
@@ -83,7 +132,8 @@ def test_mode_hysteresis_band_edge_flicker():
         acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), objs, None, stat, 0.1)
         switches += len(acts.auto_mode)
     assert switches == 1 and st.manual == {"intersection"}
-    for k in range(20, 20 + int(st.p.mode_hold / 0.1) + 2):
+    # the last [] spell is a dropped partner (unseen leaving): mode_hold held, then mode_hold of hysteresis
+    for k in range(20, 20 + int(2 * st.p.mode_hold / 0.1) + 2):
         acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), [], None, stat, 0.1)
         switches += len(acts.auto_mode)
     assert switches == 2 and not st.manual

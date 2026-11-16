@@ -1092,3 +1092,9 @@ Isaac's rear contact (inventory row 18).
   the seat (`seat: <n>`, or `auto`: the one seat whose stack you hold, else an error naming
   `seat take`), the project from the working directory; `--host` and `--port` go before or after
   the subcommand. 11 tests; commands.md and T2 say so.
+- **i6 on a quiet GPU (swb 118, 2026-11-16; NAS "2026-11-16 077 i6 quiet GPU check").** 6 of 6
+  passed after the re-path (096df33): the cyclist's least box gap 0.52-0.57 m, no contact,
+  ego_yielded in all six. The margin over the 0.5 m target is 2-7 cm; in the tour the ego
+  passes the closest point at 1.7-2.6 m/s and then stands 1.4-1.5 s. The quiet-GPU point of
+  the re-path entry is closed; the late turn-in and the attention area's edge stay open as
+  written there.

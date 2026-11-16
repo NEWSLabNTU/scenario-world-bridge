@@ -141,12 +141,19 @@ warn under newer GCCs, and SSv2 builds with warnings as errors). Then:
 
 ```bash
 colcon build \
-    --cmake-args -DCMAKE_BUILD_TYPE=Release \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
     --cargo-args --release
 ```
 
-colcon prints `Summary: <n> packages finished` at the end. A package that failed is named
-in `Summary: ... failed`; its log is under `log/latest_build/<package>/`.
+`-DBUILD_TESTING=OFF` leaves out the packages' own tests, which need test-only packages
+(`ros-humble-replay-testing` for SSv2's test runner) that only a full `rosdep install`
+brings. colcon prints `Summary: <n> packages finished` at the end. A package that failed is
+named in `Summary: ... failed`; its log is under `log/latest_build/<package>/`.
+
+The build adds `[[patch.unused]]` entries to `Cargo.lock` and to
+`src/autoware_carla_bridge/Cargo.lock` (the message crates it generates). They are the build's,
+not yours: before a `git pull --rebase`, drop them with
+`git checkout -- Cargo.lock && git -C src/autoware_carla_bridge checkout -- Cargo.lock`.
 
 Once per user, give Autoware a writable data directory, `~/autoware_data` (TensorRT writes
 its engines there, so they are built once and kept):

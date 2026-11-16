@@ -638,6 +638,18 @@ Isaac's rear contact (inventory row 18).
   closes, so the lead brakes at its fallback point 107 m ahead. 034's 5 of 5 (2026-10-16)
   predates it. Not a regression: inventory rows 8 to 10 named the wrong pilot. The demo
   project's ego takes item 11's arguments.
+- **The fresh-clone build (2026-11-16, 241's 075 step 8 pass; a release must-have).** On
+  241, install.md's `colcon build` failed three packages from a fresh clone at 85465d6:
+  carla_manual_control and carla_pcd_gen ("no matching package named
+  autoware_adapi_v1_msgs ... required by acb_bridge", the plugin's patches written per
+  package), and scenario_test_runner (`find_package(replay_testing)` under BUILD_TESTING).
+  Here a fresh clone at 05a2214, the same colcon-cargo-ros2 0.5.3 and install.md's command
+  built acb_bridge, carla_manual_control and carla_pcd_gen (the plugin wrote one workspace
+  `src/autoware_carla_bridge/.cargo/config.toml` with every patch), 60 packages before the
+  build was stopped for the host's memory; the acb failure is 241's host's, asked of 241.
+  install.md now builds with `-DBUILD_TESTING=OFF` (as `just build` does; replay_testing
+  comes only with a full rosdep install) and says how to drop the `[[patch.unused]]` lock
+  entries a plain build leaves before a `git pull --rebase`.
 - **G55 (found 2026-11-16, swb 118, item 14): an installed car runs CARLA's blueprint
   physics.** On a project stack the tesla_model3 ran with acb's "carla_physics none": the
   stack sets `vehicle_physics` only for an own car, so the spec's tires and mass reach CARLA

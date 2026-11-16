@@ -122,8 +122,12 @@ is not the same as, or an ancestor of, this repository's pin of that repository.
 
 ## Coding Practices
 
-### Use play_launch instead of ros2 launch
-All launch commands use `play_launch launch` (with `--web-addr` for the web UI), not `ros2 launch` directly.
+### Prefer play_launch to ros2 launch
+play_launch is the recommended launcher, not a requirement: the stack must remain usable with
+plain `ros2 launch` (roadmap 079, ROS 2 compatibility). The recipes here use `play_launch launch`
+(with `--web-addr` for the web UI) for its per-node logs and supervision. When stopping a
+`ros2 launch`, signal its whole process group (SIGINT, then SIGTERM), never SIGKILL the launch
+process alone: that leaves its children orphaned.
 
 ### Project settings are arguments, host settings are environment
 

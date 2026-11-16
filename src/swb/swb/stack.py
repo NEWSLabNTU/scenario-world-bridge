@@ -1562,6 +1562,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
     print(f"swb stack {rec['stack_id']}: seat {s.index}; scenario domain {s.scenario_domain}, "
           f"SSv2 {s.ssv2_port}, relay {s.relay_port}, world server {s.world_port}; "
           + (f"web UI http://{web}; " if (web := launcher_web_addr()) else
+             "no web UI (ros2 launch); " if launchermod.of(rec) == "ros2" else
              f"web UI: pass --web-addr 127.0.0.1:{s.web_port}; ")
           + "pilots on "
           f"{rec.get('map') or 'the first run' + chr(39) + 's map'}", flush=True)
@@ -1700,7 +1701,14 @@ def main(argv=None) -> int:
         return 0 if is_registered(a.relay, a.entity) else 1
     if a.cmd == "keep":
         _die_with_parent()
-        tee_to_launcher()
+        try:
+            launcher = launchermod.of(read_json(Path(a.stack_dir) / STACK_JSON))
+        except (OSError, ValueError):
+            launcher = "play_launch"
+        if launcher == "play_launch":
+            # ros2 launch shows its processes' output already ([stack_keeper-1] ...): a tee
+            # there would print each line twice (079)
+            tee_to_launcher()
         command = None
         if a.pilot_wrap:
             wrap = shlex.split(a.pilot_wrap)

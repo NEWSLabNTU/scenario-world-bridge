@@ -225,21 +225,27 @@ incidents:
       y: -153.84
       yaw: -1.5714
       route_m: 1240.0
+    # The cyclist's line is 1.87 m right of the lane's centre (x 334.68; the lane's right bound
+    # is x 332.68), so the 0.6 m bicycle passes the 2.16 m Model 3 with 0.49 m to its side when
+    # the ego is on the centre line, 0.54-0.60 m as Autoware drives it (4-8 cm left of centre).
+    # It was 1.47 m: 0.10-0.15 m, and an overlap when the ego turned in as it passed (roadmap
+    # 077). The line stays inside blind_spot's attention area, whose right side is the lane's
+    # bound (x 332.72) and which takes an object by its centre.
     cyclist_spawn:
-      x: 333.21
+      x: 332.81
       y: -145.84
       yaw: -1.5714
       route_m: 1232.0
     cyclist_turn:
-      x: 333.19
+      x: 332.79
       y: -185.65
       yaw: -1.5714
     cyclist_far:
-      x: 333.14
+      x: 332.74
       y: -269.16
       yaw: -1.5714
     cyclist_end:
-      x: 333.15
+      x: 332.75
       y: -249.16
       yaw: -1.5714
     turn_entry:

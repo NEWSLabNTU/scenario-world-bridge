@@ -61,7 +61,7 @@
 				<Actors selectTriggeringEntities="false"><EntityRef entityRef="i6_cyclist" /></Actors>
 				<Maneuver name="i6_m">
 					<Event name="i6_start" priority="parallel" maximumExecutionCount="1">
-						<Action name="add_i6_cyclist"><GlobalAction><EntityAction entityRef="i6_cyclist"><AddEntityAction><Position><WorldPosition x="333.21" y="-145.84" z="0.00" h="-1.5714" p="0" r="0" /></Position></AddEntityAction></EntityAction></GlobalAction></Action><Action name="i6_riding"><PrivateAction><LongitudinalAction><SpeedAction>
+						<Action name="add_i6_cyclist"><GlobalAction><EntityAction entityRef="i6_cyclist"><AddEntityAction><Position><WorldPosition x="332.81" y="-145.84" z="0.00" h="-1.5714" p="0" r="0" /></Position></AddEntityAction></EntityAction></GlobalAction></Action><Action name="i6_riding"><PrivateAction><LongitudinalAction><SpeedAction>
 							<SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time" />
 							<SpeedActionTarget><AbsoluteTargetSpeed value="7.5" /></SpeedActionTarget>
 						</SpeedAction></LongitudinalAction></PrivateAction></Action><Action name="i6_start_live"><GlobalAction><ParameterAction parameterRef="i6_phase"><SetAction value="1" /></ParameterAction></GlobalAction></Action><Action name="i6_start_log"><UserDefinedAction><CustomCommandAction type="test(i6, start, i6)" /></UserDefinedAction></Action>
@@ -74,7 +74,7 @@
 							<TimeReference><Timing domainAbsoluteRelative="relative" offset="0" scale="1" /></TimeReference>
 							<TrajectoryFollowingMode followingMode="position" />
 							<TrajectoryRef><Trajectory name="i6_ride_path" closed="false"><ParameterDeclarations />
-								<Shape><Polyline><Vertex><Position><WorldPosition x="333.21" y="-145.84" z="0.00" h="-1.5714" p="0" r="0" /></Position></Vertex><Vertex><Position><WorldPosition x="333.19" y="-185.65" z="0.00" h="-1.5714" p="0" r="0" /></Position></Vertex><Vertex><Position><WorldPosition x="333.14" y="-269.16" z="0.00" h="-1.5714" p="0" r="0" /></Position></Vertex></Polyline></Shape>
+								<Shape><Polyline><Vertex><Position><WorldPosition x="332.81" y="-145.84" z="0.00" h="-1.5714" p="0" r="0" /></Position></Vertex><Vertex><Position><WorldPosition x="332.79" y="-185.65" z="0.00" h="-1.5714" p="0" r="0" /></Position></Vertex><Vertex><Position><WorldPosition x="332.74" y="-269.16" z="0.00" h="-1.5714" p="0" r="0" /></Position></Vertex></Polyline></Shape>
 							</Trajectory></TrajectoryRef>
 						</FollowTrajectoryAction></RoutingAction></PrivateAction></Action><Action name="i6_ride_running"><GlobalAction><ParameterAction parameterRef="i6_busy"><SetAction value="1" /></ParameterAction></GlobalAction></Action>
 						<StartTrigger><ConditionGroup><Condition name="i6_ride_go" delay="0" conditionEdge="none"><ByValueCondition>

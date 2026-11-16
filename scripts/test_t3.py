@@ -65,3 +65,5 @@ def test_a_busy_gpu_is_one_at_half_its_memory_or_load():
     assert not t3.busy(quiet)
     assert t3.busy([dict(quiet[0], util_pct=97)])
     assert t3.busy([dict(quiet[0], used_mib=25000)])
+    assert t3.busy(quiet, load=330.0, cores=48)
+    assert not t3.busy(quiet, load=11.0, cores=48)

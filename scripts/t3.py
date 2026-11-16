@@ -192,8 +192,17 @@ def gpu_state() -> list:
     return out
 
 
-def busy(gpus: list) -> bool:
+def busy(gpus: list, load: float = None, cores: int = None) -> bool:
+    """A GPU at 50 % use or memory, or a host whose 1-minute load is at its core count
+    (swb 139's ladder: other users' jobs at load 330-500 stalled SSv2 on a quiet GPU)."""
+    if load is not None and cores and load >= cores:
+        return True
     return any(g["util_pct"] >= 50 or g["used_mib"] > 0.5 * g["total_mib"] for g in gpus)
+
+
+def host_load() -> tuple:
+    """(1-minute load average, cores)."""
+    return os.getloadavg()[0], os.cpu_count()
 
 
 def logs_root() -> Path:
@@ -295,14 +304,16 @@ def main(argv=None) -> int:
         rows = read_summary(summ)
         if a.action == "record":
             gpus = gpu_state()
-            if busy(gpus) and not a.busy_ok:
-                print(f"{e['key']}: not recorded, the GPU is busy now ({gpus}); record on a "
-                      "quiet GPU, or give --busy-ok")
+            load, cores = host_load()
+            if busy(gpus, load, cores) and not a.busy_ok:
+                print(f"{e['key']}: not recorded, the host is busy now (load {load:.0f} on "
+                      f"{cores} cores; GPU {gpus}); record on a quiet host, or give --busy-ok")
                 failed += 1
                 continue
             write_reference(rows, ref, {"commit": commit(), "host": socket.gethostname(),
                                         "summary": str(summ), "runs": len(rows),
-                                        "gpu_at_record": gpus})
+                                        "gpu_at_record": gpus,
+                                        "load_at_record": [round(load, 1), cores]})
             print(f"{e['key']}: reference of {len(rows)} runs at {commit()}")
             continue
         if not ref.is_file():

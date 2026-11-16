@@ -29,16 +29,13 @@ Terms are defined at first use; the [glossary](../reference/glossary.md) collect
 - [Install](../getting-started/install.md) and
   [Getting started on CARLA](../getting-started/carla.md): the workspace built, the
   environment file, and CARLA either named in the host settings (`carla.root`, so that the
-  stack starts it, which is recommended here) or already serving its port.
-- ROS 2 Humble is the fixed requirement; the simulator and the autopilot are choices.
-  This tutorial uses CARLA 0.9.16, the version swb is built for, and Autoware: a built
-  Autoware workspace whose `setup.bash` the host setting `autoware.setup` names. swb
-  provides the car's launch files and configuration, tested with Autoware 1.5.0.
+  stack starts it, which is recommended here) or already serving its port, and Autoware
+  (tested with 1.5.0), as Install describes.
 - Every terminal: `source ~/swb.bash`.
-- Network access to Hugging Face for step 2.
+- Network access to Hugging Face for step 2, about 0.1 GB of disk for the map, and an
+  NVIDIA GPU with room for CARLA and Autoware
+  ([Install](../getting-started/install.md#time-and-space)).
 - About 30 minutes once the install is done.
-- An NVIDIA GPU with room for CARLA and Autoware (together about 3 to 4.5 GB of video
-  memory on one host), and about 0.1 GB of disk for the map.
 
 ## 1. Make a project
 
@@ -66,7 +63,8 @@ three things: the simulator, the assets (Town01 of the `carla-town-autoware-maps
 and the **pilot** of the scenario entity named `ego`, that is, what drives it (Autoware, on
 a Tesla Model 3). The **ego** is the vehicle under test. The scenario,
 `scenarios/drive_to_goal.xosc`, names its map as `$(env SWB_MAPS)/Town01` and its ego as
-the catalog car `tesla_model3`.
+`tesla_model3`, an entry of the vehicle catalog that ships with swb (an OpenSCENARIO
+`CatalogReference`).
 
 **Check**:
 
@@ -75,8 +73,7 @@ ros2 run swb project check
 echo $?
 ```
 
-It reports two problems with a common fix and exits 3, meaning refused, because the assets
-are missing ([Exit codes](../reference/commands.md#exit-codes) lists the others):
+It reports two problems, both caused by the missing assets, and exits 3 (refused):
 
 ```
 problem: swb.lock: missing: the assets were never fetched (fix: ros2 run swb assets ...
@@ -92,10 +89,10 @@ The last line is `ros2 run`'s own, printed after any command that does not exit 
 ros2 run swb assets fetch
 ```
 
-The datasets are public, so no Hugging Face account is needed, only network access.
+The datasets are public: no Hugging Face account is needed.
 
-**What you see**: the dataset resolved to a commit, its files downloaded (about 0.1 GB),
-the map linked into the project, and the lock written:
+**What you see**: the dataset resolved to a commit, its files downloaded, the map linked
+into the project, and the lock written:
 
 ```
 carla-town-autoware-maps: e94113508882: 9 file(s), 9 downloaded
@@ -103,13 +100,9 @@ linked assets/maps/Town01 -> .../jerry73204/carla-town-autoware-maps/e94.../Town
 swb.lock written
 ```
 
-Without a network the fetch prints `error: <url>: <reason>` and exits 2 (a proxy requires
-`https_proxy`); a later attempt keeps the files already downloaded.
-
-`swb.lock` pins the dataset's commit and the checksum of every file. Committed with the
-project, it guarantees that every later fetch, on any machine, obtains the same files. The
-files themselves reside in swb's cache, shared by all projects; `assets/` holds only
-links.
+`swb.lock` pins the dataset's commit and the checksum of every file, so that every later
+fetch, on any machine, obtains the same files; the files reside in swb's cache, shared by
+all projects, and `assets/` holds only links.
 
 **Check**:
 
@@ -131,15 +124,15 @@ play_launch launch --web-addr 127.0.0.1:8080 \
 ```
 
 The **stack** is the long-lived set of processes that every run uses. It checks the
-project and takes a **seat**, one stack's share of the host (its ROS domains and ports),
-so that it never interferes with another user's stack. It then starts CARLA if
-`carla.root` is set and nothing answers on the port, then CARLA's world server, the bridge
-and the agent relay, and it stays up for all later runs.
-`8080` is seat 0's web port; on a shared host, `ros2 run swb seat show` gives the port of
-the seat actually taken.
+project and takes a **seat**, one stack's share of the host (its ROS domains and ports). It then starts CARLA if
+`carla.root` is set and nothing answers on the port, and three processes: the **world
+server**, the only process that drives CARLA; the **bridge**, which SSv2 addresses as its
+simulator; and the **agent relay**, through which SSv2 reaches each pilot
+([How it works](../explanation/how-it-works.md)). The stack stays up for all later runs.
 
-The ego's pilot (Autoware with CARLA's vehicle bridge) starts when the first run needs it,
-on that run's map; `map:=Town01` on the command line starts it at once.
+The ego's pilot (Autoware, with the **vehicle bridge** that carries the car's sensors and
+controls between CARLA and Autoware) starts when the first run needs it, on that run's
+map; appending `map:=Town01` to the `play_launch` command starts it at once.
 
 **What you see**, in order (paths shortened; the two CARLA lines only when the stack
 starts CARLA):
@@ -152,9 +145,8 @@ swb stack: CARLA serves RPC (0.9.16)
 swb stack 2026-11-15T10-15-42_seat0: ready
 ```
 
-A CARLA started by the stack takes one to three minutes to serve its port. The web UI at
-`http://127.0.0.1:8080` lists every process with its log; on a remote machine, the port is
-forwarded first (`ssh -L 8080:127.0.0.1:8080 <host>`).
+The web UI at `http://127.0.0.1:8080` (seat 0's port; `seat show` names another seat's)
+lists every process with its log.
 
 **Check**, in a second terminal:
 
@@ -180,21 +172,16 @@ start the pilots on Town01 and waits until Autoware can accept a route. SSv2
 then teleports the ego to its start, gives Autoware the goal and engages it. The car drives
 west and stops at the goal.
 
-**The pilot's first start.** With the default lidar detector, `clustering`, the pilot is
-ready within seconds. With `lidar_detection_model: centerpoint`
-([Your Autoware](../how-to/your-autoware.md)), the first start on a machine builds TensorRT
-engines into `~/autoware_data`, which takes minutes. During that time the run prints
-nothing while the pilot's logs grow under
-`~/.local/state/swb/logs/my_first_drive/seat-0-current/proc/pilot-ego/` (and in the web
-UI). This is not a hang: the run waits up to 600 s for the pilot (`--ready-timeout`), and
-later starts load the stored engines.
+With the default lidar detector the pilot is ready within seconds; a non-default one may
+first build TensorRT engines for several minutes
+([Your Autoware](../how-to/your-autoware.md)), during which the pilot's logs grow under
+`<logs>/my_first_drive/seat-<n>-current/proc/pilot-ego/` (`logs:` of the host settings).
 
-**Observing the drive.** A CARLA started by the stack renders without a window. On a
-machine with a display, the pilot can show RViz (`rviz: true` in its entry in `swb.yaml`,
-then a restart of the stack), `ros2 run swb_launch chase_view` opens a chase camera on the
-ego (it requires `pygame`), or CARLA can be started by hand with its own window
-([Getting started on CARLA](../getting-started/carla.md#or-start-it-yourself)). Without a
-display, the timeline and logs of step 5 record what happened.
+**Observing the drive.** A CARLA started by the stack has no window. RViz (`ego: {kind:
+autoware, vehicle: tesla_model3, rviz: true}` in `swb.yaml`, then a restart of the stack),
+`ros2 run swb_launch chase_view` (a chase camera, which requires `pygame`) or a CARLA
+[started by hand](../getting-started/carla.md#or-start-it-yourself) with its window shows
+the drive; without a display, the timeline of step 5 records it.
 
 **What you see**: the map line on the first run, then, after about a minute of driving,
 one line: the verdict, the run id and the run directory.
@@ -210,9 +197,8 @@ passed   2026-11-15T10-21-07_drive_to_goal_r0  .../my_first_drive/runs/2026-11-1
 echo $?
 ```
 
-prints `0`: the run passed. A failed scenario exits 1. An error, that is, a run the stack
-could not judge because a component broke, exits 2 (`ros2 run swb runs why` names the
-cause). A refused run, in which nothing was executed, exits 3.
+prints `0`: the run passed ([Exit codes](../reference/commands.md#exit-codes): 1 failed,
+2 error, 3 refused).
 
 ## 5. Read the result
 
@@ -222,8 +208,8 @@ ros2 run swb runs show drive_to_goal
 ```
 
 **What you see**: `runs list` has one row, `passed`. `runs show` prints the run's header
-(`run`, `verdict`, `scenario`, `duration`) and then its timeline: one row per event, such
-as SSv2's milestones and every warning in any process's log.
+(`run`, `verdict`, `scenario`, `duration`) and its timeline: one row per event, such as
+SSv2's milestones and every warning in any process's log.
 
 The run's directory holds `result.json` (the verdict, its reason, the pilots and the
 versions that ran), `timeline.jsonl`, SSv2's `junit.xml` and, for a run that did not pass,
@@ -255,8 +241,7 @@ To finish, stop the stack with Ctrl-C in its terminal. It ends every process it 
 ## What happened
 
 The project contains no path of the local machine, so it runs unchanged on another one
-after `assets fetch`. The stack outlives the runs, and a run on another map first moves
-the pilots there. SSv2 judges each run; swb records the verdict beside the logs of every
+after `assets fetch`. SSv2 judges each run; swb records the verdict beside the logs of every
 process. [How it works](../explanation/how-it-works.md) explains the parts, and
 [Verdicts](../explanation/verdicts.md) the meaning of `passed`, `failed` and `error`.
 
@@ -270,8 +255,8 @@ process. [How it works](../explanation/how-it-works.md) explains the parts, and
    `5`. Check: the run line starts with `failed`, the command exits 1, and `ros2 run swb
    runs why too_slow` names the cause.
 3. **Open.** Copy the shipped example with three scenarios (`ros2 run swb project new
-   ~/first_drive --from pkg://swb_examples/projects/first_drive`), fetch its map, and run
-   its suite, `suites/all.yaml`, against a stack started there. Check: three `passed`
+   ~/first_drive --from pkg://swb_examples/projects/first_drive`) and run its suite,
+   `suites/all.yaml`, as [Tutorial 5](05-suites.md) describes. Check: three `passed`
    lines and a `summary:` line naming `summary.csv`.
 
 ## If it does not work
@@ -279,14 +264,14 @@ process. [How it works](../explanation/how-it-works.md) explains the parts, and
 | Symptom | Fix |
 |---|---|
 | `swb: the stack is refused (3): ...` | the message names the problem and its fix; most often the assets were not fetched (step 2) |
-| The stack stops with `CARLA ... ready_timeout` | the CARLA it started did not serve its port in 300 s: read the `carla.log` the message names, or raise `carla.ready_timeout` |
+| `assets fetch` prints `error: <url>: <reason>` and exits 2 | no network, or a proxy that requires `https_proxy`; a later attempt keeps the files already downloaded |
 | `swb run: refused: no stack of project my_first_drive on any seat` | the stack is not up, or was started in another directory (step 3) |
 | The run ends `error`: `pilot ego never became ready (600 s)` | a slow first start (step 4): run again, or give `--ready-timeout 1200` |
-| `ros2 topic list` in another terminal shows nothing | that terminal is not on the pilot's ROS domain: `eval "$(ros2 run swb seat env 0)"` first |
+| `ros2 topic list` in another terminal shows nothing | that terminal is not on the pilot's ROS domain: `eval "$(ros2 run swb seat env 0)"` first (0 is the index of the seat's first pilot domain, the ego's, not a seat number) |
 
 More, CARLA's own failures among them: [Troubleshooting](../reference/troubleshooting.md).
 
 ## Next
 
-[Tutorial 2: write a scenario](02-write-a-scenario.md), on a road of one's choosing, in this
-project.
+[Tutorial 2: write a scenario](02-write-a-scenario.md): a scenario written from the map,
+in this project.

@@ -62,6 +62,26 @@ own `scenarios/` still name `$(env CARLA_MAPS)`. `CARLA_USD` stays the host sett
 USD tooling (`just isaac-assets`), and the Isaac world server reads it when `SWB_CARLA_USD`,
 which a project's stack sets, is not set.
 
+Notes on a checkout:
+
+- A long-used development checkout grows: one measured 66 GB in `build/`, 16 GB in
+  `target/` and 2 GB in `install/`; allow 100 GB of free space for such a checkout.
+- rosdep is given the packages colcon builds (`colcon list`), not the whole `src/`: its
+  crawl would walk into the components' own `deps/` copies and stop on their templates.
+- The build adds `[[patch.unused]]` entries (the message crates it generates) to five lock
+  files: the repository root's `Cargo.lock` and those of `src/autoware_carla_bridge`,
+  `src/swb_carla_world`, `src/swb_world_protocol` and `third_party/cuda_ndt_matcher`.
+  These entries belong to the build, not to the source: before a `git pull --rebase`,
+  discard them with
+
+  ```bash
+  git checkout -- Cargo.lock
+  for d in src/autoware_carla_bridge src/swb_carla_world src/swb_world_protocol \
+           third_party/cuda_ndt_matcher; do
+      git -C "$d" checkout -- Cargo.lock
+  done
+  ```
+
 ### Rules that cost hours when broken
 
 - **Always `just build`**, never a bare `colcon build`: it adds `--symlink-install` and

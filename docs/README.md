@@ -37,7 +37,7 @@ first, Isaac Sim from tutorial 6.
 5. [Suites](tutorials/05-suites.md): a parameter grid, repetitions, a judge, the results
    table
 6. [The same project on Isaac Sim](tutorials/06-carla-assets-on-isaac.md): CARLA's assets
-   in USD, models in a scenario, the Mount Haruna course
+   in USD, models in a scenario
 7. [Road physics](tutorials/07-road-physics.md): mud, gravel and a wet road, watching the
    wheels
 
@@ -56,6 +56,8 @@ A task in your own project, starting from a working stack:
   timeouts
 - [Run suites in CI](how-to/run-in-ci.md): exit codes, JUnit, two hosts, the disk
 - [Record a demo](how-to/record-a-demo.md): windows, a screencast, rosbags
+- [Drive a course on Isaac Sim](how-to/drive-a-course-on-isaac.md): the Mount Haruna road
+  from another dataset
 
 ## Reference
 

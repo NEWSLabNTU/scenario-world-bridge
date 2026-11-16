@@ -11,12 +11,14 @@ Download the packaged release, `CARLA_0.9.16.tar.gz`, from
 [CARLA's releases](https://github.com/carla-simulator/carla/releases/tag/0.9.16) and unpack
 it, for example into `~/CARLA_0.9.16`
 ([CARLA's quick start](https://carla.readthedocs.io/en/0.9.16/start_quickstart/)). Its
-Python client is used by the pose helper and by CARLA's BasicAgent pilot; it is installed
-for the user into Humble's Python (the system `python3`, 3.10), as are the tools of
+Python client is used by `carla_poses`, which finds poses on a town
+([Tutorial 2](../tutorials/02-write-a-scenario.md)), and by CARLA's BasicAgent pilot
+([Tutorial 4](../tutorials/04-several-pilots.md)); it is installed for the user into
+Humble's Python (the system `python3`, 3.10), as are the tools of
 [Install](install.md#your-tools):
 
 ```bash
-python3 -m pip install --user carla==0.9.16 networkx shapely
+python3 -m pip install --user carla==0.9.16
 python3 -c 'import carla; print(carla.__file__)'
 ```
 
@@ -33,8 +35,8 @@ With `carla.root` set, the stack starts CARLA itself when nothing answers on the
 stops it with the stack. It runs CARLA off-screen, on the NVIDIA card, at the default
 quality (Epic), and writes CARLA's output to
 `<logs>/<project>/seat-<n>-current/proc/simulator/carla.log` (`logs:` of the host
-settings, `~/.local/state/swb/logs` by default). This is the way for a first drive: nothing else to start, and
-nothing left running. The BasicAgent pilot of [Tutorial 4](../tutorials/04-several-pilots.md)
+settings, `~/.local/state/swb/logs` by default). This mode is recommended for a first
+drive: no separate process is started, and none remains afterwards. The BasicAgent pilot of [Tutorial 4](../tutorials/04-several-pilots.md)
 needs `carla.root` anyway.
 
 Off-screen means there is no CARLA window. To watch a drive, see
@@ -84,6 +86,7 @@ table can give every seat its own CARLA port
 | A second CARLA on the same port crashes at start | the first one still holds it: stop it by its pid (SIGKILL if it ignores SIGTERM) |
 | CARLA crashes when a scenario changes towns | it runs at `-quality-level=Low`: keep the default, Epic ([Supported and not supported](../reference/limits.md#running-carla)) |
 | The bridge logs `CARLA version mismatch` | CARLA and the build are different versions: use 0.9.16 ([Supported and not supported](../reference/limits.md#platform)) |
+
 ## Next
 
 [Tutorial 1: first drive](../tutorials/01-first-drive.md): a project, its map, the stack

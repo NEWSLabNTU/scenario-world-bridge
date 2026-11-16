@@ -63,8 +63,8 @@ passed   2026-11-15T15-02-21_follow_to_goal_leadSpeed-2.0_r1  .../runs/...
 summary: .../my_first_drive/suites/follow/summary.csv
 ```
 
-The command exits 0 only when every run ended as expected (passed, unless the suite
-`expect`s otherwise), 1 when one failed, 2 when one could not be judged.
+The command exits 0 only when every run ended as expected (passed, unless the suite's
+`expect:` key names another verdict), 1 when one failed, 2 when one could not be judged.
 
 **Check**:
 
@@ -76,7 +76,8 @@ column -s, -t < runs/summary.csv
 `runs summary` writes `summary.csv` and a merged `junit.xml` for the whole `runs/`
 directory and prints their paths; the table has one row per run, with the columns
 `run_id`, `scenario`, `params`, `repetition`, `seed`, `verdict`, `reason`, `duration`,
-`judges` and `path`.
+`judges` and `path`. The suite's own table, under `suites/follow/`, covers its runs;
+`runs summary` covers every run in `runs/`.
 
 ## 3. Add a judge
 
@@ -93,12 +94,13 @@ judges:
           --scenario, "{scenario}"]
 ```
 
-A **judge** is a program run after each passed or failed run, in the project directory,
-with the run directory as its last argument. It prints one JSON object, and its exit code
+A **judge** is a program run after each passed or failed run, in the project directory.
+`{run_dir}` and `{scenario}` in its `run` are replaced by the run directory and the
+scenario file; without them, the run directory is appended as the last argument. It prints one JSON object, and its exit code
 (0 passed, 1 failed) or the object's own `verdict` is the judge's verdict.
 
-Because `swb.yaml` changed, the stack must be restarted (Ctrl-C, then the command of
-Tutorial 1, step 3): a run refuses a stack started from another project state. Then:
+Restart the stack, since `swb.yaml` changed (Ctrl-C, then the command of Tutorial 1,
+step 3). Then:
 
 ```bash
 ros2 run swb run suites/follow.yaml
@@ -113,8 +115,7 @@ ros2 run swb run suites/follow.yaml
 cat runs/*leadSpeed-4.0_r0/judges/physical_verdict.json
 ```
 
-shows the judge's verdict, exit code and duration, and its `"version": ""`: the field is
-empty because the judge's entry in `swb.yaml` gives no `version:`.
+shows the judge's verdict, exit code and duration.
 
 ## 4. Shard, resume, prune
 
@@ -144,8 +145,8 @@ ros2 run swb runs prune --older-than 7 --dry-run
 ros2 run swb runs prune --older-than 0 --dry-run
 ```
 
-**Check**: runs made today are not older than 7 days, so the first says `nothing to
-prune`; the second lists every run as `would remove <run>` and removes nothing (`runs
+**Check**: the runs of this tutorial are less than 7 days old, so the first says `nothing
+to prune`; the second lists every run as `would remove <run>` and removes nothing (`runs
 list` is unchanged).
 
 ## What happened
@@ -170,8 +171,7 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
    `failed (expected failed)` and the command exits 0.
 3. **Open.** Run the Autoware Foundation's use cases: copy
    `pkg://swb_examples/projects/safety_suite`, fetch, start its stack and run
-   `suites/nightly.yaml` (about 45 minutes; 61 on a loaded host with one run retried,
-   2026-11-16). Check: two `passed` lines, the ACC use case's JUnit with 28 testcases and
+   `suites/nightly.yaml` (about 45 minutes, measured on 2026-11-16). Check: two `passed` lines, the ACC use case's JUnit with 28 testcases and
    the AEB one's with 10 (27 and 9 variants, plus the `carla_contact` testcase
    `physical_verdict` adds), each judged by `physical_verdict`.
 
@@ -182,7 +182,7 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
 | `swb run: refused: suites/follow.yaml: unknown key ...` | a suite takes only the keys of the [reference](../reference/project-file.md#suites) |
 | `refused: the stack ... was started from another project state` | `swb.yaml` changed: restart the stack |
 | A judge's verdict is `error` | it printed no JSON object, timed out (120 s by default) or exited with another code: its message is in `judges/<name>.json` |
-| `refused: ... budget` | the log disk cannot hold the suite at `logging.budget`: prune runs, or lower the capture level |
+| `refused: ... budget` | the log disk cannot hold the suite at `logging.budget`: prune runs, or lower `logging.keep` (step 4) |
 
 ## Next
 

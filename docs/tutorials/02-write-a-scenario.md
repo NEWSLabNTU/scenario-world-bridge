@@ -20,12 +20,12 @@ passed   2026-11-15T11-02-13_follow_to_goal_r0  .../runs/2026-11-15T11-02-13_fol
 
 - [Tutorial 1](01-first-drive.md): the project `~/my_first_drive` with Town01 fetched, and
   its stack running. Every terminal: `source ~/swb.bash`.
-- CARLA's Python client (`pip install carla==0.9.16`), from
-  [Getting started on CARLA](../getting-started/carla.md).
+- CARLA's Python client, installed in
+  [Getting started on CARLA](../getting-started/carla.md#carla-itself).
 - About 30 minutes.
 
-The finished file ships with the workspace for comparison. It resides in the Isaac Sim
-example project, because Tutorial 6 runs the same file there unchanged:
+The finished file ships with the workspace for comparison, in the Isaac Sim example
+project:
 
 ```bash
 E=$(ros2 pkg prefix --share swb_examples)/projects
@@ -71,10 +71,10 @@ end    <WorldPosition x="279.40" y="-129.49" z="0.00" h="3.14115" p="0" r="0" />
 end    <WorldPosition x="219.40" y="-129.47" z="0.00" h="3.14115" p="0" r="0" />
 ```
 
-The `start` line is the lane centre at spawn point 2: the ego's start. `ahead` follows the
-lane and, at a junction, keeps the straightest branch; `carla_poses --help` lists the other
-ways to find a pose, such as `at X Y`, which snaps an arbitrary point onto the nearest
-lane.
+Each command prints the lane centre at spawn point 2 (`start`, the ego's start) and the
+pose the given distance along the lane (`end`): 20 m for the lead car, 80 m for the goal.
+`ahead` follows the lane and, at a junction, keeps the straightest branch;
+`carla_poses --help` lists the other queries, such as `at X Y`.
 
 **Check**: the first line names `map Town01`. If it names another town, running Tutorial
 1's scenario once makes the stack load Town01 into CARLA.
@@ -83,8 +83,7 @@ lane.
 
 The new scenario starts from a copy of the existing one, keeping its frame: `FileHeader`,
 `ParameterDeclarations`, `CatalogLocations`, and the `Storyboard`'s `Story` / `Act` /
-`ManeuverGroup` / `Maneuver` nesting with its triggers. OpenSCENARIO requires these
-elements, and every scenario repeats them.
+`ManeuverGroup` / `Maneuver` nesting with its triggers.
 
 ```bash
 cd ~/my_first_drive
@@ -103,7 +102,8 @@ sets, so the same file works in any project that fetched Town01:
 ```
 
 **The entities.** The ego stays as it is: the catalog car `tesla_model3` with the
-controller `Autoware`. A lead car is added with an empty controller name, which means that
+controller `Autoware` (an entity's controller names what drives it; Tutorial 3 lists
+them). A lead car is added with an empty controller name, which means that
 SSv2 drives it:
 
 ```xml
@@ -153,6 +153,9 @@ car at a parameterized speed. The poses come from step 1; the ego's goal is the
 </Private>
 ```
 
+The `z` values need not be exact: the bridge places every actor on the ground below its x
+and y.
+
 `$leadSpeed` requires a declaration. The copied file has an empty element,
 `<ParameterDeclarations />`; expand it into an opening and a closing tag, and place the
 declaration between them:
@@ -163,8 +166,6 @@ declaration between them:
 </ParameterDeclarations>
 ```
 
-The `z` is not critical: the bridge places every actor on the ground under its x and y.
-
 **The verdict**: three events in one maneuver of the story, each ending the run.
 
 | Event | Condition | Action |
@@ -174,8 +175,7 @@ The `z` is not critical: the bridge places every actor on the ground under its x
 | too long | `SimulationTimeCondition` > 120 | `exitFailure` |
 
 Each is a `UserDefinedAction` with a `CustomCommandAction type="exitSuccess"` (or
-`exitFailure`) and a `StartTrigger` holding the condition; the shipped file has all three
-written out. Simulation time starts when the ego is engaged, so Autoware's start does not
+`exitFailure`) and a `StartTrigger` holding the condition. Simulation time starts when the ego is engaged, so Autoware's start does not
 count against the timeout.
 
 **Check**:
@@ -222,18 +222,17 @@ shows `"leadSpeed": 2.0`.
 ## What happened
 
 A scenario defines its map, its entities, their cars and which of them are driven from
-outside; the project states only *who* drives each of those (`pilots:`). The same `.xosc`
-therefore runs in any project that fetched its map, on CARLA or on Isaac Sim.
+outside; the project states only *who* drives each of those (`pilots:`).
 
 A first scenario meets the following rules ([What a scenario may use](../reference/scenarios.md)
 lists all of them):
 
-- **SSv2-driven cars follow SSv2's poses** at every frame, and a collision does not alter
-  their path. Cars that drive with physics take the controller `simulator_autopilot`
-  (CARLA's Traffic Manager) or `agent` ([Tutorial 4](04-several-pilots.md)).
+- **SSv2-driven cars follow SSv2's poses**; a collision does not move them
+  ([Tutorial 3](03-other-road-users.md)).
 - **Uncommanded traffic lights are green.** A scenario commands the lights it depends on.
-- **The ego's body is its catalog car's**, within 2 cm, so the catalog reference stays as
-  it is.
+- **The ego must remain its catalog car.** The bridge refuses an ego whose simulated body
+  differs from the catalog entry by more than 2 cm, so the `CatalogReference` to
+  `tesla_model3` is left unchanged.
 - **The ego takes goals and speed limits, not lane changes.** SSv2 refuses relative-speed
   and lane-change actions for an ego.
 
@@ -253,7 +252,7 @@ lists all of them):
 
 | Symptom | Fix |
 |---|---|
-| `carla_poses`: `No module named 'carla'` | `pip install carla==0.9.16` |
+| `carla_poses`: `No module named 'carla'` | `python3 -m pip install --user carla==0.9.16` ([Getting started on CARLA](../getting-started/carla.md#carla-itself)) |
 | `project check`: `LogicFile ... does not name a project map` | the `LogicFile` must be `$(env SWB_MAPS)/<map>`, the fix it prints |
 | `project check`: `entity ... has no pilot` | an entity with controller `Autoware` or `agent` needs a pilot in `swb.yaml` (or rename the controller to `""` for SSv2 to drive it) |
 | The run fails at once: `the ego's body ... is not the car SSv2 declared` | the ego must stay the catalog car `tesla_model3` |

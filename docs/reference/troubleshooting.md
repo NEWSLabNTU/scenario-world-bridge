@@ -73,6 +73,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 
 | Symptom | Cause, fix |
 |---|---|
+| `assets fetch` of the USD set stops with `HTTP Error 429`, then waits and retries | Hugging Face limits anonymous downloads; `hf auth login` with a free account's token raises the limit |
 | The world server never says ready | the first load of a town compiles its materials (up to a quarter of an hour): `swb_world_check hello <url> --wait 1800` waits for it |
 | `not up after 1200 s`; its Kit log ends at `omni.client`, 100 % CPU | a Kit cache link points at a deleted directory: [Getting started on Isaac Sim](../getting-started/isaac.md#if-it-does-not-work) |
 | It dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself; on two GPUs pick one with the host setting `gpu:` |

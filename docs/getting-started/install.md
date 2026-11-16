@@ -13,8 +13,8 @@ Autoware are already installed. What takes the time:
 | Step | Time | Disk |
 |---|---|---|
 | ROS 2 Humble and Autoware 1.5.0's binary packages | as their own install guides say; mostly downloads | Autoware's `/opt/autoware/1.5.0` measured 4.8 GB, plus its apt dependencies |
-| Cloning this workspace with its submodules | minutes, on a good connection | small beside the build |
-| The first `colcon build` | the longest wait of the install: Rust, SSv2 and the bridges compile from source. A fresh Release build took about 7 to 8 minutes on 48 cores (2026-11-16); it depends on the cores | a fresh Release build measured 11 GB in `build/` and 1 GB in `install/`, 14 GB with the clone (2026-11-16). A long-used development checkout grows: one measured 66 GB in `build/`, 16 GB in `target/` and 2 GB in `install/`; budget 100 GB free for that |
+| Cloning this workspace with its submodules | a few minutes on a fast connection | negligible beside the build |
+| The first `colcon build` | the longest wait of the install: Rust, SSv2 and the bridges compile from source. A fresh Release build took about 7 to 8 minutes on 48 cores (2026-11-16); it depends on the cores | a fresh Release build measured 11 GB in `build/` and 1 GB in `install/`, 14 GB with the clone (2026-11-16) |
 | CARLA 0.9.16 ([next page](carla.md)) | the download | one unpacked CARLA 0.9.16 measured 30 GB |
 | A project's map | seconds | about 0.1 GB for Town01 |
 
@@ -37,7 +37,7 @@ Isaac Sim needs much more (an RTX card with 24 GB, 64 GB of RAM): [Isaac Sim](is
 - **An Autoware workspace**, built, or Autoware's binary packages: the build compiles against
   Autoware's interface messages whichever autopilot later drives, and the Autoware pilot
   runs from it. Its `setup.bash` is sourced by the build and named in the host settings
-  (`autoware.setup`). swb's launch files and configuration for the car are tested with
+  (`autoware.setup`, below). swb's launch files and configuration for the car are tested with
   Autoware 1.5.0
   ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/));
   the commands below use its binary packages under `/opt/autoware/1.5.0` as the example.
@@ -46,7 +46,7 @@ Isaac Sim needs much more (an RTX card with 24 GB, 64 GB of RAM): [Isaac Sim](is
 
 ## Once per machine (needs sudo)
 
-On a shared host an administrator does this once; every user can skip it.
+On a shared host an administrator does this once; other users omit it.
 
 ```bash
 sudo apt install python3-pip python3-rosdep libz3-dev \
@@ -54,17 +54,8 @@ sudo apt install python3-pip python3-rosdep libz3-dev \
 sudo rosdep init          # skip if it says the sources list already exists
 ```
 
-Let DDS carry point clouds: the default kernel socket buffers (208 kB) are too small, and
-a point cloud then never arrives. After the clone below, from the workspace's directory:
-
-```bash
-cd ~/scenario-world-bridge            # your clone, wherever you put it
-sudo install -m 644 config/99-cyclonedds-max.conf /etc/sysctl.d/
-sudo sysctl -p /etc/sysctl.d/99-cyclonedds-max.conf
-```
-
-The `rosdep install` step of the build also installs apt packages and asks for sudo; on a
-shared host the administrator runs it once from one clone.
+The socket buffers for DDS need sudo too, and the clone: they are set at the end of
+[Build](#build).
 
 ## Your tools
 
@@ -87,15 +78,6 @@ python3 -m pip install --user colcon-cargo-ros2==0.5.4 xmlschema 'play_launch>=0
 export PATH=$HOME/.local/bin:$PATH    # where pip --user puts play_launch
 play_launch --version
 ```
-
-CARLA's own driving agents, which the `carla_basic` pilot runs, need two more Python
-modules in the same Python; `project check` refuses a `carla_basic` pilot without them:
-
-```bash
-sudo apt install python3-shapely python3-networkx
-```
-
-(or `python3 -m pip install --user shapely networkx` without sudo).
 
 pip must not also have installed a newer setuptools for the user: one in `~/.local`
 shadows Ubuntu's and breaks a later `colcon build --symlink-install`
@@ -126,27 +108,27 @@ rosdep install --from-paths $(colcon list --base-paths src -p) --ignore-src -y \
 python3 -m pip install --user yamale
 ```
 
-rosdep reads the packages colcon builds (`colcon list`), not the whole `src/`: its crawl
-would walk into the components' own `deps/` copies and stop on their templates. One key,
-`python-yamale-pip` (SSv2's test runner), resolves only from a rosdep source most hosts do
-not have, so it is skipped and installed with pip. Among others, rosdep installs
-pygame, lanelet2, shapely and networkx.
+rosdep reads the packages colcon builds (`colcon list`) and installs apt packages, so it
+asks for sudo; on a shared host the administrator runs it once from one clone. The key
+`python-yamale-pip` (SSv2's test runner) resolves only from a rosdep source most hosts
+lack, so it is skipped and installed with pip. Among others, rosdep installs pygame,
+lanelet2, shapely and networkx.
 
-Without sudo, and with no administrator having run `rosdep install` on the host, it stops on
-the first apt package it cannot install. The build does not need them: it builds without,
-and what the runs need is installed for the user:
+Without sudo, `rosdep install` stops at the first apt package it cannot install. The build
+does not need those packages; the few that runs need are installed for the user instead:
 
 ```bash
 python3 -m pip install --user shapely networkx pygame
 ```
 
-shapely and networkx are CARLA's own agents' (a `carla_basic` pilot); pygame only
-`carla_manual_control`'s window. lanelet2's Python bindings are not needed by the build or
+shapely and networkx are needed by CARLA's own driving agents, which the `carla_basic`
+pilot runs, in the same Python (`project check` refuses a `carla_basic` pilot without
+them); pygame only by `carla_manual_control`'s window. lanelet2's Python bindings are not needed by the build or
 the tutorials. `rosdep check --from-paths $(colcon list --base-paths src -p) --ignore-src`
 lists what is still missing.
 
-Two settings for compilers newer than Ubuntu 22.04's own, set before the build. Neither
-harms an Ubuntu 22.04 toolchain:
+Two settings for a toolchain newer than Ubuntu 22.04's (a CMake 4, or a GCC newer than
+11), set before the build; neither affects Ubuntu 22.04's own:
 
 ```bash
 # a CMake 4 (from pip or Kitware) ahead of Ubuntu's: the vendored embree needs this
@@ -172,26 +154,21 @@ out of memory part way: add `--parallel-workers 4` after `colcon build` and set
 brings. colcon prints `Summary: <n> packages finished` at the end. A package that failed is
 named in `Summary: ... failed`; its log is under `log/latest_build/<package>/`.
 
-The build adds `[[patch.unused]]` entries (the message crates it generates) to five lock
-files: the repository root's `Cargo.lock` and those of `src/autoware_carla_bridge`,
-`src/swb_carla_world`, `src/swb_world_protocol` and `third_party/cuda_ndt_matcher`. These
-entries belong to the build, not to the source: before a `git pull --rebase`, discard them
-with
-
-```bash
-git checkout -- Cargo.lock
-for d in src/autoware_carla_bridge src/swb_carla_world src/swb_world_protocol \
-         third_party/cuda_ndt_matcher; do
-    git -C "$d" checkout -- Cargo.lock
-done
-```
-
 Once per user, give Autoware a writable data directory, `~/autoware_data` (TensorRT writes
 its engines there, so they are built once and kept):
 
 ```bash
 source install/setup.bash
 ros2 run autoware_sim_profile setup_autoware_data
+```
+
+Once per machine (sudo): enlarge the kernel's socket buffers, so that DDS can deliver point
+clouds; at the default 208 kB a point cloud never arrives. From the workspace's directory:
+
+```bash
+cd ~/scenario-world-bridge            # your clone, wherever you put it
+sudo install -m 644 config/99-cyclonedds-max.conf /etc/sysctl.d/
+sudo sysctl -p /etc/sysctl.d/99-cyclonedds-max.conf
 ```
 
 ## The environment file
@@ -220,6 +197,7 @@ never in an export. Every key is optional; these are the defaults most often cha
 logs: ~/.local/state/swb/logs    # every run's logs: put it on a fast disk (an SSD)
 cache: ~/.cache/swb              # the downloaded datasets, shared by all your projects
 carla: {host: localhost, port: 2000}
+autoware: {setup: /opt/autoware/1.5.0/setup.bash}   # the default
 ```
 
 A project can override a key for one checkout in `<project>/.swb/local.yaml`, which git
@@ -230,8 +208,9 @@ ignores. Every key, and the seat table an administrator sets in `/etc/swb/host.y
 
 This step applies to Autoware 1.5.0, its binary packages in particular; another Autoware
 workspace omits it. Autoware 1.5.0 lacks three fixes this workspace carries: a right turn on
-which the blind spot module stops, NDT's two-point cycle, which triggers an occasional
-emergency stop, and a node that aborts on the time a simulator's clock supplies. They are
+which Autoware's blind-spot check stops the car, an oscillation in NDT localization that
+triggers an occasional emergency stop, and a node that aborts on a timestamp a simulator's
+clock produces. They are
 built once, in the checkout, after the build (a few minutes):
 
 ```bash
@@ -278,6 +257,7 @@ More on seats: [Several stacks on one host](../how-to/several-stacks.md).
 | `traffic_simulator`: `-Werror=maybe-uninitialized` in boost's `rescale_policy.hpp` | a GCC newer than Ubuntu 22.04's 11: add `-DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized` to `--cmake-args` |
 | `traffic_simulator` cannot find a dependency's headers after that dependency built | delete `build/traffic_simulator`: its CMake cache remembers the failed configure |
 | `error: option --editable not recognized` | a pip-installed setuptools shadows Ubuntu's: `python3 -m pip uninstall -y setuptools` |
+| `git pull --rebase` refuses: `Cargo.lock` modified | the build adds `[[patch.unused]]` entries to the lock files; discard them first ([Developer Guide](../development.md#set-up)) |
 | `ros2 run swb ...`: `Package 'swb' not found` | the terminal did not source `~/swb.bash`, or its path is not your clone's |
 
 More symptoms: [Troubleshooting](../reference/troubleshooting.md).

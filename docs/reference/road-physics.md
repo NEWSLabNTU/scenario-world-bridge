@@ -143,8 +143,9 @@ Each `RoadCondition` is the whole road state: zones it does not name go back to 
 values. A wrong property (an unknown zone, class or field) fails the scenario with every
 problem listed. A scenario cannot choose the surface map, nor change the label defaults.
 
-**Ruts.** When a scenario ends, the world server saves the ruts it made to
-`state/<map>/ruts/runs/<time>.npz` and logs the path; copied to `state/<map>/ruts/<name>.npz`
+**Ruts.** The world server saves the ruts a run made to
+`state/<map>/ruts/runs/<time>.npz` when the next run begins (each run's initialization
+loads the world's state again, also on the same world), and logs the path; copied to `state/<map>/ruts/<name>.npz`
 it becomes a set a scenario can start from (`swb.ruts`). The
 `isaac-road-physics-stages` dataset carries one, `worn`, for Town01
 (`procedural/ruts/Town01/worn.npz`).

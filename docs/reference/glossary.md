@@ -8,9 +8,10 @@ The words these pages use, in the order you meet them.
 | **SSv2** | [scenario_simulator_v2](https://github.com/tier4/scenario_simulator_v2), TIER IV's scenario runner. It reads a scenario file, moves the scripted road users, sends the ego its goal and decides whether the run passed. swb bundles it |
 | **scenario file** | an OpenSCENARIO file (`.xosc`), or TIER IV's YAML form of one: the map, the road users, what happens and when, and the pass or fail conditions. The same file runs on CARLA and on Isaac Sim |
 | **ego** | the vehicle under test: the scenario entity whose controller is `Autoware` (or that has `isEgo=true`). Autoware drives it by default |
+| **catalog** | the vehicle catalog that ships with swb: the cars a scenario names by `CatalogReference` (such as `tesla_model3`), each with its body and dimensions |
 | **entity** | one road user of a scenario: a car, a pedestrian, an obstacle, named in the scenario file |
 | **project** | a directory with a `swb.yaml`: the simulator, the assets (maps, worlds, cars) by dataset name, and the pilot of each driven entity. It holds no path of your machine, so it can be a git repository others clone |
-| **pilot** | what drives one entity: a vehicle side (the car's sensors and its vehicle interface in the simulator) plus a driver (Autoware, CARLA's BasicAgent, a launch file or a program of yours). `pilots:` in `swb.yaml` binds entities to pilots |
+| **pilot** | what drives one entity: a vehicle side (the car's sensors and its vehicle interface in the simulator), a driver (Autoware, CARLA's BasicAgent, a launch file or a program of yours) and the agent that registers the entity with the relay. `pilots:` in `swb.yaml` binds entities to pilots |
 | **agent** | the small program that connects a pilot's driver to the scenario: it takes the scenario's commands (go to this goal, keep under this speed, stop) and reports the vehicle's state. swb's own vehicle agent serves Autoware; you can write one with the agent SDK |
 | **relay** | the agent relay: the process between SSv2 and the agents. SSv2 talks to it as it would to Autoware; each agent registers with it over TCP for its entity |
 | **world server** | the one process that drives the simulator (CARLA's or Isaac Sim's). The bridge sends it every spawn, move and step |

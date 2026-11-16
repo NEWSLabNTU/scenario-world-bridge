@@ -2,8 +2,7 @@
 
 **Goal**: Autoware drives the Tutorial 2 scenarios on Isaac Sim, in CARLA's Town01 loaded
 from CARLA's own assets in USD (Universal Scene Description, Isaac Sim's scene format),
-with a scenario's cars and props rendered in CARLA's models; then on another world, the
-Mount Haruna mountain road.
+with a scenario's cars and props rendered in CARLA's models.
 
 <p align="center">
   <img src="../media/isaac_town02.webp" alt="An SSv2 scenario on Isaac Sim: Autoware turns left on CARLA's Town02 and drives to its goal, with RViz inset" width="640">
@@ -14,9 +13,9 @@ Mount Haruna mountain road.
 - that a scenario names its map, not its simulator, so that the same `.xosc` runs on
   CARLA and on Isaac Sim;
 - what CARLA's asset set in USD contains, and how a project takes only the part it needs;
-- how a map's Isaac world file names its stage, and how to make one with `make_world`;
-- rendering scenario entities in CARLA's models with `model3d`;
-- adding a world from another dataset to a project.
+- how a map's Isaac world file (`isaac/world.yaml`) names the USD scene to load, and how
+  to make one with `make_world`;
+- rendering scenario entities in CARLA's models with `model3d`.
 
 ## Before you start
 
@@ -24,14 +23,11 @@ Mount Haruna mountain road.
   is the tested version) and `isaac.root` in `~/.config/swb/host.yaml`.
 - [Tutorial 1](01-first-drive.md) and [Tutorial 2](02-write-a-scenario.md), on CARLA:
   everything except the simulator works the same way here.
-- An NVIDIA RTX GPU with 24 GB and 64 GB of RAM. The world server holds about 17.5 GB of
-  RAM with Town01 and Autoware another 10 to 20 GB, so no CARLA stack should run beside
-  it.
-- About 19 GB of disk in swb's cache (`cache:` of the host settings), on a fast disk: a
-  town's first load reads 1 to 2 GB of small files.
-- Several hours the first time: the USD download took 2 h 28 min on one host
-  (2026-11-16), and a town's first load compiles its materials (up to a quarter of an
-  hour).
+- An NVIDIA RTX GPU with 24 GB and 64 GB of RAM
+  ([Getting started on Isaac Sim](../getting-started/isaac.md#what-you-need)); no CARLA
+  stack beside it.
+- About 19 GB in swb's cache on a fast disk, and several hours for the first download and
+  the first load of a town (the download took 2 h 28 min on one host on 2026-11-16).
 
 ## 1. Copy the Isaac example
 
@@ -56,9 +52,9 @@ pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
 ```
 
-`carla-0.9.16-isaac-usd` is CARLA 0.9.16's content exported to USD: six towns and
-CARLA's vehicles, props and walkers, under CC BY 4.0 (any use must credit CARLA). `take:`
-fetches only Town01 and `vehicles/`, which holds the vehicles, props and walkers.
+`carla-0.9.16-isaac-usd` is CARLA 0.9.16's content exported to USD (six towns and the
+assets). `take:` fetches only Town01 and `vehicles/` (CARLA's vehicles, props and
+walkers).
 
 **Check**: the scenarios are Tutorial 2's, unchanged:
 
@@ -76,8 +72,7 @@ ros2 run swb assets fetch
 
 **What you see**: one line per dataset with its commit and file count, the links, and the
 lock. Running the command again resumes an interrupted download, since files already in
-the cache are kept. Hugging Face limits anonymous downloads (`HTTP Error 429`, then a wait and a
-retry); `hf auth login` with a free account's token raises the limit.
+the cache are kept.
 
 ```
 linked assets/carla-usd -> .../datasets/jerry73204/carla-0.9.16-isaac-usd/<commit>
@@ -96,12 +91,10 @@ usd: ${SWB_CARLA_USD}/Town01/Town01_physics.usda
 ```
 
 The stack sets `SWB_CARLA_USD` to the project's `assets/carla-usd`, so the world file
-works in any project, on any host. `Town01_physics.usda` is a layer over CARLA's export
-that gives the road meshes their colliders and surface labels.
+works in any project, on any host.
 
 **Check**: `ros2 run swb assets check` prints `assets: ok`, and `ros2 run swb project
-check` prints `project: ok`. The first `assets check` hashes the whole USD set, which takes
-from a few minutes to a quarter of an hour; later checks hash only files that changed.
+check` prints `project: ok`.
 
 ## 3. Bring up the stack
 
@@ -125,7 +118,8 @@ ros2 run swb_world_check swb_world_check hello tcp://127.0.0.1:5591 --wait 1800
 ```
 
 prints the simulator (`isaac`), what it offers (signals, contacts, road conditions, ...)
-and that it is ready. `5591` is seat 0's world server port (`ros2 run swb seat show`).
+and that it is ready. `5591` is seat 0's world server port; on another seat the port is
+the one `ros2 run swb seat show` names.
 
 ## 4. Run the same scenarios
 
@@ -153,8 +147,9 @@ CARLA the same id spawns the same blueprint. In a copy of `follow_to_goal.xosc`,
 ```
 
 Then set its `BoundingBox` to the model's size, `Dimensions` and `Center`, from the
-vehicle's row of the list below, because the body for physics, contacts and the lidar
-remains the box. The list gives the ids the set holds, with each vehicle's size:
+vehicle's row of the list below, because on Isaac the body for physics, contacts and the
+lidar remains the declared box; the model is only its appearance. The list gives the ids
+the set holds, with each vehicle's size:
 
 ```bash
 less assets/carla-usd/vehicles/vehicles.md
@@ -174,65 +169,24 @@ car's.
 ros2 run swb run scenarios/follow_the_van.xosc
 ```
 
-**What you see**: in Isaac's window (or a recording) a Sprinter van leads; the run passes.
+**What you see**: in Isaac Sim's window, when the stack renders one
+([Getting started on Isaac Sim](../getting-started/isaac.md)), a Sprinter van leads; the
+run passes.
 
 **Check**: `ros2 run swb runs why follow_the_van` shows no `no CARLA body` warning.
 
-## 6. Another world: Mount Haruna
-
-Worlds need not be CARLA towns. The `haruna-tsukuba-courses` dataset (ODbL and GSI data,
-see its notice) holds two courses built from open map and elevation data: the mountain
-road on Mount Haruna, Japan, and Tsukuba Circuit. Each is a map directory with its
-Autoware map, Isaac world and a scenario. Add it to `swb.yaml`:
-
-```yaml
-  - dataset: haruna-tsukuba-courses
-    take: [haruna]
-```
-
-The course's guardrails and trees are CARLA props from `assets/carla-usd`, which the
-project already has. Fetch the dataset and copy the course's scenario into the project:
-
-```bash
-ros2 run swb assets fetch
-cp assets/maps/haruna/scenarios/haruna_down.xosc scenarios/
-chmod u+w scenarios/haruna_down.xosc
-```
-
-Its ego is the catalog car `drift_mustang`: set its `entryName` to `tesla_model3`, the
-car of the project's pilot (otherwise `project check` names the mismatch and exits 1).
-
-An Isaac stack serves one world for its whole life, so it is stopped (Ctrl-C) and started
-again on the course:
-
-```bash
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml \
-    map:=haruna
-```
-
-**What you see**: the stack's lines with `pilots on haruna`, and in time `pilot ego ready
-on haruna`.
-
-**Check**:
-
-```bash
-ros2 run swb run scenarios/haruna_down.xosc
-```
-
-ends with a verdict line; a run on Town01 against this stack is refused, naming the
-`map:=` to restart with. The course is long (its scenario allows 600 s of simulation
-time), and it was made for a drift controller: how far the Model 3 under Autoware gets
-down it has not been measured.
-
 ## What happened
 
-A scenario names its map (`$(env SWB_MAPS)/<map>`), never its simulator, so the project
-differed only by one line (`simulator: isaac`) and one dataset. The map directory is the same
+A scenario names its map, never its simulator, so the project differed from Tutorial 1's
+only by one line (`simulator: isaac`) and one dataset. The map directory is the same
 Autoware map as on CARLA plus `isaac/world.yaml`, which names the world's USD stage. On
 Isaac the ego is a PhysX car inside the world server, built from the same vehicle spec as
 CARLA's, so there is no separate vehicle bridge, and the world server carries one ego.
 [Isaac assets](../design/isaac-assets.md) describes how the asset set is made.
+
+Worlds need not be CARLA towns:
+[Drive a course on Isaac Sim](../how-to/drive-a-course-on-isaac.md) adds the Mount Haruna mountain road, built from open map and elevation data, to this
+project.
 
 ## Exercises
 
@@ -261,6 +215,8 @@ CARLA's, so there is no separate vehicle bridge, and the world server carries on
 
 | Symptom | Fix |
 |---|---|
+| The first `assets check` takes long | it hashes the whole USD set, from a few minutes to a quarter of an hour; later checks hash only files that changed |
+| `assets fetch` stops with `HTTP Error 429`, then waits and retries | Hugging Face limits anonymous downloads; `hf auth login` with a free account's token raises the limit |
 | The world server never says ready | the first load compiles materials: wait, and watch its log in the stack's web UI; `hello --wait` shows whether it answers |
 | The world server dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself: close other GPU work; on two GPUs pick one with the host setting `gpu:` |
 | `refused: the scenario is on map ..., the stack's Isaac world on ...` | the Isaac stack serves one world: restart it with the `map:=` the message names |

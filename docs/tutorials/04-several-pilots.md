@@ -11,7 +11,7 @@ passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-
 
 ## You will learn
 
-- what a pilot consists of (a vehicle side and a driver), and the kinds swb starts:
+- what a pilot consists of (a vehicle side, a driver and an agent), and the kinds swb starts:
   `autoware`, `carla_basic`, `simple`, `launch`, `command`, `none`;
 - binding scenario entities to pilots in `swb.yaml`, by name or by pattern;
 - checking a user-written agent without a simulator;
@@ -23,12 +23,9 @@ passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-
   familiar. Stop that project's stack first (Ctrl-C), since this tutorial uses its own.
 - Two Autowares and CARLA on one host: one NVIDIA GPU with room for both Autowares'
   perception beside CARLA, and 32 GB of RAM or more.
-- CARLA's install named in `~/.config/swb/host.yaml`: the BasicAgent and the cut-in
-  pilot use CARLA's Python API and its `agents` package, which ship with CARLA:
-
-  ```yaml
-  carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
-  ```
+- `carla.root` in the host settings
+  ([Getting started on CARLA](../getting-started/carla.md#let-the-stack-start-it-recommended)):
+  the BasicAgent and the cut-in pilot need CARLA's Python `agents` package.
 
 - About 45 minutes.
 
@@ -64,8 +61,10 @@ entity with no pilot, or a pilot kind the simulator cannot run.
 
 ## 2. Check your own pilot without a simulator
 
-An **agent** is the process that registers an entity with the agent relay and drives it.
-`pilots/cut_in.py` is an agent on swb's SDK, built on the SDK's `carla_basic` adapter: it
+An **agent** (the process, not the controller name) is the program that registers an
+entity with the agent relay and drives it; an entity whose controller is `agent` is driven
+by one. `pilots/cut_in.py` is an agent written with swb's agent SDK (the `swb_agent`
+Python package, [reference](../reference/agent-sdk.md)), on its `carla_basic` adapter: it
 withholds the goal that the scenario gives it until the ego is within its trigger
 distance, then proceeds. swb starts it as
 
@@ -81,7 +80,8 @@ echo '{"world": "fake"}' > /tmp/fake.json
 ros2 run swb_agent swb-agent check pilots/cut_in.py:CutIn --config /tmp/fake.json
 ```
 
-**What you see**: one line per rule of the agent protocol, each `PASS`, ending
+**What you see**: one line per rule of the protocol between agent and relay, each `PASS`,
+ending
 
 ```
   PASS  registers again after a dropped connection
@@ -101,9 +101,7 @@ play_launch launch --web-addr 127.0.0.1:8080 \
 ```
 
 `map:=Town01` starts the pilots at once rather than at the first run, so that their
-start can be observed. These are the pilots that live with the stack: both Autowares and
-the BasicAgent, each in its own ROS domain of the seat. `cut_in` is `lifetime: run`, so
-each run starts it afresh.
+start can be observed.
 
 **What you see**: `swb stack: pilot lead ready on Town01` almost at once,
 `pilot ego ready` and `pilot bg_av_1 ready` once each Autoware can drive, then
@@ -116,8 +114,7 @@ grep -E '"(entity|domain)"' \
     ~/.local/state/swb/logs/multi_pilot/seat-*-current/stack.json
 ```
 
-(or the corresponding directory under another `logs:` of the host settings). Each entity
-has its own domain.
+Each entity has its own domain.
 
 ## 4. Run the scenario
 
@@ -129,7 +126,7 @@ ros2 run swb run scenarios/four_pilots.xosc
 
 `ego` comes down the north arm of a T junction, turns right and drives west; `lead`
 drives west ahead of it; `bg_av_1` drives east in the oncoming lane; `cut_in` waits at the
-south arm's stop line and turns into the ego's road just ahead of it.
+south arm's stop line and turns into the ego's road immediately ahead of it.
 
 **What you see**: `passed   <run id>  <run directory>` when the ego yields to the car
 cutting in and both Autowares reach their goals; `failed` when the ego touches any of the
@@ -161,16 +158,8 @@ repetition cuts in at a different gap, and the same seed reproduces a run exactl
 
 A **pilot** is what drives one entity: a **vehicle side** swb starts (on CARLA, the
 vehicle bridge with the car's sensors), a **driver**, and the agent that registers the
-entity with the relay. The kinds:
-
-| kind | Driver | Agent |
-|---|---|---|
-| `autoware` | Autoware with swb's profile | swb's vehicle agent |
-| `carla_basic` | CARLA's BasicAgent; no vehicle side (CARLA only) | the SDK's `carla_basic` |
-| `simple` | the SDK's `simple_pilot`: follows the lanes to the goal, ignores traffic | `simple_pilot` itself |
-| `launch` | a launch file of yours, given the pilot contract | swb's vehicle agent, unless `agent: own` |
-| `command` | a program of yours, given `--relay --entity --seed --run-dir` | the program itself |
-| `none` | started by you | yours |
+entity with the relay. The kinds are `autoware`, `carla_basic`, `simple`, `launch`,
+`command` and `none` ([project file reference](../reference/project-file.md#pilots)).
 
 Every pilot gets its own ROS domain, because every Autoware uses the same topic names; the
 scenario reaches each through the relay. A `lifetime: stack` pilot serves run after run; a

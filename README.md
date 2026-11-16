@@ -46,17 +46,17 @@ detections and exact positions, so perception is never tested. Here CARLA or Isa
 SSv2's simulator instead, and Autoware has to *see* the pedestrian, the car ahead and the
 traffic light. For someone who already writes SSv2 scenarios:
 
-- **The same `.xosc` files run**, on either simulator. A scenario names its map
-  (`$(env SWB_MAPS)/Town01`) and its cars (from the vehicle catalog), never a path on
-  your machine.
+- **The same `.xosc` files run**, on either simulator. A scenario names its map through a
+  variable the stack sets to the project's map directory (`$(env SWB_MAPS)/Town01`) and
+  its cars from the vehicle catalog, never by a path of the local machine.
 - **The sensors are the simulator's.** SSv2's sensor requests are declined; Autoware gets
   the simulator's cameras and lidar.
-- **The verdict is SSv2's**, with CARLA's own contact check and judges of your own beside
+- **The verdict is SSv2's**, with CARLA's own contact check and user-defined judges beside
   it.
 - **Any autopilot.** Autoware, CARLA's BasicAgent, a launch file or a Python program may
-  drive any vehicle of a scenario, several of them at once. An autopilot built on another
-  stack drives its car through Autoware's vehicle interface (its control and status
-  messages), whatever it is built on.
+  drive any vehicle of a scenario, several of them at once. An autopilot that is not
+  Autoware drives its car through Autoware's vehicle interface (its control and status
+  messages).
 
 ## How it works
 
@@ -65,22 +65,23 @@ traffic light. For someone who already writes SSv2 scenarios:
   <em>A scenario run. The two teal lines are the boundaries every simulator implements.</em>
 </p>
 
-You work in a **project**: a directory with a `swb.yaml` that names the simulator, the
+Work is organised in **projects**: a project is a directory with a `swb.yaml` that names the simulator, the
 assets (maps, USD worlds, cars) and which **pilot** drives each scenario entity. A
 long-lived **stack** brings up the simulator side and the pilots; each **run** of a
 scenario goes against it and leaves a result. These words and the others the pages use
 are in the [glossary](docs/reference/glossary.md);
 [How it works](docs/explanation/how-it-works.md) says more.
 
-In short, once [installed](docs/getting-started/install.md), with CARLA installed and
-named in your host settings (the stack then starts it):
+In outline, after [installation](docs/getting-started/install.md), with CARLA installed
+and its directory recorded in the host settings file (`~/.config/swb/host.yaml`, see
+Install), so that the stack starts it:
 
 ```bash
 ros2 run swb project new ~/my_first_drive        # a starter project
 cd ~/my_first_drive
 ros2 run swb assets fetch                        # its map, from Hugging Face
 play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml                    # the stack: leave it running
+    swb_launch swb.launch.xml                    # the stack: it remains running
 ros2 run swb run scenarios/drive_to_goal.xosc    # in a second terminal
 ```
 
@@ -94,7 +95,7 @@ The fixed requirements are the platform and the build tools:
 | | |
 |---|---|
 | OS, ROS | Ubuntu 22.04, [ROS 2 Humble](https://docs.ros.org/en/humble/Installation.html) |
-| Autoware's messages | the build compiles against Autoware's interface messages (`autoware_adapi_v1_msgs` and the vehicle and control messages), which any built Autoware workspace or Autoware's binary packages provide, whichever autopilot then drives |
+| Autoware's messages | Autoware's interface messages (`autoware_adapi_v1_msgs` and the vehicle and control messages), from an Autoware workspace or its binary packages (required to build, whichever autopilot drives) |
 | Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer |
 | Build tools | Rust ([rustup](https://rustup.rs/)) and colcon's Rust plugin, `colcon-cargo-ros2` |
 
@@ -103,12 +104,11 @@ with:
 
 | | |
 |---|---|
-| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is compiled in, below), or Isaac Sim 6.1 (pip install) |
-| Autopilot | Autoware: a built Autoware workspace, whose `setup.bash` a host setting names; swb provides the car's launch files and configuration, tested with [Autoware 1.5.0](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (its binary packages or a build of that release). Or CARLA's BasicAgent, a simple pilot on the ground truth, a launch file or a program of your own |
+| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is fixed at build time, see [Supported and not supported](docs/reference/limits.md#platform)), or Isaac Sim 6.1 (pip install) |
+| Autopilot | [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (tested with 1.5.0, binary packages or a build; swb provides the car's launch files and configuration), CARLA's BasicAgent, a simple pilot on the ground truth, or a launch file or program of one's own |
 | Hardware | an NVIDIA GPU that runs the simulator beside the autopilot. Isaac Sim: an RTX GPU with 24 GB and 64 GB of RAM |
 
-SSv2 is bundled (a fork, as a submodule). Maps, USD worlds and cars come from public
-datasets on Hugging Face, fetched by name into a project (below).
+SSv2 is bundled (a fork, as a submodule).
 
 ## Start here
 
@@ -136,11 +136,6 @@ fetch` downloads only what it takes:
 | [haruna-tsukuba-courses](https://huggingface.co/datasets/jerry73204/haruna-tsukuba-courses) | the Mount Haruna mountain road and Tsukuba Circuit: Isaac worlds and Autoware maps | ODbL, GSI |
 | [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages) | Isaac test stages for road surfaces, a proving ground, a rough road | Apache-2.0 |
 | [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models) | a golf cart for Isaac Sim and RViz | Apache-2.0 |
-
-**Other CARLA versions.** The CARLA version is fixed when swb is built (a build feature of
-its CARLA client). CARLA 0.9.16 is the tested version; 0.9.14 and 0.9.15 build but are
-untested, and 0.10 is not supported
-([Supported and not supported](docs/reference/limits.md#platform)).
 
 ## Related projects
 

@@ -38,15 +38,14 @@ its controller:
 
 | Road user | In the scenario | Moved by | Physics |
 |---|---|---|---|
-| Pedestrian | `<Pedestrian>`, default controller | SSv2: the bridge places it each frame | off |
+| Pedestrian | `<Pedestrian>`, no controller or controller `""` | SSv2: the bridge places it each frame | off |
 | Obstacle | `<MiscObject>` | stays where it is put | off |
 | Car, scripted | `<Vehicle>` or a catalog car, controller `""` | SSv2, as a pose each frame | off |
 | Car, driven by the simulator | controller `simulator_autopilot` | CARLA's Traffic Manager | on |
 | Car with a pilot | controller `agent` | a pilot of the project ([Tutorial 4](04-several-pilots.md)) | on |
 
 A scripted car or pedestrian follows the scenario exactly in every run, and a collision
-never displaces it. The last two kinds drive with physics and react to their
-surroundings.
+never displaces it.
 
 ## 1. A pedestrian among obstacles
 
@@ -55,8 +54,8 @@ cp $E/projects/first_drive/scenarios/pedestrian_crossing.xosc scenarios/
 ```
 
 The ego drives west past two street barriers while a pedestrian crosses its lane. It
-passes if the ego reaches its goal without touching the walker or coming close to it:
-within 0.3 m sideways and 1.0 m lengthwise at the same time. The pedestrian and a barrier
+passes if the ego reaches its goal without touching the walker or passing too close to
+it (below). The pedestrian and a barrier
 are declared with CARLA's asset names, which the bridge translates for each simulator:
 
 ```xml
@@ -98,10 +97,10 @@ with `exitFailure`.
 ros2 run swb run scenarios/pedestrian_crossing.xosc
 ```
 
-**What you see**: in RViz the walker appears as a detected object (Autoware perceives it
-only with its own sensors), and the ego stops short of the crossing until it is clear;
-then
-`passed   <run id>  <run directory>`.
+**What you see**: the ego stops short of the crossing until it is clear; then
+`passed   <run id>  <run directory>`. With RViz enabled (`rviz: true`,
+[Tutorial 1, step 4](01-first-drive.md#4-run-the-scenario)), the walker appears as a
+detected object, since Autoware perceives it only with its own sensors.
 
 **Check**: `echo $?` prints `0`.
 
@@ -121,8 +120,8 @@ Init, by the Lanelet2 id of the signal, and green again at 150 s:
 ```
 
 The world server resolves that id to a CARLA light through the map's signal table, which
-the fetched Town01 includes (for a map without one, the world server writes one into the
-project's `state/<map>/`).
+the fetched Town01 includes. For a map without one, the world server writes one into the
+project's `state/<map>/`, the directory where it keeps what it derives for a map.
 
 ```bash
 ros2 run swb run scenarios/red_light.xosc
@@ -131,7 +130,8 @@ ros2 run swb run scenarios/red_light.xosc
 **What you see**: the ego stops at the stop line, waits, and drives on when the light turns
 green; the run passes in about three minutes.
 
-**Check**: `ls assets/maps/Town01/carla/` lists `traffic_lights.yaml`.
+**Check**: `ls assets/maps/Town01/carla/` lists `traffic_lights.yaml`, the signal table
+through which the id was resolved.
 
 ## 3. A car the simulator drives
 
@@ -171,10 +171,8 @@ goals and nothing has collided.
 
 ## What happened
 
-The bridge turns each entity into a simulator actor by its kind and its controller. The
-ego and `agent` entities are driven by pilots, outside SSv2; scripted ones are poses SSv2
-computes each frame; a `simulator_autopilot` car is the simulator's own. Such a car does
-not take `LaneChangeAction`, a relative `SpeedAction` or `FollowTrajectoryAction`, since its
+The bridge turns each entity into a simulator actor by its kind and its controller, as
+the table above lists. A `simulator_autopilot` car does not take `LaneChangeAction`, a relative `SpeedAction` or `FollowTrajectoryAction`, since its
 driver decides those: the scenario fails naming the action rather than ignoring it.
 
 On Isaac Sim the same files run as far as the simulator can drive them: scripted
@@ -198,9 +196,9 @@ of road user: [What a scenario may use](../reference/scenarios.md).
 | Symptom | Fix |
 |---|---|
 | `project check`: `LogicFile ... does not name a project map` | a scenario from elsewhere names its map another way: set its `LogicFile` to `$(env SWB_MAPS)/Town01` |
-| The light never changes; the bridge's log says `Cannot read the signal table` | the world server could not write `state/Town01/traffic_lights.yaml`: the project directory must be writable |
-| `simulator_autopilot` refused | the stack is on Isaac Sim, which has no driver of its own |
-| The pedestrian run fails on the clearance check | Autoware did not perceive the walker in time: `runs why pedestrian_crossing` and the perception logs in `runs/<id>/logs/pilot-ego/` show why |
+| The light never changes; the bridge's log says `Cannot read the signal table` | the world server found no signal table: for a map without one it writes `state/<map>/traffic_lights.yaml`, so the project directory must be writable |
+| `project check` (or the stack at start) refuses: `controller simulator_autopilot runs on CARLA only, the simulator is isaac ...` | the project is on Isaac Sim, which has no driver of its own |
+| The pedestrian run fails on the clearance check | Autoware did not perceive the walker in time: `runs why <run id>` (the id from `runs list`, since a name that matches several runs is refused) and the perception logs in `runs/<id>/logs/pilot-ego/` show why |
 
 ## Next
 

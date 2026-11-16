@@ -10,20 +10,16 @@ surface, slip and sinkage are observed as it crosses.
 
 ## You will learn
 
-- what the Isaac world server models under a wheel: surface classes, soil with sinkage and
-  ruts, a rough road;
-- to give a map its ground from the project (`ground:` in `swb.yaml`), without editing
-  the shared map;
-- to check a surface map without Isaac;
-- to change the road's state from a scenario with `RoadCondition`;
-- to watch `/swb/wheels`, and record it with a run.
+- giving a map its ground from the project (`ground:` in `swb.yaml`) and checking it
+  without Isaac;
+- changing the road's state from a scenario with `RoadCondition`;
+- observing `/swb/wheels`, and recording it with a run.
 
 ## Before you start
 
 - [Tutorial 6](06-carla-assets-on-isaac.md): Isaac Sim and an Isaac stack that became
   ready on Town01. Stop that stack (Ctrl-C), since this tutorial uses a project of its own.
-- The same hardware as Tutorial 6. The ruts of a soil zone occupy memory, about 100 MB per
-  km of tracks, for as long as the world server runs.
+- The same hardware as Tutorial 6.
 - About 45 minutes.
 
 ## 1. Copy the example
@@ -36,8 +32,8 @@ ros2 run swb assets fetch
 cat swb.yaml ground/town01.yaml
 ```
 
-**What you see**: the Isaac project of Tutorial 6 with a third, small dataset and a key of
-its own:
+**What you see**: the Isaac project of Tutorial 6 with a third dataset
+(`isaac-road-physics-stages`, small) and a key of its own:
 
 ```yaml
 ground:                              # per map: this project's surface files
@@ -46,14 +42,17 @@ ground:                              # per map: this project's surface files
 ```
 
 followed by the **surface map**, the file that assigns a surface class to the ground. It
-gives defaults per semantic label (roads asphalt, pavements concrete, verges grass) and
+gives defaults per semantic label, the class the town's meshes carry (roads asphalt,
+pavements concrete, verges grass), and
 three **zones**, regions that override those defaults along the scenarios' route:
 `wet_stretch`, `mud_road` (wet mud with soil on its own ground, so that it ruts) and
 `gravel_patch`.
 
 The ground is a file of the project rather than of the map, because the fetched map is
 read-only and shared by every project; another project on Town01 drives on its own
-ground.
+ground. At start the stack links each file that `ground:` names into the project's
+`state/<map>/` (`surfaces` as `surfaces.yaml`, `road_detail` as `road_detail.yaml`),
+where the world server reads it, so `ground/town01.yaml` remains the only file to edit.
 
 **Check**, without Isaac:
 
@@ -67,18 +66,9 @@ ground/town01.yaml: 3 zone(s), 1 with soil; 12 classes
 ```
 
 The warning is expected: the sinkage of `mud_wet` lies outside its validation tolerance,
-and the map accepts it explicitly by name (`allow_unvalidated: [mud_wet]`).
+and the surface map accepts it by name (`allow_unvalidated: [mud_wet]`).
 
-## 2. Hand the ground to the world server
-
-The world server reads a map's surface map from the project's `state/<map>/` first. The
-file is not copied there by hand: at start the stack links each file that `ground:` names
-into `state/<map>/` (`surfaces` as `surfaces.yaml`, `road_detail` as `road_detail.yaml`),
-so `ground/town01.yaml` remains the only file to edit.
-
-**Check**: after step 3, `ls -l state/Town01/` shows `surfaces.yaml -> .../ground/town01.yaml`.
-
-## 3. Bring up the stack
+## 2. Bring up the stack
 
 ```bash
 play_launch launch --web-addr 127.0.0.1:8080 \
@@ -87,14 +77,17 @@ play_launch launch --web-addr 127.0.0.1:8080 \
 
 **What you see**: as in Tutorial 6, ending `swb stack ...: ready`.
 
-**Check**: in the stack's web UI, the world server's log (the simulator group) warns about
-`mud_wet` and has the lines `soil zone mud_road: cut (...) out of 8 mesh(es)` and
+**Check**: `ls -l state/Town01/` shows `surfaces.yaml -> .../ground/town01.yaml`. In the
+stack's web UI, the world server's log (the simulator group) warns about `mud_wet` and has
+the lines `soil zone mud_road: cut (...) out of 8 mesh(es)` and
 `soil zone mud_road: 32 tiles of 1.6 m at z 0.00`, which show that it read the project's
 surface map.
 
-## 4. Drive through the mud, and watch the wheels
+## 3. Drive through the mud, and watch the wheels
 
-In a second terminal, join the ego's ROS domain and subscribe to the wheel states:
+In a second terminal, join the ego's ROS domain and subscribe to the wheel states
+(`seat env 0` prints the settings of the seat's first pilot domain, the ego's; 0 is that
+domain's index, not a seat number):
 
 ```bash
 cd ~/road_physics
@@ -115,8 +108,9 @@ at a lower friction; in the mud it becomes `mud_wet`, the slip increases and the
 reaches a few centimetres; then it becomes `gravel`. The rear-driven car slows in the mud
 but crosses it, and the run ends `passed`.
 
-**Check**: the ruts the run left in the mud are saved when the world server next loads the
-world, which happens at the start of the next run. After the drive of step 5,
+**Check**: the ruts the run left in the mud are saved when the next run begins: each run's
+initialization loads the world's state again, also on the same world. After the drive of
+step 4,
 
 ```bash
 ls state/Town01/ruts/runs/
@@ -124,7 +118,7 @@ ls state/Town01/ruts/runs/
 
 lists them.
 
-## 5. The road after rain
+## 4. The road after rain
 
 `scenarios/after_rain.xosc` is the same drive with the road's state set by the scenario:
 
@@ -162,10 +156,9 @@ lists `/swb/wheels` among the recorded topics.
 The Isaac world server assigns every piece of ground a surface class, from its semantic
 label or from a zone, and derives each wheel's friction and tire curve from that class at
 every physics step. In a soil zone it also runs a soil model (sinkage, traction limit,
-motion resistance, and ruts in which later wheels run); on the zone's own ground
-(`ground_z`) the ruts also enter the collision geometry and the lidar. The project's files
-live in `state/<map>/` beside what the server writes there, so the shared map is never
-edited. [Road physics on Isaac Sim](../reference/road-physics.md) lists every class, zone
+motion resistance, and ruts in which later wheels run); on a zone with its own flat ground
+(`ground_z`, [reference](../reference/road-physics.md)) the ruts also enter the collision
+geometry and the lidar. [Road physics on Isaac Sim](../reference/road-physics.md) lists every class, zone
 key, road-detail key and `RoadCondition` property.
 
 ## Exercises
@@ -175,9 +168,8 @@ key, road-detail key and `RoadCondition` property.
    `mud_and_gravel.xosc` ends `failed` on its 180 s timeout with the car stalled in the
    mud, and `/swb/wheels` shows the rear wheels' slip near 1.
 2. **Medium.** Lay the rough gravel road the stages dataset carries over Town01's
-   straight: uncomment `road_detail:` under `ground: Town01:` in `swb.yaml` (it names
-   `assets/isaac-road-physics-stages/procedural/spikes/road_town/road_detail.yaml`) and
-   restart the stack. Check:
+   straight: uncomment `road_detail:` under `ground: Town01:` in `swb.yaml` and restart
+   the stack. Check:
    `ros2 run swb_isaac_world road_detail check state/Town01/road_detail.yaml` prints
    `1 corridor(s)` and the corridor's 250 m, and the stack starts again without a
    problem. (Autoware has not been validated on the rough road.)
@@ -194,7 +186,7 @@ key, road-detail key and `RoadCondition` property.
 | Every wheel's class is `asphalt` | the world server found no surface map: check `ground:` in `swb.yaml` (`ros2 run swb project check`), then restart the stack |
 | The stack is refused, naming `surfaces.yaml` | the file failed its check: run `surfaces check` on it, which lists every problem |
 | `/swb/wheels` shows nothing | the terminal is not on the ego's domain (`eval "$(ros2 run swb seat env 0)"`), or the stack is not up |
-| `mud_and_gravel.xosc` fails, the car stopped in the mud | a car that stops in fresh wet mud can hardly start again, and Autoware's longitudinal controller does not add torque at low speed; the shipped scenarios do not stop there |
+| `mud_and_gravel.xosc` fails, the car stopped in the mud | the car stalled in the mud: a car that stops in fresh wet mud rarely regains traction, and Autoware does not add torque at low speed; the shipped scenarios do not stop there |
 
 ## Next
 

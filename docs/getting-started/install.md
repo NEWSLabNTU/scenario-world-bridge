@@ -42,7 +42,8 @@ Isaac Sim needs much more (an RTX card with 24 GB, 64 GB of RAM): [Isaac Sim](is
   ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/));
   the commands below use its binary packages under `/opt/autoware/1.5.0` as the example.
 - **Network access** to GitHub (the clone), crates.io (Rust crates, during the build),
-  PyPI (two tools below) and Hugging Face (the maps, later).
+  PyPI (colcon's Rust plugin and yamale, and play_launch if you take it) and Hugging Face
+  (the maps, later).
 
 ## Once per machine (needs sudo)
 
@@ -68,18 +69,12 @@ source ~/.cargo/env
 cargo --version
 ```
 
-colcon's Rust plugin and [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or
-newer, which rosdep cannot install. play_launch is the recommended launcher: it keeps a log
-per node, offers a web interface and supervises the processes. swb's runner currently starts
-the stack and the scenario with it, and support for plain `ros2 launch` is in preparation, so
-the commands of these pages use it. Both are installed for the user into Humble's Python (the
-system `python3`, 3.10), not into a virtual environment: `colcon` and `ros2` run on that
-Python and must find them.
+colcon's Rust plugin, which has no apt package. It is installed for the user into Humble's
+Python (the system `python3`, 3.10), not into a virtual environment: `colcon` runs on that
+Python and must find it.
 
 ```bash
-python3 -m pip install --user colcon-cargo-ros2==0.5.4 xmlschema 'play_launch>=0.30.0'
-export PATH=$HOME/.local/bin:$PATH    # where pip --user puts play_launch
-play_launch --version
+python3 -m pip install --user colcon-cargo-ros2==0.5.4
 ```
 
 pip must not also have installed a newer setuptools for the user: one in `~/.local`
@@ -114,17 +109,18 @@ python3 -m pip install --user yamale
 rosdep reads the packages colcon builds (`colcon list`) and installs apt packages, so it
 asks for sudo; on a shared host the administrator runs it once from one clone. The key
 `python-yamale-pip` (SSv2's test runner) resolves only from a rosdep source most hosts
-lack, so it is skipped and installed with pip. Among others, rosdep installs pygame,
-lanelet2, shapely and networkx.
+lack, so it is skipped and installed with pip. Among others, rosdep installs from apt
+xmlschema (SSv2's scenario check), shapely, networkx, pygame and lanelet2.
 
 Without sudo, `rosdep install` stops at the first apt package it cannot install. The build
 does not need those packages; the few that runs need are installed for the user instead:
 
 ```bash
-python3 -m pip install --user shapely networkx pygame
+python3 -m pip install --user xmlschema shapely networkx pygame
 ```
 
-shapely and networkx are needed by CARLA's own driving agents, which the `carla_basic`
+xmlschema is needed by SSv2's test runner, which checks each scenario against the
+OpenSCENARIO schema; shapely and networkx by CARLA's own driving agents, which the `carla_basic`
 pilot runs, in the same Python (`project check` refuses a `carla_basic` pilot without
 them); pygame only by `carla_manual_control`'s window. lanelet2's Python bindings are not needed by the build or
 the tutorials. `rosdep check --from-paths $(colcon list --base-paths src -p) --ignore-src`
@@ -173,6 +169,27 @@ cd ~/scenario-world-bridge            # your clone, wherever you put it
 sudo install -m 644 config/99-cyclonedds-max.conf /etc/sysctl.d/
 sudo sysctl -p /etc/sysctl.d/99-cyclonedds-max.conf
 ```
+
+## Recommended: play_launch
+
+swb starts the stack, its pilots and each run's SSv2 with a launcher. Without anything
+more that is `ros2 launch`, which every ROS 2 install has, and everything on these pages
+works with it. [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer is
+recommended: it keeps a log per node, shows the stack in a web interface, and restarts a
+crashed Autoware component alone ([Launchers](../reference/commands.md#launchers)). It has
+no apt package; install it for the user into Humble's Python:
+
+```bash
+python3 -m pip install --user 'play_launch>=0.30.0'
+export PATH=$HOME/.local/bin:$PATH    # where pip --user puts it (also in ~/.bashrc)
+play_launch --version
+```
+
+swb finds it on `PATH` and uses it (the host setting `launcher: auto`, the default; `ros2`
+keeps `ros2 launch` whatever is installed: [Host settings](../reference/host-settings.md)).
+`ros2 run swb project check` and `ros2 run swb seat show` print which one the stack will
+use: `launcher: auto -> play_launch 0.30.0`, or `launcher: auto -> ros2 (play_launch not
+on PATH)`.
 
 ## The environment file
 
@@ -254,7 +271,7 @@ More on seats: [Several stacks on one host](../how-to/several-stacks.md).
 | Symptom | Fix |
 |---|---|
 | `cargo: command not found` during the build | the terminal predates rustup: `source ~/.cargo/env` |
-| `play_launch: command not found` | `~/.local/bin` is not on `PATH`: add `export PATH=$HOME/.local/bin:$PATH` to `~/.bashrc` |
+| `play_launch: command not found`, or `launcher: auto -> ros2 (play_launch not on PATH)` after installing it | `~/.local/bin` is not on `PATH`: add `export PATH=$HOME/.local/bin:$PATH` to `~/.bashrc` |
 | `ERROR: your rosdep installation has not been initialized yet` | `sudo rosdep init`, then `rosdep update` |
 | `embree_vendor`: `Compatibility with CMake < 3.5 has been removed from CMake` | a CMake 4 ahead of Ubuntu's: `export CMAKE_POLICY_VERSION_MINIMUM=3.5` before `colcon build`, as above |
 | `traffic_simulator`: `-Werror=maybe-uninitialized` in boost's `rescale_policy.hpp` | a GCC newer than Ubuntu 22.04's 11: add `-DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized` to `--cmake-args` |

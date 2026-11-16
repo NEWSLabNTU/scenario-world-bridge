@@ -656,8 +656,12 @@ Isaac's rear contact (inventory row 18).
   reads Cargo.toml with `tomllib`, else `tomli`, and with neither (Python 3.10, a fresh
   HOME) returns nothing and says nothing, so every crate is taken for a standalone one, with
   only its own patches; this host's `~/.local` had tomli. install.md and `just setup` install
-  it; the plugin itself (the user's) should declare `tomli; python_version < "3.11"` and fail
-  on a TOML it cannot read, a release of its own.
+  it. The plugin's fix (the user's repo, approved and released 2026-11-16): colcon-cargo-ros2
+  **0.5.4** declares `tomli>=1.1; python_version < '3.11'` and raises naming the file when a
+  Cargo.toml cannot be read (an absent one still reads as none). Checked on 241's case, a
+  Python 3.10 environment without tomli and a fresh clone: 0.5.3 failed as on 241; 0.5.4
+  without tomli stopped at once ("... has neither: pip install tomli"); 0.5.4 installed
+  normally pulled tomli and built acb's three crates. install.md and `just setup` pin 0.5.4.
   install.md now builds with `-DBUILD_TESTING=OFF` (as `just build` does; replay_testing
   comes only with a full rosdep install) and says how to drop the `[[patch.unused]]` lock
   entries a plain build leaves before a `git pull --rebase`.

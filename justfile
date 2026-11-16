@@ -89,10 +89,9 @@ setup:
         echo "Removing conflicting colcon-cargo/colcon-ros-cargo..."
         pip uninstall -y colcon-cargo colcon-ros-cargo
     fi
-    python3 -c "import colcon_cargo_ros2" &>/dev/null || pip install colcon-cargo-ros2==0.5.3
-    # 0.5.3 reads Cargo.toml with tomli on Python 3.10 and does not declare it: without it the
-    # plugin takes every crate for a standalone one and acb's two tools fail to build (swb 241)
-    python3 -c "import tomli" &>/dev/null || pip install tomli
+    # 0.5.4: the first to declare tomli (Python 3.10), without which 0.5.3 took every crate for a
+    # standalone one and acb's two tools failed to build (077, swb 241)
+    pip install --quiet "colcon-cargo-ros2==0.5.4"
 
     # Initialise missing submodules only: a plain `update` would move a submodule you are
     # working in back to its pinned commit.

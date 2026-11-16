@@ -92,7 +92,7 @@ The run ends with one line, `passed   <run id>  <run directory>`, and exits 0.
 
 The fixed requirements are the platform and the build tools:
 
-| | |
+| Component | Requirement |
 |---|---|
 | OS, ROS | Ubuntu 22.04, [ROS 2 Humble](https://docs.ros.org/en/humble/Installation.html) |
 | Autoware's messages | Autoware's interface messages (`autoware_adapi_v1_msgs` and the vehicle and control messages), from an Autoware workspace or its binary packages (required to build, whichever autopilot drives) |
@@ -102,7 +102,7 @@ The fixed requirements are the platform and the build tools:
 The simulator and the autopilot are choices, each with the versions it has been tested
 with:
 
-| | |
+| Component | Options and tested versions |
 |---|---|
 | Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is fixed at build time, see [Supported and not supported](docs/reference/limits.md#platform)), or Isaac Sim 6.1 (pip install) |
 | Autopilot | [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (tested with 1.5.0, binary packages or a build; swb provides the car's launch files and configuration), CARLA's BasicAgent, a simple pilot on the ground truth, or a launch file or program of one's own |

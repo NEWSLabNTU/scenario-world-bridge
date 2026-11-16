@@ -7,7 +7,7 @@ current, and what has to be true before a patch is added to it.
 
 ## Current state
 
-| | |
+| Item | Value |
 |---|---|
 | Branch | `managed-ego-unforked` |
 | Upstream base | `3370c817e` (version 25.0.22) |

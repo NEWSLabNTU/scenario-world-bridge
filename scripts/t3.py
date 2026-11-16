@@ -9,10 +9,14 @@
 
 The manifest is scenarios/t3.yaml. A reference is ``<references>/<project>/<suite>.csv``: one
 row per run (scenario file name, repetition, seed) with its verdict and judges' verdicts,
-plus the commit and host it was recorded on in ``<suite>.json``. ``compare`` fails on a run
-whose verdict or a judge's verdict differs from the reference, or that is missing; a duration
-more than 1.5 times the reference's is reported, not failed (hosts differ). Record only on the
-release commit, so each reference names one commit.
+plus in ``<suite>.json`` the commit the results ran on (their result.json's provenance: one
+commit, its submodule pins; a dirty one is noted), t3.py's own commit (``recorded_with``), the
+host, and the GPUs and load at record time (``gpu_gated``: the stack's card(s) the busy check
+judged, from host ``gpu``, the seat's ``seats.gpus``, CUDA_VISIBLE_DEVICES, else all).
+``compare`` fails on a run whose verdict or a judge's verdict differs from the reference, or
+that is missing; a duration more than 1.5 times the reference's is reported, not failed (hosts
+differ). Record only on the release commit, so each reference names one commit. The busy check
+and ``gpu_at_record`` are the host's state when ``record`` runs, not while the suite ran.
 
 A project marked ``copy: true`` (an example under src/swb_examples) runs from a copy made
 with ``ros2 run swb project new --from``, under ``--work`` (default /var/tmp/$USER/t3), fetched
@@ -103,7 +107,8 @@ def read_summary(path: Path) -> list:
     rows = []
     with open(path, newline="") as f:
         for r in csv.DictReader(f):
-            rows.append({"scenario": Path(r["scenario"]).name, "repetition": r["repetition"],
+            rows.append({"run_id": r.get("run_id", ""),
+                         "scenario": Path(r["scenario"]).name, "repetition": r["repetition"],
                          "seed": r.get("seed", ""), "params": r.get("params", ""),
                          "verdict": r["verdict"], "judges": r.get("judges", ""),
                          "duration": r.get("duration", ""), "reason": r.get("reason", "")})
@@ -193,12 +198,122 @@ def gpu_state() -> list:
     return out
 
 
-def busy(gpus: list, load: float = None, cores: int = None) -> bool:
-    """A GPU at 50 % use or memory, or a host whose 1-minute load is at its core count
-    (swb 139's ladder: other users' jobs at load 330-500 stalled SSv2 on a quiet GPU)."""
+def busy(gpus: list, load: float = None, cores: int = None, gated=None) -> bool:
+    """A gated GPU at 50 % use or memory, or a host whose 1-minute load is at its core count
+    (swb 139's ladder: other users' jobs at load 330-500 stalled SSv2 on a quiet GPU). The load
+    is the host's, always; ``gated``: the GPU indices the stack uses (``stack_gpus``), None for
+    every card (118: GPU 1 another user's, the stack on GPU 0, refused for ever)."""
     if load is not None and cores and load >= cores:
         return True
-    return any(g["util_pct"] >= 50 or g["used_mib"] > 0.5 * g["total_mib"] for g in gpus)
+    return any(g["util_pct"] >= 50 or g["used_mib"] > 0.5 * g["total_mib"] for g in gpus
+               if gated is None or g["gpu"] in gated)
+
+
+class GpuRefused(ValueError):
+    """CUDA_VISIBLE_DEVICES names a GPU nvidia-smi does not list."""
+
+
+def gpu_uuids() -> dict:
+    """nvidia-smi's uuid -> index, for a CUDA_VISIBLE_DEVICES given as UUIDs."""
+    try:
+        q = subprocess.run(["nvidia-smi", "--query-gpu=index,uuid", "--format=csv,noheader"],
+                           capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    out = {}
+    for line in q.strip().splitlines():
+        i, u = (x.strip() for x in line.split(","))
+        out[u] = int(i)
+    return out
+
+
+def stack_gpus(host: dict, seat_arg=None, environ=None, uuids=gpu_uuids, resolve=None):
+    """``(indices or None, source)``: the GPU(s) the stack uses, as swb takes them: host
+    ``gpu``, else the seat's ``seats.gpus`` entry (``--seat`` or host ``seat``; ``auto``
+    resolved as `swb run` resolves it, the first free seat whose ports are free), else
+    CUDA_VISIBLE_DEVICES (indices, or GPU UUIDs mapped to nvidia-smi's indices; one it does
+    not list is refused), else None: every card."""
+    environ = os.environ if environ is None else environ
+    if host.get("gpu") is not None:
+        return [int(host["gpu"])], f"host gpu: {host['gpu']}"
+    gpus = (host.get("seats") or {}).get("gpus")
+    if gpus:
+        choice = seat_arg if seat_arg is not None else host.get("seat", "auto")
+        if str(choice) == "auto":
+            n = resolve(host) if resolve else _auto_seat(host)
+            if n is None:
+                return (sorted({int(g) for g in gpus}),
+                        "seats.gpus (seat auto: none free; every seat's)")
+            return [int(gpus[n])], f"seats.gpus[{n}] (seat auto)"
+        n = int(choice)
+        if not 0 <= n < len(gpus):
+            raise GpuRefused(f"seat {n}: seats.gpus lists {len(gpus)} seats ({gpus})")
+        return [int(gpus[n])], f"seats.gpus[{n}] (seat {n})"
+    cvd = environ.get("CUDA_VISIBLE_DEVICES", "").strip()
+    if cvd:
+        out, table = [], None
+        for d in (x.strip() for x in cvd.split(",") if x.strip()):
+            if d.isdigit():
+                # CUDA's order is FASTEST_FIRST unless CUDA_DEVICE_ORDER=PCI_BUS_ID, not
+                # always nvidia-smi's: the same on one card or identical cards (swb assumes it)
+                out.append(int(d))
+                continue
+            table = uuids() if table is None else table
+            hit = next((i for u, i in table.items() if u == d or u.startswith(d)), None)
+            if hit is None:
+                raise GpuRefused(f"CUDA_VISIBLE_DEVICES={cvd}: {d} is not a GPU nvidia-smi "
+                                 f"lists ({', '.join(table) or 'none'})")
+            out.append(hit)
+        return out, f"CUDA_VISIBLE_DEVICES={cvd}"
+    return None, "every GPU (no gpu, seats.gpus or CUDA_VISIBLE_DEVICES)"
+
+
+def _auto_seat(host: dict):
+    """The seat `swb run` would take now (seat.resolve with its port check), else None."""
+    sys.path.insert(0, str(ROOT / "src" / "swb"))
+    from swb import config, seat as seatmod
+    try:
+        return seatmod.resolve(dict(host, seat="auto"),
+                               usable=lambda s: not seatmod.busy_ports(s)).index
+    except (config.ConfigError, seatmod.SeatTaken):
+        return None
+
+
+def results_provenance(rows: list, runs: Path) -> dict:
+    """What the results were run on, from each run's result.json (``runs/<run_id>``): its
+    ``provenance.swb`` commit and ``submodules``. ``commits``: every distinct one; a part's
+    reference names one, so a mix is refused."""
+    commits, subs, missing = {}, {}, []
+    for r in rows:
+        try:
+            p = json.loads((runs / r["run_id"] / "result.json").read_text())["provenance"]
+        except (OSError, ValueError, KeyError):
+            missing.append(r["run_id"] or r["scenario"])
+            continue
+        c = str(p.get("swb") or "")
+        commits.setdefault(c, []).append(r["run_id"])
+        subs[c] = p.get("submodules") or {}
+    return {"commits": commits, "submodules": subs, "missing": missing}
+
+
+def off_pin(submodules: dict) -> str:
+    """The submodules a result's provenance shows off its commit's pins: swb's
+    results.submodule_pins writes ``sha+`` for a checkout off its pin (a stale one after a
+    pull: the binaries are not the commit's code) and ``sha-`` for one not initialised.
+    "" when none is."""
+    return ", ".join(f"{p} ({s})" for p, s in sorted(submodules.items())
+                     if str(s).endswith(("+", "-")))
+
+
+def results_commit(prov: dict):
+    """``(commit, problem)``: the one commit the results name, or a problem."""
+    if prov["missing"]:
+        return None, f"no result.json for {', '.join(prov['missing'][:3])}"
+    if len(prov["commits"]) != 1:
+        return None, ("results from more than one commit: " +
+                      "; ".join(f"{c or '?'} ({len(ids)} runs)"
+                                for c, ids in prov["commits"].items()))
+    return next(iter(prov["commits"])), None
 
 
 def host_load() -> tuple:
@@ -206,10 +321,14 @@ def host_load() -> tuple:
     return os.getloadavg()[0], os.cpu_count()
 
 
-def logs_root() -> Path:
+def host_settings() -> dict:
     sys.path.insert(0, str(ROOT / "src" / "swb"))
     from swb import config
-    return Path(config.host_settings()["logs"]).expanduser()
+    return config.host_settings()
+
+
+def logs_root() -> Path:
+    return Path(host_settings()["logs"]).expanduser()
 
 
 def run(entries: list, work: Path, dry_run: bool) -> int:
@@ -283,6 +402,7 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="run: print the commands only")
     ap.add_argument("--busy-ok", action="store_true",
                     help="record although the GPU is busy (the reference says so)")
+    ap.add_argument("--seat", help="record: the seat whose GPU is gated (default: the host's)")
     a = ap.parse_args(argv)
     doc = load(a.manifest)
     entries = selected(doc, a.only, a.part)
@@ -303,19 +423,52 @@ def main(argv=None) -> int:
             failed += 1
             continue
         rows = read_summary(summ)
+        prov = results_provenance(rows, summ.parents[2] / "runs")
+        at, why = results_commit(prov)
         if a.action == "record":
-            gpus = gpu_state()
-            hload, cores = host_load()
-            if busy(gpus, hload, cores) and not a.busy_ok:
-                print(f"{e['key']}: not recorded, the host is busy now (load {hload:.0f} on "
-                      f"{cores} cores; GPU {gpus}); record on a quiet host, or give --busy-ok")
+            if why:
+                print(f"{e['key']}: not recorded, {why}")
                 failed += 1
                 continue
-            write_reference(rows, ref, {"commit": commit(), "host": socket.gethostname(),
+            off = off_pin(prov["submodules"][at])
+            if off:
+                print(f"{e['key']}: not recorded, submodules off the commit's pins: {off}; "
+                      "git submodule update --init --recursive, rebuild, run again")
+                failed += 1
+                continue
+            notes = []
+            if at.endswith("+dirty"):
+                # provenance holds only the flag, not the files: `just build` dirties the
+                # tracked Cargo.lock ([[patch.unused]]) on every fresh checkout (G79), so for
+                # this RC a dirty commit is recorded with a note, not refused
+                notes.append("results' checkout was dirty (provenance names no files; "
+                             "`just build` changes Cargo.lock, G79)")
+                print(f"{e['key']}: warning: {notes[-1]}")
+            try:
+                gated, source = stack_gpus(host_settings(), a.seat)
+            except GpuRefused as err:
+                print(f"{e['key']}: not recorded, {err}")
+                failed += 1
+                continue
+            gpus = gpu_state()
+            hload, cores = host_load()
+            if busy(gpus, hload, cores, gated) and not a.busy_ok:
+                cards = [g for g in gpus if gated is None or g["gpu"] in gated]
+                print(f"{e['key']}: not recorded, the host is busy now (load {hload:.0f} on "
+                      f"{cores} cores; gated GPU {gated if gated is not None else 'all'} "
+                      f"from {source}: {cards}); record on a quiet host, or give --busy-ok")
+                failed += 1
+                continue
+            write_reference(rows, ref, {"commit": at, "submodules": prov["submodules"][at],
+                                        "recorded_with": commit(),
+                                        "host": socket.gethostname(),
                                         "summary": str(summ), "runs": len(rows),
                                         "gpu_at_record": gpus,
-                                        "load_at_record": [round(hload, 1), cores]})
-            print(f"{e['key']}: reference of {len(rows)} runs at {commit()}")
+                                        "gpu_gated": {"indices": gated, "source": source},
+                                        "load_at_record": [round(hload, 1), cores],
+                                        "notes": notes})
+            print(f"{e['key']}: reference of {len(rows)} runs at {at} (recorded with "
+                  f"t3.py at {commit()})")
             continue
         if not ref.is_file():
             print(f"{e['key']}: no reference ({ref})")
@@ -324,8 +477,12 @@ def main(argv=None) -> int:
         with open(ref, newline="") as f:
             ref_rows = list(csv.DictReader(f))
         problems, notes = compare_rows(ref_rows, rows)
+        try:
+            ref_at = json.loads(ref.with_suffix(".json").read_text()).get("commit", "?")
+        except (OSError, ValueError):
+            ref_at = "?"
         print(f"{e['key']}: {'regressed' if problems else 'as the reference'} "
-              f"({len(rows)} runs)")
+              f"({len(rows)} runs at {at or why}; the reference at {ref_at})")
         for p in problems:
             print(f"  problem: {p}")
         for n in notes:

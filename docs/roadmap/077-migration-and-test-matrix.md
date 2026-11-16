@@ -549,6 +549,54 @@ Isaac's rear contact (inventory row 18).
   `logs/scenario/`; `runs why` shows it with the reason. Checked on c_command's four_pilots
   run of 2026-11-16 01:46, which said only "(None)". A troubleshooting row says what the
   timeout means.
+- **G43 built (swb 118, 2026-11-16, cd744de).** The generated and example `.gitignore`s list
+  `runs` (no slash: a link is not matched by `runs/`) and `play_log/`; `project new --from`
+  no longer copies `play_log/`.
+- **G44 built (swb 118, 2c71830).** `load_class` imports a module from the working directory
+  (ros2 run put the entry point's directory first on `sys.path`); the skeleton's hints, its
+  README and agent-sdk.md say `ros2 run swb_agent swb-agent`. A test runs the printed forms
+  with nothing added to `sys.path`.
+- **G50 closed as a doc gap (swb 118, eb38b13).** The code was right: 1 is a problem, 3 a
+  refusal, and a car mismatch is a problem. commands.md now lists which findings refuse
+  (asset or map not fetched, an unreadable file or entry, a car not installed or off its
+  box); T1 and T6 step 6 say which they meet.
+- **G52 (found and built 2026-11-16, item 8).** `logging.keep` followed the run's verdict
+  only: a run SSv2 passed and a judge failed kept `result` (no logs, no gap trace, no
+  storyboard log), so i1's judged failure could not be looked into. A judge's `failed` or
+  `error` now keeps what that verdict keeps, when that is more.
+- **G45's version line built (2026-11-16).** "CARLA serves RPC (None)": the probe called
+  `version` with no arguments, and CARLA refused it ("invalid number of arguments"); its
+  error reply was taken as CARLA's, without a version. LibCarla sends a Metadata argument
+  first; the probe now does, and reads the version out of CARLA's Response wrapper
+  (`[[1, "0.9.15"]]`, measured on a CARLA 0.9.15). The tests' fake server answered with a
+  bare string, which is why they never saw it.
+- **Item 8, first pass (2026-11-16, demo project, clustering, CARLA 0.9.16 Epic).** SSv2
+  passed i1 to i5. incident_judge passed i2, i4, i5. i3 failed only on "--stop-line not
+  given": `--incident auto` had no stop line; the scenario now declares it
+  (`csbIncidentStopLine`, from the site file, 325.73 -330.61 yaw 0) and swb.gap reads it.
+  i1 failed "the ego never stood behind the standing lead": the lead braked at its fallback
+  brake point with the ego 107 m behind at 4.17 m/s (033's reference: the brake fired with
+  the ego 13.4 to 13.6 m behind at 3.3 m/s, stop gap 4.8 to 5.3 m), and the ego was still at
+  4.17 m/s at the closest gap, 19 m, when the scenario ended. Treated as a possible safety
+  regression (133): rerun with full capture, and against the old developer recipe.
+- **G49 closed (swb 118, 2026-11-16): nothing to change.** Only CARLA's agents import
+  shapely and networkx, through `carla_basic`, which is a CARLA-only pilot; install.md, which
+  isaac.md has a reader do first, installs both since G38. No Isaac step needs them.
+- **G46 built (swb 118, 2026-11-16, 39df738).** T1 to T5, install.md and 075 step 8 as 118's
+  pass found them: T3 checks `assets/maps/Town01/carla/`; T1's kept files, first start and
+  ros2run line; T2's axles in full; T4's jitter (give or take 5 m) and exercise 2; T5's
+  `--older-than 0` and exercise 3's counts and time; install.md's build time and size (7 to
+  8 min on 48 cores, 11 GB build and 1 GB install); 075 step 8's page set.
+- **G51 built (swb 118, 2026-11-16, 68b477c).** isaac.md's install time (6 min) and where
+  `ISAAC_KIT_ARGS` goes (the environment file); T6's set size (19 GB, hours); T7's soil-zone
+  log lines. T6 step 6's cause: haruna_down's own limit is 600 s of simulation time and SSv2's
+  `global_timeout` defaults to 400 s, so the run was cut off before the scenario decided; the
+  page runs it with `--timeout 700`. Open: the course's project should carry it itself.
+- **G53 (2026-11-16, from G51).** A scenario whose own time limit (a stop trigger on
+  simulation time, haruna_down's 600 s) exceeds the timeout the run gives SSv2 (`global_
+  timeout`, 400 s by default) is cut off as `error` before it decides. `run` should give SSv2
+  the scenario's limit plus a margin when it is larger, or `project check` name the mismatch;
+  until then T6 says `--timeout 700`. After items 8 to 10.
 - **075 step 8, Isaac guides (swb 118, 2026-11-16).** isaac.md, T6 and T7 by a fresh reader
   on origin/main 75e00ab: the install (Isaac 6.1.0.0, 6 min) and the message build work as
   written; Haruna ran. That host's driver (615.71.09) loses the GPU on every Town01 render

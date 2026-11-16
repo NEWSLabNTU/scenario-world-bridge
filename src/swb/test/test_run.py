@@ -61,7 +61,10 @@ FAKE_PILOT = textwrap.dedent('''\
 def where(host):
     tmp = host["tmp"]
     (tmp / "system" / "host.yaml").write_text(yaml.safe_dump(
-        {"seat_locks": str(tmp / "locks"), "logs": str(tmp / "logs"), "seat": 1}))
+        {"seat_locks": str(tmp / "locks"), "logs": str(tmp / "logs"), "seat": 1,
+         # no CARLA here: the stack uses whatever serves its port and is not refused for
+         # the lack of one (G39)
+         "carla": {"start": "external"}}))
     (tmp / "fake_ssv2.py").write_text(FAKE_SSV2)
     (tmp / "fake_pilot.py").write_text(FAKE_PILOT)
     return host

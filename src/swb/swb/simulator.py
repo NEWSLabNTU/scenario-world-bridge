@@ -10,7 +10,9 @@ docs/design/projects-and-pilots.md, "The stack". On CARLA ``simulator_start`` (t
   when ``carla.host`` is not this host.
 - ``auto``: ``start`` when ``carla.root`` is set, ``carla.host`` is this host and nothing
   answers on the port; else ``external``. A port that answers, but not as CARLA's RPC
-  server, is refused either way.
+  server, is refused either way, and so is a local port where nothing answers when there is
+  no ``carla.root`` to start CARLA from (roadmap 077, G39: the stack used to wait for one
+  until its readiness timeout, 30 min, without a word); ``external`` still waits for one.
 
 "Answers as CARLA" is one msgpack-rpc call, ``version`` (what ``carla.Client.
 get_server_version`` sends), over a plain socket: no carla module, nothing changed on the
@@ -169,11 +171,16 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
            "error": None}
     if mode == "external":
         return out
-    wants = mode == "start" or (root and is_local(host))
-    if not wants:
-        return out       # auto without a root, or a remote CARLA: whatever serves there
+    if mode == "auto" and not is_local(host):
+        return out       # a remote CARLA: whatever serves there
     state, version = probe_fn(host, port)
     where = f"{host}:{port}"
+    if mode == "auto" and not root and state == FREE:
+        raise SimulatorRefused(
+            f"nothing serves CARLA on {where} and carla.root is not set, so the stack cannot "
+            "start one: start CARLA there, set carla.root (~/.config/swb/host.yaml, or "
+            "<project>/.swb/local.yaml: carla: {root: <CARLA_0.9.16 directory>}) and the "
+            "stack starts it, or simulator_start:=external to wait for one")
     if state == OTHER:
         raise SimulatorRefused(
             f"{where} is taken by something that is not CARLA's RPC server; free it, or set "

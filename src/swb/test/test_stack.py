@@ -778,3 +778,46 @@ def test_the_isaac_world_server_finds_the_cars_in_the_projects_usd_set(where, ma
     d = make(where, template="isaac")   # the fake set has vehicles/vehicles.json
     cat = d / "assets" / "carla-usd" / "vehicles"
     assert stack.plan(project_arg=str(d), check=None).env["SWB_VEHICLE_USD"] == str(cat)
+
+
+def test_the_keeper_tees_its_lines_to_its_launchers_stdout(tmp_path, monkeypatch):
+    """G41: play_launch keeps a node's output in its log; the keeper's progress goes to the
+    launcher's stdout too, unless that is the keeper's own."""
+    import io
+    import sys as _sys
+    fake = tmp_path / "proc" / "42" / "fd"
+    fake.mkdir(parents=True)
+    terminal = tmp_path / "terminal"
+    terminal.write_text("")
+    (fake / "1").symlink_to(terminal)
+    own = tmp_path / "own"
+
+    with open(own, "w") as f:
+        monkeypatch.setattr(_sys, "stdout", f)
+        monkeypatch.setattr(_sys, "stderr", io.StringIO())
+        other = stack.tee_to_launcher(ppid=42, proc=tmp_path / "proc")
+        assert other is not None
+        print("swb stack s1: ready", flush=True)
+        _sys.stdout.flush()
+        other.close()
+    assert terminal.read_text() == "swb stack s1: ready\n"
+    assert own.read_text() == "swb stack s1: ready\n"
+    # the launcher's stdout is the keeper's own: nothing doubled
+    (fake / "1").unlink()
+    (fake / "1").symlink_to(own)
+    with open(own, "a") as f:
+        monkeypatch.setattr(_sys, "stdout", f)
+        assert stack.tee_to_launcher(ppid=42, proc=tmp_path / "proc") is None
+    assert stack.tee_to_launcher(ppid=43, proc=tmp_path / "proc") is None
+
+
+def test_the_web_ui_line_names_the_address_the_launcher_was_given(tmp_path):
+    """G45: no 'pass --web-addr' hint when it was passed."""
+    d = tmp_path / "proc" / "42"
+    d.mkdir(parents=True)
+    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00--web-addr\x00127.0.0.1:8080\x00swb_launch\x00")
+    assert stack.launcher_web_addr(42, tmp_path / "proc") == "127.0.0.1:8080"
+    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00--web-addr=0.0.0.0:8090\x00")
+    assert stack.launcher_web_addr(42, tmp_path / "proc") == "0.0.0.0:8090"
+    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00swb_launch\x00")
+    assert stack.launcher_web_addr(42, tmp_path / "proc") is None

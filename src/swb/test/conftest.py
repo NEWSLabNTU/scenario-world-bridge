@@ -148,6 +148,21 @@ def bridge_up(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def carla_serving(monkeypatch):
+    """No CARLA in these tests: a stack whose host settings name no CARLA (no root, the
+    default start mode) takes the port as external, as before G39 refused it; a test that
+    sets either gets the real decision."""
+    from swb import simulator, stack
+
+    def decide(carla, mode=None, probe_fn=simulator.probe):
+        if mode is None and not (carla or {}).get("root") and \
+                (carla or {}).get("start", "auto") == "auto":
+            mode = "external"
+        return simulator.decide(carla, mode, probe_fn)
+    monkeypatch.setattr(stack, "CARLA_DECIDE", decide)
+
+
+@pytest.fixture(autouse=True)
 def no_isaac_root(monkeypatch):
     """The host's ISAAC_ROOT is not the tests' (swb.isaac reads it when isaac.root is unset)."""
     monkeypatch.delenv("ISAAC_ROOT", raising=False)

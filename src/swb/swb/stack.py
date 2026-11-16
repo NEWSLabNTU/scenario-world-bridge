@@ -555,7 +555,7 @@ def current_link(logs: str, name: str, index: int) -> Path:
 
 def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=None, gpu=None,
          stack_args=None, check=projectmod.check_project, now=None, simulator_start=None,
-         probe=simmod.probe) -> Plan:
+         probe=None) -> Plan:
     """Everything the stack is, before anything starts; StackRefused says why it must not."""
     retired = retired_args(stack_args or {})
     if retired:
@@ -677,7 +677,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     carla_run = None
     if sim == "carla":
         try:
-            carla_run = simmod.decide(carla, simulator_start or None, probe)
+            carla_run = CARLA_DECIDE(carla, simulator_start or None, probe or simmod.probe)
         except simmod.SimulatorRefused as e:
             raise StackRefused(str(e)) from None
     args = {
@@ -962,6 +962,7 @@ def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
 
 
 AUTOWARE_ENV = Path(__file__).resolve().parent / "autoware_env.bash"
+CARLA_DECIDE = simmod.decide   # how plan() settles the stack's CARLA (tests wrap it)
 
 
 def autoware_env(host: dict, workspace) -> dict:
@@ -1281,6 +1282,66 @@ def _waiting(rec):
             if p.get("lifetime", "stack") == "stack" and not p.get("ready_at")]
 
 
+class _Tee:
+    """A text stream that also writes, line by line, to a second one (best effort)."""
+
+    def __init__(self, own, other):
+        self.own, self.other = own, other
+
+    def write(self, text):
+        n = self.own.write(text)
+        try:
+            self.other.write(text)
+            self.other.flush()
+        except (OSError, ValueError):
+            pass
+        return n
+
+    def flush(self):
+        self.own.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.own, name)
+
+
+def tee_to_launcher(ppid=None, proc=Path("/proc")):
+    """The keeper's lines on its launcher's terminal too (roadmap 077, G41). play_launch keeps
+    a node's output in the node's log (``node/stack_keeper/out``) and shows only its own, so a
+    reader of ``play_launch launch ... swb.launch.xml`` saw none of seat, CARLA, pilot and
+    ready: the keeper also writes them to its parent's (play_launch's) stdout, a terminal or
+    the console log ``--start-stack`` gives it. Nothing when that is the keeper's own stdout
+    already (a launcher that passes output through) or cannot be opened. Returns the stream
+    opened, else None."""
+    ppid = ppid or os.getppid()
+    target = proc / str(ppid) / "fd" / "1"
+    try:
+        theirs = os.stat(target)
+        mine = os.fstat(sys.stdout.fileno())
+        if (theirs.st_dev, theirs.st_ino) == (mine.st_dev, mine.st_ino):
+            return None
+        other = open(target, "a", buffering=1)
+    except (OSError, ValueError):
+        return None
+    sys.stdout = _Tee(sys.stdout, other)
+    sys.stderr = _Tee(sys.stderr, other)
+    return other
+
+
+def launcher_web_addr(ppid=None, proc=Path("/proc")):
+    """The ``--web-addr`` the keeper's launcher (play_launch) was given, else None."""
+    try:
+        words = (proc / str(ppid or os.getppid()) / "cmdline").read_bytes().split(b"\0")
+    except OSError:
+        return None
+    words = [w.decode(errors="replace") for w in words]
+    for i, w in enumerate(words):
+        if w == "--web-addr" and i + 1 < len(words):
+            return words[i + 1]
+        if w.startswith("--web-addr="):
+            return w.split("=", 1)[1]
+    return None
+
+
 def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
          respawn_delay=RESPAWN_DELAY, weather_call=None, world_probe=None) -> int:
     """Hold the seat for the stack in ``stack_dir``; run its pilots on the stack's map and
@@ -1321,7 +1382,9 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
     event(stack_dir, "stack.start", stack_id=rec["stack_id"], pid=os.getpid())
     print(f"swb stack {rec['stack_id']}: seat {s.index}; scenario domain {s.scenario_domain}, "
           f"SSv2 {s.ssv2_port}, relay {s.relay_port}, world server {s.world_port}; "
-          f"web UI: pass --web-addr 127.0.0.1:{s.web_port}; pilots on "
+          + (f"web UI http://{web}; " if (web := launcher_web_addr()) else
+             f"web UI: pass --web-addr 127.0.0.1:{s.web_port}; ")
+          + "pilots on "
           f"{rec.get('map') or 'the first run' + chr(39) + 's map'}", flush=True)
     pilots = Pilots(stack_dir, pilot_command, respawn_delay)
     weather = Weather(rec, weather_call)
@@ -1458,6 +1521,7 @@ def main(argv=None) -> int:
         return 0 if is_registered(a.relay, a.entity) else 1
     if a.cmd == "keep":
         _die_with_parent()
+        tee_to_launcher()
         command = None
         if a.pilot_wrap:
             wrap = shlex.split(a.pilot_wrap)

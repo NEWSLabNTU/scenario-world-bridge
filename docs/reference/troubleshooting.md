@@ -61,6 +61,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | CARLA takes minutes to answer, then freezes in synchronous mode | it came up on another GPU or a software renderer: start it with `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json` |
 | CARLA crashes when a scenario changes towns | it runs at `-quality-level=Low`, where CARLA 0.9.16 segfaults on a town change: keep the default (Epic) |
 | A second CARLA on a held port crashes at start | the first still holds it: stop it by its pid (SIGKILL if it ignores SIGTERM) |
+| `nothing serves CARLA on localhost:2000 and carla.root is not set` | the stack cannot start CARLA without knowing where it is. Set `carla: {root: <CARLA_0.9.16 directory>}` in `~/.config/swb/host.yaml` (or the project's `.swb/local.yaml`) and the stack starts it; or start CARLA yourself; or pass `simulator_start:=external` to wait for one |
 | CARLA dies mid-run | the run fails within about 30 s. A CARLA the stack started (`carla.root`) is started again by the stack; one you started, restart yourself. The next run waits for it and runs |
 | The stack stops: CARLA did not serve its RPC within `carla.ready_timeout` | the CARLA it started is slow on this host, or failed: read its log, `proc/simulator/carla.log` in the stack's directory; raise `carla.ready_timeout` |
 | The light never changes; `Cannot read the signal table` | the world server could not write the map's signal table into `state/<map>/`: the project directory must be writable |

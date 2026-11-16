@@ -131,9 +131,13 @@ def test_probe(carla_rpc):
 def test_decide(tmp_path, carla_rpc):
     root = fake_root(tmp_path)
     never = lambda *a: pytest.fail("probed")  # noqa: E731
-    # external, and auto without a root: nothing probed, nothing started
+    # external: nothing probed, nothing started
     assert sim.decide({"root": str(root), "port": 1}, "external", never)["owner"] == sim.EXTERNAL
-    assert sim.decide({"root": "", "port": 1}, "auto", never)["owner"] == sim.EXTERNAL
+    # auto without a root: a CARLA serving is used; nothing serving is refused at once (G39)
+    d = sim.decide({"root": "", "host": "127.0.0.1", "port": carla_rpc.port}, "auto")
+    assert d["owner"] == sim.EXTERNAL and d["version"] == "0.9.16"
+    with pytest.raises(sim.SimulatorRefused, match="carla.root is not set, so the stack"):
+        sim.decide({"root": "", "port": free_port()}, "auto")
     # auto with a remote CARLA: its business
     assert sim.decide({"root": str(root), "host": "carla.example.invalid", "port": 1},
                       None, never)["owner"] == sim.EXTERNAL

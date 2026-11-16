@@ -1178,3 +1178,12 @@ Isaac's rear contact (inventory row 18).
   load peaked at 707 as the four Autoware stacks started, then about 60. NAS "2026 SSv2 on
   CARLA/2026-11-16 077 shard 2 of 2 on 133" (615 files, SHA256SUMS verified). 241 is released
   from shard 2.
+- **Item 20 on Isaac (swb 241, 2026-11-16, dbb34e7).** `scenarios/projects/isaac_road_physics`,
+  suite `road`: road_physics's mud_and_gravel and after_rain on Town01 with an Autoware ego,
+  `ground:` naming the example's surface map outside the project (project check ok; the stack
+  links it into state/Town01/surfaces.yaml), retry on error once. Live on b844a24: 2 of 2
+  (mud_and_gravel 22-45-04, the wheels on mud_wet and gravel; after_rain 22-48-03, on dirt,
+  "road condition: friction scale 1, moist"); about 9 min with --start-stack --stop-stack, the
+  stack ready in about 1 min 20 s on NVMe. mud_and_gravel's first try ended `error` with
+  Autoware held in INITIALIZING (load 41-70; no MiscObject, so not issue 040). It and item
+  16's isaac_basic/towns join scenarios/t3.yaml's part 2.

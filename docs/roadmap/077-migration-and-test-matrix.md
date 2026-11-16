@@ -1435,6 +1435,15 @@ Isaac's rear contact (inventory row 18).
   start ends when a required node exits 5 times before ready, naming the node, its exit code
   and its last err line. Also checked by 139: whether `seat auto` skips a seat whose ports
   another checkout's live stack holds.
+- **G75-G77 landed (139, reviewed by 243, 2026-11-17):** aib 007d4f9, swb_isaac_world
+  c9a72de, csb 89fe7a0 (G75, G76), 4bad9c1 (G77), 356a742 (`seat take auto` skips a seat
+  whose ports are bound, as `swb run` does). Refusal texts are in host-settings' `isaac.root`
+  row. Crash loop: 5 exits before ready, a signal included, under both launchers (139 live:
+  play_launch 50 s and 53 s, ros2 launch 87 s and 48 s, exit 1 and SIGSEGV). Checked on 139
+  with `isaac.root` only in `host.yaml`: the world server's environ had the root and Kit
+  started; 139's GPU had 3 GB free, so no verdict. Open: the first Isaac run on these pins
+  (118 or 241) is the verdict check. CLAUDE.md's `SWB_LOG_ARCHIVE` default
+  (`/mnt/disk1/...`) is now stale; it waits for the user, since CLAUDE.md is theirs.
 - **The Isaac world server's exit 139s (sorted by swb 241, ruled by 133, 2026-11-17): a
   note and a known limit, no G item.** 241's logs hold 118 exits 139 (not 236: each was
   counted twice through `latest`), all at startup, in one stack: shots_road

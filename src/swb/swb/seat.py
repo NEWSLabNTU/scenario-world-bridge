@@ -539,7 +539,10 @@ def main(argv=None) -> int:
         if args.cmd == "take":
             choice = parse_choice(args.seat, "argument")
             if choice == "auto":
-                s = resolve(dict(settings, seat="auto"), source)
+                # as `swb run` and the stack take it: a seat whose ports another checkout's
+                # live stack holds is skipped (077 G30; 118's seat 0, G77's check)
+                s = resolve(dict(settings, seat="auto"), source,
+                            usable=lambda x: not busy_ports(x))
             else:
                 if not 0 <= choice < len(seats):
                     return _err(f"seat {choice} is not in the table (0-{len(seats) - 1}, "

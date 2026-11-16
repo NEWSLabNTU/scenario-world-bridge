@@ -173,6 +173,16 @@ def test_take_auto_skips_held(env):
     assert yaml.safe_load((user / "host.yaml").read_text())["seat"] == 1
 
 
+def test_take_auto_skips_a_seat_whose_ports_are_in_use(env, monkeypatch):
+    """077 (118's fresh host): `seat take auto` skips a seat whose ports another checkout's
+    live stack holds, as `swb run` and the stack's plan do (G30)."""
+    user, _, locks = env
+    monkeypatch.setattr(seat, "busy_ports", lambda s, web=True:
+                        [("SSv2", s.ssv2_port)] if s.index == 0 else [])
+    assert seat.main(["take", "auto"]) == 0
+    assert yaml.safe_load((user / "host.yaml").read_text())["seat"] == 1
+
+
 def test_take_refuses(env, monkeypatch):
     user, _, locks = env
     assert seat.main(["take", "99"]) == 3

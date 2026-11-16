@@ -3,7 +3,7 @@
 // frame of its run on CARLA Town01 (the ego stopped before the walker; RViz: obstacle_stop).
 //   typst compile docs/figures/how-it-works.typ docs/figures/how-it-works.svg
 #import "style.typ": scen, world, veh, spec
-#set page(width: 304mm, height: 150mm, margin: 0mm, fill: white)
+#set page(width: 308mm, height: 148mm, margin: 0mm, fill: white)
 #set text(font: "DejaVu Sans", size: 10pt)
 #show raw: set text(font: "DejaVu Sans Mono", size: 8.6pt)
 

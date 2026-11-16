@@ -1033,3 +1033,33 @@ Isaac's rear contact (inventory row 18).
   A suite's retry on error passes on the warm second spawn; troubleshooting names it. After
   the release: profile the spawn in swb_isaac_world and make the warm-up cover a camera rig.
   The "GNSS pose has not arrived" lines were automatic_pose_initializer's, not the cause.
+- **241's walk of T3's and T4's Isaac claims (2026-11-16, 2788710).** carla_basic is refused
+  on Isaac and "only one entity can have a pilot" holds, both at `project check`. Its findings:
+  - **G66 (built, 0f36b3f):** `project check` passed `simulator_autopilot` on Isaac, and the
+    run ended in SSv2's `Spawn entity ... resulted in failure`, the reason only in the
+    bridge's log; it is now refused at check, as carla_basic is.
+  - **G67 (118):** `runs why` showed SSv2's SemanticError and an unrelated play_launch WARN
+    (`cap_sys_ptrace`) as `first`. Ruling: a refusal or failure line of swb's own processes
+    (the bridge's or a world server's `Cannot spawn ...`, `refuses`, `failed`) in the run's
+    slices outranks SSv2's generic error, and play_launch's capability warnings (`getcap`,
+    `cap_sys_ptrace`) are never `first`; a test from 241's run's slices.
+  - **G68 (118):** a stack refusal raised while play_launch parses swb.launch.xml arrives
+    wrapped ("Rust parser error ... Python error ... RuntimeError: swb: the stack is refused
+    (3): ...") with play_launch's misleading `--parser python` hint. Ruling: `run
+    --start-stack` plans the stack in its own process before starting play_launch and prints a
+    refusal plainly (exit 3); swb.launch.py also prints the refusal on its own line to stderr
+    before raising, so a reader starting play_launch directly sees it first.
+  - **G69 (118):** the timeline stamps a world server's log lines 28800 s late on a UTC+8 host:
+    their timestamps carry no zone and were read as UTC. Ruling: a log line's naive timestamp
+    is the host's local time when read; a test under `TZ=Asia/Taipei`.
+  - **G70 (a release must-have in part):** the Isaac world server hung at the first step after
+    the world reload that follows pedestrian_crossing (2 of 2): its main thread blocked in a
+    PhysX step for 6 minutes after "Resolving contacts between two kinematic objects is
+    invalid"; the bridge only waited. (ii) **built (118, 8fe78c3: swb_world_protocol e141f27,
+    swb_carla_world c50745a, swb_isaac_world 15c1922):** every step runs under a 180 s
+    deadline in swb_world_server; past it the world server logs the step, dumps every thread's
+    stack and exits 75, and a step that holds the GIL meets faulthandler's backstop 30 s later
+    (exit 1); the supervisor respawns it and the run ends `error`. (i) 241 writes the issue and
+    takes a time-boxed diagnosis; (iii) without a fix by the RC, T3's Isaac paragraph states
+    the limit. pedestrian_crossing's first walker render took 75 s inside frame 2: G65's
+    warm-up should cover walkers too.

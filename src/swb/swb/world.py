@@ -259,6 +259,39 @@ def named(text, what) -> dict:
     return out
 
 
+MAP_PROPS_DEFAULT = "frozen"
+
+
+def carla_world_settings(rec: dict, share=None) -> dict:
+    """The CARLA world server's settings that change results, for a run's provenance:
+    ``{"map_props": ...}`` (roadmap 077 G58) from the config file the stack gave it
+    (``config_file:=`` in its sim_args), else the installed ``swb_carla_world.yaml``
+    (``share``, found by ament when None). Empty for another simulator; ``None`` values when
+    the file cannot be read."""
+    if (rec or {}).get("simulator") != "carla":
+        return {}
+    try:
+        path = named((rec.get("launch_args") or {}).get("sim_args", ""), "sim_args") \
+            .get("config_file")
+    except ValueError:
+        path = None
+    if not path:
+        if share is None:
+            try:
+                from ament_index_python.packages import get_package_share_directory
+                share = get_package_share_directory("swb_carla_world")
+            except Exception:
+                return {"map_props": None}
+        path = Path(share) / "config" / "swb_carla_world.yaml"
+    try:
+        import yaml
+        doc = yaml.safe_load(Path(path).read_text()) or {}
+    except Exception:  # unreadable or malformed: the server refused it too
+        return {"map_props": None}
+    value = doc.get("map_props", MAP_PROPS_DEFAULT) if isinstance(doc, dict) else None
+    return {"map_props": value}
+
+
 def joined(args: dict) -> str:
     return " ".join(shlex.quote(f"{k}:={v}") for k, v in args.items())
 

@@ -56,6 +56,7 @@ import yaml
 from swb import budget as budgetmod, config, judges as judgesmod, project as projectmod, results
 from swb import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from swb import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
+from swb import world as worldmod
 from swb.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -997,6 +998,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                               build=results.installed_build())
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 spec_hash=rec.get("spec_hash") or {})
+    world_server = worldmod.carla_world_settings(rec)
+    if world_server:
+        prov["world_server"] = world_server
     result = results.RunResult(
         run_id=run_id, verdict=verdict, reason=reason,
         scenario={"file": sc_rel, "sha256": resolved["scenario"]["sha256"],

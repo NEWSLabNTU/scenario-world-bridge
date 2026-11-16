@@ -833,3 +833,67 @@ Isaac's rear contact (inventory row 18).
   (10:00, 979ef22) logged "carla_physics none: the hero runs its blueprint's own physics",
   and bg_av_1, lead and cut_in were Model 3s without the spec's physics; shard 1 (this
   host, 2026-11-15) predates G55 too. Both run again on G55: shard 2 on 241, shard 1 here.
+- **Item 36 migrated (swb 118, 2026-11-16, b9b7c10).** `scenarios/projects/s5`: B is Autoware
+  on full CenterPoint, `lifetime: run`, `max_velocity` 8; A is `coop_a`, a `command` pilot
+  (oncoming_agent) at 10 m/s; six gaps (5.5 to 9 s), each twice; judge `s5_score` against the
+  reference batch. Live: 12 of 12 decisions as the reference, the 7 s split included (one go
+  with a contact, which physical_verdict fails as the reference's did, and one yield). Run 5
+  once hung CARLA inside `world.tick()` ("no stream available" in carla.log; the world
+  server exited 75 as designed); a fresh CARLA did not reproduce it, so it stays the known
+  stream hang. NAS: "2026-11-16 077 item 36 s5" (the hang's carla.log under `hang/`).
+- **G57 (found 2026-11-16, swb 118, item 36; built b74b76b): the next run's agent was handed
+  the last run's goal.** The relay forgets an entity's standing goal at an episode boundary
+  (reset, teleported, episode_end). run_suite sent episode_end after each scenario; swb run
+  did not, and a `lifetime: run` pilot is stopped with its run, so the goal stood and the next
+  run's agent got it about 50 ms after registering, before its teleport. swb run now sends
+  episode_end with the run's verdict to every pilot's entity, and the relay drops the
+  standing commands on episode_end even with no agent registered. 118 verified it live: two
+  runs on one stack, the second agent's first command its teleport.
+- **The spawn reset (found 2026-11-16 by 133's subagent in i7; built 83da98a, swb_carla_world
+  f669bca, acb 47f443a).** Under the spec's physics a spawn of a car of the ego's blueprint
+  zeroed the moving ego's speed for about 0.4 s: CARLA shares the blueprint's tyre object with
+  the car applied last, and every physics apply rebuilds the car at rest. Every apply now hands
+  that object to a short-lived decoy of the blueprint (role `swb_entity:~tire_decoy`, under the
+  town, destroyed before any tick) and restores the car's velocity in the same tick; the
+  re-apply after a spawn is a logged backstop. Measured: 0 re-applies in 8 runs, i7 holding
+  11.03 m/s at the spawn. The reruns on the spec's physics above ran before it and are not
+  references. Known, after the release: a road friction change mid-run still rebuilds each
+  car's physics (wheels and engine at 0 rpm).
+- **i7 (133's subagent, 2026-11-16).** i7 was written on 2026-10-26, after 62eae3c re-timed
+  i1 to i6, and never ran live before item 10: no build of the ego ever avoided `i7_cut`. At
+  the 18.3 m bumper gap the time to contact at the pull-out is about 1.8 s, which Autoware
+  1.5.0 (-2.5 m/s^2, jerk -1.5) cannot stop in. Re-timed to a 28 m gap on i7's own site, with
+  an incident_judge row (no contact, minimum gap at least 2 m): 3 of 3 without contact on 133,
+  minimum gap 5.9 to 6.7 m, Autoware braking at 4.2 to 4.4 m/s^2.
+- **G58 (found 2026-11-16, swb 118; a release must-have): the tour's verdict was chance.**
+  Town01's own level props (actors 130 to 173, `static.prop.mesh` with physics: plastic
+  chairs of 0.5 kg, tables of 5 and 648 kg, cones of 24 kg) are knocked about by the NPC
+  `g_close_1` in every tour, and the ego sometimes hits the debris (blueprint 2 of 2, the
+  spec's physics before the decoy 0 of 2, after it 1 of 2: 53 N s at x 214.75 on the y -195
+  straight). G55's tour A/B is withdrawn; G55 stands. Ruling: the CARLA world server turns
+  physics off on every `static.prop.mesh` it did not spawn, after each world load and reload,
+  a world server setting keeping them live; the judges go on counting every contact. Built by
+  133's subagent; each tour (demo, set050_tour) then needs 3 tours without an ego contact.
+- **075 step 8 on Isaac Town01 (swb 241, 2026-11-16).** T6 steps 1 to 5 and T7 steps 1 to 5 by
+  a fresh reader in a sandboxed HOME, a fresh clone through 036d927, work at origin with the
+  fixes that landed during the run (0.5.4, BUILD_TESTING off, xmlschema, G25, `hello --wait`,
+  G36, G41, G56: the stack set `--/renderer/activeGpu=1` and the sensors warmed in 3 to 7
+  renders, cold cache or warm). G37 on a cold cache: no hang; its "not ready after 1200
+  frames" was G56. Page fixes (2637e2c): T7 step 4's ruts are saved at the next world load;
+  T6 step 5 says where a model's box goes; troubleshooting has the busy host's alignment.
+  G35 on the same spinning disk at 036d927: a fresh project's fetch 5 s and check 1 to 2 s on
+  19 GB, a stack start and stop with a run 1 min 49 s (the launch parse alone was 14 min);
+  the first pass after G35 hashes once to write its record. pygame and lanelet2's Python
+  bindings are missing on that shared host and not needed by T6 or T7. NAS: "2026-11-16 075
+  step 8 Isaac Town01".
+- **Isaac T2 cells (swb 241, 2026-11-16, 036d927).** All five pass on the plain-user setup
+  (`inputs: [ground_truth]`, no `isaac.ego`): autoware, simple, none (an SSv2-driven
+  scenario), launch with its own agent, command; each stack stopped itself. 241 commits them
+  as `scenarios/projects/isaac_t2`.
+- **Step 7, the T3 tooling (2026-11-16).** `scripts/t3.py list|run|record|compare` over
+  `scenarios/t3.yaml`; a reference is `scenarios/t3-references/<project>/<suite>.csv`, each
+  run's verdict and judges' verdicts, with the commit and host. `--part i/n` gives each host
+  whole projects, pinned per project in the manifest (`part: k, parts: n`): 1 swb 118
+  (two_av, set050_tour, s5, safety_suite; about 125 min), 2 swb 241 (basic, gap, bench,
+  set050, e2; 110), 3 swb 243 (demo, c2b, multi_pilot; 96), with 133 the fallback for 2 and
+  3. Dry runs on this host's results compare clean. No reference is recorded before the RC.

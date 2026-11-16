@@ -66,7 +66,14 @@ def split(entries: list, part: str) -> list:
         projects.setdefault(e["project"], []).append(e)
     load = [0.0] * n
     owner = {}
-    for project, es in sorted(projects.items(),
+    # a project the manifest gives a part (`part: k`, for this n) stays there, so adding a
+    # suite does not move the others between hosts; the rest are balanced around them
+    for project, es in projects.items():
+        k = next((e["part"] for e in es if e.get("part") and e.get("parts", n) == n), None)
+        if k:
+            owner[project] = k - 1
+            load[k - 1] += sum(e.get("minutes", 10) for e in es)
+    for project, es in sorted(((p, es) for p, es in projects.items() if p not in owner),
                               key=lambda kv: (-sum(e.get("minutes", 10) for e in kv[1]), kv[0])):
         k = min(range(n), key=lambda j: (load[j], j))
         owner[project] = k

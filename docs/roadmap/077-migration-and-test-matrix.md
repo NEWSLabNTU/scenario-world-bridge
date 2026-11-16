@@ -1092,9 +1092,15 @@ Isaac's rear contact (inventory row 18).
   the seat (`seat: <n>`, or `auto`: the one seat whose stack you hold, else an error naming
   `seat take`), the project from the working directory; `--host` and `--port` go before or after
   the subcommand. 11 tests; commands.md and T2 say so.
-- **i6 on a quiet GPU (swb 118, 2026-11-16; NAS "2026-11-16 077 i6 quiet GPU check").** 6 of 6
-  passed after the re-path (096df33): the cyclist's least box gap 0.52-0.57 m, no contact,
-  ego_yielded in all six. The margin over the 0.5 m target is 2-7 cm; in the tour the ego
-  passes the closest point at 1.7-2.6 m/s and then stands 1.4-1.5 s. The quiet-GPU point of
-  the re-path entry is closed; the late turn-in and the attention area's edge stay open as
-  written there.
+- **i6 on a quiet GPU (swb 118, 2026-11-16, baeba03 with 096df33, a clean rebuild; NAS "2026-11-16
+  077 i6 quiet GPU check").** 6 of 6 passed: i6 alone 0.56, 0.57 and 0.55 m least box gap,
+  the tour 0.53, 0.55 and 0.52 m; no contact in CARLA or SSv2, ego_yielded in all six,
+  incident_judge and physical_verdict passed, and the tour's other incidents without contact.
+  GPU 0 held only 118's processes (at most 5.9 GB, 64 %); the CPU load was 11-159 on 48 cores
+  from others' builds. The ego is still moving at the closest point (1.7-3.3 m/s; in the tour
+  1.7-2.6 m/s, then a stand of 1.4-1.5 s) and stops while the cyclist is near, so the
+  finding's "stops once the cyclist is by" holds; the tour is slower and slightly closer. The
+  margin above the 0.5 m bar is 2-7 cm. The bar is this roadmap's target for the scenario, not
+  a judge's threshold: row 6 fails on contact only, about 0.5 m away, and stays so. The
+  quiet-GPU point of the re-path entry is closed; the late turn-in and the attention area's
+  edge stay open as written there.

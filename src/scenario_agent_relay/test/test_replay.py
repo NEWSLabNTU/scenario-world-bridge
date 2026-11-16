@@ -137,3 +137,19 @@ def test_a_new_agent_after_a_goal_that_ended_is_not_lost(server):
         b.recv()
     assert server.lost("ego") is None
     b.close()
+
+
+def test_an_episode_end_after_its_agent_left_drops_the_goal(server):
+    """swb 118, item 36 (G57): a `lifetime: run` pilot is stopped with its run, and the next
+    run's agent was handed the old goal before its teleport."""
+    drive(server)
+    status, message = server.command("ego", P.EPISODE_END, 1.0, episode="r1",
+                                     result={"passed": True})
+    assert status == P.OK and "standing commands are dropped" in message
+    b = FakeAgent(server.port)
+    state(b, P.IDLE)
+    b.sock.settimeout(0.8)
+    with pytest.raises(OSError):   # nothing handed back
+        b.recv()
+    assert server.lost("ego") is None
+    b.close()

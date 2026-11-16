@@ -262,6 +262,12 @@ class AgentServer:
             return P.UNSUPPORTED, (f"the agent of {entity!r} does not offer restart and "
                                    "no supervisor is registered for it")
         if session is None:
+            if name == P.EPISODE_END:
+                # the episode ended whether or not its agent is still here (a `lifetime: run`
+                # pilot is stopped with its run): its goal must not stand into the next run,
+                # whose new agent would be handed it before its teleport (roadmap 077, G57)
+                self._note(entity, name, args, P.OK)
+                return P.OK, f"no agent registered for entity {entity!r}; its standing commands are dropped"
             return None, f"no agent registered for entity {entity!r}"
         status, message = session.command(next(self._ids), name, args, timeout)
         self._note(entity, name, args, status)

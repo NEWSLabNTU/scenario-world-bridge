@@ -1092,6 +1092,17 @@ def test_a_lost_goal_ends_the_run_error_with_the_relays_reason(live, where):
     assert "pilot ego: its agent registered again (it was DRIVING)" in r.reason
 
 
+
+def test_each_run_ends_its_pilots_episodes_at_the_relay(live, where):
+    """G57: the relay forgets a standing goal only at an episode boundary; run_suite sent
+    episode_end, swb run did not, and the next run's agent got the old goal."""
+    d, _ = live
+    seen = []
+    r = api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"end_episodes": lambda rec, entities, verdict, reason, run_id:
+                     seen.append((sorted(entities), verdict, run_id))})
+    assert seen == [(["ego", "follower", "lead"], r.verdict, r.run_id)]
+
 HARUNA_LIKE = """<?xml version="1.0"?>
 <OpenSCENARIO>
   <ParameterDeclarations><ParameterDeclaration name="limit" parameterType="double" value="600"/>

@@ -527,6 +527,7 @@ class Context:
     started: StartedStack = None      # the stack this runner started (--start-stack)
     turn: object = None               # the stack's run lock while this process runs (take_turn)
     lost_probe: object = None         # callable(rec, entities) -> {entity: why} (tests; G32)
+    end_episodes: object = None       # callable(rec, entities, verdict, reason, run_id) (tests; G57)
 
 
 def scenario_map(path: Path, sc=None):
@@ -719,6 +720,29 @@ def lost_goals(rec: dict, entities, since: float = 0.0) -> dict:
     except (CommanderError, OSError):
         return {}
     return out
+
+
+def end_episodes(rec: dict, entities, verdict: str, reason: str = "", episode: str = ""):
+    """Tell the relay each pilot's episode ended, with the run's verdict, as run_suite did:
+    an agent still up hears it, and the relay drops the entity's standing goal and speed
+    limit either way, so the next run's agent is not handed this run's goal (roadmap 077,
+    G57; a `lifetime: run` pilot is stopped before this, and nothing else told the relay)."""
+    if not entities:
+        return
+    try:
+        from swb_agent.commander import Commander, CommanderError
+    except ImportError:
+        return
+    try:
+        with Commander(f"tcp://localhost:{rec['ports']['relay']}", "swb-run", timeout=3.0) as c:
+            for e in entities:
+                try:
+                    c.episode_end(e, passed=verdict == results.PASSED,
+                                  failures=[reason] if reason else [], episode=episode)
+                except CommanderError:
+                    pass
+    except (CommanderError, OSError, KeyError):
+        return
 
 
 def wait_ssv2(proc, limit: float, rec: dict, entities, probe=lost_goals) -> tuple:
@@ -959,6 +983,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     for msg in infra:
         events.append({"t_sim": None, "t_wall": time.time(), "type": results.STACK_ERROR,
                        "message": msg})
+    (ctx.end_episodes or end_episodes)(rec, [p["entity"] for p in pilots], verdict, reason,
+                                       run_id)
     run_events.append({"t_wall": time.time(), "event": "run.end", "verdict": verdict})
     tl = timeline.build(run_events + [dict(e, event=e["type"]) for e in events],
                         slices_dir=logs, default_t=t0)

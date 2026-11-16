@@ -190,19 +190,43 @@ def test_own_rest_at_autowares_line():
     assert m.agents["B"].rest_t is None
 
 
-def test_rest_tie_guard_from_the_corrected_rest_stamp():
-    """078 P2c: the other's rest stamp from Autoware's tracks reads its stop rest_stamp_bias (0.7 s) late; the
-    fresh-rest guard of rest_tie counts from the corrected stamp, so the tie still binds (B goes, A yields) and B goes
-    that much sooner after the stamp. The own rest (odometry) is not corrected."""
+def test_guards_take_no_rest_stamp_correction():
+    """078 P2c ruling: rest_stamp_bias orders stopped_first only. rest_tie's guard (and the fresh-rest guard, the
+    claim, the second round's epoch, all through rest_since) counts from the raw stamp: with the bias at 0.7 s the
+    winner still waits the full dwell + launch + see_delay after the stamp, not 0.7 s less. A correction may only
+    lengthen a guard: a negative bias does."""
+    from czp.convention import rest_since
     z = Zone("x", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
     ags = [car("A"), car("B")]
     bias = P.rest_stamp_bias
     assert bias > 0
     guard = P.stop_dwell + CAR.launch_dead + P.see_delay
-    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - bias - 0.1, quiet_since=-math.inf)
-    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait" and d["A"].kind != GO
     d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - bias + 0.1, quiet_since=-math.inf)
+    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait" and d["A"].kind != GO
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard - 0.1, quiet_since=-math.inf)
+    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait"
+    d = decide_all(CONV, z, ags, {"A": 0.0, "B": 0.0}, P, t=guard + 0.1, quiet_since=-math.inf)
     assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
+    assert rest_since(10.0, P.override(source="test", rest_stamp_bias=0.7)) == 10.0
+    assert rest_since(10.0, P.override(source="test", rest_stamp_bias=-0.3)) == 10.3
+    assert rest_since(None, P) is None
+
+
+def test_fresh_rest_guard_takes_no_rest_stamp_correction():
+    """078 P2c ruling: the fresh-rest guard of a stopped_first go counts from the raw stamp at any rest_stamp_bias."""
+    from czp.convention import PairView, pair_verdict
+    from czp.memory import AgentMemory
+    p = P_C8.override(source="test", rest_stamp_bias=0.7)
+    assert p.fresh_rest_guard
+    z = Zone("x", "all_way_stop", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    guard = p.stop_dwell + CAR.launch_dead + p.see_delay
+    own, o = car("A", s_entry=0.5, v=0.0), car("B", s_entry=0.5, v=0.0)
+    for t, want in ((10.0 + guard - 0.1, "fresh"), (10.0 + guard + 0.1, "first")):
+        mem = Memory(own_rest_t=5.0)
+        am = AgentMemory(rest_t=10.0, rest_s=0.5, stopping=Debounce(state=True))
+        pv = PairView(o, other_interval(o, p), am)
+        v = pair_verdict({"first": "stopped_first", "stop": False}, z, own, own_interval(own, p), pv, mem, p, t)
+        assert v.reason == want, (t, v)
 
 
 def test_stopped_first_corrects_the_rest_stamp():

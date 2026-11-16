@@ -67,9 +67,12 @@ def tie_rule(rule, zone: Zone, own: Agent, other: Agent):
 
 
 def rest_since(stamp, params):
-    """The other's rest stamp, bias-corrected: the time it came to rest (``rest_stamp_bias`` is reading - truth; on
-    Autoware's tracks the stop instant reads 0.7 s late, 078 P2). None stays None."""
-    return None if stamp is None else stamp - params.rest_stamp_bias
+    """The other's rest stamp as a guard reads it: the raw stamp. 078 P2c: ``rest_stamp_bias`` (reading - truth,
+    +0.7 s median on Autoware's tracks) orders ``stopped_first`` only. A guard (rest_tie's, the fresh-rest guard,
+    the claim, the second round's epoch) never takes a correction that shortens it: the lag spreads 0.45-3.55 s,
+    so the median correction left guards short and 2 s-patience cars restarted into the go. A correction may
+    only lengthen a guard (a negative bias). None stays None."""
+    return None if stamp is None else stamp - min(0.0, params.rest_stamp_bias)
 
 
 def far_test(other: Agent, params):

@@ -1340,10 +1340,16 @@ Isaac's rear contact (inventory row 18).
     error that can be checked cheaply (render's values, physics_hz, the world paths) is
     refused at parse time too, so only an unforeseen refusal can loop. Ruling (133): the
     play_launch respawn does not gate the RC (`ros2 launch` is the required path); it ships
-    as a known limit, with 133's report in play_launch's repo once 241 rechecks it on
-    0.36.0. For the release notes, if it still reproduces: "under play_launch, a world
-    server refused for an unforeseen usage error restarts every 10 s until stopped;
-    ros2 launch ends the launch".
+    as a known limit. 241's recheck: 0.36.0 also ignores it. Filed by 133 (play_launch
+    15eacb01): #0090, a conditional OnProcessExit (the exit-2 case) ignored on 0.35.0 and
+    0.36.0 under both parsers; #0091, `--parser python` ignores #0081's shutdown handler;
+    #0092, the Rust parser does not apply SetEnvironmentVariable to `os.environ` (why the
+    port and domain stay substitutions); `EnvironmentVariable.perform` is #0086, fixed after
+    v0.36.0. For the release notes, citing #0090: "under play_launch, a world server refused
+    for an unforeseen usage error restarts every 10 s until stopped; ros2 launch ends the
+    launch". Rework 2f50171 (243): every cheap usage error refused at parse time, the
+    world server's pre-Kit refusals exit 2 (they exited 1 and looped under both launchers);
+    to push after `~` in world entries is expanded as the server does.
   - Not run: `follow:=true` (it needs a display; Isaac's window crashed on TurboVNC before).
   No process left: each server stopped by its group.
 - **Item 51 on Isaac (swb 241, 2026-11-17, on e3c29e9).** `just e2e

@@ -1,0 +1,34 @@
+# courses: the haruna-tsukuba-courses dataset's two scenarios through swb on Isaac Sim, as a
+# regression project (roadmap 077 step 4, inventory item 24). Each course's ego is its own car,
+# drift_mustang, under Autoware at low speed: roadmap 058 C9's check, NDT's NVTL at least 2.5
+# along the road (the nvtl judge, over the recorded score). The courses' guardrails and trees
+# are CARLA props from the CARLA USD set (Town01's), the car's body its Mustang.
+simulator: isaac
+assets:
+  - dataset: haruna-tsukuba-courses
+    take: [haruna, tsukuba]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles/vehicle.ford.mustang, "vehicles/*.json"]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: drift_mustang
+    args: {max_velocity: 8}        # low speed (058 C9; course_probe drove it at 8 m/s)
+    lifetime: stack
+isaac:
+  ego: config/ego_drift_mustang.yaml   # drift_mustang's rig (default: aib's Tesla)
+logging:
+  capture: full
+  topics:
+    - /localization/kinematic_state
+    - /localization/pose_estimator/nearest_voxel_transformation_likelihood
+    - /control/command/control_cmd
+    - /vehicle/status/velocity_status
+    - /planning/scenario_planning/trajectory
+    - /api/planning/velocity_factors         # why it slows or stops
+    - /api/planning/steering_factors
+    - /perception/object_recognition/objects
+  keep: {passed: standard, failed: full, error: full}
+judges:
+  - name: nvtl
+    run: [python3, judges/nvtl.py, --min-p05, "2.5"]

@@ -1,0 +1,51 @@
+# written by `ros2 run swb assets fetch`; commit it
+version: 1
+datasets:
+  haruna-tsukuba-courses:
+    repo: jerry73204/haruna-tsukuba-courses
+    commit: 61e29c5d2323d09a42e35fc8934dc854c1db5623
+    take:
+    - haruna
+    - tsukuba
+    files:
+      haruna/course/centreline.jpg: sha256:f5414a726addc91f2ece3155f54b7474e18fb2b50f99839edf353367a8927ade
+      haruna/course/centreline.json: sha256:03817ed1575505ea50313d6f3732b019c8948880a6b1d18e29bf29a759a89bb6
+      haruna/course/centreline.npz: sha256:0198f20a41d453059e41ea5937d86e5198333a5aa595a3f10ca1a71a236e498a
+      haruna/course/drift_points.yaml: sha256:501b6714a2290b2c7981f645257391aa5ef44f6ba51f7720a1577545df7fcd9c
+      haruna/course/maps.json: sha256:88b7960641de70c14ccf9e407767dee52b40a789f79e0090253e006dda2c2f93
+      haruna/course/meshes.npz: sha256:2caba7a4ee93259a2f7169d7754dc5587a4c309f6b0f779539fd9eed8f752a0b
+      haruna/course/photo.jpg: sha256:fff64ba42db5783b0dd127c55309145ad66efd623ecfb2dd7c67ac7d6e2e152c
+      haruna/course/props_points.npy: sha256:09fd82089b94275fbc469ede730f5162cb7c43e432271d60195381ae76c3da48
+      haruna/course/terrain_preview.jpg: sha256:3caa0e1472ce22c60558f69c924fd418c5ca980e2bef4e4b3b91b002e5cad312
+      haruna/isaac/terrain_photo.jpg: sha256:fff64ba42db5783b0dd127c55309145ad66efd623ecfb2dd7c67ac7d6e2e152c
+      haruna/isaac/world.usdc: sha256:448d51f67c3d07607959ffa878d717d269fbfc5b113b8f2555e0a7addae679c4
+      haruna/isaac/world.yaml: sha256:95d3fa04ba40e96abfd2cda202c3d8eccc8e5cffe2d260508cc5c084fef0575b
+      haruna/lanelet2_map.osm: sha256:3ba8e2b43ab5cb9d79f38d844a0a8aedcf7645a0c5352586545eef4132468334
+      haruna/map_config.yaml: sha256:0bdda506328a38c9d4964b359eb7afa39aff06b0c67fc61030bafcfa9d0307e8
+      haruna/map_projector_info.yaml: sha256:5db335e6e4680b4889639d09a95c8d961762e5dff14d3a7ed719ae648ce4eab8
+      haruna/pointcloud_map.pcd: sha256:1affd6ebbe674d7b121bfc2ba1f19c4f0af098438e3cddf16dd88b4103e052e7
+      haruna/raw/jobs.txt: sha256:41a5171984ff9c852dc29468fa3f521343b9de5ced06bac66716df719b01bdf0
+      haruna/raw/osm.json: sha256:9f21be6c0d4aa0dd7aceb2d62841ec22389e4696cf77f9f9191e03290f64557f
+      haruna/raw/road.json: sha256:8f43d1c62f535a95ee9d4bb70bca9a19dec80458e2081d613a828d969fd41ff1
+      haruna/scenarios/haruna_down.xosc: sha256:2fba8e5502789ff860d367ecd189de5c9330ddbc75fc75e45eab719e88db9e50
+      haruna/surfaces.yaml: sha256:3beb527c1fd04dbc7065079e86788b10f948840aee49a809318bc04aa802f2c6
+      tsukuba/course/centreline.jpg: sha256:aeab0244728ac004e6148536fbe2d3b0f9901aff9405a992b38a5bdd6810f51d
+      tsukuba/course/centreline.json: sha256:5c2816e770148aea1221532785bd3c2ce7890470be3e6992c739569a8b21b76a
+      tsukuba/course/centreline.npz: sha256:297c16825466d130371a657974ed4b2d258f15fa1196bde04a2198bd22eb5c5c
+      tsukuba/course/drift_points.yaml: sha256:b5769c81dfa3a0b002e9d5e3e58a6a10b96b7c4ab9f78ed790b3c9675a7fcdb3
+      tsukuba/course/maps.json: sha256:b958fa85e94db36cc842231053c9cca319c4d3322ce42780ec81ba07d271b3f1
+      tsukuba/course/meshes.npz: sha256:d8b4693822458f07b5c471e33cafadea96b18a738baee493545ad7242edf5ee4
+      tsukuba/course/photo.jpg: sha256:36f6facd20c7a9f97c752933ce7f0727dacff815d81ee8376d54eeb54023948d
+      tsukuba/course/props_points.npy: sha256:2a8aac1fb2b7c43c5dcc6aec4cb0daac555e070de9a7bec4f57e4bdc17712324
+      tsukuba/course/terrain_preview.jpg: sha256:acf333e36ed6b00bbe0ffa9c46043fdedbb0895ae6bcfc8f2c47b2203ea01c5e
+      tsukuba/isaac/terrain_photo.jpg: sha256:36f6facd20c7a9f97c752933ce7f0727dacff815d81ee8376d54eeb54023948d
+      tsukuba/isaac/world.usdc: sha256:3234b0ca93ef4b530ad1d287c4338bcad6f1fe0540f64a2e68e2150a86b89778
+      tsukuba/isaac/world.yaml: sha256:95d3fa04ba40e96abfd2cda202c3d8eccc8e5cffe2d260508cc5c084fef0575b
+      tsukuba/lanelet2_map.osm: sha256:79cbe4db8e549fe20a14fe36cedeaac1eff76b4f6a430fd31f3fec41759e009d
+      tsukuba/map_config.yaml: sha256:309d341b85d6145686ad224bdd545a6e070ead2e4f66535fb8b4569c8e014d80
+      tsukuba/map_projector_info.yaml: sha256:47d341721d6945f5cb65f10100392e9fccbad233f11b9f89a31a59786488677c
+      tsukuba/pointcloud_map.pcd: sha256:8112a0c5767073b90035fc4c0285183292a19329b033cee40a35879d2c4ce571
+      tsukuba/raw/road.json: sha256:51d82d6e18a8ac61d9f3f29f1e242225c1544c4d30e7b15ba9f97a26dc59fea0
+      tsukuba/scenarios/tsukuba_lap.xosc: sha256:4e0c668dfacd8d9ee2b9076910d088bef545338f0fe58a7d81514c053062cdde
+      tsukuba/surfaces.yaml: sha256:3beb527c1fd04dbc7065079e86788b10f948840aee49a809318bc04aa802f2c6
+paths: {}

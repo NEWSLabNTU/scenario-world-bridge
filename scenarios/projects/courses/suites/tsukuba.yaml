@@ -1,0 +1,5 @@
+# tsukuba_lap from rest at the start to the goal, under Autoware at low speed (one Isaac world per stack).
+scenarios:
+  - assets/maps/tsukuba/scenarios/tsukuba_lap.xosc
+retry: {on: error, times: 1}
+expect: {}

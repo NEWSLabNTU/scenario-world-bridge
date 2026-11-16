@@ -203,7 +203,9 @@ def submodule_drift(workspace) -> list:
     not name: on 2026-11-16 a non-recursive update left acb's ``deps/`` on an older vehicle
     spec, and the bridge refused the ego a minute into the run (roadmap 077, G31)."""
     try:
-        out = subprocess.run(["git", "submodule", "status", "--recursive"], cwd=str(workspace),
+        # --no-optional-locks: no index.lock left behind by a call killed at the timeout
+        out = subprocess.run(["git", "--no-optional-locks", "submodule", "status", "--recursive"],
+                             cwd=str(workspace),
                              capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
         return []

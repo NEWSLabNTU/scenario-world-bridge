@@ -154,7 +154,9 @@ def source_id(ws) -> str:
     commit of the same tree, or an edit of the docs, leaves it as it was."""
     def git(*a):
         try:
-            return subprocess.run(["git", *a], cwd=str(ws), capture_output=True, text=True,
+            # --no-optional-locks: a killed `git diff` must not leave index.lock behind
+            return subprocess.run(["git", "--no-optional-locks", *a], cwd=str(ws),
+                                  capture_output=True, text=True,
                                   timeout=20).stdout
         except (OSError, subprocess.TimeoutExpired):
             return ""

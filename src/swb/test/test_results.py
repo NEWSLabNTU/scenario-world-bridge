@@ -238,3 +238,24 @@ def test_no_junit_names_the_runners_traceback(tmp_path):
     err.write_text("Traceback (most recent call last):\n  File \"x.py\", line 3, in <module>\n"
                    "    import xmlschema\nModuleNotFoundError: No module named 'xmlschema'\n")
     assert results.ssv2_hint(tmp_path) == "ModuleNotFoundError: No module named 'xmlschema'"
+
+
+def test_provenance_git_calls_take_no_index_lock(monkeypatch, tmp_path):
+    """Every git call of the run's provenance passes --no-optional-locks: `git status` would
+    otherwise refresh the index under index.lock, and a call killed at its timeout on a loaded
+    host left that lock behind, breaking the user's next commit (077, G73)."""
+    from swb import results
+    seen = []
+
+    class R:
+        returncode, stdout = 0, "abc123\n"
+
+    def fake_run(argv, **kw):
+        seen.append(list(argv))
+        return R()
+
+    monkeypatch.setattr(results.subprocess, "run", fake_run)
+    results.provenance(tmp_path)
+    git = [a for a in seen if a and a[0] == "git" and any(w in a for w in ("status", "submodule"))]
+    assert git, seen
+    assert all("--no-optional-locks" in a for a in git), git

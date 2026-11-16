@@ -327,6 +327,9 @@ def ssv2_block(junit_path, rel_name="junit.xml") -> dict:
 # --- provenance -----------------------------------------------------------------------------
 
 def _out(argv, cwd=None, timeout=10):
+    """``argv``'s stdout, else None. Its git calls pass ``--no-optional-locks``: `git status`
+    otherwise refreshes the index under ``index.lock``, and a call killed at the timeout (a
+    loaded host, a slow disk) leaves that lock behind, breaking the next commit."""
     try:
         r = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError):
@@ -337,7 +340,7 @@ def _out(argv, cwd=None, timeout=10):
 def submodule_pins(workspace) -> dict:
     """``{path: sha}`` from ``git submodule status``; ``sha+`` for a checkout off its pin,
     ``sha-`` for one not initialised. Empty when git or the repository is not there."""
-    text = _out(["git", "submodule", "status"], cwd=workspace) or ""
+    text = _out(["git", "--no-optional-locks", "submodule", "status"], cwd=workspace) or ""
     pins = {}
     for line in text.splitlines():
         if len(line) < 42:
@@ -369,7 +372,8 @@ BUILD_STAMP = "swb_build.json"
 def checkout_commit(workspace):
     """The checkout's commit, ``+dirty`` when its tracked tree has changes; None without git."""
     commit = (_out(["git", "rev-parse", "HEAD"], cwd=workspace) or "").strip() or None
-    if commit and (_out(["git", "status", "--porcelain", "--untracked-files=no"],
+    if commit and (_out(["git", "--no-optional-locks", "status", "--porcelain",
+                         "--untracked-files=no"],
                         cwd=workspace) or "").strip():
         commit += "+dirty"
     return commit

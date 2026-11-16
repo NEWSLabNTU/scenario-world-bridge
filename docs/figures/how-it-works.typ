@@ -94,7 +94,7 @@
   #image("hiw-carla.jpg", width: 100%)
 ]
 #arrow((168, 60), (180, 60), (180, 22), (188, 22))
-#lbl(169, 62, [world \ protocol])
+#lbl(175.5, 62, [world \ protocol], w: 12)
 
 // The autopilot support package
 #panel(188, 62, 74, 58, fill: veh.lighten(40%))[]
@@ -106,7 +106,7 @@
 #at(224, 75, image("hiw-rviz.jpg", width: 34mm))
 #caption(188, 114, 74)[Autopilot support package]
 #arrow((168, 100), (188, 100))
-#lbl(169, 91, [route, \ engage])
+#lbl(175.5, 91, [route, \ engage], w: 12)
 
 #arrow((210, 48), (210, 65))
 #lbl(189, 50, [camera, lidar, \ IMU, GNSS], w: 20)

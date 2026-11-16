@@ -37,7 +37,7 @@ every stack pilot is). A run refuses a stack whose fingerprint is not the projec
 | `gap_trace/` | standard | with `logging.gap_trace: true`: the bridge's gap trace for each episode of the run (SSv2's world and the simulator's, frame by frame), and the gap judges' findings beside it |
 | `context.jsonl` | standard | with a judge that `needs: [context]`: SSv2's storyboard state changes, one per line (`sim`, `element`, `from`, `to`) |
 | `logs/<group>/` | standard | every stack process's log for the time of the run (a slice), SSv2's own logs (`logs/ssv2/`), `lifetime: run` pilots' logs |
-| `record/<entity>/` | full | a rosbag of the pilot's key topics, from the moment every pilot is ready until SSv2 ends |
+| `record/<entity>/` | full | a rosbag (sqlite3, not mcap) of the pilot's key topics, from the moment every pilot is ready until SSv2 ends |
 | `host.json` | full | samples of the host's load |
 | `record/scenario/` | debug | every topic of the scenario domain (and every topic of each pilot domain in `record/<entity>/`) |
 

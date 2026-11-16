@@ -469,7 +469,10 @@ out) and the sensor topics in its domain, whatever the simulator.
 
 Common keys: `vehicle`, `args` (launch arguments; substitutions apply), `lifetime: stack|run`
 (default `stack`), `ready` (default: the kind's check; `autoware`: `ego_ready`), `inputs`
-(`sensors`, `map`, `ground_truth`; recorded in results), `rviz` (bool).
+(`sensors`, `map`, `ground_truth`; recorded in results), `rviz` (bool). A `lifetime: stack`
+pilot carries over from the run before: its car may still be rolling when the next run's
+recording starts, until SSv2 places it, so a judge should anchor on the scenario's own events
+(`context.jsonl`) rather than on the car's first motion.
 
 The launch contract every `launch` pilot receives: `entity`, `relay`, `map_path`, `vehicle`,
 `seed`, `run_dir`, `sim`, `use_sim_time:=true`.

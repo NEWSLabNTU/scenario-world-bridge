@@ -745,3 +745,84 @@ Isaac's rear contact (inventory row 18).
     nothing of what to expect on the drift course with a Model 3; T7 step 3's quoted log
     line is stale (now `soil zone mud_road: cut (...) out of 8 mesh(es)` and `32 tiles of
     1.6 m at z 0.00`).
+- **The reruns on the spec's physics (2026-11-16, after G55 at fa539b5).** Every car of
+  the ego's model now runs its spec's physics on a project stack, with acb verifying it; the
+  results before G55 ran on CARLA's blueprint. Rerun on this host (a76643f to d5c9843):
+  - items 1 to 4, `scenarios/projects/basic`: town01 6 of 6, towns 4 of 4 (Town02, 03, 05,
+    10), episode_change 1 of 1, tutorial 1 of 1, all with physical_verdict passed;
+  - item 8, incidents i1 to i5: 5 of 5, SSv2 and both judges;
+  - item 9, i6: 3 of 3, both judges;
+  - item 10: i8 passed SSv2 and physical_verdict; i7 ended `error` on both tries (SSv2's
+    acceleration bound, the ego at -15.8 and -18.8 m/s^2), each on a contact with `i7_cut`
+    (727 N s at peak on the retry): as on the blueprint, so the physics does not decide it.
+    133's subagent checks whether the cut is avoidable at all and proposes a re-timing or a
+    stated expected outcome; the two runs are on the NAS, "2026-11-16 077 i7 spec physics";
+  - item 11, suite tour: passed SSv2, incident 6 of 6, physical_verdict passed, no contact,
+    583.5 s wall (033's take_1: 6 of 6, no contact).
+  Items 5 and 6 (Isaac) are 241's.
+- **Item 11 migrated (2026-11-16, d5c9843).** The demo project's suite `tour` runs
+  `town01_tour` with `global_timeout` 1200 on the project's ego, ClearNoon (`world.weather`,
+  as 033). `swb.gap incident --incident auto` on a scenario whose name carries no incident
+  number judges every incident its storyboard log names, one incident_judge each
+  (`<trace>.incident<N>.json`), passing when all pass; the tour declares i3's stop line
+  (`csbIncidentStopLine`). `just demo-tour` runs it (133's subagent, 33b3f95); the recording
+  stays with `just demo-tour-direct` (G4).
+- **Item 7 migrated (swb 118, 2026-11-16, 7c277ee).** `scenarios/projects/two_av`: the ego and
+  `bg_av_1` as Autoware pilots on the Model 3, `lifetime: stack`, judges physical_verdict and
+  gap. Live on fa539b5: passed, both judges, no ego contact, gap oracle 0/0/0, as 050's
+  "after"; both acb_bridges verified the spec's physics. `just two-av` runs it; the old path
+  is `just two-av-direct`. NAS: "2026-11-16 077 item 7 two_av".
+- **Item 32 migrated (swb 118, 2026-11-16, a9be59a).** `scenarios/projects/c2b`: `command`
+  pilots (`pilots/cutin_pilot.py --pair`, the cell read from the scenario's parameters), six
+  per-cell scenarios with the start on the straight, judge `c2b_score` against 074's arena
+  run (`reference/arena.jsonl`) and physical_verdict; suite 6 cells x 2 pairs x 2. Live: 24
+  of 24 runs agree on the outcome, payoffs inside the arena's interval 46 of 48 (the
+  reference's own 42 of 48); the two misses are uB at 10/0 with the eq pair, as 074's
+  lane-frame score. A developer project: it reaches into `scripts/coop`. NAS: "2026-11-16
+  077 item 32 c2b".
+- **Item 34 migrated (swb 118, 2026-11-16, 1adab31).** `scenarios/projects/e2`: the two E2
+  scenarios, Autoware on clustering at `max_velocity` 10, capture full (/clock,
+  kinematic_state, control_cmd) and the gap trace, judge `e2_speed` (lane change and lead
+  brake within 1 s of E2's). Two passes on the spec's physics, every run passed: lane change
+  4.6 and 4.5 to 4.55 s (E2 4.05 to 4.10, 4.80 to 4.85), lead brake 2.3 to 2.35 and 2.55 to
+  2.7 s (E2 2.3, 2.7). Its findings: capture full writes sqlite3 bags, which tools reading
+  only mcap do not open (results-and-logs.md now says so); with a `lifetime: stack` pilot a
+  run's bag can start while the ego still rolls from the run before, so a judge anchored on
+  first motion is fooled (projects-and-pilots.md now says so). NAS: "2026-11-16 077 item 34
+  e2".
+- **G34, G35, G53 built (133's subagent, 2026-11-16).** G34 (2a6c4a9): `project check`
+  refuses an Autoware-controlled entity bound to `kind: none`, naming the fix. G35
+  (a76643f): a cached file is hashed only when its stat key changed since
+  `<cache>/verified/<repo>/<commit>.json`, in fetch, check, project check and the stack's
+  start; `assets check --hash` and `assets fetch --verify` hash all; on NVMe the 25 GB USD
+  set's check went from 41.5 s to 1.4 s. G53 (1206644): a scenario's own simulation-time
+  limit raises `global_timeout` to (limit + initialize_duration) / rtf + 60 when larger,
+  recorded as `ssv2.timeout_raised`; `--timeout` is never raised. **A behaviour change:**
+  236 scenarios with a 600 s limit of their own now run to 780 s and 18 with 300 s to 480 s
+  under the default 400 s, so runs that ended `error` at 400 s reach their own verdict.
+  Suites at 1200 s are not affected.
+- **G56 (found 2026-11-16, swb 241, 075 step 8 T6 step 4; a release must-have): Isaac's
+  sensors silent on a two-GPU host.** drive_to_goal ended `error` at `INITIALIZING` in 4 of 4
+  runs on two stacks: ndt_scan_matcher "No InputSource", the world server "sensors not ready
+  after 1200 warm-up frames" (the G37 code ran; cold caches were ruled out). The host
+  setting `gpu: 1` gave the world server `CUDA_VISIBLE_DEVICES=1`, while isaac.md's own
+  two-GPU line set `--/renderer/activeGpu=0`; Vulkan does not honour CUDA_VISIBLE_DEVICES,
+  so the renderer, and with it the RTX lidar, ran on another card than CUDA. With
+  `activeGpu=1` the run passed (13:20, 2 min 31 s), the sensors warm after 3 renders. The
+  stack now appends `--/renderer/multiGpu/enabled=false --/renderer/activeGpu=<gpu>` to
+  `ISAAC_KIT_ARGS` on Isaac whenever the host names a GPU; isaac.md's export is gone, and
+  troubleshooting names the symptom.
+- **Step 8 (2026-11-16).** `just scenario` (72c7561) and `just e2e` (65e2020) run on the
+  project workflow in the project holding the scenario, else `scenarios/projects/dev`; the
+  stack-based recipes are `scenario-direct` and `e2e-direct`, and every caller under
+  `scripts/` moved to them. `two-av` (7c277ee) and `demo-tour` (33b3f95) run their
+  projects. The project is found from the scenario's path as given, links not followed (a
+  linked scenario runs in the project holding the link). `just acceptance` stays: it has no
+  project form until the acceptance judge (G11) exists, which needs acceptance.py's checks as
+  a judge over a run, /diagnostics, the route and GNSS recorded on the judge's `needs`, the
+  gap trace's ego pose as ground truth, node deaths from the pilot's log, and Isaac's batch
+  scoring.
+- **076 step 9's shards ran on the blueprint (241's audit, 2026-11-16).** Shard 2 of 2
+  (10:00, 979ef22) logged "carla_physics none: the hero runs its blueprint's own physics",
+  and bg_av_1, lead and cut_in were Model 3s without the spec's physics; shard 1 (this
+  host, 2026-11-15) predates G55 too. Both run again on G55: shard 2 on 241, shard 1 here.

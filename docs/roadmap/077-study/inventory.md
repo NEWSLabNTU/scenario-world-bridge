@@ -242,11 +242,11 @@ G32. An item with no open gap can be migrated now.
 | 4 | `awf/` UC-ACC-001-0001 | CARLA | - | migrated 2026-11-15 (`safety_suite` nightly, 27/27 and 9/9) |
 | 5 | `awf/` with CenterPoint | CARLA + CUDA | - | migrated 2026-11-16 (safety_suite centerpoint, 27/27 and 9/9) |
 | 6 | `tutorial/town01_follow_to_goal` | CARLA | - | migrated 2026-11-16 (`scenarios/projects/basic` suites/tutorial) |
-| 7 | `multi_av/town01_two_av` | CARLA, two Autoware | G4 | blocked |
+| 7 | `multi_av/town01_two_av` | CARLA, two Autoware | G4 (recording only) | migrated 2026-11-16 without recording (swb 118, `scenarios/projects/two_av`, 7c277ee; `just two-av`) |
 | 8 | Demo incidents i1 to i5 | CARLA + CUDA | - | migrated 2026-11-16 (`scenarios/projects/demo` suites/incidents, 5 of 5 on SSv2, incident_judge and physical_verdict; the tour's ego, as the incidents are timed for since 2026-10-20) |
 | 9 | Demo incident i6 | CARLA + CUDA | - | migrated 2026-11-16 (suites/i6_centerpoint, 3 of 3, the ego yielding) |
 | 10 | Demo incidents i7 cut-in, i8 rear approach | CARLA + CUDA | - | migrated 2026-11-16 (suites/cut_in_rear; first live runs: i8 passed, i7 a contact, see 077) |
-| 11 | Demo tour `demo/town01_tour` | CARLA | G4 | blocked |
+| 11 | Demo tour `demo/town01_tour` | CARLA | G4 (recording only) | migrated 2026-11-16 without recording (`scenarios/projects/demo`, suites/tour, d5c9843; `just demo-tour`) |
 | 12 | `scenarios/gap/` entity_bodies, motorbike_body, npc_shoulder, ... | CARLA | - | migrated 2026-11-16 (scenarios/projects/gap, suite gap, 8 of 8 as expected) |
 | 13 | `scenarios/bench/` town01_npc_10/20/50 | CARLA | - | migrated 2026-11-16 (swb 118, scenarios/projects/bench, 3 of 3 with a frame_budget judge) |
 | 14 | 050 measurement set | CARLA | - | migrated 2026-11-16 (swb 118, scenarios/projects/set050 and set050_tour; the tour's static-mesh contact open, see 077) |
@@ -267,9 +267,9 @@ G32. An item with no open gap can be migrated now.
 | 29 | Several Autoware egos on Isaac, V2X | Isaac | one ego on Isaac (076 ruling) | by design |
 | 30 | NTU off-road field, competition director | private assets (the user checks these, 077 ruling); Isaac | not built | blocked |
 | 31 | Cut-in batch C3a | two hosts; CARLA + CUDA | G16, G17 | blocked |
-| 32 | C2b swb check of the arena | CARLA | - | ready to migrate |
+| 32 | C2b swb check of the arena | CARLA | - | migrated 2026-11-16 (swb 118, `scenarios/projects/c2b`, a9be59a; a developer project) |
 | 33 | Cut-out S1 on the real stack | CARLA + CUDA | G16 | blocked |
-| 34 | E2 lane change gate | CARLA | - | ready to migrate |
+| 34 | E2 lane change gate | CARLA | - | migrated 2026-11-16 (swb 118, `scenarios/projects/e2`, 1adab31) |
 | 35 | E3 Autoware knobs | CARLA | G18 | blocked |
 | 36 | E5/S5 left turn at junction 861 on the real stack | CARLA | - | ready to migrate |
 | 37 | Gap campaign live loop | CARLA (Isaac later) | - | ready to migrate |

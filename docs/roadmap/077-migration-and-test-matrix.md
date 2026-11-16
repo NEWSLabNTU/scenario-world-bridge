@@ -1130,7 +1130,10 @@ Isaac's rear contact (inventory row 18).
   nothing publishes clusters/pointcloud_map_filtered", although its composables were loaded;
   the respawned world server later exited without a code or log line (21:55:55, no OOM).
   Until those are fixed, a stack whose Isaac world server was ended by the deadline is
-  restarted before further runs (T3's Isaac paragraph says so). Open: (i) the PhysX hang
-  itself (241); the pilot's perception after a world-server respawn; the silent exit.
+  restarted before further runs. Open: (i) the PhysX hang itself, now 139's root fix (issue
+  040: the shared bury point in `_load_env`), with its live repro; with it in, recovery after a
+  respawn (the pilot's perception, the silent exit) is post-release and recorded by 139 as a
+  finding of its own. (iii), T3's Isaac note on the limit, is drafted and goes in only if the
+  root fix misses the RC.
   pedestrian_crossing's first walker render (19.8 s, then a 16.2 s step past the bridge's
   10 s) belongs to G65's walker warm-up.

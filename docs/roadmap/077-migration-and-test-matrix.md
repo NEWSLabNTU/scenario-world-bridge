@@ -1211,3 +1211,37 @@ Isaac's rear contact (inventory row 18).
   reloaded cleanly, no PhysX warning, no deadline, no respawn; 241 confirms on the pinned
   build. G70's watchdog stays as the safety net. T3's held note loses its hang sentence; the
   recovery after a respawn is the issue's second finding, post-release. Item 17 is unblocked.
+- **Item 16 migrated (2026-11-16, 542a50d).** `scenarios/projects/isaac_basic`, suite
+  `towns`: town01_ego_drive and town02_ego_drive (named where swb_examples installs them),
+  Autoware on aib's rig, Town02 preloaded (`isaac.preload`) so one Isaac stack serves both
+  towns. Live on 2788710: 2 of 2 (Town01 18-47-00; Town02 18-52-43, the pilots moved in
+  9.6 s). Town02's first try ended `error` (no answer to the ego's Spawn within 120 s, the
+  first ego on the preloaded town, host load 80-88; G65), its retry passed; the stack took
+  16 min to be ready with both towns. In T3 part 2 as isaac_basic/towns (b1a36b1).
+- **Item 18, assigned (133, 2026-11-17): swb 241, alongside item 17.** Not yet migrated.
+  Nothing blocks it: G3 gives `ssv2: managed_ego: false` per scenario, and the runner hands
+  that ego to no pilot; CARLA's rear_contact already runs in basic's `suites/town01.yaml`
+  (item 1). Wanted: isaac/town01_rear_contact in an Isaac project's suite, one live run.
+- **Item 56, assigned (133, 2026-11-17): swb 118.** The tools exist (`just world-health`,
+  `just world-check`, `ros2 run swb_world_check swb_world_check conformance`), but no T1 cell
+  runs them. Wanted: a T1 conformance cell over each world server, proven on CARLA and
+  runnable on Isaac.
+- **079 closed (swb 118, 2026-11-17, 420d801).** Every step is on main. `ros2 launch` is the
+  default path, the one the tutorials and how-tos show (6007c77, 15520bd; 133 ruled it stays
+  for this release), and play_launch is recommended, not required. A fresh clone without
+  play_launch passed tutorials 1 to 5 as written, 31 of 31 runs. The one defect found, F1 (a
+  stack started in a script's background left the relay running after a stop), is fixed
+  there. The release notes say: only ROS 2 is required; play_launch adds per-process logs, a
+  web interface, and a crashed Autoware component restarted alone.
+- **079's fresh-install doc mismatches (found by swb 118, ruled by 243, 2026-11-17).** Fixed
+  in the tutorials: `project new`'s `next:` line names the absolute path; `project check`
+  prints the launcher line (and, under `ros2 launch` with an Autoware pilot, a note) before
+  its findings, so the samples show them and the checks say "ends `project: ok`"; the logs
+  live in the stack's `stacks/<stack id>/`, which `seat-<n>-current` links to; the pilot is
+  ready about 40 s after the run starts, not "within seconds"; the run directory also holds
+  `resolved.yaml` and `contacts/`; Tutorial 4's check reads the log root from a variable
+  (the default, or the host's `logs:`); Tutorial 5 shows the map line and the shard summary
+  directories; Tutorial 2 gives the collision event in OpenSCENARIO. For 118, in code: the
+  note drops its roadmap reference (keeping its first words, which the sample shows); under
+  `ros2 launch` the stack's first line names no web port; `seat show` with seat `auto` and a
+  seat held says which one it holds, rather than `your seat: auto` beside `<- yours`.

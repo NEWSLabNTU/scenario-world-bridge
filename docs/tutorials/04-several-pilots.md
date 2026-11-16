@@ -39,7 +39,7 @@ ros2 run swb assets fetch
 cat swb.yaml
 ```
 
-**What you see**: the fetch as in Tutorial 1, then the pilots:
+**What you see**: the fetch as in Tutorial 1, then the project file; its pilots:
 
 ```yaml
 pilots:
@@ -56,7 +56,7 @@ pilots:
 the other three with `agent`, so all four are driven from outside SSv2. Each key of
 `pilots:` is an entity name or a pattern (`bg_av_*` matches `bg_av_1`).
 
-**Check**: `ros2 run swb project check` prints `project: ok`. It would refuse an `agent`
+**Check**: `ros2 run swb project check` ends `project: ok`. It would refuse an `agent`
 entity with no pilot, or a pilot kind the simulator cannot run.
 
 ## 2. Check your own pilot without a simulator
@@ -109,8 +109,8 @@ start can be observed.
 **Check**: which domain each pilot got, from the stack's record:
 
 ```bash
-grep -E '"(entity|domain)"' \
-    ~/.local/state/swb/logs/multi_pilot/seat-*-current/stack.json
+logs=~/.local/state/swb/logs    # the default; the host settings' logs: if set
+grep -E '"(entity|domain)"' "$logs"/multi_pilot/seat-*-current/stack.json
 ```
 
 Each entity has its own domain.

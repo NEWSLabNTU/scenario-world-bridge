@@ -45,7 +45,7 @@ Three speeds times two repetitions give six runs. `scenarios:` takes files and d
 (every scenario in them); a pilot of `lifetime: run` receives `{seed}` and
 `{param:<name>}` in its arguments.
 
-**Check**: `ros2 run swb project check` prints `project: ok`; it parses every suite under
+**Check**: `ros2 run swb project check` ends `project: ok`; it parses every suite under
 `suites/` too.
 
 ## 2. Run it
@@ -54,9 +54,11 @@ Three speeds times two repetitions give six runs. `scenarios:` takes files and d
 ros2 run swb run suites/follow.yaml
 ```
 
-**What you see**: one line per run, in order, then the summary:
+**What you see**: one line per run, in order, then the summary; a stack whose pilots have
+not yet driven first prints the map line, as in Tutorial 1:
 
 ```
+map      Town01  (pilots restarted from none in ... s)
 passed   2026-11-15T15-01-10_follow_to_goal_leadSpeed-2.0_r0  .../runs/...
 passed   2026-11-15T15-02-21_follow_to_goal_leadSpeed-2.0_r1  .../runs/...
 ...
@@ -127,7 +129,8 @@ ros2 run swb run suites/follow.yaml --shard 2/2    # on the second
 ```
 
 `--shard i/n` takes every n-th run from the i-th, so the two together cover the suite
-once. A suite interrupted part-way continues with `--resume`, which skips the runs that
+once; each host writes its summary to its own directory, `suites/follow_shard-1-of-2/` and
+`suites/follow_shard-2-of-2/`. A suite interrupted part-way continues with `--resume`, which skips the runs that
 already have a result:
 
 ```bash

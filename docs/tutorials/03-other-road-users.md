@@ -171,7 +171,7 @@ ros2 run swb project check
 ros2 run swb run scenarios/autopilot.xosc
 ```
 
-**What you see**: `project: ok`, then the run passes when all three have reached their
+**What you see**: the check ends `project: ok`, then the run passes when all three have reached their
 goals and nothing has collided.
 
 **Check**: `ros2 run swb runs list` shows the three new runs `passed`.

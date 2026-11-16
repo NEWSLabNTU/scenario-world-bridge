@@ -46,7 +46,7 @@ cat swb.yaml
 ```
 
 **What you see**: `wrote /home/<you>/my_first_drive (carla-first-drive); next: cd
-~/my_first_drive && ros2 run swb assets fetch`, then the project file:
+/home/<you>/my_first_drive && ros2 run swb assets fetch`, then the project file:
 
 ```yaml
 # my_first_drive: one Autoware ego on CARLA's Town01.
@@ -73,15 +73,20 @@ ros2 run swb project check
 echo $?
 ```
 
-It reports two problems, both caused by the missing assets, and exits 3 (refused):
+It names the launcher the stack will use, then reports two problems, both caused by the
+missing assets, and exits 3 (refused):
 
 ```
+launcher: auto -> ros2 (play_launch not on PATH)
+note: under ros2 launch, a crashed Autoware component ends its container ...
 problem: swb.lock: missing: the assets were never fetched (fix: ros2 run swb assets ...
 problem: scenarios/drive_to_goal.xosc: map Town01 is not fetched (assets/maps/Town0...
 [ros2run]: Process exited with failure 3
 ```
 
-The last line is `ros2 run`'s own, printed after any command that does not exit 0.
+The launcher is play_launch when it is installed, else `ros2 launch`; the note concerns
+`ros2 launch` only. The last line is `ros2 run`'s own, printed after any command that does
+not exit 0.
 
 ## 2. Fetch the map
 
@@ -111,7 +116,7 @@ ros2 run swb project check
 ros2 run swb assets check
 ```
 
-print `project: ok` and `assets: ok`.
+The two end `project: ok` and `assets: ok`.
 
 ## 3. Bring up the stack
 
@@ -148,8 +153,9 @@ swb: project .../my_first_drive on seat 0 (carla, maps Town01; pilots on the fir
 `ros2 launch` leads each line of a process with the process's name; under play_launch the
 same lines appear without it.
 
-Each process of the stack writes its log under the log root
-(`<logs>/my_first_drive/seat-<n>-current/proc/`). The recommended launcher,
+Each process of the stack writes its log under the log root, in the stack's directory
+`<logs>/my_first_drive/stacks/<stack id>/proc/`, which the first line names;
+`seat-<n>-current` links to the seat's current stack. The recommended launcher,
 [play_launch](https://pypi.org/project/play-launch/), starts the same stack with a log
 directory per process and a web interface that lists every process with its state and log:
 
@@ -185,7 +191,8 @@ start the pilots on Town01 and waits until Autoware can accept a route. SSv2
 then teleports the ego to its start, gives Autoware the goal and engages it. The car drives
 west and stops at the goal.
 
-With the default lidar detector the pilot is ready within seconds; a non-default one may
+With the default lidar detector the pilot is ready within about 40 s of the run's start,
+longer on a loaded host; a non-default one may
 first build TensorRT engines for several minutes
 ([Your Autoware](../how-to/your-autoware.md)), during which the pilot's logs grow under
 `<logs>/my_first_drive/seat-<n>-current/proc/pilot-ego/` (`logs:` of the host settings).
@@ -232,7 +239,9 @@ ros2 run swb runs show drive_to_goal
 SSv2's milestones and every warning in any process's log.
 
 The run's directory holds `result.json` (the verdict, its reason, the pilots and the
-versions that ran), `timeline.jsonl`, SSv2's `junit.xml` and, for a run that did not pass,
+versions that ran), `resolved.yaml` (the scenario and settings as run), `timeline.jsonl`,
+SSv2's `junit.xml`, the contacts the simulator reported under `contacts/` and, for a run
+that did not pass,
 each process's log under `logs/`; [Results and logs](../reference/results-and-logs.md)
 describes every file.
 

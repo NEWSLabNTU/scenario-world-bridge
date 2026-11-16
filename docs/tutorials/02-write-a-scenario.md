@@ -176,8 +176,30 @@ declaration between them:
 | too long | `SimulationTimeCondition` > 120 | `exitFailure` |
 
 Each is a `UserDefinedAction` with a `CustomCommandAction type="exitSuccess"` (or
-`exitFailure`) and a `StartTrigger` holding the condition. Simulation time starts when the ego is engaged, so Autoware's start does not
-count against the timeout.
+`exitFailure`) and a `StartTrigger` holding the condition; the second event, in full:
+
+```xml
+<Event name="touched_lead" priority="parallel">
+  <Action name="exit_collision">
+    <UserDefinedAction><CustomCommandAction type="exitFailure"/></UserDefinedAction>
+  </Action>
+  <StartTrigger><ConditionGroup>
+    <Condition name="collision" delay="0" conditionEdge="none">
+      <ByEntityCondition>
+        <TriggeringEntities triggeringEntitiesRule="any">
+          <EntityRef entityRef="ego"/>
+        </TriggeringEntities>
+        <EntityCondition>
+          <CollisionCondition><EntityRef entityRef="lead"/></CollisionCondition>
+        </EntityCondition>
+      </ByEntityCondition>
+    </Condition>
+  </ConditionGroup></StartTrigger>
+</Event>
+```
+
+Simulation time starts when the ego is engaged, so Autoware's start does not count against
+the timeout.
 
 **Check**:
 
@@ -185,7 +207,7 @@ count against the timeout.
 ros2 run swb project check
 ```
 
-prints `project: ok`: every scenario parses, its map is fetched, and every entity driven
+ends `project: ok`: every scenario parses, its map is fetched, and every entity driven
 from outside (`Autoware` or `agent`) has a pilot.
 
 ## 3. Run it

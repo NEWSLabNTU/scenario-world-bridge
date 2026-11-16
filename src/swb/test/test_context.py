@@ -99,3 +99,15 @@ def test_standard_keeps_the_storyboard_log():
     from swb import runs
     assert "context.jsonl" in runs.kept_names("standard")
     assert "context.jsonl" not in runs.kept_names("result")
+
+
+def test_the_stop_line_comes_from_the_scenario(tmp_path):
+    from swb import gap
+    sc = tmp_path / "i3.xosc"
+    sc.write_text('<OpenSCENARIO><ParameterDeclarations><ParameterDeclaration '
+                  'name="csbIncidentStopLine" parameterType="string" value="325.73,-330.61,-0.0"/>'
+                  '</ParameterDeclarations></OpenSCENARIO>')
+    (tmp_path / "resolved.yaml").write_text(f"scenario: {{path: {sc}}}\n")
+    assert gap.scenario_stop_line(tmp_path) == (325.73, -330.61, -0.0)
+    sc.write_text("<OpenSCENARIO/>")
+    assert gap.scenario_stop_line(tmp_path) is None

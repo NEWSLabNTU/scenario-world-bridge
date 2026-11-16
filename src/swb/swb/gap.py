@@ -21,7 +21,8 @@ only. ``incident``: ``incident_judge`` on the run's trace with ``--context`` (a 
 storyboard states, relative to the run directory; ``needs: [context]`` records it, swb.context)
 and the run's JUnit; its PASS or FAIL is the verdict. ``--incident auto`` takes the number from
 the run's scenario file name (``..._i<N>_...``, as the demo incidents are named), so one judge
-serves a suite of them. No trace, no context log, or no incident to judge by is an ``error``
+serves a suite of them; without ``--stop-line`` the scenario's ``csbIncidentStopLine``
+parameter gives it (incident 3's red light). No trace, no context log, or no incident to judge by is an ``error``
 (exit 2), never a pass.
 """
 import argparse
@@ -124,10 +125,35 @@ def incident_number(run_dir: Path, given: str):
     return n, None
 
 
+STOP_LINE_PARAM = "csbIncidentStopLine"
+
+
+def scenario_stop_line(run_dir: Path):
+    """``(x, y, yaw)`` from the run's scenario's ``csbIncidentStopLine`` parameter
+    ("x,y,yaw", as gen_demo_incidents writes it for a site with a stop line), else None."""
+    import xml.etree.ElementTree as ET
+    import yaml
+    try:
+        sc = ((yaml.safe_load((Path(run_dir) / "resolved.yaml").read_text()) or {})
+              .get("scenario") or {}).get("path")
+        root = ET.parse(str(sc)).getroot()
+    except (OSError, ValueError, TypeError, ET.ParseError):
+        return None
+    for p in root.iter("ParameterDeclaration"):
+        if p.get("name") == STOP_LINE_PARAM:
+            try:
+                x, y, yaw = (float(v) for v in p.get("value", "").split(","))
+            except ValueError:
+                return None
+            return x, y, yaw
+    return None
+
+
 def incident(run_dir: Path, number, context: str, stop_line) -> int:
     number, why = incident_number(run_dir, str(number))
     if why:
         return _emit({"verdict": "error", "message": why}, 2)
+    stop_line = stop_line or scenario_stop_line(run_dir)
     found = traces(run_dir)
     if len(found) != 1:
         return _emit({"verdict": "error", "message": f"{len(found)} gap traces in "

@@ -12,7 +12,8 @@ the default genome renders the committed incident file byte for byte.
 Gene kinds: a scalar the generator reads from the sites entry (with its own default when
 the entry has none), a shift of a site along or across its own heading (the incident sites
 are on straight road, so a few metres stay in lane), and an actor's body (a declared box,
-or a blueprint declaring its measured box).
+or a blueprint declaring its measured box, or a blueprint carrying the declared box: the
+declared size and CARLA's body apart on purpose, as `gap/town01_truck_pass` has them).
 
     scripts/gap_genome.py default lead_brake                 # the genome as JSON
     scripts/gap_genome.py render genome.json --out x.xosc    # a genome's scenario
@@ -112,11 +113,15 @@ def set_if_changed(S, key, value, fallback):
 STARTER_BOX = (4.5, 2.1, 1.8)
 
 
-def body(S, name, kind, box):
+def body(S, name, kind, box, declared="own"):
     """an actor's body: a blueprint (`kind`), or the declared `box` when it is not the
-    starter car's"""
+    starter car's. A blueprint with `declared` "box" carries the declared box instead of its
+    own measured one (the generator pins the body and declares the box: the mismatch is the
+    point); with "own", or on a `kind` "box", `declared` changes nothing."""
     if kind != "box":
         S.setdefault("bodies", {})[name] = kind
+        if declared == "box":
+            S.setdefault("boxes", {})[name] = list(box)
     elif tuple(box) != STARTER_BOX:
         S.setdefault("boxes", {})[name] = list(box)
 
@@ -125,7 +130,8 @@ def apply_lead_brake(S, v):
     set_if_changed(S, "lead_mps", v["lead_mps"], 3.0)
     set_if_changed(S, "brake_gap_m", v["brake_gap_m"], 12.0)
     set_if_changed(S, "lead_decel", v["lead_decel"], 6.0)
-    body(S, "i1_lead", v["lead_body"], (v["lead_length"], v["lead_width"], v["lead_height"]))
+    body(S, "i1_lead", v["lead_body"], (v["lead_length"], v["lead_width"], v["lead_height"]),
+         v["lead_declared"])
 
 
 def apply_crossing_pedestrian(S, v):
@@ -164,7 +170,8 @@ def apply_cut_in(S, v):
     S["trigger"] = shift(S["trigger"], along=round(28.0 - v["cut_gap_m"], DECIMALS))
     for k in ("cut_in_lane", "cut_settle"):
         S[k] = shift(S[k], along=round(v["merge_len_m"] - 15.0, DECIMALS))
-    body(S, "i7_cut", v["cut_body"], (v["cut_length"], v["cut_width"], v["cut_height"]))
+    body(S, "i7_cut", v["cut_body"], (v["cut_length"], v["cut_width"], v["cut_height"]),
+         v["cut_declared"])
 
 
 def apply_rear_approach(S, v):
@@ -172,9 +179,13 @@ def apply_rear_approach(S, v):
     set_if_changed(S, "rear_accel", v["rear_accel"], gen.GO_ACCEL)
     # added `rear_gap_m` behind the trigger (30 m in the sites file)
     S["rear_spawn"] = shift(S["rear_spawn"], along=round(30.0 - v["rear_gap_m"], DECIMALS))
-    body(S, "i8_rear", v["rear_body"], (v["rear_length"], v["rear_width"], v["rear_height"]))
+    body(S, "i8_rear", v["rear_body"], (v["rear_length"], v["rear_width"], v["rear_height"]),
+         v["rear_declared"])
 
 
+# a blueprint body's declared box: its own measured one, or the genome's (body pinned, box
+# declared: SSv2's geometry and CARLA's apart, the positive control's gap)
+DECLARED = ("own", "box")
 LEAD_BODIES = ("box", "vehicle.tesla.model3", "vehicle.mercedes.sprinter",
                "vehicle.carlamotors.carlacola", "vehicle.mini.cooper_s",
                "vehicle.tesla.cybertruck", "vehicle.volkswagen.t2")
@@ -183,6 +194,7 @@ def body_genes(prefix):
     """an actor's body: a blueprint or a declared box (the starter car's by default)"""
     return {
         f"{prefix}_body": Choice(LEAD_BODIES, const("box")),
+        f"{prefix}_declared": Choice(DECLARED, const("own")),
         f"{prefix}_length": Real(3.5, 12.0, 1.0, const(STARTER_BOX[0])),
         f"{prefix}_width": Real(1.6, 2.6, 0.15, const(STARTER_BOX[1])),
         f"{prefix}_height": Real(1.4, 3.8, 0.3, const(STARTER_BOX[2])),
@@ -195,6 +207,7 @@ FAMILIES = {
         "brake_gap_m": Real(3.0, 30.0, 3.0, site("brake_gap_m", 12.0)),
         "lead_decel": Real(2.0, 9.0, 1.0, site("lead_decel", 6.0)),
         "lead_body": Choice(LEAD_BODIES, const("box")),
+        "lead_declared": Choice(DECLARED, const("own")),
         "lead_length": Real(3.5, 12.0, 1.0, const(STARTER_BOX[0])),
         "lead_width": Real(1.6, 2.6, 0.15, const(STARTER_BOX[1])),
         "lead_height": Real(1.4, 3.8, 0.3, const(STARTER_BOX[2])),

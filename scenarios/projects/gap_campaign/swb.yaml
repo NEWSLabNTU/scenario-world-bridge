@@ -1,0 +1,26 @@
+# gap_campaign: the stack roadmap 025's gap campaign runs against (077 step 4, inventory item
+# 37). scripts/gap_live.py renders each genome of the search (scripts/gap_genome.py: the
+# demo incidents' families) and runs it here with `ros2 run swb run`; the run's JUnit and
+# its gap trace's findings (gap_oracle, the `gap` judge) are what the search is told. The ego
+# is the demo's (the tour's Autoware), which the incident families are timed for.
+simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego:
+    kind: autoware
+    vehicle: tesla_model3
+    args: {max_velocity: 11.11, lidar_detection_model: centerpoint,
+           use_multi_channel_tracker_merger: false}
+    lifetime: stack
+world:
+  weather: ClearNoon
+logging:
+  gap_trace: true
+  # the trace's findings are the search's input, whatever SSv2's verdict
+  keep: {passed: standard, failed: standard, error: full}
+judges:
+  - name: gap
+    run: [python3, -m, swb.gap, oracle, --fail-on, never]
+    needs: [gap_trace]

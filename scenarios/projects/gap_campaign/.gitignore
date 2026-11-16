@@ -1,0 +1,8 @@
+# made by swb on each host
+assets/
+state/
+runs
+.swb/
+play_log/
+# a campaign's store (scripts/gap_live.py --store), when kept in the project
+campaigns/

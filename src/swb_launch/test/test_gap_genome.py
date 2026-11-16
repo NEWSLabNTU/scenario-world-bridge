@@ -221,6 +221,37 @@ class Render(unittest.TestCase):
                 if o.get("name") == "i1_lead"][0]
         self.assertEqual(lead.find("Vehicle").get("name"), "vehicle.mercedes.sprinter")
 
+    def test_a_pinned_body_with_a_declared_box_is_the_truck_pass_form(self):
+        """the positive control's gap (gap/town01_truck_pass): the declared box on a pinned
+        body, model3d naming the blueprint and swb.box_exempt saying why"""
+        def obj(genome, name, tag="Vehicle"):
+            return [o for o in ET.fromstring(gg.render(genome)).iter("ScenarioObject")
+                    if o.get("name") == name][0].find(tag)
+
+        d = gg.default("rear_approach").values
+        self.assertEqual(d["rear_declared"], "own")
+        both = dict(rear_body="vehicle.tesla.model3", rear_length=12.0, rear_width=2.5,
+                    rear_height=3.5)
+        v = obj(gg.Genome("rear_approach", dict(d, rear_declared="box", **both)), "i8_rear")
+        self.assertEqual((v.get("name"), v.get("model3d")), ("i8_rear", "vehicle.tesla.model3"))
+        dims = v.find("BoundingBox/Dimensions")
+        self.assertEqual([float(dims.get(k)) for k in ("length", "width", "height")],
+                         [12.0, 2.5, 3.5])
+        props = {p.get("name"): p.get("value") for p in v.iter("Property")}
+        self.assertEqual(props.get("swb.box_exempt"), gg.gen.PINNED_BOX)
+        # pin only: the blueprint's own measured box, as before; the box genes do nothing
+        own = gg.Genome("rear_approach", dict(d, **both))
+        self.assertEqual(gg.render(own), gg.render(gg.Genome(
+            "rear_approach", dict(d, rear_body="vehicle.tesla.model3"))))
+        # (the blueprint's own entry: the catalog's, as any pinned body)
+        self.assertIsNone(obj(own, "i8_rear"))
+        self.assertEqual(obj(own, "i8_rear", "CatalogReference").get("entryName"), "tesla_model3")
+        # box only: `declared` changes nothing on a declared-box body
+        box = dict(d, rear_length=12.0)
+        self.assertEqual(gg.render(gg.Genome("rear_approach", box)),
+                         gg.render(gg.Genome("rear_approach", dict(box, rear_declared="box"))))
+        self.assertIsNone(obj(gg.Genome("rear_approach", box), "i8_rear").get("model3d"))
+
     def test_a_seeded_sample_of_mutants_is_valid(self):
         table = gg.check_scenario_vehicles.scenario_vehicle.load_table(
             gg.check_scenario_vehicles.scenario_vehicle.TABLE)

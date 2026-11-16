@@ -110,6 +110,9 @@ STARTER_CAR = {"center_x": "1.5", "center_y": "0.0", "center_z": "0.9", "length"
                "width": "2.1", "height": "1.8", "wheel_diameter": "0.6", "track": "1.8",
                "front_x": "3.1", "axle_z": "0.3"}
 
+# why a pinned body may carry another box (check_scenario_vehicles reads the property)
+PINNED_BOX = "a gap campaign genome: the declared box on a pinned body, apart on purpose"
+
 # vehicle.diamondback.century's box (022 picks it for a bicycle of this size).
 BICYCLE = """<Vehicle name="{bp}" vehicleCategory="bicycle">
 				<BoundingBox><Center x="0.0" y="0.0" z="0.81" /><Dimensions width="0.6" height="1.62" length="1.66" /></BoundingBox>
@@ -149,18 +152,25 @@ def car(name, props=None, S=None):
     """a car NPC: the starter car box, or what the sites entry `S` gives it (roadmap 025's
     genes): `bodies[name]`, a blueprint declaring its measured box and axles, or
     `boxes[name]`, a declared [length, width, height] grown from the starter car's rear
-    axle (its rear overhang and axles kept)"""
+    axle (its rear overhang and axles kept). Both: the declared box on that blueprint's
+    body (`model3d`, 022's pin), exempt from the box check, as `gap/town01_truck_pass`
+    declares its truck: SSv2's geometry and CARLA's apart on purpose"""
     S = S or {}
     bp = S.get("bodies", {}).get(name)
-    if bp:
-        return npc_object(name, CAR.format(bp=bp, vmax=20, **scenario_vehicle.strings(bp)), props)
     box = S.get("boxes", {}).get(name)
+    if bp and not box:
+        return npc_object(name, CAR.format(bp=bp, vmax=20, **scenario_vehicle.strings(bp)), props)
     dims = STARTER_CAR
     if box:
         length, width, height = box
         dims = dict(STARTER_CAR, length=f"{length:g}", width=f"{width:g}", height=f"{height:g}",
                     center_x=f"{length / 2 - 0.75:g}", center_z=f"{height / 2:g}")
-    return npc_object(name, CAR.format(bp=name, vmax=20, **dims), props)
+    vehicle = CAR.format(bp=name, vmax=20, **dims)
+    if bp:
+        vehicle = vehicle.replace(f'<Vehicle name="{name}" ',
+                                  f'<Vehicle name="{name}" model3d="{bp}" ', 1).replace(
+            "<Properties />", f'<Properties><Property name="swb.box_exempt" value="{PINNED_BOX}" /></Properties>', 1)
+    return npc_object(name, vehicle, props)
 
 
 def bicycle(name):

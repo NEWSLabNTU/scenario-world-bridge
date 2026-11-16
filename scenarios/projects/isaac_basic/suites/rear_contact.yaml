@@ -1,0 +1,9 @@
+# Item 18: isaac/town01_rear_contact on Isaac: a standing ego no pilot drives (managed_ego:
+# false, G3) and a blind NPC that SSv2 runs into its back; success is SSv2 seeing the
+# contact, which the scenario declares (csbExpectedContacts). Reference: roadmap 037/044,
+# SSv2 passed with the contact.
+scenarios:
+  - path: ../../../src/swb_examples/scenarios/isaac/town01_rear_contact.xosc
+    ssv2: {managed_ego: false}
+retry: {on: error, times: 1}
+expect: {}

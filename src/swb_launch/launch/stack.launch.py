@@ -168,6 +168,15 @@ def nested(name, target, args, domain, log_dir, respawn=False, extra=(), require
     its flags (`extra`; no /diagnostics recording, G59) and `ros2 launch` its ROS_LOG_DIR."""
     cmd, launcher_env = _launcher_module().argv(LAUNCHER["name"], target, args, log_dir,
                                                 play_launch_flags=extra)
+    if LAUNCHER["name"] == "ros2" and log_dir:
+        # `ros2 launch` writes its nodes' screen to its own stdout, which would otherwise land
+        # in the stack's console: into <log_dir>/console.log instead, beside its launch.log and
+        # rcl files, as play_launch keeps a launch's output in its --log-dir (roadmap 079 step
+        # 4: the readers take each process's lines from that console). exec: same pid, so the
+        # launch's signals reach `ros2 launch` itself
+        os.makedirs(str(log_dir), exist_ok=True)
+        cmd = ["sh", "-c", 'exec "$@" >> "$0" 2>&1',
+               os.path.join(str(log_dir), "console.log"), *cmd]
     return ExecuteProcess(cmd=cmd, name=name, output="screen", respawn=respawn,
                           respawn_delay=5.0 if respawn else 0.0,
                           # longer than the nested launch's own stop (SIGINT to its nodes,

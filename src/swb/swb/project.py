@@ -969,6 +969,8 @@ def main(argv=None):
             if isinstance(pilots, dict) else []
         for n in toolsmod.launcher_notes(toolsmod.launcher(setting)[0], kinds):
             print(f"note: {n}")
+        for n in toolsmod.rviz_display_note(pilots if isinstance(pilots, dict) else {}):
+            print(f"warning: {n}")
     except config.ConfigError:
         pass
     if not findings:

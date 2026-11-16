@@ -325,9 +325,23 @@ class StartedStack:
     argv: list
     log: Path
     seat: int
+    record: dict = None   # its stack.json, once it is up
 
-    def stop(self, grace=STACK_STOP_GRACE):
+    def stop(self, grace=STACK_STOP_GRACE, out=None):
+        """The keeper first (it stops the pilots and CARLA in order), then the launch's
+        process group; a stop the keeper did not finish is said, and recorded as the stack's
+        ``stack.stop_incomplete`` (roadmap 079, step 4)."""
+        if self.record:
+            stackmod.stop_keeper(self.record)
         stackmod.stop_processes([self.proc], grace)
+        if self.record and self.record.get("proc"):
+            stack_dir = Path(self.record["proc"]).parent
+            if stackmod.stop_incomplete(stack_dir):
+                stackmod.event(stack_dir, "stack.stop_incomplete")
+                (out or sys.stderr).write(
+                    f"warning: the stack {self.record.get('stack_id')} did not finish its "
+                    f"stop (stack.stopping without stack.stop in {stack_dir}/events.jsonl): "
+                    "its pilots and CARLA were ended by their backstops\n")
 
 
 def stack_argv(project: Path, host: dict, seat: int, log_dir: Path) -> list:
@@ -614,7 +628,7 @@ _CRASH = re.compile(r"\[node:(\S+)\] Exited .*\(crash (\d+) since last healthy r
 
 
 def pilot_console(rec: dict, p: dict, logs: Path) -> Path:
-    """Where a pilot's play_launch writes: the run's logs for a per-run pilot, else the
+    """Where a pilot's launch writes its screen: the run's logs for a per-run pilot, else the
     stack's proc/."""
     if p.get("lifetime") == "run":
         return logs / f"pilot-{p['entity']}" / "console.log"
@@ -622,8 +636,12 @@ def pilot_console(rec: dict, p: dict, logs: Path) -> Path:
 
 
 class CrashWatch:
-    """Counts play_launch's "crash N since last healthy run" lines a pilot's console gains
-    after the watch starts (crashes before this run do not count)."""
+    """Counts the crashes a pilot's console notes after the watch starts (crashes before
+    this run do not count), from either launcher (roadmap 079: a verdict must not differ by
+    launcher): play_launch's "crash N since last healthy run" lines, and ros2 launch's
+    "process has died" lines, counted per process (a respawned one keeps its ``<name>-<n>``)
+    and named without the ``-<n>``. Deaths after ros2 launch's own shutdown began do not
+    count: Humble's rviz2 and Autoware's containers die of the stop's SIGINT."""
 
     def __init__(self, path: Path, limit=CRASH_LIMIT):
         self.path, self.limit = Path(path), limit
@@ -645,6 +663,15 @@ class CrashWatch:
             n = int(m.group(2))
             if n >= self.limit and (worst is None or n > worst[1]):
                 worst = (m.group(1), n)
+        died = {}
+        for line in text.splitlines():
+            if timeline.SHUTDOWN.match(line):
+                break  # the stop's deaths, not crashes (timeline.SHUTDOWN says why)
+            m = timeline.DIED.match(line)
+            if m:
+                died[m.group(1)] = n = died.get(m.group(1), 0) + 1
+                if n >= self.limit and (worst is None or n > worst[1]):
+                    worst = (timeline.process_name(m.group(1)), n)
         return worst
 
 
@@ -1081,6 +1108,7 @@ def context(project_arg=None, seat=None, logs=None, wait=0.0, start=False, stack
         try:
             rec = wait_started(started, project, host,
                                stack_timeout or (wait or None) or STACK_START_TIMEOUT)
+            started.record = rec
         except BaseException:
             started.stop()   # half up is of no use to anyone; it was ours
             raise
@@ -1260,7 +1288,7 @@ def _main(args, out, stack_command=None) -> int:
                 out.write(f"stack    stopping the stack this run started (pid "
                           f"{started.proc.pid})\n")
                 out.flush()
-                started.stop()
+                started.stop(out=out)
             else:
                 out.write(f"stack    left up (pid {started.proc.pid}, seat {started.seat}); "
                           f"stop it with: kill -INT -{started.proc.pid}\n")

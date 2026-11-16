@@ -83,7 +83,12 @@ Non-goals:
    a log per node, and `both` there would write each line twice. The launch files take a
    launch argument `launcher` (which the argv builder of step 2 passes, and swb.launch.xml
    hands on to every nested launch) and choose `output` from it. timeline.py, the slicer, `runs why` and
-   the pilot crash counter read both layouts. Tests: the same timeline from each layout.
+   the pilot crash counter read both layouts. Tests: the same timeline from each layout. Built
+   2026-11-16 without `output='both'`: under `ros2 launch` the launch's console (each line
+   prefixed `[<name>-<n>]`) holds every line the rcl files and `launch.log` hold, and the
+   lines they lack (Rust tracing, tracebacks), so per-node stdout and stderr files would
+   only repeat it. The console is each process's source; a nested launch's console is its
+   own `console.log` in its log directory, as play_launch keeps one in its `--log-dir`.
 5. **What `ros2 launch` does natively, checked rather than rebuilt.** The rule: behaviour may
    differ between the launchers only where the docs say so, and never so that a run gets a
    different verdict. Respawn

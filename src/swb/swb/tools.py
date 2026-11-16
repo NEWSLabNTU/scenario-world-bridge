@@ -93,6 +93,19 @@ def launcher_notes(launcher_name, pilot_kinds) -> list:
     return []
 
 
+def rviz_display_note(pilots, env=None) -> list:
+    """A pilot that opens RViz (`rviz: true`) on a host where DISPLAY is unset: RViz aborts at
+    once and is respawned, and under play_launch the run ends `error` on its crashes ("its
+    node /rviz2 crashed 17 times"); the cause is the terminal, not the pilot."""
+    env = os.environ if env is None else env
+    names = [n for n, p in (pilots or {}).items() if isinstance(p, dict) and p.get("rviz")]
+    if names and not env.get("DISPLAY"):
+        return [f"DISPLAY is not set, and {', '.join(sorted(names))} "
+                f"{'opens' if len(names) == 1 else 'open'} RViz (rviz: true): it will crash "
+                "at start (fix: export DISPLAY, or rviz: false)"]
+    return []
+
+
 def findings(setting="auto", version_fn=None) -> list:
     """Problems with the launcher: an unknown setting, or an explicit ``play_launch`` that is
     missing or older than the workflow needs (``auto`` falls back to ros2 instead)."""

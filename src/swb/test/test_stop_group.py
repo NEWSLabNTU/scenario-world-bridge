@@ -62,3 +62,56 @@ def test_a_launcher_gets_sigint_at_its_default_whatever_started_swb(tmp_path):
             assert out.read_text() == str(signal.default_int_handler)
     finally:
         signal.signal(signal.SIGINT, previous)
+
+
+# a keeper: on SIGINT it "stops its pilots and CARLA" (sleeps), says stack.stop, exits
+KEEPER = r"""
+import json, signal, sys, time
+d = sys.argv[1]
+def stop(*_):
+    time.sleep(float(sys.argv[2]))
+    if sys.argv[3] == "says":
+        open(d + "/events.jsonl", "a").write(json.dumps({"event": "stack.stop"}) + "\n")
+    sys.exit(0)
+signal.signal(signal.SIGINT, stop)
+open(d + "/events.jsonl", "a").write(json.dumps({"event": "stack.ready"}) + "\n")
+time.sleep(600)
+"""
+
+
+def _keeper(tmp_path, delay, says="says"):
+    (tmp_path / "proc").mkdir(exist_ok=True)
+    proc = stack.start_process([sys.executable, "-c", KEEPER, str(tmp_path), str(delay), says,
+                                "swb.stack", "keep"], dict(os.environ), tmp_path / "klog")
+    deadline = time.time() + 20
+    while not (tmp_path / "events.jsonl").exists() and time.time() < deadline:
+        time.sleep(0.05)
+    return proc, {"pid": proc.pid, "proc": str(tmp_path / "proc"), "stack_id": "s"}
+
+
+def test_the_keeper_is_asked_first_and_its_stop_is_waited_for(tmp_path):
+    proc, rec = _keeper(tmp_path, 2.0)
+    stack.event(tmp_path, "stack.stopping")
+    t0 = time.time()
+    assert stack.stop_keeper(rec, timeout=20) is True
+    assert time.time() - t0 >= 2.0   # it waited for the keeper's own stop
+    assert not stack.stop_incomplete(tmp_path)
+    proc.wait(timeout=10)
+
+
+def test_a_stop_the_keeper_did_not_finish_is_incomplete(tmp_path):
+    proc, rec = _keeper(tmp_path, 30.0)
+    stack.event(tmp_path, "stack.stopping")
+    assert stack.stop_keeper(rec, timeout=1.0) is False
+    assert stack.stop_incomplete(tmp_path)
+    stack.stop_processes([proc], grace=0.5)
+
+
+def test_a_pid_that_is_not_a_keeper_is_never_signalled(tmp_path):
+    other = stack.start_process([sys.executable, "-c", "import time; time.sleep(30)"],
+                                dict(os.environ), tmp_path / "o")
+    try:
+        assert stack.stop_keeper({"pid": other.pid, "proc": str(tmp_path / "proc")}) is True
+        assert other.poll() is None
+    finally:
+        stack.stop_processes([other], grace=0.5)

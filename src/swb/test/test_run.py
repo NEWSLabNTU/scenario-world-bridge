@@ -830,7 +830,7 @@ def test_sigterm_stops_what_the_runner_started(tmp_path):
         class Started:
             proc = types.SimpleNamespace(pid=1)
             seat = 0
-            def stop(self):
+            def stop(self, **kw):
                 open({str(marker)!r}, "w").write("yes")
         def context(*a, **kw):
             return types.SimpleNamespace(started=Started(), stack={{"map": None}},

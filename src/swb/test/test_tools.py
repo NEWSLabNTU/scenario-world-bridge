@@ -169,3 +169,11 @@ def test_ros2_launch_says_once_that_containers_are_not_isolated():
     assert tools.launcher_notes("ros2", ["autoware", "carla_basic"]) == [tools.ROS2_CONTAINERS_NOTE]
     assert tools.launcher_notes("ros2", ["carla_basic"]) == []
     assert tools.launcher_notes("play_launch", ["autoware"]) == []
+
+
+def test_rviz_without_a_display_is_warned_of():
+    pilots = {"ego": {"kind": "autoware", "rviz": True}, "lead": {"kind": "carla_basic"}}
+    [w] = tools.rviz_display_note(pilots, env={})
+    assert "DISPLAY is not set" in w and "ego opens RViz" in w
+    assert tools.rviz_display_note(pilots, env={"DISPLAY": ":1"}) == []
+    assert tools.rviz_display_note({"lead": {"kind": "carla_basic"}}, env={}) == []

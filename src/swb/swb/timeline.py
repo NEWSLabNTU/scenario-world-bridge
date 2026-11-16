@@ -6,6 +6,23 @@ line at WARN or above in the slices. Each entry: ``{t_wall, t_sim, group, proces
 with ``t_wall`` in seconds since the epoch. A log line without a time of its own (LibCarla's
 ``WARNING: ...``) takes the previous line's, else the slice's start, and says so
 (``t_inferred``).
+
+Both launchers' layouts are read (roadmap 079, step 4), one source per process, so a run's
+timeline does not differ by launcher:
+
+- play_launch: ``<stamp>/node/<name>/{out,err}`` (``load_node/<name>/`` for a component in
+  its own process) per process; its own lines from ``console.log``, not ``play_launch.log``
+  beside it, which repeats them.
+- ``ros2 launch`` (ROS_LOG_DIR=<dir>): the launch's screen, ``console.log``, for every
+  process: each of its lines ``[<name>-<n>] <line>`` is that process's, the rest the
+  launch's own. rcl's ``<exe>_<pid>_<epoch ms>.log`` files and ``<stamp-host-pid>/
+  launch.log`` hold copies of what the screen shows (every rcl line of a stack's pilot was
+  in its console), but not what a process prints itself (Rust tracing, tracebacks), so
+  they are read only where no console.log is beside them.
+
+Process names are the same from both: no ``-<n>``, ``_<pid>_<epoch ms>`` or ``.py``; a
+component's lines in a ``component_container*`` take its logger's last name, as play_launch
+names its process.
 """
 import datetime as _dt
 import json
@@ -27,6 +44,27 @@ _ISO = re.compile(r"^(\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:[.,]\d+)?(?:Z|[+-]\d\d
                   r"(?:([\w.:<>\-/]+):\s)?(.*)$")
 # no time: LibCarla's "WARNING: ...", "ERROR: ..."
 _BARE = re.compile(r"^(WARNING|WARN|ERROR|FATAL|CRITICAL):\s+(.*)$")
+# ros2 launch's own: "[ERROR] [rviz2-32]: process has died [...]", "[INFO] [launch]: ..."
+_LAUNCH = re.compile(r"^\[(DEBUG|INFO|WARNING|WARN|ERROR|FATAL)\]\s+\[([^\]]+)\]:\s?(.*)$")
+# ros2 launch's screen: "[<name>-<n>] <the process's line>"
+_PREFIX = re.compile(r"^\[([^\]\s]+)-(\d+)\]\s?(.*)$")
+# launch.log's lines start with the epoch time they were logged at
+_EPOCH = re.compile(r"^(\d{9,}\.\d+)\s+(?=\[)(.*)$")
+# rcl's per-process log file: <exe>_<pid>_<epoch ms>.log
+_RCL_FILE = re.compile(r"^(.+)_\d+_\d{13}$")
+_LAUNCH_NUM = re.compile(r"^(.+)-\d+$")
+# ros2 launch's own note of a process that ended other than cleanly, and of its shutdown
+# beginning: Ctrl-C, a required process's exit ("... was required: shutting down launched
+# system") or its other "shutting down" lines, logger [launch] exactly. Both at the start
+# of a line: a nested launch's lines come prefixed ("[<name>-<n>] [WARNING] [launch]: ..."),
+# and its stop and deaths are its own, as play_launch sees only the nested launch process.
+# The crash counter (run.CrashWatch) ignores deaths after a shutdown began: Humble's rviz2
+# (-6), Autoware's component containers and autoware_manual_lane_change_handler_node (-11)
+# die of the SIGINT, as seen live 2026-11-16. The timeline keeps them, so a crash on exit
+# stays visible.
+DIED = re.compile(r"^\[ERROR\] \[([^\]\s]+-\d+)\]: process has died \[pid \d+, exit code (-?\d+)")
+SHUTDOWN = re.compile(r"^\[(?:INFO|WARNING|ERROR)\] \[launch\]: (?:user interrupted with ctrl-c"
+                      r"|.*\bshutting down\b)")
 
 # SSv2 milestones: (logger suffix or None, pattern, event)
 _MILESTONES = [
@@ -84,7 +122,30 @@ def parse_line(line: str):
     m = _BARE.match(line.strip())
     if m:
         return _norm(m.group(1)), None, None, m.group(2).strip()
+    m = _LAUNCH.match(line)
+    if m:
+        return _norm(m.group(1)), None, m.group(2), m.group(3).strip()
     return None
+
+
+def process_name(name: str) -> str:
+    """A process's name as both launchers give it: without ros2 launch's ``-<n>`` (some of
+    play_launch's node directories carry one too), rcl's ``_<pid>_<epoch ms>``, ``.py``."""
+    m = _RCL_FILE.match(name)
+    if m:
+        name = m.group(1)
+    m = _LAUNCH_NUM.match(name)
+    if m:
+        name = m.group(1)
+    return name[:-3] if name.endswith(".py") else name
+
+
+def split_prefix(line: str):
+    """``(process or None, rest)``: ros2 launch's ``[<name>-<n>] `` taken off a line."""
+    m = _PREFIX.match(line)
+    if m:
+        return process_name(m.group(1)), m.group(3)
+    return None, line
 
 
 def _norm(level):
@@ -106,8 +167,29 @@ def _process_of(path: Path, base: Path) -> str:
     name; a slice ``<group>/<process>.log`` its stem."""
     rel = path.relative_to(base).parts
     if path.name in ("out", "err", "stdout", "stderr") and len(rel) >= 2:
-        return rel[-2]
-    return path.stem if path.suffix == ".log" else path.name
+        return process_name(rel[-2])
+    return process_name(path.stem) if path.suffix == ".log" else path.name
+
+
+def _line(raw, process):
+    """``(process, parse_line result)`` for one raw line of ``process``'s file: a ros2
+    launch prefix names the process; launch.log's epoch time stands in for a line's own."""
+    raw = _ANSI.sub("", raw).rstrip("\r\n")
+    stamp = None
+    m = _EPOCH.match(raw)
+    if m:
+        stamp, raw = float(m.group(1)), m.group(2)
+    who, rest = split_prefix(raw)
+    p = parse_line(rest)
+    if p is None:
+        return process, None
+    level, t, logger, msg = p
+    if who is None and t is None and logger and _LAUNCH_NUM.match(logger):
+        who = process_name(logger)  # launch's own line about a process: "process has died"
+    who = who or process
+    if who.startswith("component_container") and logger and t is not None:
+        who = logger.rsplit(".", 1)[-1]  # a component: play_launch's name for its process
+    return who, (level, t if t is not None else stamp, logger, msg)
 
 
 def scan(files, group, base, default_t=None, min_level="WARN", milestones=True) -> list:
@@ -123,7 +205,7 @@ def scan(files, group, base, default_t=None, min_level="WARN", milestones=True) 
             continue
         with fh:
             for line in fh:
-                p = parse_line(line)
+                who, p = _line(line, process)
                 if p is None:
                     continue
                 level, t, logger, msg = p
@@ -135,7 +217,7 @@ def scan(files, group, base, default_t=None, min_level="WARN", milestones=True) 
                 ev = milestone(logger, msg) if milestones else None
                 if ev is None and LEVELS.get(level, 0) < floor:
                     continue
-                e = {"t_wall": t, "t_sim": None, "group": group, "process": process,
+                e = {"t_wall": t, "t_sim": None, "group": group, "process": who,
                      "event": ev or f"log.{level.lower()}", "level": level, "message": msg}
                 if logger:
                     e["logger"] = logger
@@ -156,7 +238,21 @@ _SKIP = {"cmdline", "pid", "status", "metadata.json", "metrics.csv", "run_info.j
 
 def _log_files(d: Path):
     data = (".yaml", ".json", ".csv", ".jsonl")
-    return [p for p in _files(d) if p.name not in _SKIP and p.suffix not in data]
+    return sources([p for p in _files(d) if p.name not in _SKIP and p.suffix not in data])
+
+
+def sources(files) -> list:
+    """``files`` less the copies of a console.log beside them (module doc): rcl's per-process
+    files in its directory, and the launch.log or play_launch.log one directory down."""
+    consoles = {p.parent for p in files if p.name == "console.log"}
+    out = []
+    for p in files:
+        if p.parent in consoles and p.suffix == ".log" and _RCL_FILE.match(p.stem):
+            continue
+        if p.name in ("launch.log", "play_launch.log") and p.parent.parent in consoles:
+            continue
+        out.append(p)
+    return out
 
 
 def run_event(e: dict) -> dict:

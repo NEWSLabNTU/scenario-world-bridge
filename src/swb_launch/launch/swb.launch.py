@@ -98,6 +98,9 @@ def _refused(why):
     raise RuntimeError(msg) from None
 
 
+KEEPER_STOP_TIMEOUT = "90"  # s: longer than the keeper's own stop (pilots, then CARLA)
+
+
 def _swb(context):
     get = lambda n: LaunchConfiguration(n).perform(context)  # noqa: E731
     stack = _stack_module()
@@ -123,7 +126,14 @@ def _swb(context):
           f"port {plan.seat.web_port}", flush=True)
     actions = [SetEnvironmentVariable(k, v) for k, v in plan.env.items()]
     actions.append(ExecuteProcess(cmd=["python3", "-m", "swb.stack", "keep", str(plan.stack_dir)],
-                                  name="stack_keeper", output="screen", on_exit=Shutdown()))
+                                  name="stack_keeper", output="screen", on_exit=Shutdown(),
+                                  # its stop: the pilots (up to 35 s: SIGINT, 20 s, SIGTERM,
+                                  # 10 s, SIGKILL, 5 s), then the stack's CARLA (as long
+                                  # again); a SIGTERM before that ends is a SIGKILL 5 s later
+                                  # and leaves CARLA holding its port (roadmap 079, step 4).
+                                  # play_launch ignores it (its own 2 s + 5 s); swb's own stop
+                                  # asks the keeper first (swb.run.StartedStack.stop)
+                                  sigterm_timeout=KEEPER_STOP_TIMEOUT))
     actions.append(IncludeLaunchDescription(
         AnyLaunchDescriptionSource(os.path.join(here, "stack.launch.py")),
         launch_arguments=list(plan.launch_args.items())))

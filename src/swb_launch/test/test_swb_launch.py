@@ -74,22 +74,24 @@ def test_another_simulator_starts_no_ego():
     assert "sim not in PRESETS" in src and "ego_launch:= your launch" not in src
 
 
-def test_nested_launches_under_each_launcher():
+def test_nested_launches_under_each_launcher(tmp_path):
     """Roadmap 079 step 10: a nested launch is play_launch's command line with its flags, or
     `ros2 launch` with none of them and ROS_LOG_DIR in its environment."""
     try:
         stack.LAUNCHER["name"] = "play_launch"
-        p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, "/l",
+        p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, str(tmp_path),
                          extra=("--container-mode", "isolated"))
         cmd = [c[0].text for c in p.cmd]
         assert cmd[:2] == ["play_launch", "launch"] and "--container-mode" in cmd
         stack.LAUNCHER["name"] = "ros2"
-        p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, "/l",
+        p = stack.nested("x", ["swb_launch", "a.launch.xml"], {"k": "v"}, 7, str(tmp_path),
                          extra=("--container-mode", "isolated"))
         cmd = [c[0].text for c in p.cmd]
-        assert cmd == ["ros2", "launch", "swb_launch", "a.launch.xml", "k:=v"]
+        # its output into its own log directory's console.log, by an exec (same pid)
+        assert cmd == ["sh", "-c", 'exec "$@" >> "$0" 2>&1', str(tmp_path / "console.log"),
+                       "ros2", "launch", "swb_launch", "a.launch.xml", "k:=v"]
         env = {k[0].text: v[0].text for k, v in p.additional_env}
-        assert env == {"ROS_LOG_DIR": "/l", "ROS_DOMAIN_ID": "7"}
+        assert env == {"ROS_LOG_DIR": str(tmp_path), "ROS_DOMAIN_ID": "7"}
         # the nested launch's own stop (SIGINT, 5 s, SIGTERM) ends before its SIGTERM
         assert float(stack.NESTED_STOP_TIMEOUT) > 10.0
     finally:

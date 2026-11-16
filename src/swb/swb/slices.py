@@ -7,6 +7,11 @@ another after it ends, and ``cut`` copies each file's range to ``runs/<id>/logs/
 A file that shrank between the marks (truncated, or rotated and recreated) is taken from 0;
 a file new at the end is taken whole, unless it is an old file renamed by rotation (the same
 inode), which is taken from its start offset.
+
+Every file under ``proc/`` is cut, whichever launcher wrote it (roadmap 079): play_launch's
+``<group>/<stamp>/node/<name>/{out,err}``, ``ros2 launch``'s ``<group>/console.log``, rcl's
+``<group>/<exe>_<pid>_<epoch ms>.log`` and ``<group>/<stamp-host-pid>/launch.log``. Which of
+them a reader takes is the reader's choice (``timeline.sources``).
 """
 import dataclasses
 import json

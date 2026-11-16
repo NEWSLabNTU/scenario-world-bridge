@@ -60,7 +60,7 @@ def test_build_orders_and_infers(tmp_path):
     assert len(bare) == 1 and bare[0]["message"] == "attempting to unsubscribe"
     assert bare[0]["group"] == "bridge" and bare[0]["process"] == "scenario_world_bridge"
     passed = [e for e in tl if e["event"] == "ssv2.passed"][0]
-    assert passed["group"] == "scenario" and passed["process"] == "openscenario_interpreter_node-1"
+    assert passed["group"] == "scenario" and passed["process"] == "openscenario_interpreter_node"
     first = timeline.first_problem(tl)
     assert first["message"] == "slow tick" and first["group"] == "bridge"
     assert timeline.first_problem(tl, "ERROR")["group"] == "relay"

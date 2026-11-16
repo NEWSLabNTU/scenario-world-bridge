@@ -1091,6 +1091,72 @@ def stop_processes(procs, grace=STOP_GRACE):
 GROUP_POLL = 0.5  # s between scans of /proc for what a leader left in its group
 
 
+KEEPER_STOP_TIMEOUT = 90.0  # s: the keeper's own stop, pilots (up to 35 s) then CARLA (35 s)
+
+
+def _is_keeper(pid) -> bool:
+    """``pid`` is a running keeper (`python3 -m swb.stack keep <dir>`), not a pid used again."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            argv = f.read().split(b"\0")
+    except OSError:
+        return False
+    return b"swb.stack" in argv and b"keep" in argv
+
+
+def _events_after(stack_dir: Path, offset: int):
+    try:
+        with open(Path(stack_dir) / EVENTS, "rb") as f:
+            f.seek(offset)
+            text = f.read().decode("utf-8", "replace")
+    except OSError:
+        return []
+    out = []
+    for line in text.splitlines():
+        try:
+            out.append(json.loads(line).get("event"))
+        except ValueError:
+            pass
+    return out
+
+
+def stop_keeper(rec: dict, timeout=KEEPER_STOP_TIMEOUT) -> bool:
+    """Ask a stack's keeper to stop (SIGINT to its pid) and wait for its ``stack.stop``, so
+    that it stops the pilots and the stack's CARLA in order before its launch goes:
+    play_launch's own shutdown gives a node 2 s, then SIGKILLs it 5 s later (roadmap 079,
+    step 4). True when the keeper said ``stack.stop`` or was already gone."""
+    pid = (rec or {}).get("pid")
+    stack_dir = Path(rec["proc"]).parent if rec and rec.get("proc") else None
+    if not pid or stack_dir is None or not _is_keeper(pid):
+        return True
+    try:
+        offset = (stack_dir / EVENTS).stat().st_size
+    except OSError:
+        offset = 0
+    try:
+        os.kill(pid, signal.SIGINT)
+    except ProcessLookupError:
+        return True
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if "stack.stop" in _events_after(stack_dir, offset):
+            return True
+        if not _is_keeper(pid):
+            return "stack.stop" in _events_after(stack_dir, offset)
+        time.sleep(0.2)
+    return False
+
+
+def stop_incomplete(stack_dir: Path) -> bool:
+    """The stack's last ``stack.stopping`` has no ``stack.stop`` after it: its keeper was
+    ended part way through its stop (its pilots and CARLA left to their backstops)."""
+    events = _events_after(stack_dir, 0)
+    if "stack.stopping" not in events:
+        return False
+    last = len(events) - 1 - events[::-1].index("stack.stopping")
+    return "stack.stop" not in events[last + 1:]
+
+
 def _group_alive(pgid) -> bool:
     """Any process left in group ``pgid`` (zombies excluded: init reaps them)."""
     try:

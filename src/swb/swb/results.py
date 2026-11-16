@@ -13,6 +13,8 @@ import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from swb import timeline
+
 SCHEMA = "swb.result/1"
 
 PASSED, FAILED, ERROR = "passed", "failed", "error"
@@ -248,14 +250,26 @@ def ssv2_hint(scenario_logs) -> str:
     """Why SSv2 ended without a JUnit, from its own logs (``<run>/logs/scenario/``): its
     timeout line when it timed out (``The simulation has timed out ...``), else the last
     ERROR or FATAL line of its test runner or interpreter; "" when neither says (roadmap 077,
-    G48: the reason named only the missing file)."""
+    G48: the reason named only the missing file). Either launcher's layout (roadmap 079):
+    play_launch's ``<stamp>/node/<node>*/err``, else ``ros2 launch``'s screen
+    (``console.log``), each line ``[<node>[.py]-<n>] ...``; the screen holds stderr and
+    stdout together."""
+    d = Path(scenario_logs)
     lines = []
     for node in SSV2_NODES:
-        for f in sorted(Path(scenario_logs).glob(f"*/node/{node}*/err")):
+        for f in sorted(d.glob(f"*/node/{node}*/err")):
             try:
                 lines += f.read_text(errors="replace").splitlines()
             except OSError:
                 pass
+    if not lines:
+        try:
+            screen = (d / "console.log").read_text(errors="replace").splitlines()
+        except OSError:
+            screen = []
+        split = [timeline.split_prefix(x) for x in screen]
+        for node in SSV2_NODES:
+            lines += [rest for who, rest in split if who == node]
     found = [m for m in (_ROS_LINE.match(x.strip()) for x in lines) if m]
     for m in found:
         if "timed out" in m.group(2):

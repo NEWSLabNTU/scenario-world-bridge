@@ -144,7 +144,7 @@ jobs:
           set -eu
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -qq
-          apt-get install -y -qq git curl zstd python3-pip python3-vcstool >/dev/null
+          apt-get install -y -qq git curl zstd patchelf python3-pip python3-vcstool >/dev/null
           curl -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
           . "$HOME/.cargo/env"   # GITHUB_PATH holds from the next step; maturin needs cargo now
@@ -167,8 +167,7 @@ jobs:
           source /opt/ros/$DISTRO/setup.bash
           rosdep install --from-paths $SIM_SUBMODULES src/scenario_world_bridge src/scenario_agent_relay \
             src/scensim src/scensim_launch src/scensim_interfaces src/scensim_examples src/scensim_agent \
-            src/czp /tmp/vendor --ignore-src -y -q -r \
-            --skip-keys "aib_launch acb_bridge acb_launch autoware_sim_profile python-yamale-pip"
+            src/czp /tmp/vendor --ignore-src -y -q   # every key resolves (082 step 4): no -r, no skips
       - name: Build and stage
         run: |
           start=$(date +%s)
@@ -192,7 +191,10 @@ jobs:
         with:
           name: tarballs
           path: dist
-      - run: scripts/release/check_links.sh dist/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst --out "$PWD/links"   # absolute: docker takes a relative -v source for a volume name
+      # fails on: a rosdep line that leaves a key unresolved, a failed rosdep install, setup.sh
+      # failing from sh after relocate.sh, an RPATH out of the prefix, a dangling or escaping
+      # link, a missing interpreter or an env python shebang, an unresolved library or symbol
+      - run: scripts/release/check_links.sh dist/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst --out links
       - if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -284,11 +286,16 @@ jobs:
           path: smoke-wheels/
 
   smoke:
-    needs: [wheels]
+    needs: [preflight, wheels]
     runs-on: ubuntu-22.04
     container:
       image: ros:humble
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          sparse-checkout: scripts/release
+          path: src-release
       - uses: actions/download-artifact@v4
         with:
           name: tarballs
@@ -304,11 +311,15 @@ jobs:
       - name: Install from the job's files
         run: |
           set -eu
-          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip >/dev/null
+          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip zstd >/dev/null
           # the release's front end, with the smoke test's manifest wheel (localhost URLs)
           cp /tmp/release-wheels/scensim-[0-9]*.whl /tmp/wheels/
           python3 -m pip install -q --user --no-index --find-links /tmp/wheels scensim
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: The tarball relocates
+        # unpacks under paths with spaces and shell characters, runs relocate.sh, sources
+        # setup.sh from sh and setup.bash from bash, moves the prefix and repeats
+        run: src-release/scripts/release/test_relocate.sh /srv/release/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst
       - name: The first run
         shell: bash
         run: |
@@ -321,9 +332,9 @@ jobs:
           rosdep update -q --rosdistro "$DISTRO" >/dev/null
           line=$(grep -oE 'rosdep install .*' /tmp/install.txt | head -1)
           echo "rosdep: $line"
-          # skip the keys rosdep cannot resolve for the simulation side until 082 step 4
-          # (check_links.sh's list)
-          eval "$line -q -r --skip-keys 'aib_launch acb_bridge acb_launch autoware_sim_profile czp python-yamale-pip'"
+          eval "$line"   # exactly as printed: every key must resolve
+          # the front end ran relocate.sh: colcon's sh scripts work from sh
+          sh -c ". /opt/ros/$DISTRO/setup.sh && . $HOME/.local/share/scensim/current/sim/setup.sh"
           scensim --help
           scensim seat show
           echo "first run: ok ($(du -sh ~/.local/share/scensim | cut -f1) installed)" >> "$GITHUB_STEP_SUMMARY"

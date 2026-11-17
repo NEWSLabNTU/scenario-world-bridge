@@ -77,7 +77,7 @@ A task in your own testbench, starting from a working stack:
 
 ## Reference
 
-- [Commands](reference/commands.md): every `ros2 run scensim` command, the stack's arguments,
+- [Commands](reference/commands.md): every `scensim` command, the stack's arguments,
   exit codes, the other tools
 - [The testbench](reference/testbench.md): the package, its build type, its rules
 - [The testbench file](reference/project-file.md): `testbench.yaml`, suites, `scensim.lock`

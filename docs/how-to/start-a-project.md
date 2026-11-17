@@ -20,14 +20,14 @@ scensim testbench new my_testbench \
 
 The templates are `carla-first-drive` (the default), `multi-pilot` and `isaac`. `--from`
 copies an example or another testbench, without what a host makes, and adds the package
-manifest and a default suite. The installed examples, each
-`pkg://scensim_examples/projects/<name>`:
-
-<!-- TODO(exit run): the examples' names once scensim_examples ships them as testbenches. -->
+manifest, and a default suite when the source names none. A copied example keeps its own
+README, which lists its commands, its hardware and what a passing run prints. The
+installed examples, each `pkg://scensim_examples/projects/<name>`:
 
 | Example | Simulator | Shows |
 |---|---|---|
 | `first_drive` | CARLA | one Autoware ego: a drive to a goal, a red light, a pedestrian crossing |
+| `simple_drive` | CARLA | the ego driven by scensim's simple pilot, no Autoware: a drive to a goal, a turn at a corner |
 | `multi_pilot` | CARLA | four pilots in one run: Autoware, a second Autoware, CARLA's BasicAgent and a program cutting in |
 | `safety_suite` | CARLA | the Autoware Foundation's ACC and AEB use cases as a nightly suite, with an expected failure and a contact judge |
 | `isaac_first_drive` | Isaac Sim | one Autoware ego on CARLA's Town01 in USD |

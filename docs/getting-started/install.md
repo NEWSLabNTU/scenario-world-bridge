@@ -182,6 +182,10 @@ scensim 0.0.0-dev (pip front end, /usr/bin/python3)
 installed for ROS humble: <home>/0.0.0-dev-humble
 ```
 
+Once `~/scensim.bash` is sourced, the installed build's own `scensim` comes first on
+`PATH`; it hands `--version`, `-V` and `install` to the front end, so these answer the same
+in every terminal.
+
 A **seat** is one stack's share of the host: a set of ROS domains and ports derived from
 one number, so that two stacks on one machine never meet. `seat show` lists the host's
 seats and ends with the launcher the stack will use, for example `launcher: auto -> ros2

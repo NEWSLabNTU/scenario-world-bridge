@@ -59,7 +59,7 @@ The commands for a project directory, the form before testbenches.
 |---|---|
 | `project new <dir>` | writes a starter project into a new (or empty) directory; `--template carla-first-drive` (default), `multi-pilot` or `isaac` |
 | `project new <dir> --from <project>` | copies a project (a directory or `pkg://<package>/<dir>`) without `assets/`, `state/`, `runs/`, `.scensim/` |
-| `project check [<dir>]` | validates `swb.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints the launcher it resolved (`launcher: auto -> play_launch 0.30.0`; under `ros2 launch` with an Autoware pilot, a note that a crashed component ends its container), then `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
+| `project check [<dir>]` | validates `testbench.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints the launcher it resolved (`launcher: auto -> play_launch 0.30.0`; under `ros2 launch` with an Autoware pilot, a note that a crashed component ends its container), then `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
 
 ## `scensim assets`
 
@@ -100,7 +100,7 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 
 | Argument | Default | |
 |---|---|---|
-| `project` | the working directory's | a project directory or `pkg://<package>` |
+| `project` | the working directory's | a project directory, a testbench's work directory (`<logs>/.testbenches/<testbench>`), or `pkg://<package>` |
 | `seat` | the host settings' `seat:` | a seat number or `auto` |
 | `simulator` | the project's `simulator:` | `carla` or `isaac` |
 | `map` | CARLA: the first run's map; Isaac: the first map of the project's | the map the stack's pilots start on |
@@ -110,7 +110,7 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 | `stack_args` | empty | `name:=value ...` for the lower-level `stack.launch.py`: `side_args` and `sim_args` are merged by name with what the stack and `swb.yaml` give (yours win; a name the stack sets itself is refused), the rest (`vehicle_catalogs`, ...) after scensim's own |
 
 `ego_launch`, `ego_launch_args`, `agent` and `map_path` are refused by name, given directly
-or in `stack_args`: who drives each entity is the project's pilots in `swb.yaml` ([Project
+or in `stack_args`: who drives each entity is the testbench's pilots in `testbench.yaml` ([Testbench
 file](project-file.md)), and the map is `map:=`.
 
 Both launchers take the same arguments. play_launch binds its web UI and opens its own log

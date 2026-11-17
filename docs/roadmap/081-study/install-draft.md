@@ -186,6 +186,10 @@ source /opt/ros/humble/setup.bash
 rosdep install --from-paths src --ignore-src -y
 ```
 
+The Isaac Sim world server's vehicle library comes with `src/scensim_isaac_world` (its own
+submodule, fetched by `--recursive`), so a simulation-side host needs no vehicle-side
+submodule for Isaac Sim either.
+
 Do not import `sim.repos` on a host with Autoware: the workspace would then hold a second
 copy of messages Autoware's programs already load. Then, on either host:
 

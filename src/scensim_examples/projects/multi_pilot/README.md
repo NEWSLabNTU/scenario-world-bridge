@@ -24,14 +24,14 @@ goal the scenario gives it until the ego is within its trigger distance, then go
 starts it per run (`lifetime: run`) as
 
 ```
-python3 <project>/pilots/cut_in.py --trigger-m 40 \
+python3 <testbench>/pilots/cut_in.py --trigger-m 40 \
     --relay <url> --entity cut_in --seed <n> --run-dir <dir>
 ```
 
 The SDK reads `--relay`, `--entity`, `--seed` and `--run-dir` (`self.entity`, `self.seed`,
 `self.run_dir`); the trigger distance is 40 m plus up to 5 m drawn from the seed, and what
-it chose goes to `runs/<id>/logs/pilot-cut_in/cut_in.json`. It finds CARLA through the
-project's host settings (`carla: {root, host, port}`). Check it without a simulator:
+it chose goes to `logs/pilot-cut_in/cut_in.json` in the run directory. It finds CARLA
+through the host settings (`carla: {root, host, port}`). Check it without a simulator:
 
 ```bash
 echo '{"world": "fake"}' > /tmp/fake.json
@@ -45,35 +45,34 @@ perception beside CARLA, and 32 GB of RAM or more. About 0.1 GB of disk for the 
 
 ## Commands
 
+Copy the example into a workspace as a testbench, build it, fetch its assets, check it:
+
 ```bash
-ros2 run scensim project new ~/multi_pilot --from pkg://scensim_examples/projects/multi_pilot
-cd ~/multi_pilot
-ros2 run scensim assets fetch
-ros2 run scensim project check
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+scensim testbench new multi_pilot --from pkg://scensim_examples/projects/multi_pilot
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch multi_pilot
+scensim testbench check multi_pilot
 ```
 
-With CARLA 0.9.16 serving (`carla.host`, `carla.port` of the host settings), start the
-stack in one terminal: it starts both Autowares and the BasicAgent, each in its own domain.
+CARLA 0.9.16 must be serving on the host settings' `carla.host` and `carla.port`
+(default `localhost:2000`), or `carla.root` must name its install so that the stack
+starts it. The stack starts both Autowares and the BasicAgent, each in its own domain.
 
 ```bash
-play_launch launch scensim_launch scensim.launch.xml
-```
-
-Then, in a second terminal in the project:
-
-```bash
-ros2 run scensim run scenarios/four_pilots.xosc
-ros2 run scensim run suites/cut_in_seeds.yaml
+scensim run multi_pilot/scenarios/four_pilots.xosc
+scensim run multi_pilot                       # the default suite, cut_in_seeds
 ```
 
 ## Expected result
 
-`project check` prints `project: ok`. A run prints `passed  <run id>  <run directory>`
+`testbench check` ends `testbench: ok`. A run prints `passed  <run id>  <run directory>`
 when the ego yields to the car cutting in and both Autowares reach their goals; a run where
-the ego hits it prints `failed`, and `ros2 run scensim runs show <run id>` gives the timeline.
+the ego hits it prints `failed`, and `scensim runs show <run id>` gives the timeline.
 The suite writes `summary.csv` with one row per seed.
 
 Not yet run end to end on a live stack: the junction, the poses and the trigger distance
 are taken from Town01's lanelet map, not from a drive.
 
-`assets/`, `state/` and `runs/` are made on each host and are not committed.
+What each host makes for the testbench (the fetched assets' links, `state/`, the runs)
+is kept outside the package, under the log root; nothing of it is committed.

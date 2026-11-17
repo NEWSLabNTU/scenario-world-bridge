@@ -1,7 +1,7 @@
 # The cut-in five times, run k with seed 1000 + k: pilots/cut_in.py draws its trigger
 # distance from the seed (40 m, +- 5 m), so each repetition cuts in at another gap, and a
 # run's seed repeats it exactly. Each run's choice is in
-# runs/<id>/logs/pilot-cut_in/cut_in.json.
+# logs/pilot-cut_in/cut_in.json in the run directory.
 scenarios: [scenarios/four_pilots.xosc]
 repetitions: 5
 seed: 1000

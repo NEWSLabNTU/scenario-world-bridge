@@ -13,3 +13,4 @@ pilots:
     lifetime: run                                    # a fresh process, --seed and --run-dir per run
 logging:
   keep: {passed: standard, failed: full, error: full}   # standard keeps logs/, cut_in.json
+default: cut_in_seeds   # the suite `scensim run <testbench>` runs

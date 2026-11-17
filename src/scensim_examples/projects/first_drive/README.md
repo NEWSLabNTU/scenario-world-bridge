@@ -18,41 +18,41 @@ video memory on Town01 at Epic quality), and about 0.1 GB of disk for the map.
 
 ## Commands
 
-Copy the example, fetch its map, check it:
+Copy the example into a workspace as a testbench, build it, fetch its assets, check it:
 
 ```bash
-ros2 run scensim project new ~/first_drive --from pkg://scensim_examples/projects/first_drive
-cd ~/first_drive
-ros2 run scensim assets fetch
-ros2 run scensim project check
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+scensim testbench new first_drive --from pkg://scensim_examples/projects/first_drive
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch first_drive
+scensim testbench check first_drive
 ```
 
 `assets fetch` downloads Town01's Autoware map (lanelet2 and point cloud) from the
-`carla-town-autoware-maps` dataset and writes `scensim.lock`; commit the lock. `project check`
-prints `project: ok`.
+`carla-town-autoware-maps` dataset and writes `scensim.lock` into `src/first_drive/`; commit
+the lock. `testbench check` ends `testbench: ok`.
 
-CARLA 0.9.16 must be serving on the host settings' `carla.host` and `carla.port` (default
-`localhost:2000`). Bring up the stack in one terminal and leave it running:
-
-```bash
-play_launch launch scensim_launch scensim.launch.xml
-```
-
-It is ready when Autoware is (a few minutes on a cold host). In a second terminal, in the
-project directory, run a scenario, then all three:
+CARLA 0.9.16 must be serving on the host settings' `carla.host` and `carla.port`
+(default `localhost:2000`), or `carla.root` must name its install so that the stack
+starts it. Run a scenario, then the default suite (all three), and list the runs:
 
 ```bash
-ros2 run scensim run scenarios/drive_to_goal.xosc
-ros2 run scensim run suites/all.yaml
-ros2 run scensim runs list
+scensim run first_drive/scenarios/drive_to_goal.xosc
+scensim run first_drive
+scensim runs list first_drive
 ```
+
+The first run brings up the testbench's stack and leaves it up for the next ones; it is
+ready when Autoware is (a few minutes on a cold host). `scensim stack first_drive --stop`
+ends it.
 
 ## Expected result
 
 Each run prints one line, `passed  <run id>  <run directory>`, and exits 0. On the
 development host (32 cores, one RTX GPU, CARLA at Epic quality, the stack already up) the
 three take about 45 s, 190 s and 130 s, most of it SSv2's start and the ego's engage.
-A failed run prints `failed` and its first cause; `ros2 run scensim runs why <run id>` names the
+A failed run prints `failed` and its first cause; `scensim runs why <run id>` names the
 first warning or error and the process it came from.
 
-`assets/`, `state/` and `runs/` are made on each host and are not committed.
+What each host makes for the testbench (the fetched assets' links, `state/`, the runs)
+is kept outside the package, under the log root; nothing of it is committed.

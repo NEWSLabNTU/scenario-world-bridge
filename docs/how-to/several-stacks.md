@@ -9,7 +9,7 @@ DDS](../explanation/domains-and-dds.md).
 ## The seat table
 
 ```bash
-ros2 run scensim seat show
+scensim seat show
 ```
 
 ```
@@ -53,8 +53,8 @@ names the process.
 ## Take a seat
 
 ```bash
-ros2 run scensim seat take 2       # writes seat: 2 to ~/.config/scensim/host.yaml
-ros2 run scensim seat release  # back to auto
+scensim seat take 2       # writes seat: 2 to ~/.config/scensim/host.yaml
+scensim seat release  # back to auto
 ```
 
 A seat for one checkout only goes in its `.scensim/local.yaml` (`seat: 2`), and `seat:=2` on
@@ -68,7 +68,7 @@ play_launch launch --web-addr 127.0.0.1:8100 \
 ```
 
 The stack's first lines say which seat and web port it took. A terminal of your own joins
-a seat's domain with `eval "$(ros2 run scensim seat env scenario)"` (the bridge, the relay,
+a seat's domain with `eval "$(scensim seat env scenario)"` (the bridge, the relay,
 SSv2) or `seat env <k>` (the k-th pilot, from 0).
 
 ## One CARLA per stack

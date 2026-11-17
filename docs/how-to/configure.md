@@ -57,7 +57,7 @@ Each run's contact reports land in its own directory (`contacts/`); give
 Check what the running bridge loaded:
 
 ```bash
-eval "$(ros2 run scensim seat env scenario)"
+eval "$(scensim seat env scenario)"
 ros2 param get /scenario_world_bridge config_file
 ```
 
@@ -136,7 +136,7 @@ world:
 At run time it is set through ROS services on the bridge, in the scenario domain:
 
 ```bash
-eval "$(ros2 run scensim seat env scenario)"
+eval "$(scensim seat env scenario)"
 ros2 service call /scenario_world_bridge/set_weather \
     scensim_interfaces/srv/SetWeather "{preset: WetSunset}"
 ros2 service call /scenario_world_bridge/set_weather \
@@ -161,9 +161,9 @@ rain; there is no weather service.
 
 | Wait | Default | Where |
 |---|---|---|
-| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `ros2 run scensim run --timeout` (never raised) |
-| A run's pilots to become ready | 600 s | `ros2 run scensim run --ready-timeout` |
-| The stack to become ready | none (refuse at once) | `ros2 run scensim run --wait` |
+| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `scensim run --timeout` (never raised) |
+| A run's pilots to become ready | 600 s | `scensim run --ready-timeout` |
+| The stack to become ready | none (refuse at once) | `scensim run --wait` |
 | A map switch of the pilots | 180 s | fixed |
 | One simulator response (frame, spawn, despawn) | 90 s | environment `SIMULATOR_RESPONSE_TIMEOUT` of the stack |
 | CARLA gone at a scenario's start | 120 s | `carla.reconnect_wait_seconds` in `scensim_carla_world.yaml` |

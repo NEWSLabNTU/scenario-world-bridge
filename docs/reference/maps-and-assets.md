@@ -56,7 +56,7 @@ USD set; it runs in Isaac's Python.
 
 ## Datasets
 
-Public, on Hugging Face under `jerry73204`; `ros2 run scensim assets list` prints them with
+Public, on Hugging Face under `jerry73204`; `scensim assets list` prints them with
 their sizes.
 
 | Dataset | Holds | Licence |

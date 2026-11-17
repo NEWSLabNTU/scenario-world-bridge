@@ -1,8 +1,8 @@
 # Results and logs
 
 What a run leaves, where, and what each file holds. The verdicts are explained in
-[Verdicts](../explanation/verdicts.md); the commands that read them are `ros2 run scensim runs
-list|show|why|summary|prune` ([Commands](commands.md#ros2-run-scensim-runs)).
+[Verdicts](../explanation/verdicts.md); the commands that read them are `scensim runs
+list|show|why|summary|prune` ([Commands](commands.md#scensim-runs)).
 
 ## Where
 
@@ -103,7 +103,7 @@ report has no frame metrics (they are absent, not zero).
 
 `timeline.jsonl`: one JSON object per line, `{t_wall, t_sim, group, event, ...}`, ordered
 by wall time: the run's start and end, each pilot's readiness, SSv2's milestones, judge
-events, and every log line at WARN or above in any slice. `ros2 run scensim runs show <id>`
+events, and every log line at WARN or above in any slice. `scensim runs show <id>`
 prints it as a table; `runs why <id>` prints its first WARN or ERROR and its group.
 
 A slice holds what the launcher wrote, and the two launchers lay it out differently.

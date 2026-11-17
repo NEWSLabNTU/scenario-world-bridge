@@ -41,7 +41,7 @@ carla:
 
 With `seats.carla` and `carla.root`, every seat's stack starts its own CARLA on its own
 port when it starts and stops it when it stops: students never start CARLA by hand, and
-never meet another seat's CARLA. `ros2 run scensim seat show` prints each seat's CARLA port.
+never meet another seat's CARLA. `scensim seat show` prints each seat's CARLA port.
 
 ## What each student does once
 
@@ -56,7 +56,7 @@ export PATH=$HOME/.local/bin:$PATH
 EOF
 source ~/scensim.bash
 ros2 run autoware_sim_profile setup_autoware_data      # ~/autoware_data, per user
-ros2 run scensim seat show
+scensim seat show
 ```
 
 `setup_autoware_data` gives each student a writable `~/autoware_data`, where Autoware's
@@ -118,12 +118,12 @@ Two hosts with, say, four seats each serve eight stacks at a time, not twenty. S
 share seats in turns:
 
 - **Book time slots per seat.** A shared sheet: host, seat, time slot, student. In a slot
-  the student takes that seat (`ros2 run scensim seat take 2`, written to their own host
+  the student takes that seat (`scensim seat take 2`, written to their own host
   settings) and starts their stack; at the end they stop it with Ctrl-C, which frees the
   seat and its CARLA.
 - **Or first come, first served.** Leave every student on `seat: auto`: a stack takes the
   first free seat, and is refused when none is free, naming who holds each.
-  `ros2 run scensim seat show` lists the holders.
+  `scensim seat show` lists the holders.
 - **Pair up** for the Autoware labs (1 to 5): two students, one seat, one project.
 - **Keep the slow work outside the slots.** Writing scenarios (Tutorial 2, step 1 needs
   CARLA for `carla_poses`, the rest does not), the agent check of Tutorial 4
@@ -177,10 +177,10 @@ and suites the students start from, and the judges you grade with. Students copy
 repository of their own:
 
 ```bash
-ros2 run scensim project new ~/assignment1 --from /path/to/assignment1
+scensim project new ~/assignment1 --from /path/to/assignment1
 cd ~/assignment1
 git init && git add -A && git commit -m "start"
-ros2 run scensim assets fetch
+scensim assets fetch
 ```
 
 The lock pins every asset's commit and checksum, so every student fetches the same files.
@@ -231,10 +231,10 @@ git checkout <submitted commit>
 cp -r ~/assignment1/judges .                     # your copies, not theirs
 cp ~/assignment1/suites/grading.yaml suites/
 git diff --stat <assignment start commit> -- swb.yaml   # what they changed
-ros2 run scensim assets fetch
-ros2 run scensim project check
-ros2 run scensim run suites/grading.yaml --seat 3 --stop-stack
-ros2 run scensim runs summary
+scensim assets fetch
+scensim project check
+scensim run suites/grading.yaml --seat 3 --stop-stack
+scensim runs summary
 ```
 
 `--stop-stack` starts the project's stack on the grading seat, runs the suite, and stops
@@ -287,13 +287,13 @@ between runs or hosts: grade the method and the evidence, not a value.
 
 | What students see | Cause, what to do |
 |---|---|
-| `seat <n> is taken: <user> (pid ...)` | a live stack holds it (a lock is freed when its process ends, so it is never stale). `ros2 run scensim seat show` names the user and pid: their slot, or a stack left running; the administrator stops it by pid |
+| `seat <n> is taken: <user> (pid ...)` | a live stack holds it (a lock is freed when its process ends, so it is never stale). `scensim seat show` names the user and pid: their slot, or a stack left running; the administrator stops it by pid |
 | the stack fails with `Address already in use` on a free seat | child processes of a stack killed by hand still hold the seat's ports: find them (`ps -eo pid,ppid,user,etimes,comm`, parent 1) and stop them by pid |
 | the first Autoware start of every student takes minutes | each student's TensorRT engines are built once, into their `~/autoware_data`. Twenty students starting at once load every core and each build slows the others: have them start one after another in week 1. With `centerpoint` each build takes 3 to 11 minutes |
 | CARLA crashes mid-run | the run fails within about 30 s; a CARLA the stack started is started again by the stack, and the next run waits for it |
 | CARLA crashes when a scenario changes towns | it ran at `-quality-level=Low`; the stack starts CARLA at Epic. Only a CARLA started by hand can be Low |
 | two seats fight over one CARLA | a CARLA started by hand on another seat's port, or no `seats.carla` in the table: let the stacks start CARLA (`carla.root`, `seats.carla`) and nobody start one by hand |
-| runs refused with `budget`, or a full disk | the log root is full: `ros2 run scensim runs prune --older-than 7`, or a lower `logging.capture`; check `df -h` on each user's `logs:` |
+| runs refused with `budget`, or a full disk | the log root is full: `scensim runs prune --older-than 7`, or a lower `logging.capture`; check `df -h` on each user's `logs:` |
 | a run refused: `the stack ... was started from another project state` | `swb.yaml`, `scensim.lock` or the pilots changed after the stack started: restart the stack |
 | out of GPU memory, a pilot crashing at start | too many seats on one GPU: `nvidia-smi`, then fewer seats per GPU (`gpus:`) |
 

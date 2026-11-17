@@ -25,12 +25,12 @@ pilot](../how-to/your-autopilot.md). This page is the SDK itself.
 The commands below assume the environment file of [Install](../getting-started/install.md)
 is sourced, so `ros2 run scensim_agent ...` finds the SDK's commands. (The bare `scensim-agent` is
 not on `PATH`: colcon installs it under `lib/scensim_agent`.) Examples use seat 0's relay,
-`tcp://localhost:5560`; `ros2 run scensim seat show` gives yours.
+`tcp://localhost:5560`; `scensim seat show` gives yours.
 
 **Domains and DDS for ROS agents.** The agent reaches the relay over TCP, so its ROS
 domain does not matter to scensim. A ROS agent (`ros_adapter`, `AutowareAgent`, your node) must
 however share a domain, the RMW and `CYCLONEDDS_URI` with the autopilot it drives: as a
-pilot it runs in the pilot's domain; by hand, `eval "$(ros2 run scensim seat env <k>)"` first.
+pilot it runs in the pilot's domain; by hand, `eval "$(scensim seat env <k>)"` first.
 Why: [ROS domains and DDS](../explanation/domains-and-dds.md).
 
 ## Three ways to write one

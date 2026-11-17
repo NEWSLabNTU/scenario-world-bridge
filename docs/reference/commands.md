@@ -25,7 +25,7 @@ read, a car that is not installed or whose body is off its catalog box. Anything
 find in what you wrote is 1: a scenario whose car is not its pilot's, an entity without a
 pilot, a suite key it does not know. The stack refuses to start (3) on either.
 
-## `ros2 run scensim project`
+## `scensim project`
 
 | Command | Does |
 |---|---|
@@ -33,7 +33,7 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 | `project new <dir> --from <project>` | copies a project (a directory or `pkg://<package>/<dir>`) without `assets/`, `state/`, `runs/`, `.scensim/` |
 | `project check [<dir>]` | validates `swb.yaml`, the lock, every scenario and suite, the pilots against the scenarios' entities, the cars; prints the launcher it resolved (`launcher: auto -> play_launch 0.30.0`; under `ros2 launch` with an Autoware pilot, a note that a crashed component ends its container), then `project: ok` or one `problem: <file>: <what> (fix: ...)` per finding |
 
-## `ros2 run scensim assets`
+## `scensim assets`
 
 | Command | Does |
 |---|---|
@@ -44,16 +44,16 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 | `assets check` | checks every linked file against `scensim.lock`, hashing a file only when its size or times changed since it was last hashed; prints `assets: ok` |
 | `assets check --hash` | hashes every file, changed or not |
 
-## `ros2 run scensim seat`
+## `scensim seat`
 
 | Command | Does |
 |---|---|
 | `seat show` | every seat of the host's table, its numbers and its holder, then the launcher line |
 | `seat take <n>` / `seat take auto` | records the seat as yours (`seat:` in `~/.config/scensim/host.yaml`) |
 | `seat release` | sets your seat back to `auto` |
-| `seat env scenario` / `seat env <k>` | prints `export ROS_DOMAIN_ID=... RMW_IMPLEMENTATION=... CYCLONEDDS_URI=...` for the seat's scenario domain or its k-th pilot domain (from 0); use as `eval "$(ros2 run scensim seat env scenario)"` |
+| `seat env scenario` / `seat env <k>` | prints `export ROS_DOMAIN_ID=... RMW_IMPLEMENTATION=... CYCLONEDDS_URI=...` for the seat's scenario domain or its k-th pilot domain (from 0); use as `eval "$(scensim seat env scenario)"` |
 
-## `ros2 run scensim isaac`
+## `scensim isaac`
 
 | Command | Does |
 |---|---|
@@ -111,10 +111,10 @@ launcher in its provenance. play_launch is recommended for the following:
 chooses which one starts the stack's own launches (the world server, the pilots, each run's
 SSv2); `project check` and `seat show` print the choice.
 
-## `ros2 run scensim run`
+## `scensim run`
 
 ```bash
-ros2 run scensim run <scenario.xosc | scenario.yaml | directory | suite.yaml> [options]
+scensim run <scenario.xosc | scenario.yaml | directory | suite.yaml> [options]
 ```
 
 | Option | |
@@ -137,13 +137,13 @@ and a suite's `summary: <summary.csv>`. A run on another map than the stack's pi
 first prints `map <name>  (pilots restarted from <old> in <s> s)`. From Python,
 `scensim.api.run_one(project, scenario, overrides)` runs one and returns its result.
 
-## `ros2 run scensim drive`
+## `scensim drive`
 
 Drives one pilot on the project's stack without a scenario: the entity is spawned at a
 pose on a map, the world steps, and the pilot is sent a goal.
 
 ```bash
-ros2 run scensim drive --spawn 190.8,-130.1,0.3,3.14159 --goal 120,-129.8,0,3.14159 \
+scensim drive --spawn 190.8,-130.1,0.3,3.14159 --goal 120,-129.8,0,3.14159 \
     --map Town01 [--entity ego] [--timeout 600] [--start-stack] [--stop-stack]
 ```
 
@@ -160,7 +160,7 @@ run has a run directory as `scensim run`'s (`resolved.yaml`, `result.json`,
 `timeline.jsonl`, `logs/free_drive/`), takes the stack's turn the same way, and exits with
 the same codes.
 
-## `ros2 run scensim runs`
+## `scensim runs`
 
 | Command | Does |
 |---|---|

@@ -202,7 +202,7 @@ rear_right>`, its message the surface class, its values `class`, `zone`, `fricti
 `slip_ratio`, `slip_angle` (rad), `sinkage` (m) and `normal_load` (N).
 
 ```bash
-eval "$(ros2 run scensim seat env 0)"
+eval "$(scensim seat env 0)"
 ros2 topic echo /scensim/wheels --field status
 ```
 

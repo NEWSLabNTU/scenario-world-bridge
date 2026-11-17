@@ -34,7 +34,7 @@ seat_locks: /tmp/scensim-seats   # the seat locks: a directory every user can wr
 
 | Key | Read by | |
 |---|---|---|
-| `seat` | the stack, `run`, `seat` | your seat; `ros2 run scensim seat take <n>` writes it |
+| `seat` | the stack, `run`, `seat` | your seat; `scensim seat take <n>` writes it |
 | `gpu` | the stack | `CUDA_VISIBLE_DEVICES` for the stack's processes |
 | `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |

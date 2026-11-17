@@ -1,7 +1,7 @@
 # The project file
 
 Every key of `swb.yaml`, of a suite file and of `scensim.lock`. A key not listed is refused by
-name (`ros2 run scensim project check`). Why a project owns what it does:
+name (`scensim project check`). Why a project owns what it does:
 [How it works](../explanation/how-it-works.md).
 
 ## `swb.yaml`
@@ -129,7 +129,7 @@ pilot](../how-to/your-autopilot.md).
 | `topics` | the topics `full` records, instead of the key topics |
 | `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `swb.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
 
-`ros2 run scensim run --capture <level>` records one run at that level and keeps it whatever
+`scensim run --capture <level>` records one run at that level and keeps it whatever
 the verdict. What each level keeps: [Results and logs](results-and-logs.md).
 
 ### Judges
@@ -242,14 +242,14 @@ ssv2:
 
 `ssv2:` in `swb.yaml` is every run's default; a suite's `ssv2:` replaces the keys it names
 for its runs, a suite item's (`scenarios: [{path: ..., ssv2: {...}}]`) for that item's, and
-`ros2 run scensim run --timeout` replaces `global_timeout` for one command. With
+`scensim run --timeout` replaces `global_timeout` for one command. With
 `managed_ego: false` SSv2 does not hand its ego to a pilot: the ego needs no pilot, the run
 waits for none, and the scenario must not use autonomy actions (`RoutingAction` and the
 like). A standing ego on Isaac is the usual case.
 
 ## Suites
 
-A suite is a YAML file in the project, given to `ros2 run scensim run`:
+A suite is a YAML file in the project, given to `scensim run`:
 
 ```yaml
 scenarios: [scenarios/cut_in.xosc, scenarios/awf/]   # files and directories

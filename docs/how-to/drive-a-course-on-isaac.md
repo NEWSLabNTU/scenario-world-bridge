@@ -21,7 +21,7 @@ The course's guardrails and trees are CARLA props from `assets/carla-usd`, which
 project already has. Fetch the dataset and copy the course's scenario into the project:
 
 ```bash
-ros2 run scensim assets fetch
+scensim assets fetch
 cp assets/maps/haruna/scenarios/haruna_down.xosc scenarios/
 chmod u+w scenarios/haruna_down.xosc
 ```
@@ -46,7 +46,7 @@ on haruna`.
 ## The run
 
 ```bash
-ros2 run scensim run scenarios/haruna_down.xosc
+scensim run scenarios/haruna_down.xosc
 ```
 
 **Check**: the run ends with a verdict line; a run on Town01 against this stack is

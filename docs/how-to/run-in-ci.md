@@ -14,21 +14,21 @@ checked out ([Start a project](start-a-project.md)); suites are
 set -u
 source ~/scensim.bash
 cd "$PROJECT"
-ros2 run scensim assets fetch || exit 3
-ros2 run scensim project check || exit 3
+scensim assets fetch || exit 3
+scensim project check || exit 3
 
 setsid ros2 launch scensim_launch scensim.launch.xml map:=Town01 > stack.log 2>&1 &
 STACK=$!
 
-ros2 run scensim run suites/nightly.yaml --wait 1200 | tee run.out
+scensim run suites/nightly.yaml --wait 1200 | tee run.out
 CODE=${PIPESTATUS[0]}
 # the first cause of each run that did not pass
 awk '$1 == "failed" || $1 == "error" {print $2}' run.out \
-    | xargs -r -n1 ros2 run scensim runs why
+    | xargs -r -n1 scensim runs why
 
 kill -INT -$STACK            # the whole stack, and only it
 wait $STACK
-ros2 run scensim runs summary
+scensim runs summary
 exit $CODE
 ```
 
@@ -91,12 +91,12 @@ when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summ
 With the same project and `scensim.lock` on both:
 
 ```bash
-ros2 run scensim run suites/nightly.yaml --shard 1/2     # host A
-ros2 run scensim run suites/nightly.yaml --shard 2/2     # host B
+scensim run suites/nightly.yaml --shard 1/2     # host A
+scensim run suites/nightly.yaml --shard 2/2     # host B
 ```
 
 Each writes its own `suites/nightly_shard-1-of-2/` table. Copy both runs directories to one
-place and run `ros2 run scensim runs summary <dir>` there for one table. A job that was cut
+place and run `scensim runs summary <dir>` there for one table. A job that was cut
 short continues with `--resume`, which skips the runs that already have a result.
 
 ## Keep the disk
@@ -112,5 +112,5 @@ logging:
   budget: {per_run: 2GB, total: 200GB}
 ```
 
-Old runs go with `ros2 run scensim runs prune --older-than 14`, or shrink with
+Old runs go with `scensim runs prune --older-than 14`, or shrink with
 `--to result`. The levels: [Results and logs](../reference/results-and-logs.md).

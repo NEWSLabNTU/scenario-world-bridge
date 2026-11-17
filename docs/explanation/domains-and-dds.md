@@ -48,8 +48,8 @@ starts. Your own terminals (`ros2 topic`, RViz, an agent, a test script) need bo
 the domain:
 
 ```bash
-eval "$(ros2 run scensim seat env scenario)"   # the bridge, the relay, SSv2
-eval "$(ros2 run scensim seat env 0)"      # the first pilot (the ego)
+eval "$(scensim seat env scenario)"   # the bridge, the relay, SSv2
+eval "$(scensim seat env 0)"      # the first pilot (the ego)
 ros2 topic list
 ```
 

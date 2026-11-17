@@ -154,6 +154,7 @@ def test_record_names_the_results_commit_not_the_scripts(tmp_path, monkeypatch, 
     assert t3.main(["record", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 0
     meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
     assert meta["commit"] == "aaaaaaa" and meta["recorded_with"] == "bbbbbbb"
+    assert meta["summary"] == "<host logs>/zz_t3test/suites/s/summary.csv"   # no host path
     assert meta["submodules"] == {"src/swb_isaac_world": "f00"}
     assert meta["gpu_gated"] == {"indices": [0], "source": "host gpu: 0"}
     assert meta["gpu_at_record"] == TWO and meta["notes"] == []
@@ -480,3 +481,16 @@ def test_compare_takes_references_recorded_before_the_stamps(tmp_path, monkeypat
     assert t3.main(["compare", "--manifest", str(m), "--logs", str(logs),
                     "--work", str(tmp_path / "work")]) == 0
     assert "runs at aaaaaaa; the reference at aaaaaaa" in capsys.readouterr().out
+
+
+def test_the_summary_path_is_relative_to_the_log_root_through_a_link(tmp_path):
+    real = tmp_path / "disk" / "swb-logs"
+    summ = real / "proj" / "suites" / "s" / "summary.csv"
+    summ.parent.mkdir(parents=True)
+    summ.write_text("")
+    (tmp_path / "logs").symlink_to(real)            # the root as the host names it
+    want = "<host logs>/proj/suites/s/summary.csv"
+    assert t3.host_relative(summ, tmp_path / "logs") == want
+    assert t3.host_relative(tmp_path / "logs" / "proj" / "suites" / "s" / "summary.csv",
+                            real) == want
+    assert t3.host_relative(summ, tmp_path / "elsewhere") == want   # outside: the last 4 parts

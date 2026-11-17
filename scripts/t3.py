@@ -522,6 +522,15 @@ def descends(pid: int, ancestor: int) -> bool:
     return False
 
 
+def host_relative(path: Path, logs: Path) -> str:
+    """``path`` under the host's log root as ``<host logs>/...``: a reference goes into the
+    repository and names no host's disk or user (the RC references' form)."""
+    try:   # both resolved: the root may be reached through a link
+        return "<host logs>/" + str(Path(path).resolve().relative_to(Path(logs).resolve()))
+    except ValueError:   # <project>/suites/<suite>/summary.csv, as under the root
+        return "<host logs>/" + "/".join(Path(path).parts[-4:])
+
+
 def stamp_path(work: Path, e: dict) -> Path:
     return work / "stamps" / (e["key"].replace("/", "__") + ".json")
 
@@ -780,7 +789,7 @@ def _main(argv=None) -> int:
             write_reference(rows, ref, {"commit": at, "submodules": prov["submodules"][at],
                                         "recorded_with": commit(),
                                         "host": socket.gethostname(),
-                                        "summary": str(summ), "runs": len(rows),
+                                        "summary": host_relative(summ, logs), "runs": len(rows),
                                         "gpu_at_record": gpus,
                                         "gpu_gated": {"indices": gated, "source": source},
                                         "load_at_record": [round(hload, 1), cores],

@@ -18,8 +18,15 @@ import re
 from pathlib import Path
 from typing import Any
 
-SIM = re.compile(r"scensim-sim-v?[^-]+-(?P<distro>[a-z]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$")
-VEH = re.compile(r"scensim-vehicle-v?[^-]+-autoware(?P<aw>[\d.]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$")
+
+def patterns(version: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
+    """The two artefact names for ``version`` (which may hold dashes, e.g. 0.0.0-dev)."""
+    v = re.escape(version)
+    sim = re.compile(rf"scensim-sim-v?{v}-(?P<distro>[a-z]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$")
+    veh = re.compile(
+        rf"scensim-vehicle-v?{v}-autoware(?P<aw>[\d.]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$"
+    )
+    return sim, veh
 
 
 def main() -> None:
@@ -31,6 +38,7 @@ def main() -> None:
     ap.add_argument("files", nargs="+", type=Path)
     a = ap.parse_args()
     arts: dict[str, dict[str, Any]] = {}
+    SIM, VEH = patterns(a.version.removeprefix("v"))
     for f in a.files:
         sha = hashlib.sha256()
         with open(f, "rb") as fh:
@@ -48,7 +56,11 @@ def main() -> None:
         elif m := VEH.match(f.name):
             arts.setdefault(m["arch"], {}).setdefault("vehicle", {})[f"autoware{m['aw']}"] = entry
         else:
-            raise SystemExit(f"{f.name}: not a scensim release artefact name")
+            raise SystemExit(
+                f"{f.name}: not a scensim {a.version} release artefact name "
+                f"(scensim-sim-<ver>-<distro>-<arch>.tar.zst, "
+                f"scensim-vehicle-<ver>-autoware<rel>-<arch>.tar.zst)"
+            )
     out = (
         Path(a.out)
         if a.out

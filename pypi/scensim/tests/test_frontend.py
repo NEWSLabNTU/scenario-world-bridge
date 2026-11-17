@@ -385,3 +385,30 @@ def test_make_manifest_then_install(env, tmp_path: Path) -> None:
     r = env.run("install", "--autoware", "1.5.0")
     assert r.returncode == 0, r.stderr
     assert (env.home / "current" / "vehicle-autoware1.5.0" / "setup.bash").exists()
+
+
+def test_make_manifest_with_a_dashed_version(env, tmp_path: Path) -> None:
+    """118's first build is 0.0.0-dev: the version holds a dash."""
+    sim = make_tarball(env.files / "scensim-sim-0.0.0-dev-humble-x86_64.tar.zst", "0.0.0-dev")
+    tool = Path(__file__).resolve().parents[2] / "make_manifest.py"
+    out = tmp_path / "m.json"
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(tool),
+            "--version",
+            "0.0.0-dev",
+            "--distro",
+            "humble",
+            "--base-url",
+            env.server.url,
+            "--out",
+            str(out),
+            str(sim),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    assert json.loads(out.read_text())["artefacts"]["x86_64"]["sim"]["size"] == sim.stat().st_size

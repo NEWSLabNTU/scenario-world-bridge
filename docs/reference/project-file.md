@@ -1,10 +1,10 @@
-# The project file
+# The testbench file
 
-Every key of `swb.yaml`, of a suite file and of `scensim.lock`. A key not listed is refused by
-name (`scensim project check`). Why a project owns what it does:
+Every key of `testbench.yaml`, of a suite file and of `scensim.lock`. A key not listed is refused by
+name (`scensim testbench check <testbench>`). Why a testbench owns what it does:
 [How it works](../explanation/how-it-works.md).
 
-## `swb.yaml`
+## `testbench.yaml`
 
 ```yaml
 simulator: carla                        # carla | isaac
@@ -33,10 +33,10 @@ ssv2: {}                                # SSv2's run settings for every run
 |---|---|
 | `simulator` | `carla` or `isaac`; `simulator:=` on the stack overrides it |
 | `assets` | a list of datasets and paths ([Assets](#assets)) |
-| `maps` | map names under `assets/maps/`; default: every map the project's scenarios name. Give it when runs use maps the project's own scenarios do not, or to fix their order |
+| `maps` | map names under `assets/maps/`; default: every map the testbench's scenarios name. Give it when runs use maps the testbench's own scenarios do not, or to fix their order |
 | `pilots` | entity name or pattern to a pilot ([Pilots](#pilots)) |
 | `vehicles` | spec files of your own cars: the stack makes each car's catalog entry, physics, sensors and frames from its spec when it starts, into `state/vehicles/`; a scenario names the catalog as `$(env SCENSIM_VEHICLES)` ([Your car](../how-to/your-car.md), [Supported and not supported](limits.md#projects)) |
-| `ground` | Isaac: `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the project ([Road physics](road-physics.md)) |
+| `ground` | Isaac: `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the testbench ([Road physics](road-physics.md)) |
 | `logging` | what runs record and keep ([Logging](#logging)) |
 | `judges` | programs run over each finished run ([Judges](#judges)) |
 | `world` | the simulation side's settings: weather, NPC motion, contact reports, config files ([World](#world)) |
@@ -51,7 +51,7 @@ ssv2: {}                                # SSv2's run settings for every run
 | `repo` | `<namespace>/<name>`, for a dataset elsewhere |
 | `take` | the subpaths to fetch (globs relative to the dataset's root); default: all of it |
 | `revision` | a tag or commit; default: the newest tag, else `main` |
-| `path` | a directory of your own, relative to the project, linked as it is |
+| `path` | a directory of your own, relative to the testbench, linked as it is |
 | `as` | the name it is linked under (default: the directory's name) |
 
 `assets fetch` links a map (a directory holding `lanelet2_map.osm`) under
@@ -76,13 +76,13 @@ match one.
 | `inputs` | all | what the pilot uses, recorded in results: `sensors`, `map`, `ground_truth` |
 | `rviz` | all | `true`: open RViz for this pilot |
 | `autoware_launch` | `autoware` | another `autoware.launch.xml` for the profile to include |
-| `overlays` | `autoware`, `launch` | ROS workspaces of your own the pilot sources, in order, after this workspace's installs and before the TensorRT runtime: a list of `setup.bash` files, each relative to the project or `{workspace:<name>}/<path>` under a directory the host settings name (`workspaces:`, [Host settings](host-settings.md)) |
+| `overlays` | `autoware`, `launch` | ROS workspaces of your own the pilot sources, in order, after this workspace's installs and before the TensorRT runtime: a list of `setup.bash` files, each relative to the testbench or `{workspace:<name>}/<path>` under a directory the host settings name (`workspaces:`, [Host settings](host-settings.md)) |
 | `launch` | `launch` | the driver: `"<package> <file>"` or a path |
 | `agent` | `launch` | `own`: the launch registers the entity itself; default scensim's vehicle agent |
-| `run` | `command` | the program's words (not a shell), relative paths the project's |
+| `run` | `command` | the program's words (not a shell), relative paths the testbench's |
 
 An `autoware` pilot's `args` (and a suite's `pilot_args` for it) are checked by the
-Autoware profile's own argument check when `project check` runs, and so before the stack
+Autoware profile's own argument check when `testbench check` runs, and so before the stack
 starts: a renamed argument (`carla_control`, now `sim_control`), a value outside its
 choices (`ndt:` is `autoware`, `cuda` or `none`) and a pair that cannot work together
 (`ndt: none` with a diagnostic graph that judges NDT) are refused with the profile's message.
@@ -102,10 +102,10 @@ pilots:
         drift_launch/launch/drift.launch.xml"
 ```
 
-`project check` refuses a workspace name the host settings do not have and a setup file that
+`testbench check` refuses a workspace name the host settings do not have and a setup file that
 is not there, naming the key to set. An absolute or `~` path works too, but it is a host path
-in a project file, and `project check` warns about it: name the directory in the host
-settings instead, so the project reads the same on every host. The stack's `stack.json` (each
+in a testbench file, and `testbench check` warns about it: name the directory in the host
+settings instead, so the testbench reads the same on every host. The stack's `stack.json` (each
 pilot's `overlays`) and every run's `result.json` (`provenance.overlays`) record each setup
 file's path and, when its workspace is a git checkout, the commit.
 
@@ -127,7 +127,7 @@ pilot](../how-to/your-autopilot.md).
 | `keep` | per verdict, the level kept once the verdict is known: `{passed: result, failed: full, error: full}` (default). A judge's `failed` or `error` keeps what that verdict keeps, when that is more |
 | `budget` | `{per_run: 2GB, total: 200GB}`: refuse a run or suite that cannot fit on the log disk |
 | `topics` | the topics `full` records, instead of the key topics |
-| `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `swb.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
+| `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `testbench.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
 
 `scensim run --capture <level>` records one run at that level and keeps it whatever
 the verdict. What each level keeps: [Results and logs](results-and-logs.md).
@@ -144,7 +144,7 @@ judges:
     needs: []                         # gap_trace, context: what the run must record
 ```
 
-A judge runs in the project directory after each run whose verdict is in `on`. It is
+A judge runs after each run whose verdict is in `on`. It is
 given the run directory as its last argument, unless `{run_dir}` or `{scenario}` (the run's
 scenario file) stands in `run`, and as `SCENSIM_RUN_DIR`. It may print one JSON object, whose
 `verdict` (`passed` or `failed`) is the judge's; without one, its exit code is (0 passed,
@@ -198,7 +198,7 @@ world:
 | `weather` | a preset by the world server's name (CARLA's: `ClearNoon`, `WetSunset`, ...), kept across map loads; or a mapping of parameters by name, with an optional `preset` under them. Parameters are set once the bridge answers, before the stack is ready; a name the world server does not know fails the stack |
 | `npc_motion` | how SSv2-driven NPCs move: `tracked` (default) or `kinematic` |
 | `contact_report_dir` | unset: each run's contact reports in its `contacts/`; `off`: none; a directory: yours, not cut per run |
-| `config_file` | the bridge's settings file instead of the installed one, relative to the project |
+| `config_file` | the bridge's settings file instead of the installed one, relative to the testbench |
 | `world_config_file` | CARLA: the world server's settings file instead of the installed one |
 
 These go to the bridge and the world server beside scensim's own settings, never in their
@@ -219,14 +219,14 @@ isaac:
 
 | Key | |
 |---|---|
-| `ego` | the ego's config for the world server: `default` (the Tesla rig), `none` (a kinematic box), or a file of the project. Default: `default` when a pilot has a vehicle side, else `none` |
+| `ego` | the ego's config for the world server: `default` (the Tesla rig), `none` (a kinematic box), or a file of the testbench. Default: `default` when a pilot has a vehicle side, else `none` |
 | `render` | `auto` (a window when a display is set), `window`, `headless` |
 | `follow` | with a window: `true` chases the ego, `editor` keeps Isaac's editor around the chase |
 | `physics_hz` | physics steps per simulated second; each SSv2 step is split into steps no longer than one over this |
 | `preload` | maps the world server loads at start beside the stack's first; a run on one of them moves the pilots there instead of being refused. Each must be fetched |
 | `wheels_topic` | `false` turns `/scensim/wheels` off |
 
-`isaac:` is refused on a CARLA project. The world (`world`) and the state directory are
+`isaac:` is refused on a CARLA testbench. The world (`world`) and the state directory are
 scensim's: give `maps:` and `map:=` instead.
 
 ## Run settings
@@ -240,7 +240,7 @@ ssv2:
   managed_ego: true                   # false: the scenario's ego is handed to no pilot
 ```
 
-`ssv2:` in `swb.yaml` is every run's default; a suite's `ssv2:` replaces the keys it names
+`ssv2:` in `testbench.yaml` is every run's default; a suite's `ssv2:` replaces the keys it names
 for its runs, a suite item's (`scenarios: [{path: ..., ssv2: {...}}]`) for that item's, and
 `scensim run --timeout` replaces `global_timeout` for one command. With
 `managed_ego: false` SSv2 does not hand its ego to a pilot: the ego needs no pilot, the run
@@ -249,7 +249,7 @@ like). A standing ego on Isaac is the usual case.
 
 ## Suites
 
-A suite is a YAML file in the project, given to `scensim run`:
+A suite is a YAML file in the testbench, given to `scensim run`:
 
 ```yaml
 scenarios: [scenarios/cut_in.xosc, scenarios/awf/]   # files and directories
@@ -273,11 +273,11 @@ ssv2: {global_timeout: 600}
 | `distribution` | an OpenSCENARIO `ParameterValueDistribution` file, passed to SSv2 as it is, one run per repetition (this SSv2 does not expand it yet) |
 | `repetitions` | runs per combination (default 1); run ids end `_r0`, `_r1`, ... |
 | `seed` | run k gets `seed + k` |
-| `expect` | scenario (relative to the project or `scenarios/`) to the verdict expected; the suite exits 0 when runs end as expected |
+| `expect` | scenario (relative to the testbench or `scenarios/`) to the verdict expected; the suite exits 0 when runs end as expected |
 | `retry` | `{on: error, times: N}`: run again a run the stack could not judge |
 | `pilot_args` | per entity, `args` for `lifetime: run` pilots, substitutions applied |
-| `logging` | as in `swb.yaml`, for this suite's runs (not `gap_trace`, which is the stack's) |
-| `ssv2` | run settings for this suite's runs, over `swb.yaml`'s ([Run settings](#run-settings)) |
+| `logging` | as in `testbench.yaml`, for this suite's runs (not `gap_trace`, which is the stack's) |
+| `ssv2` | run settings for this suite's runs, over `testbench.yaml`'s ([Run settings](#run-settings)) |
 
 A run id is `<time>_<scenario>[_<name>-<value>...]_r<k>`.
 

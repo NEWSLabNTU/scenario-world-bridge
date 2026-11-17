@@ -1,7 +1,7 @@
 # Maps and assets
 
 What a map directory holds, the datasets a project can fetch, and CARLA's assets in USD.
-How a project takes them: [The project file](project-file.md#assets).
+How a testbench takes them: [The testbench file](project-file.md#assets).
 
 ## A map directory
 

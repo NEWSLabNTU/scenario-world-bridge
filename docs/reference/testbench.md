@@ -5,10 +5,7 @@ and suites it runs, and anything else it names. It lives in a colcon workspace b
 testbenches and support packages, and colcon builds it with the `scensim_testbench` build
 type. This page describes the package, its build and its rules. The keys of
 `testbench.yaml`, of a suite file and of `scensim.lock` are described in
-[The project file](project-file.md), whose `swb.yaml` is the same schema under its former
-name.
-
-<!-- TODO(exit run): rename project-file.md's subject to testbench.yaml once 081 lands. -->
+[The testbench file](project-file.md).
 
 ## The package
 

@@ -80,7 +80,7 @@ A task in your own project, starting from a working stack:
 - [Commands](reference/commands.md): every `ros2 run scensim` command, the stack's arguments,
   exit codes, the other tools
 - [The testbench](reference/testbench.md): the package, its build type, its rules
-- [The project file](reference/project-file.md): `swb.yaml`, suites, `scensim.lock`
+- [The testbench file](reference/project-file.md): `testbench.yaml`, suites, `scensim.lock`
 - [Host settings](reference/host-settings.md): `host.yaml`, `local.yaml`, the seat table
 - [Results and logs](reference/results-and-logs.md): a run's directory, `result.json`, the
   timeline, capture levels

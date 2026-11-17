@@ -50,7 +50,7 @@ ros2 launch scensim_launch stack.launch.py \
 
 It starts no autopilot of its own. Who drives each entity is `pilots:=`, the same mapping as
 a project's `pilots:` in YAML or JSON, e.g. `pilots:='{ego: {kind: launch, launch: my_pkg
-drive.launch.xml}}'` ([Project file](../reference/project-file.md)).
+drive.launch.xml}}'` ([Testbench file](../reference/project-file.md)).
 
 The project's stack, `scensim.launch.xml`, starts `carla` and `isaac` only
 ([Supported and not supported](../reference/limits.md#projects)), so a third simulator

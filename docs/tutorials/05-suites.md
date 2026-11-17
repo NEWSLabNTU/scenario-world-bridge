@@ -171,7 +171,7 @@ and each leaves a run directory as in Tutorial 1; the suite links them under
 a judge adds its own beside it, never in its place, so that a scoring rule can change
 without rewriting past results. [Verdicts](../explanation/verdicts.md) explains `passed`, `failed` and
 `error` and the contact check; the
-[project file reference](../reference/project-file.md#suites) lists every suite key.
+[testbench file reference](../reference/project-file.md#suites) lists every suite key.
 
 ## Exercises
 

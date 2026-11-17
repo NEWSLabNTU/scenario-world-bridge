@@ -45,7 +45,7 @@ Groups: `simulator`, `bridge`, `relay`, `pilot-<entity>`, `scenario`, `judge`. T
 topics at `full`: the ego's state, the control command, the vehicle status, the detected
 objects, the trajectory, and `/scensim/wheels` on Isaac; `logging.topics` replaces the list.
 A run's `capture` sets what it records; `keep` reduces it per verdict once the verdict is
-known ([The project file](project-file.md#logging)).
+known ([The testbench file](project-file.md#logging)).
 
 ## `result.json`
 

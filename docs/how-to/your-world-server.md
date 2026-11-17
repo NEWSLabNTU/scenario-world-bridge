@@ -1,6 +1,6 @@
 # Your world server in a testbench
 
-> Draft (roadmap 081 step 5). `testbench check --live` and the stack's start of your server
+> Draft. `testbench check --live` and the stack's start of your server
 > land with `scensim run`'s testbench support; until then, run the conformance check by hand
 > (below).
 
@@ -21,7 +21,8 @@ world:
 ```
 
 scensim starts `ros2 run my_world my_world_server --quality low --port <port>` in place of
-the stock server, in the stack's ego domain, restarts it if it ends, and drives it over the
+the stock server, in the ROS domain of the ego (`EGO_ROS_DOMAIN_ID`, default 1, so its own
+ROS nodes, if any, meet the vehicle side there), restarts it if it ends, and drives it over the
 world protocol on `<port>`, as it drives CARLA's and Isaac's. The other `world:` keys
 (`config_file`, `world_config_file`) configure the stock CARLA server and are refused beside
 `server`: give your server its settings as its arguments.
@@ -59,7 +60,29 @@ or `command` with a vehicle side of your own, or `none`.
 
 ## A minimal one
 
-An `ament_python` package whose console script serves the protocol shell's smallest world:
+An `ament_python` package whose console script serves the protocol shell's smallest world.
+Its `package.xml` declares the shell and what it imports, so `rosdep install` brings them:
+
+```xml
+<!-- my_world/package.xml -->
+<?xml version="1.0"?>
+<package format="3">
+  <name>my_world</name>
+  <version>0.1.0</version>
+  <description>My world server</description>
+  <maintainer email="me@example.com">me</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>scensim_world_server</exec_depend>
+  <exec_depend>python3-zmq</exec_depend>
+  <exec_depend>python3-protobuf</exec_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+```
+
+`ament_python` also wants an empty marker file, `resource/my_world`, which `setup.py`
+installs (below).
 
 ```python
 # my_world/my_world/server.py
@@ -104,7 +127,13 @@ def main():
 ```
 
 ```python
-# my_world/setup.py: entry_points={"console_scripts": ["my_world_server = my_world.server:main"]}
+# my_world/setup.py
+from setuptools import setup
+
+setup(name="my_world", version="0.1.0", packages=["my_world"],
+      data_files=[("share/ament_index/resource_index/packages", ["resource/my_world"]),
+                  ("share/my_world", ["package.xml"])],
+      entry_points={"console_scripts": ["my_world_server = my_world.server:main"]})
 ```
 
 ```ini
@@ -115,8 +144,6 @@ script_dir=$base/lib/my_world
 install_scripts=$base/lib/my_world
 ```
 
-It needs `pyzmq` and `protobuf` on the Python that runs it.
-
 ## Check it
 
 ```bash
@@ -125,6 +152,7 @@ source install/setup.bash
 ros2 run my_world my_world_server --port 5599 &
 ros2 run scensim_world_check scensim_world_check conformance tcp://127.0.0.1:5599
 #   ... 20 passed, 0 failed
+kill %1          # the server: stop it when the check is done
 ```
 
 `scensim testbench check my_testbench --live` will do the same: start your server as the

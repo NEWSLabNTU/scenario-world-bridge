@@ -5,6 +5,10 @@
   <description>colcon-scensim test fixture: a world server from a support package (081 step 5)</description>
   <maintainer email="fixture@example.com">fixture</maintainer>
   <license>Apache-2.0</license>
+  <!-- as the how-to's minimal server (keep the two in step) -->
+  <exec_depend>scensim_world_server</exec_depend>
+  <exec_depend>python3-zmq</exec_depend>
+  <exec_depend>python3-protobuf</exec_depend>
   <export>
     <build_type>ament_python</build_type>
   </export>

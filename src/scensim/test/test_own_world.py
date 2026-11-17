@@ -30,7 +30,7 @@ def test_a_server_that_never_comes_up_is_one_finding(tmp_path):
                                          start_timeout=1)
     assert len(got) == 1 and got[0].file == "world.server"
     assert "no_such_pkg no_exe" in got[0].what
-    assert got[0].fix.startswith("docs/how-to/your-world-server.md")
+    assert got[0].fix.startswith("see 'Your world server in a testbench' in scensim's docs")
 
 
 def test_each_failed_conformance_check_is_a_finding(tmp_path):

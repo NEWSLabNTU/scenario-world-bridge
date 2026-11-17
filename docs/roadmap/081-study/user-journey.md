@@ -48,8 +48,8 @@ password beyond these is a finding.
 | # | Root | Command | Expected | Exit |
 |---|---|---|---|---|
 | 2.1 | no | `mkdir -p ~/my_ws/src && cd ~/my_ws/src` | | 0 |
-| 2.2 | no | `scensim testbench new my-first-drive` | refused before writing anything: `my-first-drive is not a valid ROS package name (use my_first_drive)`; no directory created | non-zero |
-| 2.3 | no | `scensim testbench new my_first_drive` | `wrote src/my_first_drive (carla-first-drive)` | 0 |
+| 2.2 | no | `scensim testbench new my-first-drive` | refused before writing anything: `my-first-drive is not a valid ROS package name (use my_first_drive)`; no directory created | 3 |
+| 2.3 | no | `scensim testbench new my_first_drive` | `wrote src/my_first_drive (carla-first-drive); next: colcon build --symlink-install, then scensim assets fetch my_first_drive` | 0 |
 | 2.4 | no | `cat my_first_drive/package.xml` | `<build_type>scensim_testbench</build_type>`; maintainer from `git config` (or a placeholder without it); `<license>TODO: License declaration</license>` | 0 |
 | 2.5 | no | `cat my_first_drive/testbench.yaml` | `simulator: carla`, the Town01 asset, the `ego` Autoware pilot, `default: first` | 0 |
 | 2.6 | no | `cd ~/my_ws && colcon build --symlink-install` | `Summary: 1 package finished`; a warning that the testbench has no lock yet (no fetch done) | 0 |
@@ -61,7 +61,7 @@ password beyond these is a finding.
 |---|---|---|---|---|
 | 3.1 | no | `scensim run my_first_drive` (before fetching) | refused: the assets are not fetched, naming `scensim assets fetch my_first_drive` | 3 |
 | 3.2 | no | `scensim assets fetch my_first_drive` | `carla-town-autoware-maps: <commit>: 9 file(s), 9 downloaded`, `src/my_first_drive/scensim.lock written` (the source directory, through the symlink) | 0 |
-| 3.3 | no | `scensim testbench check my_first_drive` | `testbench: ok` | 0 |
+| 3.3 | no | `scensim testbench check my_first_drive` | `testbench: ok`; a finding about this host prints as `problem (this host): ...` | 0 |
 | 3.4 | no | `scensim run my_first_drive` | `stack    my_first_drive on seat 0: started (CARLA, Town01); left up ...`, the map line, `passed   <run id>  .../my_first_drive/runs/...`, `summary: .../suites/first/summary.csv` | 0 |
 | 3.5 | no | `scensim runs list my_first_drive` | one row, `passed`, with the `WORKSPACE` column `~/my_ws` | 0 |
 | 3.6 | no | `scensim runs show <run id>` | the verdict, duration and timeline | 0 |
@@ -73,7 +73,7 @@ password beyond these is a finding.
 |---|---|---|---|---|
 | 4.1 | no | edit `src/my_first_drive/scenarios/drive_to_goal.xosc` (halve the goal's distance) | | |
 | 4.2 | no | `scensim run my_first_drive/scenarios/drive_to_goal.xosc` | no stack line (it is up); `passed`; the run's `resolved.yaml` holds the new goal | 0 |
-| 4.3 | no | `scensim run my_first_drive --stop-stack` | `passed`, then the stack stopped; `scensim stack --list` empty | 0 |
+| 4.3 | no | `scensim run my_first_drive --stop-stack` (or, after a run, `scensim stack my_first_drive --stop`) | `passed`, then the stack stopped; `scensim stack --list` empty | 0 |
 
 ## 5. Refusals a user can meet
 
@@ -81,14 +81,14 @@ Each must name its fix in one line.
 
 | # | Setup | Command | Expected | Exit |
 |---|---|---|---|---|
-| 5.1 | a terminal without `~/scensim.bash` sourced | `colcon build` of the workspace, then `scensim run my_first_drive` | colcon does not fail: it warns `No task extension to 'build' a 'ros.scensim_testbench' package` and exits 0 with nothing installed; the run then refuses the unbuilt testbench, naming `source ~/scensim.bash, then colcon build`; the install page's troubleshooting quotes colcon's warning | 0, then non-zero |
+| 5.1 | a terminal without `~/scensim.bash` sourced | `colcon build` of the workspace, then `scensim run my_first_drive` | colcon warns `No task extension to 'build' a 'ros.scensim_testbench' package` and exits 0 with nothing installed; the run then refuses: `testbench my_first_drive is not in the sourced workspace: source scensim's setup.bash, then colcon build (...), then source the workspace's install/setup.bash` | 0, then 3 |
 | 5.2 | a terminal with Jazzy's setup sourced | any `scensim` command | `scensim is installed for humble, but ROS_DISTRO is jazzy (python <path>)` | non-zero |
-| 5.3 | a testbench with `swb.yaml` instead of `testbench.yaml` | `colcon build` | the package fails: `swb.yaml is renamed testbench.yaml` | non-zero |
+| 5.3 | a testbench with `swb.yaml` instead of `testbench.yaml` | `colcon build`, or `scensim run` | the package fails: `swb.yaml is renamed testbench.yaml` (fix: `git mv swb.yaml testbench.yaml`) | non-zero |
 | 5.4 | a testbench naming `pkg://other/...` without `<exec_depend>other</exec_depend>` | `colcon build` | the package fails, naming the missing `<exec_depend>` | non-zero |
 | 5.5 | a scenario path with `../` out of the testbench | `colcon build` | the package fails, naming the `pkg://` form | non-zero |
-| 5.6 | `scensim install` of a newer version, the workspace not rebuilt | `scensim run my_first_drive` | refused: built over scensim `<old>`, naming `colcon build` | non-zero |
-| 5.7 | a workspace built without `--symlink-install` | `scensim assets fetch my_first_drive` | refused, naming `--source src/my_first_drive` | non-zero |
-| 5.8 | `testbench.yaml` without `default:` and two suites | `scensim run <tb>` | refused, listing the suites | non-zero |
+| 5.6 | `scensim install` of a newer version, the workspace not rebuilt | `scensim run my_first_drive` | `testbench my_first_drive was built over scensim <v> at <prefix> (<commit>), but this is scensim <v2> ...: rebuild the workspace (cd <ws> && colcon build)` | 3 |
+| 5.7 | a workspace built without `--symlink-install` | `scensim assets fetch my_first_drive` | `... installed without --symlink-install, so its source is not known: name it (scensim assets fetch my_first_drive --source src/my_first_drive), or rebuild with colcon build --symlink-install` | 3 |
+| 5.8 | `testbench.yaml` without `default:` and two suites | `scensim run <tb>` | `testbench <tb> has no default: suite; name one: <tb>/a, <tb>/b` | 3 |
 | 5.9 | `SWB_LOG_ROOT` exported | any `scensim` command | refused: `SWB_LOG_ROOT is renamed SCENSIM_LOG_ROOT` (080) | non-zero |
 | 5.10 | the download cut part way (network dropped during 1.4) | `scensim install` again | the partial file is not kept; `sha256 ok` on the retry | 0 |
 

@@ -430,3 +430,52 @@ def test_scensim_alone_prints_the_commands_and_exits_0(capsys):
     assert cli.main([]) == 0
     out = capsys.readouterr().out
     assert "testbench  new, list and check testbenches" in out
+
+
+# --- 118's journey run (F1-F4) ---------------------------------------------------------------
+
+def test_two_workspaces_of_one_testbench_take_turns_and_a_live_stack_holds_it(ws, monkeypatch):
+    other = source_tb(ws["tmp"] / "clone")
+    prefix2 = install(other, NOW)
+    host = {"logs": str(ws["logs"])}
+    d = testbenches.work_dir(testbenches.find("tb_one"), host)
+    assert (d / testbenches.WORKSPACE_FILE).read_text().strip() == str(ws["prefix"])
+    tb2 = testbenches.Testbench("tb_one", prefix2 / "share" / "tb_one", prefix2, dict(NOW))
+    # no stack up: the sourced workspace's links win
+    testbenches.work_dir(tb2, host)
+    assert os.readlink(d / "scenarios") == str(tb2.share / "scenarios")
+    # a stack from the first workspace is up: the second is refused, naming both and the stop
+    testbenches.work_dir(testbenches.find("tb_one"), host)
+    monkeypatch.setattr(testbenches, "_live_stack", lambda name, h: {"seat": {"seat": 0}})
+    with pytest.raises(testbenches.TestbenchRefused) as e:
+        testbenches.work_dir(tb2, host)
+    msg = str(e.value)
+    assert str(ws["prefix"]) in msg and str(prefix2) in msg
+    assert "scensim stack tb_one --stop" in msg
+    assert os.readlink(d / "scenarios") == str(ws["prefix"] / "share" / "tb_one" / "scenarios")
+
+
+def test_a_scenario_refusal_of_a_testbench_names_its_fetch_and_files(ws, monkeypatch):
+    from scensim.findings import Finding
+    d = testbenches.work_dir(testbenches.find("tb_one"), {"logs": str(ws["logs"])})
+    monkeypatch.setattr(project, "scenario_problems", lambda p, files: [
+        Finding(f"{d}/scenarios/drive.xosc", "map Town01 is not fetched",
+                fix="scensim assets fetch", refused=True)])
+    with pytest.raises(run.Refused) as e:
+        run.check_scenarios(d, [], testbench="tb_one")
+    msg = str(e.value)
+    assert msg.startswith("testbench check found problems")
+    assert "scensim assets fetch tb_one)" in msg and str(d) not in msg
+
+
+def test_a_started_stack_is_named_and_stopped_by_its_testbench(ws, tmp_path):
+    d = testbenches.work_dir(testbenches.find("tb_one"), {"logs": str(ws["logs"])})
+    assert run.stack_name(d) == "tb_one" and run.stack_target(d) == "tb_one"
+    assert run.stack_target(ws["src"]) == str(ws["src"])
+
+
+def test_runs_refuses_a_renamed_variable_before_asking_for_a_testbench(ws, monkeypatch, capsys):
+    monkeypatch.setenv("SWB_LOG_ROOT", "x")
+    assert runs.main(["list"]) == 3
+    err = capsys.readouterr().err
+    assert "SWB_LOG_ROOT was renamed" in err and "name a testbench" not in err

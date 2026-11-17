@@ -175,10 +175,10 @@ def check(target=None, live=False, logs=None, out=None) -> int:
     def shown(f) -> str:
         # names relative to the testbench (the files the user edits are src/<tb>/...), and the
         # asset fix with the testbench, so it runs from the workspace
-        line = f"{f}\n".replace(f"{d}/", "").replace(f"{tb.share}/", "")
+        line = f"{f}\n".replace(f"{tb.share}/", "")
         if tb.installed:
-            line = line.replace("scensim assets fetch)", f"scensim assets fetch {tb.name})")
-        return line
+            return testbenches.shown_finding(line, tb.name, d)
+        return line.replace(f"{d}/", "")
     for f in pkg:
         out.write(shown(f))
     for f in here:

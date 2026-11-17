@@ -91,6 +91,10 @@ def _logs() -> Path:
 
 def runs_root(args) -> Path:
     tb = getattr(args, "testbench", None)
+    try:
+        config.check_renamed()   # a renamed variable first, before what the arguments lack
+    except config.ConfigError as e:
+        raise Refused(str(e)) from None
     if args.root:
         root = Path(args.root).expanduser()
     elif tb:

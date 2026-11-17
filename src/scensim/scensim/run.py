@@ -406,6 +406,25 @@ def prepare_stack(project: Path, host: dict, plan=True):
     return s, log_dir
 
 
+def stack_name(project: Path) -> str:
+    """The name a stack goes by in messages: its testbench's (a work directory's name is it)."""
+    return Path(project).resolve().name
+
+
+def stack_target(project: Path) -> str:
+    """What ``scensim stack`` takes for ``project``: an installed testbench's name, else its
+    directory."""
+    return Path(project).name if testbenches.is_work_dir(project) else str(project)
+
+
+def _simulator(project: Path):
+    try:
+        sim = config.project_settings(project).get("simulator")
+    except config.ConfigError:
+        return None
+    return {"carla": "CARLA", "isaac": "Isaac Sim"}.get(sim, sim)
+
+
 def start_stack(project: Path, host: dict, command=None, out=None) -> StartedStack:
     """Start the project's stack (``command(project, host, seat, log_dir) -> argv``, default
     ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
@@ -416,8 +435,8 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
                                       cwd=str(project))
     except OSError as e:
         raise StackFailed(f"the stack did not start ({argv[0]}): {e}") from None
-    (out or sys.stdout).write(f"stack    starting on seat {s.index} (pid {proc.pid}, console "
-                              f"{log_dir / 'console.log'})\n")
+    (out or sys.stdout).write(f"stack    {stack_name(project)} on seat {s.index}: starting "
+                              f"(pid {proc.pid}, console {log_dir / 'console.log'})\n")
     try:
         sim = config.project_settings(project).get("simulator")
     except config.ConfigError:
@@ -1406,15 +1425,18 @@ def main(argv=None, out=None, stack_command=None) -> int:
     return _main(args, out, stack_command)
 
 
-def check_scenarios(project: Path, specs) -> None:
+def check_scenarios(project: Path, specs, testbench: str = None) -> None:
     """Refuse a run whose scenario the project cannot run (its pilots, its simulator; G66):
     the stack starts without them, so one CARLA-only scenario in an Isaac project refuses
     only the runs that name it."""
     files = list(dict.fromkeys(s.scenario for s in specs if not s.distribution))
     found = projectmod.scenario_problems(project, files)
     if found:
-        raise Refused("project check found problems in the scenario:\n" +
-                      "\n".join(str(f) for f in found))
+        if testbench is None:
+            raise Refused("project check found problems in the scenario:\n" +
+                          "\n".join(str(f) for f in found))
+        raise Refused(f"testbench check found problems in the scenario:\n" + "\n".join(
+            testbenches.shown_finding(str(f), testbench, project) for f in found))
 
 
 def open_testbench(target: str, logs=None):
@@ -1471,7 +1493,8 @@ def _main(args, out, stack_command=None) -> int:
             early = None   # context() refuses it, in its own words
         if early is not None:
             check_scenarios(early, expand(Path(args.target), early, args.repeat,
-                                          _parse_params(args.param))[0])
+                                          _parse_params(args.param))[0],
+                            testbench=early.name if testbenches.is_work_dir(early) else None)
         ctx = context(args.project, args.seat, args.logs, args.wait,
                       start=args.start_stack or args.stop_stack, stack_command=stack_command,
                       stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,
@@ -1514,8 +1537,11 @@ def _main(args, out, stack_command=None) -> int:
                 out.flush()
                 started.stop(out=out)
             else:
-                out.write(f"stack    left up (pid {started.proc.pid}, seat {started.seat}); "
-                          f"stop it with: kill -INT -{started.proc.pid}\n")
+                where = ", ".join(str(v) for v in (_simulator(ctx.project),
+                                                   (ctx.stack or {}).get("map")) if v)
+                out.write(f"stack    {stack_name(ctx.project)} on seat {started.seat}: "
+                          f"started{f' ({where})' if where else ''}; left up; stop it with: "
+                          f"scensim stack {stack_target(ctx.project)} --stop\n")
                 out.flush()
 
 

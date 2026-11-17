@@ -192,7 +192,7 @@ jobs:
         with:
           name: tarballs
           path: dist
-      - run: scripts/release/check_links.sh dist/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst --out links
+      - run: scripts/release/check_links.sh dist/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst --out "$PWD/links"   # absolute: docker takes a relative -v source for a volume name
       - if: always()
         uses: actions/upload-artifact@v4
         with:

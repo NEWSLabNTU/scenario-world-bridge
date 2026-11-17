@@ -14,8 +14,8 @@ The tarball unpacks to a prefix root (no top directory):
   architecture, naming both values;
 - ``bin/scensim``, a wrapper: ``scensim <command> ...`` runs ``lib/scensim/<command>``
   with this prefix sourced;
-- ``scensim-release.yaml``: version, side, ros_distro, arch, autoware, every repository's
-  commit, each CARLA binary's support tier;
+- ``scensim-release.yaml``: version, side, ros_distro, arch, autoware, the simulators it
+  serves, every repository's commit, each CARLA binary's support tier;
 - each package's ``package.xml`` (already under ``share/<pkg>/``, for ``rosdep install
   --from-paths``), and ``LICENSES/<repository>/``.
 
@@ -206,6 +206,9 @@ def release_yaml(prefix: Path, a, arch: str, commit_map: dict, build_s: int):
         f"ros_distro: {a.distro}",
         f"arch: {arch}",
         "autoware: null",
+        # Isaac's world server is not yet packaged into the prefix (its Python and aib run
+        # from the source tree; roadmap 082): this tarball serves CARLA only.
+        "simulators: [carla]",
         f'built: "{datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}"',
         f"build_seconds: {build_s}",
         "carla:",

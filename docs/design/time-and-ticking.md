@@ -15,7 +15,7 @@ sim_time_ns = nanos(elapsed_seconds) + BASE_NS     # BASE_NS = 1000 s
 nanos(s)    = round-half-away-from-zero(s * 1e9)
 ```
 
-`BASE_NS` and `nanos` are one definition per language -- `swb_core::sim_time` (Rust),
+`BASE_NS` and `nanos` are one definition per language -- `scensim_core::sim_time` (Rust),
 `scensim_world_server.protocol` (Python), acb's `clock.rs`, aib's `sim_time.py` -- and
 `scripts/test_sim_time.py` (in `just test`) checks that all four agree on the constant and on
 a table of rounding cases. `BASE_NS` keeps ROS time away from 0 (ROS's "no clock yet") and

@@ -15,7 +15,7 @@ A world server is one process that owns the simulator and answers the protocol's
   `set_signals` and the rest with a capability), set `simulator_name`, `capabilities` and
   `max_physics_dt`, and serve it with `scensim_world_server.server.bind` and `run`
   (`scensim_isaac_world/scensim_isaac_world/world.py`).
-- **Rust**: implement `swb_core::world_server::World` and serve it with
+- **Rust**: implement `scensim_core::world_server::World` and serve it with
   `world_server::bind` and `serve`, as `scensim_carla_world` does.
 - **Anything else**: the `.proto` and a ZMQ REP socket.
 

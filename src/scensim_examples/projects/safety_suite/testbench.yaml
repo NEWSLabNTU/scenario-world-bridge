@@ -17,3 +17,4 @@ judges:
   # touched something SSv2's boxes did not see fails here.
   - name: physical_verdict
     run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+default: nightly   # the suite `scensim run <testbench>` runs

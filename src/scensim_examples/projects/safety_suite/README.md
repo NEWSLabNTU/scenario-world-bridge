@@ -22,10 +22,10 @@ What `testbench.yaml` sets:
   it other arguments (`pilot_args`, as `centerpoint.yaml` does). A run lasts 11 to 35
   minutes, so the restart costs little.
 - `logging.keep`: a passed run keeps its result only; a failed or errored one keeps its
-  logs and its recording, for `ros2 run scensim runs why`.
+  logs and its recording, for `scensim runs why`.
 - `judges`: `physical_verdict` joins CARLA's own contact reports into the run's JUnit, so an
-  ego that touched something SSv2 did not see fails. `ros2 run scensim run` runs it after each
-  passed or failed run; its verdict is in `runs/<id>/judges/physical_verdict.json`, on the
+  ego that touched something SSv2 did not see fails. `scensim run` runs it after each
+  passed or failed run; its verdict is in `judges/physical_verdict.json` in the run directory, on the
   run's line and in the suite's `summary.csv`, beside the scenario's own.
 
 ## Hardware
@@ -36,28 +36,27 @@ map, and a few MB per kept run.
 
 ## Commands
 
-```bash
-ros2 run scensim project new ~/safety_suite --from pkg://scensim_examples/projects/safety_suite
-cd ~/safety_suite
-ros2 run scensim assets fetch
-ros2 run scensim project check
-```
-
-With CARLA 0.9.16 serving, bring up the stack in one terminal (the ego starts with each run):
+Copy the example into a workspace as a testbench, build it, fetch its assets, check it:
 
 ```bash
-play_launch launch scensim_launch scensim.launch.xml
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+scensim testbench new safety_suite --from pkg://scensim_examples/projects/safety_suite
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch safety_suite
+scensim testbench check safety_suite
 ```
 
-Then, in a second terminal in the project:
+CARLA 0.9.16 must be serving on the host settings' `carla.host` and `carla.port`
+(default `localhost:2000`), or `carla.root` must name its install so that the stack
+starts it. The ego starts with each run.
 
 ```bash
-ros2 run scensim run suites/nightly.yaml
-ros2 run scensim run suites/centerpoint.yaml
-ros2 run scensim runs summary
+scensim run safety_suite                      # the default suite, nightly
+scensim run safety_suite/centerpoint
+scensim runs summary --testbench safety_suite
 ```
 
-On two hosts with the same project and lock, `--shard 1/2` and `--shard 2/2` split a suite
+On two hosts with the same testbench and lock, `--shard 1/2` and `--shard 2/2` split a suite
 between them.
 
 ## Expected result
@@ -68,4 +67,5 @@ quality, 32 cores, one RTX GPU). `centerpoint.yaml`: the same two `passed` lines
 46 minutes (measured on 2026-11-16: ACC 27/27 in 2126 s, AEB 9/9 in 631 s); without the
 TensorRT 10.8 runtime each Autoware start first rebuilds CenterPoint's engines.
 
-`assets/`, `state/` and `runs/` are made on each host and are not committed.
+What each host makes for the testbench (the fetched assets' links, `state/`, the runs)
+is kept outside the package, under the log root; nothing of it is committed.

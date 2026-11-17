@@ -13,7 +13,7 @@ and each one can be repeated exactly. What it chose is written to
 ``<run dir>/logs/pilot-cut_in/cut_in.json`` (kept with the logs: ``logging.keep``).
 
 CARLA's endpoint and its PythonAPI come from the scensim host settings of this project
-(``carla: {root, host, port}``, as ``ros2 run scensim seat show`` and the stack read them).
+(``carla: {root, host, port}``, as ``scensim seat show`` and the stack read them).
 """
 import json
 import math

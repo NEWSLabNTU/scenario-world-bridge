@@ -5,3 +5,4 @@ assets:
     take: [Town01]
 pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
+default: all   # the suite `scensim run <testbench>` runs

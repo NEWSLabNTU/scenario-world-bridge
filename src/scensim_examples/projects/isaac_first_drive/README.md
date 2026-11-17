@@ -23,32 +23,32 @@ the cache (`cache:` of `~/.config/scensim/host.yaml`; put it on a fast disk).
 
 ## Commands
 
+Copy the example into a workspace as a testbench, build it, fetch its assets, check it:
+
 ```bash
-ros2 run scensim project new ~/isaac_first_drive \
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+scensim testbench new isaac_first_drive \
     --from pkg://scensim_examples/projects/isaac_first_drive
-cd ~/isaac_first_drive
-ros2 run scensim assets fetch
-ros2 run scensim project check
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch isaac_first_drive
+scensim testbench check isaac_first_drive
 ```
 
 The first fetch downloads Town01 and the vehicles from the 25.5 GB
 `carla-0.9.16-isaac-usd` dataset (only what `take:` names) and writes `scensim.lock`; commit
-it. Bring up the stack in one terminal:
+it. Isaac Sim 6.1 is named by the host settings' `isaac.root`. Then:
 
 ```bash
-play_launch launch scensim_launch scensim.launch.xml
+scensim run isaac_first_drive/scenarios/drive_to_goal.xosc
+scensim run isaac_first_drive/scenarios/follow_to_goal.xosc
 ```
 
-The world server loads Town01 (several minutes on a cold host), then Autoware starts. In a
-second terminal in the project:
-
-```bash
-ros2 run scensim run scenarios/drive_to_goal.xosc
-ros2 run scensim run scenarios/follow_to_goal.xosc
-```
+The first run brings up the stack: the world server loads Town01 (several minutes on a cold
+host), then Autoware starts. The stack stays up for the second run.
 
 ## Expected result
 
-`project check` prints `project: ok`; each run prints `passed  <run id>  <run directory>`.
+`testbench check` ends `testbench: ok`; each run prints `passed  <run id>  <run directory>`.
 
-`assets/`, `state/` and `runs/` are made on each host and are not committed.
+What each host makes for the testbench (the fetched assets' links, `state/`, the runs)
+is kept outside the package, under the log root; nothing of it is committed.

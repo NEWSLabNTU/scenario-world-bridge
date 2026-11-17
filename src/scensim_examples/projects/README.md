@@ -1,10 +1,10 @@
-# Example projects
+# Example testbenches
 
-Working scenario-world-bridge projects, one use case each. Every one is a directory with a
+Working scensim testbenches, one use case each. Every one is a directory with a
 `testbench.yaml` (the simulator, the assets, who drives each entity), its scenarios and, where
 useful, suites.
 
-| Project | Simulator | Shows |
+| Example | Simulator | Shows |
 |---|---|---|
 | [first_drive](first_drive/) | CARLA | one Autoware ego: a drive to a goal, a red light, a pedestrian crossing |
 | [multi_pilot](multi_pilot/) | CARLA | four pilots of four kinds in one run: Autoware, a second Autoware, CARLA's BasicAgent and your own agent cutting in |
@@ -15,23 +15,23 @@ useful, suites.
 
 ## Make your own copy
 
-The installed examples are read-only (`share/scensim_examples/projects/`), and a project is
-written to as it runs: `assets fetch` writes `scensim.lock` and the `assets/` links, the stack
-writes `state/`, runs write `runs/`. So copy one into a directory of your own first:
+The installed examples are read-only (`share/scensim_examples/projects/`). Copy one into
+a colcon workspace as a testbench package of your own, with its own `package.xml`:
 
 ```bash
-ros2 run scensim project new ~/first_drive --from pkg://scensim_examples/projects/first_drive
-cd ~/first_drive
-ros2 run scensim assets fetch
-ros2 run scensim project check
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+scensim testbench new first_drive --from pkg://scensim_examples/projects/first_drive
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch first_drive
+scensim testbench check first_drive
 ```
 
-`--from` takes any project directory, too (a colleague's checkout); it copies the files and
-leaves out what each host makes (`assets/`, `state/`, `runs/`, `.scensim/`).
+`--from` takes any testbench or project directory, too (a colleague's checkout); it copies
+the files and leaves out what each host makes.
 
 ## The lock
 
-The examples ship without `scensim.lock`. The first `assets fetch` in your copy resolves each
+The examples ship without `scensim.lock`. The first `assets fetch` of your copy resolves each
 dataset to its current commit and writes the lock with every file's checksum; commit it in
 your copy, and every later fetch, on any host, gets exactly those files.
 

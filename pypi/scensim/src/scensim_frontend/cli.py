@@ -78,8 +78,7 @@ def install(release: Release, autoware: str | None, force: bool, first_use: bool
     cur = home() / "current"
     print(f"installed in {install_dir(v, d)} (current)", file=sys.stderr)
     # rosdep update first: an old cache misses keys (python3-yamale-pip) and install exits 1
-    print("missing system packages: refresh rosdep's index, then install them (as an "
-          "administrator):", file=sys.stderr)
+    print("missing system packages: run once, the second as an administrator:", file=sys.stderr)
     print("  rosdep update", file=sys.stderr)
     paths = f"{cur}/sim/share" + (f" {cur}/vehicle-autoware{autoware}/share" if autoware else "")
     print(f"  sudo rosdep install --from-paths {paths} --ignore-src -y", file=sys.stderr)

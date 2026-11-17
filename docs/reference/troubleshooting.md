@@ -25,7 +25,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 
 | Symptom | Cause, fix |
 |---|---|
-| `no stack of project <name> on any seat` | the stack is not up, or was started from another directory: start it in the testbench |
+| `no stack of project <name> on any seat` | the stack is not up: `scensim run <testbench>` or `scensim stack <testbench>` starts it |
 | `the stack ... was started from another project state: ... differ; restart the stack` | `testbench.yaml`, `scensim.lock` or the pilots changed since the stack started: restart it |
 | `the stack ... is not ready (... waiting for ego); try --wait 600` | a pilot is still starting: wait for the stack's `ready` line, or add `--wait` |
 | `stacks of this project on seats 0, 1: give --seat <n>` | two stacks of the testbench are up: name one |

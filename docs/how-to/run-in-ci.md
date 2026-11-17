@@ -10,33 +10,27 @@ checked out ([Start a testbench](start-a-project.md)); suites are
 
 ```bash
 #!/usr/bin/env bash
-# nightly.sh: the project's nightly suite against a stack this job starts and stops
+# nightly.sh: a testbench's nightly suite on a stack this job starts and stops
+# WS: the workspace (its src/ holds the checkout); TB: the testbench's package name
 set -u
 source ~/scensim.bash
-cd "$PROJECT"
-scensim assets fetch || exit 3
-scensim project check || exit 3
+cd "$WS" && colcon build --symlink-install || exit 3
+source install/setup.bash
+scensim assets fetch "$TB" || exit 3
+scensim testbench check "$TB" || exit 3
 
-setsid ros2 launch scensim_launch scensim.launch.xml map:=Town01 > stack.log 2>&1 &
-STACK=$!
-
-scensim run suites/nightly.yaml --wait 1200 | tee run.out
+scensim run "$TB"/nightly --stop-stack --stack-timeout 1800 | tee run.out
 CODE=${PIPESTATUS[0]}
 # the first cause of each run that did not pass
 awk '$1 == "failed" || $1 == "error" {print $2}' run.out \
     | xargs -r -n1 scensim runs why
-
-kill -INT -$STACK            # the whole stack, and only it
-wait $STACK
-scensim runs summary
 exit $CODE
 ```
 
-`--wait 1200` lets the run wait up to 20 minutes for the stack to become ready, instead of
-refusing at once. `setsid` gives the stack a process group of its own, so the job stops
-exactly what it started. A stack that is already up and from the same testbench state
-serves the job as it is; one from another state is refused (restart it). `map:=Town01`
-starts the pilots before the first run, so `--wait` covers Autoware's start too.
+`--stop-stack` starts the testbench's stack when none is up, runs the suite and stops the
+stack it started, so the job leaves nothing behind; `--stack-timeout` bounds the stack's
+start. A stack that is already up and from the same testbench state serves the job as it
+is, and is left up; one from another state is refused (stop it).
 
 **Headless.** A CI host needs no display: the CARLA the stack starts runs off-screen
 (`-RenderOffScreen`), and nothing else opens a window unless a pilot asks for RViz
@@ -48,7 +42,7 @@ The job needs the host's GPU, CARLA and the built workspace, so it runs on a mac
 your own: a self-hosted runner. For GitHub Actions, for example:
 
 ```yaml
-# .github/workflows/nightly.yml in the project's repository
+# .github/workflows/nightly.yml in the testbench's repository
 on:
   schedule: [{cron: "0 2 * * *"}]
 jobs:
@@ -57,12 +51,13 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
-      - run: PROJECT=$PWD bash nightly.sh
+        with: {path: ws/src/my_testbench}
+      - run: WS=$PWD/ws TB=my_testbench bash ws/src/my_testbench/nightly.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: results
-          path: runs/*/result.json
+          path: ~/.local/state/scensim/logs/my_testbench/suites/nightly/
 ```
 
 A GitLab CI job is the same script under a `tags:` that picks the GPU runner. The
@@ -79,8 +74,8 @@ person books.
 | 3 | refused: no stack, a stack of another testbench state, a missing asset, bad input |
 
 Each suite writes `summary.csv` and a merged `junit.xml` under
-`<logs>/<project>/suites/<suite>/`, printed on its last line (`summary: <path>`); `ros2 run
-scensim runs summary [<dir>]` writes the same for any directory of runs. Any JUnit viewer reads
+`<logs>/<testbench>/suites/<suite>/`, printed on its last line (`summary: <path>`);
+`scensim runs summary [<dir>]` writes the same for any directory of runs. Any JUnit viewer reads
 the merged file: one test suite per run, SSv2's testcases in it, and an `error` testcase
 when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summary.csv`'s
 `judges` column and in each run's `judges/`, never in place of the run's
@@ -91,8 +86,8 @@ when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summ
 With the same testbench and `scensim.lock` on both:
 
 ```bash
-scensim run suites/nightly.yaml --shard 1/2     # host A
-scensim run suites/nightly.yaml --shard 2/2     # host B
+scensim run my_testbench/nightly --shard 1/2     # host A
+scensim run my_testbench/nightly --shard 2/2     # host B
 ```
 
 Each writes its own `suites/nightly_shard-1-of-2/` table. Copy both runs directories to one

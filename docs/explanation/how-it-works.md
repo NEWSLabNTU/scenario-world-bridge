@@ -66,7 +66,7 @@ of them are driven from outside SSv2 (controller `Autoware` or `agent`). The tes
 who drives each of those (`pilots:`), which assets at which versions (`assets:`, pinned by
 `scensim.lock`), and the simulator. The host owns its seats, GPUs, install paths, log and
 cache folders. So a scenario runs unchanged in any testbench with its map, a testbench runs
-unchanged on any host after `assets fetch`, and a host change never edits a project.
+unchanged on any host after `assets fetch`, and a host change never edits a testbench.
 
 **Assets by name.** A testbench names datasets and the part of each it takes; `assets fetch`
 puts them in a read-only cache shared by every testbench and links them into `assets/`.
@@ -90,5 +90,5 @@ a port or a CARLA. A seat number gives each its own; the host's table maps the n
 domains, ports and a GPU ([Several stacks on one host](../how-to/several-stacks.md)).
 
 For developers, the design in full:
-[Testbenches, stacks, runs and pilots](../design/projects-and-pilots.md) and
+[Projects, stacks, runs and pilots](../design/projects-and-pilots.md) and
 [the architecture](../design/architecture.md).

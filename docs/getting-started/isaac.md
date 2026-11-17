@@ -28,12 +28,14 @@ there is no separate vehicle bridge. Autoware connects to it over ROS, on the sa
 ## Install Isaac Sim
 
 Isaac Sim is pip-installed into a Python 3.12 environment of its own (it does not touch the
-system's Python). Choose where it goes and run the installer from the workspace:
+system's Python). Choose where it goes and run the installer:
+
+<!-- TODO(exit run): the installer's path in the release, once Isaac is in it. -->
 
 ```bash
-cd ~/scensim                                      # your clone
 export ISAAC_ROOT=~/isaac-sim
-src/scensim_isaac_world/scripts/install_isaac.sh  # ends: isaacsim 6.1.0.0, INSTALL-DONE
+$(ros2 pkg prefix --share scensim_isaac_world)/scripts/install_isaac.sh
+# ends: isaacsim 6.1.0.0, INSTALL-DONE
 ```
 
 ## Tell scensim where it is

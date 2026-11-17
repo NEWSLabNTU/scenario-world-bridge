@@ -48,7 +48,7 @@ SSv2's simulator instead, and Autoware has to *see* the pedestrian, the car ahea
 traffic light. For someone who already writes SSv2 scenarios:
 
 - **The same `.xosc` files run**, on either simulator. A scenario names its map through a
-  variable the stack sets to the project's map directory (`$(env SCENSIM_MAPS)/Town01`) and
+  variable the stack sets to the testbench's map directory (`$(env SCENSIM_MAPS)/Town01`) and
   its cars from the vehicle catalog, never by a path of the local machine.
 - **The sensors are the simulator's.** SSv2's sensor requests are declined; Autoware gets
   the simulator's cameras and lidar.
@@ -66,8 +66,9 @@ traffic light. For someone who already writes SSv2 scenarios:
   <em>A formal scenario, a simulator, and the bridge between them and the autopilot.</em>
 </p>
 
-Work is organised in **projects**: a project is a directory with a `swb.yaml` that names the simulator, the
-assets (maps, USD worlds, cars) and which **pilot** drives each scenario entity. A
+Work is organised in **testbenches**: a testbench is a ROS package in a colcon workspace,
+with a `testbench.yaml` that names the simulator, the assets (maps, USD worlds, cars) and
+which **pilot** drives each scenario entity. A
 long-lived **stack** brings up the simulator side and the pilots; each **run** of a
 scenario goes against it and leaves a result. These words and the others the pages use
 are in the [glossary](docs/reference/glossary.md);
@@ -78,14 +79,14 @@ and its directory recorded in the host settings file (`~/.config/scensim/host.ya
 Install), so that the stack starts it:
 
 ```bash
-scensim project new ~/my_first_drive    # a starter project
-cd ~/my_first_drive
-scensim assets fetch                    # its map, from Hugging Face
-ros2 launch scensim_launch scensim.launch.xml    # the stack: it remains running
-scensim run scenarios/drive_to_goal.xosc    # in a second terminal
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+scensim testbench new my_first_drive     # a starter testbench
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch my_first_drive      # its map, from Hugging Face
+scensim run my_first_drive               # starts the stack, which remains running
 ```
 
-The run ends with one line, `passed   <run id>  <run directory>`, and exits 0.
+The run ends with `passed   <run id>  <run directory>`, and exits 0.
 [Tutorial 1](docs/tutorials/01-first-drive.md) goes through it step by step.
 
 ## Requirements
@@ -123,7 +124,7 @@ its dependencies. The documentation is then organised as follows:
    3. [Other road users](docs/tutorials/03-other-road-users.md)
    4. [Several pilots](docs/tutorials/04-several-pilots.md)
    5. [Suites](docs/tutorials/05-suites.md)
-   6. [The same project on Isaac Sim](docs/tutorials/06-carla-assets-on-isaac.md)
+   6. [The same testbench on Isaac Sim](docs/tutorials/06-carla-assets-on-isaac.md)
    7. [Road physics](docs/tutorials/07-road-physics.md)
 3. **How-to guides**, for a specific task: [the list](docs/README.md#how-to-guides)
 4. **Reference**, for exact behaviour: [the list](docs/README.md#reference)
@@ -136,7 +137,7 @@ After installation, each reader continues from the point that matches their role
 
 - **A new user** continues with [Getting started on CARLA](docs/getting-started/carla.md)
   (or [on Isaac Sim](docs/getting-started/isaac.md)), then the tutorials in order.
-- **A project adopting scensim**, with its own car, autopilot and maps, continues with
+- **A team adopting scensim**, with its own car, autopilot and maps, continues with
   [Start a testbench of your own](docs/how-to/start-a-project.md), then the how-to guides
   and the reference.
 - **A scenario author** continues with
@@ -155,7 +156,7 @@ known limits: [Release notes](docs/release-notes.md).
 
 ## Datasets
 
-Public, on Hugging Face. A project names them in `swb.yaml`, and `scensim assets
+Public, on Hugging Face. A testbench names them in `testbench.yaml`, and `scensim assets
 fetch` downloads only what it takes:
 
 | Dataset | Holds | Licence |

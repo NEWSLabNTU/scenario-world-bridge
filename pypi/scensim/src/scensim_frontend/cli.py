@@ -169,6 +169,11 @@ def parse_install(args: list[str]) -> tuple[str | None, str | None, bool]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """The front end: the console script, and the callable the release's own ``scensim``
+    forwards ``--version``, ``-V`` and ``install`` to once its setup.bash is sourced (it is
+    first on PATH then). A stable interface: returns the exit code (0, 2 download, 3 refused,
+    130), and for those three never execs the release, or the two would loop. Every other
+    command execs the release; so does ``--help``, after the front end's usage."""
     args = list(sys.argv[1:] if argv is None else argv)
     try:
         if not args or args[0] in ("-h", "--help"):

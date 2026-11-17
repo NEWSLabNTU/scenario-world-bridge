@@ -14,7 +14,7 @@ setup(
     zip_safe=True,
     maintainer='Maintainer',
     maintainer_email='maintainer@example.com',
-    description='Agent SDK: drive scenario-world-bridge scenarios with any autopilot',
+    description='Agent SDK: drive scensim scenarios with any autopilot',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

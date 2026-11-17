@@ -1,6 +1,6 @@
 # @PROJECT@
 
-A scenario-world-bridge project: one Autoware ego drives a Tesla Model 3 to a goal on
+A scensim project: one Autoware ego drives a Tesla Model 3 to a goal on
 CARLA's Town01.
 
 | File | Holds |

@@ -1,9 +1,9 @@
-# UC-AEB-001-0001_Standing-pedestrian -- AWF ODD use case, adapted to the CARLA Town01 map of scenario-world-bridge.
+# UC-AEB-001-0001_Standing-pedestrian -- AWF ODD use case, adapted to the CARLA Town01 map of scensim.
 #
 # Source: https://github.com/autowarefoundation/odd-usecase-scenario
 #         scenarios/UC-AEB-001-0001_Standing-pedestrian.yaml at commit b258e781fdd487b866c3ecc2912e41239b47fef2
 # Copyright the Autoware Foundation contributors; licensed under the Apache License 2.0
-# (http://www.apache.org/licenses/LICENSE-2.0). Modified by scenario-world-bridge:
+# (http://www.apache.org/licenses/LICENSE-2.0). Modified by scensim:
 #   - RoadNetwork/LogicFile: maps/Town01.osm -> $(env SCENSIM_MAPS)/Town01 (our converted
 #     Town01, the TUM carla-autoware-bridge pack); SceneGraphFile (maps/dummy.pcd) dropped,
 #     as in this repo's other scenarios.

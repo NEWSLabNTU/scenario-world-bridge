@@ -1,6 +1,6 @@
 # Example projects
 
-Working scenario-world-bridge projects, one use case each. Every one is a directory with a
+Working scensim projects, one use case each. Every one is a directory with a
 `swb.yaml` (the simulator, the assets, who drives each entity), its scenarios and, where
 useful, suites.
 

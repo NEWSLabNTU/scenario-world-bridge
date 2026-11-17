@@ -1,6 +1,6 @@
 # scensim_examples: example projects and a scenario library
 
-**Example projects.** `projects/` holds working scenario-world-bridge projects for `ros2 run
+**Example projects.** `projects/` holds working scensim projects for `ros2 run
 scensim` (first drive, several pilots, a safety suite, Isaac Sim, road physics); start from
 [projects/README.md](projects/README.md).
 

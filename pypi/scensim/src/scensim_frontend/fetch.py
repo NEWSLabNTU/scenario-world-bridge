@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import os
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -112,6 +113,26 @@ def unpack(archive: Path, prefix: Path, version: str, distro: str) -> None:
         os.replace(root, prefix)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    relocate(prefix)
+
+
+def relocate(prefix: Path) -> None:
+    """Run the release's ``relocate.sh`` in its final place, when it has one: colcon's sh
+    scripts and ament's parent prefix path hold a placeholder for the prefix, which POSIX sh
+    cannot find for itself (setup.bash can). A failure removes the prefix: half a release is
+    never left to be found as installed."""
+    script = prefix / "relocate.sh"
+    if not script.exists():
+        print("  no relocate.sh in this release (an older one): its sh scripts keep their "
+              "build paths; setup.bash works", file=sys.stderr)
+        return
+    r = subprocess.run(["/bin/sh", str(script)], cwd=prefix, capture_output=True, text=True,
+                       check=False)
+    if r.returncode != 0:
+        shutil.rmtree(prefix, ignore_errors=True)
+        why = (r.stderr or r.stdout).strip().splitlines()[-1:] or [f"exit {r.returncode}"]
+        raise Refused(f"{script} failed: {why[0]}; the install is removed (run the command "
+                      "again, or report it with this line)")
 
 
 def _data_filter(skipped: list[str]):

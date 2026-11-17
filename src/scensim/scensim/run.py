@@ -295,10 +295,15 @@ def stack_alive(rec: dict) -> bool:
 def check_stack(rec: dict, project: Path, wait: float = 0.0, reread=None) -> dict:
     """Refused unless ``rec``'s fingerprint is the project's and it is (or within ``wait``
     seconds becomes) ready."""
-    diff = stackmod.fingerprint_diff(rec.get("fingerprint") or {}, stackmod.fingerprint(project))
+    notes = []
+    diff = stackmod.fingerprint_diff(rec.get("fingerprint") or {}, stackmod.fingerprint(project),
+                                     notes)
     if diff:
         raise Refused(f"the stack {rec.get('stack_id')} was started from another project "
-                      "state: " + "; ".join(diff) + " differ; restart the stack")
+                      "state: " + "; ".join(diff) + " differ; restart the stack"
+                      + "".join(f" ({n})" for n in notes))
+    for n in notes:
+        sys.stderr.write(f"warning  {n}\n")
     deadline = time.time() + wait
     while rec.get("state") != stackmod.READY:
         if time.time() >= deadline:
@@ -664,6 +669,10 @@ def ensure_map(ctx: Context, name: str, timeout: float = SWITCH_TIMEOUT, restart
 
 CRASH_LIMIT = 5   # a node's crashes, while its pilot is not ready, before the run gives up
 _CRASH = re.compile(r"\[node:(\S+)\] Exited .*\(crash (\d+) since last healthy run\)")
+# a pilot's launch that cannot start at all (either launcher): it ends at once and the keeper
+# respawns it without end, so the run says so at the first one, not at the readiness timeout
+_NO_PACKAGE = re.compile(r"[Pp]ackage '([^']+)' not found")
+_LAUNCH_FAILED = re.compile(r"Caught exception in launch[^:]*:\s*(.*)")
 
 
 def pilot_console(rec: dict, p: dict, logs: Path) -> Path:
@@ -718,6 +727,26 @@ class CrashWatch:
                 if n >= self.limit and (worst is None or n > worst[1]):
                     worst = (timeline.process_name(m.group(1)), n)
         return worst
+
+    def launch_failed(self):
+        """Why the pilot's launch itself failed (a package not found, an exception in the
+        launch description) after the watch started, with the fix; else None."""
+        try:
+            with open(self.path, "rb") as f:
+                f.seek(self.offset)
+                text = timeline._ANSI.sub("", f.read().decode("utf-8", "replace"))
+        except OSError:
+            return None
+        m = _NO_PACKAGE.search(text)
+        if m:
+            return (f"its launch fails at once: package {m.group(1)} not found (fix: source "
+                    f"the install that provides {m.group(1)} -- for an Autoware pilot, "
+                    "scensim's vehicle side for your Autoware -- in the terminal that starts "
+                    "the stack, then start the stack again)")
+        m = _LAUNCH_FAILED.search(text)
+        if m:
+            return f"its launch fails at once: {m.group(1).strip()}"
+        return None
 
 
 # A pilot's process crashing while the scenario runs (roadmap 079, step 5): the run did not
@@ -1076,6 +1105,12 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                     run_events.append({"t_wall": time.time(), "event": "pilot.ready",
                                        "entity": p["entity"]})
                     continue
+                failed = watches[p["entity"]].launch_failed()
+                if failed:
+                    waiting.remove(p)
+                    infra.append(f"pilot {p['entity']} is not coming up: {failed} (see "
+                                 f"{watches[p['entity']].path})")
+                    continue
                 crashing = watches[p["entity"]].crashing()
                 if crashing:
                     node, n = crashing
@@ -1241,12 +1276,19 @@ def wait_pilots_ready(ctx: Context):
     rec = ctx.stack
     waiting = [p for p in rec.get("pilots", []) if p.get("lifetime", "stack") != "run"]
     why = {p["entity"]: [] for p in waiting}
+    watches = {p["entity"]: CrashWatch(pilot_console(rec, p, None)) for p in waiting
+               if rec.get("proc")}
     deadline = time.time() + ctx.ready_timeout
     while waiting:
         for p in list(waiting):
             if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
                                     why=why[p["entity"]]):
                 waiting.remove(p)
+                continue
+            failed = watches[p["entity"]].launch_failed() if p["entity"] in watches else None
+            if failed:
+                return (f"pilot {p['entity']} is not coming up: {failed} (see "
+                        f"{watches[p['entity']].path})")
         if waiting and time.time() >= deadline:
             return "; ".join(f"pilot {p['entity']} never became ready ({ctx.ready_timeout:.0f} s)"
                              + (f": {why[p['entity']][0]}" if why[p["entity"]] else "")

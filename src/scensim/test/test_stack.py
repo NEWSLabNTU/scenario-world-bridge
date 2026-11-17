@@ -238,6 +238,33 @@ def test_fingerprint_diff_names_parts(where, maps_hub):
     assert "the build's submodules (src/x)" in diff
 
 
+def test_a_failed_submodule_probe_is_unknown_and_not_a_different_build(
+        where, maps_hub, monkeypatch, tmp_path, capsys):
+    # 241, 2026-11-18: the keeper's `git submodule status` failed at a stack's start under
+    # load; its fingerprint said {} and the run's had 11 pins, so the run was refused
+    from scensim import results
+    ws = tmp_path / "ws"
+    (ws / ".git").mkdir(parents=True)
+
+    def slow(*a, **k):
+        raise results.subprocess.TimeoutExpired(a[0], k.get("timeout"))
+    monkeypatch.setattr(results.subprocess, "run", slow)
+    assert results.submodule_pins(ws) is None
+    err = capsys.readouterr().err
+    assert "WARN" in err and "git --no-optional-locks submodule status" in err \
+        and "no answer within 30 s" in err
+    d = make(where)
+    keeper = stack.fingerprint(d, build={"scensim": "abc", "submodules": None})
+    runner = stack.fingerprint(d, build={"scensim": "abc", "submodules": {"src/x": "1"}})
+    notes = []
+    assert stack.fingerprint_diff(keeper, runner, notes) == []
+    assert notes == ["the build's submodules were not compared (unknown on the stack's side: "
+                     "its `git submodule status` failed)"]
+    # a known difference still refuses
+    runner["build"]["scensim"] = "abd"
+    assert stack.fingerprint_diff(keeper, runner) == ["the build (stack scensim abc, now abd)"]
+
+
 def test_substitute():
     ctx = {"seed": 7, "run_dir": "/r", "run_id": "id", "params": {"p": 3}}
     assert stack.substitute(["--s", "{seed}", "{run_dir}/x", "{param:p}", "{other}"], ctx, "w") \

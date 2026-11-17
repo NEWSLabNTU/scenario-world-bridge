@@ -81,7 +81,10 @@ def unpack(archive: Path, prefix: Path, version: str, distro: str) -> None:
             reader = zstandard.ZstdDecompressor().stream_reader(fh)
             with tarfile.open(fileobj=reader, mode="r|") as tar:
                 if hasattr(tarfile, "data_filter"):
-                    tar.extractall(tmp, filter="tar")
+                    skipped: list[str] = []
+                    tar.extractall(tmp, filter=_data_filter(skipped))
+                    for name in skipped:
+                        print(f"  skipped {name}: a link out of the install", file=sys.stderr)
                 else:  # pragma: no cover (Python without PEP 706)
                     tar.extractall(tmp)
         root = tmp
@@ -109,6 +112,38 @@ def unpack(archive: Path, prefix: Path, version: str, distro: str) -> None:
         os.replace(root, prefix)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _data_filter(skipped: list[str]):
+    """tarfile's ``data`` filter (nothing written outside the prefix, no device files, no
+    setuid), except that a symbolic or hard link pointing out of the prefix is left out and
+    named rather than failing the whole install: such a link dangles on every host anyway.
+    Any other refusal is the archive's fault: exit 3.
+
+    A link the filter refuses is resolved here again, from the link's own directory: Ubuntu
+    22.04's Python 3.10.12 resolves a relative symbolic link from the archive's root instead
+    (CPython gh-107845, fixed in 3.10.13), which would refuse ``a/b -> ../c``."""
+    def inside(member: tarfile.TarInfo, dest: str) -> bool:
+        base = os.path.realpath(dest)
+        if member.issym():
+            target = os.path.join(base, os.path.dirname(member.name), member.linkname)
+        else:
+            target = os.path.join(base, member.linkname)
+        target = os.path.normpath(target)
+        return not os.path.isabs(member.linkname) and (target + os.sep).startswith(base + os.sep)
+
+    def f(member: tarfile.TarInfo, dest: str):
+        try:
+            return tarfile.data_filter(member, dest)
+        except (tarfile.AbsoluteLinkError, tarfile.LinkOutsideDestinationError):
+            if inside(member, dest):
+                return tarfile.tar_filter(member, dest)   # its target checked just above
+            skipped.append(member.name.removeprefix("./"))
+            return None
+        except tarfile.FilterError as e:
+            raise Refused(f"the archive is not a plain release: {e}") from e
+
+    return f
 
 
 def point_current(target: Path) -> None:

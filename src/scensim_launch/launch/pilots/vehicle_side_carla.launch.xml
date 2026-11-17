@@ -45,9 +45,9 @@
   <arg name="map_origin_path" default="$(eval &quot;'$(var map_path)/carla/map_origin.yaml' if '$(var map_path)' != '' else ''&quot;)" description="CARLA's world origin in the map frame; no file = zero"/>
   <arg name="carla_physics" default="none" description="the spec's carla_physics.yaml; none = the blueprint's own physics"/>
   <arg name="carla_physics_mode" default="verify" description="verify (the world server applied it; scensim's case) | apply"/>
-  <!-- The pedal maps belong to the physics: the blueprint's (acb_launch's measured ones) with
+  <!-- The pedal maps belong to the physics: the blueprint's (acb_bridge's measured ones) with
        carla_physics none, the spec car's otherwise. -->
-  <arg name="vehicle_maps_dir" default="$(eval &quot;'$(find-pkg-share acb_launch)/config/blueprint/$(var vehicle)' if '$(var carla_physics)' == 'none' else '$(find-pkg-share $(var vehicle)_description)/config'&quot;)"/>
+  <arg name="vehicle_maps_dir" default="$(eval &quot;'$(find-pkg-share acb_bridge)/config/blueprint/$(var vehicle)' if '$(var carla_physics)' == 'none' else '$(find-pkg-share $(var vehicle)_description)/config'&quot;)"/>
   <arg name="accel_map_path" default="$(var vehicle_maps_dir)/accel_map.csv"/>
   <arg name="brake_map_path" default="$(var vehicle_maps_dir)/brake_map.csv"/>
   <arg name="autoware_spec_hash_file" default="$(find-pkg-share $(var vehicle)_description)/config/spec_hash.yaml" description="the car's Autoware spec_hash.yaml; none = no check"/>

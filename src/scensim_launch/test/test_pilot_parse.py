@@ -99,7 +99,7 @@ def test_an_own_car_simple_pilot_resolves_without_the_cars_autoware_packages(tmp
     """roadmap 077, G5: the stack gives an own car's pilot its generated files; the vehicle
     side must take them, not look up <car>_description (play_launch's parser scopes an
     include to the arguments it names, so simple.launch.py forwards them all)."""
-    for p in ("scensim_agent", "acb_bridge", "sim_vehicle_spec", "acb_launch"):
+    for p in ("scensim_agent", "acb_bridge", "sim_vehicle_spec"):
         if not have_package(p):
             pytest.skip(f"not installed: {p}")
     from ament_index_python.packages import get_package_share_directory

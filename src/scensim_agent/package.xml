@@ -24,6 +24,14 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>autoware_control_msgs</exec_depend>
   <exec_depend>autoware_vehicle_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>autoware_adapi_v1_msgs</exec_depend>
+  <exec_depend>autoware_internal_debug_msgs</exec_depend>
+  <exec_depend>tier4_external_api_msgs</exec_depend>
+  <exec_depend>tier4_rtc_msgs</exec_depend>
+  <exec_depend>sim_vehicle_spec</exec_depend>
+  <!-- the carla_basic adapter also needs the CARLA Python API (pip install carla==0.9.16), not a rosdep key -->
 
   <test_depend>python3-pytest</test_depend>
   <test_depend>geometry_msgs</test_depend>

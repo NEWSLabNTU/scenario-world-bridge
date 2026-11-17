@@ -22,6 +22,9 @@
   <exec_depend>autoware_planning_msgs</exec_depend>
   <exec_depend>tier4_rtc_msgs</exec_depend>
   <exec_depend>tier4_planning_msgs</exec_depend>
+  <exec_depend>unique_identifier_msgs</exec_depend>
+  <!-- zones_tool plots -->
+  <exec_depend>python3-matplotlib</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

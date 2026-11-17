@@ -86,8 +86,6 @@ The links are made in the testbench's work directory, `<logs>/.testbenches/<test
 which holds what this host keeps for the testbench. The map's Isaac world file names its
 **stage**, the USD scene to load, through a variable rather than a fixed path:
 
-<!-- TODO(exit run): confirm that assets/ is linked in the work directory. -->
-
 ```bash
 logs=~/.local/state/scensim/logs     # the log root; the host settings' logs: if set
 w="$logs"/.testbenches/isaac_first_drive

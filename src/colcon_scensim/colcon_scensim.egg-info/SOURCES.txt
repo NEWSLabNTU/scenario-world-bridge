@@ -13,3 +13,4 @@ colcon_scensim/task/__init__.py
 colcon_scensim/task/build.py
 colcon_scensim/task/test.py
 test/test_build.py
+test/test_own_world.py

@@ -2,7 +2,7 @@
 
 The agent itself is `scensim_agent.adapters.autoware.AutowareAgent`: Autoware's ADAPI as a
 `scensim_agent.Agent`, simulator-neutral. This node runs it with ROS parameters, so a launch file
-starts it beside any vehicle side: scenario-world-bridge's ego launches pass
+starts it beside any vehicle side: scensim's ego launches pass
 `scensim_launch vehicle_agent.launch.xml` to the vehicle bridge's launch as `extra_launch`.
 
 Two modes:

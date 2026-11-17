@@ -1,4 +1,4 @@
-"""scensim_agent: drive scenario-world-bridge scenarios with any autopilot.
+"""scensim_agent: drive scensim scenarios with any autopilot.
 
     import scensim_agent
 

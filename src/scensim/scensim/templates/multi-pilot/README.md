@@ -1,6 +1,6 @@
 # @PROJECT@
 
-A scenario-world-bridge project with three pilots of different kinds in one scenario on
+A scensim project with three pilots of different kinds in one scenario on
 CARLA's Town01: Autoware drives the ego, CARLA's BasicAgent the car ahead, and your own
 program (`pilots/follower.py`, an agent on the scensim_agent SDK) the car behind.
 

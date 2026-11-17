@@ -1,4 +1,4 @@
-# scenario-world-bridge -- SSv2 on CARLA and Isaac Sim, through one world interface (roadmap 046)
+# scensim -- SSv2 on CARLA and Isaac Sim, through one world interface (roadmap 046)
 set dotenv-load
 
 # Host settings come from the environment (or .env / .envrc): ports, displays, install and

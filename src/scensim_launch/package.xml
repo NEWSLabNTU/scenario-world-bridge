@@ -3,7 +3,7 @@
 <package format="3">
   <name>scensim_launch</name>
   <version>0.1.0</version>
-  <description>Launch files for scenario-world-bridge demos</description>
+  <description>Launch files for scensim demos</description>
   <maintainer email="maintainer@example.com">Maintainer</maintainer>
   <license>Apache-2.0</license>
 

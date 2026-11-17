@@ -1,7 +1,7 @@
 """`CarlaBasicAgent`: drive the scenario's vehicle with CARLA's own BasicAgent (roadmap 030).
 
 The SDK's reference adapter and the agent of a run with no autopilot at all: no ROS, no
-Autoware. It finds the vehicle scenario-world-bridge spawned for the entity (by CARLA
+Autoware. It finds the vehicle scensim spawned for the entity (by CARLA
 `role_name`, the bridge's `ego.role_name`, default `hero`), and drives it with
 `agents.navigation.basic_agent.BasicAgent` from CARLA's PythonAPI: the route is planned
 through the scenario's waypoints with BasicAgent's global planner, the target speed is the

@@ -68,7 +68,7 @@ entity: ego
 
 README = '''# {title}
 
-An agent for scenario-world-bridge scenarios (scensim_agent SDK).
+An agent for scensim scenarios (scensim_agent SDK).
 
     ros2 run scensim_agent scensim-agent check {module}:{cls}   # protocol conformance, no simulator
     python3 -m {module} --config agent.yaml                # drive: register with the relay

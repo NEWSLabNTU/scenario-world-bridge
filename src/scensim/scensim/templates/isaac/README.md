@@ -1,6 +1,6 @@
 # @PROJECT@
 
-A scenario-world-bridge project on Isaac Sim: one Autoware ego drives a Tesla Model 3 to a
+A scensim project on Isaac Sim: one Autoware ego drives a Tesla Model 3 to a
 goal in CARLA's Town01, loaded from CARLA's assets in USD. Isaac drives one ego per
 scenario.
 

@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>
     The agent SDK (roadmap 030): one Python interface, scensim_agent.Agent, for any autopilot
-    driving scenario-world-bridge scenarios through the agent relay, and the agent
+    driving scensim scenarios through the agent relay, and the agent
     protocol both ends import. Standard library only; ROS optional.
   </description>
   <maintainer email="maintainer@example.com">Maintainer</maintainer>

@@ -158,8 +158,11 @@ def foreign_shebangs(prefix: Path) -> list:
         # a shebang names a path; Rust's inner attributes (#![...]) also start with #!
         if not head.startswith((b"#!/", b"#! /")):
             continue
-        interp = head[2:].strip().split(b" ")[0].decode(errors="replace")
-        if not interp.startswith(("/usr/bin/", "/bin/")):
+        words = head[2:].strip().split(b" ")
+        interp = words[0].decode(errors="replace")
+        if interp == "/usr/bin/env" and len(words) > 1 and words[1].startswith(b"python"):
+            found.append(f"{f.relative_to(prefix)}: /usr/bin/env {words[1].decode()}")
+        elif not interp.startswith(("/usr/bin/", "/bin/")):
             found.append(f"{f.relative_to(prefix)}: {interp}")
     return found
 
@@ -183,6 +186,129 @@ def build_root_refs(prefix: Path, roots) -> dict:
                     f"{rel.parts[0]}/")
             counts[kind] = counts.get(kind, 0) + 1
     return counts
+
+
+PLACEHOLDER = "@SCENSIM_PREFIX@"
+
+RELOCATE = """\
+#!/bin/sh
+# relocate.sh: write this release's location into its text files. colcon's sh scripts
+# (setup.sh, local_setup.sh, each package.sh) and ament's parent_prefix_path name their
+# prefix, and POSIX sh cannot find the place of a script it sources; bash's setup.bash
+# finds its own. The pip front end runs this once after unpacking; run it again after
+# moving the directory.
+set -e
+p=$(cd "$(dirname "$0")" && pwd)
+old=$(cat "$p/.scensim-prefix" 2>/dev/null || echo '@SCENSIM_PREFIX@')
+if [ "$old" != "$p" ]; then
+  grep -rlIF -- "$old" "$p" | while IFS= read -r f; do
+    [ "$f" = "$p/relocate.sh" ] && continue
+    sed -i "s|$old|$p|g" "$f"
+  done
+fi
+echo "$p" > "$p/.scensim-prefix"
+"""
+
+
+def env_pythons(prefix: Path) -> int:
+    """Point every ``#!/usr/bin/env python3`` script at the system's Python, /usr/bin/python3.
+
+    env takes the first python3 on PATH, a conda or virtual environment's among them,
+    which lacks rclpy and the release's own modules.
+    """
+    n = 0
+    for f in prefix.rglob("*"):
+        if not f.is_file() or f.is_symlink():
+            continue
+        try:
+            with open(f, "rb") as fh:
+                head = fh.readline(512)
+        except OSError:
+            continue
+        words = head[2:].split()
+        if head.startswith(b"#!") and len(words) >= 2 and words[0] == b"/usr/bin/env" \
+                and words[1].startswith(b"python"):
+            data = f.read_bytes()
+            f.write_bytes(b"#!/usr/bin/python3" + (b" " + b" ".join(words[2:]) if words[2:] else b"")
+                          + b"\n" + data[len(head):])
+            n += 1
+    return n
+
+
+def system_dir(entry: str, distro: str) -> bool:
+    return entry.startswith((f"/opt/ros/{distro}/", "/usr/lib", "/lib")) or entry in (
+        f"/opt/ros/{distro}/lib", "/usr/lib", "/lib")
+
+
+def fix_rpaths(prefix: Path, build_install: Path, distro: str, patchelf: str) -> list:
+    """Rewrite every ELF file's RPATH/RUNPATH to what holds in the prefix: $ORIGIN-relative
+    entries inside it and the system's directories. An entry into the build install becomes
+    its $ORIGIN-relative equivalent; one into build/, or out of the prefix, is dropped.
+    Returns the files changed."""
+    root = prefix.resolve()
+    changed = []
+    for f in sorted(prefix.rglob("*")):
+        if not f.is_file() or f.is_symlink() or not is_elf(f):
+            continue
+        r = subprocess.run([patchelf, "--print-rpath", str(f)], capture_output=True, text=True)
+        if r.returncode != 0 or not r.stdout.strip():
+            continue
+        old = r.stdout.strip().split(":")
+        new = []
+        for e in old:
+            if not e:
+                continue
+            if e.startswith("$ORIGIN"):
+                target = Path(os.path.normpath(e.replace("$ORIGIN", str(f.parent.resolve()), 1)))
+            elif e == str(build_install) or e.startswith(str(build_install) + "/"):
+                target = root / os.path.relpath(e, build_install)
+            elif system_dir(e, distro):
+                new.append(e) if e not in new else None
+                continue
+            else:
+                continue  # build/, another host path
+            if target == root or root in target.parents:
+                rel = os.path.relpath(target, f.parent.resolve())
+                entry = "$ORIGIN" if rel == "." else f"$ORIGIN/{rel}"
+                new.append(entry) if entry not in new else None
+        if new != old:
+            subprocess.run([patchelf, "--set-rpath", ":".join(new), str(f)], check=True)
+            changed.append(f"{f.relative_to(prefix)}: {':'.join(old)} -> {':'.join(new)}")
+    return changed
+
+
+def relocatable(prefix: Path, build_install: Path) -> int:
+    """Replace the build install's path with PLACEHOLDER in every text file; relocate.sh
+    writes the real place in. Returns the files changed."""
+    needle, n = str(build_install).encode(), 0
+    for f in prefix.rglob("*"):
+        if not f.is_file() or f.is_symlink() or is_elf(f) or f.suffix == ".pyc":
+            continue
+        data = f.read_bytes()
+        if needle in data and b"\0" not in data[:8192]:
+            f.write_bytes(data.replace(needle, PLACEHOLDER.encode()))
+            n += 1
+    (prefix / "relocate.sh").write_text(RELOCATE)
+    (prefix / "relocate.sh").chmod(0o755)
+    return n
+
+
+def drop_stray_links(prefix: Path) -> list:
+    """Remove the symbolic links that dangle or lead out of the prefix; return them.
+
+    A source tree's links survive the install (scensim_launch's ``data -> ../../data``, the
+    repository's own data directory): in the prefix they point at nothing, and an unpack
+    with Python's tarfile ``data`` filter refuses the whole archive over one of them.
+    """
+    root = prefix.resolve()
+    dropped = []
+    for link in sorted(p for p in prefix.rglob("*") if p.is_symlink()):
+        target = Path(os.path.normpath(link.parent / os.readlink(link)))
+        inside = target == root or root in target.parents
+        if not inside or not link.exists():
+            dropped.append(f"{link.relative_to(prefix)} -> {os.readlink(link)}")
+            link.unlink()
+    return dropped
 
 
 def strip_all(prefix: Path) -> int:
@@ -271,6 +397,8 @@ def main(argv=None) -> int:
     ap.add_argument("--distro", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--build-seconds", type=int, default=0)
+    ap.add_argument("--patchelf", default=shutil.which("patchelf") or "patchelf",
+                    help="patchelf, for the RPATHs (apt install patchelf, or pip install patchelf)")
     a = ap.parse_args(argv)
 
     root = a.root.resolve()
@@ -289,6 +417,11 @@ def main(argv=None) -> int:
     protocol = [n for n, p in pkgs.items() if str(p).startswith(str(root / PROTOCOL_DIR))]
     keep = kept_for_building(stage, protocol)
 
+    stray = drop_stray_links(stage)
+    print(f"links that dangle or leave the prefix, left out: {len(stray)}"
+          + "".join(f"\n  {s}" for s in stray))
+    n_env = env_pythons(stage)
+    print(f"#!/usr/bin/env python3 scripts pointed at /usr/bin/python3: {n_env}")
     foreign = foreign_shebangs(stage)
     if foreign:
         print(f"stage_sim.py: refused: {len(foreign)} script(s) name an interpreter outside "
@@ -298,6 +431,9 @@ def main(argv=None) -> int:
             print(f"  {line}", file=sys.stderr)
         return 3
     n_strip = strip_all(stage)
+    build_install = (root / a.install).resolve()
+    rp = fix_rpaths(stage, build_install, a.distro, a.patchelf)
+    print(f"RPATH/RUNPATH rewritten: {len(rp)} file(s)" + "".join(f"\n  {c}" for c in rp[:6]))
     stripped_size = tree_size(stage)
     gone = prune(stage, built, keep)
     guard(stage, a.distro, arch)
@@ -306,6 +442,8 @@ def main(argv=None) -> int:
         entry.parent.mkdir(exist_ok=True)
         entry.write_text(WRAPPER)
         entry.chmod(0o755)
+    n_reloc = relocatable(stage, build_install)
+    print(f"text files naming the build install, made relocatable (relocate.sh): {n_reloc}")
     n_lic = licenses(stage, pkgs, built)
     release_yaml(stage, a, arch, commits(root, root / a.vendor), a.build_seconds)
     missing_xml = [p for p in built if not (stage / "share" / p / "package.xml").is_file()]

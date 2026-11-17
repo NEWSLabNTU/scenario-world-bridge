@@ -479,3 +479,89 @@ def test_runs_refuses_a_renamed_variable_before_asking_for_a_testbench(ws, monke
     assert runs.main(["list"]) == 3
     err = capsys.readouterr().err
     assert "SWB_LOG_ROOT was renamed" in err and "name a testbench" not in err
+
+
+# --- 118's pip journey (P2-P4) --------------------------------------------------------------
+
+def test_the_front_ends_commands_go_to_it_when_it_is_installed(monkeypatch):
+    got = []
+    monkeypatch.setattr(cli, "_front_end", lambda: lambda argv: got.append(argv) or 0)
+    assert cli.main(["--version"]) == 0 and cli.main(["install", "--force"]) == 0
+    assert got == [["--version"], ["install", "--force"]]
+
+
+def test_without_the_front_end_a_source_build_answers_version_and_refuses_install(
+        monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(cli, "_front_end", lambda: None)
+    monkeypatch.setattr(tbmod, "built_over", lambda: {
+        "scensim": "0.1.0+abcdef123456", "prefix": str(tmp_path), "build": None})
+    assert cli.main(["--version"]) == 0
+    assert capsys.readouterr().out == f"scensim 0.1.0+abcdef123456 (source build at {tmp_path})\n"
+    assert cli.main(["install"]) == 3
+    assert "this scensim is a source build; update it with git and colcon" in \
+        capsys.readouterr().err
+
+
+def test_a_release_is_known_by_its_own_version_and_a_source_build_by_its_commit(tmp_path):
+    assert tbmod.scensim_version(str(tmp_path), "0.1.0", {"commit": "c" * 40}) == \
+        "0.1.0+cccccccccccc"
+    (tmp_path / tbmod.RELEASE_FILE).write_text('version: "0.2.0"\nside: sim\n')
+    assert tbmod.scensim_version(str(tmp_path), "0.1.0", {"commit": "c" * 40}) == "0.2.0"
+
+
+def test_an_upgrade_behind_current_is_another_scensim(monkeypatch, tmp_path):
+    # ~/.local/share/scensim/current -> 0.1.0, then -> 0.2.0: the same prefix through
+    # current, the same package version (0.1.0); the release's version and the resolved
+    # prefix differ, and the guard fires
+    root = tmp_path / "share"
+    for v in ("0.1.0", "0.2.0"):
+        (root / v / "sim").mkdir(parents=True)
+        (root / v / "sim" / tbmod.RELEASE_FILE).write_text(f'version: "{v}"\n')
+    cur = root / "current"
+    os.symlink(root / "0.1.0", cur)
+    import ament_index_python.packages as aip
+    monkeypatch.setattr(aip, "get_package_prefix", lambda name: str(cur / "sim"))
+    before = tbmod.built_over()
+    assert before["scensim"] == "0.1.0" and before["prefix"] == str(root / "0.1.0" / "sim")
+    os.unlink(cur)
+    os.symlink(root / "0.2.0", cur)
+    after = tbmod.built_over()
+    tb = testbenches.Testbench("tb_one", tmp_path / "tb", tmp_path / "ws", before)
+    problem = testbenches.version_problem(tb, after)
+    assert "was built over scensim 0.1.0" in problem and "this is scensim 0.2.0" in problem
+
+
+def test_a_pilot_launch_whose_package_is_missing_ends_the_wait_at_once(tmp_path):
+    console = tmp_path / "console.log"
+    console.write_text("old line\n")
+    w = run.CrashWatch(console)
+    assert w.launch_failed() is None
+    with console.open("a") as f:
+        f.write("[ERROR] [launch]: Caught exception in launch (see debug for traceback): "
+                "\"package 'acb_launch' not found, searching: ['/opt/ros/humble']\"\n")
+    msg = w.launch_failed()
+    assert "package acb_launch not found" in msg and "vehicle side" in msg
+    console.write_text("[ERROR] [launch]: Caught exception in launch (see debug for "
+                       "traceback): file not found: x.launch.xml\n")
+    w2 = run.CrashWatch(tmp_path / "none.log")
+    w2.path, w2.offset = console, 0
+    assert w2.launch_failed() == "its launch fails at once: file not found: x.launch.xml"
+
+
+def test_waiting_for_stack_pilots_names_a_launch_that_cannot_start(tmp_path, monkeypatch):
+    proc = tmp_path / "proc"
+    (proc / "pilot-ego").mkdir(parents=True)
+    console = proc / "pilot-ego" / "console.log"
+    console.write_text("")
+    rec = {"proc": str(proc), "pilots": [{"entity": "ego", "domain": 2, "ready": {}}]}
+    ctx = run.Context.__new__(run.Context)
+    ctx.stack, ctx.ready_timeout = rec, 600
+
+    def not_ready(*a, **k):
+        console.write_text("Package 'acb_launch' not found\n")
+        return False
+    monkeypatch.setattr(run.stackmod, "check_ready", not_ready)
+    monkeypatch.setattr(run.time, "sleep", lambda s: None)
+    msg = run.wait_pilots_ready(ctx)
+    assert msg.startswith("pilot ego is not coming up: its launch fails at once: package "
+                          "acb_launch not found")

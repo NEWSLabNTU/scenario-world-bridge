@@ -226,14 +226,17 @@ def built_over() -> dict:
     build stamp (G29) when it has one. ``scensim run`` refuses a testbench built over another
     (241, later), naming ``colcon build``."""
     out: dict = {"scensim": None, "prefix": None, "build": None}
+    package = None
     try:
         from importlib.metadata import version
-        out["scensim"] = version("scensim")
+        package = version("scensim")
     except Exception:  # noqa: BLE001 (not installed as a distribution: a source tree)
         pass
     try:
         from ament_index_python.packages import get_package_prefix
-        out["prefix"] = get_package_prefix("scensim")
+        # resolved: a release is reached through ~/.local/share/scensim/current, which an
+        # upgrade points at another version's directory (118, 2026-11-18)
+        out["prefix"] = os.path.realpath(get_package_prefix("scensim"))
     except Exception:  # noqa: BLE001 (no ROS environment, or scensim not in the index)
         pass
     try:
@@ -244,4 +247,25 @@ def built_over() -> dict:
                             "built": stamp.get("built")}
     except Exception:  # noqa: BLE001
         pass
+    out["scensim"] = scensim_version(out["prefix"], package, out["build"])
     return out
+
+
+RELEASE_FILE = "scensim-release.yaml"
+
+
+def scensim_version(prefix, package=None, build=None):
+    """The scensim a testbench is built over: a release's own version (its
+    ``scensim-release.yaml``, the package's is 0.1.0 in every release), else the package's
+    version and the source build's commit."""
+    if prefix:
+        try:
+            v = config.read_yaml(Path(prefix) / RELEASE_FILE).get("version")
+            if v:
+                return str(v)
+        except config.ConfigError:
+            pass
+    commit = ((build or {}).get("commit") or "")[:12]
+    if package and commit:
+        return f"{package}+{commit}"
+    return package

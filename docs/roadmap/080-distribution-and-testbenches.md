@@ -371,6 +371,11 @@ Each step is pushed after review, with its tests.
   framework. I'd like to find a memorizable name"; then "scensim", for SCENario SIMulation,
   from names built on scenario plus simulation). `swb` is taken on PyPI; `scensim` is free
   (checked 2026-11-17, as are `scensim-ros-humble` style names to be checked at step 1b).
+  Its focus is driving (user, 2026-11-17: "and mainly focus on driving"): cars, their
+  autopilots and the traffic around them, with robots and pedestrians as other agents the
+  same framework can drive. The docs' one-line description follows that order:
+  "scensim runs driving scenarios in simulation: OpenSCENARIO scenarios, your autopilot,
+  CARLA or Isaac Sim." (wording for 243 at step 10).
   The rename is step 1b, before step 2, so the plugin (`colcon-scensim`), the build type
   (`scensim_testbench`) and the wheels are born under it. Until then this doc says swb.
 - **x86_64 only** for now (CARLA has no aarch64 build).

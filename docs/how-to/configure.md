@@ -45,7 +45,7 @@ For example, exact NPC poses instead of physics-tracked ones, and the bridge's o
 settings from the testbench's copy of its file:
 
 ```yaml
-# swb.yaml (added)
+# testbench.yaml (added)
 world:
   npc_motion: kinematic          # tracked (default): physics bodies following SSv2
   config_file: config/bridge_config.yaml
@@ -85,7 +85,7 @@ spectator: follow          # CARLA's window looks down on the ego (off by defaul
 ```
 
 ```yaml
-# swb.yaml (added)
+# testbench.yaml (added)
 world:
   world_config_file: config/scensim_carla_world.yaml
 ```
@@ -102,7 +102,7 @@ On Isaac `isaac:` in `testbench.yaml` carries the world server's options; the st
 world (the stack's map, then `preload`) and the state directory itself:
 
 ```yaml
-# swb.yaml (added)
+# testbench.yaml (added)
 isaac:
   render: headless
   physics_hz: 240

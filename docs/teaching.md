@@ -124,7 +124,7 @@ share seats in turns:
 - **Or first come, first served.** Leave every student on `seat: auto`: a stack takes the
   first free seat, and is refused when none is free, naming who holds each.
   `scensim seat show` lists the holders.
-- **Pair up** for the Autoware labs (1 to 5): two students, one seat, one project.
+- **Pair up** for the Autoware labs (1 to 5): two students, one seat, one testbench.
 - **Keep the slow work outside the slots.** Writing scenarios (Tutorial 2, step 1 needs
   CARLA for `carla_poses`, the rest does not), the agent check of Tutorial 4
   (`scensim-agent check`, no simulator), and reading results need no seat.
@@ -170,17 +170,18 @@ exercise 3 (the Autoware Foundation's ACC and AEB use cases, about 45 minutes, a
 demonstration of a nightly suite and an expected failure), or a second assignment round,
 with Labs 6 and 7 shown once by the instructor on one Isaac host.
 
-## Assignments as projects
+## Assignments as testbenches
 
-An assignment is a project: a git repository with `testbench.yaml`, `scensim.lock`, the scenarios
-and suites the students start from, and the judges you grade with. Students copy it into a
-repository of their own:
+An assignment is a testbench: a git repository with `package.xml`, `testbench.yaml`,
+`scensim.lock`, the scenarios and suites the students start from, and the judges you grade
+with. Students copy it into a workspace and a repository of their own:
 
 ```bash
-scensim project new ~/assignment1 --from /path/to/assignment1
-cd ~/assignment1
-git init && git add -A && git commit -m "start"
-scensim assets fetch
+mkdir -p ~/ws/src && cd ~/ws/src
+scensim testbench new assignment1 --from /path/to/assignment1
+cd assignment1 && git init && git add -A && git commit -m "start"
+cd ~/ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch assignment1
 ```
 
 The lock pins every asset's commit and checksum, so every student fetches the same files.
@@ -188,9 +189,10 @@ A run records the scenario's hash, the lock's hash and the workspace's commits i
 `result.json`, so a submitted result says what it ran.
 
 **Submitting** is pushing that repository (to the course's git server) and handing in its
-URL and commit. What belongs in it: `testbench.yaml`, `scensim.lock`, `scenarios/`, `suites/`,
-`pilots/`. Not `assets/`, `state/`, `runs/` or `.scensim/`, which the testbench's `.gitignore`
-already leaves out: the grader runs the work again rather than trusting the student's runs.
+URL and commit. What belongs in it: `package.xml`, `testbench.yaml`, `scensim.lock`,
+`scenarios/`, `suites/`, `pilots/`. A host's assets, state and runs are kept outside the
+package, so they never enter it: the grader runs the work again rather than trusting the
+student's runs.
 
 ## Grading with suites and judges
 
@@ -199,7 +201,7 @@ seeds; a judge scores each run. A judge is any program, run after each run with 
 directory, that prints one JSON object:
 
 ```yaml
-# swb.yaml of the assignment
+# testbench.yaml of the assignment
 judges:
   - name: grade
     run: [python3, judges/grade.py]
@@ -226,22 +228,23 @@ print(json.dumps({"verdict": "passed" if points >= 6 else "failed", "points": po
 (seat 3 of the table above). For each submission:
 
 ```bash
-git clone <student repository> ~/grading/alice && cd ~/grading/alice
+mkdir -p ~/grading/alice/src && cd ~/grading/alice/src
+git clone <student repository> assignment1 && cd assignment1
 git checkout <submitted commit>
-cp -r ~/assignment1/judges .                     # your copies, not theirs
-cp ~/assignment1/suites/grading.yaml suites/
-git diff --stat <assignment start commit> -- swb.yaml   # what they changed
-scensim assets fetch
-scensim project check
-scensim run suites/grading.yaml --seat 3 --stop-stack
-scensim runs summary
+cp -r ~/ws/src/assignment1/judges .              # your copies, not theirs
+cp ~/ws/src/assignment1/suites/grading.yaml suites/
+git diff --stat <assignment start commit> -- testbench.yaml   # what they changed
+cd ~/grading/alice && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch assignment1
+scensim testbench check assignment1
+scensim run assignment1/grading --seat 3 --stop-stack
 ```
 
 `--stop-stack` starts the testbench's stack on the grading seat, runs the suite, and stops
 the stack, so one submission never sees another's stack. Copy your own judges and grading
 suite over the student's, and read the `testbench.yaml` diff: the judges a run uses are named in
 `testbench.yaml`. `summary.csv` has one row per run, with SSv2's verdict and each judge's in its
-`judges` column; each judge's full output is `runs/<id>/judges/grade.json`. The run's own
+`judges` column; each judge's full output is `<logs>/assignment1/runs/<id>/judges/grade.json`. The run's own
 verdict stays SSv2's: a judge adds to it, never replaces it
 ([Verdicts](explanation/verdicts.md)), so a grading rule can change and be applied again to
 old runs. The exit code of `scensim run` (0, 1, 2, 3) tells a script whether every run passed,

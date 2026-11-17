@@ -65,12 +65,17 @@ def test_a_testbench_installs_indexes_and_says_what_it_was_built_over(ws, plugin
     assert (share / "hook" / "ament_prefix_path.dsv").is_file()
     assert (share / "package.dsv").is_file()                 # colcon's local_setup pieces
     out = r.stdout + r.stderr
-    assert "no scensim.lock" in out and "assets are not checked at build" in out
+    assert "no scensim.lock yet: run `scensim assets fetch tb_good` and commit " \
+           "src/tb_good/scensim.lock" in out
+    assert "assets are not checked at build" not in out     # the docs say it, not every build
 
 
 def test_symlink_install_links_each_file_so_an_edit_needs_no_rebuild(ws, plugin_dir):
+    # tb_good's suite names ../scenarios/drive_to_goal.xosc (relative to suites/): inside the
+    # package, though each installed file is a link into src/ (243's review)
     r = colcon(ws, plugin_dir, "--symlink-install", "--packages-select", "tb_good")
     assert r.returncode == 0, r.stdout + r.stderr
+    assert "leaves the testbench" not in r.stdout + r.stderr
     installed = ws / "install" / "tb_good" / "share" / "tb_good" / "scenarios" / "drive_to_goal.xosc"
     source = ws / "src" / "tb_good" / "scenarios" / "drive_to_goal.xosc"
     assert installed.is_symlink() and installed.resolve() == source.resolve()

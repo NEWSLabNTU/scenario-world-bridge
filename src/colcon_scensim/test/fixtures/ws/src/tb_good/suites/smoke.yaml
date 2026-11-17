@@ -1,3 +1,4 @@
 scenarios:
   - scenarios/drive_to_goal.xosc
+  - ../scenarios/drive_to_goal.xosc
   - pkg://shared_scenarios/scenarios/shared_drive.xosc

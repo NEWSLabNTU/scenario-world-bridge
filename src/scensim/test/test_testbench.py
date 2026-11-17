@@ -65,17 +65,47 @@ def test_a_swb_yaml_project_is_refused_naming_its_successor(tmp_path):
     (tb / "testbench.yaml").rename(tb / "swb.yaml")
     got = testbench.build_findings(tb, tb / "package.xml")
     assert len(got) == 1 and got[0].refused
-    assert "a testbench's file is testbench.yaml, not swb.yaml" in got[0].what
+    assert got[0].what == "a testbench's file is testbench.yaml, not swb.yaml"
     assert got[0].fix == "git mv swb.yaml testbench.yaml"
 
 
-def test_notes_say_no_lock_and_that_assets_are_not_checked(tmp_path):
+def test_the_only_note_is_a_missing_lock(tmp_path):
     tb = make(tmp_path)
-    notes = testbench.build_notes(tb)
-    assert any("no scensim.lock" in n for n in notes)
-    assert any("assets are not checked at build" in n for n in notes)
+    assert testbench.build_notes(tb) == [
+        "no scensim.lock yet: run `scensim assets fetch tb` and commit src/tb/scensim.lock"]
     (tb / "scensim.lock").write_text("datasets: {}\n")
-    assert not any("no scensim.lock" in n for n in testbench.build_notes(tb))
+    assert testbench.build_notes(tb) == []
+
+
+def test_an_absolute_path_leaves_the_testbench_a_ros_topic_is_no_path(tmp_path):
+    tb = make(tmp_path, suite=["/home/me/x.xosc"],
+              extra="vehicles: [/home/me/car.yaml]\n"
+                    "logging: {topics: [/vehicle/status/velocity_status]}\n")
+    got = findings(tb)
+    assert "problem: suites/s.yaml: /home/me/x.xosc: leaves the testbench" in "\n".join(got)
+    assert "problem: testbench.yaml: /home/me/car.yaml: leaves the testbench" in "\n".join(got)
+    assert not any("velocity_status" in g for g in got), got
+
+
+def test_a_symlink_installed_share_keeps_its_relative_paths_inside(tmp_path):
+    """243's review: under --symlink-install every installed file is a link into the source;
+    a suite's ../scenarios/... is still inside the package."""
+    src = make(tmp_path, suite=["../scenarios/drive.xosc", "scenarios/drive.xosc"])
+    share = tmp_path / "install" / "share" / "tb"
+    for f in sorted(src.rglob("*")):
+        if f.is_file():
+            (share / f.relative_to(src)).parent.mkdir(parents=True, exist_ok=True)
+            (share / f.relative_to(src)).symlink_to(f)
+    assert findings(share) == []
+
+
+def test_the_host_findings_are_project_pys_own_wording():
+    """HOST_FINDINGS names project.py's messages exactly: a change there fails here."""
+    src = (Path(testbench.__file__).with_name("project.py")).read_text()
+    assert 'f"map {name} is not fetched (assets/maps/{name})"' in src
+    host = testbench.Finding("scenarios/a.xosc", "map Town01 is not fetched (assets/maps/Town01)")
+    pkg = testbench.Finding("testbench.yaml", "assets: Town01 is not fetched yet, so ...")
+    assert testbench.split_findings([host, pkg]) == ([pkg], [host])
 
 
 def test_built_over_is_json_with_the_three_keys():

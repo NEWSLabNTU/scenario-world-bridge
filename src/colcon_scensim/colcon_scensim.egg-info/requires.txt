@@ -1,2 +1,0 @@
-colcon-core>=0.12
-colcon-ros

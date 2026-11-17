@@ -132,8 +132,8 @@ def findings(setting="auto", version_fn=None) -> list:
 
 
 RMW = "rmw_cyclonedds_cpp"
-RMW_FIX = ("sudo apt install ros-humble-rmw-cyclonedds-cpp (or rosdep install --from-paths "
-           "src --ignore-src -y in the workspace)")
+RMW_FIX = ("sudo apt install ros-humble-rmw-cyclonedds-cpp (or rosdep update, then rosdep "
+           "install --from-paths src --ignore-src -y in the workspace)")
 
 
 def rmw_installed() -> bool:

@@ -11,7 +11,7 @@ continues from the point that matches their role:
 - **A new user** continues with [Getting started on CARLA](getting-started/carla.md) (or
   [on Isaac Sim](getting-started/isaac.md)), then the [tutorials](#tutorials) in order.
 - **A project adopting scensim**, with its own car, autopilot and maps, continues with
-  [Start a project of your own](how-to/start-a-project.md), then
+  [Start a testbench of your own](how-to/start-a-project.md), then
   [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md),
   [your Autoware](how-to/your-autoware.md) and the [reference](#reference).
 - **A scenario author** continues with [Tutorial 2](tutorials/02-write-a-scenario.md) and
@@ -59,7 +59,7 @@ first, Isaac Sim from tutorial 6.
 
 A task in your own project, starting from a working stack:
 
-- [Start a project of your own](how-to/start-a-project.md): templates, your maps, sharing
+- [Start a testbench of your own](how-to/start-a-project.md): templates, your maps, sharing
 - [Your car](how-to/your-car.md): a shipped car, or one from your vehicle spec
 - [Your autopilot as a pilot](how-to/your-autopilot.md): a launch file, a program, your
   own process

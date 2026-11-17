@@ -3,7 +3,7 @@
 Run a project's suites unattended (a nightly job, a merge check) and hand the verdicts to
 the CI system. It assumes a host with the workspace built, CARLA installed (named in the
 host settings as `carla.root`, so the stack starts it, or already serving), and the project
-checked out ([Start a project](start-a-project.md)); suites are
+checked out ([Start a testbench](start-a-project.md)); suites are
 [Tutorial 5](../tutorials/05-suites.md).
 
 ## A job

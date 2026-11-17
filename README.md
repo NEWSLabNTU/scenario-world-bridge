@@ -137,7 +137,7 @@ After installation, each reader continues from the point that matches their role
 - **A new user** continues with [Getting started on CARLA](docs/getting-started/carla.md)
   (or [on Isaac Sim](docs/getting-started/isaac.md)), then the tutorials in order.
 - **A project adopting scensim**, with its own car, autopilot and maps, continues with
-  [Start a project of your own](docs/how-to/start-a-project.md), then the how-to guides
+  [Start a testbench of your own](docs/how-to/start-a-project.md), then the how-to guides
   and the reference.
 - **A scenario author** continues with
   [Tutorial 2: Write a scenario](docs/tutorials/02-write-a-scenario.md) and

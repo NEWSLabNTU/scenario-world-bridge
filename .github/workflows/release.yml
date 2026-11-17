@@ -143,6 +143,7 @@ jobs:
           apt-get install -y -qq git curl zstd python3-pip python3-vcstool >/dev/null
           curl -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          . "$HOME/.cargo/env"   # GITHUB_PATH holds from the next step; maturin needs cargo now
           python3 -m pip install -q maturin
           # 889cb5c: --merge-install support (082 fix 1)
           python3 -m pip install -q --no-build-isolation \

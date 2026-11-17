@@ -236,6 +236,43 @@ jobs:
           python3 -m pip download -q -d smoke-wheels --only-binary=:all: \
             --python-version 3.10 --platform manylinux2014_x86_64 "zstandard>=0.21"
           ls wheels smoke-wheels >> "$GITHUB_STEP_SUMMARY"
+      - name: Check the wheels' metadata
+        # Ubuntu 22.04's pip 22 builds a pyproject package from an sdist as UNKNOWN-0.0.0,
+        # so PyPI gets wheels only, each py3-none-any, with the name and version checked here.
+        run: |
+          python3 - "$VERSION" <<'EOF'
+          import email.parser, re, sys, zipfile
+          from pathlib import Path
+          want = re.sub(r"[-_.]?(a|b|rc|dev)", r".\1", sys.argv[1]).replace("..", ".")
+          want = re.sub(r"\.dev$", ".dev0", want)
+          expect = {"scensim", "scensim-ros-humble"}
+          if Path("src/colcon_scensim/setup.cfg").exists():
+              expect.add("colcon-scensim")
+          bad = []
+          for d in ("wheels", "smoke-wheels"):
+              found = set()
+              for f in Path(d).iterdir():
+                  if f.name.startswith("zstandard-"):
+                      continue
+                  if f.suffix != ".whl":
+                      bad.append(f"{d}/{f.name}: not a wheel (no sdist goes to PyPI)"); continue
+                  if not f.name.endswith("-py3-none-any.whl"):
+                      bad.append(f"{d}/{f.name}: not py3-none-any")
+                  with zipfile.ZipFile(f) as z:
+                      meta = next(n for n in z.namelist() if n.endswith(".dist-info/METADATA"))
+                      m = email.parser.Parser().parsestr(z.read(meta).decode())
+                  name = m["Name"].lower().replace("_", "-")
+                  print(f"{d}/{f.name}: {name} {m['Version']}")
+                  if name == "unknown" or m["Version"] != want:
+                      bad.append(f"{d}/{f.name}: metadata {m['Name']} {m['Version']}, want version {want}")
+                  found.add(name)
+              need = expect if d == "wheels" else {"scensim-ros-humble"}
+              if found != need:
+                  bad.append(f"{d}: wheels {sorted(found)}, want {sorted(need)}")
+          for b in bad:
+              print(f"::error::{b}")
+          sys.exit(1 if bad else 0)
+          EOF
       - uses: actions/upload-artifact@v4
         with:
           name: wheels

@@ -1,11 +1,11 @@
-# scenario-world-bridge
+# scensim
 
 ## Project Overview
 
 The adapter that makes a simulator a backend for tier4/scenario_simulator_v2 (SSv2): SSv2's
 `simulation_interface` protocol (ZMQ + Protobuf) in, the world protocol out. Every simulator
-is a **world server** behind one protocol (`swb_world.proto`, in `swb_world_protocol`);
-CARLA's is `swb_carla_world`, Isaac Sim's `swb_isaac_world`. The bridge knows no simulator.
+is a **world server** behind one protocol (`scensim_world.proto`, in `scensim_world_protocol`);
+CARLA's is `scensim_carla_world`, Isaac Sim's `scensim_isaac_world`. The bridge knows no simulator.
 
 Since roadmap 051 the project is eight repositories, nine since 055 (`sim_vehicle_ecu`), all
 NEWSLabNTU, each a direct submodule here (`docs/roadmap/051-target-shape.md`):
@@ -14,13 +14,13 @@ NEWSLabNTU, each a direct submodule here (`docs/roadmap/051-target-shape.md`):
 |---|---|
 | `sim_vehicle_spec` | the car: `vehicles/<car>.yaml` (spec v2) and what is generated from it for no autopilot in particular -- `carla_physics.yaml`, `carla_sensors.yaml`, SSv2's catalog (`catalogs/vehicles.xosc`); `spec_hash` |
 | `autoware_sim_vehicle` | the car for Autoware: per-car packages (`tesla_model3_description`, `_launch`, `_sensor_kit_*`, `individual_params`), the pedal maps, the Autoware profile (`autoware_sim_profile`), `vehicle_check` (`autoware_sim_check`) |
-| `swb_world_protocol` | `swb_world.proto` and SSv2's protos; the Rust shell (`swb_core`: world client and server, lease, `sim_time`), the Python shell (`swb_world_server`), `swb_world_check conformance` |
-| `swb_carla_world` | the CARLA world server, the only code using carla-rust; CARLA's weather presets and fields |
-| `swb_isaac_world` | the Isaac world server (Python, Isaac's venv) and its USD tooling |
+| `scensim_world_protocol` | `scensim_world.proto` and SSv2's protos; the Rust shell (`scensim_core`: world client and server, lease, `sim_time`), the Python shell (`scensim_world_server`), `scensim_world_check conformance` |
+| `scensim_carla_world` | the CARLA world server, the only code using carla-rust; CARLA's weather presets and fields |
+| `scensim_isaac_world` | the Isaac world server (Python, Isaac's venv) and its USD tooling |
 | `autoware_carla_bridge` (acb) | the CARLA vehicle bridge (`acb_bridge`), CARLA's stand-alone bring-up and demo, map tools |
 | `sim_vehicle_ecu` | the car's onboard computers below its vehicle interface: the drive unit's controller, the brake module (EBD, ABS, TC, ESC) and the power steering, on the car's own sensors (speed, slip, sideslip and friction estimated); pure Python, no simulator, no ROS; calibrated from the spec (roadmap 055) |
 | `autoware_isaac_bridge` (aib) | the Isaac vehicle library and `aib.runner`: the vehicle interface, the sensors, the PhysX vehicle, which it drives through `sim_vehicle_ecu`; it generates the Isaac rig from the spec |
-| this one | the bridge, the relay, `swb_agent`, `swb_launch`, the run tooling, `swb_examples`, the gap oracle; it pins every repository above |
+| this one | the bridge, the relay, `scensim_agent`, `scensim_launch`, the run tooling, `scensim_examples`, the gap oracle; it pins every repository above |
 
 **Design**: `docs/design/` (start at `architecture.md`, `simulator-interface-split.md`,
 `time-and-ticking.md`, `vehicle-side.md`). **Roadmap**: `docs/roadmap/`.
@@ -37,7 +37,7 @@ just test     # Run tests (with the pin check, scripts/check_pins.py)
 ```
 
 `just scenario <xosc>`, `just e2e [xosc]`, `just two-av` and `just demo-tour` run on the project
-workflow (`ros2 run swb run` in the scenario's project, else `scenarios/projects/dev`; roadmap
+workflow (`ros2 run scensim run` in the scenario's project, else `scenarios/projects/dev`; roadmap
 077 step 8). Each `*-direct` recipe (`scenario-direct`, `e2e-direct`, `two-av-direct`,
 `demo-tour-direct`) keeps the old stack path and its arguments (`output_directory:=`,
 `record:=`, `keep_stacks:=`) for developers; the project recipes refuse those arguments,
@@ -59,7 +59,7 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
   after every spawn (CARLA 0.9.16 resets a blueprint's tires when another car of it spawns:
   the car applied last shares the blueprint's tyre object). So every physics apply hands that
   object to a short-lived decoy of the blueprint and sets the car's velocity back, since an
-  apply rebuilds the car's PhysX vehicle at rest (swb_carla_world f669bca, acb 47f443a); the
+  apply rebuilds the car's PhysX vehicle at rest (scensim_carla_world f669bca, acb 47f443a); the
   re-apply after a spawn is only a backstop, logged as a WARN.
   A hero still off 20 frames after one ends the run: acb exits 4 (`Physics drift:` names
   field, expected and read value); the ego's respawn here is unconditional, so acb bounds it,
@@ -70,14 +70,14 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 - **Sensors**: Reject SSv2 `AttachSensor` requests (`Success=false`); the vehicle bridges publish them
 - **Traffic lights**: Freeze CARLA's built-in cycling, set states per SSv2 commands
 - **World config**: ROS services on the bridge (`/scenario_world_bridge/set_weather`,
-  `get_weather`, `swb_interfaces`): a preset or parameters by name, the world server's names
-  (CARLA's in `swb_carla_world`'s README); the world server keeps the weather and re-applies
+  `get_weather`, `scensim_interfaces`): a preset or parameters by name, the world server's names
+  (CARLA's in `scensim_carla_world`'s README); the world server keeps the weather and re-applies
   it after every world load and reconnect
 - **Coordinate conversion**: SSv2 uses ROS right-handed frame; CARLA uses left-handed (Y-flip)
 - **Vehicle interface**: the vehicle bridges handle `/vehicle/status/*` and `/control/command/*`;
   SSv2's `AutowareUniverse` (concealer) should be disabled
 - **No shims**: renamed arguments, variables and packages are refused by name, never aliased
-  (`SWB_RETIRED_ENV`, the profile's `check_launch_args`)
+  (`SCENSIM_RETIRED_ENV`, the profile's `check_launch_args`)
 
 ## Repository Structure
 
@@ -86,23 +86,23 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 ├── src/scenario_world_bridge/  # The bridge (ament_cargo): SSv2's ZMQ server, coordinator,
 │   ├── src/backend/remote/     #   RemoteBackend -- its only backend, a world server over the protocol
 │   └── config/bridge_config.yaml   # the bridge's keys only
-├── src/swb_world_protocol/     # submodule: swb_world.proto, swb_core, swb_world_server, swb_world_check
-├── src/swb_carla_world/        # submodule: the CARLA world server (one per CARLA,
-│                               #   flock /tmp/swb-locks/carla-<host>-<port>.lock)
-├── src/swb_isaac_world/        # submodule: the Isaac world server (`just isaac-world`)
+├── src/scensim_world_protocol/ # submodule: scensim_world.proto, scensim_core, scensim_world_server, scensim_world_check
+├── src/scensim_carla_world/    # submodule: the CARLA world server (one per CARLA,
+│                               #   flock /tmp/scensim-locks/carla-<host>-<port>.lock)
+├── src/scensim_isaac_world/    # submodule: the Isaac world server (`just isaac-world`)
 ├── src/sim_vehicle_spec/       # submodule: the vehicle spec and its generated outputs
 ├── src/autoware_sim_vehicle/   # submodule: the car for Autoware, the profile, vehicle_check
 ├── src/autoware_carla_bridge/  # submodule: acb (the CARLA vehicle bridge)
 ├── src/sim_vehicle_ecu/        # submodule: the car's onboard computers (VCU, brakes, ESC, steering)
 ├── src/autoware_isaac_bridge/  # submodule: aib (the Isaac vehicle library)
 ├── src/scenario_simulator_v2/  # submodule: the SSv2 fork (branch managed-ego-unforked)
-├── src/swb_interfaces/         # rosidl: SetWeather.srv, GetWeather.srv (generic weather)
-├── src/swb_agent/              # Agent SDK + agent protocol v1/v2: swb_agent.Agent, Client,
-│                               #   `swb-agent supervise`, the vehicle agent
+├── src/scensim_interfaces/     # rosidl: SetWeather.srv, GetWeather.srv (generic weather)
+├── src/scensim_agent/          # Agent SDK + agent protocol v1/v2: scensim_agent.Agent, Client,
+│                               #   `scensim-agent supervise`, the vehicle agent
 ├── src/scenario_agent_relay/   # the relay: concealer ADAPI <-> agents
-├── src/swb_launch/             # simulation launches (carla_, isaac_), scenario, ego and
+├── src/scensim_launch/         # simulation launches (carla_, isaac_), scenario, ego and
 │                               #   background-AV launches, run_suite, gap oracle
-├── src/swb_examples/           # Starter scenarios (basic/, multi_av/, awf/); vehicles from the catalog
+├── src/scensim_examples/       # Starter scenarios (basic/, multi_av/, awf/); vehicles from the catalog
 ├── scenarios/                  # Benchmark scenarios (bench/), goal-pose files
 ├── third_party/cuda_ndt_matcher/  # submodule: NEWSLabNTU's GPU NDT, built on its own (`just
 │                               #   build-cuda-ndt`; CUDA 12.x or 13.x, CUDA_PATH picks one), sourced
@@ -139,26 +139,26 @@ output_directory:=<dir>`); `ego-av`,
 settings come from the environment, made permanent in `.env` (just's `dotenv-load`) or
 `.envrc`: ports (`CARLA_PORT`, `SSV2_PORT`, `AGENT_PORT`, `ISAAC_PORT`, `WORLD_PORT` for the CARLA world
 server, default 5591; the play_launch web
-UIs from `SWB_WEB_PORT`, default 8080: +0 demo, +1 scenario, +2 ego, +3 background AV, +4
+UIs from `SCENSIM_WEB_PORT`, default 8080: +0 demo, +1 scenario, +2 ego, +3 background AV, +4
 the simulation side, +5 the Isaac world server), displays
 (`DISPLAY`, `ISAAC_DISPLAY`, `RECORD_DISPLAY`), install and data paths (`AUTOWARE_SETUP`,
-`ISAAC_ROOT`, `CARLA_SRC`, `CARLA_USD`, `SWB_VEHICLE_USD`, `CARLA_DIR`, `DATA_DIR`,
+`ISAAC_ROOT`, `CARLA_SRC`, `CARLA_USD`, `SCENSIM_VEHICLE_USD`, `CARLA_DIR`, `DATA_DIR`,
 `CARLA_MAPS`, `AUTOWARE_TENSORRT_LIB`), the ROS domains
 (`EGO_ROS_DOMAIN_ID`, `SCENARIO_ROS_DOMAIN_ID`, `BG_ROS_DOMAIN_ID` for the first background
 AV; the Isaac ego's `isaac_vehicle` node follows
 `EGO_ROS_DOMAIN_ID` too, over aib's `ego.yaml`) and the ego's RMW (`EGO_RMW_IMPLEMENTATION`),
-the log root and archive (`SWB_LOG_ROOT`, `SWB_LOG_ARCHIVE`), and the bring-up waits
+the log root and archive (`SCENSIM_LOG_ROOT`, `SCENSIM_LOG_ARCHIVE`), and the bring-up waits
 (`CARLA_READY_TIMEOUT`, `ISAAC_READY_TIMEOUT`, `EGO_READY_TIMEOUT`). The variables that used to carry project
 settings (`MAP_NAME`, `LAUNCH_RVIZ`, `EGO_LAUNCH_ARGS`, `OUTPUT_DIR`, `KEEP_STACKS`, ...;
-the list is `SWB_RETIRED_ENV` in `scripts/just_lib.bash`) make a recipe refuse to start,
+the list is `SCENSIM_RETIRED_ENV` in `scripts/just_lib.bash`) make a recipe refuse to start,
 naming the argument to pass instead. Do not add new ones.
 
-Two checkouts share a host by moving one checkout's whole set in its `.env`: `SWB_WEB_PORT`,
+Two checkouts share a host by moving one checkout's whole set in its `.env`: `SCENSIM_WEB_PORT`,
 `SSV2_PORT` (the CARLA world server's sensor-release sockets follow it at +1 and +2, on both
 its side and acb's), `AGENT_PORT`, `WORLD_PORT`, `EGO_ROS_DOMAIN_ID`, `SCENARIO_ROS_DOMAIN_ID`,
 `BG_ROS_DOMAIN_ID`. `ISAAC_PORT` and
 `CARLA_PORT` keep the simulators' own defaults (5590, 2000) unless those are taken too; a
-second CARLA's Traffic Manager port follows it (CARLA_PORT + 6000) unless `swb_carla_world.yaml`
+second CARLA's Traffic Manager port follows it (CARLA_PORT + 6000) unless `scensim_carla_world.yaml`
 names another. The CARLA world server's lock refuses a second one on the same CARLA, whichever
 checkout it comes from.
 
@@ -297,7 +297,7 @@ environment at all. Bump both workspaces to the same release together.
   0.10 silently); two version features in one dependency graph is a build error naming both.
 - At run time the bridges compare the version they were built for (`carla::CARLA_VERSION`)
   with the server's on every connect and refuse a mismatch with both versions in the message
-  (swb retries as for an unreachable server; acb exits).
+  (scensim retries as for an unreachable server; acb exits).
 
 ### Keep the system setuptools
 `--symlink-install` makes colcon run `setup.py develop --editable`, which setuptools removed
@@ -388,17 +388,17 @@ group); `scripts/stack_up.bash`'s `stop_stack` does exactly that. A separate `ju
 Before a run, know what is already up:
 
 ```bash
-# stacks, by web port -- with SWB_WEB_PORT=8080: 8081 is the scenario stack, 8082 the ego stack
+# stacks, by web port -- with SCENSIM_WEB_PORT=8080: 8081 is the scenario stack, 8082 the ego stack
 for p in $(pgrep -x play_launch); do tr '\0' ' ' < /proc/$p/cmdline | grep -oE 'web-addr [0-9.:]+'; done
 ps -eo pid,ppid,etimes,args --no-headers | grep -E "CarlaUE4-Linux|scenario_world_bridge" | grep -v grep
 ss -lpn | grep 5555        # exactly one bridge should hold the SSv2 port
 ```
 
 **The stack is its own long-lived launch** (roadmap 073 S9). `just run` (`sim:=carla`, the
-default) starts `swb_launch carla.launch.xml` (stack.launch.py) under play_launch (web 8084,
-logs `play_log/bridge/`): the CARLA world server `swb_carla_world`, the bridge driving it and the
+default) starts `scensim_launch carla.launch.xml` (stack.launch.py) under play_launch (web 8084,
+logs `play_log/bridge/`): the CARLA world server `scensim_carla_world`, the bridge driving it and the
 agent relay (TCP 5560) in the scenario domain (9), each `respawn="true"`, and the ego -- acb's
-Autoware and swb's vehicle agent, nested play_launches, respawned -- in the ego domain (1),
+Autoware and scensim's vehicle agent, nested play_launches, respawned -- in the ego domain (1),
 with `just ego-av`'s environment and defaults (`ego_launch:=none`: no ego; then `just ego-av`
 can be the ego). `just scenario-direct` runs only the scenario against it and starts it (setsid,
 `play_log/stack.console`) when it is not up. Scenario launches never include it, so it
@@ -407,18 +407,18 @@ running code from two rebuilds earlier. Treat it as a tracked singleton: check i
 against the build before trusting a measurement, and after `just build` restart it
 deliberately (stop the play_launch on 8084 by pid, then `setsid just run > log 2>&1 &`). It
 runs the *installed* binaries, so `just build` must run first. Its configs are the bridge's
-`config_file` (`bridge_config.yaml`) and the world server's `swb_carla_world_config`
-(`swb_carla_world.yaml`); `ros2 param get /scenario_world_bridge config_file` in domain 9 names
+`config_file` (`bridge_config.yaml`) and the world server's `scensim_carla_world_config`
+(`scensim_carla_world.yaml`); `ros2 param get /scenario_world_bridge config_file` in domain 9 names
 the bridge's. `just world-health` probes the world server (owner, readiness) without
 touching it.
 
 Every process here ends with its play_launch: the world servers and the bridge ask the
 kernel for SIGTERM when their parent dies (`PR_SET_PDEATHSIG`), so a play_launch killed with
-SIGKILL leaves nothing behind, and `swb_carla_world` puts CARLA back to asynchronous on the way
+SIGKILL leaves nothing behind, and `scensim_carla_world` puts CARLA back to asynchronous on the way
 out. Note that `just run`'s `play_launch` is a Python wrapper around the real binary
 (`.../play_launch/dist/.../bin/play_launch`), which is the nodes' parent: kill that one, or
 the process group. One bridge drives a world server at a time (the owner lease), and one
-`swb_carla_world` drives a CARLA server (a `flock` on `/tmp/swb-locks/carla-<host>-<port>.lock`,
+`scensim_carla_world` drives a CARLA server (a `flock` on `/tmp/scensim-locks/carla-<host>-<port>.lock`,
 across checkouts); a second of either is refused.
 
 ```bash
@@ -457,7 +457,7 @@ hand mid-run still can. Orphans show up as `ppid == 1`:
 ps -eo pid,ppid,etimes,comm --no-headers | awk '$2==1 && ($4=="component_node" ||
     $4=="add_two_ints_se" || $4=="zenohd" || $4=="scenario_world_" ||
     $4=="carla_manual_co" || $4=="auto_drive" || $4=="acb_bridge" || $4=="agent" || $4=="relay" ||
-    $4=="swb_carla_world")'
+    $4=="scensim_carla_world")'
 ```
 
 A name-based list only finds what is on it. A `carla_manual_control` left over from the
@@ -508,8 +508,8 @@ A LibCarla client whose server died keeps a dead RPC connection (it never reconn
 streaming client that does reconnect, to the next server on the same port. Its light-update
 callback then blocks inside the stream for the client's whole timeout, and a synchronous
 server waits for every subscriber before the next frame: the whole server hangs (the "port
-2000 hang", `docs/design/failure-and-frame-budget.md`). The CARLA world server (`swb_carla_world`, the
-only swb process with a CARLA client since roadmap 046) exits 75 for a fresh process when its
+2000 hang", `docs/design/failure-and-frame-budget.md`). The CARLA world server (`scensim_carla_world`, the
+only scensim process with a CARLA client since roadmap 046) exits 75 for a fresh process when its
 idle probe finds the connection dead, and its supervisor restarts it (the bridge stays); acb drops and rebuilds such clients. Any other
 long-lived client on the testbed's port needs the same, or must be restarted with CARLA.
 
@@ -526,9 +526,9 @@ Shipping build): three of eight runs once died that way, 24-40 s in.
 
 Every ROS tool that must see the ego stack -- `ros2 topic`, probes, a test script --
 needs the same DDS transport the stack uses, or discovery silently finds nothing. The
-launches set it themselves (Cyclone, `src/swb_launch/config/cyclonedds-localhost.xml`,
-installed to swb_launch's share; roadmap 070), and `ros2 run swb_launch ego_ready` (the
-ego-ready check, `src/swb_launch/scripts/ego_ready`) defaults to the same. Anything else
+launches set it themselves (Cyclone, `src/scensim_launch/config/cyclonedds-localhost.xml`,
+installed to scensim_launch's share; roadmap 070), and `ros2 run scensim_launch ego_ready` (the
+ego-ready check, `src/scensim_launch/scripts/ego_ready`) defaults to the same. Anything else
 needs both variables, **RMW too**: an unset RMW is Fast DDS, which ignores the profile and
 sees nothing (roadmap 070, friction 14). Keep `ROS_DOMAIN_ID` at 57 or below: the profile's
 DomainGain 1000 puts higher domains' ports past 65535 (friction 15).
@@ -536,7 +536,7 @@ DomainGain 1000 puts higher domains' ports past 65535 (friction 15).
 ```bash
 source /opt/autoware/1.5.0/setup.bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=1 \
-    CYCLONEDDS_URI="file://$PWD/src/swb_launch/config/cyclonedds-localhost.xml"
+    CYCLONEDDS_URI="file://$PWD/src/scensim_launch/config/cyclonedds-localhost.xml"
 ros2 topic list
 ```
 
@@ -580,7 +580,7 @@ once, sda at 93 % util from other readers):
 | `/home` (NVMe) | 0.9 ms | 3.4 ms | 6.8 ms | 12000 of 12000 |
 | `/mnt/disk1` (HDD) | 142 ms | 339 ms | 1500 ms | 7500 of 12000 |
 
-So live logs stay on NVMe: the log root, `SWB_LOG_ROOT` (a host setting; default the repo's
+So live logs stay on NVMe: the log root, `SCENSIM_LOG_ROOT` (a host setting; default the repo's
 `play_log/`), is where every recipe's play_launch writes, `<root>/<kind>/<time>/` (`ego`,
 `bg-<entity>`, `bridge`, `isaac`, `scenario`, `demo`, `e2e`, `acceptance`, `two-av`). Point
 it at another *fast* disk if `/home` fills; when it is not `play_log/`, the recipes link
@@ -592,14 +592,14 @@ newslab-server139 is laid out differently: `/` is the only fast disk (`/dev/nvme
 free) are both 5.5 TB WD Purple **spinning** disks, idle (1-2 % util) when measured on
 2026-10-21. Large things live under `/mnt/wd/aeon/`, set in its `.env`: `ISAAC_ROOT`
 (`isaac-sim`), `CARLA_SRC` (`carla-src`, the UE 4.26 + CARLA editor build), `CARLA_USD` and
-`SWB_VEHICLE_USD` (`carla-usd`: the Isaac asset set, `docs/design/isaac-assets.md`; after any
+`SCENSIM_VEHICLE_USD` (`carla-usd`: the Isaac asset set, `docs/design/isaac-assets.md`; after any
 export into it, `just isaac-assets manifest`), `AUTOWARE_TENSORRT_LIB`; CARLA 0.9.16 itself is
 `/mnt/wd/aeon/carla-simulator/CARLA_0.9.16`. The 045 reproduction ran with
-`SWB_LOG_ROOT=/mnt/wd/aeon/csb-045/play_log` (per command, not in `.env`).
+`SCENSIM_LOG_ROOT=/mnt/wd/aeon/csb-045/play_log` (per command, not in `.env`).
 
 The space problem is solved by moving old runs, not by logging elsewhere: `just prune-logs
 [days:=7] [dest:=<dir>] [dry_run:=true]` moves runs untouched for that long to
-`$SWB_LOG_ARCHIVE` (a host setting with no default since 077 G75; a spinning disk is
+`$SCENSIM_LOG_ARCHIVE` (a host setting with no default since 077 G75; a spinning disk is
 fine), kind by kind. It never deletes or overwrites, and keeps each kind's `latest` and any
 run a live process holds open (a running play_launch). `src/autoware_carla_bridge/play_log`
 is acb's own and not touched. Check before blaming code:
@@ -637,7 +637,7 @@ stdout has no stack; carla-simulator/carla#4940). Re-measured 2026-10-19: 5 of 5
 attempts died that way (3 x load_world Town02, 1 x reload_world, 1 x town02_episode_change),
 the client seeing only a 180 s RPC time-out; at Epic 5/5 cycles of Town02 → Town01 →
 reload_world and the episode change passed. A run that stays on the town CARLA booted on is
-fine at Low (town01_ego_drive passed 2/2; swb skips `load_world` when the town matches), but
+fine at Low (town01_ego_drive passed 2/2; scensim skips `load_world` when the town matches), but
 Low saves little: CARLA held 2424 MB RSS / 1730 MiB VRAM at Low against 2463 MB / 2005 MiB at
 Epic on Town01, idle or running the scenario (`docs/design/carla-server-tuning.md`). So the
 default is **Epic**: `just carla-start quality:=low` only for single-town work, never for

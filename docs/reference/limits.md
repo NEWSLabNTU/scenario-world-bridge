@@ -105,6 +105,6 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
   fetched into cannot be fetched into. Give every user their own `cache:` (the default,
   `~/.cache/scensim`).
 - **Two hosts, one suite** (`--shard i/n`) leave two run directories; one results table
-  comes from copying both into one place and running `ros2 run scensim runs summary <dir>`
+  comes from copying both into one place and running `scensim runs summary <dir>`
   there ([Run suites in CI](../how-to/run-in-ci.md)).
 - **Isaac Sim** needs an RTX GPU with 24 GB to itself: one Isaac stack per GPU.

@@ -14,7 +14,7 @@ SSv2's verdict, and why a judge's verdict never replaces the run's.
 The difference between `failed` and `error` is the one a test table needs: a `failed` run
 says something about the autopilot, an `error` says something about the setup. A suite's
 `retry: {on: error}` runs an `error` again; it never retries a `failed` run. `result.json`
-holds the first cause in `reason`, and `ros2 run scensim runs why` the first warning or error
+holds the first cause in `reason`, and `scensim runs why` the first warning or error
 in any process's log.
 
 A pilot whose process crashes while the scenario runs (an Autoware component, a node)

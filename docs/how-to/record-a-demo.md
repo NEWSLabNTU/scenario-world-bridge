@@ -43,7 +43,7 @@ For a single vehicle, `autoware_cast.rviz` is the same view over the whole right
 **The weather.** CARLA's Town01 is overcast and raining by default. With the stack up:
 
 ```bash
-eval "$(ros2 run scensim seat env scenario)"
+eval "$(scensim seat env scenario)"
 ros2 service call /scenario_world_bridge/set_weather \
     scensim_interfaces/srv/SetWeather "{preset: ClearNoon}"
 ```
@@ -71,7 +71,7 @@ ffmpeg -f x11grab \
 Start the recording, then the run, in a terminal at the bottom left:
 
 ```bash
-ros2 run scensim run scenarios/two_av.xosc
+scensim run scenarios/two_av.xosc
 ```
 
 A GIF for a README or a slide: crop each window out of the recording with ffmpeg's `crop`
@@ -80,7 +80,7 @@ GIF (`palettegen`, `paletteuse`).
 
 ## Record the data, not the screen
 
-`ros2 run scensim run <scenario> --capture full` records the pilots' key topics (ego state,
+`scensim run <scenario> --capture full` records the pilots' key topics (ego state,
 control command, vehicle status, detected objects, trajectory) as a rosbag per pilot, into
 `runs/<id>/record/<entity>/`, and keeps it whatever the verdict; `--capture debug` records
 every topic. Play one back beside RViz with `ros2 bag play`

@@ -8,10 +8,10 @@ ideas of [Tutorial 1](../tutorials/01-first-drive.md).
 ## From a template or an example
 
 ```bash
-ros2 run scensim project new ~/my_project                          # CARLA, Autoware
-ros2 run scensim project new ~/my_project --template multi-pilot   # three pilot kinds
-ros2 run scensim project new ~/my_project --template isaac         # Isaac Sim
-ros2 run scensim project new ~/my_project \
+scensim project new ~/my_project                          # CARLA, Autoware
+scensim project new ~/my_project --template multi-pilot   # three pilot kinds
+scensim project new ~/my_project --template isaac         # Isaac Sim
+scensim project new ~/my_project \
     --from pkg://scensim_examples/projects/safety_suite            # copies an example
 ```
 
@@ -34,8 +34,8 @@ it needs.
 Then, in the project:
 
 ```bash
-ros2 run scensim assets fetch
-ros2 run scensim project check
+scensim assets fetch
+scensim project check
 ```
 
 ## What goes in it
@@ -110,11 +110,11 @@ Commit `swb.yaml`, `scensim.lock` and the project's files. On another machine:
 ```bash
 git clone <your repository> my_project
 cd my_project
-ros2 run scensim assets fetch  # exactly the locked files
-ros2 run scensim project check
+scensim assets fetch  # exactly the locked files
+scensim project check
 ```
 
-`fetch` keeps the lock's commits; `ros2 run scensim assets fetch --update` resolves each
+`fetch` keeps the lock's commits; `scensim assets fetch --update` resolves each
 dataset again (its `revision:`, else the newest) and rewrites the lock. A run records the
 lock's hash and the workspace's commits in its `result.json`, so two hosts' results say
 whether they ran the same thing.

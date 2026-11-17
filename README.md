@@ -78,11 +78,11 @@ and its directory recorded in the host settings file (`~/.config/scensim/host.ya
 Install), so that the stack starts it:
 
 ```bash
-ros2 run scensim project new ~/my_first_drive    # a starter project
+scensim project new ~/my_first_drive    # a starter project
 cd ~/my_first_drive
-ros2 run scensim assets fetch                    # its map, from Hugging Face
+scensim assets fetch                    # its map, from Hugging Face
 ros2 launch scensim_launch scensim.launch.xml    # the stack: it remains running
-ros2 run scensim run scenarios/drive_to_goal.xosc    # in a second terminal
+scensim run scenarios/drive_to_goal.xosc    # in a second terminal
 ```
 
 The run ends with one line, `passed   <run id>  <run directory>`, and exits 0.
@@ -155,7 +155,7 @@ known limits: [Release notes](docs/release-notes.md).
 
 ## Datasets
 
-Public, on Hugging Face. A project names them in `swb.yaml`, and `ros2 run scensim assets
+Public, on Hugging Face. A project names them in `swb.yaml`, and `scensim assets
 fetch` downloads only what it takes:
 
 | Dataset | Holds | Licence |

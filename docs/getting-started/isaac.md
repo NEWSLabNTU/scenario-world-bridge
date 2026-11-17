@@ -52,7 +52,7 @@ Then build Autoware's messages for Isaac's Python, into `<isaac root>/msgs`:
 
 ```bash
 source ~/scensim.bash
-ros2 run scensim isaac msgs    # builds every package that is missing or stale
+scensim isaac msgs    # builds every package that is missing or stale
 ```
 
 Run it again after Autoware is updated: `project check` and the stack refuse an Isaac project
@@ -71,7 +71,7 @@ world server opens a window whenever `DISPLAY` is set, so on a VNC display set
 **Check**:
 
 ```bash
-ros2 run scensim isaac msgs --check
+scensim isaac msgs --check
 ```
 
 prints nothing and exits 0 when every message package is built.
@@ -81,7 +81,7 @@ prints nothing and exits 0 when every message package is built.
 | Symptom | Fix |
 |---|---|
 | `install_isaac.sh`: `uv: command not found` | install uv first (above) |
-| `project check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `ros2 run scensim isaac msgs` |
+| `project check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `scensim isaac msgs` |
 | The world server is `not up after 1200 s`, its Kit log ends at `omni.client` and it runs at 100 % CPU | a Kit cache link (`~/.cache/ov`, `~/.local/share/ov`, `~/.nvidia-omniverse`) points at a deleted directory, for example after reinstalling Isaac: create its target (`mkdir -p "$(readlink -m ~/.cache/ov)"`), or run `install_isaac.sh` again, which does |
 | Every process prints `'NetworkInterfaceAddress': deprecated element`; the world server logs a DEBUG traceback, `No module named 'em'` | both harmless |
 

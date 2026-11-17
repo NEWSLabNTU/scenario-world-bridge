@@ -211,7 +211,7 @@ The YAML's keys: [The agent SDK, `ros_adapter`](../reference/agent-sdk.md#ros_ad
 
 `kind: none` starts nothing: the stack waits for nothing either, and the run waits for
 the entity's agent to register with the relay. Run your agent against the seat's relay
-port (`ros2 run scensim seat show`, `relay 5560` on seat 0), on this host or another:
+port (`scensim seat show`, `relay 5560` on seat 0), on this host or another:
 
 ```bash
 python3 -m my_pilot --relay tcp://localhost:5560 --entity ego
@@ -219,7 +219,7 @@ python3 -m my_pilot --relay tcp://localhost:5560 --entity ego
 
 An agent reaches the relay over TCP, so its ROS domain does not matter to scensim. A ROS
 agent must share a domain and the DDS settings with the autopilot it drives: `eval
-"$(ros2 run scensim seat env 0)"` puts a terminal on the first pilot's domain (`1` for the
+"$(scensim seat env 0)"` puts a terminal on the first pilot's domain (`1` for the
 second, and so on; `scenario` for the bridge's).
 
 ## Readiness

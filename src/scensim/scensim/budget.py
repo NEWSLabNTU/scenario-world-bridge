@@ -1,6 +1,6 @@
 """The log budget: refuse to start runs whose logs cannot fit.
 
-``logging.budget`` in ``swb.yaml`` or a suite (docs/design/projects-and-pilots.md, "Logs")::
+``logging.budget`` in ``testbench.yaml`` or a suite (docs/design/projects-and-pilots.md, "Logs")::
 
     budget: {per_run: 2GB, total: 200GB}
 

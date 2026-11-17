@@ -66,7 +66,7 @@ def test_side_args_reach_the_bridge(tmp_path):
 
 @needs_play_launch
 def test_isaac_options_reach_the_world_server(tmp_path):
-    """G6: isaac: in swb.yaml becomes these sim_args (scensim.world.sim_args)."""
+    """G6: isaac: in testbench.yaml becomes these sim_args (scensim.world.sim_args)."""
     if not have_package("scensim_isaac_world"):
         pytest.skip("scensim_isaac_world not installed")
     from ament_index_python.packages import get_package_share_directory

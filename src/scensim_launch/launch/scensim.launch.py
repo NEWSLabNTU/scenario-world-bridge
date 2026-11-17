@@ -8,7 +8,7 @@ stack.launch.py with the project's settings applied.
         [logs:=<dir>] [gpu:=<n>] [stack_args:="name:=value ..."]
 
 The logic is scensim.stack (importable, tested): it finds the project (project:=, else the
-working directory or the nearest parent with swb.yaml), reads the host settings, picks the
+working directory or the nearest parent with testbench.yaml), reads the host settings, picks the
 seat (refusing one another stack holds), runs `project check` (refusing on any problem),
 binds the project's pilots to the entities its scenarios drive from outside, each in a pilot
 domain of the seat, and sets SCENSIM_MAPS, SCENSIM_CARLA_USD and the DDS profile for every process.
@@ -22,7 +22,7 @@ pilot is; and stack.launch.py with the seat's domains and ports, the world serve
 bridge nested (nest_side:=true) so that every stack process logs under
 stacks/<id>/proc/<group>/, where a run cuts its slices. stack.launch.py starts no pilot here.
 
-The stack serves several maps (maps: in swb.yaml, else every map the project's scenarios
+The stack serves several maps (maps: in testbench.yaml, else every map the project's scenarios
 name). On CARLA its pilots start for the first run's map unless map:= names one; on Isaac
 the world server loads its world at start, so the first map is the stack's.
 
@@ -44,7 +44,7 @@ contact_report_dir, the ports, Isaac's world) is refused with what to give inste
 
 The old stack's arguments are refused by name, given here or in stack_args, with what replaced
 them (scensim.stack.RETIRED_ARGS, roadmap 076 step 10): ego_launch, ego_launch_args and agent (the
-project's pilots in swb.yaml) and map_path (map:=).
+project's pilots in testbench.yaml) and map_path (map:=).
 """
 import os
 import shlex

@@ -20,8 +20,8 @@ ros2 run scensim run scenarios/town01_ego_drive.xosc
 
 Without a stack up, `ros2 run scensim run <scenario> --stop-stack` starts one for the run and
 stops it afterwards. A scenario on another town needs that town among the project's assets
-(`take: [Town01, Town02]` in `swb.yaml`, then `ros2 run scensim assets fetch`). Who drives each
-entity is the project's `pilots:` in `swb.yaml`; `project check` names an entity that has
+(`take: [Town01, Town02]` in `testbench.yaml`, then `ros2 run scensim assets fetch`). Who drives each
+entity is the project's `pilots:` in `testbench.yaml`; `project check` names an entity that has
 none.
 
 Times are wall-clock on the development host (32 cores, one RTX GPU, CARLA 0.9.16 at Epic
@@ -48,7 +48,7 @@ Town02 scenario runs last; the project needs Town02 for it, and each other
 
 | Scenario | Town | What it checks |
 | --- | --- | --- |
-| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a pilot for `bg_av_1` beside the ego's, `bg_av_*: {kind: autoware}` in `swb.yaml`, as the `multi_pilot` project has ([Tutorial 4, several pilots](../../docs/tutorials/04-several-pilots.md)). |
+| `town01_two_av.xosc` | Town01 | The ego and `bg_av_1`, a second Autoware-driven vehicle (controller `agent`) 90 m ahead in the same lane; both reach their goals without colliding. Needs a pilot for `bg_av_1` beside the ego's, `bg_av_*: {kind: autoware}` in `testbench.yaml`, as the `multi_pilot` project has ([Tutorial 4, several pilots](../../docs/tutorials/04-several-pilots.md)). |
 
 ## tutorial/ -- the worked example of the tutorials
 
@@ -84,7 +84,7 @@ incident starts when the ego arrives, its actors are added then and deleted when
 over, and a watchdog clears them if the ego stands still too long (logged as degraded).
 They are timed for the tour's 40 km/h on CenterPoint with the Autoware overlay
 ([Your Autoware](../../docs/how-to/your-autoware.md#fixes-autoware-150-lacks)); give the
-ego's pilot those arguments in `swb.yaml`, then restart the stack:
+ego's pilot those arguments in `testbench.yaml`, then restart the stack:
 
 ```yaml
 pilots:

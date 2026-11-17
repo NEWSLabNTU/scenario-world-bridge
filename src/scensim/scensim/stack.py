@@ -20,7 +20,7 @@ seat exits, and the launch with it.
 The keeper also **runs the stack's pilots** (``lifetime: stack``), each a nested play_launch
 of its kind's launch in its domain, respawned 5 s after it ends (an episode end: a world load
 ends acb_bridge), so that it can restart them with another ``map_path``. A stack serves
-several maps (``maps:`` of swb.yaml, else every map the project's scenarios name); its pilots
+several maps (``maps:`` of testbench.yaml, else every map the project's scenarios name); its pilots
 run on one at a time, ``map`` in stack.json. On CARLA they start lazily, for the first run's
 map, unless ``map:=`` names one; on Isaac the world is the stack's (``world:=``), so the
 first map is the stack's for its lifetime.
@@ -96,11 +96,11 @@ ISAAC_EGO = "isaac_ego.yaml"  # the stack's ego config, in its directory, when i
 # it. stack.launch.py keeps ego_launch, ego_launch_args and agent for the developers' `just
 # run` (carla.launch.xml, isaac.launch.xml); a project never reaches them.
 RETIRED_ARGS = {
-    "ego_launch": "a pilot in swb.yaml: `pilots: {ego: {kind: autoware}}`; your own launch "
+    "ego_launch": "a pilot in testbench.yaml: `pilots: {ego: {kind: autoware}}`; your own launch "
                   "as `kind: launch` with `launch: <package> <file>`; none as `kind: none`",
-    "ego_launch_args": "the pilot's `args:` in swb.yaml "
+    "ego_launch_args": "the pilot's `args:` in testbench.yaml "
                        "(`pilots: {ego: {kind: autoware, args: {max_velocity: 11.11}}}`)",
-    "agent": "`agent: own` on a `kind: launch` pilot in swb.yaml",
+    "agent": "`agent: own` on a `kind: launch` pilot in testbench.yaml",
     "map_path": "map:=<map>, one of the project's maps (assets/maps/<map>)",
 }
 
@@ -180,7 +180,7 @@ def fingerprint(project: Path, settings: dict = None, build: dict = None) -> dic
     project = Path(project)
     settings = settings if settings is not None else config.project_settings(project)
     return {
-        "swb_yaml": _sha(project / config.PROJECT_FILE),
+        "testbench_yaml": _sha(project / config.PROJECT_FILE),
         "scensim_lock": _sha(project / config.LOCK_FILE),
         "pilots": _canon(settings.get("pilots") or {}),
         "build": build if build is not None else build_commits(),
@@ -189,7 +189,7 @@ def fingerprint(project: Path, settings: dict = None, build: dict = None) -> dic
 
 def fingerprint_diff(stack_fp: dict, project_fp: dict) -> list:
     """One phrase per part that differs, naming both sides."""
-    names = {"swb_yaml": config.PROJECT_FILE, "scensim_lock": config.LOCK_FILE,
+    names = {"testbench_yaml": config.PROJECT_FILE, "scensim_lock": config.LOCK_FILE,
              "pilots": "pilots:", "build": "the build"}
     out = []
     for k, name in names.items():
@@ -293,7 +293,7 @@ def _absolute_words(words, project: Path):
 @dataclass
 class Bound:
     entity: str
-    key: str                      # the swb.yaml pilots: key that matched
+    key: str                      # the testbench.yaml pilots: key that matched
     spec: dict
     domain: int = None
     scenarios: list = field(default_factory=list)
@@ -494,7 +494,7 @@ def map_dir(project, name) -> Path:
 
 
 def served_maps(settings: dict, scenarios) -> list:
-    """The maps a stack serves: swb.yaml's ``maps:``, else every map the scenarios name."""
+    """The maps a stack serves: testbench.yaml's ``maps:``, else every map the scenarios name."""
     listed = settings.get("maps")
     if isinstance(listed, list) and listed:
         return [str(m) for m in listed]
@@ -524,10 +524,10 @@ def switch_problem(rec: dict, name: str):
     if rec.get("simulator") == "isaac" and name not in (rec.get("preload") or []):
         return (f"the scenario is on map {name}, the stack's Isaac world on {rec.get('map')} "
                 f"(the world server loads its worlds at start): restart the stack with "
-                f"map:={name}, or add {name} to isaac.preload in swb.yaml")
+                f"map:={name}, or add {name} to isaac.preload in testbench.yaml")
     if name not in (rec.get("maps") or []):
         return (f"map {name} is not one of the stack's maps ({', '.join(rec.get('maps') or [])});"
-                " add it to maps: in swb.yaml and restart the stack")
+                " add it to maps: in testbench.yaml and restart the stack")
     return None
 
 
@@ -642,7 +642,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     maps += [m for m in preload if m not in maps]
     if not maps:
         raise StackRefused("no scenario names a map ($(env SCENSIM_MAPS)/<map>); give map:= "
-                           "or maps: in swb.yaml")
+                           "or maps: in testbench.yaml")
     for m in maps:
         if not map_dir(project, m).is_dir():
             raise StackRefused(f"map {m} is not fetched ({map_dir(project, m)}); "
@@ -1451,7 +1451,7 @@ class Weather:
             w["state"] = WEATHER_FAILED
             rec["error"] = (f"the weather parameters were not set within {WEATHER_DEADLINE:.0f}"
                             f" s: {msg or 'the bridge did not answer'} (world.weather in "
-                            "swb.yaml: the world server's parameter names)")
+                            "testbench.yaml: the world server's parameter names)")
         self.next = now + WEATHER_RETRY
         return True
 

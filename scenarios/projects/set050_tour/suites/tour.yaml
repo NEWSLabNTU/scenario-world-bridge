@@ -1,5 +1,5 @@
 # 050's tour group: incidents i1 to i6 (i7 and i8 came later and are not in it) and the
-# six-incident tour, on the tour's Autoware (this project's swb.yaml). Reference, 050's
+# six-incident tour, on the tour's Autoware (this project's testbench.yaml). Reference, 050's
 # "after" (2026-10-23): all pass; no ego contact; oracle as "before" (i2 0/0/4, i6 0/0/1,
 # the tour 0/1/21). Measured here (2026-11-16): i1 to i6 as the reference. The tour, on
 # CARLA's blueprint physics (a project stack's tesla_model3 before 077 G55), passed in SSv2

@@ -5,7 +5,7 @@
 	  ego       Autoware (isEgo via the Autoware controller), through the agent relay:
 	            westbound on lanelet 6583 from x = 320 to x = 135.
 	  bg_av_1   controller `agent`: the agent registered with the relay as "bg_av_1" drives
-	            it: the pilot bg_av_* (swb.yaml), its own Autoware in its own ROS domain. 90 m ahead of the
+	            it: the pilot bg_av_* (testbench.yaml), its own Autoware in its own ROS domain. 90 m ahead of the
 	            ego in the same lane, from x = 230 to x = 110, so the ego's Autoware has a
 	            real, Autoware-driven vehicle to perceive and follow, and the parked bg_av_1
 	            ends 25 m past the ego's goal. scensim spawns it with role_name bg_av_1 (the

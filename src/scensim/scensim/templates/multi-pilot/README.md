@@ -6,7 +6,7 @@ program (`pilots/follower.py`, an agent on the scensim_agent SDK) the car behind
 
 | File | Holds |
 |---|---|
-| `swb.yaml` | the simulator, the assets, and the pilot of each entity |
+| `testbench.yaml` | the simulator, the assets, and the pilot of each entity |
 | `scensim.lock` | the assets' exact versions, written by `assets fetch`; commit it |
 | `scenarios/three_pilots.xosc` | the scenario: three entities with controller `agent` or `Autoware` |
 | `pilots/follower.py` | the `command` pilot; fill in its hooks |

@@ -16,7 +16,7 @@ Both use cases come from
 TIER IV YAML scenarios: SSv2 expands each into its variants within one run, one testcase
 per variant. Both are written for Town01.
 
-What `swb.yaml` sets:
+What `testbench.yaml` sets:
 
 - `pilots.ego.lifetime: run`: Autoware starts afresh for each use case, so a suite can give
   it other arguments (`pilot_args`, as `centerpoint.yaml` does). A run lasts 11 to 35

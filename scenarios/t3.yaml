@@ -2,7 +2,7 @@
 # result recorded on the release commit. scripts/t3.py runs them (`run`), records the
 # references (`record`) and compares a host's latest results with them (`compare`).
 #
-# Each entry: project (a directory holding swb.yaml), suite (under its suites/), sim, and
+# Each entry: project (a directory holding testbench.yaml), suite (under its suites/), sim, and
 # what the host needs; minutes, a rough wall time with the stack's start, splits the set
 # across hosts (`--part i/n`); `part: k, parts: n` pins a project to host k of n (the
 # release runs' assignment, 2026-11-16: 1 swb 118, 2 swb 241, 3 swb 243) (`long: true`: tens of minutes). c2b, e2 and s5 reach into scripts/coop:

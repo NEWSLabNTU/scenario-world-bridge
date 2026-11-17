@@ -8,7 +8,7 @@
   <set_env name="RMW_IMPLEMENTATION" value="$(env RMW_IMPLEMENTATION rmw_cyclonedds_cpp)"/>
   <!--
     The developers' background AV (`just bg-av`, `just two-av`). A project gives one as a
-    pilot in swb.yaml, `bg_av_*: {kind: autoware}`, which its stack (scensim.launch.xml) starts in
+    pilot in testbench.yaml, `bg_av_*: {kind: autoware}`, which its stack (scensim.launch.xml) starts in
     a domain of its own (roadmap 076 step 10); no user doc or example points here.
 
     The vehicle side of one background AV: Autoware + acb_bridge + the vehicle agent, i.e.

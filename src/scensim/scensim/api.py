@@ -12,7 +12,7 @@ stopped, unready or different stack, and returns the run's ``RunResult`` (also w
 ``overrides``: ``parameters`` (name -> value), ``repetition``, ``seed``, ``pilot_args``
 (entity -> launch arguments for its ``lifetime: run`` pilot), ``logging`` (``capture``,
 ``keep``), ``timeout`` (SSv2's global_timeout, s), ``ssv2`` (run settings, scensim.ssv2: over
-swb.yaml's), ``seat``, ``logs``, ``wait`` (s to wait for the stack to be ready),
+testbench.yaml's), ``seat``, ``logs``, ``wait`` (s to wait for the stack to be ready),
 ``ready_timeout``, ``expect``, ``start_stack`` (true: start the project's stack when none is up, as ``--start-stack``, and leave it up), ``stack_timeout``;
 and for tests ``scenario_command`` / ``pilot_command`` / ``stack_command`` (callables
 returning the argv to start instead of play_launch).

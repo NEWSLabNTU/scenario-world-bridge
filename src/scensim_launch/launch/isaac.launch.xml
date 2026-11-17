@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   The developers' shortcut (`just run sim:=isaac`, docs/development.md). A project's stack
-  is scensim.launch.xml, which gives no ego_launch: its pilots, in swb.yaml, drive the
+  is scensim.launch.xml, which gives no ego_launch: its pilots, in testbench.yaml, drive the
   entities, and the old arguments are refused there by name (roadmap 076 step 10).
 
   The whole stack on Isaac Sim (roadmap 073): stack.launch.py with sim:=isaac and the Isaac

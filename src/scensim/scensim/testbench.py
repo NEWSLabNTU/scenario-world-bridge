@@ -173,10 +173,10 @@ def build_findings(share, package_xml) -> list:
     share, package_xml = Path(share), Path(package_xml)
     tb = share / TESTBENCH_FILE
     if not tb.is_file():
-        if (share / config.PROJECT_FILE).is_file():
-            return [Finding(config.PROJECT_FILE, f"a testbench's file is {TESTBENCH_FILE}, not "
-                            f"{config.PROJECT_FILE}",
-                            f"git mv {config.PROJECT_FILE} {TESTBENCH_FILE}", refused=True)]
+        if (share / config.OLD_PROJECT_FILE).is_file():
+            return [Finding(config.OLD_PROJECT_FILE, f"{config.OLD_PROJECT_FILE} is renamed "
+                            f"{TESTBENCH_FILE} (roadmap 081)",
+                            f"git mv {config.OLD_PROJECT_FILE} {TESTBENCH_FILE}", refused=True)]
         return [Finding(TESTBENCH_FILE, "no such file",
                         "a scensim_testbench package holds testbench.yaml", refused=True)]
     try:

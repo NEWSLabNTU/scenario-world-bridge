@@ -20,7 +20,7 @@ def test_templates_check_clean_after_fetch(host, maps_hub, template, capsys):
     assert project.main(["new", str(d), "--template", template]) == 0
     assert (d / ".gitignore").read_text().split()[-5:] == ["assets/", "state/", "runs", ".scensim/", "play_log/"]
     assert "@PROJECT@" not in (d / "README.md").read_text()
-    assert "# p:" in (d / "swb.yaml").read_text()
+    assert "# p:" in (d / "testbench.yaml").read_text()
     # before fetching: refused, the map not fetched
     assert project.main(["check", str(d)]) == 3
     assets.fetch(d, out=lambda s: None)
@@ -39,13 +39,13 @@ def test_new_refuses_non_empty_and_unknown(tmp_path):
     with pytest.raises(ConfigError, match="no template"):
         project.new_project(tmp_path / "y", "nope")
     project.new_project(tmp_path / "empty")  # an empty directory is fine
-    assert (tmp_path / "empty" / "swb.yaml").is_file()
+    assert (tmp_path / "empty" / "testbench.yaml").is_file()
 
 
-def make(tmp, swb_yaml, scenarios=None, maps=("Town01",)):
+def make(tmp, testbench_yaml, scenarios=None, maps=("Town01",)):
     d = tmp / "proj"
     (d / "scenarios").mkdir(parents=True, exist_ok=True)
-    (d / "swb.yaml").write_text(swb_yaml)
+    (d / "testbench.yaml").write_text(testbench_yaml)
     for m in maps:
         (d / "assets" / "maps" / m).mkdir(parents=True, exist_ok=True)
     for name, text in (scenarios or {"drive.xosc": DRIVE}).items():
@@ -90,7 +90,7 @@ logging: {capture: lots, keep: {passed: result, flaky: full}}
     assert "logging.keep: unknown verdict flaky" in w
     # the ego's entity now has no valid pilot kind, but it matches a key
     f = [x for x in project.check_project(d) if x.what == "unknown key pilot"][0]
-    assert str(f).startswith("problem: swb.yaml: unknown key pilot (fix: use only simulator,")
+    assert str(f).startswith("problem: testbench.yaml: unknown key pilot (fix: use only simulator,")
 
 
 def test_required(host):
@@ -151,16 +151,16 @@ def test_kind_none_on_an_autoware_controller_is_refused(host, capsys):
     assert project.main(["check", str(d)]) == 3
     assert "entity ego (controller Autoware)" in capsys.readouterr().out
     # a pattern binds it too; the finding names the pilot's key
-    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {'*': {kind: none}}\n")
+    (d / "testbench.yaml").write_text("simulator: carla\nassets: []\npilots: {'*': {kind: none}}\n")
     [f] = scenario_checks(d)
     assert "bound to pilot * of kind none" in f.what
     # the same entity under controller agent: kind none is the user's own process, fine
-    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n")
+    (d / "testbench.yaml").write_text("simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n")
     (d / "scenarios" / "drive.xosc").write_text(DRIVE.replace('name="Autoware"', 'name="agent"'))
     assert scenario_checks(d) == []
     # managed_ego: false: SSv2 hands its ego to nobody, so nothing waits for a vehicle side
     (d / "scenarios" / "drive.xosc").write_text(DRIVE)
-    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n"
+    (d / "testbench.yaml").write_text("simulator: carla\nassets: []\npilots: {ego: {kind: none}}\n"
                                 "ssv2: {managed_ego: false}\n")
     assert scenario_checks(d) == []
 
@@ -174,7 +174,7 @@ def test_patterns_and_isaac_limit(host):
     pilots = "pilots:\n  ego: {kind: autoware}\n  bg_av_*: {kind: autoware}\n"
     d = make(host["tmp"], "simulator: carla\nassets: []\n" + pilots, {"two.xosc": text})
     assert scenario_checks(d) == []
-    (d / "swb.yaml").write_text("simulator: isaac\nassets: []\n" + pilots)
+    (d / "testbench.yaml").write_text("simulator: isaac\nassets: []\n" + pilots)
     [f] = scenario_checks(d)
     assert "2 externally driven entities (ego, bg_av_1); Isaac drives one" == f.what
 
@@ -188,7 +188,7 @@ def test_simulator_autopilot_is_refused_on_isaac(host):
     text = AUTOPILOT.read_text()
     d = make(host["tmp"], BASE, {"autopilot.xosc": text})
     assert not [f for f in scenario_checks(d) if "simulator_autopilot" in f.what]
-    (d / "swb.yaml").write_text(BASE.replace("simulator: carla", "simulator: isaac"))
+    (d / "testbench.yaml").write_text(BASE.replace("simulator: carla", "simulator: isaac"))
     f = next(f for f in scenario_checks(d) if "simulator_autopilot" in f.what)
     assert f.refused and "runs on CARLA only, the simulator is isaac" in f.what
 
@@ -318,7 +318,7 @@ def test_example_projects_check_clean_after_fetch(host, examples_hub, name):
 
 def test_new_from_copies_a_project_without_host_state(tmp_path):
     src = tmp_path / "src"
-    for rel, text in {"swb.yaml": BASE, ".gitignore": "assets/\n", "scensim.lock": "version: 1\n",
+    for rel, text in {"testbench.yaml": BASE, ".gitignore": "assets/\n", "scensim.lock": "version: 1\n",
                       "scenarios/drive.xosc": DRIVE, "pilots/me.py": "print(1)\n",
                       "assets/maps/Town01/x": "", "state/Town01/y": "",
                       "runs/r/result.json": "", ".scensim/local.yaml": "seat: 3\n",
@@ -328,7 +328,7 @@ def test_new_from_copies_a_project_without_host_state(tmp_path):
     (src / "pilots" / "me.py").chmod(0o555)  # read-only and executable, as installed
     dest = project.copy_project(src, tmp_path / "copy")
     got = sorted(p.relative_to(dest).as_posix() for p in dest.rglob("*") if p.is_file())
-    assert got == [".gitignore", "pilots/me.py", "scenarios/drive.xosc", "scensim.lock", "swb.yaml"]
+    assert got == [".gitignore", "pilots/me.py", "scenarios/drive.xosc", "scensim.lock", "testbench.yaml"]
     mode = (dest / "pilots" / "me.py").stat().st_mode
     assert mode & 0o200 and mode & 0o100  # the user's own: writable, still executable
 
@@ -336,20 +336,20 @@ def test_new_from_copies_a_project_without_host_state(tmp_path):
 def test_new_from_follows_links(tmp_path):
     real = tmp_path / "real"
     real.mkdir()
-    (real / "swb.yaml").write_text(BASE)
+    (real / "testbench.yaml").write_text(BASE)
     src = tmp_path / "share"
     src.mkdir()
-    (src / "swb.yaml").symlink_to(real / "swb.yaml")  # a --symlink-install share
+    (src / "testbench.yaml").symlink_to(real / "testbench.yaml")  # a --symlink-install share
     dest = project.copy_project(src, tmp_path / "copy")
-    assert not (dest / "swb.yaml").is_symlink()
-    assert (dest / "swb.yaml").read_text() == BASE
+    assert not (dest / "testbench.yaml").is_symlink()
+    assert (dest / "testbench.yaml").read_text() == BASE
 
 
 def test_new_from_refuses(tmp_path):
     src = tmp_path / "src"
     src.mkdir()
-    (src / "swb.yaml").write_text(BASE)
-    with pytest.raises(ConfigError, match="no swb.yaml"):
+    (src / "testbench.yaml").write_text(BASE)
+    with pytest.raises(ConfigError, match="no testbench.yaml"):
         project.copy_project(tmp_path / "nothing", tmp_path / "a")
     (tmp_path / "full").mkdir()
     (tmp_path / "full" / "f").write_text("")
@@ -365,7 +365,7 @@ def test_new_from_an_installed_package(tmp_path, monkeypatch):
     import types
     share = tmp_path / "share" / "scensim_examples"
     (share / "projects" / "first_drive").mkdir(parents=True)
-    (share / "projects" / "first_drive" / "swb.yaml").write_text(BASE)
+    (share / "projects" / "first_drive" / "testbench.yaml").write_text(BASE)
     fake = types.ModuleType("ament_index_python.packages")
     fake.get_package_share_directory = lambda pkg: str(tmp_path / "share" / pkg)
     monkeypatch.setitem(sys.modules, "ament_index_python", types.ModuleType("ament_index_python"))
@@ -373,8 +373,8 @@ def test_new_from_an_installed_package(tmp_path, monkeypatch):
     dest = tmp_path / "mine"
     assert project.main(["new", str(dest), "--from",
                          "pkg://scensim_examples/projects/first_drive"]) == 0
-    assert (dest / "swb.yaml").read_text() == BASE
-    with pytest.raises(ConfigError, match="installs no swb.yaml"):
+    assert (dest / "testbench.yaml").read_text() == BASE
+    with pytest.raises(ConfigError, match="installs no testbench.yaml"):
         project.source_project("pkg://scensim_examples/projects/nope")
 
 
@@ -424,7 +424,7 @@ def test_ego_geometry_against_the_catalog(tmp_path):
 
 
 def test_logging_keys_not_built_are_refused_by_name():
-    f = project._check_logging("swb.yaml", "logging", {"levels": {"bridge": "info"},
+    f = project._check_logging("testbench.yaml", "logging", {"levels": {"bridge": "info"},
                                                        "debug": ["bridge"], "capture": "full"})
     assert len(f) == 2 and "not built yet" in str(f[0]) and "not built yet" in str(f[1])
 
@@ -465,8 +465,8 @@ def test_suite_items_and_managed_ego(host):
     # managed (the default): the ego needs its pilot
     (d / "suites" / "s.yaml").write_text("scenarios: [{path: scenarios/drive.xosc}]\n")
     assert whats(scenario_checks(d)) == ["entity ego (controller Autoware) has no pilot"]
-    # swb.yaml's ssv2 covers every scenario
-    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots: {other: {kind: none}}\n"
+    # testbench.yaml's ssv2 covers every scenario
+    (d / "testbench.yaml").write_text("simulator: carla\nassets: []\npilots: {other: {kind: none}}\n"
                                 "ssv2: {managed_ego: false}\n")
     assert scenario_checks(d) == []
     (d / "suites" / "s.yaml").write_text(
@@ -490,7 +490,7 @@ def test_profile_arguments_refused_at_check(host):
              "  ego: {kind: autoware, args: {carla_control: false, ndt: '{param:ndt}'}}\n")
     w = whats(scenario_checks(d))
     assert w == ["pilots.ego.args: carla_control:= was renamed; pass sim_control:=false instead"]
-    (d / "swb.yaml").write_text("simulator: carla\nassets: []\npilots:\n"
+    (d / "testbench.yaml").write_text("simulator: carla\nassets: []\npilots:\n"
                                 "  ego: {kind: autoware, args: {ndt: cuda}}\n")
     (d / "suites").mkdir()
     (d / "suites" / "s.yaml").write_text(

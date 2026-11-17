@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
 	Town01, one westbound lane, three externally driven vehicles (controller `agent` or
-	`Autoware`), each bound to a pilot by name in swb.yaml:
+	`Autoware`), each bound to a pilot by name in testbench.yaml:
 
 	  lead      90 m ahead of the ego, x = 230 to 110 (pilot kind carla_basic)
 	  ego       x = 320 to 135 (pilot kind autoware)

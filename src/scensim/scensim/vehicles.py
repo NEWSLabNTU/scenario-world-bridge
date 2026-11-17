@@ -1,4 +1,4 @@
-"""A project's own cars (``vehicles:`` in swb.yaml), made for the stack (roadmap 077, G5).
+"""A project's own cars (``vehicles:`` in testbench.yaml), made for the stack (roadmap 077, G5).
 
 Each listed spec (sim_vehicle_spec's format) is generated, when the stack starts, into
 ``<project>/state/vehicles/<name>/`` by ``sim_vehicle_spec.gen``: its SSv2 catalog entry,

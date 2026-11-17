@@ -1,4 +1,4 @@
-# road_physics: Town01's ground for this project (swb.yaml `ground:`), the surface map of
+# road_physics: Town01's ground for this project (testbench.yaml `ground:`), the surface map of
 # docs/tutorials/07-road-physics.md. The scenarios' route (x 190.8 -> 120 along y -130,
 # heading -x) crosses, in order: a wet stretch, 12.8 m of wet mud (a soil zone on the grid,
 # with its own ground, so it ruts), then a gravel patch, before its goal.

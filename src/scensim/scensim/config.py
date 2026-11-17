@@ -17,7 +17,19 @@ from pathlib import Path
 
 import yaml
 
-PROJECT_FILE = "swb.yaml"
+PROJECT_FILE = "testbench.yaml"
+# the project file's name before roadmap 081: refused by name, never read (no shims)
+OLD_PROJECT_FILE = "swb.yaml"
+
+
+def old_project_file(d: Path) -> str:
+    """The refusal for a directory holding the old project file and not testbench.yaml, or "".
+    """
+    d = Path(d)
+    if (d / OLD_PROJECT_FILE).is_file() and not (d / PROJECT_FILE).is_file():
+        return (f"{d / OLD_PROJECT_FILE}: {OLD_PROJECT_FILE} is renamed {PROJECT_FILE} "
+                f"(roadmap 081): git mv {OLD_PROJECT_FILE} {PROJECT_FILE}")
+    return ""
 LOCK_FILE = "scensim.lock"
 
 DEFAULTS = {
@@ -99,7 +111,7 @@ def read_yaml(path: Path) -> dict:
 
 def find_project(start: Path = None) -> Path:
     """The project directory: ``start`` (default the working directory) or the nearest parent
-    holding swb.yaml. A ``pkg://<name>[/<subdir>]`` start is a ROS package's share directory,
+    holding testbench.yaml. A ``pkg://<name>[/<subdir>]`` start is a ROS package's share directory,
 or a directory in it (``pkg://scensim_examples/projects/first_drive``)."""
     start = str(start) if start is not None else os.getcwd()
     if start.startswith("pkg://"):
@@ -113,6 +125,9 @@ or a directory in it (``pkg://scensim_examples/projects/first_drive``)."""
     for d in (p, *p.parents):
         if (d / PROJECT_FILE).is_file():
             return d
+        old = old_project_file(d)
+        if old:
+            raise ConfigError(old)
     raise ConfigError(f"no {PROJECT_FILE} in {p} or above: run `ros2 run scensim project new <dir>`"
                       " or give project:=<dir>")
 
@@ -200,6 +215,9 @@ def host_settings(project: Path = None, overrides: dict = None) -> dict:
 def project_settings(project: Path) -> dict:
     """The project file, as written (validation is scensim.project's)."""
     path = Path(project) / PROJECT_FILE
+    old = old_project_file(project)
+    if old:
+        raise ConfigError(old)
     if not path.is_file():
         raise ConfigError(f"{path}: no project file")
     return read_yaml(path)

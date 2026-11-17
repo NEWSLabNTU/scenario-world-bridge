@@ -1531,7 +1531,7 @@ _clear-stale-scenario:
 # more wall time per simulated second (roadmap 057: NDT starved at 1.0 under a load of 60-90).
 #
 # Run one scenario on the project workflow (roadmap 077 step 8): `ros2 run scensim run` in the
-# project that holds the scenario (the nearest swb.yaml above it), else in
+# project that holds the scenario (the nearest testbench.yaml above it), else in
 # scenarios/projects/dev (CARLA's towns, the default Autoware ego), starting that project's
 # stack when it is not up and leaving it up. The run's result, timeline and logs are under
 # the host settings' logs (`ros2 run scensim runs show <id>`). project:=<dir> names the project;
@@ -1558,7 +1558,7 @@ scenario scenario_file *args:
     done
     file=$(realpath -s "{{scenario_file}}")
     [ -n "$project" ] || project=$(scensim_scenario_project "$file" "{{project}}")
-    [ -f "$project/swb.yaml" ] || { echo "scenario: $project has no swb.yaml" >&2; exit 2; }
+    [ -f "$project/testbench.yaml" ] || { echo "scenario: $project has no testbench.yaml" >&2; exit 2; }
     source "{{autoware_setup}}"
     source "{{project}}/install/setup.bash"
     echo "[scenario] project $project"
@@ -1660,7 +1660,7 @@ _scenario-has-ego scenario_file:
 
 # One scenario, start to stop, on the project workflow (roadmap 077 step 8, inventory item
 # 51): `ros2 run scensim run <xosc> --stop-stack` in the project that holds the scenario (the
-# nearest swb.yaml above it), else in scenarios/projects/dev, as `just scenario` finds it. A
+# nearest testbench.yaml above it), else in scenarios/projects/dev, as `just scenario` finds it. A
 # stack that is not up is started for the run and stopped after it, whatever the verdict,
 # with the pilots and a CARLA it started; a stack that was up already is used and left up.
 # The run's result, timeline and logs are under the host settings' logs (`ros2 run scensim runs
@@ -1697,7 +1697,7 @@ e2e *args:
     [ -f "$scenario" ] || { echo "e2e: $scenario: no such file" >&2; exit 2; }
     file=$(realpath -s "$scenario")
     [ -n "$project" ] || project=$(scensim_scenario_project "$file" "{{project}}")
-    [ -f "$project/swb.yaml" ] || { echo "e2e: $project has no swb.yaml" >&2; exit 2; }
+    [ -f "$project/testbench.yaml" ] || { echo "e2e: $project has no testbench.yaml" >&2; exit 2; }
     source "{{autoware_setup}}"
     source "{{project}}/install/setup.bash"
     echo "[e2e] project $project"

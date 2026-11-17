@@ -72,7 +72,7 @@ def oracle(run_dir: Path, extra: list, fail_on: str) -> int:
     found = traces(run_dir)
     if not found:
         return _emit({"verdict": "error", "message": f"no gap trace in {run_dir}/gap_trace "
-                      "(logging.gap_trace: true in swb.yaml, or needs: [gap_trace])"}, 2)
+                      "(logging.gap_trace: true in testbench.yaml, or needs: [gap_trace])"}, 2)
     junit = _junit(run_dir)
     out, worst = [], "passed"
     for t in found:

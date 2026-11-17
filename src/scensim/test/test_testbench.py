@@ -14,7 +14,7 @@ def make(tmp_path, deps=(), suite=None, extra="", name="tb"):
     (tb / "scenarios" / "drive.xosc").write_text(
         (TEMPLATE / "scenarios" / "drive_to_goal.xosc").read_text())
     (tb / "testbench.yaml").write_text(
-        (TEMPLATE / "swb.yaml").read_text().replace("@PROJECT@", name) + extra)
+        (TEMPLATE / "testbench.yaml").read_text().replace("@PROJECT@", name) + extra)
     depends = "".join(f"<exec_depend>{d}</exec_depend>" for d in deps)
     (tb / "package.xml").write_text(
         f'<?xml version="1.0"?><package format="3"><name>{name}</name><version>0.0.1</version>'
@@ -65,7 +65,7 @@ def test_a_swb_yaml_project_is_refused_naming_its_successor(tmp_path):
     (tb / "testbench.yaml").rename(tb / "swb.yaml")
     got = testbench.build_findings(tb, tb / "package.xml")
     assert len(got) == 1 and got[0].refused
-    assert got[0].what == "a testbench's file is testbench.yaml, not swb.yaml"
+    assert got[0].what == "swb.yaml is renamed testbench.yaml (roadmap 081)"
     assert got[0].fix == "git mv swb.yaml testbench.yaml"
 
 

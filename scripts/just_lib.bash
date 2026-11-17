@@ -162,10 +162,10 @@ scensim_log_dir() {
 
 # scensim_scenario_project SCENARIO PROJECT_ROOT: the project a scenario runs in on the project
 # workflow (roadmap 077 step 8), the nearest directory above the scenario that holds a
-# swb.yaml, else PROJECT_ROOT/scenarios/projects/dev.
+# testbench.yaml, else PROJECT_ROOT/scenarios/projects/dev.
 scensim_scenario_project() {
     local d
     d=$(dirname "$(realpath -s "$1")")  # -s: a linked scenario runs in the project holding the link
-    while [ "$d" != "/" ] && [ ! -f "$d/swb.yaml" ]; do d=$(dirname "$d"); done
-    if [ -f "$d/swb.yaml" ]; then echo "$d"; else echo "$2/scenarios/projects/dev"; fi
+    while [ "$d" != "/" ] && [ ! -f "$d/testbench.yaml" ]; do d=$(dirname "$d"); done
+    if [ -f "$d/testbench.yaml" ]; then echo "$d"; else echo "$2/scenarios/projects/dev"; fi
 }

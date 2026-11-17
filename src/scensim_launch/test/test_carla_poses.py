@@ -62,7 +62,7 @@ def test_a_project_local_file_wins(poses, host_dir, tmp_path, monkeypatch):
     (host_dir / "host.yaml").write_text("carla: {port: 2600}\n")
     proj = tmp_path / "proj"
     (proj / ".scensim").mkdir(parents=True)
-    (proj / "swb.yaml").write_text("simulator: carla\n")
+    (proj / "testbench.yaml").write_text("simulator: carla\n")
     (proj / ".scensim" / "local.yaml").write_text("carla: {port: 2700}\n")
     monkeypatch.chdir(proj)
     assert endpoint(poses, ["at", "1", "2"]) == ("localhost", 2700)

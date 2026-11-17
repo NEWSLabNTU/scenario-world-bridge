@@ -1,6 +1,6 @@
 """A project's ground: its own per-map surface files, put where the world server reads them.
 
-``ground:`` in ``swb.yaml`` (docs/design/projects-and-pilots.md, "Ground")::
+``ground:`` in ``testbench.yaml`` (docs/design/projects-and-pilots.md, "Ground")::
 
     ground:
       Town01:

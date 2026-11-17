@@ -31,6 +31,9 @@ from .release import (
     vehicle_prefix,
 )
 
+ROS_ROOT = os.environ.get("SCENSIM_ROS_ROOT", "/opt/ros")
+AUTOWARE_ROOT = os.environ.get("SCENSIM_AUTOWARE_ROOT", "/opt/autoware")
+
 USAGE = """\
 usage: scensim install [--distro <ros>] [--autoware <release>] [--force]
        scensim --version
@@ -75,23 +78,56 @@ def install(release: Release, autoware: str | None, force: bool, first_use: bool
         print(f"  source {cur}/vehicle-autoware{autoware}/setup.bash", file=sys.stderr)
 
 
-def exec_scensim(release: Release, argv: list[str]) -> None:
-    """Run the release's own ``scensim`` with ``argv``, in its environment."""
+def autoware_setup(version: str, distro: str) -> tuple[str | None, Path | None]:
+    """The Autoware to source before the vehicle side: ``(release, its setup.bash)``.
+
+    A sourced Autoware is taken as it is (``setup`` None). Otherwise, an installed vehicle side
+    for release R is paired with ``/opt/autoware/R/setup.bash`` when that exists."""
+    sourced = sourced_autoware()
+    if sourced:
+        return sourced, None
+    root = install_dir(version, distro)
+    for veh in sorted(root.glob("vehicle-autoware*")):
+        rel = veh.name.removeprefix("vehicle-autoware")
+        setup = Path(AUTOWARE_ROOT) / rel / "setup.bash"
+        if (veh / "setup.bash").exists() and setup.exists():
+            return rel, setup
+    return None, None
+
+
+def environment_lines(release: Release) -> list[str]:
+    """What to source before the release's ``bin/scensim``, in order: ROS (when no ROS is
+    sourced), Autoware (when one is detected and not sourced), the simulation side, the
+    vehicle side for that Autoware. A prefix already on ``AMENT_PREFIX_PATH`` is not sourced
+    again."""
     v, d = release.version, release.distro
-    sim = sim_prefix(v, d)
-    exe = sim / "bin" / "scensim"
-    if not exe.exists():
-        raise DownloadError(f"{exe} is missing from the install; run `scensim install --force`")
-    if str(sim) in os.environ.get("AMENT_PREFIX_PATH", "").split(":"):
-        os.execv(str(exe), [str(exe), *argv])  # already sourced: keep the user's environment
-    lines = []
-    ros = Path(f"/opt/ros/{d}/setup.bash")
+    sourced = os.environ.get("AMENT_PREFIX_PATH", "").split(":")
+    lines: list[str] = []
+    ros = Path(ROS_ROOT) / d / "setup.bash"
     if not os.environ.get("ROS_DISTRO") and ros.exists():
         lines.append(f"source {shlex.quote(str(ros))}")
-    lines.append(f"source {shlex.quote(str(sim / 'setup.bash'))}")
-    aw = sourced_autoware()
-    if aw and (vehicle_prefix(v, d, aw) / "setup.bash").exists():
-        lines.append(f"source {shlex.quote(str(vehicle_prefix(v, d, aw) / 'setup.bash'))}")
+    aw, aw_setup = autoware_setup(v, d)
+    if aw_setup is not None:
+        lines.append(f"source {shlex.quote(str(aw_setup))}")
+    sim = sim_prefix(v, d)
+    if str(sim) not in sourced:
+        lines.append(f"source {shlex.quote(str(sim / 'setup.bash'))}")
+    if aw:
+        veh = vehicle_prefix(v, d, aw)
+        if (veh / "setup.bash").exists() and str(veh) not in sourced:
+            lines.append(f"source {shlex.quote(str(veh / 'setup.bash'))}")
+    return lines
+
+
+def exec_scensim(release: Release, argv: list[str]) -> None:
+    """Run the release's own ``bin/scensim`` with ``argv`` unchanged, in its environment; its
+    exit code is the command's (the process is replaced)."""
+    exe = sim_prefix(release.version, release.distro) / "bin" / "scensim"
+    if not exe.exists():
+        raise DownloadError(f"{exe} is missing from the install; run `scensim install --force`")
+    lines = environment_lines(release)
+    if not lines:
+        os.execv(str(exe), [str(exe), *argv])
     lines.append(f'exec {shlex.quote(str(exe))} "$@"')
     os.execv("/bin/bash", ["/bin/bash", "-c", " && ".join(lines), "scensim", *argv])
 
@@ -137,6 +173,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not args or args[0] in ("-h", "--help"):
             print(USAGE, end="")
+            # and scensim's own commands, from the installed release (never a download)
+            try:
+                release = load_release(choose_distro(None))
+            except Refused:
+                return 0
+            if installed(release.version, release.distro):
+                sys.stdout.flush()
+                print()
+                exec_scensim(release, ["--help"])
             return 0
         if args[0] in ("--version", "-V"):
             print(version_text())

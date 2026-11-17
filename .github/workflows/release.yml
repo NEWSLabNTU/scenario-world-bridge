@@ -14,6 +14,11 @@
 name: release
 
 on:
+  # TEMPORARY (drop before landing): workflow_dispatch needs the file on main, so the
+  # branch's own test runs on push, with the smoke-only defaults below.
+  push:
+    branches: [082-release-workflow]
+    paths: [.github/workflows/release.yml, scripts/release/**, pypi/**]
   workflow_dispatch:
     inputs:
       version:
@@ -40,7 +45,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  VERSION: ${{ inputs.version }}
+  VERSION: ${{ inputs.version || '0.1.0' }}
   DISTRO: humble
   ARCH: x86_64
   # The submodules the simulation side builds from (082 step 4); the two world servers carry
@@ -99,7 +104,7 @@ jobs:
       - id: guard
         name: Whether this run may publish
         env:
-          STOP_AFTER: ${{ inputs.stop_after }}
+          STOP_AFTER: ${{ inputs.stop_after || 'smoke' }}
           ENABLED: ${{ vars.SCENSIM_RELEASE_ENABLED }}
         run: |
           ok=false

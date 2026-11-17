@@ -104,6 +104,7 @@ simulation side). Neither passes `--skip-keys`.
 | 6.3A | no | `git submodule update --init --recursive` | every submodule | 0 |
 | 6.4A | yes | ROS and Autoware sourced: `rosdep install --from-paths src --ignore-src -y` | every key resolves; `#All required rosdeps installed successfully` | 0 |
 | 6.3B | no | `git submodule update --init --recursive` with the simulation-side submodules the page lists, then `vcs import src < sim.repos` | six message repositories imported | 0 |
+| 6.3B-Isaac | no | for Isaac Sim also: `git submodule update --init --recursive src/autoware_isaac_bridge` and `touch src/autoware_isaac_bridge/src/aib_launch/COLCON_IGNORE` | `aib` built, `aib_launch` skipped | 0 |
 | 6.4B | yes | ROS sourced: `rosdep install --from-paths src --ignore-src -y` | every key resolves (about 28 apt packages and one pip, yamale, on a bare `ros:humble`) | 0 |
 | 6.5 | no | `colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release` | `Summary: <n> packages finished`, none failed | 0 |
 | 6.6 | no | `~/scensim.bash` with `~/scensim/install/setup.bash` in place of the installed one; then sections 2 to 4 again in a new workspace (host A) | the same results | |

@@ -422,7 +422,7 @@ the process group. One bridge drives a world server at a time (the owner lease),
 across checkouts); a second of either is refused.
 
 ```bash
-ps -eo pid,etimes,args --no-headers | grep -E "[s]wb_carla_world|[s]cenario_world_bridge|[s]cenario_agent_relay"
+ps -eo pid,etimes,args --no-headers | grep -E "[s]censim_carla_world|[s]cenario_world_bridge|[s]cenario_agent_relay"
 ss -lpn | grep -E ":5555 |:5560 |:5591 "   # bridge, relay, CARLA world server
 just world-health                           # its simulator, owner, readiness
 ```

@@ -146,7 +146,8 @@ source`, with a link to [From source](#from-source).
 
 `python3 -m pip install --user --upgrade scensim`, then `scensim install`, puts the new
 version beside the old and points `current` at it. Rebuild your workspaces afterwards
-(`colcon build` in each): a workspace built over the old version still names it.
+(`colcon build` in each): `scensim run` refuses a testbench built over another version,
+naming the rebuild.
 
 ## From source
 

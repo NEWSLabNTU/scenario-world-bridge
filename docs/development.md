@@ -15,6 +15,17 @@ just setup      # rustup, colcon-cargo-ros2, submodules, rosdep, and the dev too
 just build      # the user's colcon build plus --symlink-install and a dev-release profile
 ```
 
+An unreleased colcon-cargo-ros2 (a commit of its repository rather than PyPI's wheel)
+does not install from git with Ubuntu 22.04's pip 22: the plugin builds with maturin, and
+pip's isolated build environment does not put `maturin` on `PATH`
+(`FileNotFoundError: ... 'maturin'`). Install maturin first and build without isolation:
+
+```bash
+python3 -m pip install --user maturin
+python3 -m pip install --user --no-build-isolation \
+    "git+https://github.com/jerry73204/colcon-cargo-ros2@<commit>#subdirectory=packages/colcon-cargo-ros2"
+```
+
 [`just`](https://github.com/casey/just) wraps the developer workflow; `just` alone lists the
 recipes. The ones you will use most:
 

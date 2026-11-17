@@ -62,7 +62,7 @@ def clean_env() -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="ros2 run scensim autoware", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="what", required=True)
-    sub.add_parser("overlay", help="build Autoware's carried fixes (roadmap 042)")
+    sub.add_parser("overlay", help="build Autoware's carried fixes")
     sub.add_parser("tensorrt", help="fetch the TensorRT 10.8.0 runtime Autoware 1.5.0 needs")
     sub.add_parser("where", help="print where each goes on this host")
     a = ap.parse_args(argv)

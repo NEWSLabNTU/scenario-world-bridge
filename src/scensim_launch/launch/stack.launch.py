@@ -561,7 +561,7 @@ def generate_launch_description():
         arg("carla_host", default_value=_env("CARLA_HOST", ""), description="CARLA's RPC host; default CARLA_HOST, else the world server's own default"),
         arg("carla_port", default_value=_env("CARLA_PORT", ""), description="CARLA's RPC port; default CARLA_PORT, else the world server's own default"),
         arg("nest_side", default_value="false", description="true: the world server and the simulation side (bridge, relay) as nested play_launches logging under log_dir/simulator and log_dir/bridge (scensim.launch.xml's stack)"),
-        arg("launcher", default_value="play_launch", description="play_launch or ros2: the launcher of every nested launch (roadmap 079); scensim.launch.xml's stack passes the host settings' resolved launcher"),
+        arg("launcher", default_value="play_launch", description="play_launch or ros2: the launcher of every nested launch; scensim.launch.xml's stack passes the host settings' resolved launcher"),
         arg("log_dir", default_value=_env("SCENSIM_LOG_ROOT", "play_log"), description="where the nested launches (ego, agent, scenario, pilots; with nest_side the world server and the bridge) log"),
         # an argument, not the environment: scensim.launch.py's SetEnvironmentVariable is not in
         # os.environ when this file is read, and a sourced Autoware exports its own profile

@@ -102,8 +102,8 @@ scensim_autoware_overlay_source() {
     if [ -z "$built" ] && [ -f "$dir/install/.swb_overlay_rev" ]; then
         # roadmap 080: an overlay built before the rename has the stamp under the old name,
         # which is not read; moving it is enough (the overlay itself is the same)
-        echo "[just] WARNING: the Autoware overlay's stamp has the old name and is not read" \
-             "(roadmap 080); move it: mv $dir/install/.swb_overlay_rev" \
+        echo "[just] WARNING: the Autoware overlay's stamp has the old name and is not read;" \
+             "move it: mv $dir/install/.swb_overlay_rev" \
              "$dir/install/.scensim_overlay_rev" >&2
     elif [ "$built" != "$pinned" ]; then
         echo "[just] WARNING: Autoware overlay built from ${built:-unknown commits}," >&2

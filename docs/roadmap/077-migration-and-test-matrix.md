@@ -1605,7 +1605,13 @@ Isaac's rear contact (inventory row 18).
   divides physics_hz (with 60: 60, 30, 20, 15, 12, 10 Hz; with 240: 120, 80, 60, 48, 40, 30,
   20 Hz); 50, 40, 25 and 100 Hz are not, at 60. Every Isaac project here but speed_ladder and
   drift_lap (both frame_rate 100) runs at SSv2's default 20 Hz. Workaround: `isaac:
-  physics_hz` a multiple of the frame rate (speed_ladder: 100; 118's confirming run pending).
+  physics_hz` a multiple of the frame rate, confirmed (118, 2026-11-17 14:55, 876f8b3, a copy
+  of speed_ladder with `physics_hz: 100` at frame_rate 100): the car drove 1077 m, top 11.22
+  m/s, ground truth at 99.5 Hz, which confirms the mechanism. That run still ended `error`
+  (SSv2's 760 s ran out ~400 m short of the ~1477 m lap): RTF 0.15 under load (0.26 quiet
+  before), bridge tick p50 35.9 ms for a 10 ms frame, the camera rendered every frame; and
+  11.22 m/s is 12 % over rung 10, outside rung_check's 10 % band if it holds on a full lap.
+  Those are item 26's own, not G84's.
   Fix after the release: the world server (or the bridge) refuses a step whose dt is not its
   own, naming the frame rates that divide physics_hz, or the Isaac side refreshes the
   vehicle after `set_simulation_dt` (an Isaac test first). Also then: speed_ladder logs

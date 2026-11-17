@@ -135,8 +135,7 @@
 								</ConditionGroup>
 							</StartTrigger>
 						</Event>
-						<!-- The ego must not come within 1 m of the walker in its path (roadmap 044 open
-						     item 4): a contact passed before, because nothing checked it. In its path:
+						<!-- The ego must not come within 1 m of the walker in its path. In its path:
 						     less than 0.3 m apart across the ego (Autoware's own lateral margin), so a
 						     walker passed alongside at a stop's pace does not count. By distance, not
 						     CollisionCondition alone: CARLA's walker can touch the ego while SSv2's

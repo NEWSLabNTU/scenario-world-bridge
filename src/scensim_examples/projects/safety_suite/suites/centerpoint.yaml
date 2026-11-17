@@ -1,8 +1,7 @@
 # The same use cases with Autoware's CenterPoint detector (the full model, the profile's
 # choice for lidar_detection_model:=centerpoint) instead of clustering. Both pass every
-# variant (2026-11-16: UC-ACC-001-0001 27/27, UC-AEB-001-0001 9/9). With centerpoint_tiny,
-# which the name meant before 2026-11-15, UC-AEB passed only 2 of 9 (roadmap 020): a failure
-# here is news again.
+# variant (2026-11-16: UC-ACC-001-0001 27/27, UC-AEB-001-0001 9/9). With the smaller
+# centerpoint_tiny model, UC-AEB passed only 2 of 9; a failure here is news.
 scenarios: [scenarios/awf/]
 pilot_args:
   ego: {lidar_detection_model: centerpoint}

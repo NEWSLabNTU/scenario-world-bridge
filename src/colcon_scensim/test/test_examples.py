@@ -18,6 +18,13 @@ sys.path.insert(0, str(SCENSIM_SRC))
 from scensim import project as projectmod  # noqa: E402
 from scensim import testbench_cli  # noqa: E402
 
+import re  # noqa: E402
+
+# an absolute path to a host's files (not a package-relative one, nor $(find-pkg-share ...))
+HOST_PATH = re.compile(r"(?<![\w$)}/.-])(?:/(?:home|mnt|var|opt|tmp|srv|media|root|usr/local)/|~/)")
+# the project's roadmap: the word, or a phase reference (044 open item 4, 017 step 6, (020))
+ROADMAP = re.compile(r"(?i)\broadmap\b|\b0\d\d (?:step|open item|item|phase)\b|\(0\d\d\)")
+
 EXAMPLES = PLUGIN.parent / "scensim_examples" / "projects"
 EXAMPLE_NAMES = sorted(p.name for p in EXAMPLES.iterdir()
                        if (p / "testbench.yaml").is_file())
@@ -63,11 +70,18 @@ def test_each_copy_is_a_self_contained_package(built, name):
     for f in ("package.xml", "testbench.yaml", "README.md"):
         assert (dest / f).is_file(), f
     assert not (dest / ".gitignore").exists() and not (dest / "gitignore").exists()
-    # nothing names a host's checkout (the build checks that no path leaves the package)
+    # nothing names a host's files, and nothing names the project's roadmap: every file here
+    # is the user's own (the build checks that no relative path leaves the package)
     for f in dest.rglob("*"):
-        if f.is_file() and f.suffix in (".yaml", ".xosc", ".py", ".md"):
-            text = f.read_text()
-            assert "/home/" not in text and "/mnt/" not in text, f
+        if not f.is_file() or f.name == "package.xml":
+            continue
+        text = f.read_text()
+        rel = f.relative_to(dest)
+        hosts = HOST_PATH.findall(text)
+        if f.name == "README.md":   # its commands name the reader's own ~/my_ws
+            hosts = [h for h in hosts if not h.startswith("~")]
+        assert not hosts, f"{rel}: host paths {hosts}"
+        assert not ROADMAP.search(text), f"{rel}: {ROADMAP.search(text).group(0)!r}"
 
 
 @pytest.mark.parametrize("name", [f"ex_{x}" for x in EXAMPLE_NAMES]

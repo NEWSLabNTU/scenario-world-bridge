@@ -1,3 +1,4 @@
 # The examples ship without a lock: `scensim assets fetch <testbench>` writes
-# scensim.lock in your copy, and you commit it there. A fetch run here, in the source tree, stays out of git.
+# scensim.lock in your copy, and you commit it there. A fetch run here, in the
+# source tree, stays out of git.
 scensim.lock

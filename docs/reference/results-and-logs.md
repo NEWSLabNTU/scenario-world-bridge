@@ -19,10 +19,10 @@ list|show|why|summary|prune` ([Commands](commands.md#scensim-runs)).
 fast disk, since every process of a stack writes there. A stack id is
 `<time>_seat<n>`; a run id `<time>_<scenario>[_<name>-<value>...]_r<k>`.
 
-`stack.json` is the stack's record: its fingerprint (hashes of `swb.yaml` and `scensim.lock`,
+`stack.json` is the stack's record: its fingerprint (hashes of `testbench.yaml` and `scensim.lock`,
 the pilots, the workspace's build commits), seat, domains and ports, processes, maps, its
 current map, each pilot's entity, kind, domain and readiness, and `state` (`ready` once
-every stack pilot is). A run refuses a stack whose fingerprint is not the project's.
+every stack pilot is). A run refuses a stack whose fingerprint is not the testbench's.
 
 ## A run's directory
 

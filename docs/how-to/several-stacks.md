@@ -1,6 +1,6 @@
 # Several stacks on one host
 
-Two stacks on one machine (yours and a colleague's, or two projects of yours, or a lab's
+Two stacks on one machine (yours and a colleague's, or two testbenches of yours, or a lab's
 students) must not share a ROS domain, a port or a CARLA. A **seat** is one stack's share
 of the host: its domains, its ports, its web UI port and its GPU, all from one number. This
 page sets seats up and uses them. Why the domains are split: [ROS domains and
@@ -35,7 +35,7 @@ your seat: auto (the first free one when the stack starts)
 | GPU | `gpus[n]` of the table, else 0 |
 
 A stack takes a seat when it starts and holds it while it is up (a lock on a file in
-`/tmp/scensim-seats`, naming the user, the process and the project); a second stack on a held
+`/tmp/scensim-seats`, naming the user, the process and the testbench); a second stack on a held
 seat is refused, naming the holder. With `seat: auto` (the default) a stack takes the
 first free seat. The lock is the kernel's: when the stack's process ends, however it ends,
 the seat is free again, so a crashed stack leaves no stale lock. What a stack killed by

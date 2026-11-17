@@ -19,7 +19,7 @@ ground shows its ruts (and the lidar sees them) and the road detail streams a re
 
 ## Where the files come from
 
-A project gives a map its ground in `swb.yaml`, per map, with paths in the project:
+A testbench gives a map its ground in `testbench.yaml`, per map, with paths in the project:
 
 ```yaml
 ground:
@@ -28,11 +28,11 @@ ground:
     road_detail: ground/town01_road.yaml     # optional
 ```
 
-The world server reads a map's `surfaces.yaml` and `road_detail.yaml` from the project's
+The world server reads a map's `surfaces.yaml` and `road_detail.yaml` from the testbench's
 `state/<map>/` first, then from the map directory. When the stack starts it links the files
 `ground:` names there (`state/<map>/surfaces.yaml`, `state/<map>/road_detail.yaml`); a file
 you put there by hand under a name `ground:` also gives is refused, never replaced, so keep
-your files in the project and name them. Without a surface map every
+your files in the testbench and name them. Without a surface map every
 wheel runs on asphalt. The server checks each file before Isaac starts, refusing it with
 every problem listed, and reads it again at every world load.
 
@@ -222,7 +222,7 @@ friction), and the road condition, soil zones and ruts loaded and saved.
 | Validated mud and snow | `mud_wet` sinkage and `snow_loose` traction are flagged; hydroplaning is an engineering model |
 | Wheel hop, bank and crown of a town's road, road edges | not modelled |
 | Visible water, splashes, dust | none; zones are physics only |
-| Stability control from a project | ESC is a field of the world server's ego config (`ecu: {esc_enabled: true}`), which `swb.yaml` does not reach |
+| Stability control from a testbench | ESC is a field of the world server's ego config (`ecu: {esc_enabled: true}`), which `testbench.yaml` does not reach |
 
 Ruts cost memory: PhysX keeps every collision mesh it builds, about 100 MB per km of tracks
 in a soil zone with its own ground, for as long as the world server runs.

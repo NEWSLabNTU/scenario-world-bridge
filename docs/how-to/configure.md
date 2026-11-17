@@ -1,14 +1,14 @@
 # Configure the stack
 
 What you can change in the parts of a stack, and where: the bridge, CARLA's world server,
-Isaac's world server, and the weather. It assumes a project with a working stack
+Isaac's world server, and the weather. It assumes a testbench with a working stack
 ([Tutorial 1](../tutorials/01-first-drive.md)). The pilots' settings are in
 [Your Autoware](your-autoware.md) and [Your autopilot](your-autopilot.md); the host's in
 [Host settings](../reference/host-settings.md).
 
 ## Where settings live
 
-| Part | Its settings | In `swb.yaml` |
+| Part | Its settings | In `testbench.yaml` |
 |---|---|---|
 | The bridge (SSv2's side) | `bridge_config.yaml` | `world:` (`npc_motion`, `weather`, `config_file`, `contact_report_dir`) |
 | CARLA's world server | `scensim_carla_world.yaml` | `world: {world_config_file: ...}` |
@@ -19,13 +19,13 @@ Isaac's world server, and the weather. It assumes a project with a working stack
 Every key: [The testbench file](../reference/project-file.md#world). The stack gives these to
 the bridge and the world servers beside its own settings (the state directory, the
 seat's ports, the per-run trace and contact directories), never in their place. A change in
-`swb.yaml` needs the stack restarted; a run refuses a stack started from another
-`swb.yaml`.
+`testbench.yaml` needs the stack restarted; a run refuses a stack started from another
+`testbench.yaml`.
 
 For the two files, a launch argument of the same name wins over the file, and the file
 over the built-in default. Each refuses a key that belongs to the other, naming where it
 went, so a misplaced setting fails loudly. Both log the file they loaded. Start a copy in
-the project from the installed defaults; every key is commented in them:
+the testbench from the installed defaults; every key is commented in them:
 
 ```bash
 mkdir -p config
@@ -35,14 +35,14 @@ cp $(ros2 pkg prefix --share scensim_carla_world)/config/scensim_carla_world.yam
 ```
 
 `stack_args:="side_args:='...' sim_args:='...'"` on the stack still reaches the same
-launches, for a try without editing `swb.yaml`: its names are merged with the stack's,
+launches, for a try without editing `testbench.yaml`: its names are merged with the stack's,
 and a name the stack sets itself (`state_dir`, `gap_trace_dir`, `contact_report_dir`, the
 ports, Isaac's `world`) is refused with what to give instead.
 
 ## The bridge
 
 For example, exact NPC poses instead of physics-tracked ones, and the bridge's other
-settings from the project's copy of its file:
+settings from the testbench's copy of its file:
 
 ```yaml
 # swb.yaml (added)
@@ -98,7 +98,7 @@ for a restarted CARLA, 120 s).
 
 ## Isaac's world server
 
-On Isaac `isaac:` in `swb.yaml` carries the world server's options; the stack sets the
+On Isaac `isaac:` in `testbench.yaml` carries the world server's options; the stack sets the
 world (the stack's map, then `preload`) and the state directory itself:
 
 ```yaml
@@ -125,7 +125,7 @@ both its CUDA and its renderer.
 
 ## The weather
 
-The weather is the world server's. A project names it in `swb.yaml`, a preset or
+The weather is the world server's. A testbench names it in `testbench.yaml`, a preset or
 parameters by the simulator's names; the stack sets it before it is ready:
 
 ```yaml
@@ -161,7 +161,7 @@ rain; there is no weather service.
 
 | Wait | Default | Where |
 |---|---|---|
-| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `scensim run --timeout` (never raised) |
+| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `testbench.yaml`, a suite or a suite item; `scensim run --timeout` (never raised) |
 | A run's pilots to become ready | 600 s | `scensim run --ready-timeout` |
 | The stack to become ready | none (refuse at once) | `scensim run --wait` |
 | A map switch of the pilots | 180 s | fixed |

@@ -1,7 +1,7 @@
 # Drive a course on Isaac Sim
 
 Worlds need not be CARLA towns. This page adds a course built from open map and elevation
-data to an Isaac Sim project and runs Autoware on it. It assumes the project of
+data to an Isaac Sim testbench and runs Autoware on it. It assumes the testbench of
 [Tutorial 6](../tutorials/06-carla-assets-on-isaac.md), `~/isaac_first_drive`, with its
 assets fetched and its stack working.
 
@@ -10,7 +10,7 @@ assets fetched and its stack working.
 The `haruna-tsukuba-courses` dataset (ODbL and GSI data, see its notice) holds two
 courses: the mountain road on Mount Haruna, Japan, and Tsukuba Circuit. Each is a map
 directory with its Autoware map, Isaac world and a scenario. Add the Haruna course to the
-project's `assets:` in `swb.yaml`:
+testbench's `assets:` in `testbench.yaml`:
 
 ```yaml
   - dataset: haruna-tsukuba-courses
@@ -18,7 +18,7 @@ project's `assets:` in `swb.yaml`:
 ```
 
 The course's guardrails and trees are CARLA props from `assets/carla-usd`, which the
-project already has. Fetch the dataset and copy the course's scenario into the project:
+testbench already has. Fetch the dataset and copy the course's scenario into the project:
 
 ```bash
 scensim assets fetch
@@ -28,7 +28,7 @@ chmod u+w scenarios/haruna_down.xosc
 
 Files from scensim's cache are read-only, and `cp` keeps the mode, hence the `chmod`. The
 scenario's ego is the catalog car `drift_mustang`: set its `entryName` to `tesla_model3`,
-the car of the project's pilot (otherwise `project check` names the mismatch and exits 1).
+the car of the testbench's pilot (otherwise `testbench check` names the mismatch and exits 1).
 
 ## The stack on the course
 

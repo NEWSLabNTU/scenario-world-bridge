@@ -49,12 +49,12 @@ ros2 launch scensim_launch stack.launch.py \
 ```
 
 It starts no autopilot of its own. Who drives each entity is `pilots:=`, the same mapping as
-a project's `pilots:` in YAML or JSON, e.g. `pilots:='{ego: {kind: launch, launch: my_pkg
+a testbench's `pilots:` in YAML or JSON, e.g. `pilots:='{ego: {kind: launch, launch: my_pkg
 drive.launch.xml}}'` ([Testbench file](../reference/project-file.md)).
 
-The project's stack, `scensim.launch.xml`, starts `carla` and `isaac` only
-([Supported and not supported](../reference/limits.md#projects)), so a third simulator
-runs without projects, seats and `scensim run`: its scenarios go to `scenario.launch.xml`
+The testbench's stack, `scensim.launch.xml`, starts `carla` and `isaac` only
+([Supported and not supported](../reference/limits.md#testbenches)), so a third simulator
+runs without testbenches, seats and `scensim run`: its scenarios go to `scenario.launch.xml`
 directly. The vehicle under test needs a vehicle side of its own: the car's sensors and
 the vehicle interface CARLA's and Isaac's offer
 ([Your autopilot, the vehicle interface](your-autopilot.md#the-vehicle-interface)),

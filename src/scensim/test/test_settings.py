@@ -111,7 +111,7 @@ def test_weather_call():
     assert argv[:5] == ["ros2", "service", "call", "/scenario_world_bridge/set_weather",
                         "scensim_interfaces/srv/SetWeather"]
     assert argv[5] == "{names: [cloudiness, sun_altitude_angle], values: [30.0, 60.5]}"
-    out = ("requester: making request: ...\n\nresponse:\nswb_interfaces.srv.SetWeather_Response("
+    out = ("requester: making request: ...\n\nresponse:\nscensim_interfaces.srv.SetWeather_Response("
            "success=False, message='unknown parameter cloudy', preset='', names=[], values=[])\n")
     assert world.weather_answer(out) == (False, "unknown parameter cloudy")
     assert world.weather_answer("waiting for service to become available...\n") == (None, "")

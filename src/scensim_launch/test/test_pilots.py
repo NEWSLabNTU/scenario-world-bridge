@@ -155,7 +155,7 @@ def test_carla_basic_evaluates(tmp_path):
     assert json.loads(written.read_text())["role_name"] == "npc_1"
     cmd = [c.perform(_context({})) if hasattr(c, "perform") else c
            for part in process.cmd for c in part]
-    assert "".join(cmd).replace(" ", "").startswith("ros2runswb_agentcarla_basic")
+    assert "".join(cmd).replace(" ", "").startswith("ros2runscensim_agentcarla_basic")
     with pytest.raises(RuntimeError, match="CARLA's only"):
         carla_basic._pilot(_context({**defaults, "sim": "isaac"}))
 
@@ -189,7 +189,7 @@ def test_simple_evaluates(tmp_path):
         "/maps/Town01"
     cmd = [c.perform(_context({})) if hasattr(c, "perform") else c
            for part in process.cmd for c in part]
-    assert "".join(cmd).replace(" ", "").startswith("ros2runswb_agentsimple_pilot")
+    assert "".join(cmd).replace(" ", "").startswith("ros2runscensim_agentsimple_pilot")
     assert os.path.isfile(simple.XACRO)
     assert len(simple._pilot(_context({**values, "publish_description": "false"}))) == 2
     with pytest.raises(RuntimeError, match="map_path"):

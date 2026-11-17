@@ -835,11 +835,11 @@ def test_the_web_ui_line_names_the_address_the_launcher_was_given(tmp_path):
     """G45: no 'pass --web-addr' hint when it was passed."""
     d = tmp_path / "proc" / "42"
     d.mkdir(parents=True)
-    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00--web-addr\x00127.0.0.1:8080\x00swb_launch\x00")
+    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00--web-addr\x00127.0.0.1:8080\x00scensim_launch\x00")
     assert stack.launcher_web_addr(42, tmp_path / "proc") == "127.0.0.1:8080"
     (d / "cmdline").write_bytes(b"play_launch\x00launch\x00--web-addr=0.0.0.0:8090\x00")
     assert stack.launcher_web_addr(42, tmp_path / "proc") == "0.0.0.0:8090"
-    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00swb_launch\x00")
+    (d / "cmdline").write_bytes(b"play_launch\x00launch\x00scensim_launch\x00")
     assert stack.launcher_web_addr(42, tmp_path / "proc") is None
 
 

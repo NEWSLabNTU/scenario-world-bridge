@@ -36,6 +36,8 @@ def make_tarball(
     distro: str = "humble",
     side: str = "sim",
     top_dir: bool = False,
+    links: dict[str, str] | None = None,
+    members: dict[str, str] | None = None,
 ) -> Path:
     files = {
         # as 118's stage_sim.py writes it: a quoted version, nulls, lists and maps
@@ -63,6 +65,15 @@ def make_tarball(
             info = tarfile.TarInfo(("release/" if top_dir else "./") + rel)
             info.size = len(data)
             info.mode = 0o755 if rel.startswith("bin/") else 0o644
+            tar.addfile(info, io.BytesIO(data))
+        for name, target in (links or {}).items():   # symbolic links: name -> target
+            info = tarfile.TarInfo("./" + name)
+            info.type, info.linkname = tarfile.SYMTYPE, target
+            tar.addfile(info)
+        for name, text in (members or {}).items():   # files under any name, ../ included
+            data = text.encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
             tar.addfile(info, io.BytesIO(data))
     dest.write_bytes(zstandard.ZstdCompressor().compress(buf.getvalue()))
     return dest
@@ -172,12 +183,16 @@ def publish(
     size: int | None = None,
     vehicle: bool = False,
     top_dir: bool = False,
+    links: dict[str, str] | None = None,
+    members: dict[str, str] | None = None,
 ) -> dict:
     sim = make_tarball(
         ctx.files / f"scensim-sim-{version}-{distro}-x86_64.tar.zst",
         tar_version,
         distro,
         top_dir=top_dir,
+        links=links,
+        members=members,
     )
     arts: dict = {
         "sim": artefact(
@@ -255,6 +270,61 @@ def test_vehicle_side_for_a_sourced_autoware(env) -> None:
 
 
 # --- rows 5.x: the guards ---------------------------------------------------------------------
+
+
+def test_an_autoware_without_a_prebuilt_vehicle_side_is_refused_on_every_run(env) -> None:
+    """139's review, 1A: Autoware 2.0.0 sourced, a release with a 1.5.0 vehicle side only."""
+    publish(env, vehicle=True)
+    aw = {"AMENT_PREFIX_PATH": "/opt/autoware/2.0.0:/opt/ros/humble"}
+    for _ in range(2):   # the rerun is refused too, never run without its vehicle side
+        r = env.run("run", "x", extra=aw)
+        assert r.returncode == 3, r.stderr
+        assert "no prebuilt vehicle side for Autoware 2.0.0" in r.stderr
+        assert "this release has: autoware1.5.0" in r.stderr
+        assert "fake scensim" not in r.stdout
+    assert env.server.hits == 0 and not (env.home / "current").exists()
+
+
+def test_a_sim_only_install_gets_its_vehicle_side_once_autoware_is_sourced(env) -> None:
+    """139's review, 1B: a first use without Autoware, then Autoware 1.5.0 sourced."""
+    publish(env, vehicle=True)
+    r = env.run("run", "x")
+    assert r.returncode == 0 and "(setup=1, vehicle=0)" in r.stdout, r.stderr
+    aw = {"AMENT_PREFIX_PATH": "/opt/autoware/1.5.0:/opt/ros/humble"}
+    r = env.run("run", "x", extra=aw)
+    assert r.returncode == 0, r.stderr
+    assert "vehicle side for Autoware 1.5.0" in r.stderr
+    assert "downloading scensim 0.1.0" not in r.stderr.replace("vehicle side", "")
+    assert "(setup=1, vehicle=1)" in r.stdout
+    assert (env.home / "current" / "vehicle-autoware1.5.0" / "setup.bash").exists()
+
+
+def test_a_link_out_of_the_prefix_is_left_out_and_named(env) -> None:
+    publish(env, links={"share/x/escape": "../../../outside", "bin/sh": "/bin/sh",
+                        "lib/libx.so": "libx.so.1",
+                        # inside the prefix, resolved from the link's own directory (Python
+                        # 3.10.12 resolves these from the root and would refuse them)
+                        "share/kashiwanoha_map/map/a/pointcloud_map.pcd": "../pointcloud_map.pcd",
+                        "share/scensim_launch/data": "../../data"})
+    r = env.run("install")
+    assert r.returncode == 0, r.stderr
+    assert "skipped share/x/escape: a link out of the install" in r.stderr
+    assert "skipped bin/sh: a link out of the install" in r.stderr
+    assert r.stderr.count("skipped ") == 2, r.stderr
+    sim = env.home / "current" / "sim"
+    assert not (sim / "share" / "x" / "escape").is_symlink()
+    assert not (sim / "bin" / "sh").is_symlink()
+    for kept in ("lib/libx.so", "share/kashiwanoha_map/map/a/pointcloud_map.pcd",
+                 "share/scensim_launch/data"):
+        assert (sim / kept).is_symlink(), kept
+
+
+def test_a_file_out_of_the_prefix_refuses_the_archive(env, tmp_path: Path) -> None:
+    publish(env, members={"../escaped.txt": "x"})
+    r = env.run("install")
+    assert r.returncode == 3, r.stderr
+    assert "not a plain release" in r.stderr
+    assert not (env.home / "escaped.txt").exists() and not (env.home / "current").exists()
 
 
 def test_sha256_mismatch_removes_the_file(env) -> None:

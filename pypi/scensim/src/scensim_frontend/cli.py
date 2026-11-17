@@ -43,22 +43,30 @@ The first command that needs scensim downloads the prebuilt release for your ROS
 """
 
 
-def installed(version: str, distro: str) -> bool:
-    return same_version(read_release_yaml(sim_prefix(version, distro)).get("version"), version)
+def installed(version: str, distro: str, autoware: str | None = None) -> bool:
+    """The simulation side, and with ``autoware`` the vehicle side for that release too."""
+    if not same_version(read_release_yaml(sim_prefix(version, distro)).get("version"), version):
+        return False
+    return autoware is None or same_version(
+        read_release_yaml(vehicle_prefix(version, distro, autoware)).get("version"), version)
 
 
 def install(release: Release, autoware: str | None, force: bool, first_use: bool) -> None:
-    """Download and unpack what is missing; point ``current``; print the next steps."""
+    """Download and unpack what is missing; point ``current`` once every side is in place;
+    print the next steps. Every side's artefact is resolved first, so a sourced Autoware the
+    release has no vehicle side for is refused (exit 3) before anything is downloaded, on
+    every command, not only the first."""
     v, d = release.version, release.distro
     sides: list[tuple[str, str | None]] = [("sim", None)]
     if autoware:
         sides.append(("vehicle", autoware))
+    arts = {side: release.artefact(side, aw) for side, aw in sides}
     downloads = home() / ".downloads"
     for side, aw in sides:
         prefix = sim_prefix(v, d) if side == "sim" else vehicle_prefix(v, d, aw or "")
         if not force and same_version(read_release_yaml(prefix).get("version"), v):
             continue
-        art = release.artefact(side, aw)
+        art = arts[side]
         what = "scensim" if side == "sim" else f"scensim's vehicle side for Autoware {aw}"
         lead = "first use: downloading" if first_use else "downloading"
         print(f"{lead} {what} {v} for ROS 2 {d}, {human(int(art['size']))}", file=sys.stderr)
@@ -197,8 +205,9 @@ def main(argv: list[str] | None = None) -> int:
             install(release, autoware or sourced_autoware(), force, first_use=False)
             return 0
         release = load_release(choose_distro(None))
-        if not installed(release.version, release.distro):
-            install(release, sourced_autoware(), force=False, first_use=True)
+        autoware = sourced_autoware()
+        if not installed(release.version, release.distro, autoware):
+            install(release, autoware, force=False, first_use=True)
         exec_scensim(release, args)
         return 0  # not reached: exec replaces the process
     except Refused as e:

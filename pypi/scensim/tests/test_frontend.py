@@ -38,6 +38,7 @@ def make_tarball(
     top_dir: bool = False,
     links: dict[str, str] | None = None,
     members: dict[str, str] | None = None,
+    relocate: str | None = None,
 ) -> Path:
     files = {
         # as 118's stage_sim.py writes it: a quoted version, nulls, lists and maps
@@ -49,6 +50,8 @@ def make_tarball(
         "setup.bash": f'export FAKE_SETUP_{side.upper()}=1\nexport ORDER="${{ORDER}}{side},"\n',
         "share/fake/package.xml": "<package/>\n",
     }
+    if relocate is not None:
+        files["relocate.sh"] = relocate
     if side == "sim":
         files["bin/scensim"] = (
             # like 241's: needs its prefix's environment, exits with the command's code
@@ -185,6 +188,7 @@ def publish(
     top_dir: bool = False,
     links: dict[str, str] | None = None,
     members: dict[str, str] | None = None,
+    relocate: str | None = None,
 ) -> dict:
     sim = make_tarball(
         ctx.files / f"scensim-sim-{version}-{distro}-x86_64.tar.zst",
@@ -193,6 +197,7 @@ def publish(
         top_dir=top_dir,
         links=links,
         members=members,
+        relocate=relocate,
     )
     arts: dict = {
         "sim": artefact(
@@ -325,6 +330,53 @@ def test_a_file_out_of_the_prefix_refuses_the_archive(env, tmp_path: Path) -> No
     assert r.returncode == 3, r.stderr
     assert "not a plain release" in r.stderr
     assert not (env.home / "escaped.txt").exists() and not (env.home / "current").exists()
+
+
+# 118's relocate.sh (082-release-build 69ba2e1): the sh scripts' prefix placeholder
+RELOCATE = (
+    '#!/bin/sh\nset -e\nhere=$(cd "$(dirname "$0")" && pwd)\n'
+    'sed -i "s|@SCENSIM_PREFIX@|$here|g" setup.sh\necho "$here" > .scensim-prefix\n'
+)
+
+
+# like colcon's setup.sh: refuses a build-time path that does not exist on this host
+SETUP_SH = (
+    '_colcon_prefix_sh_COLCON_CURRENT_PREFIX="@SCENSIM_PREFIX@"\n'
+    'if [ ! -d "$_colcon_prefix_sh_COLCON_CURRENT_PREFIX" ]; then\n'
+    '  echo "The build time path \\"$_colcon_prefix_sh_COLCON_CURRENT_PREFIX\\" '
+    'doesn\'t exist." 1>&2\n  return 1\nfi\n'
+)
+
+
+def test_relocate_runs_in_the_final_prefix_before_current_moves(env) -> None:
+    publish(env, members={"./setup.sh": SETUP_SH}, relocate=RELOCATE)
+    r = env.run("install")
+    assert r.returncode == 0, r.stderr
+    sim = env.home / "0.1.0-humble" / "sim"
+    assert (sim / ".scensim-prefix").read_text().strip() == str(sim)
+    assert (env.home / "current").resolve() == sim.parent.resolve()
+    s = subprocess.run(["sh", "-c", f". {env.home}/current/sim/setup.sh && echo sourced"],
+                       capture_output=True, text=True, check=False)
+    assert s.returncode == 0 and "sourced" in s.stdout, s.stderr
+
+
+def test_a_release_without_relocate_is_installed_with_a_note(env) -> None:
+    publish(env, members={"./setup.sh": SETUP_SH})
+    r = env.run("install")
+    assert r.returncode == 0, r.stderr
+    assert "no relocate.sh in this release" in r.stderr
+    s = subprocess.run(["sh", "-c", f". {env.home}/current/sim/setup.sh"],
+                       capture_output=True, text=True, check=False)
+    assert s.returncode != 0 and "doesn't exist" in s.stderr   # what relocate.sh fixes
+
+
+def test_a_failing_relocate_removes_the_prefix_and_refuses(env) -> None:
+    publish(env, relocate="#!/bin/sh\necho 'relocate: cannot write' >&2\nexit 1\n")
+    r = env.run("install")
+    assert r.returncode == 3, r.stderr
+    assert "relocate.sh failed: relocate: cannot write" in r.stderr
+    assert not (env.home / "0.1.0-humble" / "sim").exists()
+    assert not (env.home / "current").exists()
 
 
 def test_sha256_mismatch_removes_the_file(env) -> None:

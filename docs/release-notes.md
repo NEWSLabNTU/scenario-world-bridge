@@ -1,6 +1,6 @@
 # Release notes
 
-## vX.Y.Z
+## v0.1.0
 
 The first release of scenario-world-bridge (swb). It evaluates an autopilot on
 OpenSCENARIO scenarios in CARLA or Isaac Sim, with the autopilot driving on the simulator's
@@ -25,11 +25,12 @@ container.
 | Isaac Sim | 6.1.0, pip install |
 | Autoware | 1.5.0, binary packages |
 | scenario_simulator_v2 | bundled (a fork, as a submodule) |
-| GPU | NVIDIA; for Isaac Sim an RTX card with 24 GB (tested: RTX 4090) and 64 GB of RAM |
+| GPU | NVIDIA; Isaac Sim tested on an RTX 4090 (24 GB) with 64 GB of RAM |
 
 Before the release, 29 suites covering both simulators, the pilot kinds and the
-examples' studies were run on the tested commit and their results kept as references; the
-tutorials 1 to 5 were followed as written on a fresh clone without play_launch.
+examples' studies were run on the tested commit and their results kept as references.
+During development, on a fresh clone without play_launch (swb c94b12c, an earlier commit),
+tutorials 1 to 5 were followed as written: 31 runs, all passed.
 
 ### What it does
 

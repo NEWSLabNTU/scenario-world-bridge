@@ -11,7 +11,8 @@ scensim then starts that executable in place of the stock one (``scensim_carla_w
 on the seat's world port, as it drives the stock servers. Every other ``world:`` key is the
 stock CARLA server's and is refused beside ``server``.
 
-**The contract** (what such a server must do; `docs/how-to/your-world-server.md`):
+**The contract** (what such a server must do; the how-to "Your world server in a
+testbench", docs/how-to/your-world-server.md):
 
 - take ``--port <port>`` (appended after its own arguments; also in ``SCENSIM_WORLD_PORT``)
   and bind the world protocol's REP socket on ``127.0.0.1:<port>`` at once, before any long
@@ -87,7 +88,7 @@ def simulator_problems(settings) -> list:
             out.append((f"pilots.{name}", f"kind {kind} drives through CARLA's or Isaac's "
                                           f"vehicle side, which simulator: {NONE} does not "
                                           "start: use kind launch or command (your vehicle "
-                                          "side), or none"))
+                                          "side), or kind none (no pilot)"))
     return out
 
 
@@ -159,7 +160,7 @@ def conformance_findings(server, port, **kw) -> list:
     where = f"world.{KEY}"
     fails = [ln.strip()[len("FAIL"):].strip() for ln in report.splitlines()
              if ln.strip().startswith("FAIL")]
-    fix = "docs/how-to/your-world-server.md: what a world server must do"
+    fix = "see 'Your world server in a testbench' in scensim's docs: what a world server must do"
     if not fails:
         return [Finding(where, report.strip().splitlines()[0] if report.strip()
                         else "the conformance check failed", fix)]

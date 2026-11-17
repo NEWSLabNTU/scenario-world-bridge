@@ -42,12 +42,12 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 | Command | Does |
 |---|---|
 | `stack <name>` | starts the testbench's stack, detached, and returns once it is up: `stack    <name> on seat <n>: started; stop it with: scensim stack <name> --stop` (`already up` when one was); its console log is named in the line before |
+| `stack <name> --foreground` | runs the stack in this terminal: `stack    <name> on seat <n> in the foreground (web UI on port <p>); Ctrl-C stops it`; Ctrl-C stops it and exits 130. Refused when the stack is already up, naming `--stop` |
 | `stack <name> --stop` | stops it, and everything it started |
 | `stack --list` | the stacks running on this host |
 
-`scensim run <name>` starts the stack itself when none is up and leaves it up. A stack in
-the foreground of a terminal is the launch below, with `project:=` the testbench's work
-directory, `<logs>/.testbenches/<name>`.
+`scensim run <name>` starts the stack itself when none is up and leaves it up. The ROS
+form of the same stack is the launch below with `testbench:=<name>`.
 
 <!-- TODO(exit run): confirm the stack commands' lines against the release. -->
 
@@ -100,7 +100,8 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 
 | Argument | Default | |
 |---|---|---|
-| `project` | the working directory's | a project directory, a testbench's work directory (`<logs>/.testbenches/<testbench>`), or `pkg://<package>` |
+| `testbench` | none | a testbench by name, from the sourced workspaces; refused together with `project` |
+| `project` | the working directory's | a project directory or `pkg://<package>` |
 | `seat` | the host settings' `seat:` | a seat number or `auto` |
 | `simulator` | the project's `simulator:` | `carla` or `isaac` |
 | `map` | CARLA: the first run's map; Isaac: the first map of the project's | the map the stack's pilots start on |
@@ -205,7 +206,8 @@ the same codes.
 | `runs prune [--older-than D] [--verdict V] [--keep-last N] [--to LEVEL] [--dry-run]` | removes runs, or reduces what they keep to a level |
 
 `<id>` is a run id, a unique part of one (`drive_to_goal`), or a run directory; outside a
-testbench's directory `show` and `why` look across `<logs>/*/runs`. `--root <dir>` reads
+testbench's directory `show` and `why` look across every testbench's runs, and
+`--testbench <name>` names one for any `runs` command. `--root <dir>` reads
 another runs directory. A testbench's runs are in `<logs>/<testbench>/runs/`.
 
 ## Other tools

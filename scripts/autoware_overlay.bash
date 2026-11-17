@@ -99,7 +99,13 @@ scensim_autoware_overlay_source() {
     local built pinned
     built=$(cat "$dir/install/.scensim_overlay_rev" 2>/dev/null || true)
     pinned=$(scensim_autoware_overlay_revs)
-    if [ "$built" != "$pinned" ]; then
+    if [ -z "$built" ] && [ -f "$dir/install/.swb_overlay_rev" ]; then
+        # roadmap 080: an overlay built before the rename has the stamp under the old name,
+        # which is not read; moving it is enough (the overlay itself is the same)
+        echo "[just] WARNING: the Autoware overlay's stamp has the old name and is not read" \
+             "(roadmap 080); move it: mv $dir/install/.swb_overlay_rev" \
+             "$dir/install/.scensim_overlay_rev" >&2
+    elif [ "$built" != "$pinned" ]; then
         echo "[just] WARNING: Autoware overlay built from ${built:-unknown commits}," >&2
         echo "[just]   pinned $pinned: ros2 run scensim autoware overlay (or just build-autoware-overlay)" >&2
     fi

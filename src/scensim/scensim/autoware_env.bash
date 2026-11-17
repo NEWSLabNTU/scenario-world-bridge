@@ -38,6 +38,10 @@ if [ -f "$ndt/install/setup.bash" ]; then
     source "$ndt/install/setup.bash"
     [ -s "$ndt/install/.scensim_cuda_path" ] && \
         export LD_LIBRARY_PATH="$(cat "$ndt/install/.scensim_cuda_path")/lib64:${LD_LIBRARY_PATH:-}"
+    # roadmap 080: a build from before the rename has the stamp under the old name, not read
+    [ ! -e "$ndt/install/.scensim_cuda_path" ] && [ -s "$ndt/install/.swb_cuda_path" ] && \
+        echo "scensim: cuda_ndt_matcher's stamp has the old name and is not read (roadmap 080);" \
+             "move it: mv $ndt/install/.swb_cuda_path $ndt/install/.scensim_cuda_path" >&2
 fi
 [ -f "$ws/src/autoware_carla_bridge/install/setup.bash" ] && \
     source "$ws/src/autoware_carla_bridge/install/setup.bash"

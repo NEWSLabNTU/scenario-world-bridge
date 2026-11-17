@@ -99,9 +99,9 @@ jobs:
           python3 scripts/check_docs.py
       - name: The front end's tests
         run: |
-          # the front end runs on apt's Python (the tests start /usr/bin/python3), not the
-          # runner's tool-cache one
-          /usr/bin/python3 -m pip install -q --user pytest zstandard
+          # system-wide: the tests run the front end with HOME set to a scratch directory,
+          # where a --user install is not seen
+          sudo /usr/bin/python3 -m pip install -q pytest zstandard
           cd pypi/scensim && /usr/bin/python3 -m pytest -q tests
       - id: guard
         name: Whether this run may publish

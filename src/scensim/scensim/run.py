@@ -294,10 +294,15 @@ def stack_alive(rec: dict) -> bool:
 def check_stack(rec: dict, project: Path, wait: float = 0.0, reread=None) -> dict:
     """Refused unless ``rec``'s fingerprint is the project's and it is (or within ``wait``
     seconds becomes) ready."""
-    diff = stackmod.fingerprint_diff(rec.get("fingerprint") or {}, stackmod.fingerprint(project))
+    notes = []
+    diff = stackmod.fingerprint_diff(rec.get("fingerprint") or {}, stackmod.fingerprint(project),
+                                     notes)
     if diff:
         raise Refused(f"the stack {rec.get('stack_id')} was started from another project "
-                      "state: " + "; ".join(diff) + " differ; restart the stack")
+                      "state: " + "; ".join(diff) + " differ; restart the stack"
+                      + "".join(f" ({n})" for n in notes))
+    for n in notes:
+        sys.stderr.write(f"warning  {n}\n")
     deadline = time.time() + wait
     while rec.get("state") != stackmod.READY:
         if time.time() >= deadline:

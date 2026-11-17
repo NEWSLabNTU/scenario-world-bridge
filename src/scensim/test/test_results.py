@@ -173,14 +173,19 @@ def test_provenance(tmp_path):
 
 def test_provenance_tolerates_nothing(tmp_path):
     p = results.provenance(tmp_path / "missing", tmp_path)
-    assert p["swb"] is None and p["submodules"] == {} and p["swb_lock"] is None
+    # no checkout: the submodules are unknown (None), never {} (docs/issues/045)
+    assert p["swb"] is None and p["submodules"] is None and p["swb_lock"] is None
 
 
-def test_submodule_pins_parse(monkeypatch):
+def test_submodule_pins_parse(monkeypatch, tmp_path):
     sha = "a" * 40
     text = f" {sha} src/a (v1)\n+{sha} src/b (heads/main)\n-{sha} src/c\n"
-    monkeypatch.setattr(results, "_out", lambda *a, **k: text)
-    assert results.submodule_pins(".") == {"src/a": sha, "src/b": sha + "+", "src/c": sha + "-"}
+    (tmp_path / ".git").mkdir()
+    import types
+    monkeypatch.setattr(results.subprocess, "run", lambda *a, **k: types.SimpleNamespace(
+        returncode=0, stdout=text, stderr=""))
+    assert results.submodule_pins(tmp_path) == {"src/a": sha, "src/b": sha + "+",
+                                                 "src/c": sha + "-"}
 
 
 def test_provenance_names_the_build_and_the_checkout_apart(tmp_path):

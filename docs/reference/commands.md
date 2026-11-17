@@ -1,16 +1,19 @@
 # Commands
 
-Every command a user types, in the `scensim` package unless named otherwise; `ros2 run scensim
-<command> --help` prints the same. Every command finds its project as `--project <dir>`
-(or `project:=` on the stack), else the working directory or the nearest parent holding a
-`swb.yaml`; `pkg://<package>[/<dir>]` names a project a ROS package installs. Such a
+Every command a user types, in the `scensim` package unless named otherwise;
+`scensim <command> --help` prints the same. A command names its testbench by its package
+name (`scensim run my_testbench`), found in the sourced workspaces
+([The testbench](testbench.md)). The older form, a project directory, remains: `--project
+<dir>` (or `project:=` on the stack), else the working directory or the nearest parent
+holding a `testbench.yaml`; `pkg://<package>[/<dir>]` names a project a ROS package
+installs. Such a
 project is read-only: `project check` reads it, and the commands that write (`assets
 fetch`, `run`, `drive`, the stack) refuse it, naming the `project new --from` line that
 copies it; the copy holds its lock, assets, state and runs.
 
 ## Exit codes
 
-`run`, `project check` and `assets check`:
+`run`, `testbench check`, `project check` and `assets check`:
 
 | Code | Means |
 |---|---|
@@ -25,7 +28,32 @@ read, a car that is not installed or whose body is off its catalog box. Anything
 find in what you wrote is 1: a scenario whose car is not its pilot's, an entity without a
 pilot, a suite key it does not know. The stack refuses to start (3) on either.
 
+## `scensim testbench`
+
+| Command | Does |
+|---|---|
+| `testbench new <name>` | writes a testbench package into `./<name>` (run it in a workspace's `src/`); `--template carla-first-drive` (default), `multi-pilot` or `isaac`; a name that is not a valid ROS package name is refused |
+| `testbench new <name> --from <project>` | copies a project or testbench (a directory or `pkg://<package>/<dir>`) and adds the package manifest and a default suite |
+| `testbench list` | the testbenches of the sourced workspaces, with their suites |
+| `testbench check <name>` | the build's checks (the package's own findings) and this host's, printed as `problem (this host): ...`; ends `testbench: ok` |
+
+## `scensim stack`
+
+| Command | Does |
+|---|---|
+| `stack <name>` | starts the testbench's stack, detached, and returns once it is up: `stack    <name> on seat <n>: started; stop it with: scensim stack <name> --stop` (`already up` when one was); its console log is named in the line before |
+| `stack <name> --stop` | stops it, and everything it started |
+| `stack --list` | the stacks running on this host |
+
+`scensim run <name>` starts the stack itself when none is up and leaves it up. A stack in
+the foreground of a terminal is the launch below, with `project:=` the testbench's work
+directory, `<logs>/.testbenches/<name>`.
+
+<!-- TODO(exit run): confirm the stack commands' lines against the release. -->
+
 ## `scensim project`
+
+The commands for a project directory, the form before testbenches.
 
 | Command | Does |
 |---|---|
@@ -114,8 +142,14 @@ SSv2); `project check` and `seat show` print the choice.
 ## `scensim run`
 
 ```bash
-scensim run <scenario.xosc | scenario.yaml | directory | suite.yaml> [options]
+scensim run <testbench>[/<suite> | /<path>] [options]
+scensim run <scenario.xosc | scenario.yaml | directory | suite.yaml> [options] # project
 ```
+
+`<testbench>` runs its `default:` suite; `<testbench>/<suite>` runs `suites/<suite>.yaml`
+(looked up before any path); `<testbench>/<path>` runs a file of the testbench, such as
+`my_testbench/scenarios/x.xosc` or `my_testbench/suites/x.yaml`. A testbench's stack is
+started when none is up.
 
 | Option | |
 |---|---|
@@ -126,7 +160,7 @@ scensim run <scenario.xosc | scenario.yaml | directory | suite.yaml> [options]
 | `--capture LEVEL` | record at `result`, `standard`, `full` or `debug` and keep it whatever the verdict |
 | `--timeout S` | SSv2's `global_timeout` (400 s) |
 | `--wait S` | wait up to S for the stack to become ready (default: refuse at once) |
-| `--start-stack` | start the project's stack when none is up (and leave it up) |
+| `--start-stack` | start the project's stack when none is up (and leave it up); implied for a testbench |
 | `--stop-stack` | as `--start-stack`, then stop the stack it started after the runs |
 | `--stack-timeout S` | how long a started stack may take to become ready (default `--wait`, else 1800) |
 | `--ready-timeout S` | how long a run waits for its pilots' readiness (600 s) |
@@ -164,14 +198,15 @@ the same codes.
 
 | Command | Does |
 |---|---|
-| `runs list` | every run: id, verdict, scenario, duration |
+| `runs list [<testbench>]` | a testbench's runs (in a testbench's or project's directory, its own): id, verdict, scenario, duration, workspace |
 | `runs show <id>` | a run's verdict, reason, scenario, duration, then its timeline |
 | `runs why <id>` | a run's verdict, reason, and the first WARN or ERROR in any process's log, with its group |
 | `runs summary [<dir>]` | writes `summary.csv` and a merged `junit.xml` for a directory of runs |
 | `runs prune [--older-than D] [--verdict V] [--keep-last N] [--to LEVEL] [--dry-run]` | removes runs, or reduces what they keep to a level |
 
-`<id>` is a run id, a unique part of one (`drive_to_goal`), or a run directory. `--root
-<dir>` reads another runs directory than the project's.
+`<id>` is a run id, a unique part of one (`drive_to_goal`), or a run directory; outside a
+testbench's directory `show` and `why` look across `<logs>/*/runs`. `--root <dir>` reads
+another runs directory. A testbench's runs are in `<logs>/<testbench>/runs/`.
 
 ## Other tools
 

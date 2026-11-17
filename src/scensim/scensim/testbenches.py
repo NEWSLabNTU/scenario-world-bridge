@@ -27,7 +27,9 @@ from scensim import testbench as tbmod
 INDEX = "scensim_testbenches"
 WORK = ".testbenches"
 # written by this host in the work directory; never linked to the installed testbench
-OWN = frozenset({"assets", "state", "runs", ".scensim"})
+OWN = frozenset({"assets", "state", "runs", ".scensim", ".workspace"})
+# the work directory's record of the install it links to (its prefix)
+WORKSPACE_FILE = ".workspace"
 PACKAGE_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # a project's own directories: a target starting with one is a path, never a testbench
 PROJECT_DIRS = frozenset({"scenarios", "suites", "pilots", "judges", "config", "ground"})
@@ -153,6 +155,7 @@ def work_dir(tb: Testbench, host: dict) -> Path:
         return tb.share
     d = Path(host["logs"]).expanduser() / WORK / tb.name
     d.mkdir(parents=True, exist_ok=True)
+    _claim(tb, d, host)
     want = {}
     for e in sorted(tb.share.iterdir()):
         if e.name in OWN or e.name == tbmod.LOCK_FILE:
@@ -170,6 +173,42 @@ def work_dir(tb: Testbench, host: dict) -> Path:
                 raise TestbenchRefused(f"{link}: not a link this command made; remove it")
             os.symlink(target, link)
     return d
+
+
+def _live_stack(name: str, host: dict):
+    """The live stack of testbench ``name`` on this host's log root, or None."""
+    from scensim import run as runmod, stack as stackmod
+    root = Path(host["logs"]).expanduser() / name
+    for f in sorted(root.glob(f"seat-*-current/{stackmod.STACK_JSON}")):
+        try:
+            rec = stackmod.read_json(f)
+        except (OSError, ValueError):
+            continue
+        if runmod.stack_alive(rec):
+            return rec
+    return None
+
+
+def _claim(tb: Testbench, d: Path, host: dict):
+    """Point the work directory at ``tb``'s install. One name has one work directory (its runs
+    and stack are by name too), so two workspaces building the same testbench take turns: the
+    sourced one's links win, unless a live stack runs from the other one's, which is refused."""
+    mark = d / WORKSPACE_FILE
+    want = str(tb.prefix)
+    try:
+        had = mark.read_text().strip()
+    except OSError:
+        had = ""
+    if had == want:
+        return
+    if had:
+        rec = _live_stack(tb.name, host)
+        if rec is not None:
+            raise TestbenchRefused(
+                f"testbench {tb.name}'s stack (seat {rec['seat']['seat']}) runs from the "
+                f"workspace at {had}, and this shell sourced the one at {want}: stop that "
+                f"stack first (scensim stack {tb.name} --stop), or source that workspace")
+    mark.write_text(want + "\n")
 
 
 def suites(tb_dir: Path) -> list:
@@ -234,3 +273,16 @@ def project_for(name: str, logs=None, now: dict = None) -> Path:
     if problem:
         raise TestbenchRefused(problem)
     return work_dir(tb, config.host_settings(None, {"logs": logs} if logs else {}))
+
+
+def is_work_dir(d) -> bool:
+    """``d`` is an installed testbench's work directory (``<logs>/.testbenches/<pkg>``)."""
+    return Path(d).parent.name == WORK
+
+
+def shown_finding(line: str, name: str, d) -> str:
+    """A finding as the user of installed testbench ``name`` reads it: paths relative to the
+    testbench (the files they edit are src/<name>/...), and the asset fix naming it, so it
+    runs from the workspace."""
+    line = line.replace(f"{d}/", "")
+    return line.replace("scensim assets fetch)", f"scensim assets fetch {name})")

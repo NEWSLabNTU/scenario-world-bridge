@@ -729,7 +729,7 @@ def test_stop_stack_starts_runs_and_stops(where, maps_hub, launcher):
     assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--stop-stack",
                      "--ready-timeout", "5"], out=out, stack_command=cmd) == 0
     text = out.getvalue()
-    assert "stack    starting on seat 1" in text and text.splitlines()[1].startswith("passed")
+    assert "stack    proj on seat 1: starting (pid" in text and text.splitlines()[1].startswith("passed")
     assert "stopping the stack this run started" in text
     # the stack as the user starts it: play_launch of scensim.launch.xml, web UI on the seat's port
     assert calls[0][:4] == ["play_launch", "launch", "--web-addr", "127.0.0.1:8090"]
@@ -747,9 +747,10 @@ def test_start_stack_leaves_it_up_and_reuses_a_live_one(where, maps_hub, launche
     out = io.StringIO()
     assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack",
                      "--ready-timeout", "5"], out=out, stack_command=cmd) == 0
-    m = re.search(r"left up \(pid (\d+), seat 1\); stop it with: kill -INT -(\d+)",
-                  out.getvalue())
-    assert m and m.group(1) == m.group(2)
+    m = re.search(r"proj on seat 1: starting \(pid (\d+),", out.getvalue())
+    assert m
+    assert re.search(rf"proj on seat 1: started( \([^)]*\))?; left up; stop it with: "
+                     rf"scensim stack {re.escape(str(d))} --stop", out.getvalue())
     pid = int(m.group(1))
     try:
         rec = _stack_json(where)

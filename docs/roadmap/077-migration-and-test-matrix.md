@@ -1510,6 +1510,32 @@ Isaac's rear contact (inventory row 18).
   verdict: the code run is the commit's. For the RC, `t3.py` accepts a dirty state that is
   Cargo.lock alone, with a note (139, review 243). Fix after the release: drop the unused
   `[patch]` entries, or commit the lock as the build leaves it.
+- **G80, `swb run` leaves the stack it is starting up when its stdout breaks (found by 139,
+  2026-11-17; after the release, `swb run` unchanged for the RC).** 139's T3 part 2 start was
+  aborted with a SIGTERM to `t3.py` alone. The bench `swb run` it had just started, whose
+  stdout was a pipe to t3, died on EPIPE: `start_stack` (run.py) writes `stack starting on
+  seat ...` after the stack's keeper is spawned, the write raises BrokenPipeError (CPython
+  ignores SIGPIPE, so a dead reader is an exception, not a signal), `context()` never returns
+  the started stack, and `_main`'s `finally` has nothing to stop. Keeper, CARLA, world server
+  and bridge stayed up; stopped by hand. Reproduced on 139 with the fake Isaac root (a reader
+  that exits before swb run's first write): the same traceback at `start_stack`'s flush, the
+  stack left up. Fix after the release: hand the started stack to the caller before
+  reporting it (or stop it on any exception out of `context()`), and make the stop path's
+  own prints unable to abandon the stop. Meanwhile `t3.py` (from 139's fix, review 243) gives
+  each step a log file instead of a pipe, so t3's death cannot break its child's writes;
+  takes SIGINT back when it was inherited ignored (it was a `&` job too: a group SIGINT
+  stopped only the child, and t3 went on to the next suite) and turns SIGTERM into the same
+  path; and on either stops the step's own group (it runs in its own session), then the stack
+  an earlier suite left up: SIGINT, 180 s, SIGTERM, a second signal moving it to the next
+  stage at once; its own messages cannot raise on a dead stdout or stderr.
+- **G81, `swb assets fetch` fails on an expired Hugging Face token although the dataset is
+  public (found by 139, 2026-11-17; after the release).** The same start: the host's stored
+  token had expired (`OAuth token has expired: "exp" claim timestamp check failed`), and
+  fetch refused every dataset, although `carla-town-autoware-maps` is public;
+  `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` fetched it anonymously (all 13 part-2 projects, then
+  `project check` ok). Open question (133): should fetch retry anonymously on an expired
+  token, saying so, for a public dataset? A private one would still refuse, naming
+  `hf auth login`.
 - **G75-G77 landed (139, reviewed by 243, 2026-11-17):** aib 007d4f9, swb_isaac_world
   c9a72de, csb 89fe7a0 (G75, G76), 4bad9c1 (G77), 356a742 (`seat take auto` skips a seat
   whose ports are bound, as `swb run` does). Refusal texts are in host-settings' `isaac.root`

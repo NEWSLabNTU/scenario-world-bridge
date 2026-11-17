@@ -1,5 +1,6 @@
 """scripts/t3.py: a suite's results against its reference (roadmap 077, T3)."""
 import importlib.util
+import os
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("t3", Path(__file__).with_name("t3.py"))
@@ -200,3 +201,149 @@ def test_a_seat_past_the_table_is_refused_not_an_index_error():
         raise AssertionError("seat 5 of 2 must be refused")
     except t3.GpuRefused as e:
         assert "seat 5: seats.gpus lists 2 seats" in str(e)
+
+
+# t3 run's kill path (077: a `&` job ignored its group's SIGINT; a SIGTERM to t3 left the
+# stack its child had just started up). A fake `ros2` on PATH: `assets fetch` exits 0; `run`
+# starts a "stack" in its own session (as swb run does), says so as swb run does, and on
+# SIGINT exits 130 without stopping it (a suite without --stop-stack leaves it up).
+FAKE_ROS2 = r"""#!/usr/bin/env python3
+import os, signal, subprocess, sys, time
+if sys.argv[1:4] == ["run", "swb", "assets"]:
+    sys.exit(0)
+stack = subprocess.Popen(["sleep", "300"], start_new_session=True)
+open(os.environ["T3_FAKE_STACK"], "w").write(str(stack.pid))
+print(f"stack    starting on seat 0 (pid {stack.pid}, console x)", flush=True)
+def on_int(*a):
+    time.sleep(float(os.environ.get("T3_FAKE_STOP_S", "0")))   # a stack slow to stop
+    sys.exit(130)
+signal.signal(signal.SIGINT, on_int)
+for i in range(int(os.environ.get("T3_FAKE_LINES", "600"))):
+    print(f"line {i}", flush=True)
+    time.sleep(0.05)
+"""
+
+
+def _t3_child(tmp_path, env_extra=None, **popen):
+    import os
+    import signal
+    import subprocess
+    import sys
+    import yaml
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "ros2").write_text(FAKE_ROS2)
+    (bin_ / "ros2").chmod(0o755)
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    manifest = tmp_path / "t3.yaml"
+    manifest.write_text(yaml.safe_dump({"references": str(tmp_path / "refs"), "suites": [
+        {"project": str(proj), "suite": "s", "sim": "carla"}]}))
+    env = dict(os.environ, PATH=f"{bin_}{os.pathsep}{os.environ['PATH']}",
+               T3_FAKE_STACK=str(tmp_path / "stack.pid"), **(env_extra or {}))
+    ignore = lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)   # a script's `&` job
+    return subprocess.Popen([sys.executable, str(Path(__file__).with_name("t3.py")), "run",
+                             "--manifest", str(manifest), "--work", str(tmp_path / "work")],
+                            env=env, preexec_fn=ignore, text=True, **popen)
+
+
+def _alive(pid):
+    import os
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    with open(f"/proc/{pid}/stat") as f:
+        return f.read().split(")")[-1].split()[0] != "Z"
+
+
+def _wait_for(cond, timeout=20):
+    import time
+    end = time.time() + timeout
+    while time.time() < end:
+        if cond():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def test_a_sigterm_to_t3_stops_its_step_and_the_stack_it_started(tmp_path):
+    import signal
+    import subprocess
+    p = _t3_child(tmp_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        pidfile = tmp_path / "stack.pid"
+        assert _wait_for(lambda: pidfile.is_file() and pidfile.read_text())
+        stack = int(pidfile.read_text())
+        with open(f"/proc/{p.pid}/status") as f:   # SIGINT taken back, though inherited ignored
+            sigign = int(next(x for x in f if x.startswith("SigIgn:")).split()[1], 16)
+        assert not sigign & (1 << (signal.SIGINT - 1))
+        p.send_signal(signal.SIGTERM)              # t3 alone, as 139's abort did
+        code = p.wait(timeout=30)
+    finally:
+        if p.poll() is None:
+            p.kill()
+    assert code == 143                             # SIGTERM's
+    assert not _alive(stack), "the stack the step started is still up"
+    assert "t3: interrupted; what this run started is stopped" in p.stderr.read()
+
+
+def test_t3s_stdout_gone_does_not_break_the_step(tmp_path):
+    import subprocess
+    p = _t3_child(tmp_path, {"T3_FAKE_LINES": "40"}, stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL)
+    try:
+        assert p.stdout.readline().startswith("[t3]")
+        p.stdout.close()                         # t3's reader is gone: its writes get EPIPE
+        code = p.wait(timeout=30)
+    finally:
+        if p.poll() is None:
+            p.kill()
+    assert code == 0
+    logs = list((tmp_path / "work" / "logs" / "proj").glob("*_s.log"))
+    assert len(logs) == 1 and "line 39" in logs[0].read_text()   # the step wrote to the end
+    stack = int((tmp_path / "stack.pid").read_text())
+    assert not _alive(stack)                     # the project's stack is stopped after it
+
+
+def test_a_second_sigint_hurries_the_stop_and_never_abandons_it(tmp_path):
+    import signal
+    import subprocess
+    import time
+    p = _t3_child(tmp_path, {"T3_FAKE_STOP_S": "60"}, stdout=subprocess.DEVNULL,
+                  stderr=subprocess.PIPE)
+    try:
+        pidfile = tmp_path / "stack.pid"
+        assert _wait_for(lambda: pidfile.is_file() and pidfile.read_text())
+        stack = int(pidfile.read_text())
+        t0 = time.time()
+        p.send_signal(signal.SIGINT)               # the step takes 60 s to stop on SIGINT
+        time.sleep(1)
+        p.send_signal(signal.SIGINT)               # Ctrl-C again: on to SIGTERM, not abandoned
+        code = p.wait(timeout=30)
+    finally:
+        if p.poll() is None:
+            p.kill()
+    assert code == 130 and time.time() - t0 < 30
+    assert not _alive(stack), "the stack the step started is still up"
+
+
+def test_a_sigterm_with_t3s_stdout_and_stderr_gone_still_stops_the_stack(tmp_path):
+    import signal
+    import subprocess
+    r, w = os.pipe()
+    p = _t3_child(tmp_path, stdout=w, stderr=w)    # `t3.py run ... 2>&1 | head -1`
+    os.close(w)
+    try:
+        with os.fdopen(r) as reader:
+            assert reader.readline().startswith("[t3]")
+        pidfile = tmp_path / "stack.pid"           # the reader is gone, both streams with it
+        assert _wait_for(lambda: pidfile.is_file() and pidfile.read_text())
+        stack = int(pidfile.read_text())
+        p.send_signal(signal.SIGTERM)
+        code = p.wait(timeout=30)
+    finally:
+        if p.poll() is None:
+            p.kill()
+    assert code == 143
+    assert not _alive(stack), "the stack the step started is still up"

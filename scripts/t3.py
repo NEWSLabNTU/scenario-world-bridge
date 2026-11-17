@@ -21,15 +21,25 @@ and ``gpu_at_record`` are the host's state when ``record`` runs, not while the s
 A project marked ``copy: true`` (an example under src/swb_examples) runs from a copy made
 with ``ros2 run swb project new --from``, under ``--work`` (default /var/tmp/$USER/t3), fetched
 there; its results are under that copy's name.
+
+``run`` writes each step's output to ``<work>/logs/<project>/<time>_<n>_<step>.log`` and
+follows it to its own stdout, so a t3 that dies cannot break its child's writes (077 G80).
+SIGINT (even inherited ignored, a script's ``&`` job) and SIGTERM stop the step's group (each
+step runs in its own session) and any stack the project's suites started, then exit 130 (SIGINT)
+or 143 (SIGTERM); another SIGINT or SIGTERM during that stop moves it to its next stage (SIGTERM,
+then SIGKILL) at once, and never abandons it. Stop t3 with SIGINT or SIGTERM, never SIGKILL: the
+step and its stack are in a session of their own, and only t3's kill path stops them.
 """
 import argparse
 import csv
 import json
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -37,6 +47,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "scenarios" / "t3.yaml"
 SLOW = 1.5
+STOP_GRACE = 180.0   # s for an interrupted swb run to stop its stack (CARLA, Isaac) before SIGTERM
 STARTED = re.compile(r"^stack\s+starting on seat \d+ \(pid (\d+)")
 
 
@@ -351,20 +362,38 @@ def run(entries: list, work: Path, dry_run: bool) -> int:
                 argv.append("--stop-stack")
             steps.append(argv)
         started = None
-        for argv in steps:
-            cwd = d if argv[3] != "project" else d.parent
-            print(f"[t3] ({cwd}) {' '.join(argv)}", flush=True)
-            if dry_run:
-                continue
-            cwd.mkdir(parents=True, exist_ok=True)
-            p = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                 text=True)
-            for line in p.stdout:
-                sys.stdout.write(line)
-                m = STARTED.match(line)
-                if m:
-                    started = int(m.group(1))
-            worst = max(worst, p.wait())
+        p = None
+        try:
+            for n, argv in enumerate(steps):
+                cwd = d if argv[3] != "project" else d.parent
+                echo(f"[t3] ({cwd}) {' '.join(argv)}\n")
+                if dry_run:
+                    continue
+                cwd.mkdir(parents=True, exist_ok=True)
+                log = step_log(work, d, n, argv)
+                p = start_step(argv, cwd, log)
+                code, got = watch_step(p, log)
+                started = got or started
+                worst = max(worst, code)
+                p = None
+        except KeyboardInterrupt:
+            # the step's own group first (swb run stops what it started), then a stack an
+            # earlier suite of this project left up; t3 exits only once both are gone. A
+            # second Ctrl-C hurries the stop on, never abandons it
+            global _hurry
+            _hurry = False
+            signal.signal(signal.SIGINT, _on_hurry)
+            signal.signal(signal.SIGTERM, _on_hurry)
+            warn("t3: interrupted; stopping the suite's run and its stack "
+                 "(again: hurry it on to SIGTERM)\n")
+            if p is not None:
+                stop_group(p.pid, grace=STOP_GRACE, proc=p)
+                started = scan_started(log) or started
+            if started:
+                # normally a no-op (ESRCH): the step's swb run stopped the stack it started
+                # itself; it is not when an earlier suite of the project left one up
+                stop_group(started, grace=STOP_GRACE)
+            raise
         # --stop-stack stops only a stack that same command started: stop the one an earlier
         # suite of this project started, so each project leaves nothing up
         if started and not dry_run:
@@ -372,9 +401,103 @@ def run(entries: list, work: Path, dry_run: bool) -> int:
     return worst
 
 
-def stop_group(pid: int, grace: float = 60.0):
-    import signal
-    import time
+def step_log(work: Path, d: Path, n: int, argv: list) -> Path:
+    """A step's own output file: the child writes there, not to a pipe of t3's, so t3's death
+    cannot break its writes (a swb run whose stdout pipe lost its reader died on EPIPE while
+    starting its stack and left the stack up; 077 G80)."""
+    stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
+    what = argv[3] if argv[3] != "run" else Path(argv[4]).stem
+    log = work / "logs" / d.name / f"{stamp}_{n}_{what}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    return log
+
+
+def start_step(argv: list, cwd: Path, log: Path):
+    """``argv`` in its own session (t3's kill path signals its group), output to ``log``."""
+    with open(log, "wb") as fh:
+        return subprocess.Popen(argv, cwd=cwd, stdout=fh, stderr=subprocess.STDOUT,
+                                start_new_session=True)
+
+
+def watch_step(p, log: Path, poll: float = 0.2) -> tuple:
+    """``p``'s output followed from ``log`` to t3's stdout until it exits: (exit code, the pid
+    of a stack it started, or None)."""
+    started = None
+    for line in follow(p, log, poll):
+        echo(line)
+        m = STARTED.match(line)
+        if m:
+            started = int(m.group(1))
+    return p.wait(), started
+
+
+def follow(p, log: Path, poll: float = 0.2):
+    """``log``'s lines as ``p`` writes them, until it has exited and all are read."""
+    buf = b""
+    with open(log, "rb") as rd:
+        while True:
+            done = p.poll() is not None
+            chunk = rd.read()
+            if chunk:
+                buf += chunk
+                *lines, buf = buf.split(b"\n")
+                for x in lines:
+                    yield x.decode(errors="replace") + "\n"
+            elif done:
+                if buf:
+                    yield buf.decode(errors="replace")
+                return
+            else:
+                time.sleep(poll)
+
+
+def scan_started(log: Path):
+    """The pid of the stack a step's log says it started, or None."""
+    try:
+        for line in log.read_text(errors="replace").splitlines():
+            m = STARTED.match(line)
+            if m:
+                return int(m.group(1))
+    except OSError:
+        pass
+    return None
+
+
+def _write(stream: str, line: str):
+    """``line`` on sys.stdout or sys.stderr; once that is gone (EPIPE: ``| tee`` or ``| head``
+    killed), it becomes devnull, so neither a later write nor Python's flush at exit raises and
+    no stop is abandoned for a message (077 G80, in t3)."""
+    f = getattr(sys, stream)
+    try:
+        f.write(line)
+        f.flush()
+    except (BrokenPipeError, OSError):
+        setattr(sys, stream, open(os.devnull, "w"))
+
+
+def echo(line: str):
+    """A child's line on t3's stdout; once that is gone, only the step's log has it."""
+    _write("stdout", line)
+
+
+def warn(line: str):
+    _write("stderr", line)
+
+
+_hurry = False
+
+
+def _on_hurry(signum, frame):
+    """SIGINT or SIGTERM during the kill path: the stop's next stage now."""
+    global _hurry
+    _hurry = True
+
+
+def stop_group(pid: int, grace: float = 60.0, proc=None):
+    """``pid``'s process group: SIGINT, then SIGTERM, then SIGKILL, ``grace`` s apart (or at
+    once after a hurrying signal, ``_on_hurry``), until it is gone. ``proc``: t3's own child
+    leading it, reaped as it goes (a zombie still counts as a member of its group)."""
+    global _hurry
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
         try:
             os.killpg(pid, sig)
@@ -382,6 +505,11 @@ def stop_group(pid: int, grace: float = 60.0):
             return
         end = time.time() + grace
         while time.time() < end:
+            if _hurry:
+                _hurry = False
+                break
+            if proc is not None:
+                proc.poll()
             try:
                 os.killpg(pid, 0)
             except ProcessLookupError:
@@ -389,7 +517,36 @@ def stop_group(pid: int, grace: float = 60.0):
             time.sleep(1)
 
 
+class Terminated(KeyboardInterrupt):
+    """SIGTERM, as an interrupt: ``run``'s kill path stops the step and its stack first."""
+
+
+def _on_term(signum, frame):
+    raise Terminated()
+
+
+def take_signals():
+    """SIGINT and SIGTERM stop t3 through its kill path, even with SIGINT inherited ignored (a
+    script's ``&`` job; swb.signals, dc350cd): first, before any child starts."""
+    src = str(ROOT / "src" / "swb")
+    if src not in sys.path:
+        sys.path.append(src)   # last: the sourced install's swb, when there is one, comes first
+    from swb import signals
+    return signals.take_sigint(), signal.signal(signal.SIGTERM, _on_term)
+
+
 def main(argv=None) -> int:
+    previous = take_signals()
+    try:
+        return _main(argv)
+    finally:
+        # what was replaced, only: signal.signal returns None for a handler not set from Python
+        for sig, h in zip((signal.SIGINT, signal.SIGTERM), previous):
+            if h is not None:
+                signal.signal(sig, h)
+
+
+def _main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("action", choices=["list", "run", "record", "compare"])
     ap.add_argument("--only", nargs="*", default=[], help="<project>/<suite> keys")
@@ -408,7 +565,11 @@ def main(argv=None) -> int:
     entries = selected(doc, a.only, a.part)
     refs = ROOT / doc["references"]
     if a.action == "run":
-        return run(entries, a.work, a.dry_run)
+        try:
+            return run(entries, a.work, a.dry_run)
+        except KeyboardInterrupt as e:
+            warn("t3: interrupted; what this run started is stopped\n")
+            return 143 if isinstance(e, Terminated) else 130
     logs = a.logs or logs_root()
     failed = 0
     for e in entries:

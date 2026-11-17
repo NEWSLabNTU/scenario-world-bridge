@@ -11,7 +11,7 @@ COMMANDS = {
     "testbench": ("scensim.testbench_cli", "main", "new, list and check testbenches"),
     "assets": ("scensim.assets", "main", "fetch and check maps and datasets"),
     "seat": ("scensim.seat", "main", "this host's seats: ports and domains"),
-    "project": ("scensim.project", "main", "new and check a testbench directory"),
+    "project": ("scensim.project", "main", "new and check a project directory (the form before testbenches)"),
     "drive": ("scensim.drive", "main", "drive a car by hand"),
     "isaac": ("scensim.isaac", "main", "Isaac Sim on this host"),
     "autoware": ("scensim.autoware", "main", "Autoware's carried fixes and runtime"),

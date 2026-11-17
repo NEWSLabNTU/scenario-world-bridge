@@ -5,22 +5,23 @@ kinds: the ego and a second car by Autoware, each in its own ROS domain, a lead 
 CARLA's BasicAgent, and a car that cuts in by a user-written Python program.
 
 ```
-$ ros2 run scensim run scenarios/four_pilots.xosc
-passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-4...
+$ scensim run multi_pilot/scenarios/four_pilots.xosc
+passed   2026-11-18T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-4...
 ```
 
 ## You will learn
 
 - what a pilot consists of (a vehicle side, a driver and an agent), and the kinds scensim starts:
   `autoware`, `carla_basic`, `simple`, `launch`, `command`, `none`;
-- binding scenario entities to pilots in `swb.yaml`, by name or by pattern;
+- binding scenario entities to pilots in `testbench.yaml`, by name or by pattern;
 - checking a user-written agent without a simulator;
 - the difference between a pilot that lives with the stack and one started per run.
 
 ## Before you start
 
 - [Tutorial 3](03-other-road-users.md), so that the stack, runs and controllers are
-  familiar. Stop that project's stack first (Ctrl-C), since this tutorial uses its own.
+  familiar. Stop that testbench's stack first (`scensim stack my_first_drive --stop`),
+  since this tutorial uses its own.
 - Two Autowares and CARLA on one host: one NVIDIA GPU with room for both Autowares'
   perception beside CARLA, and 32 GB of RAM or more.
 - `carla.root` in the host settings
@@ -31,15 +32,18 @@ passed   2026-11-15T14-40-02_four_pilots_r0  .../multi_pilot/runs/2026-11-15T14-
 
 ## 1. Copy the example
 
+The example becomes a second testbench in the workspace of Tutorial 1:
+
 ```bash
-ros2 run scensim project new ~/multi_pilot \
-    --from pkg://scensim_examples/projects/multi_pilot
-cd ~/multi_pilot
-ros2 run scensim assets fetch
-cat swb.yaml
+cd ~/my_ws/src
+scensim testbench new multi_pilot --from pkg://scensim_examples/projects/multi_pilot
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch multi_pilot
+cat src/multi_pilot/testbench.yaml
 ```
 
-**What you see**: the fetch as in Tutorial 1, then the project file; its pilots:
+**What you see**: the build and the fetch as in Tutorial 1, then the testbench file; its
+pilots:
 
 ```yaml
 pilots:
@@ -56,7 +60,7 @@ pilots:
 the other three with `agent`, so all four are driven from outside SSv2. Each key of
 `pilots:` is an entity name or a pattern (`bg_av_*` matches `bg_av_1`).
 
-**Check**: `ros2 run scensim project check` ends `project: ok`. It would refuse an `agent`
+**Check**: `scensim testbench check multi_pilot` ends `testbench: ok`. It would refuse an `agent`
 entity with no pilot, or a pilot kind the simulator cannot run.
 
 ## 2. Check your own pilot without a simulator
@@ -69,13 +73,14 @@ withholds the goal that the scenario gives it until the ego is within its trigge
 distance, then proceeds. scensim starts it as
 
 ```
-python3 <project>/pilots/cut_in.py --trigger-m 40 \
+python3 <testbench>/pilots/cut_in.py --trigger-m 40 \
     --relay <url> --entity cut_in --seed <n> --run-dir <dir>
 ```
 
 The SDK's conformance check runs it over a stand-in world, with no CARLA:
 
 ```bash
+cd ~/my_ws/src/multi_pilot
 echo '{"world": "fake"}' > /tmp/fake.json
 ros2 run scensim_agent scensim-agent check pilots/cut_in.py:CutIn \
     --config /tmp/fake.json
@@ -96,16 +101,24 @@ PASS: 16/16 rules
 With `carla.root` set (Before you start):
 
 ```bash
-ros2 launch scensim_launch scensim.launch.xml \
-    map:=Town01
+scensim stack multi_pilot
 ```
 
-`map:=Town01` starts the pilots at once rather than at the first run, so that their
-start can be observed.
+`scensim run` starts the stack itself; starting it first separates the two waits.
 
-**What you see**: `scensim stack: pilot lead ready on Town01` almost at once,
-`pilot ego ready` and `pilot bg_av_1 ready` once each Autoware can drive, then
-`scensim stack ...: ready`.
+**What you see**:
+
+```
+stack    starting on seat 0 (pid ..., console .../stack-launches/.../console.log)
+stack    multi_pilot on seat 0: started; stop it with: scensim stack multi_pilot --stop
+```
+
+The console named in the first line is the stack's log. The pilots start with the first
+run, on its map; the console then shows `pilot lead ready on Town01` almost at once, and
+`pilot ego ready` and `pilot bg_av_1 ready` once each Autoware can drive.
+
+<!-- TODO(exit run): check the stack lines, and that stack.json names the pilots' domains
+before the first run. -->
 
 **Check**: which domain each pilot got, from the stack's record:
 
@@ -118,10 +131,8 @@ Each entity has its own domain.
 
 ## 4. Run the scenario
 
-In a second terminal, in the project:
-
 ```bash
-ros2 run scensim run scenarios/four_pilots.xosc
+scensim run multi_pilot/scenarios/four_pilots.xosc
 ```
 
 `ego` comes down the north arm of a T junction, turns right and drives west; `lead`
@@ -142,7 +153,7 @@ others.
 **Check**:
 
 ```bash
-cat runs/*four_pilots*/logs/pilot-cut_in/cut_in.json
+cat "$logs"/multi_pilot/runs/*four_pilots*/logs/pilot-cut_in/cut_in.json
 ```
 
 shows the trigger distance the cut-in chose for this run.
@@ -150,7 +161,7 @@ shows the trigger distance the cut-in chose for this run.
 ## 5. A fresh pilot per run, with a seed
 
 ```bash
-ros2 run scensim run suites/cut_in_seeds.yaml
+scensim run multi_pilot/cut_in_seeds
 ```
 
 The suite runs the scenario five times, repetition k with seed 1000 + k. `cut_in.py`
@@ -178,10 +189,11 @@ shows `launch` and `command` for a driver of one's own; the
 ## Exercises
 
 1. **Easy.** Drive `lead` with Autoware instead: rename it `bg_av_2` in the scenario (all
-   its references), and restart the stack. Check: the stack console prints
+   its references), and restart the stack (`scensim stack multi_pilot --stop`, then
+   `scensim stack multi_pilot`). Check: after a run, the stack console prints
    `pilot bg_av_2 ready`, and `stack.json` lists a third Autoware domain.
-2. **Medium.** Make the cut-in later: `--trigger-m` 30 in `swb.yaml`, then restart the
-   stack (a run refuses a stack started from another `swb.yaml`). Check: `cut_in.json`
+2. **Medium.** Make the cut-in later: `--trigger-m` 30 in `testbench.yaml`, then restart
+   the stack (a run refuses a stack started from another `testbench.yaml`). Check: `cut_in.json`
    shows a distance between 25 and 35 m.
 3. **Open.** Write a new pilot: `ros2 run scensim_agent scensim-agent new my-pilot` makes a
    skeleton that passes `scensim-agent check`; assign it to an entity as a `command` pilot.
@@ -192,7 +204,7 @@ shows `launch` and `command` for a driver of one's own; the
 
 | Symptom | Fix |
 |---|---|
-| `pilot lead` restarts again and again; its log says `No module named 'agents'` | `carla.root` is missing from `~/.config/scensim/host.yaml` (step 3); restart the stack |
+| `pilot lead` restarts again and again; its log says `No module named 'agents'` | `carla.root` is missing from `~/.config/scensim/host.yaml`; restart the stack (`scensim stack multi_pilot --stop`) |
 | One Autoware never becomes ready | two Autowares need GPU memory and RAM: close other GPU work; read `runs why` and the pilot's log under the stack's `proc/pilot-<entity>/` |
 | `refused: entity bg_av_1 ... has no pilot in the stack` | the stack started before the pilot was added: restart it |
 

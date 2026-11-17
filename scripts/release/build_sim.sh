@@ -10,7 +10,8 @@
 # initialised): it builds in this checkout's build/, install/ and log/, which it clears
 # first, and fetches the vendored packages into build/release-vendor/. Needs: ROS
 # (/opt/ros/<distro>), colcon with colcon-cargo-ros2, Rust (cargo on PATH), vcstool,
-# zstd. The tarball and its SHA256SUMS line go to --out (default dist/).
+# zstd, patchelf (on PATH, or PATCHELF=<path>). The tarball and its SHA256SUMS line go to
+# --out (default dist/).
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -52,9 +53,9 @@ SIM_PACKAGES=(scenario_world_bridge scenario_agent_relay scensim scensim_launch
     # SSv2 loads its entity behaviours with pluginlib at run time; nothing depends on them
     behavior_tree_plugin do_nothing_plugin
     # the vehicle side every non-Autoware pilot on CARLA starts (133, 2026-11-18): acb's
-    # bridge, its launch (the blueprint pedal maps) and the car's descriptions
-    acb_bridge acb_launch tesla_model3_description tesla_model3_sensor_kit_description)
-VEHICLE_SIDE=(aib_launch autoware_sim_profile individual_params tesla_model3_launch
+    # bridge (with the blueprint pedal maps) and the car's descriptions
+    acb_bridge tesla_model3_description tesla_model3_sensor_kit_description)
+VEHICLE_SIDE=(acb_launch aib_launch autoware_sim_profile individual_params tesla_model3_launch
     tesla_model3_sensor_kit_launch)
 
 cd "$ROOT"
@@ -105,6 +106,7 @@ done
 echo "build_sim.sh: built in ${build_s} s"
 
 "${clean_env[@]}" python3 "$HERE/stage_sim.py" --root "$ROOT" --install install \
+    ${PATCHELF:+--patchelf "$PATCHELF"} \
     --vendor "$VENDOR" --repos "$ROOT/sim.repos" --version "$VERSION" --distro "$DISTRO" \
     --out "$OUT" --build-seconds "$build_s"
 

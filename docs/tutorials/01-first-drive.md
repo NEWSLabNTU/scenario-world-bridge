@@ -5,19 +5,19 @@ and the verdict of the run is read back. The tutorial ends with this state:
 
 ```
 ~/my_first_drive/
-  swb.yaml  swb.lock  README.md  .gitignore
+  swb.yaml  scensim.lock  README.md  .gitignore
   scenarios/drive_to_goal.xosc
-  assets/maps/Town01 -> (the map, in swb's cache)
+  assets/maps/Town01 -> (the map, in scensim's cache)
   runs/ -> (one directory per run, under the log root)
 
-$ ros2 run swb runs list
+$ ros2 run scensim runs list
 RUN                                   VERDICT  SCENARIO           DURATION
 2026-11-15T10-21-07_drive_to_goal_r0  passed   drive_to_goal.xosc 41.2s
 ```
 
 ## You will learn
 
-- creating a project with `ros2 run swb project new`, and reading its contents;
+- creating a project with `ros2 run scensim project new`, and reading its contents;
 - fetching a project's assets by name and verifying them;
 - bringing up a stack and recognising when it is ready;
 - running a scenario, observing it, and reading its result and timeline.
@@ -31,7 +31,7 @@ Terms are defined at first use; the [glossary](../reference/glossary.md) collect
   environment file, and CARLA either named in the host settings (`carla.root`, so that the
   stack starts it, which is recommended here) or already serving its port, and Autoware
   (tested with 1.5.0), as Install describes.
-- Every terminal: `source ~/swb.bash`.
+- Every terminal: `source ~/scensim.bash`.
 - Network access to Hugging Face for step 2, about 0.1 GB of disk for the map, and an
   NVIDIA GPU with room for CARLA and Autoware
   ([Install](../getting-started/install.md#time-and-space)).
@@ -40,13 +40,13 @@ Terms are defined at first use; the [glossary](../reference/glossary.md) collect
 ## 1. Make a project
 
 ```bash
-ros2 run swb project new ~/my_first_drive
+ros2 run scensim project new ~/my_first_drive
 cd ~/my_first_drive
 cat swb.yaml
 ```
 
 **What you see**: `wrote /home/<you>/my_first_drive (carla-first-drive); next: cd
-/home/<you>/my_first_drive && ros2 run swb assets fetch`, then the project file:
+/home/<you>/my_first_drive && ros2 run scensim assets fetch`, then the project file:
 
 ```yaml
 # my_first_drive: one Autoware ego on CARLA's Town01.
@@ -62,14 +62,14 @@ A **project** is a directory that names everything a use case needs. Its file st
 three things: the simulator, the assets (Town01 of the `carla-town-autoware-maps` dataset),
 and the **pilot** of the scenario entity named `ego`, that is, what drives it (Autoware, on
 a Tesla Model 3). The **ego** is the vehicle under test. The scenario,
-`scenarios/drive_to_goal.xosc`, names its map as `$(env SWB_MAPS)/Town01` and its ego as
-`tesla_model3`, an entry of the vehicle catalog that ships with swb (an OpenSCENARIO
+`scenarios/drive_to_goal.xosc`, names its map as `$(env SCENSIM_MAPS)/Town01` and its ego as
+`tesla_model3`, an entry of the vehicle catalog that ships with scensim (an OpenSCENARIO
 `CatalogReference`).
 
 **Check**:
 
 ```bash
-ros2 run swb project check
+ros2 run scensim project check
 echo $?
 ```
 
@@ -79,7 +79,7 @@ missing assets, and exits 3 (refused):
 ```
 launcher: auto -> ros2 (play_launch not on PATH)
 note: under ros2 launch, a crashed Autoware component ends its container ...
-problem: swb.lock: missing: the assets were never fetched (fix: ros2 run swb assets ...
+problem: scensim.lock: missing: the assets were never fetched (fix: ros2 run scensim ...
 problem: scenarios/drive_to_goal.xosc: map Town01 is not fetched (assets/maps/Town0...
 [ros2run]: Process exited with failure 3
 ```
@@ -91,7 +91,7 @@ not exit 0.
 ## 2. Fetch the map
 
 ```bash
-ros2 run swb assets fetch
+ros2 run scensim assets fetch
 ```
 
 The datasets are public: no Hugging Face account is needed.
@@ -102,18 +102,18 @@ into the project, and the lock written:
 ```
 carla-town-autoware-maps: e94113508882: 9 file(s), 9 downloaded
 linked assets/maps/Town01 -> .../jerry73204/carla-town-autoware-maps/e94.../Town01
-swb.lock written
+scensim.lock written
 ```
 
-`swb.lock` pins the dataset's commit and the checksum of every file, so that every later
-fetch, on any machine, obtains the same files; the files reside in swb's cache, shared by
+`scensim.lock` pins the dataset's commit and the checksum of every file, so that every later
+fetch, on any machine, obtains the same files; the files reside in scensim's cache, shared by
 all projects, and `assets/` holds only links.
 
 **Check**:
 
 ```bash
-ros2 run swb project check
-ros2 run swb assets check
+ros2 run scensim project check
+ros2 run scensim assets check
 ```
 
 The two end `project: ok` and `assets: ok`.
@@ -124,7 +124,7 @@ In a terminal of its own, in the project directory:
 
 ```bash
 cd ~/my_first_drive
-ros2 launch swb_launch swb.launch.xml
+ros2 launch scensim_launch scensim.launch.xml
 ```
 
 The **stack** is the long-lived set of processes that every run uses. It checks the
@@ -142,12 +142,12 @@ map; appending `map:=Town01` to the launch command starts it at once.
 shortened; the two CARLA lines only when the stack starts CARLA):
 
 ```
-swb: project .../my_first_drive on seat 0 (carla, maps Town01; pilots on the first ...
-[stack_keeper-1] swb stack 2026-11-15T10-15-42_seat0: seat 0; scenario domain 1, ...
-[stack_keeper-1] swb stack: CARLA started on localhost:2000 (pid ..., log ...)
-[stack_keeper-1] swb stack: CARLA serves RPC (0.9.16)
-[stack_keeper-1] swb stack: the bridge serves SSv2 (its world server is up)
-[stack_keeper-1] swb stack 2026-11-15T10-15-42_seat0: ready
+scensim: project .../my_first_drive on seat 0 (carla, maps Town01; pilots on the ...
+[stack_keeper-1] scensim stack 2026-11-15T10-15-42_seat0: seat 0; scenario domain 1, ...
+[stack_keeper-1] scensim stack: CARLA started on localhost:2000 (pid ..., log ...)
+[stack_keeper-1] scensim stack: CARLA serves RPC (0.9.16)
+[stack_keeper-1] scensim stack: the bridge serves SSv2 (its world server is up)
+[stack_keeper-1] scensim stack 2026-11-15T10-15-42_seat0: ready
 ```
 
 `ros2 launch` leads each line of a process with the process's name; under play_launch the
@@ -161,7 +161,7 @@ directory per process and a web interface that lists every process with its stat
 
 ```bash
 play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml
+    scensim_launch scensim.launch.xml
 ```
 
 where 8080 is seat 0's web port (`seat show` names another seat's). The tutorials use
@@ -170,8 +170,8 @@ where 8080 is seat 0's web port (`seat show` names another seat's). The tutorial
 **Check**, in a second terminal:
 
 ```bash
-source ~/swb.bash
-ros2 run swb seat show
+source ~/scensim.bash
+ros2 run scensim seat show
 ```
 
 The seat's line ends `held by <you> (pid ..., project my_first_drive, ...)  <- yours`.
@@ -182,7 +182,7 @@ In the second terminal, in the project:
 
 ```bash
 cd ~/my_first_drive
-ros2 run swb run scenarios/drive_to_goal.xosc
+ros2 run scensim run scenarios/drive_to_goal.xosc
 ```
 
 A **run** is one execution of a scenario against the stack. This one asks the stack to
@@ -199,7 +199,7 @@ first build TensorRT engines for several minutes
 
 **Observing the drive.** A CARLA started by the stack has no window. RViz (`ego: {kind:
 autoware, vehicle: tesla_model3, rviz: true}` in `swb.yaml`, then a restart of the stack),
-`ros2 run swb_launch chase_view` (a chase camera, which requires `pygame`) or a CARLA
+`ros2 run scensim_launch chase_view` (a chase camera, which requires `pygame`) or a CARLA
 [started by hand](../getting-started/carla.md#or-start-it-yourself) with its window shows
 the drive; without a display, the timeline of step 5 records it.
 
@@ -230,8 +230,8 @@ prints `0`: the run passed ([Exit codes](../reference/commands.md#exit-codes): 1
 ## 5. Read the result
 
 ```bash
-ros2 run swb runs list
-ros2 run swb runs show drive_to_goal
+ros2 run scensim runs list
+ros2 run scensim runs show drive_to_goal
 ```
 
 **What you see**: `runs list` has one row, `passed`. `runs show` prints the run's header
@@ -239,7 +239,7 @@ ros2 run swb runs show drive_to_goal
 SSv2's milestones and every warning in any process's log.
 
 <p align="center">
-  <img src="../media/t1_terminal.webp" alt="A terminal: ros2 run swb run scenarios/drive_to_goal.xosc prints the map line for Town01 and passed with the run id and directory; ros2 run swb runs list then shows the run passed, 101.0 s" width="720"><br>
+  <img src="../media/t1_terminal.webp" alt="A terminal: ros2 run scensim run scenarios/drive_to_goal.xosc prints the map line for Town01 and passed with the run id and directory; ros2 run scensim runs list then shows the run passed, 101.0 s" width="720"><br>
   <em>Steps 4 and 5 in a terminal: the run passes on its first attempt, and <code>runs
   list</code> shows it (2026-11-17; Autoware 1.5.0, CARLA 0.9.16, <code>ros2 launch</code>;
   the log root is shortened to <code>...</code>).</em>
@@ -263,13 +263,13 @@ prints `"verdict": "passed",`.
 ## 6. Run it again
 
 ```bash
-ros2 run swb run scenarios/drive_to_goal.xosc
+ros2 run scensim run scenarios/drive_to_goal.xosc
 ```
 
 **What you see**: a second `passed` line with a new run id, and no map line. Nothing was
 restarted: the stack, Autoware included, serves one run after another.
 
-**Check**: `ros2 run swb runs list` has two rows.
+**Check**: `ros2 run scensim runs list` has two rows.
 
 To finish, stop the stack with Ctrl-C in its terminal. It ends every process it started
 (CARLA too, if it started CARLA) and frees the seat; a CARLA started by hand stays up.
@@ -277,21 +277,21 @@ To finish, stop the stack with Ctrl-C in its terminal. It ends every process it 
 ## What happened
 
 The project contains no path of the local machine, so it runs unchanged on another one
-after `assets fetch`. SSv2 judges each run; swb records the verdict beside the logs of every
+after `assets fetch`. SSv2 judges each run; scensim records the verdict beside the logs of every
 process. [How it works](../explanation/how-it-works.md) explains the parts, and
 [Verdicts](../explanation/verdicts.md) the meaning of `passed`, `failed` and `error`.
 
 ## Exercises
 
-1. **Easy.** Run the scenario three times with one command: `ros2 run swb run
-   scenarios/drive_to_goal.xosc --repeat 3`. Check: `ros2 run swb runs list` shows three
+1. **Easy.** Run the scenario three times with one command: `ros2 run scensim run
+   scenarios/drive_to_goal.xosc --repeat 3`. Check: `ros2 run scensim runs list` shows three
    new rows, ending `_r0`, `_r1`, `_r2`.
 2. **Medium.** Make the run fail deliberately: in a copy of the scenario,
    `scenarios/too_slow.xosc`, lower the timeout (`SimulationTimeCondition value="180"`) to
-   `5`. Check: the run line starts with `failed`, the command exits 1, and `ros2 run swb
+   `5`. Check: the run line starts with `failed`, the command exits 1, and `ros2 run scensim
    runs why too_slow` names the cause.
-3. **Open.** Copy the shipped example with three scenarios (`ros2 run swb project new
-   ~/first_drive --from pkg://swb_examples/projects/first_drive`) and run its suite,
+3. **Open.** Copy the shipped example with three scenarios (`ros2 run scensim project new
+   ~/first_drive --from pkg://scensim_examples/projects/first_drive`) and run its suite,
    `suites/all.yaml`, as [Tutorial 5](05-suites.md) describes. Check: three `passed`
    lines and a `summary:` line naming `summary.csv`.
 
@@ -299,12 +299,12 @@ process. [How it works](../explanation/how-it-works.md) explains the parts, and
 
 | Symptom | Fix |
 |---|---|
-| `swb: the stack is refused (3): ...` | the message names the problem and its fix; most often the assets were not fetched (step 2) |
+| `scensim: the stack is refused (3): ...` | the message names the problem and its fix; most often the assets were not fetched (step 2) |
 | `assets fetch` prints `error: <url>: <reason>` and exits 2 | no network, or a proxy that requires `https_proxy`; a later attempt keeps the files already downloaded |
-| `swb run: refused: no stack of project my_first_drive on any seat` | the stack is not up, or was started in another directory (step 3) |
+| `scensim run: refused: no stack of project my_first_drive on any seat` | the stack is not up, or was started in another directory (step 3) |
 | The run ends `error`: `pilot ego never became ready (600 s)` | a slow first start (step 4): run again, or give `--ready-timeout 1200` |
 | The run ends `error`, `perception is not` ready, every time; the pilot's log (the stack's `proc/pilot-ego/console.log`) has `undefined symbol: _ZTVN18diagnostic_updater7UpdaterE` | the installed Autoware 1.5.0 is not the published binary packages (a local rebuild) and one of its libraries fails to load; install Autoware 1.5.0's published packages |
-| `ros2 topic list` in another terminal shows nothing | that terminal is not on the pilot's ROS domain: `eval "$(ros2 run swb seat env 0)"` first (0 is the index of the seat's first pilot domain, the ego's, not a seat number) |
+| `ros2 topic list` in another terminal shows nothing | that terminal is not on the pilot's ROS domain: `eval "$(ros2 run scensim seat env 0)"` first (0 is the index of the seat's first pilot domain, the ego's, not a seat number) |
 
 More, CARLA's own failures among them: [Troubleshooting](../reference/troubleshooting.md).
 

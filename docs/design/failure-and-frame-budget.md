@@ -1,6 +1,6 @@
 # Failure Handling and the Frame Budget
 
-What swb does when CARLA, SSv2 or swb itself fails, and how much of a frame swb may spend.
+What scensim does when CARLA, SSv2 or scensim itself fails, and how much of a frame scensim may spend.
 Authoritative for both; history and measurements in roadmap
 [016](../roadmap/016-robustness-and-performance.md). Time across failures follows
 [time-and-ticking](time-and-ticking.md).
@@ -9,20 +9,20 @@ Authoritative for both; history and measurements in roadmap
 
 1. **A failed scenario fails; it never hangs.** Every failure ends the running scenario with
    a message that names the cause, in bounded time. SSv2 decides what a failure means for the
-   scenario; swb never reports a frame it did not simulate as a success.
+   scenario; scensim never reports a frame it did not simulate as a success.
 2. **The next scenario runs without a hand on the keyboard.** After any single failure --
-   CARLA crash, CARLA hang, swb crash, SSv2 crash -- the next `Initialize` succeeds once CARLA
+   CARLA crash, CARLA hang, scensim crash, SSv2 crash -- the next `Initialize` succeeds once CARLA
    serves RPC again, with no process restarted by hand.
 3. **Time never runs backwards**, across any of the above.
 
 ## Failure model
 
-| Failure | Detected by | swb does | The running scenario | The next one |
+| Failure | Detected by | scensim does | The running scenario | The next one |
 |---|---|---|---|---|
 | CARLA crashes or hangs | RPC **timeout** (client timeout 30 s; a killed server times out, it does not refuse -- measured 016) | the request fails with its cause. Teleports never wait (LibCarla's `SetActorTransform` is fire-and-forget), so the first frame's `tick` is what times out; the first call that fails slowly (> 5 s) marks CARLA unreachable and later RPCs are skipped | the SSv2 fork ends it on the first failed frame (~30–60 s) | `Initialize` waits for CARLA (bounded), reconnects, reaps, runs |
-| A CARLA call never returns (the 0.9.16 Traffic Manager handshake, 034) | the watchdog: every tick, settings change, map load and TM `ShutDown`/`SetSynchronousMode` runs on one helper thread with a bound (below) | replies the request's error naming the call and step, then **drains**: every later request gets the same error at once, nothing goes to CARLA; idle ~2 s (10 s at most) → socket closed with a linger, `_exit(75)` | an error verdict within ~55 s; its deactivate despawn answered, no 90 s wait | `respawn` starts a fresh swb; its `Initialize` enables sync, reaps the dead one's actors by census |
-| swb panics in a handler | `catch_unwind` around dispatch | replies failure with the panic message; refuses everything but `Initialize` until the next one | fails on that request | `Initialize` resets the session |
-| swb dies (segfault in LibCarla, abort, OOM, kill) | process exit | the supervisor (`just run`) restarts it with backoff | a request in flight: SSv2's receive times out → error; a request queued after the death: the new swb refuses it (unknown entities) → failed frame → error | new swb serves it; reaps what the dead one left |
+| A CARLA call never returns (the 0.9.16 Traffic Manager handshake, 034) | the watchdog: every tick, settings change, map load and TM `ShutDown`/`SetSynchronousMode` runs on one helper thread with a bound (below) | replies the request's error naming the call and step, then **drains**: every later request gets the same error at once, nothing goes to CARLA; idle ~2 s (10 s at most) → socket closed with a linger, `_exit(75)` | an error verdict within ~55 s; its deactivate despawn answered, no 90 s wait | `respawn` starts a fresh scensim; its `Initialize` enables sync, reaps the dead one's actors by census |
+| scensim panics in a handler | `catch_unwind` around dispatch | replies failure with the panic message; refuses everything but `Initialize` until the next one | fails on that request | `Initialize` resets the session |
+| scensim dies (segfault in LibCarla, abort, OOM, kill) | process exit | the supervisor (`just run`) restarts it with backoff | a request in flight: SSv2's receive times out → error; a request queued after the death: the new scensim refuses it (unknown entities) → failed frame → error | new scensim serves it; reaps what the dead one left |
 | SSv2 dies mid-scenario | nothing (the socket just idles) | nothing: CARLA stays paused with the scenario's actors | -- | `Initialize` destroys them (session reset + reap); from another SSv2 only after its session has been silent 5 s (roadmap 077, G21) |
 | A second SSv2 on the same bridge (a stray from an earlier run) | its connection is not the one whose `Initialize` holds the session | refuses its requests, naming the session's client, map and entities; its `Initialize` too while the session has entities and asked within 5 s | runs on, undisturbed | the stray's next `Initialize` passes once the session ended |
 | Malformed request | protobuf decode error | replies failure for the peeked variant (phase 006) | fails | unaffected |
@@ -42,12 +42,12 @@ whole cycle hold:
   Autoware stack, and the stack's supervisor brings it back in the new episode
   ([time-and-ticking](time-and-ticking.md)). The CARLA world server exits 75 and its
   play_launch restarts it; the bridge stays. Measured (051, K4): the next scenario passed.
-- **A restarted server holds none of swb's state**: not sync mode, not frozen lights, not the
+- **A restarted server holds none of scensim's state**: not sync mode, not frozen lights, not the
   map. The next `Initialize` re-applies sync and loads the scenario's town as usual; entity
   mappings from before the crash are dropped (their actor IDs mean nothing to the new server).
 
 - **One timeout, not one per call.** A call that fails after more than 5 s failed by timing
-  out, so CARLA is gone or hung. swb then marks CARLA unreachable until the next successful
+  out, so CARLA is gone or hung. scensim then marks CARLA unreachable until the next successful
   reconnect: teleports, despawns and teardown skip their RPCs (the collision sensor is
   abandoned, actors stay in the ledger), so ending a scenario against a dead server costs
   one timeout instead of 30 s per actor and sensor (measured 186 s for an ego with 5
@@ -63,10 +63,10 @@ whole cycle hold:
   connection and blocks 30 s without reading the stream, and a synchronous 0.9.16 server
   busy-waits on its game thread in `ServerSession::Write` until every subscriber took the
   previous frame (its session deadline timer is cancelled by each write and never re-armed,
-  so a stuck subscriber is never dropped). An idle swb sent nothing to CARLA, never noticed
+  so a stuck subscriber is never dropped). An idle scensim sent nothing to CARLA, never noticed
   its server was replaced, and stalled every fresh server on port 2000 at its first
   synchronous map load (round 40's "port 2000 hang", reproduced at tick 94-498). Between
-  scenarios swb now probes its connection: after 5 s without a request, every 2 s, the
+  scenarios scensim now probes its connection: after 5 s without a request, every 2 s, the
   server version with a 2 s timeout (CARLA's RPC threads answer it without the game thread,
   so a live but paused server answers in milliseconds). Two failures in a row and the bridge
   exits with status 75, like a hung tick, so `respawn` starts a fresh process whose client
@@ -76,11 +76,11 @@ whole cycle hold:
   bridges attached hung the next synchronous run within 500 ticks; after, the bridge exits
   4 s after the server dies and three restart cycles ran 6,000-10,000 ticks each.
 
-### swb crash and restart
+### scensim crash and restart
 
-- **Supervisor.** swb is a long-lived singleton outside any launch file, so nothing restarted
+- **Supervisor.** scensim is a long-lived singleton outside any launch file, so nothing restarted
   it. `just run` now loops: a clean exit (status 0, or SIGINT/SIGTERM forwarded by the
-  operator) ends the loop; any other exit restarts swb after a backoff
+  operator) ends the loop; any other exit restarts scensim after a backoff
   (`2 s × 2^(n−1)`, capped at 60 s), and more than 5 crashes in 300 s ends the loop with an
   error -- the same policy play_launch uses for composables.
 - **SSv2 must not retry a failed frame.** Upstream `SimulatorCore::update()` discards
@@ -88,12 +88,12 @@ whole cycle hold:
   so not even a `SimulationTimeCondition` timeout fires, and a scenario whose simulator lost
   its world ran forever at one frame per 30–60 s (measured: 615 s, then stopped by hand). The
   fork throws a `SimulationError` on the first failed frame. This is also phase 006's
-  promise kept end to end: swb has reported honest failures since then, and SSv2 was
+  promise kept end to end: scensim has reported honest failures since then, and SSv2 was
   dropping them.
 - **SSv2 must not wait forever.** SSv2's ZMQ `REQ` client blocks in `recv` with no timeout,
-  and a request sent to a swb that died is never answered by the next one, so the scenario
+  and a request sent to a scensim that died is never answered by the next one, so the scenario
   hangs until killed by hand. The fork sets a receive timeout
-  (`simulation_interface` `ZMQ_RCVTIMEO`, `SIMULATOR_RESPONSE_TIMEOUT`, default 420 s at first, 90 s since 2026-10-10 with `Initialize` under its own `SIMULATOR_INITIALIZE_TIMEOUT` 300 s; swb's watchdog (032 N5, 034: 45 s per tick or settings change, 55 s with the state read) answers inside it; see "Timeouts" below. Originally chosen above the worst legitimate request:
+  (`simulation_interface` `ZMQ_RCVTIMEO`, `SIMULATOR_RESPONSE_TIMEOUT`, default 420 s at first, 90 s since 2026-10-10 with `Initialize` under its own `SIMULATOR_INITIALIZE_TIMEOUT` 300 s; scensim's watchdog (032 N5, 034: 45 s per tick or settings change, 55 s with the state read) answers inside it; see "Timeouts" below. Originally chosen above the worst legitimate request:
   `Initialize` with a map load and the CARLA wait) and throws on expiry, which the
   interpreter reports as a simulation error. The socket is recreated after a timeout, since a
   `REQ` socket that missed its reply cannot send again.
@@ -101,10 +101,10 @@ whole cycle hold:
   restarted bridge or world server reports the same time acb publishes without recording
   anything (roadmap 051 removed the epoch and its tmpfs record). Measured (051, K4): both
   restarted under a running stack, every SSv2 stamp equal to a `/clock` value, bit for bit.
-- **Reap what the dead swb left.** `destroy_all_spawned` only knows this process's ledger.
+- **Reap what the dead scensim left.** `destroy_all_spawned` only knows this process's ledger.
   Vehicles with a configured `role_name` are already reaped at `Initialize`
-  (`reap_orphaned_vehicles`). NPCs, walkers and props carried no mark, so a swb that died
-  mid-scenario left them in the world. Every actor swb spawns for an SSv2 entity now carries
+  (`reap_orphaned_vehicles`). NPCs, walkers and props carried no mark, so a scensim that died
+  mid-scenario left them in the world. Every actor scensim spawns for an SSv2 entity now carries
   `role_name = swb_entity:<name>` (where the blueprint has the attribute), and `Initialize`
   destroys any `swb_entity:` actor it does not own. Actors without the mark are somebody
   else's and are left alone.
@@ -113,14 +113,14 @@ whole cycle hold:
 
 A Rust panic in a handler used to unwind out of `main` and end the process, which with no
 supervisor meant no bridge. Dispatch runs under `catch_unwind`: the request gets a failure
-response (`"swb internal error: <message>"`), the panic is logged at ERROR with its location,
+response (`"scensim internal error: <message>"`), the panic is logged at ERROR with its location,
 and the session is marked poisoned -- every request but `Initialize` is refused until the next
 `Initialize` resets it, because a handler that died half-way may have left the entity map and
 CARLA disagreeing. A segfault inside LibCarla cannot be caught; the supervisor covers it.
 
 ### Timeouts
 
-Every bound swb puts on CARLA, nested inside SSv2's (`budgets.rs`, whose tests check the
+Every bound scensim puts on CARLA, nested inside SSv2's (`budgets.rs`, whose tests check the
 arithmetic; roadmap 034 step 3):
 
 | Bound | Value | Why |
@@ -142,15 +142,15 @@ arithmetic; roadmap 034 step 3):
 | Drain after a hang | idle 2 s, at most 10 s | then the socket closes with a 1 s linger |
 
 A test-only fault hook makes the hang reproducible on a live stack:
-`SWB_TEST_HANG_TICK_AT=<SSv2 frame>` blocks that frame's first tick forever, and with
-`SWB_TEST_HANG_TICK_TOKEN=<file>` only while the file exists (removed when it fires, so the
-respawned bridge runs normally). `SWB_TEST_SPAWN_TIMEOUT_MS=<ms>` gives every spawn RPC that
+`SCENSIM_TEST_HANG_TICK_AT=<SSv2 frame>` blocks that frame's first tick forever, and with
+`SCENSIM_TEST_HANG_TICK_TOKEN=<file>` only while the file exists (removed when it fires, so the
+respawned bridge runs normally). `SCENSIM_TEST_SPAWN_TIMEOUT_MS=<ms>` gives every spawn RPC that
 timeout, forcing the timed-out spawn that is then adopted. Both are off unless set, and the
 bridge logs a warning at start-up when one is.
 
 ## Frame budget
 
-At 20 Hz a frame has 50 ms of wall time if the run is to keep real time. swb's share is what
+At 20 Hz a frame has 50 ms of wall time if the run is to keep real time. scensim's share is what
 it spends outside CARLA's tick:
 
 ```
@@ -170,7 +170,7 @@ One SSv2 step is every request from one `UpdateFrame` response to the next
   line a handler emits says which request and frame produced it. Spans are not logged on
   enter/exit (that would be 100+ lines a second to the shared disk, see CLAUDE.md "The log
   disk can stall a node").
-- **Per-frame timing.** swb measures every step's processing time, its tick time, the
+- **Per-frame timing.** scensim measures every step's processing time, its tick time, the
   `UpdateEntityStatus` time and the entity count. It logs **one summary line every 200
   frames** (10 s at 20 Hz) at INFO -- p50, p95 and max of each, and how many frames exceeded
   25 ms -- and one at scenario end for the whole run. Per-frame values go to DEBUG only.

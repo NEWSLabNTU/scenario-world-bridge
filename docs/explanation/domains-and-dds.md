@@ -39,17 +39,17 @@ to about `7400 + 1000 d + 911`. Domain 57 ends at 65311; domain 58 would need po
 65535, and every node would die at start with only `failed to create domain`. A seat table
 with a domain outside 0 to 57, or two seats sharing one, is refused when it is read.
 
-## The DDS: Cyclone, with swb's profile
+## The DDS: Cyclone, with scensim's profile
 
-Every process of a stack runs CycloneDDS with the profile `swb_launch` installs,
+Every process of a stack runs CycloneDDS with the profile `scensim_launch` installs,
 `cyclonedds-localhost.xml`: discovery by unicast on the loopback interface, which works on
 hosts where loopback multicast is off. The stack sets both variables for everything it
 starts. Your own terminals (`ros2 topic`, RViz, an agent, a test script) need both too, and
 the domain:
 
 ```bash
-eval "$(ros2 run swb seat env scenario)"   # the bridge, the relay, SSv2
-eval "$(ros2 run swb seat env 0)"          # the first pilot (the ego)
+eval "$(ros2 run scensim seat env scenario)"   # the bridge, the relay, SSv2
+eval "$(ros2 run scensim seat env 0)"      # the first pilot (the ego)
 ros2 topic list
 ```
 
@@ -59,7 +59,7 @@ CYCLONEDDS_URI=file://.../cyclonedds-localhost.xml` for your seat.
 - Without `RMW_IMPLEMENTATION` a terminal runs Fast DDS, ignores the profile and sees
   nothing the stack publishes.
 - Autoware's `setup.bash` exports a `CYCLONEDDS_URI` of its own on some hosts: run the
-  `eval` after sourcing `~/swb.bash`.
+  `eval` after sourcing `~/scensim.bash`.
 - If a list stays empty although the stack runs, the `ros2` daemon may still run with other
   settings: `ros2 daemon stop`, or add `--no-daemon`.
 

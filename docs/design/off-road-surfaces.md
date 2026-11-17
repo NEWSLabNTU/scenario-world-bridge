@@ -1,6 +1,6 @@
 # Off-road surfaces: wet roads, mud and sand in parts of a large world
 
-How swb's Isaac backend should give an ego rally-grade surfaces (wet asphalt, puddles,
+How scensim's Isaac backend should give an ego rally-grade surfaces (wet asphalt, puddles,
 gravel, mud, sand) without simulating deformable ground over a whole CARLA town, and how a
 scenario file names the road condition. The literature and games survey behind it is
 [survey-localized-deformable-terrain.md](survey-localized-deformable-terrain.md) (2026-10-22);
@@ -25,7 +25,7 @@ Map size stops mattering because neither layer stores anything per square metre 
 
 ## What Isaac Sim 6.1 gives us, measured
 
-`src/swb_isaac_world/spikes/terrain_hooks.py` drives aib's ego (`aib.isaac.vehicle.Vehicle`, the
+`src/scensim_isaac_world/spikes/terrain_hooks.py` drives aib's ego (`aib.isaac.vehicle.Vehicle`, the
 Model 3, `ev`) over a flat asphalt strip into a mud strip, each a USD `PhysicsMaterial`, and
 pokes each hook while it runs (0.05 s frames of 3 physics steps, as aib's host steps it).
 
@@ -84,7 +84,7 @@ soil model must return to the wheel has a working channel.
   corner in the map frame. `just surfaces-check` refuses what the server would (unknown
   classes or labels, bad ids, self-crossing polygons, rasters without placement) and warns
   about zones that overlap while setting the same field, or lie off the Lanelet2 map;
-  `just surfaces-plot` draws the zones over the lanes (`swb_isaac_world.surfaces`).
+  `just surfaces-plot` draws the zones over the lanes (`scensim_isaac_world.surfaces`).
 - **The friction table holds the class's peak friction** (the survey's table: dry asphalt
   ~0.85, wet 0.5-0.7, gravel ~0.6, dry earth ~0.68, packed snow 0.2, ice 0.1; calibrate,
   do not copy). PhysX already does the per-wheel lookup, so mu-split (one side in a puddle)
@@ -117,14 +117,14 @@ soil model must return to the wheel has a working channel.
 - **Where the server finds the map**: `surfaces.yaml` in the map directory of a world file
   the world server was started with (`--world`, `just isaac-world world:=...`), checked
   before Isaac starts, and looked for and read again at every `LoadWorld` (adding or editing
-  one needs no restart). swb's
+  one needs no restart). scensim's
   `LoadWorld` sends only the USD, which the server maps back; 046's world protocol v4 should
   carry the map's surfaces itself. A world with no surface map writes nothing.
 
 ### Surface layer, measured on a pad (047 S1, 2026-10-23)
 
-`src/swb_isaac_world/spikes/surface_drive.py`: aib's Model 3 (`ev`, ABS and traction control on)
-through `swb_isaac_world.surface_layer` -- the world server's own code -- on one flat mesh labelled
+`src/scensim_isaac_world/spikes/surface_drive.py`: aib's Model 3 (`ev`, ABS and traction control on)
+through `scensim_isaac_world.surface_layer` -- the world server's own code -- on one flat mesh labelled
 Road, one lane per case, zones from x = 150; full braking demand from 20 m/s inside the zone.
 The class values are the shipped table's literature numbers, so these check directions and
 plumbing, not magnitudes.
@@ -148,7 +148,7 @@ steps); a frame of three steps 2.05 ms with it, 2.26 ms without (noise).
 
 ### Surface layer on Town01 (047 S1, 2026-10-23)
 
-`src/swb_isaac_world/spikes/surface_town.py` drives the same cases on Town01's SimReady world
+`src/scensim_isaac_world/spikes/surface_town.py` drives the same cases on Town01's SimReady world
 (`Town01_physics.usda`, loaded in 534 s on a loaded host) along lanelet 13397, the east road
 heading +y, zones on the lane from y = -160: every wheel's collider is a `Road` mesh
 (`.../Road_Road_Town01_455/St_Road_TileRoad_RoadR`) and resolves to `Road` -> asphalt. Every
@@ -638,14 +638,14 @@ How it gets there (roadmap [047](../roadmap/047-off-road-surfaces.md), S2):
    `start()` sends the `RoadCondition`, when the `Environment` has one, as
    `UpdateEnvironmentRequest` (oneof 17: friction scale, wetness, every property as a
    string); `API::updateEnvironment` throws on a refusal, so the scenario fails with the
-   simulator's text. A missing `wetness` reads as dry. The fork knows nothing of `swb.`.
+   simulator's text. A missing `wetness` reads as dry. The fork knows nothing of `scensim.`.
    `MultiServer` (simple_sensor_simulator) acknowledges it. Weather and time of day are not
    sent yet.
-2. **Bridge**: checks the wetness and the scale, drops properties outside `swb.` and sends
+2. **Bridge**: checks the wetness and the scale, drops properties outside `scensim.` and sends
    the rest as `SetRoadCondition` (world protocol, request 14) to a server declaring
    `CAPABILITY_ROAD_CONDITION`; to one without, it refuses any condition but the default.
    No protocol bump: only a server declaring the capability is sent it.
-3. **Isaac world server**: `surfaces.road_condition` checks every `swb.` property against the
+3. **Isaac world server**: `surfaces.road_condition` checks every `scensim.` property against the
    loaded map and the class table, lists every problem and then changes nothing; otherwise
    the surface layer takes the condition and the overridden zones from the next step. A
    world with no `surfaces.yaml` gets a map of label defaults for a condition that changes
@@ -655,7 +655,7 @@ How it gets there (roadmap [047](../roadmap/047-off-road-surfaces.md), S2):
    becomes its own times `frictionScaleFactor` times asphalt's wet factor (the class table's
    numbers, checked by a test); the weather's `wetness` and `precipitation_deposits` show the
    level (rendering only on 0.9.16), and the weather from before is put back at the next
-   `Initialize`. `swb.` properties are refused: zones are the Isaac surface layer's.
+   `Initialize`. `scensim.` properties are refused: zones are the Isaac surface layer's.
 
 ### Weather and time of day on Isaac (probe, 2026-10-23)
 
@@ -715,7 +715,7 @@ value (a story event that only stops the rain leaves the fog); a `TimeOfDay` rep
    the local solar time), drops temperature and pressure (nothing renders them), and sends
    `SetEnvironment` (world protocol request 15, `CAPABILITY_ENVIRONMENT`). It checks the
    capabilities of the whole environment before sending any part.
-3. **Isaac** (`swb_isaac_world.sky`, `IsaacWorld.set_environment`): a time of day or a placed sun
+3. **Isaac** (`scensim_isaac_world.sky`, `IsaacWorld.set_environment`): a time of day or a placed sun
    (a placed one wins) takes over the world's sun: the town's own distant lights go off and
    ours, with their brightness, turns to where the sun stands over the map's latitude
    (`map_projector_info.yaml`; CARLA's towns: 0), full from 30 deg up, off below the horizon;

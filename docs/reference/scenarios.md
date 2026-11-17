@@ -1,15 +1,15 @@
 # What a scenario may use
 
 Scenarios are standard OpenSCENARIO 1.x files (or TIER IV's YAML form), run by SSv2. This
-page lists what is particular to running them in CARLA or Isaac Sim through swb: what each
+page lists what is particular to running them in CARLA or Isaac Sim through scensim: what each
 kind of road user does, and what fails. Writing one step by step:
 [Tutorial 2](../tutorials/02-write-a-scenario.md) and
 [Tutorial 3](../tutorials/03-other-road-users.md).
 
 ## The map
 
-`RoadNetwork/LogicFile` names the map directory as `$(env SWB_MAPS)/<map>`; the stack sets
-`SWB_MAPS` to the project's `assets/maps/`. On CARLA the directory's name is the CARLA town,
+`RoadNetwork/LogicFile` names the map directory as `$(env SCENSIM_MAPS)/<map>`; the stack sets
+`SCENSIM_MAPS` to the project's `assets/maps/`. On CARLA the directory's name is the CARLA town,
 and the bridge loads that town when CARLA holds another. The file itself is never changed.
 
 ## The ego
@@ -100,7 +100,7 @@ simulator, not from SSv2, so every mapped light is visible to it.
 
 ## Collisions
 
-SSv2's `CollisionCondition` (bounding boxes) gives the verdict. On CARLA swb also records
+SSv2's `CollisionCondition` (bounding boxes) gives the verdict. On CARLA scensim also records
 CARLA's own contacts for the ego as a cross-check
 ([Verdicts](../explanation/verdicts.md)). That check sees only contacts that last more than
 one frame, so a scenario that ends on the first frame of a collision ends before CARLA sees

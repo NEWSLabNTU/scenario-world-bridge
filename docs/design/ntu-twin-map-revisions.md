@@ -1,8 +1,8 @@
 # NTU twin map revisions: one source, two exports
 
 The NTU campus twin exists twice: as a CARLA 0.9.16 map
-([072](../roadmap/072-ntu-campus-in-carla.md), swb 133) and as an Isaac Sim world
-([059](../roadmap/059-ntu-twin-on-isaac.md), swb 118). Both must show the same place, so that a
+([072](../roadmap/072-ntu-campus-in-carla.md), scensim 133) and as an Isaac Sim world
+([059](../roadmap/059-ntu-twin-on-isaac.md), scensim 118). Both must show the same place, so that a
 leg that passes on one and fails on the other says something about the simulator, not about two
 different maps. This document is how a change to the place reaches both.
 

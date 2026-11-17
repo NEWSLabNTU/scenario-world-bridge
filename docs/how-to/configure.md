@@ -11,7 +11,7 @@ Isaac's world server, and the weather. It assumes a project with a working stack
 | Part | Its settings | In `swb.yaml` |
 |---|---|---|
 | The bridge (SSv2's side) | `bridge_config.yaml` | `world:` (`npc_motion`, `weather`, `config_file`, `contact_report_dir`) |
-| CARLA's world server | `swb_carla_world.yaml` | `world: {world_config_file: ...}` |
+| CARLA's world server | `scensim_carla_world.yaml` | `world: {world_config_file: ...}` |
 | Isaac's world server | its launch arguments | `isaac:` |
 | The weather | the bridge's `weather`, ROS services | `world: {weather: ...}`, or at run time (below) |
 | SSv2 | its run settings | `ssv2:`, and per suite ([Run settings](../reference/project-file.md#run-settings)) |
@@ -30,7 +30,8 @@ the project from the installed defaults; every key is commented in them:
 ```bash
 mkdir -p config
 cp $(ros2 pkg prefix --share scenario_world_bridge)/config/bridge_config.yaml config/
-cp $(ros2 pkg prefix --share swb_carla_world)/config/swb_carla_world.yaml config/
+cp $(ros2 pkg prefix --share scensim_carla_world)/config/scensim_carla_world.yaml \
+    config/
 ```
 
 `stack_args:="side_args:='...' sim_args:='...'"` on the stack still reaches the same
@@ -56,7 +57,7 @@ Each run's contact reports land in its own directory (`contacts/`); give
 Check what the running bridge loaded:
 
 ```bash
-eval "$(ros2 run swb seat env scenario)"
+eval "$(ros2 run scensim seat env scenario)"
 ros2 param get /scenario_world_bridge config_file
 ```
 
@@ -73,11 +74,11 @@ brake once the collision is seen.
 
 ## CARLA's world server
 
-`swb_carla_world.yaml` is about CARLA itself. A common change: a fixed Traffic Manager
+`scensim_carla_world.yaml` is about CARLA itself. A common change: a fixed Traffic Manager
 seed, so that `simulator_autopilot` cars drive the same way on every run:
 
 ```yaml
-# config/swb_carla_world.yaml (changed lines)
+# config/scensim_carla_world.yaml (changed lines)
 traffic_manager:
   seed: 7                  # reseeded at every scenario start
 spectator: follow          # CARLA's window looks down on the ego (off by default)
@@ -86,7 +87,7 @@ spectator: follow          # CARLA's window looks down on the ego (off by defaul
 ```yaml
 # swb.yaml (added)
 world:
-  world_config_file: config/swb_carla_world.yaml
+  world_config_file: config/scensim_carla_world.yaml
 ```
 
 CARLA's host and port come from the host settings (`carla:`), which win over the file.
@@ -116,7 +117,7 @@ isaac:
 | `physics_hz` | the physics rate (default 60) |
 | `ego` | `default` (the Model 3 with Autoware's sensors), `none`, or your own ego config |
 | `preload` | more maps loaded at start (each takes minutes and memory) |
-| `wheels_topic` | `true` (default): publish `/swb/wheels` |
+| `wheels_topic` | `true` (default): publish `/scensim/wheels` |
 
 Isaac's own options go in `ISAAC_KIT_ARGS` ([Getting started on Isaac
 Sim](../getting-started/isaac.md)); its GPU is the host setting `gpu:`, which the stack gives
@@ -135,13 +136,13 @@ world:
 At run time it is set through ROS services on the bridge, in the scenario domain:
 
 ```bash
-eval "$(ros2 run swb seat env scenario)"
+eval "$(ros2 run scensim seat env scenario)"
 ros2 service call /scenario_world_bridge/set_weather \
-    swb_interfaces/srv/SetWeather "{preset: WetSunset}"
+    scensim_interfaces/srv/SetWeather "{preset: WetSunset}"
 ros2 service call /scenario_world_bridge/set_weather \
-    swb_interfaces/srv/SetWeather \
+    scensim_interfaces/srv/SetWeather \
     "{names: [cloudiness, fog_density], values: [80.0, 30.0]}"
-ros2 service call /scenario_world_bridge/get_weather swb_interfaces/srv/GetWeather
+ros2 service call /scenario_world_bridge/get_weather scensim_interfaces/srv/GetWeather
 ```
 
 Parameters not named keep their values. CARLA's presets: `ClearNoon`, `CloudyNoon`,
@@ -160,10 +161,10 @@ rain; there is no weather service.
 
 | Wait | Default | Where |
 |---|---|---|
-| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `ros2 run swb run --timeout` (never raised) |
-| A run's pilots to become ready | 600 s | `ros2 run swb run --ready-timeout` |
-| The stack to become ready | none (refuse at once) | `ros2 run swb run --wait` |
+| One scenario (each variant) | 400 s, raised to a scenario's own time limit (its stop trigger on simulation time) plus its start and 60 s when that is longer | `ssv2: {global_timeout: ...}` in `swb.yaml`, a suite or a suite item; `ros2 run scensim run --timeout` (never raised) |
+| A run's pilots to become ready | 600 s | `ros2 run scensim run --ready-timeout` |
+| The stack to become ready | none (refuse at once) | `ros2 run scensim run --wait` |
 | A map switch of the pilots | 180 s | fixed |
 | One simulator response (frame, spawn, despawn) | 90 s | environment `SIMULATOR_RESPONSE_TIMEOUT` of the stack |
-| CARLA gone at a scenario's start | 120 s | `carla.reconnect_wait_seconds` in `swb_carla_world.yaml` |
+| CARLA gone at a scenario's start | 120 s | `carla.reconnect_wait_seconds` in `scensim_carla_world.yaml` |
 | A judge | 120 s | `timeout:` of the judge |

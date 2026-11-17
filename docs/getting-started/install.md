@@ -1,6 +1,6 @@
 # Install
 
-The one page for installing and building scenario-world-bridge (swb), writing the
+The one page for installing and building scensim, writing the
 environment file and the host settings file. Every other page starts from here. The
 simulator itself comes next: [CARLA](carla.md) or [Isaac Sim](isaac.md). The words used
 here (seat, stack, pilot, ...) are in the [glossary](../reference/glossary.md).
@@ -37,7 +37,7 @@ Isaac Sim needs much more (an RTX card with 24 GB, 64 GB of RAM): [Isaac Sim](is
 - **An Autoware workspace**, built, or Autoware's binary packages: the build compiles against
   Autoware's interface messages whichever autopilot later drives, and the Autoware pilot
   runs from it. Its `setup.bash` is sourced by the build and named in the host settings
-  (`autoware.setup`, below). swb's launch files and configuration for the car are tested with
+  (`autoware.setup`, below). scensim's launch files and configuration for the car are tested with
   Autoware 1.5.0
   ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/));
   the commands below use its binary packages under `/opt/autoware/1.5.0` as the example.
@@ -90,14 +90,14 @@ The path should be under `/usr/lib/python3/dist-packages`. If it is under `~/.lo
 
 ## Build
 
-The commands below clone into `~/scenario-world-bridge`. Any directory works; use yours
-wherever this page and the environment file say `~/scenario-world-bridge`.
+The commands below clone into `~/scensim`. Any directory works; use yours
+wherever this page and the environment file say `~/scensim`.
 
 ```bash
 git clone --recurse-submodules \
-    https://github.com/NEWSLabNTU/scenario-world-bridge.git \
-    ~/scenario-world-bridge
-cd ~/scenario-world-bridge
+    https://github.com/NEWSLabNTU/scensim.git \
+    ~/scensim
+cd ~/scensim
 source /opt/ros/humble/setup.bash
 source /opt/autoware/1.5.0/setup.bash
 rosdep update
@@ -165,14 +165,14 @@ Once per machine (sudo): enlarge the kernel's socket buffers, so that DDS can de
 clouds; at the default 208 kB a point cloud never arrives. From the workspace's directory:
 
 ```bash
-cd ~/scenario-world-bridge            # your clone, wherever you put it
+cd ~/scensim            # your clone, wherever you put it
 sudo install -m 644 config/99-cyclonedds-max.conf /etc/sysctl.d/
 sudo sysctl -p /etc/sysctl.d/99-cyclonedds-max.conf
 ```
 
 ## Recommended: play_launch
 
-swb starts the stack, its pilots and each run's SSv2 with a launcher. Without anything
+scensim starts the stack, its pilots and each run's SSv2 with a launcher. Without anything
 more that is `ros2 launch`, which every ROS 2 install has, and everything on these pages
 works with it. [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer is
 recommended: it keeps a log per node, shows the stack in a web interface, and restarts a
@@ -185,43 +185,43 @@ export PATH=$HOME/.local/bin:$PATH    # where pip --user puts it (also in ~/.bas
 play_launch --version
 ```
 
-swb finds it on `PATH` and uses it (the host setting `launcher: auto`, the default; `ros2`
+scensim finds it on `PATH` and uses it (the host setting `launcher: auto`, the default; `ros2`
 keeps `ros2 launch` whatever is installed: [Host settings](../reference/host-settings.md)).
-`ros2 run swb project check` and `ros2 run swb seat show` print which one the stack will
+`ros2 run scensim project check` and `ros2 run scensim seat show` print which one the stack will
 use: `launcher: auto -> play_launch 0.30.0`, or `launcher: auto -> ros2 (play_launch not
 on PATH)`.
 
 ## The environment file
 
-Every terminal sources one file, here `~/swb.bash`. It sources Autoware (which sources ROS)
+Every terminal sources one file, here `~/scensim.bash`. It sources Autoware (which sources ROS)
 and the workspace, and nothing else; the second line names the clone's path:
 
 ```bash
-# ~/swb.bash
+# ~/scensim.bash
 source /opt/autoware/1.5.0/setup.bash
-source ~/scenario-world-bridge/install/setup.bash    # your clone's install/
+source ~/scensim/install/setup.bash    # your clone's install/
 ```
 
 The ROS domains, the DDS settings and the ports are not exported here: the stack sets them
 for every process it starts, from the seat (below). Another terminal that is to see
-the stack's topics asks for them with `ros2 run swb seat env`
+the stack's topics asks for them with `ros2 run scensim seat env`
 ([ROS domains and DDS](../explanation/domains-and-dds.md)).
 
 ## The host settings file
 
-What differs between machines lives in `~/.config/swb/host.yaml`, never in a project and
+What differs between machines lives in `~/.config/scensim/host.yaml`, never in a project and
 never in an export. Every key is optional; these are the defaults most often changed:
 
 ```yaml
-# ~/.config/swb/host.yaml
-logs: ~/.local/state/swb/logs    # every run's logs: put it on a fast disk (an SSD)
-cache: ~/.cache/swb              # the downloaded datasets, shared by all your projects
+# ~/.config/scensim/host.yaml
+logs: ~/.local/state/scensim/logs    # every run's logs: put it on a fast disk (an SSD)
+cache: ~/.cache/scensim          # the downloaded datasets, shared by all your projects
 carla: {host: localhost, port: 2000}
 autoware: {setup: /opt/autoware/1.5.0/setup.bash}   # the default
 ```
 
-A project can override a key for one checkout in `<project>/.swb/local.yaml`, which git
-ignores. Every key, and the seat table an administrator sets in `/etc/swb/host.yaml`:
+A project can override a key for one checkout in `<project>/.scensim/local.yaml`, which git
+ignores. Every key, and the seat table an administrator sets in `/etc/scensim/host.yaml`:
 [Host settings](../reference/host-settings.md).
 
 ## Autoware's fixes
@@ -234,15 +234,15 @@ clock produces. They are
 built once, in the checkout, after the build (a few minutes):
 
 ```bash
-ros2 run swb autoware overlay
+ros2 run scensim autoware overlay
 ```
 
 Without them a stack runs stock Autoware and its log says so; the tutorials still pass, but
 the ego may stop where it should not. With CenterPoint as the lidar detector
 (`lidar_detection_model: centerpoint`), Autoware 1.5.0's binary packages also need the
 TensorRT version they were compiled against, 10.8.0, without which the detector's engines
-are rebuilt at every start: `ros2 run swb autoware tensorrt` fetches it (3 GB). The default
-detector needs neither. `ros2 run swb autoware where` prints where each is placed.
+are rebuilt at every start: `ros2 run scensim autoware tensorrt` fetches it (3 GB). The default
+detector needs neither. `ros2 run scensim autoware where` prints where each is placed.
 
 ## Check
 
@@ -251,14 +251,14 @@ all derived from one number, so that two stacks on one machine (two users, or tw
 never meet. Your stack takes a free seat when it starts. List them:
 
 ```bash
-source ~/swb.bash
-ros2 run swb seat show
+source ~/scensim.bash
+ros2 run scensim seat show
 ```
 
 You see the host's seats, each with its ROS domains and ports, and which is yours:
 
 ```
-seats (defaults); locks in /tmp/swb-seats
+seats (defaults); locks in /tmp/scensim-seats
 seat 0: scenario domain 1, pilot domains 2-8, SSv2 5555 (+5556, 5557), relay 5560, ...
 ...
 your seat: auto (the first free one when the stack starts)
@@ -278,7 +278,7 @@ More on seats: [Several stacks on one host](../how-to/several-stacks.md).
 | `traffic_simulator` cannot find a dependency's headers after that dependency built | delete `build/traffic_simulator`: its CMake cache remembers the failed configure |
 | `error: option --editable not recognized` | a pip-installed setuptools shadows Ubuntu's: `python3 -m pip uninstall -y setuptools` |
 | `git pull --rebase` refuses: `Cargo.lock` modified | the build adds `[[patch.unused]]` entries to the lock files; discard them first ([Developer Guide](../development.md#set-up)) |
-| `ros2 run swb ...`: `Package 'swb' not found` | the terminal did not source `~/swb.bash`, or its path is not your clone's |
+| `ros2 run scensim ...`: `Package 'scensim' not found` | the terminal did not source `~/scensim.bash`, or its path is not your clone's |
 
 More symptoms: [Troubleshooting](../reference/troubleshooting.md).
 

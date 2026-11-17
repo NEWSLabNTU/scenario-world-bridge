@@ -1,7 +1,7 @@
 # Documentation
 
 New words (project, stack, pilot, seat, run, judge, ...): the [glossary](reference/glossary.md).
-What swb does not do: [Supported and not supported](reference/limits.md).
+What scensim does not do: [Supported and not supported](reference/limits.md).
 
 ## By reader
 
@@ -10,7 +10,7 @@ continues from the point that matches their role:
 
 - **A new user** continues with [Getting started on CARLA](getting-started/carla.md) (or
   [on Isaac Sim](getting-started/isaac.md)), then the [tutorials](#tutorials) in order.
-- **A project adopting swb**, with its own car, autopilot and maps, continues with
+- **A project adopting scensim**, with its own car, autopilot and maps, continues with
   [Start a project of your own](how-to/start-a-project.md), then
   [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md),
   [your Autoware](how-to/your-autoware.md) and the [reference](#reference).
@@ -20,10 +20,10 @@ continues from the point that matches their role:
 - **An autopilot integrator** continues with
   [Your autopilot as a pilot](how-to/your-autopilot.md), then
   [the agent SDK](reference/agent-sdk.md) and [Tutorial 4](tutorials/04-several-pilots.md).
-- **An instructor** continues with [Teaching with swb](teaching.md), then
+- **An instructor** continues with [Teaching with scensim](teaching.md), then
   [several stacks on one host](how-to/several-stacks.md); the tutorials serve as laboratory
   sessions.
-- **A developer of swb itself** continues with the [Developer Guide](development.md) and the
+- **A developer of scensim itself** continues with the [Developer Guide](development.md) and the
   design documents in [design/](design/).
 
 The sections below list every page, in the order a new user reads them.
@@ -75,17 +75,17 @@ A task in your own project, starting from a working stack:
 
 ## Reference
 
-- [Commands](reference/commands.md): every `ros2 run swb` command, the stack's arguments,
+- [Commands](reference/commands.md): every `ros2 run scensim` command, the stack's arguments,
   exit codes, the other tools
-- [The project file](reference/project-file.md): `swb.yaml`, suites, `swb.lock`
+- [The project file](reference/project-file.md): `swb.yaml`, suites, `scensim.lock`
 - [Host settings](reference/host-settings.md): `host.yaml`, `local.yaml`, the seat table
 - [Results and logs](reference/results-and-logs.md): a run's directory, `result.json`, the
   timeline, capture levels
 - [Maps and assets](reference/maps-and-assets.md): a map directory, the datasets
-- [The agent SDK](reference/agent-sdk.md): `swb_agent.Agent`, `ros_adapter`, checking an
+- [The agent SDK](reference/agent-sdk.md): `scensim_agent.Agent`, `ros_adapter`, checking an
   agent
 - [Road physics on Isaac Sim](reference/road-physics.md): surface classes, zones, the rough
-  road, `/swb/wheels`
+  road, `/scensim/wheels`
 - [What a scenario may use](reference/scenarios.md): the ego, road users the simulator or a
   pilot drives, traffic lights, collisions
 - [Supported and not supported](reference/limits.md): every limit, on one page

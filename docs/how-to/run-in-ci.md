@@ -12,23 +12,23 @@ checked out ([Start a project](start-a-project.md)); suites are
 #!/usr/bin/env bash
 # nightly.sh: the project's nightly suite against a stack this job starts and stops
 set -u
-source ~/swb.bash
+source ~/scensim.bash
 cd "$PROJECT"
-ros2 run swb assets fetch || exit 3
-ros2 run swb project check || exit 3
+ros2 run scensim assets fetch || exit 3
+ros2 run scensim project check || exit 3
 
-setsid ros2 launch swb_launch swb.launch.xml map:=Town01 > stack.log 2>&1 &
+setsid ros2 launch scensim_launch scensim.launch.xml map:=Town01 > stack.log 2>&1 &
 STACK=$!
 
-ros2 run swb run suites/nightly.yaml --wait 1200 | tee run.out
+ros2 run scensim run suites/nightly.yaml --wait 1200 | tee run.out
 CODE=${PIPESTATUS[0]}
 # the first cause of each run that did not pass
 awk '$1 == "failed" || $1 == "error" {print $2}' run.out \
-    | xargs -r -n1 ros2 run swb runs why
+    | xargs -r -n1 ros2 run scensim runs why
 
 kill -INT -$STACK            # the whole stack, and only it
 wait $STACK
-ros2 run swb runs summary
+ros2 run scensim runs summary
 exit $CODE
 ```
 
@@ -66,7 +66,7 @@ jobs:
 ```
 
 A GitLab CI job is the same script under a `tags:` that picks the GPU runner. The
-runner's user needs its own host settings (`~/.config/swb/host.yaml`) and a seat no
+runner's user needs its own host settings (`~/.config/scensim/host.yaml`) and a seat no
 person books.
 
 ## What the CI system reads
@@ -80,7 +80,7 @@ person books.
 
 Each suite writes `summary.csv` and a merged `junit.xml` under
 `<logs>/<project>/suites/<suite>/`, printed on its last line (`summary: <path>`); `ros2 run
-swb runs summary [<dir>]` writes the same for any directory of runs. Any JUnit viewer reads
+scensim runs summary [<dir>]` writes the same for any directory of runs. Any JUnit viewer reads
 the merged file: one test suite per run, SSv2's testcases in it, and an `error` testcase
 when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summary.csv`'s
 `judges` column and in each run's `judges/`, never in place of the run's
@@ -88,15 +88,15 @@ when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summ
 
 ## Two hosts, one suite
 
-With the same project and `swb.lock` on both:
+With the same project and `scensim.lock` on both:
 
 ```bash
-ros2 run swb run suites/nightly.yaml --shard 1/2     # host A
-ros2 run swb run suites/nightly.yaml --shard 2/2     # host B
+ros2 run scensim run suites/nightly.yaml --shard 1/2     # host A
+ros2 run scensim run suites/nightly.yaml --shard 2/2     # host B
 ```
 
 Each writes its own `suites/nightly_shard-1-of-2/` table. Copy both runs directories to one
-place and run `ros2 run swb runs summary <dir>` there for one table. A job that was cut
+place and run `ros2 run scensim runs summary <dir>` there for one table. A job that was cut
 short continues with `--resume`, which skips the runs that already have a result.
 
 ## Keep the disk
@@ -112,5 +112,5 @@ logging:
   budget: {per_run: 2GB, total: 200GB}
 ```
 
-Old runs go with `ros2 run swb runs prune --older-than 14`, or shrink with
+Old runs go with `ros2 run scensim runs prune --older-than 14`, or shrink with
 `--to result`. The levels: [Results and logs](../reference/results-and-logs.md).

@@ -46,8 +46,8 @@ not from a number in step 5.
 - **Host settings, in `.env`:**
   - `MAPILLARY_TOKEN`, a client token from mapillary.com/dashboard/developers (only the
     token, not the secret);
-  - `SWB_OPEN_MAPS`, the data root: a scenario names its map as
-    `$(env SWB_OPEN_MAPS)/<site>/map`;
+  - `SCENSIM_OPEN_MAPS`, the data root: a scenario names its map as
+    `$(env SCENSIM_OPEN_MAPS)/<site>/map`;
   - `ISAAC_KIT_ARGS`, set only when a GPU must be avoided (on newslab-118-server GPU 1 is
     another user's, so Isaac is pinned to GPU 0).
 
@@ -125,14 +125,14 @@ describes what it builds:
 - speed limits from OSM, Overture or Mapillary's signs, else by rule;
 - traffic lights with stop lines;
 - crosswalks;
-- for every attribute, where it came from (`swb:source`, `swb:speed_source`,
-  `swb:turn_source`, `swb:width_source`).
+- for every attribute, where it came from (`scensim:source`, `scensim:speed_source`,
+  `scensim:turn_source`, `scensim:width_source`).
 
 This step has no person in it. When a check below finds a problem, the fix goes into the
 generator as a rule, and the map is generated again; nothing is edited by hand in the output.
 The audit's corrections (step 7) are the exception: the movements a person reads off the paint,
 per approach, in `sites/<site>_audit.yaml`, which the generator applies over every other source
-(`swb:turn_source=audit`). It also writes `generated/audit_applied.json`: corrections it could
+(`scensim:turn_source=audit`). It also writes `generated/audit_applied.json`: corrections it could
 not apply, and approaches a ban left with a lane that has nowhere to go, for the audit to look
 at.
 
@@ -165,7 +165,7 @@ Rules added so far, and the step that found each:
 
 Route C, lane widths fitted to NLSC's photo (`imagery.py`), is off. Its fits disagreed between
 neighbouring pieces of one road, and the survey had too little paint on the arterials to
-validate it. `SWB_IMAGERY=1` turns it on.
+validate it. `SCENSIM_IMAGERY=1` turns it on.
 
 ## 5. Score it (auto, with a check)
 
@@ -216,7 +216,7 @@ junction paths coloured by turn, dead ends, lanelets with no predecessor, and st
 
 Plotting the same box from two generator versions side by side is how a rule's side effects
 are found. That is how the corner rule's loss on a one-way service loop was seen.
-`SWB_DEBUG_AT=x,y` makes the generator dump the junction nearest that point.
+`SCENSIM_DEBUG_AT=x,y` makes the generator dump the junction nearest that point.
 
 ## 7. Audit against ground truth (auto, with a check; needs 059's data)
 
@@ -338,7 +338,7 @@ The choices:
 ## 10. Write the scenario (auto, from step 9's picks)
 
     data/maps/.venv/bin/python scripts/open_maps/scenario.py data/maps/ntu/map/lanelet2_map.osm scenarios/ntu/<name>.xosc \
-        --name <story> --map-path '$(env SWB_OPEN_MAPS)/ntu/map' \
+        --name <story> --map-path '$(env SCENSIM_OPEN_MAPS)/ntu/map' \
         --start x,y,h [--via x,y,h ...] --goal x,y,h [--red x,y ...] [--timeout 900]
         [--signal-plans data/maps/ntu/generated/signal_plans.json [--at "Mon 08:30"]]
 

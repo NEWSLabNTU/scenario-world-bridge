@@ -22,9 +22,9 @@
   edge(<bridge>, <relay>, "-|>", [goals for `agent` entities], label-side: left),
 
   // World servers
-  b((0, 2.3), [*swb_carla_world* \ load town · spawn \ spec physics · tick · lights],
+  b((0, 2.3), [*scensim_carla_world* \ load town · spawn \ spec physics · tick · lights],
     world, <cw>, width: 48mm),
-  b((1.6, 2.3), [*swb_isaac_world* \ load USD · spawn \ step PhysX], world, <iw>, width: 48mm),
+  b((1.6, 2.3), [*scensim_isaac_world* \ load USD · spawn \ step PhysX], world, <iw>, width: 48mm),
   b((1.6, 3.4), [*aib* \ the ego, from the vehicle spec \ sensors · status · /clock], veh, <aib>,
     width: 48mm),
   title((1.6, 1.85), [ISAAC SIM PROCESS]),

@@ -172,7 +172,7 @@ contested: yield                  # a car that cannot or will not stop keeps the
   RTC and the velocity limit, so Autoware's own planner and shield stay in charge of the motion.
 - RTC is switched to manual-cooperate for a driven module only while the node holds a decision
   that is not stock's, then back to auto. The switch is `interaction_strategy:=true` in
-  `swb_launch/vehicle_agent.launch.xml`, off by default (R9). Open: a watchdog, since a node that
+  `scensim_launch/vehicle_agent.launch.xml`, off by default (R9). Open: a watchdog, since a node that
   dies while a module is manual leaves that module stopped at its line instead of running stock.
 
 ## Contracts and fallback
@@ -242,7 +242,7 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   waiting car must go first from rest against a car that cannot read it. A gap-test driver reads a
   car waiting by its role as static and restarts into it.
 
-- **Phase 2, the crossing on swb (078, 2026-11-16):** `enable_auto_mode/<module>` is
+- **Phase 2, the crossing on scensim (078, 2026-11-16):** `enable_auto_mode/<module>` is
   `tier4_rtc_msgs/srv/AutoMode` (bool enable), and a cooperate command clears auto mode by itself.
   The self contract reads the median of the last 10 cycle times. The crossing row needs a commit once
   moving (`commit: on_move`): an uncommitted go from rest chatters go/wait. The strategy needs a

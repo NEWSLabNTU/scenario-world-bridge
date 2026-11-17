@@ -35,7 +35,7 @@ through the stack; it is merged with what the stack gives the world server itsel
 state directory, the ports):
 
 ```bash
-ros2 launch swb_launch swb.launch.xml \
+ros2 launch scensim_launch scensim.launch.xml \
     stack_args:="sim_args:='vehicle_physics:=none'"
 ```
 
@@ -50,7 +50,7 @@ the two shipped specs are worked examples to copy
 (`$(ros2 pkg prefix --share sim_vehicle_spec)/vehicles/tesla_model3.yaml`). The car's
 name is the spec's `name:`, and it may not be a shipped car's. Its body in CARLA is a
 CARLA vehicle blueprint (`body.catalogue_model`, for example `vehicle.lincoln.mkz_2020`):
-swb does not import a 3D model of its own, the body must not be one a shipped car already
+scensim does not import a 3D model of its own, the body must not be one a shipped car already
 uses, and the spec's geometry must be that body's (the bridge refuses an ego more than
 2 cm off its catalog entry).
 
@@ -66,7 +66,7 @@ and name it in the scenario, from the catalog the stack makes:
 
 ```xml
 <CatalogLocations>
-  <VehicleCatalog><Directory path="$(env SWB_VEHICLES)" /></VehicleCatalog>
+  <VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog>
 </CatalogLocations>
 ...
 <CatalogReference catalogName="vehicles" entryName="my_car" />
@@ -75,7 +75,7 @@ and name it in the scenario, from the catalog the stack makes:
 When the stack starts, it makes from each listed spec, into `state/vehicles/<car>/`: the
 car's catalog entry, its `spec_hash.yaml`, its CARLA physics and sensors, and a URDF of its
 frames. One catalog, `state/vehicles/catalogs/vehicles.xosc`, holds the shipped cars and
-yours: `$(env SWB_VEHICLES)` names its directory (without own cars, the shipped
+yours: `$(env SCENSIM_VEHICLES)` names its directory (without own cars, the shipped
 catalog's), and the bridge reads it. On CARLA the world server applies the ego's physics,
 and the pilot's vehicle bridge gets the car's sensors, its spec_hash and its frames, so
 the spec check below passes with no Autoware package of the car. `project check` names a
@@ -87,7 +87,7 @@ spec. Without them the car drives on the Tesla Model 3's, and `stack.json` recor
 
 **With Autoware**, the car also needs its own Autoware packages, `<car>_description` (with
 its `config/spec_hash.yaml` and the pedal maps) and `<car>_sensor_kit_*`, built in a
-workspace you source in `~/swb.bash` after this one. They are generated from the spec by
+workspace you source in `~/scensim.bash` after this one. They are generated from the spec by
 `python3 -m autoware_gen` of the
 [autoware_sim_vehicle](https://github.com/NEWSLabNTU/autoware_sim_vehicle) repository, and
 `project check` refuses an `autoware` pilot of the car until they are installed.

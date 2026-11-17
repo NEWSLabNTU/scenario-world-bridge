@@ -17,10 +17,10 @@ recipes below. Either way it is one directory, the asset root, wherever you put 
 ├── MANIFEST.sha256                 every file's checksum (`just isaac-assets check`)
 ├── Town01/ Town02/ Town03/ Town05/ Town10HD/
 │   ├── <Town>.usd, Materials/, Props/, HDRi_Neutral.dds    the SimReady export
-│   ├── <Town>_physics.usda         the collider layer over it (swb_isaac_world.physics_layer)
+│   ├── <Town>_physics.usda         the collider layer over it (scensim_isaac_world.physics_layer)
 │   ├── main.xodr
 │   └── export.log
-└── vehicles/                       SWB_VEHICLE_USD
+└── vehicles/                       SCENSIM_VEHICLE_USD
     ├── vehicle.<make>.<model>/     41: <id>.usda (/Vehicle), wheels.usda, the raw export
     ├── vehicles.json, vehicles.md  the catalogue: CARLA box, wheels, rider pose
     ├── physics.json                CARLA's get_physics_control() per blueprint
@@ -28,13 +28,13 @@ recipes below. Either way it is one directory, the asset root, wherever you put 
     ├── props/                      97 static.prop.*: <id>/<id>.usda (/Prop), props.json
     ├── walkers/                    52 walkers: <id>/<id>.usda (/Walker), walk.npz, idle.npz,
     │                               walkers.json (walker.pedestrian.NNNN -> blueprint is
-    │                               swb_isaac_world/walker_blueprints.json, in the repo)
+    │                               scensim_isaac_world/walker_blueprints.json, in the repo)
     └── riders/grip.npz             CARLA's bike-grip pose, for seated riders
 ```
 
 Every path inside the set is relative: USD layers reference their neighbours as `@./...@`,
 and `vehicles.json`, `props.json` and `walkers.json` name files relative to the index's own
-directory (`swb_isaac_world.vehicle_assets` resolves them on load; an absolute path, as indexes
+directory (`scensim_isaac_world.vehicle_assets` resolves them on load; an absolute path, as indexes
 written before 2026-10-23 have, is taken as it is). So the set works from any directory.
 
 ## Using a set
@@ -44,7 +44,7 @@ written before 2026-10-23 have, is taken as it is). So the set works from any di
 
    ```
    CARLA_USD=/data/carla-usd
-   SWB_VEHICLE_USD=/data/carla-usd/vehicles
+   SCENSIM_VEHICLE_USD=/data/carla-usd/vehicles
    ```
 
 2. Check the copy: `just isaac-assets check` (root `CARLA_USD`; `root:=<dir>` for another).
@@ -56,7 +56,7 @@ written before 2026-10-23 have, is taken as it is). So the set works from any di
    names the layer by its absolute path on this host.
 
 The world server and the bridge then find everything through `CARLA_USD` and
-`SWB_VEHICLE_USD`; nothing else names the set.
+`SCENSIM_VEHICLE_USD`; nothing else names the set.
 
 ## Making a set
 
@@ -64,12 +64,12 @@ The world server and the bridge then find everything through `CARLA_USD` and
 |---|---|---|---|
 | a town | `just isaac-town <Town> [export:=true]` | 5-15 min each | 0.9-1.9 GB |
 | vehicles | `just isaac-vehicles` | 12 min | 2.6 GB |
-| vehicle physics | `src/swb_isaac_world/scripts/dump_vehicle_physics.py --root "$SWB_VEHICLE_USD"`, with a CARLA 0.9.16 of its own up | 2 s | - |
+| vehicle physics | `src/scensim_isaac_world/scripts/dump_vehicle_physics.py --root "$SCENSIM_VEHICLE_USD"`, with a CARLA 0.9.16 of its own up | 2 s | - |
 | props | `just isaac-vehicles props:=true` | - | - |
 | walkers | `just isaac-vehicles walkers:=true` | 24 min for 49 | 14 GB |
 | rider pose | `just isaac-vehicles riders:=true` | - | - |
 
 `riders:=true` also rewrites the vehicles' wrappers, seating the riders, so run it after
 the vehicles. Then `just isaac-assets manifest` writes `README.md` (the CARLA version,
-the swb commit, the counts) and `MANIFEST.sha256`: run it after every change to the set,
+the scensim commit, the counts) and `MANIFEST.sha256`: run it after every change to the set,
 before handing it on. `manifest` and `check` skip `logs/`, `raw/` and `*.pre*` backups.

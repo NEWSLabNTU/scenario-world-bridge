@@ -43,20 +43,20 @@ frame, and the prims a car rests on (whose contacts are not collisions):
 
 ```yaml
 # <map>/isaac/world.yaml
-usd: ${SWB_CARLA_USD}/Town01/Town01_physics.usda
+usd: ${SCENSIM_CARLA_USD}/Town01/Town01_physics.usda
 map_origin: [0.0, 0.0, 0.0]
 ground_paths:
   - "/World/env/..."
 ```
 
-`usd:` may name the stage through `${SWB_CARLA_USD}` (the project's `assets/carla-usd`, set
-by the stack), relative to the map directory, or absolutely. `ros2 run swb_isaac_world
+`usd:` may name the stage through `${SCENSIM_CARLA_USD}` (the project's `assets/carla-usd`, set
+by the stack), relative to the map directory, or absolutely. `ros2 run scensim_isaac_world
 make_world <map dir> [--town <Town>] [--usd <stage>]` writes it for a CARLA town from the
 USD set; it runs in Isaac's Python.
 
 ## Datasets
 
-Public, on Hugging Face under `jerry73204`; `ros2 run swb assets list` prints them with
+Public, on Hugging Face under `jerry73204`; `ros2 run scensim assets list` prints them with
 their sizes.
 
 | Dataset | Holds | Licence |

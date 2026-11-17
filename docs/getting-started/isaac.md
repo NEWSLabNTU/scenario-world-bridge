@@ -1,6 +1,6 @@
 # Getting started on Isaac Sim
 
-Isaac Sim 6.1 installed and found by swb. The install took 6 minutes on one host
+Isaac Sim 6.1 installed and found by scensim. The install took 6 minutes on one host
 (2026-11-16), mostly downloads; the long download is Tutorial 6's USD assets. Do
 [Install](install.md) first. The Isaac tutorials (6 and 7) start from here; the CARLA
 tutorials before them are worth doing first, since everything but the simulator works the
@@ -17,7 +17,7 @@ there is no separate vehicle bridge. Autoware connects to it over ROS, on the sa
   another 10 to 20 GB. Isaac Sim's own
   [requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html)
   apply.
-- **About 50 GB** of disk for Isaac Sim and its caches, and several GB in swb's cache for
+- **About 50 GB** of disk for Isaac Sim and its caches, and several GB in scensim's cache for
   the USD towns and cars a project fetches. Put both on a fast disk.
 - [uv](https://docs.astral.sh/uv/), which installs Isaac's own Python:
 
@@ -31,14 +31,14 @@ Isaac Sim is pip-installed into a Python 3.12 environment of its own (it does no
 system's Python). Choose where it goes and run the installer from the workspace:
 
 ```bash
-cd ~/scenario-world-bridge                        # your clone
+cd ~/scensim                                      # your clone
 export ISAAC_ROOT=~/isaac-sim
-src/swb_isaac_world/scripts/install_isaac.sh     # ends: isaacsim 6.1.0.0, INSTALL-DONE
+src/scensim_isaac_world/scripts/install_isaac.sh  # ends: isaacsim 6.1.0.0, INSTALL-DONE
 ```
 
-## Tell swb where it is
+## Tell scensim where it is
 
-Tell swb where Isaac is installed, once per host, in `~/.config/swb/host.yaml`:
+Tell scensim where Isaac is installed, once per host, in `~/.config/scensim/host.yaml`:
 
 ```yaml
 isaac:
@@ -51,8 +51,8 @@ export.
 Then build Autoware's messages for Isaac's Python, into `<isaac root>/msgs`:
 
 ```bash
-source ~/swb.bash
-ros2 run swb isaac msgs        # builds every package that is missing or stale
+source ~/scensim.bash
+ros2 run scensim isaac msgs    # builds every package that is missing or stale
 ```
 
 Run it again after Autoware is updated: `project check` and the stack refuse an Isaac project
@@ -60,8 +60,8 @@ while a message package the world server needs is missing or was built from anot
 Autoware, naming the package.
 
 On a machine with two GPUs, name the card in the host settings (`gpu: 1` in
-`~/.config/swb/host.yaml`): the stack puts the world server on it, its CUDA and its renderer
-both. Other Kit options go in `ISAAC_KIT_ARGS` in `~/swb.bash`; leave the renderer's GPU to the
+`~/.config/scensim/host.yaml`): the stack puts the world server on it, its CUDA and its renderer
+both. Other Kit options go in `ISAAC_KIT_ARGS` in `~/scensim.bash`; leave the renderer's GPU to the
 stack, since a renderer on another card than CUDA leaves the sensors silent.
 
 Isaac Sim's window renderer crashed at start on the TurboVNC displays we tested, and the
@@ -71,7 +71,7 @@ world server opens a window whenever `DISPLAY` is set, so on a VNC display set
 **Check**:
 
 ```bash
-ros2 run swb isaac msgs --check
+ros2 run scensim isaac msgs --check
 ```
 
 prints nothing and exits 0 when every message package is built.
@@ -81,7 +81,7 @@ prints nothing and exits 0 when every message package is built.
 | Symptom | Fix |
 |---|---|
 | `install_isaac.sh`: `uv: command not found` | install uv first (above) |
-| `project check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `ros2 run swb isaac msgs` |
+| `project check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `ros2 run scensim isaac msgs` |
 | The world server is `not up after 1200 s`, its Kit log ends at `omni.client` and it runs at 100 % CPU | a Kit cache link (`~/.cache/ov`, `~/.local/share/ov`, `~/.nvidia-omniverse`) points at a deleted directory, for example after reinstalling Isaac: create its target (`mkdir -p "$(readlink -m ~/.cache/ov)"`), or run `install_isaac.sh` again, which does |
 | Every process prints `'NetworkInterfaceAddress': deprecated element`; the world server logs a DEBUG traceback, `No module named 'em'` | both harmless |
 

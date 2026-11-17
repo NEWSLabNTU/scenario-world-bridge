@@ -6,10 +6,10 @@ project with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)).
 
 ## What the pilot runs
 
-An `autoware` pilot runs swb's **Autoware profile** (`autoware_sim_profile`'s
+An `autoware` pilot runs scensim's **Autoware profile** (`autoware_sim_profile`'s
 `autoware.launch.xml`, in `autoware_sim_vehicle`) around a stock `autoware.launch.xml`, with
 the car's packages (`vehicle_model`, `sensor_model`), plus the vehicle side (on CARLA, the
-vehicle bridge) and swb's vehicle agent, all in the pilot's ROS domain.
+vehicle bridge) and scensim's vehicle agent, all in the pilot's ROS domain.
 
 ## Arguments
 
@@ -58,7 +58,7 @@ To change the arguments per run (a suite comparing two detectors), make the pilo
 
 ## Your own build
 
-Build your Autoware of the 1.5.0 release and source its `setup.bash` in `~/swb.bash`
+Build your Autoware of the 1.5.0 release and source its `setup.bash` in `~/scensim.bash`
 instead of `/opt/autoware/1.5.0/setup.bash`, then rebuild this workspace against it. A
 different Autoware release is not supported.
 
@@ -96,7 +96,7 @@ colcon build \
     --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
 ```
 
-Then source `~/autoware_overlay/install/local_setup.bash` in `~/swb.bash`, right after
+Then source `~/autoware_overlay/install/local_setup.bash` in `~/scensim.bash`, right after
 Autoware's setup. Without it the ego runs stock Autoware, with the right-turn bug and an
 emergency stop now and then.
 
@@ -118,7 +118,7 @@ and name that directory in your host settings; every autoware pilot then puts it
 its library path:
 
 ```yaml
-# ~/.config/swb/host.yaml
+# ~/.config/scensim/host.yaml
 autoware: {tensorrt_lib: ~/tensorrt-10.8.0/lib}
 ```
 

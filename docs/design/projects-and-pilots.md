@@ -1,6 +1,6 @@
 # Projects, Stacks, Runs and Pilots
 
-How a user drives scenario-world-bridge (swb) without knowing its insides: a **project**
+How a user drives scensim without knowing its insides: a **project**
 names what a use case needs; a long-lived **stack** brings up the simulator side and the
 **pilots**; **runs** and **suites** go against it and leave **results** and **logs**; a
 **seat** keeps stacks on one host apart. The phase that builds this is
@@ -15,7 +15,7 @@ behind it is in [076-study/](../roadmap/076-study/).
 | stack | the long-lived processes of a project on one seat: world server, bridge, relay, pilots |
 | run | one scenario (one parameter set, one repetition) against a live stack, ending with a result |
 | suite | many runs: a list, a directory, a parameter grid or distribution, repetitions |
-| pilot | what drives one scenario entity: a vehicle side swb starts, plus a driver |
+| pilot | what drives one scenario entity: a vehicle side scensim starts, plus a driver |
 | seat | one stack's share of a host: ROS domains, ports, web port, GPU |
 
 ## Ownership
@@ -24,30 +24,30 @@ behind it is in [076-study/](../roadmap/076-study/).
 |---|---|
 | map, entities, their cars, which entities an external pilot drives | the scenario (`LogicFile`, `CatalogReference`, `Controller`) |
 | which pilot drives an entity name | the project file, `pilots:` |
-| which assets, at which versions | the project file `assets:`, pinned by `swb.lock` |
+| which assets, at which versions | the project file `assets:`, pinned by `scensim.lock` |
 | the simulator | the project file `simulator:`, overridable per stack |
 | seats, GPUs, install paths, log and cache folders | the host settings (files, never exports) |
 
 ## Commands
 
-All in the ament_python package `swb`; the stack is a launch file in `swb_launch`.
+All in the ament_python package `scensim`; the stack is a launch file in `scensim_launch`.
 
 | Command | Does |
 |---|---|
-| `ros2 run swb project new <dir> [--template <name>]` | writes a starter project |
-| `ros2 run swb project check [<dir>]` | validates the project against its scenarios and assets |
-| `ros2 run swb assets fetch\|list\|check` | assets into the cache, the lock, links into `assets/` |
-| `ros2 run swb seat take <n>\|auto`, `show`, `release`, `env <group>` | seats |
-| `play_launch launch swb_launch swb.launch.xml [project:=] [seat:=] [simulator_start:=] ...` | the stack |
-| `ros2 run swb run <scenario.xosc\|suite.yaml> [--repeat N] [--shard i/n] [--resume] [--logs L] [--start-stack\|--stop-stack]` | runs and suites against the stack |
-| `ros2 run swb runs list\|show\|why\|prune\|summary` | results and logs |
+| `ros2 run scensim project new <dir> [--template <name>]` | writes a starter project |
+| `ros2 run scensim project check [<dir>]` | validates the project against its scenarios and assets |
+| `ros2 run scensim assets fetch\|list\|check` | assets into the cache, the lock, links into `assets/` |
+| `ros2 run scensim seat take <n>\|auto`, `show`, `release`, `env <group>` | seats |
+| `play_launch launch scensim_launch scensim.launch.xml [project:=] [seat:=] [simulator_start:=] ...` | the stack |
+| `ros2 run scensim run <scenario.xosc\|suite.yaml> [--repeat N] [--shard i/n] [--resume] [--logs L] [--start-stack\|--stop-stack]` | runs and suites against the stack |
+| `ros2 run scensim runs list\|show\|why\|prune\|summary` | results and logs |
 
 Exit codes (`run`, `project check`, `assets check`): 0 success, 1 a scenario failed or a
 check found a problem, 2 an infrastructure error, 3 refused (wrong stack, missing asset,
 bad input).
 
 Every command finds its project as `project:=`/`--project`, else the working directory or the
-nearest parent with `swb.yaml` (`swb.config.find_project`). `pkg://<package>` names a ROS
+nearest parent with `swb.yaml` (`scensim.config.find_project`). `pkg://<package>` names a ROS
 package's share directory that installs a `swb.yaml`.
 
 ## The project file
@@ -82,9 +82,9 @@ to fix the order; without it the stack serves the maps its scenarios name.
 
 `project check` (and the stack before it starts):
 
-1. every asset is fetched and matches `swb.lock`;
+1. every asset is fetched and matches `scensim.lock`;
 2. every scenario under `scenarios/` (and every suite's) parses; its `LogicFile` names
-   `$(env SWB_MAPS)/<map>` with `<map>` fetched; every map of `maps:` is fetched;
+   `$(env SCENSIM_MAPS)/<map>` with `<map>` fetched; every map of `maps:` is fetched;
 3. every entity whose controller is `agent`/`Autoware` (SSv2's external control) matches a
    pilot; every pilot kind is valid for the simulator (`carla_basic`: CARLA only);
 4. every car named by a scenario or pilot is in a catalog the stack loads, and its spec hash
@@ -92,7 +92,7 @@ to fix the order; without it the stack serves the maps its scenarios name.
 5. simulator limits (Isaac: one ego, no background AV);
 6. `world:`, `isaac:`, `ssv2:` and their files (below); every `autoware` pilot's `args`,
    and a suite's `pilot_args` over them, against the Autoware profile's own
-   `check_launch_args` (`swb.profile`: the profile's `problems()` loaded from its installed
+   `check_launch_args` (`scensim.profile`: the profile's `problems()` loaded from its installed
    script, else this workspace's source; the table stays the profile's). A value holding a
    run substitution is left out. So a renamed argument, an `ndt:` outside its choices or a
    pair that cannot work (`ndt: none` with a diagnostic graph judging NDT) is refused before
@@ -107,13 +107,13 @@ Datasets are Hugging Face datasets (the default namespace `jerry73204`, `repo:` 
 2. downloads only the `take:` subpaths (globs relative to the dataset root) into the cache,
    `<cache>/datasets/<repo>/<commit>/`, read-only once complete,
 3. verifies each file against the dataset's `MANIFEST.sha256` when it has one,
-4. writes `swb.lock`,
+4. writes `scensim.lock`,
 5. links `assets/` from the cache: maps under `assets/maps/<map>/` (a map directory is one
    holding `lanelet2_map.osm`), the CARLA USD set under `assets/carla-usd/`, cars under
    `assets/vehicles/`.
 
 ```yaml
-# swb.lock (written by fetch; committed)
+# scensim.lock (written by fetch; committed)
 version: 1
 datasets:
   carla-town-autoware-maps:
@@ -137,9 +137,9 @@ Nothing writes into the cache. What the stack writes for a map (a CARLA signal t
 ruts, a project's surface map) goes to `<project>/state/<map>/`, and the stack points the
 world server at it.
 
-Inside the data, names not paths: scenarios name maps `$(env SWB_MAPS)/<map>`; an Isaac
-`world.yaml`'s `usd:` may use `${SWB_CARLA_USD}`; the stack sets both for every process it
-starts (`SWB_MAPS=<project>/assets/maps`, `SWB_CARLA_USD=<project>/assets/carla-usd`).
+Inside the data, names not paths: scenarios name maps `$(env SCENSIM_MAPS)/<map>`; an Isaac
+`world.yaml`'s `usd:` may use `${SCENSIM_CARLA_USD}`; the stack sets both for every process it
+starts (`SCENSIM_MAPS=<project>/assets/maps`, `SCENSIM_CARLA_USD=<project>/assets/carla-usd`).
 
 ### Ground
 
@@ -153,30 +153,30 @@ ground:
 ```
 
 The Isaac world server reads `<state>/<map>/surfaces.yaml` and `road_detail.yaml` over the
-fetched map directory's. When a stack starts, swb links each named file there; a link it made
+fetched map directory's. When a stack starts, scensim links each named file there; a link it made
 that the project no longer names is removed, and a file a user put there by hand is refused,
 never replaced. `project check` reports a named file that is missing.
 
-`ros2 run swb assets prune [--dry-run]` removes the cache's commits that no project's
-`swb.lock` names (fetch records each project in `<cache>/projects.json`); the cache is
+`ros2 run scensim assets prune [--dry-run]` removes the cache's commits that no project's
+`scensim.lock` names (fetch records each project in `<cache>/projects.json`); the cache is
 read-only, so a plain `rm -r` fails.
 
 ## Host settings
 
-Read by `swb.config.host_settings`, highest first: arguments; `<project>/.swb/local.yaml`
-(git-ignored); `~/.config/swb/host.yaml`; `/etc/swb/host.yaml`; defaults.
+Read by `scensim.config.host_settings`, highest first: arguments; `<project>/.scensim/local.yaml`
+(git-ignored); `~/.config/scensim/host.yaml`; `/etc/scensim/host.yaml`; defaults.
 
 ```yaml
-# ~/.config/swb/host.yaml
+# ~/.config/scensim/host.yaml
 seat: 2                                  # or auto
 gpu: 0                                   # overrides the seat table's
-logs: ~/swb-logs                         # on a fast disk
-cache: ~/.cache/swb
+logs: ~/scensim-logs                     # on a fast disk
+cache: ~/.cache/scensim
 carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000,
         start: auto, ready_timeout: 300}      # see The simulator, below
 isaac: {root: ~/isaac-sim}
 autoware: {setup: /opt/autoware/1.5.0/setup.bash}
-seats:                                   # the host's table (often in /etc/swb/host.yaml)
+seats:                                   # the host's table (often in /etc/scensim/host.yaml)
   domains: {base: 1, stride: 8}
   ports: {base: 5555, stride: 100}
   web: {base: 8080, stride: 10}
@@ -210,18 +210,18 @@ CYCLONEDDS_URI=..` for `scenario` or a pilot entity, for ROS's own tools.
 
 ## The stack
 
-`play_launch launch swb_launch swb.launch.xml` (it is `stack.launch.py` with the project's
+`play_launch launch scensim_launch scensim.launch.xml` (it is `stack.launch.py` with the project's
 settings applied):
 
 1. finds the project, reads host settings, takes the seat;
 2. runs `project check`; refuses (3) on a problem;
-3. sets `SWB_MAPS`, `SWB_CARLA_USD`, the DDS profile and the seat's numbers;
+3. sets `SCENSIM_MAPS`, `SCENSIM_CARLA_USD`, the DDS profile and the seat's numbers;
 4. starts the simulator side (on CARLA, CARLA itself when `carla.root` is set and nothing
    serves `carla.port`; below), the bridge and the relay in the scenario domain;
 5. starts pilots: `lifetime: stack` pilots for the stack's map (below), `lifetime: run` ones
    per run; each in its own domain;
 6. writes `<logs>/<project name>/stacks/<stack id>/stack.json`: the fingerprint (hashes of
-   swb.yaml and swb.lock, the pilots, the workspace's build commits), the seat, the domains
+   swb.yaml and scensim.lock, the pilots, the workspace's build commits), the seat, the domains
    and ports, the pids, the maps, and `state: ready` once every stack pilot is ready; and
    links `<logs>/<project name>/seat-<n>-current` to it.
 
@@ -230,9 +230,9 @@ settings applied):
 `world:` goes to the simulation side (`side_args` of stack.launch.py: the bridge) and, for
 `world_config_file`, to CARLA's world server (`sim_args`); `isaac:` to Isaac's world server
 (`sim_args`). Both are merged by name with what the stack gives those launches itself, never
-in place of it (`swb.world`):
+in place of it (`scensim.world`):
 
-| Launch | swb's own (refused in `world:`, `isaac:` and `stack_args`) | the project's |
+| Launch | scensim's own (refused in `world:`, `isaac:` and `stack_args`) | the project's |
 |---|---|---|
 | bridge (`side_args`) | `state_dir`, `gap_trace_dir`, `contact_report_dir` (unless `world.contact_report_dir`), `world_endpoint`, `ssv2_port`, `agent_port` | `weather` (a preset), `npc_motion`, `config_file`, `contact_report_dir` |
 | CARLA world server | `state_dir`, `port`, `ssv2_port`, `carla_host`, `carla_port` | `config_file` (`world.world_config_file`) |
@@ -272,7 +272,7 @@ place (`off`, or a directory of the user's, not cut per run). `keep`: `contacts/
 ### The simulator
 
 On CARLA, `simulator_start` decides whether the stack starts CARLA: the launch's
-`simulator_start:=`, else the host settings' `carla.start`, else `auto` (`swb.simulator`).
+`simulator_start:=`, else the host settings' `carla.start`, else `auto` (`scensim.simulator`).
 The plan decides, before anything starts:
 
 | `simulator_start` | Nothing on `carla.host:carla.port` | CARLA answers there | Something else answers |
@@ -314,9 +314,9 @@ another map means a pilot restart with another `map_path`.
   `map: null` and no pilot running), unless `map:=` names one. On Isaac the world server
   loads its world (`world:=`) at start, so the first map is the stack's for its lifetime, and
   a run on another is refused, naming the `map:=` to restart with.
-- **Who runs them.** The keeper (`python3 -m swb.stack keep`), not the launch: a launch cannot
+- **Who runs them.** The keeper (`python3 -m scensim.stack keep`), not the launch: a launch cannot
   restart a process with other arguments. Each pilot is a nested play_launch of its kind's
-  launch (`swb_launch/launch/pilots/`) in its own session, with the stack's contract
+  launch (`scensim_launch/launch/pilots/`) in its own session, with the stack's contract
   (`map_path` and, on CARLA, the state dir's signal table, of the current map), logging under
   `proc/pilot-<entity>/`, respawned 5 s after it ends, as the launch did (an episode end: a
   world load ends `acb_bridge`, exit 3); it dies with the keeper (`PR_SET_PDEATHSIG`), and
@@ -331,12 +331,12 @@ another map means a pilot restart with another `map_path`.
   request survives a slow keeper, and stack.json stays the one record a run reads.
 - **The town before the pilots (CARLA).** Only the world server's owner (the bridge) may
   send `LoadWorld`, so the bridge offers it as a ROS service, `/scenario_world_bridge/load_map`
-  (`swb_interfaces/srv/LoadMap`: a map directory or its lanelet2 file; `success`, `message`).
+  (`scensim_interfaces/srv/LoadMap`: a map directory or its lanelet2 file; `success`, `message`).
   The bridge's world thread loads the map's world exactly as an `Initialize` would, at the
   last `Initialize`'s step and realtime factor, and answers when the load is done; it is no
   scenario episode (no gap trace, no frame count). It refuses while a scenario is running on
   it (entities spawned, and its SSv2 asked within 5 s). Between the pilots' stop and start
-  the keeper runs `python3 -m swb.load_map <map dir>` in the scenario domain (10 s for the
+  the keeper runs `python3 -m scensim.load_map <map dir>` in the scenario domain (10 s for the
   service to appear, 120 s for the answer) and records `preload: {state: loaded | failed |
   skipped, message | error, seconds}` in the switch and a `map.preload` event. The pilots then
   start on the new town, and SSv2's Initialize finds it loaded (the CARLA world server does
@@ -354,7 +354,7 @@ A run on the stack's current map restarts nothing.
 
 ## Runs
 
-`ros2 run swb run <x>`:
+`ros2 run scensim run <x>`:
 
 One run at a time per stack: two SSv2s in one ROS domain drive each other's nodes (their
 names are the same), so a runner takes the stack's `run.lock` (flock) at its first run and
@@ -369,7 +369,7 @@ holds it until it exits; a second runner is refused, naming the holder.
    creates `runs/<id>/`, writes `resolved.yaml`, starts `lifetime: run` pilots and
    waits for every pilot's readiness, notes each stack log's size (the slice start), starts
    SSv2 (`scenario.launch.xml` as a nested play_launch in the scenario domain, with the
-   project's `SWB_MAPS`), waits for it to end, notes the sizes again, cuts the slices, builds
+   project's `SCENSIM_MAPS`), waits for it to end, notes the sizes again, cuts the slices, builds
    the timeline, writes `result.json`, applies `keep`, prints one line;
 4. a suite writes `summary.csv` and a merged JUnit; `--resume` skips run ids with a
    `result.json`; `--shard i/n` takes every n-th spec from the i-th; then the runs are ordered
@@ -377,10 +377,10 @@ holds it until it exits; a second runner is refused, naming the holder.
    a suite over five towns switches at most five times. Sharding comes first, so that every
    host takes the same share.
 
-`swb.api.run_one(project, scenario, overrides) -> RunResult` does step 3 from Python.
+`scensim.api.run_one(project, scenario, overrides) -> RunResult` does step 3 from Python.
 
 **A stack for the runs.** `--start-stack` starts the project's stack when none is up (step 1
-finds none): play_launch of `swb_launch swb.launch.xml project:=<dir> seat:=<n> logs:=<root>`,
+finds none): play_launch of `scensim_launch scensim.launch.xml project:=<dir> seat:=<n> logs:=<root>`,
 on the first free seat, web UI on its port, in its own session, its console in
 `<logs>/<project>/stack-launches/<time>/`; the runner waits for it to be ready
 (`--stack-timeout`, else `--wait` when given, else 1800 s: a first Autoware start can build
@@ -391,7 +391,7 @@ started on the way out), which `just e2e` runs (the stack-based one is `just e2e
 stack that was up already is used and never stopped; one whose fingerprint differs is refused, as always, not replaced. A started
 stack that the launch refuses is refused (3); one that ends or times out before it is ready
 is an error (2), and the runner stops it. From Python: `run_one(..., {"start_stack": True})`
-starts and keeps one; `with swb.api.stack(project) as ctx:` holds one for a block and stops
+starts and keeps one; `with scensim.api.stack(project) as ctx:` holds one for a block and stops
 it at the end if the block started it.
 
 Two flags, not a launch argument (`end_with:=run`): the runner knows when the runs are over
@@ -423,7 +423,7 @@ settings for that item's runs.
 
 ### Run settings
 
-`ssv2:` (`swb.ssv2`) is what a run hands `scenario.launch.xml` besides the scenario:
+`ssv2:` (`scensim.ssv2`) is what a run hands `scenario.launch.xml` besides the scenario:
 `global_timeout`, `frame_rate` (`global_frame_rate`; 100 for a 10 ms step),
 `global_real_time_factor`, `initialize_duration`, `managed_ego`. Layers, each replacing the
 keys it names: `swb.yaml`'s `ssv2:`, the suite's, the suite item's, then the call's
@@ -450,7 +450,7 @@ have no vehicle side gets the world server's `ego:=none` (a kinematic box) unles
 
 A pilot = **vehicle side** + **driver** (+ the agent registering the entity with the relay).
 
-| Simulator | Vehicle side (swb starts) |
+| Simulator | Vehicle side (scensim starts) |
 |---|---|
 | carla | acb: `acb_bridge.launch.xml` (sensors, vehicle interface, physics check) in the pilot's domain |
 | isaac | the car's rig inside the world server (aib), its topics in the pilot's domain |
@@ -460,10 +460,10 @@ out) and the sensor topics in its domain, whatever the simulator.
 
 | kind | Driver | Agent |
 |---|---|---|
-| `autoware` | `autoware_sim_profile autoware.launch.xml` (or `autoware_launch:`) | swb's vehicle agent |
-| `carla_basic` | CARLA's BasicAgent; no vehicle side | `swb_agent carla_basic` |
-| `simple` | `simple_pilot` (lanelet2 route, pure pursuit, speed PID) on the vehicle interface; the true pose (Isaac: the ego config's ground truth, which the stack turns on) | `swb_agent simple_pilot` (the driver is its own agent) |
-| `launch` | `launch: <pkg> <file>` | swb's vehicle agent unless `agent: own` |
+| `autoware` | `autoware_sim_profile autoware.launch.xml` (or `autoware_launch:`) | scensim's vehicle agent |
+| `carla_basic` | CARLA's BasicAgent; no vehicle side | `scensim_agent carla_basic` |
+| `simple` | `simple_pilot` (lanelet2 route, pure pursuit, speed PID) on the vehicle interface; the true pose (Isaac: the ego config's ground truth, which the stack turns on) | `scensim_agent simple_pilot` (the driver is its own agent) |
+| `launch` | `launch: <pkg> <file>` | scensim's vehicle agent unless `agent: own` |
 | `command` | `run: [argv...]`, given `--relay --entity --seed --run-dir` | the program itself |
 | `none` | started by the user | the user's |
 
@@ -492,13 +492,13 @@ The launch contract every `launch` pilot receives: `entity`, `relay`, `map_path`
   "events": [{"t_sim": 18.4, "t_wall": "...", "type": "collision.vehicle", "entity": "ego", "other": "cut_in"}],
   "metrics": {"duration_s": 24.0, "route_completion": 0.62},
   "pilots": {"ego": {"kind": "autoware", "vehicle": "tesla_model3", "inputs": ["sensors"], "version": "..."}},
-  "provenance": {"swb": "<commit>", "submodules": {}, "simulator": "carla 0.9.16",
+  "provenance": {"scensim": "<commit>", "submodules": {}, "simulator": "carla 0.9.16",
                  "swb_lock": "sha256:...", "spec_hash": {"ego": "..."}, "host": "...", "gpu": "...",
                  "stack_id": "..."}
 }
 ```
 
-Metrics: `duration_s`, and the bridge's frame budget (`swb.frames`) from its slice of the
+Metrics: `duration_s`, and the bridge's frame budget (`scensim.frames`) from its slice of the
 bridge's log (read from the stack's files between the run's marks, so at every capture
 level). The bridge logs one INFO line per 200 frames ("Frame budget, last 200 frames: ...",
 p50/p95/max of its processing and of the world's tick); its whole-run line is logged at the
@@ -532,8 +532,8 @@ are the gap tools as judges: they find the run's traces in `gap_trace/` and run
 or `incident_judge` (which also needs a `/simulation/context` state log; nothing in the
 workflow records one yet), and a run without a trace is the judge's `error`.
 
-A judge gets the run directory as its last argument (and `SWB_RUN_DIR`), runs in the project
-directory and prints one JSON object. swb adds `name`, `version`, `exit_code`, `duration_s`
+A judge gets the run directory as its last argument (and `SCENSIM_RUN_DIR`), runs in the project
+directory and prints one JSON object. scensim adds `name`, `version`, `exit_code`, `duration_s`
 and a `verdict`: the object's own `verdict` if it has one, else `passed` for exit 0 and
 `failed` for exit 1; any other exit, no JSON object or a timeout is `error`, with the reason
 in `message`. A judge's verdict is recorded beside the run's (the run line, `summary.csv`'s
@@ -565,9 +565,9 @@ designed but not built; `project check` refuses both keys by name, so none is si
 ignored. `capture` records; `keep` prunes per verdict after it is known;
 At `full` a `ros2 bag record` per pilot domain (pilots sharing a domain share one) records
 the key topics (ego state, control command, vehicle status, detected objects, trajectory,
-`/swb/wheels`; `logging.topics` replaces the list) from the moment every pilot is ready until
+`/scensim/wheels`; `logging.topics` replaces the list) from the moment every pilot is ready until
 SSv2 ends, into `record/<entity>/`; at `debug` every topic, the scenario domain's too
-(`record/scenario/`). `ros2 run swb run --capture <level>` records one run at that level and
+(`record/scenario/`). `ros2 run scensim run --capture <level>` records one run at that level and
 keeps it whatever the verdict. `budget` (`{per_run: 2GB, total: 200GB}`) refuses a run or suite that cannot fit: `per_run`
 times the runs to go must be free on the log disk and, with `total`, fit beside what the runs
 directory already holds. `runs why <id>` prints the first WARN/ERROR with its
@@ -575,7 +575,7 @@ group.
 
 ## Examples
 
-The working examples live in `src/swb_examples/projects/`: `first_drive` (CARLA, one Autoware
+The working examples live in `src/scensim_examples/projects/`: `first_drive` (CARLA, one Autoware
 ego), `multi_pilot` (Autoware, `carla_basic`, a `command` agent), `safety_suite` (AWF scenarios
 across towns), `isaac_first_drive`, `road_physics` (Isaac surfaces), `simple_drive` (the
 `simple` pilot, no Autoware), and the golf cart twin as

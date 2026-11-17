@@ -1,7 +1,7 @@
 # Writing Scenarios
 
 Scenarios are standard OpenSCENARIO 1.x files run by scenario_simulator_v2 (SSv2). This page
-covers what is specific to running them in CARLA through scenario-world-bridge. Workflow:
+covers what is specific to running them in CARLA through scensim. Workflow:
 the [tutorials](../tutorials/) and the [how-to guides](../README.md#how-to-guides);
 reference: [the project file](../reference/project-file.md); architecture:
 [user-workflow.md](user-workflow.md). On Isaac Sim the same files run as far as the
@@ -19,7 +19,7 @@ Autoware gets as `map_path` -- by path:
 ```
 
 The directory's name is the CARLA town (or an alias in the CARLA world server's
-`swb_carla_world.yaml`, key `map_alias`, given to the stack as `world_config:=`);
+`scensim_carla_world.yaml`, key `map_alias`, given to the stack as `world_config:=`);
 the bridge loads that town if CARLA holds another. The scenario file itself is never
 modified.
 
@@ -44,7 +44,7 @@ ego, by design.
 
 **Its box is the car's.** SSv2's vehicle origin is the rear axle on the ground. A `<Vehicle>`
 named by a CARLA blueprint (`vehicle.tesla.model3` for the ego) declares that blueprint's
-measured box and axles, from `src/swb_carla_world/swb_carla_world/config/blueprint_boxes_<version>.yaml`
+measured box and axles, from `src/scensim_carla_world/scensim_carla_world/config/blueprint_boxes_<version>.yaml`
 (`scripts/measure_blueprint_boxes.py`): for the Model 3, `Center` (1.415, 0, 0.744),
 `Dimensions` 4.792 x 2.163 x 1.488, axles 3.004 m apart, track 1.667, wheel diameter 0.74.
 `scripts/scenario_vehicle.py <blueprint>` prints them, the generators use it, and
@@ -89,7 +89,7 @@ is the only marker:
 </Private>
 ```
 
-Example: `src/swb_examples/scenarios/basic/town01_simulator_autopilot.xosc` (ego, an SSv2-driven NPC and a
+Example: `src/scensim_examples/scenarios/basic/town01_simulator_autopilot.xosc` (ego, an SSv2-driven NPC and a
 CARLA-driven NPC in one run).
 
 What happens:
@@ -110,7 +110,7 @@ What happens:
   accelerates at about 5.2 m/s² from rest (the example declares 10).
 - **Repeatability.** Traffic Manager runs synchronously, ticked with the world, and is
   reseeded at every scenario start (`traffic_manager.seed` in the CARLA world server's
-  `swb_carla_world.yaml`, given to the stack as `world_config:=`): the same
+  `scensim_carla_world.yaml`, given to the stack as `world_config:=`): the same
   scenario on the same CARLA drives the same way.
 
 Not supported -- each is an explicit scenario error, not a silent no-op:
@@ -152,11 +152,11 @@ scenario entities: conditions, distances and `CollisionCondition` see them.
 </Private>
 ```
 
-Example: `src/swb_examples/scenarios/multi_av/town01_two_av.xosc` (the ego and `bg_av_1` in
+Example: `src/scensim_examples/scenarios/multi_av/town01_two_av.xosc` (the ego and `bg_av_1` in
 one lane; run in [Tutorial 3](../tutorials/03-other-road-users.md)).
 
 The entity's name is the link to its vehicle side: start one per such entity, with
-`entity:=<name>` (and `vehicle_name:=<name>`, the default in `swb_launch
+`entity:=<name>` (and `vehicle_name:=<name>`, the default in `scensim_launch
 background_av.launch.xml`) and the simulation side's relay, in a ROS domain of its own:
 
 ```bash
@@ -164,7 +164,7 @@ ROS_DOMAIN_ID=2 play_launch launch \
     --container-mode isolated \
     --composable-respawn on-crash \
     --web-addr 127.0.0.1:8083 \
-    swb_launch background_av.launch.xml \
+    scensim_launch background_av.launch.xml \
     entity:=bg_av_1 \
     map_path:=<map dir> \
     relay:=tcp://<simulation host>:5560
@@ -216,7 +216,7 @@ the next command or the next `Initialize`.
 - To stop the ego at an intersection, command that signal. Do not rely on the state a previous
   run or CARLA's own cycle left a light in; it is reset to GREEN.
 - "Mapped" means listed in the map dir's `traffic_lights.yaml`, generated once per
-  map (`swb_carla_world --generate-signal-table <map dir>`) and checked against CARLA
+  map (`scensim_carla_world --generate-signal-table <map dir>`) and checked against CARLA
   at every `Initialize`: Lanelet2 traffic light ways matched to a CARLA light by position,
   plus `config/traffic_lights_<town>.yaml`. CARLA
   lights the Lanelet2 map does not reference keep their frozen state; Autoware cannot see them.
@@ -228,8 +228,8 @@ the next command or the next `Initialize`.
 ## Collisions: do not end on the collision frame
 
 SSv2's `CollisionCondition` (bounding boxes) is the verdict for every collision, NPC-NPC
-included. swb also attaches a CARLA collision sensor to the ego and logs what CARLA saw, as
-a cross-check. That cross-check only sees contacts that last more than one frame: swb applies
+included. scensim also attaches a CARLA collision sensor to the ego and logs what CARLA saw, as
+a cross-check. That cross-check only sees contacts that last more than one frame: scensim applies
 SSv2's NPC pose one frame after SSv2 computes it, so a scenario that exits on the first frame
 of overlap ends before CARLA ticks with the bodies touching, and the bridge logs "no
 collisions" for a run SSv2 scored as a collision. Delay the exit (e.g. `delay="3"` on the
@@ -241,4 +241,4 @@ SSv2 commands it on -- have the NPC brake once the collision is seen, as
 `npc_motion:=kinematic` fallback an NPC never moves when hit and two NPCs pass through each
 other in CARLA (see
 [multi-instance-architecture.md](multi-instance-architecture.md#consequence-puppeteered-actors-are-kinematic)).
-Example: `src/swb_examples/scenarios/basic/town01_rear_contact.xosc`.
+Example: `src/scensim_examples/scenarios/basic/town01_rear_contact.xosc`.

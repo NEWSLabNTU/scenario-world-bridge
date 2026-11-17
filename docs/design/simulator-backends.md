@@ -2,7 +2,7 @@
 
 **Superseded in its seam** by [simulator-interface-split.md](simulator-interface-split.md)
 and roadmap 046 (2026-10-22): every simulator is a world server behind the world protocol, the
-bridge has one backend (`RemoteBackend`), and CARLA runs in its own process (`swb_carla_world`).
+bridge has one backend (`RemoteBackend`), and CARLA runs in its own process (`scensim_carla_world`).
 The study notes and the Isaac stack below still hold.
 
 **Date**: 2026-10-16. **Status**: design; phases 036 (bring-up), 035 (the seam) and 037
@@ -13,15 +13,14 @@ implement it. Background: [survey-isaac-sim-and-digital-twin.md](survey-isaac-si
 ## Goal
 
 The same patched SSv2 (submodule `managed-ego-unforked`), the same scenarios and the same
-Autoware stacks run against either CARLA or Isaac Sim, chosen per run. The repository keeps
-the name scenario-world-bridge (swb) for now; the simulator-specific parts are kept behind a
-seam so that a later split (an SSv2 adapter crate plus one crate per simulator) is a move,
-not a rewrite.
+Autoware stacks run against either CARLA or Isaac Sim, chosen per run. The
+simulator-specific parts are kept behind a seam so that a later split (an SSv2 adapter
+crate plus one crate per simulator) is a move, not a rewrite.
 
 Why Isaac Sim: a sponsor requires it for an off-road driving competition. Its RTX sensors
 (material-aware lidar, radar, path-traced cameras) and native Gaussian-splat rendering are
 the technical gains; its missing scenario layer (no OpenSCENARIO, no traffic lights, no road
-network) is what swb brings.
+network) is what scensim brings.
 
 ## What already does not depend on CARLA
 
@@ -29,14 +28,14 @@ Roadmap 017 split the system along three interfaces, and two of them are simulat
 
 | Interface | Between | Simulator-specific? |
 |---|---|---|
-| `simulation_interface` (ZMQ + protobuf, SSv2's) | SSv2 ↔ swb | No (SSv2 side); swb's handlers are |
+| `simulation_interface` (ZMQ + protobuf, SSv2's) | SSv2 ↔ scensim | No (SSv2 side); scensim's handlers are |
 | Agent protocol (TCP, JSON lines) | agent relay ↔ vehicle agent (`acb_pilot`) | No |
 | Autopilot native (ADAPI, the ego's domain) | agent ↔ Autoware | No |
 | Vehicle bridge (sensors, `/vehicle/status/*`, `/control/command/*`, `/clock`) | simulator ↔ Autoware | **Yes**: acb for CARLA |
-| World control (spawn, pose, tick, lights, map) | swb ↔ simulator | **Yes**: carla-rust today |
+| World control (spawn, pose, tick, lights, map) | scensim ↔ simulator | **Yes**: carla-rust today |
 
 So SSv2, the agent relay, `acb_pilot`, `run_suite`, the starter scenarios and the gap oracle
-carry over. Two pieces are rewritten for Isaac: swb's world control (as a backend) and the
+carry over. Two pieces are rewritten for Isaac: scensim's world control (as a backend) and the
 vehicle bridge.
 
 ## Architecture
@@ -45,10 +44,10 @@ vehicle bridge.
 SSv2 (scenario domain 9)                       Autoware ego k (domain k)
    │ simulation_interface (ZMQ)                    ▲ sensors, vehicle status, /clock
    ▼                                               │ control commands
-swb  ── SSv2 handlers, entity table, episode clock, gap trace, contacts (simulator-free)
+scensim  ── SSv2 handlers, entity table, episode clock, gap trace, contacts (simulator-free)
    │  SimBackend trait
    ├── CarlaBackend  ── carla-rust ──▶ CARLA server ──▶ acb_bridge per ego ──▶ domain k
-   └── IsaacBackend  ── swb world protocol (ZMQ + protobuf, localhost)
+   └── IsaacBackend  ── scensim world protocol (ZMQ + protobuf, localhost)
                           ▼
               Isaac Sim 6.1 world server (standalone Python app, owns the loop)
                  ├── stage: world USD, entity prims, ego vehicles (PhysX vehicle)
@@ -66,9 +65,9 @@ The target Isaac stack, with what is built and what each remaining stage adds
 
 ![Target Isaac stack](isaac-stack.svg)
 
-### The seam in swb (phase 035, built 2026-10-17)
+### The seam in scensim (phase 035, built 2026-10-17)
 
-A Rust trait, `backend::SimBackend` (`src/backend/mod.rs`), is everything swb asks of a
+A Rust trait, `backend::SimBackend` (`src/backend/mod.rs`), is everything scensim asks of a
 simulator, one method per SSv2 request: `initialize(Episode)`, `update_frame`,
 `update_step_time`, `spawn(SpawnRequest)`, `despawn(name)`,
 `update_entity_status(StatusBatch) -> StatusOutcome`, `update_entity_goal(name, Goal)`,
@@ -97,19 +96,19 @@ same (roadmap 035, "As built").
 
 ### The Isaac world server (phase 037)
 
-A standalone Isaac Sim Python application (`swb_isaac_world/world_server.py`, run under Isaac's
+A standalone Isaac Sim Python application (`scensim_isaac_world/world_server.py`, run under Isaac's
 Python), not a GUI extension: it owns the simulation loop, so lockstep is natural. It waits
 for a request, applies it, steps and replies, as CARLA does in synchronous mode. It can run
 headless or on a VNC display for inspection. Phase 036 measured this loop: deterministic
 (bitwise-identical states from fresh servers), 6.8 ms median per 10 Hz frame with 20
 puppeteered NPCs and 6 physics substeps, 4.3 ms without rendering.
 
-The world protocol is ours, small and versioned (`proto/swb_world.proto`): `Hello` (versions),
+The world protocol is ours, small and versioned (`proto/scensim_world.proto`): `Hello` (versions),
 `LoadWorld` (USD path, map origin), `Spawn`, `Despawn`, `Step` (poses in, n physics substeps,
 states, contacts and sim time out), `SetSignals`, `SetWeather` (where supported). Isaac's own
 ROS 2 simulation-control services (`isaacsim.ros2.sim_control`, the ROS `simulation_interfaces`
 standard) cover world loading, spawning and stepping too, and the competition director (041)
-uses them for operator actions; swb does not, because they set one entity per call and step
+uses them for operator actions; scensim does not, because they set one entity per call and step
 only while paused.
 
 Frames: Isaac's world is right-handed and Z-up, the same convention as ROS, so the CARLA
@@ -142,7 +141,7 @@ test world is the map's point cloud as voxels, so NDT localizes as it does on CA
 (`just isaac-world-gen`). `/clock` is offset by the wall clock at server start, so a server
 restart never sends a long-lived stack's time backwards.
 
-### What Isaac does not have, and how swb answers it
+### What Isaac does not have, and how scensim answers it
 
 | SSv2 / Autoware need | CARLA | Isaac answer |
 |---|---|---|
@@ -176,7 +175,7 @@ restart never sends a long-lived stack's time backwards.
 - Simulation control: `isaacsim.ros2.sim_control` 1.6.8, 19 services + `SimulateSteps` action
   (state, step, reset, spawn, delete, get/set entity state, load/unload world, spawnables).
 - No OpenSCENARIO anywhere in Isaac; NVIDIA's partner route is Foretellix Foretify on the
-  Omniverse AV blueprint (commercial). SSv2 through swb is our OpenSCENARIO.
+  Omniverse AV blueprint (commercial). SSv2 through scensim is our OpenSCENARIO.
 - Real-site scenes: the NTU mesh comes from a vendor (decision 2026-10-16); Gaussian splats
   render natively (ParticleField recommended over NuRec USDZ), camera only; RTX lidar and
   wheels need the mesh. Keep coordinates near the origin (precision loss far from it).

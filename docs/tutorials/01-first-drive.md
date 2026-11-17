@@ -108,11 +108,13 @@ scensim assets fetch my_first_drive
 **What you see**:
 
 ```
+testbench my_first_drive: this host's assets are in .../my_first_drive/assets
 carla-town-autoware-maps: <commit>: 9 file(s), 9 downloaded
 src/my_first_drive/scensim.lock written
 ```
 
-The map is stored in scensim's cache, shared by every testbench. `scensim.lock` records
+The map is stored in scensim's cache, shared by every testbench, and linked into the
+testbench's work directory, which the first line names. `scensim.lock` records
 the dataset's exact commit and each file's checksum, so that every machine fetches the
 same files; it is written to the source directory and belongs in version control.
 
@@ -187,10 +189,11 @@ scensim run my_first_drive/scenarios/drive_to_goal.xosc
 stack, Autoware included, serves one run after another, and the edit applied without a
 rebuild because the build linked the file.
 
-**Check**: the new run's `resolved.yaml` holds the new goal.
+**Check**: `scensim runs list my_first_drive` shows the new run shorter than the first,
+since the goal is closer.
 
 To finish, stop the stack: `scensim stack my_first_drive --stop`. It ends every process it
-started, CARLA too if it started CARLA, and frees the seat. `scensim run my_first_drive
+started, CARLA too if it started CARLA, and frees the seat; this takes about 30 s. `scensim run my_first_drive
 --stop-stack` runs and stops in one command.
 
 ## What happened

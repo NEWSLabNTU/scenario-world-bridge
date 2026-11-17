@@ -81,7 +81,7 @@ Each must name its fix in one line.
 
 | # | Setup | Command | Expected | Exit |
 |---|---|---|---|---|
-| 5.1 | a terminal without `~/scensim.bash` sourced | `colcon build` of the workspace | `unknown build type scensim_testbench`: the fix (source `~/scensim.bash`) in the install page's troubleshooting | non-zero |
+| 5.1 | a terminal without `~/scensim.bash` sourced | `colcon build` of the workspace, then `scensim run my_first_drive` | colcon does not fail: it warns `No task extension to 'build' a 'ros.scensim_testbench' package` and exits 0 with nothing installed; the run then refuses the unbuilt testbench, naming `source ~/scensim.bash, then colcon build`; the install page's troubleshooting quotes colcon's warning | 0, then non-zero |
 | 5.2 | a terminal with Jazzy's setup sourced | any `scensim` command | `scensim is installed for humble, but ROS_DISTRO is jazzy (python <path>)` | non-zero |
 | 5.3 | a testbench with `swb.yaml` instead of `testbench.yaml` | `colcon build` | the package fails: `swb.yaml is renamed testbench.yaml` | non-zero |
 | 5.4 | a testbench naming `pkg://other/...` without `<exec_depend>other</exec_depend>` | `colcon build` | the package fails, naming the missing `<exec_depend>` | non-zero |
@@ -94,12 +94,19 @@ Each must name its fix in one line.
 
 ## 6. The source build (082 exit criterion 2)
 
+Two hosts: A with Autoware (both sides), B a bare `ros:humble` without Autoware (the
+simulation side). Neither passes `--skip-keys`.
+
 | # | Root | Command | Expected | Exit |
 |---|---|---|---|---|
-| 6.1 | no | `git clone --recurse-submodules https://github.com/NEWSLabNTU/scensim.git ~/scensim` | the clone | 0 |
-| 6.2 | yes | `rosdep install --from-paths src --ignore-src -y` (in `~/scensim`, ROS and Autoware sourced) | every key resolves, with no `--skip-keys` | 0 |
-| 6.3 | no | `colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release` | `Summary: <n> packages finished`, none failed | 0 |
-| 6.4 | no | `~/scensim.bash` with `~/scensim/install/setup.bash` in place of the installed one; then sections 2 to 4 again in a new workspace | the same results | |
+| 6.1 | yes | `sudo apt install python3-pip python3-vcstool` | installed (absent from a bare `ros:humble`; rosdep's pip keys need pip) | 0 |
+| 6.2 | no | `git clone https://github.com/NEWSLabNTU/scensim.git ~/scensim && cd ~/scensim` | the clone | 0 |
+| 6.3A | no | `git submodule update --init --recursive` | every submodule | 0 |
+| 6.4A | yes | ROS and Autoware sourced: `rosdep install --from-paths src --ignore-src -y` | every key resolves; `#All required rosdeps installed successfully` | 0 |
+| 6.3B | no | `git submodule update --init --recursive` with the simulation-side submodules the page lists, then `vcs import src < sim.repos` | six message repositories imported | 0 |
+| 6.4B | yes | ROS sourced: `rosdep install --from-paths src --ignore-src -y` | every key resolves (about 28 apt packages and one pip, yamale, on a bare `ros:humble`) | 0 |
+| 6.5 | no | `colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release` | `Summary: <n> packages finished`, none failed | 0 |
+| 6.6 | no | `~/scensim.bash` with `~/scensim/install/setup.bash` in place of the installed one; then sections 2 to 4 again in a new workspace (host A) | the same results | |
 
 ## 7. Ubuntu 24.04, before a Jazzy release
 

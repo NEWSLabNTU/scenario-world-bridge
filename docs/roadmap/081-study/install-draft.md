@@ -152,14 +152,44 @@ naming the rebuild.
 ## From source
 
 For working on scensim itself, or on a platform without a release. Install Rust
-([rustup](https://rustup.rs/)) and colcon's Rust plugin, then:
+([rustup](https://rustup.rs/)) and colcon's Rust plugin, and the two tools the steps below
+use (`pip` for rosdep's Python keys, `vcs` for the message packages):
 
 ```bash
+sudo apt install python3-pip python3-vcstool
 python3 -m pip install --user colcon-cargo-ros2
-git clone --recurse-submodules https://github.com/NEWSLabNTU/scensim.git ~/scensim
+git clone https://github.com/NEWSLabNTU/scensim.git ~/scensim
 cd ~/scensim
+```
+
+scensim has two sides. The simulation side (the scenario runner, the bridge, the world
+servers) needs only ROS 2; the vehicle side (the CARLA and Isaac Sim vehicle bridges and the
+Autoware launches) needs Autoware. Fetch the submodules of the side, or sides, the host runs.
+
+On a host with Autoware, both sides:
+
+```bash
+git submodule update --init --recursive
 source /opt/ros/humble/setup.bash && source /opt/autoware/1.5.0/setup.bash
 rosdep install --from-paths src --ignore-src -y
+```
+
+On a host without Autoware, the simulation side alone. The message packages Autoware would
+provide come from `sim.repos`, at the versions Autoware 1.5.0 uses:
+
+```bash
+git submodule update --init --recursive src/scenario_simulator_v2 src/color_names \
+    src/scensim_carla_world src/scensim_isaac_world src/scensim_world_protocol \
+    src/sim_vehicle_spec src/sim_vehicle_ecu
+vcs import src < sim.repos
+source /opt/ros/humble/setup.bash
+rosdep install --from-paths src --ignore-src -y
+```
+
+Do not import `sim.repos` on a host with Autoware: the workspace would then hold a second
+copy of messages Autoware's programs already load. Then, on either host:
+
+```bash
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release
 ```
 
@@ -175,6 +205,8 @@ installed one; the [Developer Guide](../../development.md) has the rest.
 | `scensim is installed for humble, but ROS_DISTRO is jazzy (python /usr/bin/python3.12)` | the terminal sourced another ROS, or pip ran in another Python than ROS's (a conda or pyenv one): source the ROS the install is for, and install with `/usr/bin/python3 -m pip` |
 | `sha256 mismatch` during `scensim install` | the download was cut: run it again; a partial file is not kept |
 | `ERROR: your rosdep installation has not been initialized yet` | `sudo rosdep init`, then `rosdep update` |
+| `pip: pip is not installed` from rosdep | `sudo apt install python3-pip`, then the rosdep line again |
+| `Cannot locate rosdep definition for [tier4_rtc_msgs]` (or another `tier4_`, `autoware_` message) | a host without Autoware: `vcs import src < sim.repos`; with Autoware: source its setup.bash before rosdep |
 | `error: externally-managed-environment` | Ubuntu 24.04: use one of the forms in [Ubuntu 24.04](#ubuntu-2404) |
 | `no prebuilt scensim for ROS jazzy yet` | no release for your ROS yet: [From source](#from-source) |
 

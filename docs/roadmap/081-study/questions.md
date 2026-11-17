@@ -118,7 +118,7 @@ others, as recorded; 133 folds both into 081 and 082 after the 080 landing.
 | 7 | The plugin ships in the tarball and is found through scensim's `setup.bash` (`PYTHONPATH` and its entry points), so apt's colcon sees it whatever pip form installed the front end; the venv form for 24.04 stays valid. 139 implements. | 133 |
 | 8 | With no release package for the user's Python, the front end installs alone and its first command says `no prebuilt scensim for ROS <distro> yet; build from source`, with the link. | 133 |
 | 9 | The front end's guard message names the Python it runs in beside the two ROS releases, since a conda or pyenv Python is the usual cause; the install draft's troubleshooting row shows it. A wording detail of 082 step 3. | 243 |
-| 10 | The drafts keep "rebuild your workspaces after an update". A guard in a workspace's setup that refuses a different scensim than it was built over would remove the rule; proposed to 133 as a design change, not assumed. | 243 |
+| 10 | A guard, in scensim: colcon-scensim records in a testbench's install the scensim version it was built over, and `scensim run` refuses a testbench built over another version, naming the rebuild (`colcon build`). The install draft's "rebuild after updating" stays, now backed by the refusal. | 133 |
 | 11 | `testbench new` takes the maintainer from `git config user.name` and `user.email` when set, else a placeholder, and writes `TODO: License declaration` as `ros2 pkg create` does: the licence is the user's choice. | 243 |
 | 12 | `testbench new` refuses a name that is not a valid ROS package name before writing anything, naming the valid form (`my_first_drive`). | 243 |
 | 13 | Without `--symlink-install`, `assets fetch` needs `--source <dir>` to write the lock; the build check warns when an installed testbench has no lock. | 133 |
@@ -127,9 +127,8 @@ others, as recorded; 133 folds both into 081 and 082 after the 080 landing.
 | 16 | Asked of the user by 133; the troubleshooting row stays as it is until then. | 133 |
 | 17 | The move from project to testbench is told once, in the release notes of the release that ships 081, with the `swb.yaml` refusal; the tutorials say only testbench. 243 writes it with 081 step 6. | 243 |
 
-Open after these answers:
+Decided after these answers:
 
-18. **Stopping a stack that `scensim run` left up.** 1 says how to stop it after one run
-    (`--stop-stack`) but not later, from another command. The draft writes `scensim stack
-    my_first_drive --stop`; 081 should name the form (today the stack is stopped by its
-    process group, which a user cannot be expected to find).
+18. **Stopping a stack that `scensim run` left up**: `scensim stack <tb> --stop`, and
+    `scensim stack --list` shows the stacks that are up (133). The tutorial draft uses the
+    first.

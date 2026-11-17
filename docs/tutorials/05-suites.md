@@ -5,7 +5,7 @@ each, judges every run with CARLA's own contact check beside SSv2's verdict, and
 one table of results.
 
 ```
-$ ros2 run scensim run suites/follow.yaml
+$ scensim run my_first_drive/follow
 passed   ..._follow_to_goal_leadSpeed-2.0_r0  ...  judges: physical_verdict=passed
 ...
 summary: .../suites/follow/summary.csv
@@ -21,15 +21,15 @@ summary: .../suites/follow/summary.csv
 
 ## Before you start
 
-- [Tutorial 2](02-write-a-scenario.md): the project `~/my_first_drive` with
-  `scenarios/follow_to_goal.xosc` and its `leadSpeed` parameter, the stack running on
-  Town01. Every terminal: `source ~/scensim.bash`.
+- [Tutorial 2](02-write-a-scenario.md): the testbench `my_first_drive` in `~/my_ws` with
+  `scenarios/follow_to_goal.xosc` and its `leadSpeed` parameter. Every terminal:
+  `source ~/scensim.bash` and `source ~/my_ws/install/setup.bash`.
 - About 15 to 20 minutes: six runs of about a minute each, twice.
 
 ## 1. Write a suite
 
-A **suite** is a YAML file, anywhere in the project, that describes a set of runs. Create
-`suites/follow.yaml`:
+A **suite** is a YAML file in the testbench that describes a set of runs. Create
+`src/my_first_drive/suites/follow.yaml`:
 
 ```yaml
 # suites/follow.yaml
@@ -45,14 +45,18 @@ Three speeds times two repetitions give six runs. `scenarios:` takes files and d
 (every scenario in them); a pilot of `lifetime: run` receives `{seed}` and
 `{param:<name>}` in its arguments.
 
-**Check**: `ros2 run scensim project check` ends `project: ok`; it parses every suite under
-`suites/` too.
+**Check**: build once, since the suite is a new file (`cd ~/my_ws && colcon build
+--symlink-install`); then `scensim testbench check my_first_drive` ends `testbench: ok`;
+it parses every suite under `suites/` too.
 
 ## 2. Run it
 
 ```bash
-ros2 run scensim run suites/follow.yaml
+scensim run my_first_drive/follow
 ```
+
+`<testbench>/<suite>` names `suites/<suite>.yaml`; the path form,
+`my_first_drive/suites/follow.yaml`, is equivalent.
 
 **What you see**: one line per run, in order, then the summary; a stack whose pilots have
 not yet driven first prints the map line, as in Tutorial 1:
@@ -65,12 +69,7 @@ passed   2026-11-15T15-02-21_follow_to_goal_leadSpeed-2.0_r1  .../runs/...
 summary: .../my_first_drive/suites/follow/summary.csv
 ```
 
-<p align="center">
-  <img src="../media/t5_terminal.webp" alt="A terminal: ros2 run scensim run suites/follow.yaml prints six passed lines, leadSpeed 2.0, 4.0 and 6.0 each twice (r0 and r1), then the summary path" width="720"><br>
-  <em>The suite in a terminal: six runs, all passed, then the summary. The pilots were
-  already up on Town01, so no map line (2026-11-17; Autoware 1.5.0, CARLA 0.9.16,
-  <code>ros2 launch</code>; the log root is shortened to <code>...</code>).</em>
-</p>
+<!-- TODO(exit run): a terminal screenshot of this step with the testbench command. -->
 
 The command exits 0 only when every run ended as expected (passed, unless the suite's
 `expect:` key names another verdict), 1 when one failed, 2 when one could not be judged.
@@ -78,15 +77,18 @@ The command exits 0 only when every run ended as expected (passed, unless the su
 **Check**:
 
 ```bash
-ros2 run scensim runs summary
-column -s, -t < runs/summary.csv
+cd ~/my_ws/src/my_first_drive
+logs=~/.local/state/scensim/logs     # the log root; the host settings' logs: if set
+scensim runs summary
+column -s, -t < "$logs"/my_first_drive/runs/summary.csv
 ```
 
-`runs summary` writes `summary.csv` and a merged `junit.xml` for the whole `runs/`
-directory and prints their paths; the table has one row per run, with the columns
+In a testbench's directory, the `runs` commands act on its runs.
+`runs summary` writes `summary.csv` and a merged `junit.xml` for all of the testbench's
+runs and prints their paths; the table has one row per run, with the columns
 `run_id`, `scenario`, `params`, `repetition`, `seed`, `verdict`, `reason`, `duration`,
-`judges` and `path`. The suite's own table, under `suites/follow/`, covers its runs;
-`runs summary` covers every run in `runs/`.
+`judges` and `path`. The suite's own table, under `<logs>/my_first_drive/suites/follow/`,
+covers its runs; `runs summary` covers every run of the testbench.
 
 ## 3. Add a judge
 
@@ -94,7 +96,7 @@ SSv2 judges collisions in its own world: the declared boxes, in 2D, with no stat
 objects. The ego can therefore clip a pole, a curb, or a car whose CARLA body is larger
 than its declared box, and SSv2 still passes the run. The bridge records what CARLA's
 contact sensor detected in every run, and the `physical_verdict` judge evaluates that
-record. Add it to `swb.yaml`:
+record. Add it to `testbench.yaml`:
 
 ```yaml
 judges:
@@ -103,16 +105,16 @@ judges:
           --scenario, "{scenario}"]
 ```
 
-A **judge** is a program run after each passed or failed run, in the project directory.
+A **judge** is a program run after each passed or failed run.
 `{run_dir}` and `{scenario}` in its `run` are replaced by the run directory and the
 scenario file; without them, the run directory is appended as the last argument. It prints one JSON object, and its exit code
 (0 passed, 1 failed) or the object's own `verdict` is the judge's verdict.
 
-Restart the stack, since `swb.yaml` changed (Ctrl-C, then the command of Tutorial 1,
-step 3). Then:
+Stop the stack, since `testbench.yaml` changed (`scensim stack my_first_drive --stop`);
+the next run starts it again:
 
 ```bash
-ros2 run scensim run suites/follow.yaml
+scensim run my_first_drive/follow
 ```
 
 **What you see**: each run line ends with `judges: physical_verdict=passed` (or
@@ -121,18 +123,18 @@ ros2 run scensim run suites/follow.yaml
 **Check**:
 
 ```bash
-cat runs/*leadSpeed-4.0_r0/judges/physical_verdict.json
+cat "$logs"/my_first_drive/runs/*leadSpeed-4.0_r0/judges/physical_verdict.json
 ```
 
 shows the judge's verdict, exit code and duration.
 
 ## 4. Shard, resume, prune
 
-On two hosts with the same project and lock, each takes half the suite:
+On two hosts with the same workspace and lock, each takes half the suite:
 
 ```bash
-ros2 run scensim run suites/follow.yaml --shard 1/2    # on the first host
-ros2 run scensim run suites/follow.yaml --shard 2/2    # on the second
+scensim run my_first_drive/follow --shard 1/2    # on the first host
+scensim run my_first_drive/follow --shard 2/2    # on the second
 ```
 
 `--shard i/n` takes every n-th run from the i-th, so the two together cover the suite
@@ -141,18 +143,18 @@ once; each host writes its summary to its own directory, `suites/follow_shard-1-
 already have a result:
 
 ```bash
-ros2 run scensim run suites/follow.yaml --resume
+scensim run my_first_drive/follow --resume
 ```
 
 **What you see**: `skipped  <run>  (resume: passed in ...)` for each run already done.
 
-What a run retains is set per verdict by `logging.keep` (in `swb.yaml` or the suite): by
+What a run retains is set per verdict by `logging.keep` (in `testbench.yaml` or the suite): by
 default only the result of a passed run, and everything of a failed one. `runs prune`
 removes old runs:
 
 ```bash
-ros2 run scensim runs prune --older-than 7 --dry-run
-ros2 run scensim runs prune --older-than 0 --dry-run
+scensim runs prune --older-than 7 --dry-run
+scensim runs prune --older-than 0 --dry-run
 ```
 
 **Check**: the runs of this tutorial are less than 7 days old, so the first says `nothing
@@ -165,7 +167,7 @@ A suite expands into run specs: every scenario times every parameter combination
 every repetition, each with its own id and seed. They run one after another against the
 same stack, ordered by map (so a suite over several towns moves the pilots once per town),
 and each leaves a run directory as in Tutorial 1; the suite links them under
-`<logs>/<project>/suites/<suite>/` with its table. The verdict of each run remains SSv2's;
+`<logs>/<testbench>/suites/<suite>/` with its table. The verdict of each run remains SSv2's;
 a judge adds its own beside it, never in its place, so that a scoring rule can change
 without rewriting past results. [Verdicts](../explanation/verdicts.md) explains `passed`, `failed` and
 `error` and the contact check; the
@@ -180,8 +182,9 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
    `expect: {follow_to_goal.xosc: failed}`. Check: the line reads
    `failed (expected failed)` and the command exits 0.
 3. **Open.** Run the Autoware Foundation's use cases: copy
-   `pkg://scensim_examples/projects/safety_suite`, fetch, start its stack and run
-   `suites/nightly.yaml` (about 45 minutes, measured on 2026-11-16). Check: two `passed` lines, the ACC use case's JUnit with 28 testcases and
+   it as a testbench (`scensim testbench new safety_suite --from
+   pkg://scensim_examples/projects/safety_suite`), build, fetch and run
+   `safety_suite/nightly` (about 45 minutes, measured on 2026-11-16). Check: two `passed` lines, the ACC use case's JUnit with 28 testcases and
    the AEB one's with 10 (27 and 9 variants, plus the `carla_contact` testcase
    `physical_verdict` adds), each judged by `physical_verdict`.
 
@@ -190,11 +193,11 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
 | Symptom | Fix |
 |---|---|
 | `scensim run: refused: suites/follow.yaml: unknown key ...` | a suite takes only the keys of the [reference](../reference/project-file.md#suites) |
-| `refused: the stack ... was started from another project state` | `swb.yaml` changed: restart the stack |
+| `refused: the stack ... was started from another project state` | `testbench.yaml` changed: `scensim stack <testbench> --stop`, then run again |
 | A judge's verdict is `error` | it printed no JSON object, timed out (120 s by default) or exited with another code: its message is in `judges/<name>.json` |
 | `refused: ... budget` | the log disk cannot hold the suite at `logging.budget`: prune runs, or lower `logging.keep` (step 4) |
 
 ## Next
 
-[Tutorial 6: the same project on Isaac Sim](06-carla-assets-on-isaac.md), or
+[Tutorial 6: the same testbench on Isaac Sim](06-carla-assets-on-isaac.md), or
 [Teaching with scensim](../teaching.md) for setting up a lab.

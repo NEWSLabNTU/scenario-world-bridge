@@ -277,6 +277,12 @@ still v0.1.0.
 Each step is pushed after review, with its tests.
 
 1. **Docs** (133, this doc; the index; 070 B and 029 pointed here).
+1b. **The rename to scensim**, before any new package exists. Its own short plan first
+   (the GitHub repositories, which the user renames; the ROS packages `swb_*`; the Python
+   package and command; the host settings `SWB_*`; the docs, the site and the datasets'
+   references), then one change per repository, pins after submodules as always. Old names
+   are refused by name, never aliased (no shims). The user's GitHub renames come first;
+   GitHub redirects the old URLs, and `.gitmodules` moves to the new ones.
 2. **`colcon-swb` and the testbench type.** The plugin, the ament index entries,
    `--symlink-install`, the check at build; `testbench check` (today's `project check`
    rules plus the `pkg://`-declared and no-`../` rules). Tests: a fixture workspace with a
@@ -361,11 +367,12 @@ Each step is pushed after review, with its tests.
   fixes. That rebuild must pass the link check too (see "A link check" above).
 - **Private testbenches** go to a new private repository the user creates (user,
   2026-11-17), with a workspace holding the NTU, Shalun and golf-cart testbenches.
-- **The project's name** changes (user, 2026-11-17: "It's no longer a bridge. It becomes a
-  framework. I'd like to find a memorizable name"); `swb` is taken on PyPI. The new name,
-  and the rename of the repository, the packages and the command, are decided before step 2
-  starts, so the plugin, the build type and the wheels are born under it. Until then this
-  doc says swb.
+- **The project's name is scensim** (user, 2026-11-17: "It's no longer a bridge. It becomes a
+  framework. I'd like to find a memorizable name"; then "scensim", for SCENario SIMulation,
+  from names built on scenario plus simulation). `swb` is taken on PyPI; `scensim` is free
+  (checked 2026-11-17, as are `scensim-ros-humble` style names to be checked at step 1b).
+  The rename is step 1b, before step 2, so the plugin (`colcon-scensim`), the build type
+  (`scensim_testbench`) and the wheels are born under it. Until then this doc says swb.
 - **x86_64 only** for now (CARLA has no aarch64 build).
 - **Redistribution** (checked 2026-11-17): this repository and every NEWSLabNTU submodule
   in the tarballs are public and Apache-2.0, as is `color_names`. `cuda_ndt_matcher` is

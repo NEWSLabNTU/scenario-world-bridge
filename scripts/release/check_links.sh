@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The link check (roadmap 082): on a clean ROS image with only the tarball and its rosdep
 # packages installed, every shared object and executable in it resolves every library and
-# symbol (`ldd -r`). Fails when one does not, naming it.
+# symbol (`ldd -r`), and every script's interpreter exists. Fails when one does not,
+# naming it.
 #
 #   scripts/release/check_links.sh <scensim-sim-....tar.zst> [--image ros:humble-ros-core]
 #       [--out DIR]
@@ -69,6 +70,15 @@ check before
 rosdep install --from-paths $P/share --ignore-src -y -q -r --rosdistro "$ROS_DISTRO" \
   --skip-keys "$SKIP_KEYS" > /out/rosdep_install.log 2>&1 || echo "rosdep install exited $?"
 check after
+# every script's interpreter exists here (a build-host python in a shebang fails as
+# "bad interpreter" on every other host)
+: > /out/shebangs.txt
+while IFS= read -r -d '' f; do
+  head -n1 "$f" 2>/dev/null | grep -qE '^#! ?/' || continue
+  interp=$(head -n1 "$f" | sed -E 's/^#! *//; s/ .*//')
+  [ -x "$interp" ] || echo "${f#$P/}: $interp" >> /out/shebangs.txt
+done < <(find $P -type f -perm -u+x -print0)
+echo "scripts with a missing interpreter: $(wc -l < /out/shebangs.txt)"
 EOF
 
 docker run --rm --name "scensim-links-$$" \
@@ -77,6 +87,11 @@ docker run --rm --name "scensim-links-$$" \
     "$IMAGE" bash /in/inside.sh 2>&1 | grep -v "^debconf" | tee "$OUT/summary.txt"
 
 echo "keys: $(wc -l < "$OUT/keys.txt"); apt packages: $(wc -l < "$OUT/apt.txt") ($(wc -l < "$OUT/apt_exec.txt") at run time)" | tee -a "$OUT/summary.txt"
+if [ -s "$OUT/shebangs.txt" ]; then
+    echo "check_links.sh: FAILED, scripts whose interpreter does not exist on the image:" | tee -a "$OUT/summary.txt"
+    head -20 "$OUT/shebangs.txt" | sed 's/^/  /' | tee -a "$OUT/summary.txt"
+    exit 1
+fi
 failed=$(grep '^== ' "$OUT/ldd_after.txt" | sed 's/^== //' | while read -r f; do
     allowed=0; for a in $ALLOW; do [ "$(basename "$f")" = "$a" ] && allowed=1; done
     [ $allowed = 0 ] && echo "$f"; done || true)

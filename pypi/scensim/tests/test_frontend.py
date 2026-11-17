@@ -132,7 +132,7 @@ def env(tmp_path: Path):
     pkgs.mkdir()
     shome = tmp_path / "scensim-home"
 
-    def run(*args: str, ros: str | None = "humble", extra: dict | None = None):
+    def environ(ros: str | None = "humble", extra: dict | None = None) -> dict:
         e = {
             "PATH": "/usr/bin:/bin",
             "HOME": str(tmp_path),
@@ -143,17 +143,21 @@ def env(tmp_path: Path):
         if ros:
             e["ROS_DISTRO"] = ros
         e.update(extra or {})
+        return e
+
+    def run(*args: str, ros: str | None = "humble", extra: dict | None = None):
         return subprocess.run(
             [sys.executable, "-m", "scensim_frontend", *args],
             check=False,
             capture_output=True,
             text=True,
-            env=e,
+            env=environ(ros, extra),
             timeout=60,
         )
 
     ctx = type("Ctx", (), {})()
     ctx.files, ctx.server, ctx.pkgs, ctx.home, ctx.run = files, server, pkgs, shome, run
+    ctx.environ = environ
     yield ctx
     server.close()
 
@@ -465,3 +469,42 @@ def test_help_adds_the_release_commands_once_installed(env) -> None:
     r = env.run("--help")
     assert r.returncode == 0
     assert "scensim install" in r.stdout and "fake scensim: --help" in r.stdout
+
+
+# --- P2: the release's scensim forwards the front end's own commands here -----------------
+# Once the release's setup.bash is sourced, its bin/scensim is first on PATH and hands
+# --version, -V and install to scensim_frontend.cli.main(argv); these must never exec the
+# release again, or the two would loop.
+
+
+@pytest.mark.parametrize("args", [["--version"], ["-V"], ["install"], ["install", "--force"]])
+def test_the_front_ends_own_commands_never_exec_the_release(env, args) -> None:
+    publish(env)
+    assert env.run("install").returncode == 0
+    r = env.run(*args)
+    assert r.returncode == 0, r.stderr
+    assert "fake scensim" not in r.stdout + r.stderr
+
+
+def test_main_is_a_callable_that_returns_the_exit_code(env) -> None:
+    """241's release entry imports this and calls it; the contract is main(argv) -> int."""
+    publish(env)
+    code = (
+        "import sys\n"
+        "from scensim_frontend.cli import main\n"
+        "for argv in (['-V'], ['--version'], ['install'], ['install', '--bogus']):\n"
+        "    print('RET', argv[-1], main(argv))\n"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                       env=env.environ(), timeout=60, check=False)
+    assert r.returncode == 0, r.stderr
+    assert "RET -V 0" in r.stdout and "RET --version 0" in r.stdout
+    assert "RET install 0" in r.stdout and "RET --bogus 3" in r.stdout
+    assert "fake scensim" not in r.stdout
+
+
+def test_help_is_the_front_ends_own_before_any_install(env) -> None:
+    publish(env)
+    r = env.run("-h")
+    assert r.returncode == 0 and "scensim install" in r.stdout
+    assert "fake scensim" not in r.stdout and env.server.hits == 0

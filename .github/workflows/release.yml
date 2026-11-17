@@ -316,7 +316,7 @@ jobs:
           (cd /srv/release && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
           sleep 1
           scensim --version
-          scensim install | tee /tmp/install.txt
+          scensim install 2>&1 | tee /tmp/install.txt   # its instructions go to stderr
           # the rosdep line the front end printed
           rosdep update -q --rosdistro "$DISTRO" >/dev/null
           line=$(grep -oE 'rosdep install .*' /tmp/install.txt | head -1)

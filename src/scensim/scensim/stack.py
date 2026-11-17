@@ -172,7 +172,8 @@ def build_commits(workspace=None) -> dict:
     if ws is None:
         return {"scensim": None, "submodules": {}}
     p = results.provenance(ws)
-    return {"scensim": source_id(ws) or p.get("swb"), "submodules": p.get("submodules") or {}}
+    # None: the probe failed (unknown), which fingerprint_diff does not compare
+    return {"scensim": source_id(ws) or p.get("swb"), "submodules": p.get("submodules")}
 
 
 def fingerprint(project: Path, settings: dict = None, build: dict = None) -> dict:
@@ -187,8 +188,9 @@ def fingerprint(project: Path, settings: dict = None, build: dict = None) -> dic
     }
 
 
-def fingerprint_diff(stack_fp: dict, project_fp: dict) -> list:
-    """One phrase per part that differs, naming both sides."""
+def fingerprint_diff(stack_fp: dict, project_fp: dict, notes: list = None) -> list:
+    """One phrase per part that differs, naming both sides. The build's submodules unknown on
+    either side (their probe failed) are not compared; ``notes`` gets a phrase saying so."""
     names = {"swb_yaml": config.PROJECT_FILE, "scensim_lock": config.LOCK_FILE,
              "pilots": "pilots:", "build": "the build"}
     out = []
@@ -200,8 +202,14 @@ def fingerprint_diff(stack_fp: dict, project_fp: dict) -> list:
             a, b = a or {}, b or {}
             if a.get("scensim") != b.get("scensim"):
                 out.append(f"the build (stack scensim {a.get('scensim')}, now {b.get('scensim')})")
-            subs = sorted(p for p in set(a.get("submodules") or {}) | set(b.get("submodules") or {})
-                          if (a.get("submodules") or {}).get(p) != (b.get("submodules") or {}).get(p))
+            sa, sb = a.get("submodules"), b.get("submodules")
+            if sa is None or sb is None:
+                if notes is not None and (sa or sb):
+                    side = "the stack's" if sa is None else "this run's"
+                    notes.append(f"the build's submodules were not compared (unknown on "
+                                 f"{side} side: its `git submodule status` failed)")
+                continue
+            subs = sorted(p for p in set(sa) | set(sb) if sa.get(p) != sb.get(p))
             if subs:
                 out.append("the build's submodules (" + ", ".join(subs) + ")")
             continue

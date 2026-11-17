@@ -337,10 +337,31 @@ def _out(argv, cwd=None, timeout=10):
     return r.stdout if r.returncode == 0 else None
 
 
-def submodule_pins(workspace) -> dict:
+SUBMODULE_TIMEOUT = 30   # s: it runs at a stack's start, on a loaded host (docs/issues/<n>)
+
+
+def submodule_pins(workspace, timeout=SUBMODULE_TIMEOUT):
     """``{path: sha}`` from ``git submodule status``; ``sha+`` for a checkout off its pin,
-    ``sha-`` for one not initialised. Empty when git or the repository is not there."""
-    text = _out(["git", "--no-optional-locks", "submodule", "status"], cwd=workspace) or ""
+    ``sha-`` for one not initialised. None -- unknown, never ``{}`` -- when the command fails
+    or times out (a WARN names it): a failed probe must not look like another build."""
+    argv = ["git", "--no-optional-locks", "submodule", "status"]
+    if workspace is None or not (Path(workspace) / ".git").exists():
+        return None   # no checkout (a release): nothing to probe, nothing to warn about
+    try:
+        r = subprocess.run(argv, cwd=workspace, capture_output=True, text=True,
+                           timeout=timeout)
+        why = None if r.returncode == 0 else f"exit {r.returncode}: " + (
+            r.stderr.strip().splitlines() or [""])[-1]
+    except subprocess.TimeoutExpired:
+        why = f"no answer within {timeout:.0f} s"
+    except (OSError, subprocess.SubprocessError) as e:
+        why = str(e)
+    if why is not None:
+        import sys
+        print(f"scensim: WARN: `{' '.join(argv)}` in {workspace} failed ({why}); the build's "
+              "submodules are unknown", file=sys.stderr, flush=True)
+        return None
+    text = r.stdout
     pins = {}
     for line in text.splitlines():
         if len(line) < 42:
@@ -426,7 +447,7 @@ def provenance(workspace, project=None, build=None) -> dict:
     return {
         "swb": build["swb"] if build and build.get("swb") else commit,
         "submodules": (build.get("submodules") if build and build.get("swb") else None)
-        or submodule_pins(workspace),
+        or (submodule_pins(workspace) if workspace is not None else None),
         **extra,
         "host": socket.gethostname(),
         "gpu": ", ".join(gpus) if gpus else None,

@@ -18,7 +18,7 @@ setup(
     zip_safe=False,
     maintainer='Maintainer',
     maintainer_email='maintainer@example.com',
-    description="scenario-world-bridge's user commands",
+    description='scensim: run scenario testbenches on CARLA and Isaac Sim',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

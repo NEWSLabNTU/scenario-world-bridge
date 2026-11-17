@@ -237,7 +237,7 @@ def carla_endpoint(settings: dict, source: str = None) -> tuple:
     held = [s for s in seats if (holder(s.index, s.lock_dir) or {}).get("user") == me]
     if len(held) != 1:
         raise ConfigError("each seat has its own CARLA (seats.carla), your seat is auto and no "
-                          "single stack of yours holds one: run `ros2 run scensim seat take <n>`, "
+                          "single stack of yours holds one: run `scensim seat take <n>`, "
                           "or give --port")
     return host, held[0].carla_port
 
@@ -270,7 +270,7 @@ def describe_busy(s: Seat, busy: list) -> str:
     return (f"seat {s.index}'s ports are in use by a process outside the seat table: "
             + ", ".join(f"{what} {p}" for what, p in busy)
             + " (another checkout's stack? `ss -ltnp` names it); take another seat "
-              "(`ros2 run scensim seat take auto`) or stop it")
+              "(`scensim seat take auto`) or stop it")
 
 
 # ---------------------------------------------------------------------------- locks
@@ -515,7 +515,7 @@ def _err(msg: str) -> int:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="ros2 run scensim seat", description="Seats on this host.")
+    ap = argparse.ArgumentParser(prog="scensim seat", description="Seats on this host.")
     ap.add_argument("--project", help="the project (default: the working directory's)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("take", help="record a seat as yours (seat: in your host.yaml)")
@@ -595,7 +595,7 @@ def main(argv=None) -> int:
                         if (holder(s.index, s.lock_dir) or {}).get("user") == me]
                 if len(held) != 1:
                     return _err("your seat is auto and no single stack of yours holds one: "
-                                "run `ros2 run scensim seat take <n>`")
+                                "run `scensim seat take <n>`")
                 s = held[0]
             else:
                 s = resolve(settings, source)

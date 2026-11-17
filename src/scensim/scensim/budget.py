@@ -102,7 +102,7 @@ def check(budget, n_runs: int, runs_root: Path, free=None, used=None) -> str:
     if need > free:
         return (f"{n_runs} run(s) at logging.budget.per_run {fmt(need // n_runs)} need "
                 f"{fmt(need)}; {fmt(free)} is free under {root}: prune "
-                "(`ros2 run scensim runs prune`), lower capture or per_run, or run fewer")
+                "(`scensim runs prune`), lower capture or per_run, or run fewer")
     if budget.get("total"):
         total = parse_size(budget["total"])
         if used is None:
@@ -110,5 +110,5 @@ def check(budget, n_runs: int, runs_root: Path, free=None, used=None) -> str:
         if used + need > total:
             return (f"{n_runs} run(s) at logging.budget.per_run {fmt(need // n_runs)} need "
                     f"{fmt(need)}; the runs hold {fmt(used)} of logging.budget.total "
-                    f"{fmt(total)}: prune (`ros2 run scensim runs prune`), raise total, or run fewer")
+                    f"{fmt(total)}: prune (`scensim runs prune`), raise total, or run fewer")
     return ""

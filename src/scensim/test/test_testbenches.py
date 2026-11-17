@@ -326,3 +326,107 @@ def test_the_scensim_front_end_dispatches_and_refuses_an_unknown_command(capsys)
     assert "scensim: no command nope" in capsys.readouterr().err
     assert cli.main(["--help"]) == 0
     assert "testbench" in capsys.readouterr().out
+
+
+# --- the stack in the foreground, and testbench:= -----------------------------------------
+
+def test_project_for_is_the_work_directory_and_keeps_the_guard(ws, monkeypatch):
+    assert testbenches.project_for("tb_one") == ws["logs"] / ".testbenches" / "tb_one"
+    monkeypatch.setattr(tbmod, "built_over", lambda: dict(NOW, scensim="9.9.9"))
+    with pytest.raises(testbenches.TestbenchRefused) as e:
+        testbenches.project_for("tb_one")
+    assert "colcon build" in str(e.value)
+
+
+def test_the_foreground_stack_names_the_testbench_never_its_work_directory(ws):
+    from types import SimpleNamespace as NS
+    tb = testbenches.find("tb_one")
+    seat = NS(index=2, web_port=8100)
+    host = {"logs": str(ws["logs"]), "launcher": "ros2"}
+    argv = stack_cli.foreground_argv(tb, Path("/w"), host, seat, ws["tmp"] / "l")
+    text = " ".join(map(str, argv))
+    assert "scensim_launch" in text and "scensim.launch.xml" in text
+    assert "testbench:=tb_one" in text and "seat:=2" in text and ".testbenches" not in text
+    path_tb = testbenches.at_path(ws["src"])
+    text = " ".join(map(str, stack_cli.foreground_argv(path_tb, ws["src"], host, seat,
+                                                       ws["tmp"] / "l")))
+    assert f"project:={ws['src']}" in text and "testbench:=" not in text
+
+
+def test_ctrl_c_stops_the_foreground_stack_by_its_process_group(monkeypatch):
+    import signal as sig
+    sent = []
+
+    class Proc:
+        pid = 4242
+        calls = 0
+
+        def wait(self, timeout=None):
+            Proc.calls += 1
+            if Proc.calls == 1:
+                raise KeyboardInterrupt()
+            return 0
+    monkeypatch.setattr(stack_cli.os, "killpg", lambda pgid, s: sent.append((pgid, s)))
+    out = io.StringIO()
+    rc = stack_cli.run_foreground(["x"], {}, out, popen=lambda *a, **k: Proc())
+    assert rc == 130 and sent == [(4242, sig.SIGINT)]
+    assert "stopping (Ctrl-C)" in out.getvalue()
+
+
+# --- 243's review of 76f5a2b -------------------------------------------------------------------
+
+def test_new_twice_says_it_already_exists(tmp_path, monkeypatch, capsys):
+    (tmp_path / "src").mkdir()
+    monkeypatch.chdir(tmp_path / "src")
+    assert testbench_cli.main(["new", "tb_x"]) == 0
+    capsys.readouterr()
+    assert testbench_cli.main(["new", "tb_x"]) == 3
+    assert "src/tb_x already exists" in capsys.readouterr().err
+
+
+def test_new_writes_a_testbench_readme_and_no_gitignore(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    assert testbench_cli.main(["new", "tb_x"]) == 0
+    readme = (tmp_path / "tb_x" / "README.md").read_text()
+    assert "scensim run tb_x" in readme and "colcon build --symlink-install" in readme
+    assert "project" not in readme and "ros2 run" not in readme
+    assert not (tmp_path / "tb_x" / ".gitignore").exists()
+    assert not (tmp_path / "tb_x" / "gitignore").exists()
+
+
+def test_check_names_files_in_the_testbench_and_the_fetch_with_its_name(ws):
+    out = io.StringIO()
+    testbench_cli.check("tb_one", logs=str(ws["logs"]), out=out)
+    text = out.getvalue()
+    assert ".testbenches" not in text and str(ws["logs"]) not in text
+    if "assets fetch" in text:
+        assert "scensim assets fetch tb_one)" in text
+
+
+def test_runs_outside_a_testbench_name_the_testbench_form(ws, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert runs.main(["list"]) == 3
+    assert "name a testbench: scensim runs list <testbench>" in capsys.readouterr().err
+    assert runs.main(["show", "drive"]) == 3
+    assert "no run drive in any testbench's runs" in capsys.readouterr().err
+    out = io.StringIO()
+    assert runs.main(["list", "tb_one"], out=out) == 0
+    assert out.getvalue() == "no runs yet\n"
+    r = ws["logs"] / "tb_one" / "runs" / "2026-11-17T10-00-00_drive_r0"
+    r.mkdir(parents=True)
+    (r / "result.json").write_text(json.dumps({"run_id": r.name, "verdict": "passed"}))
+    out = io.StringIO()
+    assert runs.main(["show", "drive"], out=out) == 0
+    assert out.getvalue().startswith(f"run       {r.name}\n")
+
+
+def test_testbench_list_shows_the_workspace_with_a_tilde(ws, capsys, monkeypatch):
+    monkeypatch.setenv("HOME", str(ws["tmp"]))
+    assert testbench_cli.main(["list"]) == 0
+    assert "(~/ws)" in capsys.readouterr().out
+
+
+def test_scensim_alone_prints_the_commands_and_exits_0(capsys):
+    assert cli.main([]) == 0
+    out = capsys.readouterr().out
+    assert "testbench  new, list and check testbenches" in out

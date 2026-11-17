@@ -1,4 +1,4 @@
-"""``ros2 run scensim runs list|show|why|prune|summary``: a project's results and logs.
+"""``scensim runs list|show|why|prune|summary``: a project's results and logs.
 
 docs/design/projects-and-pilots.md, "Results" and "Logs". Runs live in ``<project>/runs``
 (a link to ``<logs>/<project name>/runs``), one directory per run id; ``--root`` names another
@@ -100,19 +100,30 @@ def runs_root(args) -> Path:
     else:
         try:
             project = config.find_project(args.project)
-        except config.ConfigError as e:
+        except config.ConfigError:
             ident = getattr(args, "id", None)
-            if ident:
-                # outside any project: the run is found among every testbench's and project's
-                hits = sorted(p.parent for p in _logs().glob(f"*/runs/*{ident}*")
-                              if p.is_dir())
-                if len(set(hits)) == 1:
-                    return hits[0]
-            raise Refused(f"{e} (or name the testbench, or give --root <runs dir>)")
+            if not ident:
+                raise Refused("name a testbench: scensim runs list <testbench> (or run it in "
+                              "a testbench directory)") from None
+            # outside any testbench: the run is found among every testbench's runs
+            roots = sorted({p.parent for p in _logs().glob(f"*/runs/*{ident}*") if p.is_dir()})
+            if len(roots) == 1:
+                return roots[0]
+            if not roots:
+                raise Refused(f"no run {ident} in any testbench's runs "
+                              f"({_logs()}/<testbench>/runs)") from None
+            raise Refused(f"run {ident} is in several testbenches' runs ("
+                          + ", ".join(r.parent.name for r in roots)
+                          + "): name the testbench (--testbench <tb>)"
+                          ) from None
         root = project / "runs"
     if not root.is_dir():
-        raise Refused(f"{root}: no runs directory")
+        raise NoRuns(root)
     return root
+
+
+class NoRuns(Exception):
+    """A testbench or project that has no runs yet: not an error for `runs list`."""
 
 
 def run_dirs(root: Path) -> list:
@@ -394,14 +405,17 @@ def cmd_summary(args, out):
 # --- main -----------------------------------------------------------------------------------
 
 def parser():
-    ap = argparse.ArgumentParser(prog="ros2 run scensim runs", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="scensim runs", description=__doc__.split("\n")[0])
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--project", help="the project (default: found from the working dir)")
-    common.add_argument("--root", help="a runs directory instead of <project>/runs")
+    common.add_argument("--testbench", help="the testbench whose runs (<logs>/<name>/runs)")
+    common.add_argument("--project", help="a testbench directory (default: found from the "
+                                          "working directory)")
+    common.add_argument("--root", help="a runs directory instead of the testbench's")
     sub = ap.add_subparsers(dest="cmd", required=True)
     ls = sub.add_parser("list", parents=[common],
                         help="runs: id, verdict, scenario, duration, workspace")
-    ls.add_argument("testbench", nargs="?", help="a testbench (its runs: <logs>/<name>/runs)")
+    ls.add_argument("tb", nargs="?", metavar="testbench",
+                    help="a testbench (its runs: <logs>/<name>/runs)")
     for name, text in (("show", "a run's result and timeline"),
                        ("why", "a run's reason and first WARN/ERROR")):
         p = sub.add_parser(name, parents=[common], help=text)
@@ -427,11 +441,19 @@ def main(argv=None, out=None) -> int:
     if getattr(args, "keep_last", None) is not None and args.keep_last < 0:
         sys.stderr.write("runs: --keep-last must be >= 0\n")
         return EXIT_REFUSED
+    if getattr(args, "tb", None):
+        args.testbench = args.tb
     try:
         return {"list": cmd_list, "show": cmd_show, "why": cmd_why, "prune": cmd_prune,
                 "summary": cmd_summary}[args.cmd](args, out)
     except Refused as e:
         sys.stderr.write(f"runs: {e}\n")
+        return EXIT_REFUSED
+    except NoRuns as e:
+        if args.cmd in ("list", "summary", "prune"):
+            out.write("no runs yet\n")
+            return EXIT_OK
+        sys.stderr.write(f"runs: no runs yet ({e.args[0]})\n")
         return EXIT_REFUSED
 
 

@@ -12,10 +12,10 @@ CARLA's Town01.
 Fetch the map, check the project, bring up the stack and run the scenario:
 
 ```bash
-ros2 run scensim assets fetch
-ros2 run scensim project check
+scensim assets fetch
+scensim project check
 play_launch launch scensim_launch scensim.launch.xml
-ros2 run scensim run scenarios/drive_to_goal.xosc
+scensim run scenarios/drive_to_goal.xosc
 ```
 
 `assets/`, `state/` and `runs/` are made on each host and are not committed.

@@ -1,4 +1,4 @@
-"""``ros2 run scensim assets fetch|list|check|prune``: a project's assets, by name, from a read-only cache.
+"""``scensim assets fetch|list|check|prune``: a project's assets, by name, from a read-only cache.
 
 docs/design/projects-and-pilots.md, "Assets". A dataset is a Hugging Face dataset (namespace
 ``jerry73204`` unless ``repo:`` names another). ``fetch``:
@@ -53,7 +53,7 @@ MAP_MARKER = "lanelet2_map.osm"
 ROOT_DOCS = {"README.md", "NOTICE.md", "NOTICE", "LICENSE", "LICENSE.md", ".gitattributes",
              *MANIFESTS}
 LOCK_VERSION = 1
-FETCH = "ros2 run scensim assets fetch"
+FETCH = "scensim assets fetch"
 
 # the public datasets: name, size, what
 KNOWN = [
@@ -195,7 +195,7 @@ def read_lock(project: Path) -> dict:
 
 
 def lock_text(lock: dict) -> str:
-    return ("# written by `ros2 run scensim assets fetch`; commit it\n"
+    return ("# written by `scensim assets fetch`; commit it\n"
             + yaml.safe_dump(lock, sort_keys=False, default_flow_style=False))
 
 
@@ -224,7 +224,7 @@ class HttpHub:
                     continue
                 if e.code in (401, 403, 404):
                     raise AssetError(f"{url}: HTTP {e.code} (fix: check the dataset's name"
-                                     " and revision; `ros2 run scensim assets list`)") from None
+                                     " and revision; `scensim assets list`)") from None
                 raise HubUnreachable(f"{url}: HTTP {e.code}") from None
             except (urllib.error.URLError, OSError) as e:
                 if attempt + 1 < self.retries:
@@ -876,6 +876,16 @@ def list_assets(project, out=print):
         out(f"  {spec.name}  path {spec.path}{state}")
 
 
+def testbenches_work(d) -> bool:
+    """``d`` is an installed testbench's work directory (``<logs>/.testbenches/<pkg>``)."""
+    return Path(d).parent.name == ".testbenches"
+
+
+def _home(p) -> str:
+    p, home = str(p), str(Path.home())
+    return "~" + p[len(home):] if p == home or p.startswith(home + "/") else p
+
+
 def testbench_dir(name: str, source=None, fetching=False) -> Path:
     """The directory to work on for testbench ``name`` (081 step 3): its work directory when it
     is installed (whose lock links to its source), else the directory itself. A fetch of an
@@ -904,7 +914,7 @@ def testbench_dir(name: str, source=None, fetching=False) -> Path:
 def main(argv=None):
     from scensim import signals
     signals.take_sigint()   # a fetch of GBs stops on its group's SIGINT, even from a `&` job
-    parser = argparse.ArgumentParser(prog="ros2 run scensim assets",
+    parser = argparse.ArgumentParser(prog="scensim assets",
                                      description="A project's assets: fetch, list, check.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("fetch", help="assets into the cache, the lock, links into assets/")
@@ -947,6 +957,9 @@ def main(argv=None):
             list_assets(project)
             return 0
         project = config.find_project(args.project)
+        if tb_name and testbenches_work(project):
+            # the lines below name assets/... of a directory the user never opens: say once where
+            print(f"testbench {tb_name}: this host's assets are in {_home(project)}/assets")
         if args.cmd == "fetch":
             config.writable_project(project)
             fetch(project, update=args.update, verify=args.verify)

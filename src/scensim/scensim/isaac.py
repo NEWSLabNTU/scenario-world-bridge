@@ -5,7 +5,7 @@ each Autoware message package it uses is rebuilt for that Python into ``<isaac r
 by aib's ``build_msgs.sh`` (installed as ``share/aib/scripts/build_msgs.sh``). A package
 missing there, or built before the Autoware install changed, used to surface only mid-run, as
 a failed frame. ``problems`` finds both before a stack starts; ``project check`` and the
-stack report them, and ``ros2 run scensim isaac msgs`` builds what is missing.
+stack report them, and ``scensim isaac msgs`` builds what is missing.
 
 The packages are the build script's own default list: one source for both.
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 from . import config
 from .findings import Finding
 
-FIX = "ros2 run scensim isaac msgs"
+FIX = "scensim isaac msgs"
 SCRIPT = Path("share") / "aib" / "scripts" / "build_msgs.sh"
 _DEFAULT = re.compile(r"\|\|\s*PKGS=\(([^)]*)\)")
 _TYPESUPPORT = ("generator_c", "typesupport_c", "typesupport_fastrtps_c",
@@ -150,7 +150,7 @@ def build(host: dict, packages=None, prefixes=None) -> int:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="ros2 run scensim isaac",
+    ap = argparse.ArgumentParser(prog="scensim isaac",
                                  description="Isaac Sim on this host.")
     ap.add_argument("--project", help="the project (default: the working directory's)")
     sub = ap.add_subparsers(dest="cmd", required=True)

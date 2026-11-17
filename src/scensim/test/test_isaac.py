@@ -33,7 +33,7 @@ def test_a_missing_package_is_refused_by_name(tmp_path, monkeypatch):
     root, setup = fake_isaac(tmp_path, monkeypatch, built=PKGS[:2])
     [f] = isaac.findings(host_of(root, setup))
     assert f.refused and "autoware_perception_msgs is not built" in f.what
-    assert str(root / "msgs") in f.what and f.fix == "ros2 run scensim isaac msgs"
+    assert str(root / "msgs") in f.what and f.fix == "scensim isaac msgs"
 
 
 def test_a_package_built_from_an_older_autoware_is_stale(tmp_path, monkeypatch):

@@ -4,7 +4,7 @@
     r = run_one("~/my_project", "scenarios/cut_in.xosc", {"parameters": {"gap_m": 6}, "seed": 3})
     r.verdict, r.reason, r.run_id
 
-The same as one run of ``ros2 run scensim run`` (scensim.run; docs/design/projects-and-pilots.md
+The same as one run of ``scensim run`` (scensim.run; docs/design/projects-and-pilots.md
 "Runs"): it finds the stack of ``project`` on its seat, refuses (``scensim.run.Refused``) a missing,
 stopped, unready or different stack, and returns the run's ``RunResult`` (also written to
 ``runs/<id>/result.json``).

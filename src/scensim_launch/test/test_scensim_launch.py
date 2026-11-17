@@ -119,3 +119,43 @@ def test_every_launch_file_parses_for_ros2_launch():
         r = subprocess.run(["ros2", "launch", os.path.join(LAUNCH, f), "--show-args"],
                            capture_output=True, text=True, timeout=120)
         assert r.returncode == 0, f"{f}: {r.stderr[-2000:]}"
+
+
+def _context(**given):
+    from launch import LaunchContext
+    context = LaunchContext()
+    for name, (default, _) in scensim.ARGS.items():
+        context.launch_configurations[name] = default
+    context.launch_configurations.update(given)
+    return context
+
+
+def test_testbench_and_project_together_are_refused():
+    """081 step 3: testbench:= resolves the work directory itself; project:= stays for paths."""
+    import pytest
+    with pytest.raises(RuntimeError) as e:
+        scensim._swb(_context(testbench="tb_one", project="/some/dir"))
+    assert "give testbench:= or project:=, not both" in str(e.value)
+
+
+def test_a_testbench_not_built_is_refused_naming_colcon_build(monkeypatch):
+    import pytest
+    monkeypatch.setenv("AMENT_PREFIX_PATH", "/nonexistent")
+    with pytest.raises(RuntimeError) as e:
+        scensim._swb(_context(testbench="tb_never_built"))
+    assert "testbench tb_never_built is not in the sourced workspace" in str(e.value)
+
+
+def test_a_testbench_is_planned_in_its_work_directory(monkeypatch, tmp_path):
+    from scensim import stack as stackmod, testbenches
+    seen = {}
+    monkeypatch.setattr(testbenches, "project_for", lambda name, logs=None: tmp_path / name)
+
+    def plan(**kw):
+        seen.update(kw)
+        raise stackmod.StackRefused("planned")
+    monkeypatch.setattr(stackmod, "plan", plan)
+    import pytest
+    with pytest.raises(RuntimeError):
+        scensim._swb(_context(testbench="tb_one"))
+    assert seen["project_arg"] == str(tmp_path / "tb_one")

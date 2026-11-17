@@ -1,0 +1,5 @@
+[colcon_core.task.build]
+ros.scensim_testbench = colcon_scensim.task.build:TestbenchBuildTask
+
+[colcon_core.task.test]
+ros.scensim_testbench = colcon_scensim.task.test:TestbenchTestTask

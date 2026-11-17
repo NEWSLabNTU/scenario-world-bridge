@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tb_swb</name>
+  <version>0.0.1</version>
+  <description>colcon-scensim test fixture</description>
+  <maintainer email="fixture@example.com">fixture</maintainer>
+  <license>Apache-2.0</license>
+  <export>
+    <build_type>scensim_testbench</build_type>
+  </export>
+</package>

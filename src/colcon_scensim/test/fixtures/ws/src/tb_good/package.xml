@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>tb_good</name>
+  <version>0.0.1</version>
+  <description>colcon-scensim test fixture</description>
+  <maintainer email="fixture@example.com">fixture</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>shared_scenarios</exec_depend>
+  <exec_depend>a_support_pkg</exec_depend>
+  <export>
+    <build_type>scensim_testbench</build_type>
+  </export>
+</package>

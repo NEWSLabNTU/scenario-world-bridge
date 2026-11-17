@@ -296,6 +296,7 @@ process. [How it works](../explanation/how-it-works.md) explains the parts, and
 | `assets fetch` prints `error: <url>: <reason>` and exits 2 | no network, or a proxy that requires `https_proxy`; a later attempt keeps the files already downloaded |
 | `swb run: refused: no stack of project my_first_drive on any seat` | the stack is not up, or was started in another directory (step 3) |
 | The run ends `error`: `pilot ego never became ready (600 s)` | a slow first start (step 4): run again, or give `--ready-timeout 1200` |
+| The run ends `error`, `perception is not` ready, every time; the pilot's log (the stack's `proc/pilot-ego/console.log`) has `undefined symbol: _ZTVN18diagnostic_updater7UpdaterE` | the installed Autoware 1.5.0 is not the published binary packages (a local rebuild) and one of its libraries fails to load; install Autoware 1.5.0's published packages |
 | `ros2 topic list` in another terminal shows nothing | that terminal is not on the pilot's ROS domain: `eval "$(ros2 run swb seat env 0)"` first (0 is the index of the seat's first pilot domain, the ego's, not a seat number) |
 
 More, CARLA's own failures among them: [Troubleshooting](../reference/troubleshooting.md).

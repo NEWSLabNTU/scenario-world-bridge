@@ -1,0 +1,30 @@
+# The simulation side's Autoware message packages (roadmap 029, 082): built into the
+# simulation tarball so it needs no Autoware install. Pinned at Autoware 1.5.0's
+# versions (autowarefoundation/autoware 1.5.0, repositories/autoware.repos). The relay and
+# the SSv2 fork use them; the simulation side reaches the ego over the relay's TCP link, so
+# they never exchange messages with a running Autoware.
+repositories:
+  autoware_msgs:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_msgs.git
+    version: 1.11.0
+  autoware_adapi_msgs:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_adapi_msgs.git
+    version: 1.9.1
+  autoware_internal_msgs:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_internal_msgs.git
+    version: 1.12.0
+  autoware_cmake:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_cmake.git
+    version: 1.1.0
+  autoware_lanelet2_extension:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_lanelet2_extension.git
+    version: 0.10.0
+  tier4_autoware_msgs:
+    type: git
+    url: https://github.com/tier4/tier4_autoware_msgs.git
+    version: v0.58.0

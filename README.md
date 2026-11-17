@@ -80,8 +80,7 @@ Install), so that the stack starts it:
 ros2 run swb project new ~/my_first_drive        # a starter project
 cd ~/my_first_drive
 ros2 run swb assets fetch                        # its map, from Hugging Face
-play_launch launch --web-addr 127.0.0.1:8080 \
-    swb_launch swb.launch.xml                    # the stack: it remains running
+ros2 launch swb_launch swb.launch.xml            # the stack: it remains running
 ros2 run swb run scenarios/drive_to_goal.xosc    # in a second terminal
 ```
 
@@ -96,7 +95,7 @@ The fixed requirements are the platform and the build tools:
 |---|---|
 | OS, ROS | Ubuntu 22.04, [ROS 2 Humble](https://docs.ros.org/en/humble/Installation.html) |
 | Autoware's messages | Autoware's interface messages (`autoware_adapi_v1_msgs` and the vehicle and control messages), from an Autoware workspace or its binary packages (required to build, whichever autopilot drives) |
-| Launcher | [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer, recommended for its per-node logs, web interface and process supervision. The runner currently starts the stack and the scenario with it; support for plain `ros2 launch` is in progress |
+| Launcher | ROS 2's own `ros2 launch`; [play_launch](https://pypi.org/project/play-launch/) 0.30.0 or newer is recommended, for its per-process logs, web interface and supervision |
 | Build tools | Rust ([rustup](https://rustup.rs/)) and colcon's Rust plugin, `colcon-cargo-ros2` |
 
 The simulator and the autopilot are choices, each with the versions it has been tested
@@ -150,7 +149,8 @@ After installation, each reader continues from the point that matches their role
 - **A developer of swb itself** continues with [the Developer Guide](docs/development.md).
 
 [All documentation](docs/README.md). What swb does not do, on one page:
-[Supported and not supported](docs/reference/limits.md).
+[Supported and not supported](docs/reference/limits.md). What each release holds, and its
+known limits: [Release notes](docs/release-notes.md).
 
 ## Datasets
 

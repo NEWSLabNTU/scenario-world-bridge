@@ -43,14 +43,18 @@ def make_tarball(
         f"arch: x86_64\nautoware: null\nbuilt: '2026-11-17T12:00:00Z'\n"
         f"build_seconds: 382\ncarla:\n  - {{version: 0.9.16, tier: 1}}\n"
         f"commits:\n  .: abc123\n  src/scensim_carla_world: def456\n",
-        "setup.bash": f"export FAKE_SETUP_{side.upper()}=1\n",
+        # as a colcon prefix's: sets what only it sets, and records the order of sourcing
+        "setup.bash": f'export FAKE_SETUP_{side.upper()}=1\nexport ORDER="${{ORDER}}{side},"\n',
         "share/fake/package.xml": "<package/>\n",
     }
     if side == "sim":
         files["bin/scensim"] = (
+            # like 241's: needs its prefix's environment, exits with the command's code
             "#!/bin/bash\n"
+            '[ -n "$FAKE_SETUP_SIM" ] || { echo "fake scensim: no environment" >&2; exit 97; }\n'
             'echo "fake scensim: $* (setup=${FAKE_SETUP_SIM:-0},'
-            ' vehicle=${FAKE_SETUP_VEHICLE:-0})"\n'
+            ' vehicle=${FAKE_SETUP_VEHICLE:-0}) order=${ORDER}"\n'
+            'case "$1" in exit) exit "$2";; esac\n'
         )
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w") as tar:
@@ -412,3 +416,52 @@ def test_make_manifest_with_a_dashed_version(env, tmp_path: Path) -> None:
     )
     assert r.returncode == 0, r.stderr
     assert json.loads(out.read_text())["artefacts"]["x86_64"]["sim"]["size"] == sim.stat().st_size
+
+
+# --- the environment before exec (133, 2026-11-17) --------------------------------------------
+
+
+def fake_root(tmp_path: Path, name: str, rel: str, var: str) -> Path:
+    root = tmp_path / name
+    (root / rel).mkdir(parents=True)
+    (root / rel / "setup.bash").write_text(f'export {var}=1\nexport ORDER="${{ORDER}}{name},"\n')
+    return root
+
+
+def test_exec_needs_the_prefix_environment_and_passes_the_exit_code(env) -> None:
+    publish(env)
+    r = env.run("exit", "5")
+    assert r.returncode == 5, r.stderr
+    assert "no environment" not in r.stderr
+
+
+def test_ros_autoware_sim_vehicle_order(env, tmp_path: Path) -> None:
+    """No ROS sourced, Autoware not sourced but installed: ROS, Autoware, sim, vehicle."""
+    publish(env, vehicle=True)
+    ros = fake_root(tmp_path, "ros", "humble", "FAKE_ROS")
+    aw = fake_root(tmp_path, "autoware", "1.5.0", "FAKE_AW")
+    roots = {"SCENSIM_ROS_ROOT": str(ros), "SCENSIM_AUTOWARE_ROOT": str(aw)}
+    r = env.run("install", "--distro", "humble", "--autoware", "1.5.0", ros=None, extra=roots)
+    assert r.returncode == 0, r.stderr
+    r = env.run("run", "x", ros=None, extra=roots)
+    assert r.returncode == 0, r.stderr
+    assert "order=ros,autoware,sim,vehicle," in r.stdout
+
+
+def test_an_already_sourced_prefix_is_not_sourced_again(env) -> None:
+    publish(env)
+    assert env.run("install").returncode == 0
+    sim = env.home / "0.1.0-humble" / "sim"
+    r = env.run("run", "x", extra={"AMENT_PREFIX_PATH": str(sim), "FAKE_SETUP_SIM": "1"})
+    assert r.returncode == 0, r.stderr
+    assert "order=" in r.stdout and "order=sim" not in r.stdout
+
+
+def test_help_adds_the_release_commands_once_installed(env) -> None:
+    publish(env)
+    r = env.run("--help")
+    assert r.returncode == 0 and "fake scensim" not in r.stdout and env.server.hits == 0
+    assert env.run("install").returncode == 0
+    r = env.run("--help")
+    assert r.returncode == 0
+    assert "scensim install" in r.stdout and "fake scensim: --help" in r.stdout

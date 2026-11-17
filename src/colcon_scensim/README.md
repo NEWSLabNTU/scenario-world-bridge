@@ -1,0 +1,22 @@
+# colcon-scensim
+
+colcon's `scensim_testbench` build type (scensim roadmap 081). A testbench is a ROS package
+whose `package.xml` exports
+
+```xml
+<export>
+  <build_type>scensim_testbench</build_type>
+</export>
+```
+
+and holds `testbench.yaml` and the files it names. `colcon build` installs it to
+`share/<pkg>/` (links under `--symlink-install`), registers it in the ament index
+(`packages/<pkg>`, `scensim_testbenches/<pkg>`) and runs the testbench check: a problem fails
+the package's build with the check's message.
+
+colcon finds the build type through this plugin's entry points on its Python's path. scensim's
+`setup.bash` puts both the plugin and scensim (whose check it runs) there; with a pip-installed
+colcon, `pip install colcon-scensim` as well.
+
+Tests: `python3 -m pytest test` (they run a real `colcon build` on the fixture workspace in
+`test/fixtures/ws`).

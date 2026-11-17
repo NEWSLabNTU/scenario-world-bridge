@@ -1,0 +1,3 @@
+scenarios:
+  - pkg://shared_scenarios/scenarios/shared_drive.xosc
+  - ../../tb_good/scenarios/drive_to_goal.xosc

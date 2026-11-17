@@ -297,7 +297,7 @@ these slots, and the `spec_hash` start check covers it like a car of `sim_vehicl
   paths, relative to the file; or the ROS parameter and launch argument `vehicle_catalogs`
   of `bridge.launch.xml`, `simulation.launch.xml`, `carla_simulation.launch.xml` and
   `isaac_simulation.launch.xml`, comma- or colon-separated, added to the file's list) names
-  OpenSCENARIO vehicle catalogs whose `Vehicle` entries carry a `swb.spec_hash` property.
+  OpenSCENARIO vehicle catalogs whose `Vehicle` entries carry a `scensim.spec_hash` property.
   The check uses the union of these and `sim_vehicle_spec`'s installed
   `catalogs/vehicles.xosc`, keyed by `model3d`. A listed file that is missing, is not a
   catalog or has no such entry stops the bridge at start, naming the file; so does a

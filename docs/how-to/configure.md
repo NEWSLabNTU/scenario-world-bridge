@@ -67,7 +67,7 @@ ros2 param get /scenario_world_bridge config_file
 | `blueprint_map` | SSv2 asset names to simulator models (`sample_vehicle: "vehicle.tesla.model3"`) |
 | `weather` | a weather preset applied at connect and after every map load |
 | `contact_report_dir` | the stack's (each run's in `contacts/`); set it in `world:` instead |
-| `gap_trace_dir` | the stack's: `logging: {gap_trace: true}` puts each run's trace of both worlds' poses in its `gap_trace/`, for the `swb.gap` judges ([Judges](../reference/project-file.md#judges)) |
+| `gap_trace_dir` | the stack's: `logging: {gap_trace: true}` puts each run's trace of both worlds' poses in its `gap_trace/`, for the `scensim.gap` judges ([Judges](../reference/project-file.md#judges)) |
 
 An NPC that drives into the ego keeps pushing as long as SSv2 commands it on: make it
 brake once the collision is seen.

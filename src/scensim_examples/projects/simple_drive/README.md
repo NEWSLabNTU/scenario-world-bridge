@@ -5,7 +5,7 @@ autopilot that needs no Autoware.
 
 | File | Holds |
 |---|---|
-| `swb.yaml` | CARLA, the Town01 map, and the pilot of the entity `ego`: kind `simple` on a Tesla Model 3 |
+| `testbench.yaml` | CARLA, the Town01 map, and the pilot of the entity `ego`: kind `simple` on a Tesla Model 3 |
 | `scenarios/drive_to_goal.xosc` | the ego drives 70 m west to a goal |
 | `scenarios/turn_to_goal.xosc` | the ego drives 100 m west, turns left at the corner and stops 35 m down the next road |
 | `suites/all.yaml` | the two, one run each, in one table |

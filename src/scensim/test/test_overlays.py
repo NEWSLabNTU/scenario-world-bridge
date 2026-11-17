@@ -82,7 +82,7 @@ def test_a_host_path_in_the_project_file_warns(host, capsys):
     entry = str(ws / "install" / "setup.bash")
     d = make(host["tmp"], pilot_yaml(f"['{entry}']"))
     assert scenario_checks(d) == []   # it works: a warning, not a problem
-    notes = overlays.notes(yaml.safe_load((d / "swb.yaml").read_text()))
+    notes = overlays.notes(yaml.safe_load((d / "testbench.yaml").read_text()))
     assert len(notes) == 1 and "a host path in a project file; name it as a host workspace" in notes[0]
     project.main(["check", str(d)])
     assert "warning: pilots.ego.overlays: " + entry in capsys.readouterr().out
@@ -123,11 +123,11 @@ def test_the_stack_records_each_overlay_and_wraps_the_pilot(where, maps_hub, tmp
     ws = workspace(where["tmp"], git=True)
     host_file(where, workspaces={"drift": str(ws)})
     d = make_stack(where, maps_hub=maps_hub)
-    text = (d / "swb.yaml").read_text().replace(
+    text = (d / "testbench.yaml").read_text().replace(
         "ego: {kind: autoware, vehicle: tesla_model3}",
         "ego: {kind: autoware, vehicle: tesla_model3,"
         " overlays: ['{workspace:drift}/install/setup.bash']}")
-    (d / "swb.yaml").write_text(text)
+    (d / "testbench.yaml").write_text(text)
     assets.fetch(d, out=lambda s: None)
     p = stack.plan(project_arg=str(d), map_name="Town01")
     ego = next(x for x in p.record["pilots"] if x["entity"] == "ego")

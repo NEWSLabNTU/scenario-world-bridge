@@ -6,7 +6,7 @@ scenario.
 
 | File | Holds |
 |---|---|
-| `swb.yaml` | the simulator, the assets, and who drives each entity |
+| `testbench.yaml` | the simulator, the assets, and who drives each entity |
 | `scensim.lock` | the assets' exact versions, written by `assets fetch`; commit it |
 | `scenarios/drive_to_goal.xosc` | the scenario: the map, the ego, its goal, the pass condition |
 

@@ -73,7 +73,7 @@ def test_retired_arguments_are_refused_by_name():
         scensim._swb(context)
     msg = str(e.value)
     assert "ego_launch:= is retired" in msg and "ego_launch_args:= is retired" in msg
-    assert "swb.yaml" in msg
+    assert "testbench.yaml" in msg
 
 
 def test_another_simulator_starts_no_ego():

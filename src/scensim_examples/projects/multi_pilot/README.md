@@ -3,7 +3,7 @@
 **Goal**: one run in which four vehicles are driven by four different pilots, one of them
 a program of your own, on CARLA's Town01.
 
-| Entity | Pilot (`swb.yaml`) | Does |
+| Entity | Pilot (`testbench.yaml`) | Does |
 |---|---|---|
 | `ego` | `autoware` | comes down the north arm of a T junction, turns right, drives west to its goal |
 | `lead` | `carla_basic`: CARLA's BasicAgent | drives west ahead of the ego |

@@ -1,5 +1,5 @@
 # One lap of Town05's ring with a drift (roadmap 057, lap 32; 077 step 4 item 25). Deferred:
-# needs a quiet GPU (swb.yaml says why); expect stays empty until it has a passing run.
+# needs a quiet GPU (testbench.yaml says why); expect stays empty until it has a passing run.
 scenarios:
   - scenarios/town05_ring_lap.xosc
 retry: {on: error, times: 1}

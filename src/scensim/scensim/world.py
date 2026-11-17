@@ -1,10 +1,10 @@
-"""The simulation side's settings a project names: ``world:`` and ``isaac:`` in ``swb.yaml``.
+"""The simulation side's settings a project names: ``world:`` and ``isaac:`` in ``testbench.yaml``.
 
 docs/design/projects-and-pilots.md, "World settings". ``world:`` goes to the bridge and the
 world server (``side_args`` and ``sim_args`` of stack.launch.py), ``isaac:`` to the Isaac
 world server (``sim_args``). Both are merged with what scensim gives those launches itself, never
 in place of it: a key scensim owns (the state directory, the trace and contact directories, the
-world and the ports) is refused by name, in ``swb.yaml`` and in ``stack_args``.
+world and the ports) is refused by name, in ``testbench.yaml`` and in ``stack_args``.
 
     world:
       weather: ClearNoon                # a preset, or parameters (below)
@@ -40,9 +40,9 @@ CONTACTS_OFF = "off"
 # the plan's): name -> what to give instead
 SIDE_OWNED = {
     "state_dir": "scensim's: <project>/state",
-    "gap_trace_dir": "logging.gap_trace: true in swb.yaml (each run's trace in "
+    "gap_trace_dir": "logging.gap_trace: true in testbench.yaml (each run's trace in "
                      "runs/<id>/gap_trace/)",
-    "contact_report_dir": "world.contact_report_dir in swb.yaml (unset: each run's in "
+    "contact_report_dir": "world.contact_report_dir in testbench.yaml (unset: each run's in "
                           "runs/<id>/contacts/)",
     "world_endpoint": "scensim's: the seat's world server port",
     "ssv2_port": "scensim's: the seat's SSv2 port",
@@ -55,7 +55,7 @@ SIM_OWNED = {
               "carla_host": "the host settings' carla.host", "carla_port": "the host "
               "settings' carla.port (or the seat table's carla:)"},
     "isaac": {"state_dir": "scensim's: <project>/state",
-              "world": "maps: in swb.yaml and map:= (preload: in isaac:)"},
+              "world": "maps: in testbench.yaml and map:= (preload: in isaac:)"},
 }
 
 

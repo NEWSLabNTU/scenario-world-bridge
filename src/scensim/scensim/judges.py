@@ -1,6 +1,6 @@
 """Judges: named, versioned programs run over a finished run's directory.
 
-docs/design/projects-and-pilots.md, "Results". A project lists them in ``swb.yaml``::
+docs/design/projects-and-pilots.md, "Results". A project lists them in ``testbench.yaml``::
 
     judges:
       - name: comfort                    # judges/comfort.json

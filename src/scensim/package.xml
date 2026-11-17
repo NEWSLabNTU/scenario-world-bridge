@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>
     scensim's user commands: `ros2 run scensim project|assets|seat|run|runs`.
-    Projects (swb.yaml), assets fetched by name into a read-only cache with a lock file,
+    Projects (testbench.yaml), assets fetched by name into a read-only cache with a lock file,
     seats (a stack's share of a host) from config files, runs and suites against a
     long-lived stack, and their results.
   </description>

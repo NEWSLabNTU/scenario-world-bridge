@@ -503,7 +503,7 @@ def scenario_argv(rec: dict, spec: RunSpec, run_dir: Path, scenario: Path) -> li
     """SSv2 as a nested play_launch of scenario.launch.xml, for this run."""
     args = {"scenario": str(scenario), "port": str(rec["ports"]["ssv2"]),
             "output_directory": str(run_dir / "logs" / "ssv2")}
-    # the run settings (scensim.ssv2: swb.yaml's, the suite's, the item's, the call's)
+    # the run settings (scensim.ssv2: testbench.yaml's, the suite's, the item's, the call's)
     args.update(ssv2mod.launch_args(spec.ssv2 or {}))
     args["global_timeout"] = str(int(spec.timeout or DEFAULT_TIMEOUT))
     ego = next((p for p in rec.get("pilots", []) if p["entity"] == "ego"), None)
@@ -913,7 +913,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     rec, project = ctx.stack, ctx.project
     psettings = config.project_settings(project)
     lg = logging_for(psettings.get("logging"), spec.logging)
-    # SSv2's run settings: swb.yaml's ssv2:, then the spec's (suite, item, call), then
+    # SSv2's run settings: testbench.yaml's ssv2:, then the spec's (suite, item, call), then
     # --timeout / overrides["timeout"]
     settings = ssv2mod.merge(psettings.get("ssv2"), spec.ssv2)
     called = spec.timeout   # the call's --timeout: the last word, never raised

@@ -17,7 +17,7 @@
   seat's web port, which `ros2 run scensim seat show` lists. Runs go against the stack with
   `ros2 run scensim run <scenario|suite>`.
 
-  Who drives each entity is the project's swb.yaml (pilots:). The old stack's ego_launch,
+  Who drives each entity is the project's testbench.yaml (pilots:). The old stack's ego_launch,
   ego_launch_args, agent and map_path are refused by name, here or in stack_args, naming what
   replaced them.
 -->

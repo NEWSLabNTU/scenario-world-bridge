@@ -1,4 +1,4 @@
-# Item 8: incidents i1 to i5, on the demo tour's ego (swb.yaml). Reference: roadmap 034, 5/5
+# Item 8: incidents i1 to i5, on the demo tour's ego (testbench.yaml). Reference: roadmap 034, 5/5
 # (2026-10-16); roadmap 033, 25/25 in five rounds.
 scenarios:
   - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i1_lead_brake.xosc

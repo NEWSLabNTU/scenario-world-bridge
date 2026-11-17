@@ -70,11 +70,11 @@ def where(host):
     return host
 
 
-def make(where, swb_yaml=None):
+def make(where, testbench_yaml=None):
     d = where["tmp"] / "proj"
     project.new_project(d, "multi-pilot")
-    if swb_yaml is not None:
-        (d / "swb.yaml").write_text(swb_yaml)
+    if testbench_yaml is not None:
+        (d / "testbench.yaml").write_text(testbench_yaml)
     assets.fetch(d, out=lambda s: None)
     return d
 
@@ -246,11 +246,11 @@ def test_a_runs_provenance_lists_the_pilots_overlays(live, where):
 
 def test_fingerprint_mismatch_refused(live, capsys):
     d, _ = live
-    (d / "swb.yaml").write_text((d / "swb.yaml").read_text().replace("kind: carla_basic",
+    (d / "testbench.yaml").write_text((d / "testbench.yaml").read_text().replace("kind: carla_basic",
                                                                        "kind: none"))
     assert run.main(["scenarios/three_pilots.xosc", "--project", str(d)]) == 3
     err = capsys.readouterr().err
-    assert "swb.yaml (stack sha256:" in err and "pilots: (stack" in err
+    assert "testbench.yaml (stack sha256:" in err and "pilots: (stack" in err
 
 
 # --- runs end to end ------------------------------------------------------------------------
@@ -797,7 +797,7 @@ def test_the_stack_is_planned_here_first_and_a_refusal_said_plainly(where, maps_
 
     def refusing_plan(**kw):
         asked.append(kw)
-        raise run.stackmod.StackRefused("project check found problems:\nswb.yaml: pilots: ego: "
+        raise run.stackmod.StackRefused("project check found problems:\ntestbench.yaml: pilots: ego: "
                                         "kind 'autowar' is not one of autoware, command")
     monkeypatch.setattr(run.stackmod, "plan", refusing_plan)
     monkeypatch.setattr(run.stackmod, "start_process", lambda *a, **k: started.append(a))
@@ -1017,7 +1017,7 @@ def test_gap_trace_per_run_judged_and_frame_metrics(where, maps_hub, monkeypatch
     gap_oracle judge reads the trace there, and the frame budget becomes metrics."""
     from test_settings import trace_text
     monkeypatch.setenv("PYTHONPATH", f"{SCENSIM_ROOT}:{os.environ.get('PYTHONPATH', '')}")
-    d = make(where, (project.TEMPLATES / "multi-pilot" / "swb.yaml").read_text()
+    d = make(where, (project.TEMPLATES / "multi-pilot" / "testbench.yaml").read_text()
              + "judges:\n  - {name: gap, run: [python3, -m, scensim.gap, oracle],"
                " needs: [gap_trace]}\nlogging: {keep: {}}\n")
     (where["tmp"] / "fake_traced.py").write_text(FAKE_SSV2_TRACED)

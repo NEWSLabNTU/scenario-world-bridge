@@ -15,7 +15,7 @@ MAPS = "jerry73204/carla-town-autoware-maps"
 def project(tmp, text):
     p = tmp / "proj"
     p.mkdir(exist_ok=True)
-    (p / "swb.yaml").write_text(text)
+    (p / "testbench.yaml").write_text(text)
     return p
 
 
@@ -125,7 +125,7 @@ def test_manifest_mismatch_refuses(host, hub):
     assert not (p / "scensim.lock").exists()
     assert not (host["cache"] / "datasets/jerry73204/m" / sha / "T/lanelet2_map.osm").exists()
     # only taken files are verified: U is fine, T is not taken
-    (p / "swb.yaml").write_text("simulator: carla\npilots: {}\n"
+    (p / "testbench.yaml").write_text("simulator: carla\npilots: {}\n"
                                 "assets: [{dataset: m, take: [U]}]\n")
     assets.fetch(p, out=lambda s: None)
     assert (p / "assets/maps/U").is_symlink()
@@ -183,7 +183,7 @@ def test_dropped_asset_is_unlinked(host, maps_hub):
     p = project(host["tmp"], MAP_PROJECT.replace("[Town01]", "[Town01, Town05]"))
     assets.fetch(p, out=lambda s: None)
     assert (p / "assets/maps/Town05").is_symlink()
-    (p / "swb.yaml").write_text(MAP_PROJECT)
+    (p / "testbench.yaml").write_text(MAP_PROJECT)
     out = []
     assets.fetch(p, out=out.append)
     assert not (p / "assets/maps/Town05").exists()
@@ -220,8 +220,8 @@ def test_check(host, maps_hub, capsys):
     assert assets.main(["--project", str(p), "check"]) == 1
     out = capsys.readouterr().out
     assert "problem: scensim.lock: carla-town-autoware-maps: Town01/pointcloud_map.pcd differs" in out
-    # swb.yaml moved on since the fetch
-    (p / "swb.yaml").write_text(MAP_PROJECT.replace("[Town01]", "[Town05]"))
+    # testbench.yaml moved on since the fetch
+    (p / "testbench.yaml").write_text(MAP_PROJECT.replace("[Town01]", "[Town05]"))
     assert any("changed since the fetch" in x.what and x.refused for x in assets.check(p))
 
 
@@ -251,7 +251,7 @@ def test_unchanged_files_are_not_hashed_again(host, maps_hub, hashed, capsys):
     # a second project on the same cache, the same files: a fetch with nothing to download
     q = host["tmp"] / "other"
     q.mkdir()
-    (q / "swb.yaml").write_text(MAP_PROJECT)
+    (q / "testbench.yaml").write_text(MAP_PROJECT)
     out = []
     assets.fetch(q, out=out.append)
     assert out[0].endswith(f"{n} file(s), 0 downloaded") and hashed == []
@@ -281,7 +281,7 @@ def test_a_changed_file_is_caught(host, maps_hub, hashed):
     # a fetch into a fresh project over that cache refuses it too
     q = host["tmp"] / "other"
     q.mkdir()
-    (q / "swb.yaml").write_text(MAP_PROJECT)
+    (q / "testbench.yaml").write_text(MAP_PROJECT)
     with pytest.raises(assets.AssetError, match="differs from the manifest"):
         assets.fetch(q, out=lambda s: None)
 
@@ -333,7 +333,7 @@ assets:
   - {dataset: b, path: c}
   - 7
 """)
-    _, _, found = assets.parse_assets(p, yaml.safe_load((p / "swb.yaml").read_text()))
+    _, _, found = assets.parse_assets(p, yaml.safe_load((p / "testbench.yaml").read_text()))
     assert len(found) == 3
     assert "unknown key tkae" in found[0].what
     with pytest.raises(assets.AssetError, match="tkae"):
@@ -357,7 +357,7 @@ def test_list(host, maps_hub, capsys):
     p = project(host["tmp"], MAP_PROJECT)
     assets.fetch(p, out=lambda s: None)
     more = MAP_PROJECT.replace("pilots:", "  - {dataset: haruna-tsukuba-courses}\npilots:")
-    p.joinpath("swb.yaml").write_text(more)
+    p.joinpath("testbench.yaml").write_text(more)
     assert assets.main(["--project", str(p), "list"]) == 0
     out = capsys.readouterr().out
     for name, _, _ in assets.KNOWN:

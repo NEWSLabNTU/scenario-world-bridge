@@ -357,7 +357,7 @@ def run(entries: list, work: Path, dry_run: bool, logs: Path = None) -> int:
     for project, es in by_project.items():
         d = work_dir(es[0], work)
         steps = []
-        if es[0].get("copy") and not (d / "swb.yaml").is_file():
+        if es[0].get("copy") and not (d / "testbench.yaml").is_file():
             pkg = f"pkg://scensim_examples/projects/{Path(project).name}"
             steps.append((["ros2", "run", "scensim", "project", "new", str(d), "--from", pkg], None))
         # every project fetched first (nothing to download when it is; G35 skips the hashes)

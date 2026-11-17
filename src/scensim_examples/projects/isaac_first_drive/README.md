@@ -5,7 +5,7 @@ assets in USD.
 
 | File | Holds |
 |---|---|
-| `swb.yaml` | Isaac Sim; Town01's Autoware map and Isaac world file; the town and the cars in USD; the pilot of `ego` |
+| `testbench.yaml` | Isaac Sim; Town01's Autoware map and Isaac world file; the town and the cars in USD; the pilot of `ego` |
 | `scenarios/drive_to_goal.xosc` | the ego drives 70 m west to a goal |
 | `scenarios/follow_to_goal.xosc` | the ego drives 80 m to a goal behind a slower car the scenario moves (4 m/s); touching it fails |
 

@@ -100,7 +100,7 @@ def test_a_swb_yaml_project_is_refused_naming_testbench_yaml(ws, plugin_dir):
     r = colcon(ws, plugin_dir, "--packages-select", "tb_swb")
     out = r.stdout + r.stderr
     assert r.returncode != 0
-    assert "a testbench's file is testbench.yaml, not swb.yaml" in out
+    assert "swb.yaml is renamed testbench.yaml (roadmap 081)" in out
     assert "git mv swb.yaml testbench.yaml" in out
 
 

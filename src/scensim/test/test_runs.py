@@ -77,7 +77,7 @@ def test_list(root):
 def test_list_from_project(tmp_path, monkeypatch):
     proj = tmp_path / "p"
     proj.mkdir()
-    (proj / "swb.yaml").write_text("simulator: carla\n")
+    (proj / "testbench.yaml").write_text("simulator: carla\n")
     make_run(proj / "runs", "a_r0", "passed")
     code, out = call("list", "--project", str(proj))
     assert code == 0 and "a_r0" in out

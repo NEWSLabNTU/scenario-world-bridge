@@ -51,9 +51,9 @@ INPUTS = ("sensors", "map", "ground_truth")
 LEVELS = ("result", "standard", "full", "debug")
 VERDICTS = ("passed", "failed", "error")
 LOGGING_KEYS = ("capture", "keep", "budget", "topics", "gap_trace")
-# logging keys the stack acts on, so swb.yaml's only (a suite runs against a stack as it is)
+# logging keys the stack acts on, so testbench.yaml's only (a suite runs against a stack as it is)
 STACK_LOGGING = {"gap_trace": "the stack records the gap trace for every run or none: "
-                              "logging.gap_trace: true in swb.yaml, then restart the stack"}
+                              "logging.gap_trace: true in testbench.yaml, then restart the stack"}
 # designed, not built: refused by name rather than accepted and ignored
 LOGGING_NOT_YET = {"levels": "per-process ROS log levels are not built yet; give a pilot its"
                              " own (e.g. args: {log_level: warn}) where its launch takes one",
@@ -522,7 +522,7 @@ def suite_items(listed):
 
 
 def unmanaged_scenarios(project: Path, settings: dict) -> set:
-    """The scenario files some layer runs with ``managed_ego: false`` (swb.yaml's ``ssv2:``
+    """The scenario files some layer runs with ``managed_ego: false`` (testbench.yaml's ``ssv2:``
     makes it every one); their ego needs no pilot."""
     base = ssv2mod.merge(settings.get("ssv2") if isinstance(settings.get("ssv2"), dict) else {})
     out = set()
@@ -764,7 +764,7 @@ def _package_installed(name: str) -> bool:
 
 
 def project_notes(path) -> list:
-    """Warnings for the project at ``path`` that do not stop it (a host path in swb.yaml)."""
+    """Warnings for the project at ``path`` that do not stop it (a host path in testbench.yaml)."""
     try:
         return overlaysmod.notes(config.project_settings(config.find_project(path)))
     except config.ConfigError:

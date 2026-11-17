@@ -23,7 +23,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("SCENSIM_CONFIG_HOME", str(user))
     monkeypatch.setenv("SCENSIM_SYSTEM_CONFIG", str(system))
     (system / "host.yaml").write_text(f"seat_locks: {locks}\n")
-    monkeypatch.chdir(tmp_path)   # no swb.yaml here: no project
+    monkeypatch.chdir(tmp_path)   # no testbench.yaml here: no project
     return user, system, locks
 
 

@@ -33,7 +33,7 @@ pilots:
 def record(where, sim="carla"):
     d = where["tmp"] / "proj"
     project.new_project(d, "multi-pilot")
-    (d / "swb.yaml").write_text(TWO_TOWNS.replace("carla", sim, 1))
+    (d / "testbench.yaml").write_text(TWO_TOWNS.replace("carla", sim, 1))
     assets.fetch(d, out=lambda s: None)
     return stack.plan(project_arg=str(d), map_name="Town01").record
 

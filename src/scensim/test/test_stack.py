@@ -24,11 +24,11 @@ def where(host):
     return host
 
 
-def make(where, template="multi-pilot", swb_yaml=None, maps_hub=None):
+def make(where, template="multi-pilot", testbench_yaml=None, maps_hub=None):
     d = where["tmp"] / "proj"
     project.new_project(d, template)
-    if swb_yaml is not None:
-        (d / "swb.yaml").write_text(swb_yaml)
+    if testbench_yaml is not None:
+        (d / "testbench.yaml").write_text(testbench_yaml)
     assets.fetch(d, out=lambda s: None)
     return d
 
@@ -79,7 +79,7 @@ def test_plan_multi_pilot(where, maps_hub):
     # a carla_basic pilot is ready when its agent registered the entity with the relay
     assert r["pilots"][1]["ready"][-4:] == ["registered", "--relay", "tcp://localhost:5760",
                                            r["pilots"][1]["entity"]]
-    assert r["fingerprint"]["swb_yaml"].startswith("sha256:")
+    assert r["fingerprint"]["testbench_yaml"].startswith("sha256:")
     assert r["pilot_contract"]["release_notify_endpoint"] == "tcp://127.0.0.1:5756"
 
 
@@ -109,20 +109,20 @@ pilots:
 
 
 def test_maps_key(where, maps_hub):
-    d = make(where, swb_yaml=MAPS_YAML)
+    d = make(where, testbench_yaml=MAPS_YAML)
     assert project.check_project(d) == []
     p = stack.plan(project_arg=str(d))
     assert p.record["maps"] == ["Town05", "Town01"] and p.map is None
-    (d / "swb.yaml").write_text(MAPS_YAML.replace("[Town05, Town01]", "[Town05, Town03]"))
+    (d / "testbench.yaml").write_text(MAPS_YAML.replace("[Town05, Town01]", "[Town05, Town03]"))
     f = project.check_project(d)
     assert [x.what for x in f] == ["maps: Town03 is not fetched (assets/maps/Town03)"]
     assert f[0].refused
-    (d / "swb.yaml").write_text(MAPS_YAML.replace("[Town05, Town01]", "Town05"))
+    (d / "testbench.yaml").write_text(MAPS_YAML.replace("[Town05, Town01]", "Town05"))
     assert [x.what for x in project.check_project(d)] == ["maps: is not a list of map names"]
 
 
 def test_switch_problem(where, maps_hub):
-    d = make(where, swb_yaml=MAPS_YAML.replace("maps: [Town05, Town01]\n", ""))
+    d = make(where, testbench_yaml=MAPS_YAML.replace("maps: [Town05, Town01]\n", ""))
     rec = stack.plan(project_arg=str(d)).record
     assert rec["maps"] == ["Town01"]
     assert stack.switch_problem(rec, "Town01") is None
@@ -170,7 +170,7 @@ def test_seat_auto_skips_held(where, maps_hub):
 
 
 def test_param_in_stack_pilot_refused(where, maps_hub):
-    d = make(where, swb_yaml="""simulator: carla
+    d = make(where, testbench_yaml="""simulator: carla
 assets:
   - dataset: carla-town-autoware-maps
     take: [Town01]
@@ -182,7 +182,7 @@ pilots:
     with pytest.raises(stack.StackRefused, match=r"\{param:policy\}.*lifetime: run"):
         stack.plan(project_arg=str(d))
     # as a run pilot it is the runner's
-    (d / "swb.yaml").write_text((d / "swb.yaml").read_text().replace(
+    (d / "testbench.yaml").write_text((d / "testbench.yaml").read_text().replace(
         '"{param:policy}"]}', '"{param:policy}"], lifetime: run}'))
     p = stack.plan(project_arg=str(d))
     assert [x["entity"] for x in p.record["pilot_entries"]] == ["ego", "lead"]
@@ -227,10 +227,10 @@ def test_fingerprint_diff_names_parts(where, maps_hub):
     d = make(where)
     a = stack.fingerprint(d)
     assert stack.fingerprint_diff(a, stack.fingerprint(d)) == []
-    (d / "swb.yaml").write_text((d / "swb.yaml").read_text() + "\n# edited\n")
+    (d / "testbench.yaml").write_text((d / "testbench.yaml").read_text() + "\n# edited\n")
     b = stack.fingerprint(d)
     diff = stack.fingerprint_diff(a, b)
-    assert len(diff) == 1 and diff[0].startswith("swb.yaml (stack sha256:")
+    assert len(diff) == 1 and diff[0].startswith("testbench.yaml (stack sha256:")
     b["build"] = {"scensim": "abc", "submodules": {"src/x": "1"}}
     a["build"] = {"scensim": "abd", "submodules": {"src/x": "2"}}
     diff = stack.fingerprint_diff(a, b)
@@ -347,7 +347,7 @@ pilots:
 
 
 def test_plan_simple_pilot(where, maps_hub):
-    d = make(where, template="carla-first-drive", swb_yaml=SIMPLE_CARLA)
+    d = make(where, template="carla-first-drive", testbench_yaml=SIMPLE_CARLA)
     rec = stack.plan(project_arg=str(d), map_name="Town01").record
     ego = rec["pilots"][0]
     assert (ego["entity"], ego["kind"], ego["domain"]) == ("ego", "simple", 18)
@@ -369,8 +369,8 @@ def test_isaac_plan_simple_pilot_turns_ground_truth_on(where, maps_hub, tmp_path
     base.parent.mkdir()
     base.write_text("rig: tesla_model3.rig.yaml\ndomain: 1\nnode_name: isaac_vehicle\n")
     d = make(where, template="isaac")
-    text = (d / "swb.yaml").read_text().replace("kind: autoware", "kind: simple")
-    (d / "swb.yaml").write_text(text)
+    text = (d / "testbench.yaml").read_text().replace("kind: autoware", "kind: simple")
+    (d / "testbench.yaml").write_text(text)
     real = stack.aib_ego_config
     stack.aib_ego_config = lambda: base
     try:
@@ -563,7 +563,7 @@ def test_check_ready_keeps_the_checks_reason():
 
 # --- roadmap 077: world:, isaac:, the gap trace, the weather --------------------------------
 
-MULTI = (project.TEMPLATES / "multi-pilot" / "swb.yaml").read_text()
+MULTI = (project.TEMPLATES / "multi-pilot" / "testbench.yaml").read_text()
 
 
 def test_world_reaches_the_side_beside_swbs(where, maps_hub):
@@ -573,7 +573,7 @@ def test_world_reaches_the_side_beside_swbs(where, maps_hub):
     (d / "config").mkdir()
     (d / "config" / "bridge.yaml").write_text("{}\n")
     (d / "config" / "carla.yaml").write_text("{}\n")
-    (d / "swb.yaml").write_text(MULTI + "world:\n  weather: {preset: WetNoon, cloudiness: 30}\n"
+    (d / "testbench.yaml").write_text(MULTI + "world:\n  weather: {preset: WetNoon, cloudiness: 30}\n"
                                 "  npc_motion: kinematic\n  config_file: config/bridge.yaml\n"
                                 "  world_config_file: config/carla.yaml\n"
                                 "logging: {gap_trace: true}\n")
@@ -609,7 +609,7 @@ def test_world_reaches_the_side_beside_swbs(where, maps_hub):
         with pytest.raises(stack.StackRefused, match=f"{name}:= is scensim's"):
             stack.plan(project_arg=str(d), stack_args=args)
     # contact_report_dir of the user's: theirs, not collected per run
-    (d / "swb.yaml").write_text(MULTI + "world: {contact_report_dir: off}\n")
+    (d / "testbench.yaml").write_text(MULTI + "world: {contact_report_dir: off}\n")
     p = stack.plan(project_arg=str(d))
     assert stack._named(p.launch_args["side_args"])["contact_report_dir"] == "off"
     assert p.record["episodes"] == {"gap_trace": None, "contacts": None}
@@ -617,7 +617,7 @@ def test_world_reaches_the_side_beside_swbs(where, maps_hub):
 
 def test_a_judge_that_needs_the_trace_turns_it_on(where, maps_hub):
     d = make(where)
-    (d / "swb.yaml").write_text(MULTI + "judges:\n  - {name: gap, run: [python3, -m, scensim.gap,"
+    (d / "testbench.yaml").write_text(MULTI + "judges:\n  - {name: gap, run: [python3, -m, scensim.gap,"
                                 " oracle], needs: [gap_trace]}\n")
     p = stack.plan(project_arg=str(d))
     assert p.record["episodes"]["gap_trace"].endswith("episodes/gap_trace")
@@ -643,7 +643,7 @@ def test_isaac_options_and_preload(where, maps_hub):
     d = make(where, template="isaac")
     (d / "config").mkdir()
     (d / "config" / "ego_lockstep.yaml").write_text("lockstep: true\n")
-    (d / "swb.yaml").write_text(ISAAC)
+    (d / "testbench.yaml").write_text(ISAAC)
     assets.fetch(d, out=lambda s: None)
     p = stack.plan(project_arg=str(d))
     sim = stack._named(p.launch_args["sim_args"])
@@ -665,7 +665,7 @@ def test_isaac_options_and_preload(where, maps_hub):
 
 def test_keeper_sets_the_weather_before_ready(where, maps_hub):
     d = make(where)
-    (d / "swb.yaml").write_text(MULTI + "world: {weather: {cloudiness: 30}}\n")
+    (d / "testbench.yaml").write_text(MULTI + "world: {weather: {cloudiness: 30}}\n")
     p = stack.plan(project_arg=str(d))
     stack.write_plan(p)
     answers = iter([(None, "waiting for service"), (False, "no world server yet"),
@@ -691,7 +691,7 @@ def test_keeper_sets_the_weather_before_ready(where, maps_hub):
 
 def test_weather_that_never_takes_fails_the_stack(where, maps_hub):
     d = make(where)
-    (d / "swb.yaml").write_text(MULTI + "world: {weather: {cloudy: 30}}\n")
+    (d / "testbench.yaml").write_text(MULTI + "world: {weather: {cloudy: 30}}\n")
     p = stack.plan(project_arg=str(d))
     stack.write_plan(p)
     old = stack.WEATHER_RETRY, stack.WEATHER_DEADLINE
@@ -710,7 +710,7 @@ def test_a_stopping_keeper_says_so_before_its_pilots_stop(where, maps_hub, monke
     """play_launch gives the keeper seconds before SIGKILL, less than the pilots' grace: the
     record must not still say ready while the pilots stop."""
     d = make(where)
-    (d / "swb.yaml").write_text(MULTI + "world: {weather: {cloudy: 30}}\n")
+    (d / "testbench.yaml").write_text(MULTI + "world: {weather: {cloudy: 30}}\n")
     p = stack.plan(project_arg=str(d))
     stack.write_plan(p)
     seen = []
@@ -781,11 +781,11 @@ def test_an_own_car_reaches_the_bridge_the_world_server_and_its_pilot(where, map
     monkeypatch.setattr(vehicles, "installed_catalog", lambda: INSTALLED)
     d = make(where)
     own_spec(d)
-    s = yaml.safe_load((d / "swb.yaml").read_text())
+    s = yaml.safe_load((d / "testbench.yaml").read_text())
     s["vehicles"] = ["vehicles/my_lincoln.yaml"]
     s["pilots"] = {"ego": {"kind": "simple", "vehicle": "my_lincoln"},
                    "*": {"kind": "none"}}
-    (d / "swb.yaml").write_text(yaml.safe_dump(s))
+    (d / "testbench.yaml").write_text(yaml.safe_dump(s))
     p = stack.plan(project_arg=str(d), check=None)
     own = d / "state" / "vehicles"
     assert p.launch_args["vehicle_catalogs"] == str(own / "catalogs" / "vehicles.xosc")
@@ -810,10 +810,10 @@ def test_isaac_ground_truth_for_a_pilot_that_says_it_drives_on_it(where, maps_hu
     base.write_text("rig: tesla_model3.rig.yaml\ndomain: 1\nnode_name: isaac_vehicle\n")
     monkeypatch.setattr(stack, "aib_ego_config", lambda: base)
     d = make(where, template="isaac")
-    text = (d / "swb.yaml").read_text().replace(
+    text = (d / "testbench.yaml").read_text().replace(
         "kind: autoware", 'kind: launch, launch: "scensim_launch simple.launch.py", agent: own, '
         "inputs: [map, ground_truth]")
-    (d / "swb.yaml").write_text(text)
+    (d / "testbench.yaml").write_text(text)
     p = stack.plan(project_arg=str(d), check=None)
     assert p.record["isaac_ego"]["config"]["ground_truth"] == {"topic": "/ground_truth/odom"}
 

@@ -3,7 +3,7 @@
 	Town01, the T junction at x = 325..341, y = -143.6..-120.5 (ROS map frame), and the road
 	west of it (lanelet 6583 westbound, y -131.4..-127.4; lanelet 5230 eastbound beside it).
 	Four externally driven vehicles (controller `agent` or `Autoware`), each bound to a pilot
-	by name in swb.yaml:
+	by name in testbench.yaml:
 
 	  ego      Autoware (pilot kind autoware): southbound on the north arm from y = -80,
 	           turns right at the junction, west to x = 145.

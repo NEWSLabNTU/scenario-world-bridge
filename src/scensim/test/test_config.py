@@ -39,7 +39,7 @@ def test_precedence(dirs):
 def test_find_project_walks_up(dirs):
     _, _, tmp = dirs
     (tmp / "proj" / "scenarios").mkdir(parents=True)
-    (tmp / "proj" / "swb.yaml").write_text("simulator: carla\n")
+    (tmp / "proj" / "testbench.yaml").write_text("simulator: carla\n")
     assert config.find_project(tmp / "proj" / "scenarios") == (tmp / "proj").resolve()
 
 

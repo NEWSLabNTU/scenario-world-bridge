@@ -1,6 +1,6 @@
 """SSv2's run settings: what a run hands ``scenario.launch.xml`` besides the scenario.
 
-docs/design/projects-and-pilots.md, "Run settings". A project gives defaults in ``swb.yaml``
+docs/design/projects-and-pilots.md, "Run settings". A project gives defaults in ``testbench.yaml``
 (``ssv2:``), a suite its own (``ssv2:``), a suite's scenario item its own
 (``scenarios: [{path: x.xosc, ssv2: {...}}]``), and the command line or ``run_one`` the last
 word (``--timeout``, ``overrides["ssv2"]``); each layer replaces the keys it names.

@@ -41,7 +41,7 @@ class FakeCommander:
 def make_ctx(tmp_path, pilots=None):
     project = tmp_path / "proj"
     (project / "assets" / "maps" / "Town01").mkdir(parents=True)
-    (project / "swb.yaml").write_text("simulator: carla\n")
+    (project / "testbench.yaml").write_text("simulator: carla\n")
     stack_dir = tmp_path / "stack"
     (stack_dir / "proc").mkdir(parents=True)
     rec = {"stack_id": "s1", "simulator": "carla", "map": "Town01", "maps": ["Town01"],

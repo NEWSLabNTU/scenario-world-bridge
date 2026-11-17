@@ -5,7 +5,7 @@ the ground given by the project, not by the map.
 
 | File | Holds |
 |---|---|
-| `swb.yaml` | Isaac Sim, Town01 (map, world, USD), the road physics stages, the pilot of `ego`, and `ground:` |
+| `testbench.yaml` | Isaac Sim, Town01 (map, world, USD), the road physics stages, the pilot of `ego`, and `ground:` |
 | `ground/town01.yaml` | Town01's surface map for this project: a wet stretch, 12.8 m of wet mud that ruts (a soil zone with its own ground), a gravel patch |
 | `scenarios/mud_and_gravel.xosc` | the ego drives 70 m west over all three, on a dry road, to its goal |
 | `scenarios/after_rain.xosc` | the same drive with the whole road moist and the gravel patch turned to dirt by the scenario (`RoadCondition`) |
@@ -62,7 +62,7 @@ push harder at low speed), so neither scenario stops there.
 ## Exercises
 
 1. Add the rough gravel road the stages dataset carries: uncomment `road_detail:` in
-   `swb.yaml`. Check: the world server's log names the corridor at load.
+   `testbench.yaml`. Check: the world server's log names the corridor at load.
 2. Make the mud softer: set `mud_road`'s class to `mud_soft` in `ground/town01.yaml`.
    Check: `mud_and_gravel.xosc` now ends `failed` on its 180 s timeout, the car stalled in
    the mud.

@@ -115,14 +115,14 @@ def test_old_map_variable(host):
 def test_the_old_names_are_refused_naming_their_successors(host):
     """roadmap 080: $(env SWB_MAPS) and the swb.* scenario properties name scensim's."""
     old = DRIVE.replace("SCENSIM_MAPS", "SWB_MAPS").replace(
-        '<Property name="maxJerk"', '<Property name="scensim.zone.pit.class" value="gravel" />'
+        '<Property name="maxJerk"', '<Property name="swb.zone.pit.class" value="gravel" />'
         '<Property name="maxJerk"', 1)
     d = make(host["tmp"], BASE, {"a.xosc": old})
     fs = scenario_checks(d)
     w = whats(fs)
     assert any("SWB_MAPS was renamed SCENSIM_MAPS" in x for x in w), w
     [f] = [f for f in fs if "property" in f.what]
-    assert f.refused and "scensim.zone.pit.class was renamed" in f.what
+    assert f.refused and "swb.zone.pit.class was renamed" in f.what
     assert f.fix == 'name="scensim.zone.pit.class"'
 
 

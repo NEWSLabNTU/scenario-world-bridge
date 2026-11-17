@@ -12,8 +12,8 @@ The tarball unpacks to a prefix root (no top directory):
   and the world protocol's packages keep theirs;
 - ``setup.bash`` / ``local_setup.bash`` with a guard that refuses another ROS release or
   architecture, naming both values;
-- ``bin/scensim``, a wrapper: ``scensim <command> ...`` runs ``lib/scensim/<command>``
-  with this prefix sourced;
+- ``bin/scensim``: the scensim package's own entry when it installs one, else a plain
+  exec into ``lib/scensim/<command>`` (the caller sets up the environment);
 - ``scensim-release.yaml``: version, side, ros_distro, arch, autoware, the simulators it
   serves, every repository's commit, each CARLA binary's support tier;
 - each package's ``package.xml`` (already under ``share/<pkg>/``, for ``rosdep install
@@ -51,18 +51,13 @@ if [ "$(uname -m)" != "{arch}" ]; then
 fi
 """
 
+# Until the scensim package installs its own bin/scensim (081), a plain exec into
+# lib/scensim/<command>. The environment is the caller's: the pip front end sources ROS and
+# this prefix's setup.bash before it execs, as any ROS tool needs.
 WRAPPER = """\
-#!/usr/bin/env bash
-# scensim <command> [args]: runs this release's lib/scensim/<command> with the release sourced.
+#!/bin/bash
+# scensim <command> [args]: runs this release's lib/scensim/<command>.
 prefix=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)
-case ":${AMENT_PREFIX_PATH:-}:" in
-  *":$prefix:"*) ;;
-  *)
-    if [ -z "${ROS_DISTRO:-}" ] && [ -f /opt/ros/@DISTRO@/setup.bash ]; then
-      source /opt/ros/@DISTRO@/setup.bash
-    fi
-    source "$prefix/setup.bash" || exit 1 ;;
-esac
 cmd=${1:-}
 usage="usage: scensim <command> [args]; commands: $(ls "$prefix/lib/scensim" | tr '\\n' ' ')"
 case "$cmd" in
@@ -141,6 +136,53 @@ def prune(prefix: Path, built, keep) -> list:
         if pkg not in keep:
             drop(prefix / "share" / pkg / "cmake", f"share/{pkg}/cmake (CMake exports)")
     return gone
+
+
+def foreign_shebangs(prefix: Path) -> list:
+    """Scripts whose interpreter is outside the system's (/usr/bin, /bin).
+
+    setuptools writes the building interpreter into each entry script, so a build run from
+    a virtual environment (or with any non-system python3 first on PATH) leaves its path
+    there, and every such script fails on another host with "bad interpreter". The release
+    refuses them rather than rewriting them: build with the system's Python.
+    """
+    found = []
+    for f in sorted(prefix.rglob("*")):
+        if not f.is_file() or f.is_symlink():
+            continue
+        try:
+            with open(f, "rb") as fh:
+                head = fh.readline(512)
+        except OSError:
+            continue
+        # a shebang names a path; Rust's inner attributes (#![...]) also start with #!
+        if not head.startswith((b"#!/", b"#! /")):
+            continue
+        interp = head[2:].strip().split(b" ")[0].decode(errors="replace")
+        if not interp.startswith(("/usr/bin/", "/bin/")):
+            found.append(f"{f.relative_to(prefix)}: {interp}")
+    return found
+
+
+def build_root_refs(prefix: Path, roots) -> dict:
+    """{kind: count} of text files that still name a build-host path."""
+    needles = [str(r).encode() for r in roots]
+    counts = {}
+    for f in prefix.rglob("*"):
+        # compiled Python records its source path; Python ignores it when the file moves
+        if not f.is_file() or f.is_symlink() or is_elf(f) or f.suffix == ".pyc":
+            continue
+        try:
+            data = f.read_bytes()
+        except OSError:
+            continue
+        if any(n in data for n in needles):
+            rel = f.relative_to(prefix)
+            kind = ("ament index" if "ament_index" in rel.parts else
+                    "package setup scripts" if f.suffix in (".sh", ".bash", ".zsh", ".dsv", ".ps1") else
+                    f"{rel.parts[0]}/")
+            counts[kind] = counts.get(kind, 0) + 1
+    return counts
 
 
 def strip_all(prefix: Path) -> int:
@@ -247,13 +289,23 @@ def main(argv=None) -> int:
     protocol = [n for n, p in pkgs.items() if str(p).startswith(str(root / PROTOCOL_DIR))]
     keep = kept_for_building(stage, protocol)
 
+    foreign = foreign_shebangs(stage)
+    if foreign:
+        print(f"stage_sim.py: refused: {len(foreign)} script(s) name an interpreter outside "
+              f"/usr/bin (built with a non-system python3 first on PATH?); build with the "
+              f"system's Python:", file=sys.stderr)
+        for line in foreign[:10]:
+            print(f"  {line}", file=sys.stderr)
+        return 3
     n_strip = strip_all(stage)
     stripped_size = tree_size(stage)
     gone = prune(stage, built, keep)
     guard(stage, a.distro, arch)
-    (stage / "bin").mkdir(exist_ok=True)
-    (stage / "bin" / "scensim").write_text(WRAPPER.replace("@DISTRO@", a.distro))
-    (stage / "bin" / "scensim").chmod(0o755)
+    entry = stage / "bin" / "scensim"
+    if not entry.exists():  # the scensim package's own entry wins once it installs one (081)
+        entry.parent.mkdir(exist_ok=True)
+        entry.write_text(WRAPPER)
+        entry.chmod(0o755)
     n_lic = licenses(stage, pkgs, built)
     release_yaml(stage, a, arch, commits(root, root / a.vendor), a.build_seconds)
     missing_xml = [p for p in built if not (stage / "share" / p / "package.xml").is_file()]
@@ -279,6 +331,10 @@ def main(argv=None) -> int:
         print(f"  {size / mb:7.1f} MB  {what}")
     print(f"staged: {final_size / mb:.1f} MB; {tarball.name}: {tarball.stat().st_size / mb:.1f} MB")
     print(f"LICENSES/: {n_lic} entries; package.xml missing for: {missing_xml or 'none'}")
+    venv = Path(sys.executable).resolve().parent.parent
+    refs = build_root_refs(stage, [root] + ([venv] if venv != Path("/usr") else []))
+    print(f"text files still naming the build host: {sum(refs.values())} "
+          f"({', '.join(f'{k}: {v}' for k, v in sorted(refs.items())) or 'none'})")
     return 0
 
 

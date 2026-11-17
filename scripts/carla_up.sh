@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bring up what a scenario on CARLA needs, reusing whatever already runs (roadmaps 046, 073
 # S9): CARLA itself (`just carla-start`, a systemd unit), then the stack (`just run
-# sim:=carla`, web SWB_WEB_PORT+4: the CARLA world server, the bridge, the agent relay and
+# sim:=carla`, web SCENSIM_WEB_PORT+4: the CARLA world server, the bridge, the agent relay and
 # the ego -- Autoware and its vehicle agent, nested, respawned -- in one launch), each waited
 # for. Run by `just scenario-direct|acceptance|e2e-direct ... sim:=carla` (the default). Each simulator's
 # bring-up is scripts/<sim>_up.sh with this contract; isaac_up.sh is Isaac's; both share
@@ -23,7 +23,7 @@
 # scenario's, or without an ego the scenario needs, is replaced.
 #
 # Environment, host settings all (from the justfile): CARLA_PORT, WORLD_PORT, SSV2_PORT,
-# AGENT_PORT, SWB_WEB_PORT, SWB_LOG_ROOT, and the waits CARLA_READY_TIMEOUT (s, default 300:
+# AGENT_PORT, SCENSIM_WEB_PORT, SCENSIM_LOG_ROOT, and the waits CARLA_READY_TIMEOUT (s, default 300:
 # a first start on a host serves RPC in 50-180 s) and EGO_READY_TIMEOUT (s, default 1200).
 set -euo pipefail
 map_dir="$1"

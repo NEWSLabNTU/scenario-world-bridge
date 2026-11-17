@@ -1,6 +1,6 @@
-# made by swb on each host
+# made by scensim on each host
 assets/
 state/
 runs
-.swb/
+.scensim/
 play_log/

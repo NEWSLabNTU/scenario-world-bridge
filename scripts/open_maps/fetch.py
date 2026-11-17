@@ -35,7 +35,7 @@ from pathlib import Path
 import requests
 import yaml
 
-UA = {"User-Agent": "swb-open-maps/0.1 (research; NEWSLabNTU)"}
+UA = {"User-Agent": "scensim-open-maps/0.1 (research; NEWSLabNTU)"}
 OVERPASS = "https://overpass-api.de/api/interpreter"
 OVERTURE_BUCKET = "overturemaps-us-west-2"
 MLY = "https://graph.mapillary.com"

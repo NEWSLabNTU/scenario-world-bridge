@@ -200,7 +200,7 @@ def ego_args(arm, rd, zones, extra):
 
 
 def ego_ready(web_port):
-    r = subprocess.run(["ros2", "run", "swb_launch", "ego_ready", "--timeout", "10", "--web-port", str(web_port)],
+    r = subprocess.run(["ros2", "run", "scensim_launch", "ego_ready", "--timeout", "10", "--web-port", str(web_port)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return r.returncode == 0
 
@@ -298,7 +298,7 @@ def main():
     ap.add_argument("--zones", default="/mnt/p5plus/aeon/coop/p1/zones/Town05/zones.yaml")
     ap.add_argument("--carla-port", type=int, default=int(os.environ.get("CARLA_PORT", 2000)))
     ap.add_argument("--relay", default=f"tcp://127.0.0.1:{os.environ.get('AGENT_PORT', '5560')}")
-    ap.add_argument("--ego-web-port", type=int, default=int(os.environ.get("SWB_WEB_PORT", 8080)) + 2)
+    ap.add_argument("--ego-web-port", type=int, default=int(os.environ.get("SCENSIM_WEB_PORT", 8080)) + 2)
     ap.add_argument("--ego-extra", default="", help="further ego-av arguments, space separated")
     ap.add_argument("--v", type=float, default=B_VMAX)
     ap.add_argument("--commit-config", default="", help="arm 'commit': a czp config directory (CZP_CONFIG) for the node")

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bring up what a scenario on Isaac Sim needs, reusing whatever already runs (roadmaps 043,
-# 073 S9): the stack (`just run sim:=isaac`, web SWB_WEB_PORT+4: the Isaac world server, the
+# 073 S9): the stack (`just run sim:=isaac`, web SCENSIM_WEB_PORT+4: the Isaac world server, the
 # bridge, the agent relay and the ego -- aib's Autoware and its vehicle agent, nested,
 # respawned -- in one launch), waited for part by part. Run by `just scenario-direct|acceptance|e2e-direct
 # ... sim:=isaac` (roadmap 046: each simulator's bring-up is scripts/<sim>_up.sh, with this
@@ -16,7 +16,7 @@
 # is set, so a caller can take them down (`just e2e-direct`).
 #
 # Environment, host settings all (from the justfile): ISAAC_PORT, SSV2_PORT, AGENT_PORT,
-# SWB_WEB_PORT, SWB_LOG_ROOT (the stack's console goes there; default the repo's play_log),
+# SCENSIM_WEB_PORT, SCENSIM_LOG_ROOT (the stack's console goes there; default the repo's play_log),
 # and the waits ISAAC_READY_TIMEOUT (s, default 1800: a town's first render on a host compiles
 # its materials, so the budget is the host's) and EGO_READY_TIMEOUT (s, default 1200).
 set -euo pipefail

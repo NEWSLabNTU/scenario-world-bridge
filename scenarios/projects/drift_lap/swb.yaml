@@ -2,7 +2,7 @@
 # 100 km/h and autoware-drift's drift_controller taking the bends (roadmap 057; 077 step 4,
 # inventory item 25). The reference is lap 32 (2026-10-28): a full lap, one drift (the NE
 # bend), no contact. autoware-drift is a workspace of its own, named on each host:
-# workspaces: {autoware-drift: <its checkout, built>} in ~/.config/swb/host.yaml (G60).
+# workspaces: {autoware-drift: <its checkout, built>} in ~/.config/scensim/host.yaml (G60).
 #
 # Deferred (077, 2026-11-16): needs a quiet GPU. On newslab-server139, with another user's job
 # holding the GPU at 97 %, Isaac ran at 0.16x real time (240 Hz physics and the render), so

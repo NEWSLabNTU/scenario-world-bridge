@@ -5,7 +5,7 @@
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
-		<LogicFile filepath="$(env SWB_OPEN_MAPS)/ntu/map" />
+		<LogicFile filepath="$(env SCENSIM_OPEN_MAPS)/ntu/map" />
 		<TrafficSignals>
 			<TrafficSignalController name="SCJNJ10">
 				<Phase name="p0" duration="15">

@@ -16,58 +16,58 @@
 #
 # Bump all three together when Autoware moves to a release built against another TensorRT.
 
-SWB_TENSORRT_VERSION=10.8.0
-SWB_TENSORRT_WHEEL=tensorrt_cu12_libs-10.8.0.43-py2.py3-none-manylinux_2_28_x86_64.whl
-SWB_TENSORRT_WHEEL_SHA256=aed2af55168297ebbf0de666fb2cef6bbab0dd64c516f390d406a81f8cbdbffe
-SWB_TENSORRT_LIBS=(
+SCENSIM_TENSORRT_VERSION=10.8.0
+SCENSIM_TENSORRT_WHEEL=tensorrt_cu12_libs-10.8.0.43-py2.py3-none-manylinux_2_28_x86_64.whl
+SCENSIM_TENSORRT_WHEEL_SHA256=aed2af55168297ebbf0de666fb2cef6bbab0dd64c516f390d406a81f8cbdbffe
+SCENSIM_TENSORRT_LIBS=(
     libnvinfer.so.10
-    "libnvinfer_builder_resource.so.$SWB_TENSORRT_VERSION"
+    "libnvinfer_builder_resource.so.$SCENSIM_TENSORRT_VERSION"
     libnvinfer_plugin.so.10
     libnvonnxparser.so.10
 )
 
 # Download the wheel and extract the libraries into $1. Idempotent: a complete directory is
 # left alone. The wheel (3.1 GB) is downloaded beside $1 and removed afterwards.
-swb_tensorrt_setup() {
+scensim_tensorrt_setup() {
     local dir="$1"
     [ -n "$dir" ] || { echo "[setup-tensorrt] AUTOWARE_TENSORRT_LIB is empty: nothing to do" >&2; return 0; }
-    if _swb_tensorrt_complete "$dir"; then
-        echo "[setup-tensorrt] TensorRT $SWB_TENSORRT_VERSION already in $dir"
+    if _scensim_tensorrt_complete "$dir"; then
+        echo "[setup-tensorrt] TensorRT $SCENSIM_TENSORRT_VERSION already in $dir"
         return 0
     fi
     mkdir -p "$dir"
-    local whl="$dir/../$SWB_TENSORRT_WHEEL"
-    if ! echo "$SWB_TENSORRT_WHEEL_SHA256  $whl" | sha256sum -c --status 2>/dev/null; then
-        echo "[setup-tensorrt] downloading $SWB_TENSORRT_WHEEL (3.1 GB) from pypi.nvidia.com"
-        curl -fL -# --retry 3 -o "$whl.part" "https://pypi.nvidia.com/tensorrt-cu12-libs/$SWB_TENSORRT_WHEEL"
+    local whl="$dir/../$SCENSIM_TENSORRT_WHEEL"
+    if ! echo "$SCENSIM_TENSORRT_WHEEL_SHA256  $whl" | sha256sum -c --status 2>/dev/null; then
+        echo "[setup-tensorrt] downloading $SCENSIM_TENSORRT_WHEEL (3.1 GB) from pypi.nvidia.com"
+        curl -fL -# --retry 3 -o "$whl.part" "https://pypi.nvidia.com/tensorrt-cu12-libs/$SCENSIM_TENSORRT_WHEEL"
         mv "$whl.part" "$whl"
-        echo "$SWB_TENSORRT_WHEEL_SHA256  $whl" | sha256sum -c --status \
+        echo "$SCENSIM_TENSORRT_WHEEL_SHA256  $whl" | sha256sum -c --status \
             || { echo "[setup-tensorrt] checksum mismatch: $whl" >&2; return 1; }
     fi
     local f members=()
-    for f in "${SWB_TENSORRT_LIBS[@]}"; do members+=("tensorrt_libs/$f"); done
-    unzip -q -o -j "$whl" "${members[@]}" "${SWB_TENSORRT_WHEEL%%-py2*}.dist-info/LICENSE.txt" -d "$dir"
+    for f in "${SCENSIM_TENSORRT_LIBS[@]}"; do members+=("tensorrt_libs/$f"); done
+    unzip -q -o -j "$whl" "${members[@]}" "${SCENSIM_TENSORRT_WHEEL%%-py2*}.dist-info/LICENSE.txt" -d "$dir"
     rm -f "$whl"
-    _swb_tensorrt_complete "$dir" || { echo "[setup-tensorrt] extraction incomplete in $dir" >&2; return 1; }
-    echo "[setup-tensorrt] TensorRT $SWB_TENSORRT_VERSION in $dir"
+    _scensim_tensorrt_complete "$dir" || { echo "[setup-tensorrt] extraction incomplete in $dir" >&2; return 1; }
+    echo "[setup-tensorrt] TensorRT $SCENSIM_TENSORRT_VERSION in $dir"
 }
 
-_swb_tensorrt_complete() {
+_scensim_tensorrt_complete() {
     local f
-    for f in "${SWB_TENSORRT_LIBS[@]}"; do [ -s "$1/$f" ] || return 1; done
+    for f in "${SCENSIM_TENSORRT_LIBS[@]}"; do [ -s "$1/$f" ] || return 1; done
 }
 
 # Put the runtime first on LD_LIBRARY_PATH of the calling shell, after the setups are
 # sourced (they rewrite LD_LIBRARY_PATH). $1: the directory; empty turns it off. A missing
 # or incomplete directory warns and leaves the host's TensorRT in place.
-swb_tensorrt_source() {
+scensim_tensorrt_source() {
     local dir="$1"
     if [ -z "$dir" ]; then
         echo "[just] AUTOWARE_TENSORRT_LIB is empty: the host's TensorRT, engines rebuilt per start" >&2
         return 0
     fi
-    if ! _swb_tensorrt_complete "$dir"; then
-        echo "[just] WARNING: no TensorRT $SWB_TENSORRT_VERSION in $dir: Autoware's TensorRT nodes" >&2
+    if ! _scensim_tensorrt_complete "$dir"; then
+        echo "[just] WARNING: no TensorRT $SCENSIM_TENSORRT_VERSION in $dir: Autoware's TensorRT nodes" >&2
         echo "[just]   (CenterPoint, any TensorRT model) rebuild their engines at every start" >&2
         echo "[just]   when the host's TensorRT is another version. Fill it: just setup-tensorrt" >&2
         return 0

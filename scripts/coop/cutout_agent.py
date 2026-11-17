@@ -29,8 +29,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import swb_agent  # noqa: E402
-from swb_agent import protocol as P  # noqa: E402
+import scensim_agent  # noqa: E402
+from scensim_agent import protocol as P  # noqa: E402
 import arena as AR  # noqa: E402
 import cutin_agent as CA  # noqa: E402
 import cutout_game as CG  # noqa: E402
@@ -65,7 +65,7 @@ class CutOutAgent(CA.CutInAgent):
         with self._ctl:
             self.other = self._find_role(self.other_role)
             if self.other is None:
-                raise swb_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
+                raise scensim_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
             me = self.world.vehicle
             self.obst = self._find_role(self.obstacle_role)
             if self.obst is None:  # the one vehicle that is neither me nor B
@@ -73,7 +73,7 @@ class CutOutAgent(CA.CutInAgent):
                         if a.id not in (me.id, self.other.id)]
                 self.obst = rest[0] if len(rest) == 1 else None
             if self.obst is None:
-                raise swb_agent.Failed(f"no obstacle vehicle {self.obstacle_role!r}")
+                raise scensim_agent.Failed(f"no obstacle vehicle {self.obstacle_role!r}")
             pc = me.get_physics_control()
             wb = abs(pc.wheels[0].position.x - pc.wheels[2].position.x) / 100.0
             tr = abs(pc.wheels[0].position.y - pc.wheels[1].position.y) / 100.0
@@ -90,7 +90,7 @@ class CutOutAgent(CA.CutInAgent):
                   if w is not None and w.lane_type == self.world.carla.LaneType.Driving
                   and w.lane_id * self.own_lane.lane_id > 0]
             if not nb:
-                raise swb_agent.Failed("no neighbouring lane in L's direction")
+                raise scensim_agent.Failed("no neighbouring lane in L's direction")
             self.trk_own, self.trk_tgt = self.own_lane, nb[0]
             self.t0 = self.world.world.get_snapshot().timestamp.elapsed_seconds
             self.stage = "warmup"
@@ -183,7 +183,7 @@ class CutOutAgent(CA.CutInAgent):
 
 
 def main(argv=None):
-    return swb_agent.main(CutOutAgent, argv)
+    return scensim_agent.main(CutOutAgent, argv)
 
 
 if __name__ == "__main__":

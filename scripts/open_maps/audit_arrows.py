@@ -249,8 +249,8 @@ def main():
             for sk in start_of.get((ln["l"][-1], ln["r"][-1]), []):
                 st = lanes[sk]["t"]
                 if "turn_direction" in st:
-                    mv.add("uturn" if st.get("swb:uturn") else st["turn_direction"])
-                    src.add(st.get("swb:turn_source", ""))
+                    mv.add("uturn" if st.get("scensim:uturn") else st["turn_direction"])
+                    src.add(st.get("scensim:turn_source", ""))
             succ_moves.append((sorted(mv), sorted(src)))
 
         # the strip: across = a, along = s (0 at the stop line, negative behind it)

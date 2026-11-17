@@ -36,7 +36,7 @@ def write(path, d0, dv, shift):
               f'\t\t<ParameterDeclaration name="start_shift" parameterType="double" value="{shift:.1f}" />\n'
               f'\t</ParameterDeclarations>')
     text = text.replace("<ParameterDeclarations />", params, 1)
-    text = text.replace("$(env CARLA_MAPS)/Town03", "$(env SWB_MAPS)/Town03", 1)
+    text = text.replace("$(env CARLA_MAPS)/Town03", "$(env SCENSIM_MAPS)/Town03", 1)
     text = text.replace("written by scripts/coop/c2b.py", "written by make_scenarios.py", 1)
     path.write_text(text)
 

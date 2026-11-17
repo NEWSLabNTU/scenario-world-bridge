@@ -1,6 +1,6 @@
 # 050's two_av group: the ego and bg_av_1, each an Autoware in its own domain. Reference,
 # 050's "after": pass, no contact, oracle 0/0/0.
 scenarios:
-  - ../../../src/swb_examples/scenarios/multi_av/town01_two_av.xosc
+  - ../../../src/scensim_examples/scenarios/multi_av/town01_two_av.xosc
 retry: {on: error, times: 1}
 expect: {}

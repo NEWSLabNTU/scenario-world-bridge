@@ -49,8 +49,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import swb_agent  # noqa: E402
-from swb_agent import protocol as P  # noqa: E402
+import scensim_agent  # noqa: E402
+from scensim_agent import protocol as P  # noqa: E402
 import arena as AR  # noqa: E402
 import crossing_game as G  # noqa: E402
 import cutin_agent as CA  # noqa: E402
@@ -117,7 +117,7 @@ class CrossingAgent(CA.CutInAgent):
         with self._ctl:
             self.other = self._find_other()
             if self.other is None:
-                raise swb_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
+                raise scensim_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
             me = self.world.vehicle
             pc = me.get_physics_control()
             wb = abs(pc.wheels[0].position.x - pc.wheels[2].position.x) / 100.0
@@ -134,7 +134,7 @@ class CrossingAgent(CA.CutInAgent):
             # Z's centre: where the two lane centre lines meet
             den = da[0] * db[1] - da[1] * db[0]
             if abs(den) < 0.3:
-                raise swb_agent.Failed("the two lanes do not cross")
+                raise scensim_agent.Failed("the two lanes do not cross")
             s = ((pb[0] - pa[0]) * db[1] - (pb[1] - pa[1]) * db[0]) / den
             self.centre = (pa[0] + da[0] * s, pa[1] + da[1] * s)
             self.exit = G.W_BOX + self.ext["A"][0]
@@ -273,7 +273,7 @@ class CrossingAgent(CA.CutInAgent):
 
 
 def main(argv=None):
-    return swb_agent.main(CrossingAgent, argv)
+    return scensim_agent.main(CrossingAgent, argv)
 
 
 if __name__ == "__main__":

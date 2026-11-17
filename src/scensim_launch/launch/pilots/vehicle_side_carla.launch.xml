@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A pilot's vehicle side on CARLA (docs/design/projects-and-pilots.md, "Pilots"): acb_bridge
+     alone, in the pilot's ROS domain. It attaches to the CARLA vehicle named vehicle_name,
+     spawns and publishes its sensors (sim_vehicle_spec's carla_sensors.yaml), publishes
+     /vehicle/status/* and /clock, takes /control/command/*, and checks the car's physics
+     (carla_physics, carla_physics_mode). No Autoware: whatever drives the car (a pilot's
+     driver) sees Autoware's vehicle interface in this domain.
+
+       ROS_DOMAIN_ID=<pilot domain> play_launch launch scensim_launch vehicle_side_carla.launch.xml \
+           entity:=ego map_path:=<map dir> [vehicle:=tesla_model3] [carla_physics:=<file>]
+
+     The arguments are the pilots' common contract (entity, relay, map_path, vehicle, seed,
+     run_dir, sim, use_sim_time and the CARLA endpoints) plus acb's. relay, seed, run_dir and
+     sim are taken for the contract and unused here. What acb_launch carla_simulator.launch.xml
+     passes to acb_bridge.launch.xml is reproduced here, without that file.
+
+     vehicle_name: the CARLA role_name. The bridge spawns the scenario's ego as `hero`
+     (bridge_config ego.role_name) and every other agent-driven entity under its own name, so
+     the default is hero for entity ego and the entity's name otherwise.
+-->
+<launch>
+  <!-- the common contract -->
+  <arg name="entity" default="ego" description="the scenario entity this pilot drives"/>
+  <arg name="relay" default="none" description="the agent relay, tcp://host:port; none = no relay (unused here)"/>
+  <arg name="map_path" default="" description="the map directory (its carla/ signal table and origin)"/>
+  <arg name="vehicle" default="tesla_model3" description="the car: its spec name (sim_vehicle_spec, autoware_sim_vehicle)"/>
+  <arg name="seed" default="0" description="the run's seed (unused here)"/>
+  <arg name="run_dir" default="" description="the run's directory (unused here)"/>
+  <arg name="sim" default="carla" description="carla (this file is CARLA's)"/>
+  <arg name="use_sim_time" default="true" description="taken for the contract; acb_bridge stamps simulation time itself"/>
+  <arg name="carla_host" default="localhost"/>
+  <arg name="carla_port" default="2000"/>
+  <arg name="release_notify_endpoint" default="tcp://127.0.0.1:5556" description="swb_carla_world's release PUB socket (ssv2_port + 1); empty disables"/>
+  <arg name="release_ack_endpoint" default="tcp://127.0.0.1:5557" description="swb_carla_world's release PULL socket (ssv2_port + 2)"/>
+
+  <!-- acb's -->
+  <arg name="vehicle_name" default="$(eval &quot;'hero' if '$(var entity)' == 'ego' else '$(var entity)'&quot;)" description="CARLA role_name of the vehicle acb_bridge attaches to"/>
+  <arg name="vehicle_config" default="$(find-pkg-share sim_vehicle_spec)/generated/$(var vehicle)/carla_sensors.yaml" description="the sensors acb_bridge spawns"/>
+  <arg name="traffic_light_fusion_only" default="true" description="true: the traffic light camera (camera6) is not spawned"/>
+  <arg name="publish_ground_truth_objects" default="false"/>
+  <arg name="publish_clock" default="true" description="acb publishes /clock from CARLA in this domain"/>
+  <arg name="seed_localization_on_attach" default="true"/>
+  <arg name="traffic_light_map_path" default="$(eval &quot;'$(var map_path)/carla/traffic_lights.yaml' if '$(var map_path)' != '' else ''&quot;)" description="the map's CARLA signal table; empty disables V2X signals"/>
+  <arg name="traffic_light_state_path" default="" description="the project's state-dir signal table, written by the world server on first load; read first when it exists"/>
+  <arg name="map_origin_path" default="$(eval &quot;'$(var map_path)/carla/map_origin.yaml' if '$(var map_path)' != '' else ''&quot;)" description="CARLA's world origin in the map frame; no file = zero"/>
+  <arg name="carla_physics" default="none" description="the spec's carla_physics.yaml; none = the blueprint's own physics"/>
+  <arg name="carla_physics_mode" default="verify" description="verify (the world server applied it; scensim's case) | apply"/>
+  <!-- The pedal maps belong to the physics: the blueprint's (acb_launch's measured ones) with
+       carla_physics none, the spec car's otherwise. -->
+  <arg name="vehicle_maps_dir" default="$(eval &quot;'$(find-pkg-share acb_launch)/config/blueprint/$(var vehicle)' if '$(var carla_physics)' == 'none' else '$(find-pkg-share $(var vehicle)_description)/config'&quot;)"/>
+  <arg name="accel_map_path" default="$(var vehicle_maps_dir)/accel_map.csv"/>
+  <arg name="brake_map_path" default="$(var vehicle_maps_dir)/brake_map.csv"/>
+  <arg name="autoware_spec_hash_file" default="$(find-pkg-share $(var vehicle)_description)/config/spec_hash.yaml" description="the car's Autoware spec_hash.yaml; none = no check"/>
+  <arg name="report_measured_steering" default="false"/>
+  <arg name="steering_multiplier" default="1.0"/>
+  <arg name="steer_rate_limit_deg_s" default="0.0"/>
+  <arg name="steer_time_constant_s" default="0.0"/>
+  <arg name="ground_truth_range_m" default="100.0"/>
+  <arg name="control_trace_path" default=""/>
+  <arg name="allow_manual" default="false"/>
+  <arg name="honor_emergency_cmd" default="false"/>
+  <arg name="control_cmd_timeout_s" default="1.0"/>
+
+  <include file="$(find-pkg-share acb_bridge)/launch/acb_bridge.launch.xml">
+    <arg name="disabled_sensors" value="$(eval &quot;'camera6/camera_link' if '$(var traffic_light_fusion_only)' == 'true' else ''&quot;)"/>
+    <arg name="vehicle_config" value="$(var vehicle_config)"/>
+    <arg name="carla_physics" value="$(var carla_physics)"/>
+    <arg name="carla_physics_mode" value="$(var carla_physics_mode)"/>
+    <arg name="autoware_spec_hash_file" value="$(var autoware_spec_hash_file)"/>
+    <arg name="carla_address" value="$(var carla_host)"/>
+    <arg name="carla_port" value="$(var carla_port)"/>
+    <arg name="vehicle_name" value="$(var vehicle_name)"/>
+    <arg name="publish_clock" value="$(var publish_clock)"/>
+    <arg name="report_measured_steering" value="$(var report_measured_steering)"/>
+    <arg name="steering_multiplier" value="$(var steering_multiplier)"/>
+    <arg name="steer_rate_limit_deg_s" value="$(var steer_rate_limit_deg_s)"/>
+    <arg name="steer_time_constant_s" value="$(var steer_time_constant_s)"/>
+    <arg name="seed_localization_on_attach" value="$(var seed_localization_on_attach)"/>
+    <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)"/>
+    <arg name="ground_truth_range_m" value="$(var ground_truth_range_m)"/>
+    <arg name="traffic_light_map_path" value="$(var traffic_light_map_path)"/>
+    <arg name="traffic_light_state_path" value="$(var traffic_light_state_path)"/>
+    <arg name="map_origin_path" value="$(var map_origin_path)"/>
+    <arg name="control_trace_path" value="$(var control_trace_path)"/>
+    <arg name="accel_map_path" value="$(var accel_map_path)"/>
+    <arg name="brake_map_path" value="$(var brake_map_path)"/>
+    <arg name="allow_manual" value="$(var allow_manual)"/>
+    <arg name="honor_emergency_cmd" value="$(var honor_emergency_cmd)"/>
+    <arg name="control_cmd_timeout_s" value="$(var control_cmd_timeout_s)"/>
+    <arg name="release_notify_endpoint" value="$(var release_notify_endpoint)"/>
+    <arg name="release_ack_endpoint" value="$(var release_ack_endpoint)"/>
+  </include>
+</launch>

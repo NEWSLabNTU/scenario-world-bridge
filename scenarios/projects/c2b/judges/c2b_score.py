@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """c2b_score: a C2b run scored as the arena scores it, against the arena's runs of its cell
-(roadmap 074 D2: does the arena measure what swb measures?).
+(roadmap 074 D2: does the arena measure what scensim measures?).
 
 From the two agents' logs in the run directory (coop_a.jsonl, coop_b.jsonl), scripts/coop/
 c2b.score gives each car's payoff (uA, uB) and the outcome (A merged ahead, contact). The

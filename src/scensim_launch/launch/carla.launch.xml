@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The developers' shortcut (`just run sim:=carla`, docs/development.md). A project's stack
+  is scensim.launch.xml, which gives no ego_launch: its pilots, in swb.yaml, drive the
+  entities, and the old arguments are refused there by name (roadmap 076 step 10).
+
+  The whole stack on CARLA (roadmap 073): stack.launch.py with sim:=carla and the CARLA world
+  server's arguments of its own. CARLA itself runs apart and long-lived (CarlaUE4.sh),
+  always synchronous under scensim: the world server steps it, frame by frame.
+
+    play_launch launch scensim_launch carla.launch.xml map_path:=<map dir> \
+        [vehicle_physics:=spec|<carla_physics.yaml>|none] [npc_contact_sensors:=false] \
+        [world_config:=<swb_carla_world.yaml>] \
+        [ego_launch:=<path>|'<package> <file>'] [ego_launch_args:='a:=1 b:=2'] \
+        [vehicle_model:=...] [spec_hash_file:=...] [vehicle_catalogs:=...] \
+        [scenario:=<path to .xosc>] [scenario_args:='...'] [exit_on_scenario_end:=false]
+        [spawn:=x,y,z,yaw [vehicle:=<catalog entry>] [realtime:=true]]   (free drive, no scenario)
+
+  vehicle_physics: the physics of every car of the ego's model, the ego's and the vehicle
+  agents' (roadmap 051): spec, the default, is the spec car's (vehicle_model's) generated
+  carla_physics.yaml from sim_vehicle_spec; a path names another; none keeps the
+  blueprints' own, as before 2026-11-16.
+
+  Host settings (CARLA_HOST, CARLA_PORT, WORLD_PORT, ports, domains) are the environment's:
+  stack.launch.py.
+-->
+<launch>
+  <arg name="vehicle_physics" default="spec" description="the physics of the ego and agent vehicles: spec (the spec car's generated carla_physics.yaml, from sim_vehicle_spec), a carla_physics.yaml, or none (the blueprints' own)"/>
+  <arg name="world_config" default="" description="the CARLA world server's config file (swb_carla_world.yaml: map_alias, traffic_manager, spectator, weather presets); empty: the installed one"/>
+  <arg name="npc_contact_sensors" default="" description="true: contact sensors on the NPC vehicles too (CARLA's contacts in the verdict); empty: the world server config's"/>
+  <arg name="map_path" default="" description="the default autopilot's map directory"/>
+  <arg name="ego_launch" default="" description="the autopilot's launch; empty: acb's Autoware profile; none: no ego"/>
+  <arg name="ego_launch_args" default="" description="name:=value ... for ego_launch (the default autopilot: rviz, max_velocity, autoware_launch, ...)"/>
+  <arg name="agent" default="true" description="start scensim's vehicle agent beside the autopilot; false: ego_launch registers its own"/>
+  <arg name="vehicle_model" default="" description="the ego's vehicle model (its description's spec_hash.yaml); empty: tesla_model3"/>
+  <arg name="spec_hash_file" default="" description="the agent's spec_hash YAML, instead of vehicle_model's (a car from another repository)"/>
+  <arg name="vehicle_catalogs" default="" description="extra vehicle catalogs for the bridge's spec check, comma separated"/>
+  <arg name="side_args" default="" description="name:=value ... for the simulation side (simulation.launch.xml: config_file, weather, gap_trace_dir, npc_motion, contact_report_dir)"/>
+  <arg name="scenario" default="" description="an .xosc to run once the stack is up; empty: none"/>
+  <arg name="scenario_args" default="" description="name:=value ... for scenario.launch.xml (global_timeout, output_directory, ...)"/>
+  <arg name="exit_on_scenario_end" default="false" description="true: the whole stack ends with the scenario (scripted runs)"/>
+  <arg name="spawn" default="" description="free drive without a scenario: the ego at x,y,z,yaw (map frame)"/>
+  <arg name="vehicle" default="" description="free drive: the ego's catalog entry; empty: vehicle_model"/>
+  <arg name="realtime" default="true" description="free drive: pace to the wall clock; false: as fast as it goes (synchronous either way)"/>
+
+  <include file="$(find-pkg-share scensim_launch)/launch/stack.launch.py">
+    <arg name="sim" value="carla"/>
+    <arg name="sim_args" value="vehicle_physics:=$(var vehicle_physics) npc_contact_sensors:=$(var npc_contact_sensors) config_file:=$(var world_config)"/>
+    <arg name="map_path" value="$(var map_path)"/>
+    <arg name="ego_launch" value="$(var ego_launch)"/>
+    <arg name="ego_launch_args" value="$(var ego_launch_args)"/>
+    <arg name="agent" value="$(var agent)"/>
+    <arg name="vehicle_model" value="$(var vehicle_model)"/>
+    <arg name="spec_hash_file" value="$(var spec_hash_file)"/>
+    <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
+    <arg name="side_args" value="$(var side_args)"/>
+    <arg name="scenario" value="$(var scenario)"/>
+    <arg name="scenario_args" value="$(var scenario_args)"/>
+    <arg name="exit_on_scenario_end" value="$(var exit_on_scenario_end)"/>
+    <arg name="spawn" value="$(var spawn)"/>
+    <arg name="vehicle" value="$(var vehicle)"/>
+    <arg name="realtime" value="$(var realtime)"/>
+  </include>
+</launch>

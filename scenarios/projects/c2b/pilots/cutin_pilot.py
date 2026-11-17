@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The C2b cut-in pilot (a `command` pilot): one light-policy car of the pair.
 
-swb starts it per run with `--pair <eq|aw> --relay R --entity E --seed S --run-dir D`. The
+scensim starts it per run with `--pair <eq|aw> --relay R --entity E --seed S --run-dir D`. The
 cell (d0, dv) is the scenario's (its ParameterDeclarations, read from the run's
 resolved.yaml); the rule is the pair's for this car's side (coop_a: A, coop_b: B), as
 scripts/coop/c2b.py gives it. It then runs scripts/coop/cutin_agent.py, which registers the
@@ -31,12 +31,12 @@ def carla_port(resolved):
     seat = ((resolved.get("stack") or {}).get("seat") or {}).get("carla_port")
     if seat:
         return int(seat)
-    from swb import config
+    from scensim import config
     return int(config.host_settings(resolved.get("project"))["carla"]["port"])
 
 
 def carla_pythonapi():
-    from swb import config
+    from scensim import config
     root = config.host_settings()["carla"].get("root") or ""
     return os.path.join(os.path.expanduser(root), "PythonAPI", "carla") if root else ""
 

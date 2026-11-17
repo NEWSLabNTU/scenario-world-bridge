@@ -1,4 +1,4 @@
-# c2b: roadmap 074 C2b, the swb check of the arena, as a project (077 step 4, inventory item
+# c2b: roadmap 074 C2b, the scensim check of the arena, as a project (077 step 4, inventory item
 # 32). Two light-policy cars, coop_a cutting in ahead of coop_b on Town03's east straight, each
 # a `command` pilot (pilots/cutin_pilot.py over scripts/coop/cutin_agent.py, no Autoware),
 # started per run with the run's rule pair; the judge scores each run as the arena does and
@@ -18,4 +18,4 @@ judges:
   - name: c2b_score
     run: [python3, judges/c2b_score.py]
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

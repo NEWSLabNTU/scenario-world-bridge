@@ -16,7 +16,7 @@ deleted when they are done or the ego has passed, no watchdog (an ambient actor 
 the ego up; step 8 checks that).
 
 Usage:
-    scripts/gen_demo_tour.py                      # writes src/swb_examples/scenarios/demo/town01_tour.xosc
+    scripts/gen_demo_tour.py                      # writes src/scensim_examples/scenarios/demo/town01_tour.xosc
     scripts/gen_demo_tour.py --out /tmp/tour.xosc
     scripts/gen_demo_tour.py --no-ambient         # incidents only
 """
@@ -38,7 +38,7 @@ _loader.exec_module(G)
 
 SITES = G.SITES
 AMBIENT = ROOT / "scripts/demo_town01_ambient.yaml"
-DEFAULT_OUT = ROOT / "src/swb_examples/scenarios/demo/town01_tour.xosc"
+DEFAULT_OUT = ROOT / "src/scensim_examples/scenarios/demo/town01_tour.xosc"
 
 TIMEOUT_S = 600  # sim time: the tour is ~5 min of driving and handling
 ROUTE_ORDER = (2, 1, 3, 4, 5, 6)
@@ -222,7 +222,7 @@ def tour(sites, ambient=None):
     decls = "".join(f'<ParameterDeclaration name="{p}" parameterType="integer" value="0" />' for p in params)
     sl = sites["incidents"][3].get("stop_line")
     if sl:
-        # incident_judge's --stop-line for incident 3, read by `swb.gap incident` (roadmap 077)
+        # incident_judge's --stop-line for incident 3, read by `scensim.gap incident` (roadmap 077)
         decls += (f'<ParameterDeclaration name="csbIncidentStopLine" parameterType="string" '
                   f'value="{sl["x"]},{sl["y"]},{sl["yaw"]}" />')
     route = "".join(f'<Waypoint routeStrategy="shortest"><Position>{G.world(p)}</Position></Waypoint>'
@@ -239,7 +239,7 @@ def tour(sites, ambient=None):
 	<FileHeader author="scenario-world-bridge" date="2026-10-21T00:00:00+00:00" description="{desc}" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>{decls}</ParameterDeclarations>
 	<CatalogLocations />
-	<RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town01" /></RoadNetwork>
+	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town01" /></RoadNetwork>
 	<Entities>
 		{G.ego_object()}
 		{"".join(entities)}

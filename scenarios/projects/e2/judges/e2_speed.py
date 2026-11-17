@@ -32,7 +32,7 @@ REFERENCE = {
 
 
 def read(bag):
-    """(topic, message) of a bag in whichever storage its metadata names (swb records sqlite3;
+    """(topic, message) of a bag in whichever storage its metadata names (scensim records sqlite3;
     e2_bag.read opens only mcap)."""
     import rosbag2_py
     import yaml

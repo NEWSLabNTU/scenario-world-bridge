@@ -26,7 +26,7 @@
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
-		<LogicFile filepath="$(env SWB_MAPS)/Town01" />
+		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">

@@ -23,7 +23,7 @@ def test_ntu_is_what_the_scripts_had():
 
 
 def test_the_default_site_is_ntu(monkeypatch):
-    monkeypatch.delenv("SWB_TWIN_SITE", raising=False)
+    monkeypatch.delenv("SCENSIM_TWIN_SITE", raising=False)
     assert site_params.current()["name"] == "ntu"
 
 
@@ -51,7 +51,7 @@ def test_projected_lanelets_use_autoware_transverse_mercator(tmp_path, monkeypat
 
 def test_the_scripts_take_ntu_by_default(monkeypatch):
     import importlib
-    monkeypatch.delenv("SWB_TWIN_SITE", raising=False)
+    monkeypatch.delenv("SCENSIM_TWIN_SITE", raising=False)
     mods = {m: importlib.reload(importlib.import_module(m))
             for m in ("ground_ortho", "smooth_dtm", "build_meshes", "world_usd")}
     for m in ("smooth_dtm", "build_meshes", "world_usd"):
@@ -63,7 +63,7 @@ def test_the_scripts_take_ntu_by_default(monkeypatch):
 
 def test_the_scripts_take_the_site_they_are_given(monkeypatch, tmp_path):
     import importlib
-    monkeypatch.setenv("SWB_TWIN_SITE", "coss")
+    monkeypatch.setenv("SCENSIM_TWIN_SITE", "coss")
     monkeypatch.setenv("COSS_MAP_DIR", str(tmp_path))
     mods = {m: importlib.reload(importlib.import_module(m))
             for m in ("ground_ortho", "smooth_dtm", "build_meshes", "world_usd")}

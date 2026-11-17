@@ -1,7 +1,0 @@
-# made by swb on each host
-# runs is a link to the log root (runs/ would not match a link); play_log/ is play_launch's own
-assets/
-state/
-runs
-.swb/
-play_log/

@@ -8,7 +8,7 @@ scenario, whatever the simulator. Once a period, every entity's pose, speed and 
     source install/setup.bash     # this workspace's, after Autoware: openscenario_interpreter_msgs
     # the scenario domain: SCENARIO_ROS_DOMAIN_ID from .env, 9 when it is not set there
     export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=${SCENARIO_ROS_DOMAIN_ID:-9} \\
-        CYCLONEDDS_URI=file://$PWD/src/swb_launch/config/cyclonedds-localhost.xml
+        CYCLONEDDS_URI=file://$PWD/src/scensim_launch/config/cyclonedds-localhost.xml
     python3 scripts/ntu_twin/ssv2_watch.py --event cross --event stand_in_the_lane > watch.log
 
 Why: a scenario passes on its success condition alone. On 2026-11-04 a pedestrian moved by a

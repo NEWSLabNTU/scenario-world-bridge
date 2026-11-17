@@ -6,7 +6,7 @@
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
-		<LogicFile filepath="$(env SWB_MAPS)/Town01" />
+		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">
@@ -36,7 +36,7 @@
 						<Environment name="puddle">
 							<RoadCondition frictionScaleFactor="1.0" wetness="dry">
 								<Properties>
-									<Property name="swb.zone.puddle_left.water_depth" value="$puddle_depth" />
+									<Property name="scensim.zone.puddle_left.water_depth" value="$puddle_depth" />
 								</Properties>
 							</RoadCondition>
 						</Environment>
@@ -101,9 +101,9 @@
 										<Environment name="thaw">
 											<RoadCondition frictionScaleFactor="1.0" wetness="moist">
 												<Properties>
-													<Property name="swb.zone.puddle_left.water_depth" value="$puddle_depth" />
-													<Property name="swb.zone.gravel_patch.class" value="dirt" />
-													<Property name="swb.zone.ice_at_goal.class" value="snow_packed" />
+													<Property name="scensim.zone.puddle_left.water_depth" value="$puddle_depth" />
+													<Property name="scensim.zone.gravel_patch.class" value="dirt" />
+													<Property name="scensim.zone.ice_at_goal.class" value="snow_packed" />
 												</Properties>
 											</RoadCondition>
 										</Environment>

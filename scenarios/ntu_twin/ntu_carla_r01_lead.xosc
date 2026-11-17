@@ -13,7 +13,7 @@
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
-		<LogicFile filepath="$(env SWB_NTU_TWIN)/carla/NTU" />
+		<LogicFile filepath="$(env SCENSIM_NTU_TWIN)/carla/NTU" />
 	</RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">

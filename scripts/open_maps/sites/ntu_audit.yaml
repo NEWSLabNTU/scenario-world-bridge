@@ -5,7 +5,7 @@
 # counter-clockwise from east, within 35); `lanes`, from the left, the movements painted on
 # each: left, straight, right, uturn. They replace OSM's turn:lanes, Mapillary's arrows and
 # signs and the rules for that approach (a U-turn is still added to the leftmost lane unless a
-# sign bans it: it is rarely painted), and its junction paths carry swb:turn_source=audit. An
+# sign bans it: it is rarely painted), and its junction paths carry scensim:turn_source=audit. An
 # entry whose lane count the map does not have is not applied and is listed in
 # generated/audit_applied.json, with the approaches the audit should look at next.
 #

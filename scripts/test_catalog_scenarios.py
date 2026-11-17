@@ -41,7 +41,7 @@ def test_rewrite_makes_a_reference_assigning_the_scenarios_values():
 
 
 def test_an_exempt_body_stays_inline():
-    text = SCENARIO.replace("<Properties />", '<Properties><Property name="swb.box_exempt" '
+    text = SCENARIO.replace("<Properties />", '<Properties><Property name="scensim.box_exempt" '
                             'value="test" /></Properties>')
     assert cs.rewrite(text) == (text, 0)
 

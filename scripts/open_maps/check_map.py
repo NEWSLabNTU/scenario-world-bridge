@@ -14,7 +14,7 @@ Plain XML, no ROS. Reports:
 - traffic-light regulatory elements: how many have a stop line (`ref_line`), how many lanelets
   refer to one;
 - crosswalks, stop lines, right_of_way elements;
-- `swb:source` on lanelets, where the generator wrote it;
+- `scensim:source` on lanelets, where the generator wrote it;
 - `local_x`/`local_y` on every node;
 - road lanelets whose left and right bounds cross: Autoware's path ends in one (062, run 7);
 - junction paths by their tightest radius (under 4, 5 and 6 m): a car cannot drive one under
@@ -155,7 +155,7 @@ def check(path):
         "traffic_lights_with_stop_line": sum(1 for _, m in tl if any(rl == "ref_line" for _, rl, _ in m)),
         "lanelets_referring_a_traffic_light": refers_tl,
         "stop_line_ways": stop_lines,
-        "swb_source": dict(Counter(t.get("swb:source", "-") for t, _ in road.values())),
+        "scensim_source": dict(Counter(t.get("scensim:source", "-") for t, _ in road.values())),
         "nodes_with_local_xy": local,
         "bounds_crossing": crossed,
         "turn_paths_radius": dict(tight),

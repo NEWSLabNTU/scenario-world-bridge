@@ -18,7 +18,7 @@ from pathlib import Path
 import requests
 import yaml
 
-UA = {"User-Agent": "swb-open-maps/0.1 (research; NEWSLabNTU)"}
+UA = {"User-Agent": "scensim-open-maps/0.1 (research; NEWSLabNTU)"}
 DRIVABLE = ("motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|"
             "living_street|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link")
 

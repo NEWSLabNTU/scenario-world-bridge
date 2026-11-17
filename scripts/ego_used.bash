@@ -1,19 +1,19 @@
 # A separate ego or background-AV stack serves one scenario (roadmap 077, G64). `just ego-av`
 # and `just bg-av` run outside `just run`, and nothing resets them between scenarios:
-# `just scenario-direct` sends no episode_end (G57 is `swb run`'s). After one scenario, the
+# `just scenario-direct` sends no episode_end (G57 is `scensim run`'s). After one scenario, the
 # next one on the same stack failed 3 of 3 on 2026-11-16: Autoware stayed in PLANNING after
 # its reset, "ego pose is beyond goal", and once the ego hit the background AV. So
 # scenario-direct marks the separate stacks a scenario runs against (as it starts, so an
 # interrupted run counts), and refuses a marked one.
 #
-# A marker is a file named <pid>-<start time> in /tmp/swb-ego-used-<uid> (one per user: /tmp
+# A marker is a file named <pid>-<start time> in /tmp/scensim-ego-used-<uid> (one per user: /tmp
 # is the host's; a test sets ego_used_dir after sourcing this):
 # the stack's play_launch and its start time (field 22 of /proc/<pid>/stat, in clock ticks
 # since boot). The start time tells a restarted stack that got the same pid from the one
 # that ran the scenario, so it is fresh without any sweep. Markers whose process is gone are
 # removed when checked. Sourced (scripts/stack_up.bash, the justfile's scenario-direct).
 
-ego_used_dir="/tmp/swb-ego-used-$(id -u)"
+ego_used_dir="/tmp/scensim-ego-used-$(id -u)"
 
 # The start time of process $1 (field 22 of its stat; the comm field may hold spaces and
 # parentheses, so count from the last ')'), or nothing when it is gone.
@@ -95,7 +95,7 @@ ego_used_bg() {
 
 # The separate stacks a scenario would run against, one line each, "ego <pid>" or
 # "bg <entity> <pid>". $1: the scenario file; $2: whether it has an ego (1 or 0); $3: the
-# web port base (SWB_WEB_PORT). The ego on +2 serves it when the stack on +4 has no ego of its
+# web port base (SCENSIM_WEB_PORT). The ego on +2 serves it when the stack on +4 has no ego of its
 # own (`ego_launch:=none`) or is not up yet (stack_up then starts it without one).
 ego_used_separate() {
     local scenario="$1" has_ego="$2" base="$3" e st ent b

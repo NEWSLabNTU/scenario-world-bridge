@@ -1,18 +1,18 @@
 # The stack's bring-up, shared by scripts/carla_up.sh and scripts/isaac_up.sh (roadmap 073
-# S9): find the stack `just run sim:=<sim>` started (web SWB_WEB_PORT+4), start or replace it,
+# S9): find the stack `just run sim:=<sim>` started (web SCENSIM_WEB_PORT+4), start or replace it,
 # and wait until the bridge and relay listen and, when the scenario has an ego, the ego's
 # ADAPI answers and its agent is registered. Sourced; the caller sets $here and say().
 #
-# Environment (host settings, from the justfile): SSV2_PORT, AGENT_PORT, SWB_WEB_PORT,
-# SWB_LOG_ROOT, SIM_UP_EGO (0: the scenario has no ego), SIM_UP_STARTED (a file the pids of
+# Environment (host settings, from the justfile): SSV2_PORT, AGENT_PORT, SCENSIM_WEB_PORT,
+# SCENSIM_LOG_ROOT, SIM_UP_EGO (0: the scenario has no ego), SIM_UP_STARTED (a file the pids of
 # stacks started here are appended to), EGO_READY_TIMEOUT (s, default 1200), and on Isaac
 # ISAAC_READY_TIMEOUT (s, default 1800).
 
-logs="${SWB_LOG_ROOT:-$here/play_log}"
+logs="${SCENSIM_LOG_ROOT:-$here/play_log}"
 mkdir -p "$logs"
 ssv2_port="${SSV2_PORT:-5555}"
 agent_port="${AGENT_PORT:-5560}"
-web_base="${SWB_WEB_PORT:-8080}"
+web_base="${SCENSIM_WEB_PORT:-8080}"
 web_ego=$((web_base + 2)); web_stack=$((web_base + 4)); web_isaac=$((web_base + 5))
 
 # The play_launch serving web port $1, if any: stacks are told apart by their port. Its Python
@@ -61,7 +61,7 @@ stack_up() {
     map_dir=$(realpath -ms "$map_dir")
     if pid=$(stack_on_port "$web_stack"); then
         line="$(cmdline "$pid") "
-        if ! grep -qF -- " swb_launch $sim.launch.xml " <<< "$line"; then
+        if ! grep -qF -- " scensim_launch $sim.launch.xml " <<< "$line"; then
             say "the stack on $web_stack (pid $pid) is not \`just run sim:=$sim\`:"
             say "  $(cut -c1-200 <<< "$line")"
             say "stop it (kill $pid) and run again"

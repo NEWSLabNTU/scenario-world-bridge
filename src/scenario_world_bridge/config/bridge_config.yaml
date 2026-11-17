@@ -65,7 +65,7 @@ weather: ""
 # Misc objects, simulator-autopilot and agent vehicles and the ego are not affected. The
 # ROS parameter / launch arg `npc_motion` overrides it.
 npc_motion: tracked
-# Vehicle catalogs (OpenSCENARIO, each Vehicle with a `swb.spec_hash` property) the ego's
+# Vehicle catalogs (OpenSCENARIO, each Vehicle with a `scensim.spec_hash` property) the ego's
 # spec_hash start check reads beside sim_vehicle_spec's installed catalogs/vehicles.xosc: a
 # car defined in another repository brings its own. Paths relative to this file unless
 # absolute. The check uses the union keyed by model3d; a listed file that is missing or not
@@ -81,8 +81,8 @@ vehicle_catalogs: []
 # Empty = no trace (the default). The ROS parameter / launch arg `gap_trace_dir` overrides it.
 gap_trace_dir: ""
 
-# Where each ego run's contacts are written as JSON, for `ros2 run swb_launch
-# physical_verdict` and `run_suite --physical-verdict` (roadmap 021). Unset: $ROS_HOME/swb/contacts
-# (~/.ros/swb/contacts). "off": no reports. Newest 500 kept. On CARLA they need
+# Where each ego run's contacts are written as JSON, for `ros2 run scensim_launch
+# physical_verdict` and `run_suite --physical-verdict` (roadmap 021). Unset: $ROS_HOME/scensim/contacts
+# (~/.ros/scensim/contacts). "off": no reports. Newest 500 kept. On CARLA they need
 # swb_carla_world.yaml's collision_monitor.
 # contact_report_dir: off

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """frame_budget: a run's bridge processing time per frame against a bound.
 
-Reads the run's result.json metrics (swb.frames: the largest p95 of the bridge's 200-frame
+Reads the run's result.json metrics (scensim.frames: the largest p95 of the bridge's 200-frame
 windows, a bound on the run's own) and passes when frame_p95_ms is at most --p95-ms.
 Roadmap 016's bound: 20 NPCs at 20 Hz under 10 ms (measured 1.79 ms, 2026-10-07). A run
 with no full 200-frame window has no metrics: that is an error, not a pass.

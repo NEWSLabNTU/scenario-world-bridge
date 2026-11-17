@@ -149,7 +149,7 @@ class InteractionStrategy(Node):
     def on_odom(self, msg):
         # Autoware's kinematic_state is base_link, the rear axle; czp's own pose is the car's centre (its s_entry is the
         # front's, centre + length / 2). Unshifted, the front read 1.4 m short: at rest at its line the ego was never
-        # "at its line" (rest_window 2 m), so rest_tie and the later rounds never applied on swb (078 P2b)
+        # "at its line" (rest_window 2 m), so rest_tie and the later rounds never applied on scensim (078 P2b)
         p, tw = msg.pose.pose, msg.twist.twist.linear
         v = math.hypot(tw.x, tw.y)
         a = 0.0 if self.ego is None else self.ego[4]

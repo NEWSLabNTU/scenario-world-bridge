@@ -12,7 +12,7 @@
 # when an Autoware release ships the fix.
 
 # Each source: <name> <fork> <commit> <package dir>...
-SWB_AUTOWARE_OVERLAY_SOURCES=(
+SCENSIM_AUTOWARE_OVERLAY_SOURCES=(
     # Branch csb/pose-instability-empty-clip-0.48.0: tag 0.48.0 (Autoware 1.5.0's package
     # versions) plus the blind_spot right-turn fix (autoware_universe#13509, branch
     # csb/blind-spot-right-turn-0.48.0) and pose_instability_detector's empty twist range, read
@@ -31,21 +31,21 @@ SWB_AUTOWARE_OVERLAY_SOURCES=(
         localization/autoware_localization_util"
 )
 
-# The pins, one line: what install/.swb_overlay_rev records
-swb_autoware_overlay_revs() {
+# The pins, one line: what install/.scensim_overlay_rev records
+scensim_autoware_overlay_revs() {
     local src
-    for src in "${SWB_AUTOWARE_OVERLAY_SOURCES[@]}"; do
+    for src in "${SCENSIM_AUTOWARE_OVERLAY_SOURCES[@]}"; do
         read -r -a f <<< "$(echo $src)"
         printf '%s@%s ' "${f[0]}" "${f[2]}"
     done
 }
 
 # Fetch the pinned commits and build the packages. $1: overlay dir, $2: Autoware setup.bash
-swb_autoware_overlay_build() {
+scensim_autoware_overlay_build() {
     local dir="$1" autoware_setup="$2"
     local spec f name repo rev src
     mkdir -p "$dir/src"
-    for spec in "${SWB_AUTOWARE_OVERLAY_SOURCES[@]}"; do
+    for spec in "${SCENSIM_AUTOWARE_OVERLAY_SOURCES[@]}"; do
         read -r -a f <<< "$(echo $spec)"
         name=${f[0]} repo=${f[1]} rev=${f[2]}
         src="$dir/src/$name"
@@ -69,9 +69,9 @@ swb_autoware_overlay_build() {
         colcon build --base-paths src --allow-overriding $(colcon list --base-paths src -n) \
             --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
     )
-    swb_autoware_overlay_revs > "$dir/install/.swb_overlay_rev"
+    scensim_autoware_overlay_revs > "$dir/install/.scensim_overlay_rev"
     echo "[autoware-overlay] built:"
-    for spec in "${SWB_AUTOWARE_OVERLAY_SOURCES[@]}"; do
+    for spec in "${SCENSIM_AUTOWARE_OVERLAY_SOURCES[@]}"; do
         read -r -a f <<< "$(echo $spec)"
         printf '    %s %s: %s\n' "${f[0]}" "${f[2]:0:7}" "${f[*]:3}"
     done
@@ -80,7 +80,7 @@ swb_autoware_overlay_build() {
 # Source the overlay into the calling shell, after Autoware's setup. On by default when
 # built. $1: overlay dir; $2: true (default) or false, a recipe's autoware_overlay:= argument
 # (false runs the stock packages).
-swb_autoware_overlay_source() {
+scensim_autoware_overlay_source() {
     local dir="$1"
     case "${2:-true}" in
         0|false|off)
@@ -93,15 +93,15 @@ swb_autoware_overlay_source() {
         echo "[just] WARNING: Autoware overlay not built; running stock Autoware, which has" >&2
         echo "[just]   the blind_spot right-turn bug (autoware_universe#13509) and NDT's" >&2
         echo "[just]   two-point cycle (an emergency stop now and then, docs/issues/002)." >&2
-        echo "[just]   Build it: ros2 run swb autoware overlay (or just build-autoware-overlay)" >&2
+        echo "[just]   Build it: ros2 run scensim autoware overlay (or just build-autoware-overlay)" >&2
         return 0
     fi
     local built pinned
-    built=$(cat "$dir/install/.swb_overlay_rev" 2>/dev/null || true)
-    pinned=$(swb_autoware_overlay_revs)
+    built=$(cat "$dir/install/.scensim_overlay_rev" 2>/dev/null || true)
+    pinned=$(scensim_autoware_overlay_revs)
     if [ "$built" != "$pinned" ]; then
         echo "[just] WARNING: Autoware overlay built from ${built:-unknown commits}," >&2
-        echo "[just]   pinned $pinned: ros2 run swb autoware overlay (or just build-autoware-overlay)" >&2
+        echo "[just]   pinned $pinned: ros2 run scensim autoware overlay (or just build-autoware-overlay)" >&2
     fi
     # local_setup: the overlay alone, on top of the Autoware already sourced
     source "$dir/install/local_setup.bash"

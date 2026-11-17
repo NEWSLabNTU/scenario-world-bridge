@@ -16,7 +16,7 @@ groups=("$@"); [ ${#groups[@]} -eq 0 ] && groups=(default tour bench two_av)
 set -a; . ./.env; set +a
 out="$PWD/play_log/050/$label"
 mkdir -p "$out/traces"
-web=${SWB_WEB_PORT:-8080}
+web=${SCENSIM_WEB_PORT:-8080}
 ssv2=${SSV2_PORT:-5555}
 
 say() { echo "[050 $label] $(date +%T) $*" | tee -a "$out/driver.log"; }
@@ -29,11 +29,11 @@ stack_pid() {  # the play_launch serving web port $1
     return 1
 }
 
-supervisor_of() {  # the `swb-agent supervise` above pid $1, if any
+supervisor_of() {  # the `scensim-agent supervise` above pid $1, if any
     local p=$1
     while [ -n "$p" ] && [ "$p" -gt 1 ]; do
         p=$(ps -o ppid= "$p" 2>/dev/null | tr -d ' ')
-        [ -n "$p" ] && tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | grep -q "swb_agent supervise" \
+        [ -n "$p" ] && tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | grep -q "scensim_agent supervise" \
             && { echo "$p"; return 0; }
     done
     return 1
@@ -87,10 +87,10 @@ start_ego() {  # $1 log name, then ego-av arguments
 }
 
 weather() {
-    ROS_DOMAIN_ID=$SCENARIO_ROS_DOMAIN_ID CYCLONEDDS_URI="file://$PWD/src/swb_launch/config/cyclonedds-localhost.xml" \
+    ROS_DOMAIN_ID=$SCENARIO_ROS_DOMAIN_ID CYCLONEDDS_URI="file://$PWD/src/scensim_launch/config/cyclonedds-localhost.xml" \
         bash -c "source /opt/autoware/1.5.0/setup.bash; source install/setup.bash; \
         timeout 30 ros2 service call /scenario_world_bridge/set_weather \
-        swb_interfaces/srv/SetWeather '{preset: $1}'" 2>&1 | grep -o "success=[A-Za-z]*" \
+        scensim_interfaces/srv/SetWeather '{preset: $1}'" 2>&1 | grep -o "success=[A-Za-z]*" \
         | tee -a "$out/driver.log"
 }
 
@@ -139,8 +139,8 @@ two_av() {
     say "town01_two_av: exit $code, $verdict"
 }
 
-basic=src/swb_examples/scenarios/basic
-inc=src/swb_examples/scenarios/demo/incidents
+basic=src/scensim_examples/scenarios/basic
+inc=src/scensim_examples/scenarios/demo/incidents
 
 start_sim
 for g in "${groups[@]}"; do
@@ -171,7 +171,7 @@ for g in "${groups[@]}"; do
             for f in "$inc"/*.xosc; do
                 run "$(basename "$f" .xosc)" "$f"
             done
-            run town01_tour src/swb_examples/scenarios/demo/town01_tour.xosc global_timeout:=1200
+            run town01_tour src/scensim_examples/scenarios/demo/town01_tour.xosc global_timeout:=1200
             weather Default
             ;;
         bench)

@@ -15,11 +15,11 @@ vehicle specs. In a scenario:
   `$(find-pkg-share sim_vehicle_spec)/catalogs`.
 
 The catalog's own entries are checked against the measured table like any declaration, by
-their `model3d`, and against their specs: an entry whose `swb.spec_hash` is not the hash of
+their `model3d`, and against their specs: an entry whose `scensim.spec_hash` is not the hash of
 `sim_vehicle_spec/vehicles/<entry>.yaml` as it stands fails (a spec changed and the catalog
 was not regenerated).
 
-PATHs are `.xosc` files or directories searched for them (default: `src/swb_examples` and
+PATHs are `.xosc` files or directories searched for them (default: `src/scensim_examples` and
 `scenarios`). For each `<Vehicle name="...">` whose name is a blueprint with axles in the
 measured table, the declared `BoundingBox` and `Axles` must equal what
 `scripts/scenario_vehicle.py` derives from the table, within the tolerance (default 0.02 m):
@@ -29,7 +29,7 @@ axle's positionX, and the rear axle's positionX (0, the vehicle origin).
 A vehicle that differs on purpose carries an OpenSCENARIO property naming why, and is
 listed rather than failed:
 
-    <Properties><Property name="swb.box_exempt" value="why" /></Properties>
+    <Properties><Property name="scensim.box_exempt" value="why" /></Properties>
 
 Exit status 1 on any failure, each named by file, entity, field, declared and measured value.
 Run by `just test`.
@@ -44,8 +44,8 @@ import catalog_scenarios  # scripts/, beside this file
 import scenario_vehicle
 
 ROOT = scenario_vehicle.ROOT
-DEFAULT_PATHS = [ROOT / "src/swb_examples", ROOT / "scenarios"]
-EXEMPT = "swb.box_exempt"
+DEFAULT_PATHS = [ROOT / "src/scensim_examples", ROOT / "scenarios"]
+EXEMPT = "scensim.box_exempt"
 
 # (element path under <Vehicle>, attribute, geometry key; None = expected 0)
 FIELDS = [
@@ -133,12 +133,12 @@ def check_catalog_specs(path=catalog_scenarios.CATALOG):
         name = vehicle.get("name")
         named = {p.get("name"): p.get("value") for p in vehicle.iter("Property")}
         source = ROOT / "src/sim_vehicle_spec/vehicles" / f"{name}.yaml"
-        if "swb.spec_hash" not in named or not source.exists():
-            failures.append(f"{path.name}: {name}: no swb.spec_hash or no spec {source.name}")
+        if "scensim.spec_hash" not in named or not source.exists():
+            failures.append(f"{path.name}: {name}: no scensim.spec_hash or no spec {source.name}")
             continue
         want = specs.spec_hash(specs.load(source))
-        if named["swb.spec_hash"] != want:
-            failures.append(f"{path.name}: {name} names spec {named['swb.spec_hash'][:12]}, but "
+        if named["scensim.spec_hash"] != want:
+            failures.append(f"{path.name}: {name} names spec {named['scensim.spec_hash'][:12]}, but "
                             f"vehicles/{name}.yaml is {want[:12]}: the catalog is stale "
                             f"(sim_vehicle_spec's `just generate`)")
     return failures
@@ -159,6 +159,11 @@ def check_file(path, table, tolerance, catalog=None, bodies=None):
     def where_of(node):
         return f"{rel}: {entity_of(parents, node)}" if node is not root else str(rel)
 
+    for prop in root.iter("Property"):
+        old = prop.get("name") or ""
+        if old.startswith("swb."):
+            failures.append(f"{rel}: property {old} was renamed with the project (roadmap 080); "
+                            f"name it scensim.{old[len('swb.'):]}")
     if catalog is not None:
         failures += check_references(path, root, parents, where_of, catalog)
     for vehicle in root.iter("Vehicle"):

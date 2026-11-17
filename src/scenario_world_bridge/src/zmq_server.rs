@@ -16,7 +16,7 @@ use crate::world_services::WorldCommand;
 // 10 s without a request (300 s with an ego), so the world would not stay frozen if a
 // scenario died. That free-running is what put /clock leaps and idle-gap timeouts into the
 // ego's Autoware, and a REP socket cannot tell a dead SSv2 from a long pause anyway. CARLA
-// now stays synchronous and paused between scenarios, swb its only ticker; a graceful
+// now stays synchronous and paused between scenarios, scensim its only ticker; a graceful
 // shutdown still restores async (Coordinator::shutdown). See
 // docs/design/time-and-ticking.md.
 
@@ -538,7 +538,7 @@ fn guarded_dispatch(
         return encode_error_response(
             variant,
             &format!(
-                "swb refused the request: an internal error ({reason}) ended this session; \
+                "scensim refused the request: an internal error ({reason}) ended this session; \
                  the next Initialize starts a new one"
             ),
         );
@@ -558,7 +558,7 @@ fn guarded_dispatch(
                  everything but Initialize until the next one"
             );
             *poisoned = Some(message.clone());
-            encode_error_response(variant, &format!("swb internal error: {message}"))
+            encode_error_response(variant, &format!("scensim internal error: {message}"))
         }
     }
 }
@@ -905,7 +905,7 @@ mod tests {
         let bytes = guarded_dispatch(&mut poisoned, Some(2), || panic!("entity map broke"));
         let why = failure_description(&bytes).expect("an UpdateFrame failure");
         assert!(
-            why.contains("swb internal error: entity map broke"),
+            why.contains("scensim internal error: entity map broke"),
             "{why}"
         );
         assert_eq!(poisoned.as_deref(), Some("entity map broke"));
@@ -1114,7 +1114,7 @@ mod tests {
 
     #[test]
     fn load_map_waits_for_no_scenario() {
-        let dir = std::env::temp_dir().join(format!("swb-zmq-load-map-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("scensim-zmq-load-map-{}", std::process::id()));
         let map = dir.join("Town02");
         std::fs::create_dir_all(&map).unwrap();
         std::fs::write(map.join("lanelet2_map.osm"), "<osm/>").unwrap();

@@ -15,13 +15,13 @@ What it builds:
   lanes left; one-way roads are centred. Lane counts come from `lanes` and
   `lanes:forward/backward`. Widths and the lanes' place across the road come from Taipei's
   pavement blocks less its curb parking spaces (fetch.py's `taipei`; pavement.py;
-  `swb:width_source=taipei`), else OSM's `width`, else the road class's default.
+  `scensim:width_source=taipei`), else OSM's `width`, else the road class's default.
 - **Junctions.** Nodes where three or more road chains meet are clustered. Taipei's dual
   carriageways cross as four nodes 15-35 m apart, so nodes joined by a short one-way major
   segment, or both by a signal, become one junction. Each approach is cut back to a circle
   around the junction, and every allowed entry-to-exit lane pair gets a connecting lanelet
   (a straight, the widest arc the two legs allow, a straight) with `turn_direction` from its
-  change of heading. A U-turn (`swb:uturn=yes`) goes from the leftmost lane where a half
+  change of heading. A U-turn (`scensim:uturn=yes`) goes from the leftmost lane where a half
   circle of TIGHT_R fits and no sign bans it.
 - **Which lanes turn where**, per approach lane, first source that has it:
   1. OSM `turn:lanes`, when its lane count matches;
@@ -34,7 +34,7 @@ What it builds:
   Mapillary's signs on the approach's right side facing it. Where the two disagree,
   `audit_applied.json` lists the approach (`signs_disagree`).
 - **Speed limits**, per direction: a site zone's limit for a road mostly inside it (the site
-  file's `zones`: NTU's campus, 15 km/h; `swb:speed_source=site`), else OSM `maxspeed`, else Overture's `speed_limits` for the same
+  file's `zones`: NTU's campus, 15 km/h; `scensim:speed_source=site`), else OSM `maxspeed`, else Overture's `speed_limits` for the same
   OSM way, else a Mapillary speed-limit sign on the road's right side, else the rule (50 km/h
   on public roads, Taiwan's default; 30 on service roads).
 - **Signals.** A junction with an OSM signal, or two or more of Mapillary's vehicle traffic
@@ -44,8 +44,8 @@ What it builds:
   the lights by it).
 - **Crosswalks** from OSM `footway=crossing` ways that cross a road.
 
-Every lanelet records where its attributes came from: `swb:source` (geometry), `swb:speed_source`,
-`swb:turn_source` (connectors), `swb:osm_way`. The frame is the site's MGRS-local frame;
+Every lanelet records where its attributes came from: `scensim:source` (geometry), `scensim:speed_source`,
+`scensim:turn_source` (connectors), `scensim:osm_way`. The frame is the site's MGRS-local frame;
 `local_x`/`local_y` are on every node.
 """
 import argparse
@@ -90,10 +90,10 @@ ARROWS = {
     "marking--discrete--arrow--split-left-or-right": {"left", "right"},
     "marking--discrete--arrow--split-left-or-right-or-straight": {"left", "right", "straight"},
 }
-DEBUG_AT = tuple(map(float, __import__('os').environ['SWB_DEBUG_AT'].split(','))) \
-    if __import__('os').environ.get('SWB_DEBUG_AT') else None
-IMAGERY = __import__('os').environ.get('SWB_IMAGERY', '0') == '1'   # route C, off: see imagery.py
-PAVEMENT = __import__('os').environ.get('SWB_PAVEMENT', '1') == '1'  # Taipei's pavement blocks: see pavement.py
+DEBUG_AT = tuple(map(float, __import__('os').environ['SCENSIM_DEBUG_AT'].split(','))) \
+    if __import__('os').environ.get('SCENSIM_DEBUG_AT') else None
+IMAGERY = __import__('os').environ.get('SCENSIM_IMAGERY', '0') == '1'   # route C, off: see imagery.py
+PAVEMENT = __import__('os').environ.get('SCENSIM_PAVEMENT', '1') == '1'  # Taipei's pavement blocks: see pavement.py
 STATS = Counter()   # counts from the network build, merged into report.json
 BAN_LOG = []   # every sign ban, for review (report.json's bans)
 BUMP = Counter()   # (way id, end node id) -> metres added to that chain end's cut, from the passes before (main)
@@ -347,7 +347,7 @@ class Osm:
     def write(self, path):
         from xml.sax.saxutils import quoteattr as q
         with open(path, "w", encoding="utf-8") as f:
-            f.write("<?xml version='1.0' encoding='UTF-8'?>\n<osm version=\"0.6\" generator=\"swb open_maps\">\n")
+            f.write("<?xml version='1.0' encoding='UTF-8'?>\n<osm version=\"0.6\" generator=\"scensim open_maps\">\n")
             for i, (x, y), ele in self.nodes:
                 lat, lon = self.frame.ll(x, y)
                 f.write(f'  <node id="{i}" lat="{lat:.9f}" lon="{lon:.9f}">'
@@ -1023,11 +1023,11 @@ def generate(site, out):
             report[f"speed:{src}"] += len(lst)
             for ln in lst:
                 tags = {"type": "lanelet", "subtype": "road", "location": "urban", "one_way": "yes",
-                        "speed_limit": f"{v:g}", "swb:source": "osm", "swb:speed_source": src,
-                        "swb:width_source": c.width_source, "swb:osm_way": c.way["id"]}
+                        "speed_limit": f"{v:g}", "scensim:source": "osm", "scensim:speed_source": src,
+                        "scensim:width_source": c.width_source, "scensim:osm_way": c.way["id"]}
                 if c.width_source in ("imagery", "taipei"):
-                    tags["swb:lane_width"] = f"{c.w:.2f}"
-                    tags["swb:lateral_shift"] = f"{c.d:.2f}"
+                    tags["scensim:lane_width"] = f"{c.w:.2f}"
+                    tags["scensim:lateral_shift"] = f"{c.d:.2f}"
                 if c.name:
                     tags["name"] = c.name
                 ln.speed = v
@@ -1339,13 +1339,13 @@ def connector(osm, a, b, turn, src, j, lanelet_of):
     wr = osm.way(right, {"type": "virtual"})
     v = min(a.speed, b.speed)
     tags = {"type": "lanelet", "subtype": "road", "location": "urban", "one_way": "yes",
-            "speed_limit": f"{v:g}", "swb:source": "osm", "swb:speed_source": "connector"}
+            "speed_limit": f"{v:g}", "scensim:source": "osm", "scensim:speed_source": "connector"}
     if turn:
         # Lanelet2's turn_direction has no U-turn: Autoware signals left for it
         tags["turn_direction"] = "left" if turn == "uturn" else turn
-        tags["swb:turn_source"] = src
+        tags["scensim:turn_source"] = src
         if turn == "uturn":
-            tags["swb:uturn"] = "yes"
+            tags["scensim:uturn"] = "yes"
     lid = osm.rel([("way", wl, "left"), ("way", wr, "right")], tags)
     lanelet_of[lid] = (None, tags)
     return True
@@ -1392,7 +1392,7 @@ def signal(osm, j, c, d, lst, p_in, h_in, lanelet_of):
                     {"type": "traffic_light", "subtype": "red_yellow_green", "height": "1.0"})
     reg = osm.rel([("way", light, "refers"), ("way", stop, "ref_line")],
                   {"type": "regulatory_element", "subtype": "traffic_light",
-                   "swb:source": j["signal"]})
+                   "scensim:source": j["signal"]})
     SIGNALS.append({"junction": j["id"], "junction_xy": [round(v, 1) for v in j["c"]], "road": c.name,
                     "heading": round(math.degrees(h_in)), "light": light, "regulatory_element": reg,
                     "lanelets": [ln.lid for ln in lst],
@@ -1429,8 +1429,8 @@ def crosswalks(osm, nodes, rels, site, frame, chains, stats, out):
         wr = osm.way(right, {"type": "line_thin", "subtype": "solid"})
         osm.rel([("way", wl, "left"), ("way", wr, "right")],
                 {"type": "lanelet", "subtype": "crosswalk", "location": "urban", "one_way": "no",
-                 "participant:pedestrian": "yes", "speed_limit": "10", "swb:source": "osm",
-                 "swb:osm_way": el["id"]})
+                 "participant:pedestrian": "yes", "speed_limit": "10", "scensim:source": "osm",
+                 "scensim:osm_way": el["id"]})
         stats["crosswalks"] += 1
 
 

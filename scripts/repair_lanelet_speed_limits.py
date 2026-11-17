@@ -3,7 +3,7 @@
 
 The map pack's converter writes no `speed_limit` tag, so Autoware takes lanelet2's default for
 the lanelet's `location`: 50 km/h in a town, whatever the road. Town05's ring highway is a
-65 mph road in its OpenDRIVE; Autoware drove it at 50 km/h (swb roadmap 057, server-241's lap
+65 mph road in its OpenDRIVE; Autoware drove it at 50 km/h (scensim roadmap 057, server-241's lap
 10, 2026-10-27).
 
 Each road lanelet is matched to the OpenDRIVE road whose reference line is nearest the middle of

@@ -5,9 +5,9 @@
 # install and data paths, the log root) come from the environment, kept in .env or .envrc.
 
 # Environment variables the recipes used to read as project settings, each with the argument
-# that replaced it. `swb_reject_env` refuses to run while any of them is set (even empty),
+# that replaced it. `scensim_reject_env` refuses to run while any of them is set (even empty),
 # so a stale shell or .env cannot change a run silently.
-SWB_RETIRED_ENV=(
+SCENSIM_RETIRED_ENV=(
     "MAP_NAME|map_path:=<dir> (ego-av, bg-av, ego-isaac, isaac-world-gen) or the map argument (e2e-direct)"
     "CSB_CONFIG_DIR|config_file:=<dir>/bridge_config.yaml (just run)"
     "CSB_BACKEND|sim:=carla|isaac (just run)"
@@ -47,75 +47,80 @@ SWB_RETIRED_ENV=(
 
 # Host settings renamed with the project (roadmap 046): the old name is refused, naming the
 # new one, so a stale .env cannot leave a setting silently unread.
-SWB_RENAMED_ENV=(
-    "CSB_WEB_PORT|SWB_WEB_PORT"
-    "CSB_VEHICLE_USD|SWB_VEHICLE_USD"
-    "CSB_LOG_ROOT|SWB_LOG_ROOT"
-    "CSB_LOG_ARCHIVE|SWB_LOG_ARCHIVE"
-    "CSB_MAP_SOURCE|SWB_MAP_SOURCE"
-    "CSB_TICK_GATE|SWB_TICK_GATE"
-    "CSB_TM_SERVE|SWB_TM_SERVE"
-    "CSB_ISAAC_DIR|SWB_ISAAC_DIR"
+SCENSIM_RENAMED_ENV=(
+    "CSB_WEB_PORT|SCENSIM_WEB_PORT"
+    "CSB_VEHICLE_USD|SCENSIM_VEHICLE_USD"
+    "CSB_LOG_ROOT|SCENSIM_LOG_ROOT"
+    "CSB_LOG_ARCHIVE|SCENSIM_LOG_ARCHIVE"
+    "CSB_MAP_SOURCE|SCENSIM_MAP_SOURCE"
+    "CSB_TICK_GATE|SCENSIM_TICK_GATE"
+    "CSB_TM_SERVE|SCENSIM_TM_SERVE"
+    "CSB_ISAAC_DIR|SCENSIM_ISAAC_DIR"
 )
 
-swb_reject_env() {
+scensim_reject_env() {
     local e var bad=0
-    for e in "${SWB_RETIRED_ENV[@]}"; do
+    for e in "${SCENSIM_RETIRED_ENV[@]}"; do
         var="${e%%|*}"
         if [ -n "${!var+x}" ]; then
             echo "[just] $var is no longer read; pass ${e#*|} instead" >&2
             bad=1
         fi
     done
-    for e in "${SWB_RENAMED_ENV[@]}"; do
+    for e in "${SCENSIM_RENAMED_ENV[@]}"; do
         var="${e%%|*}"
         if [ -n "${!var+x}" ]; then
             echo "[just] $var was renamed with the project; set ${e#*|} instead (.env/.envrc)" >&2
             bad=1
         fi
     done
+    # roadmap 080: swb became scensim; every SWB_* is refused, naming its SCENSIM_* successor
+    for var in $(compgen -e | grep '^SWB_'); do
+        echo "[just] $var was renamed with the project (roadmap 080); set SCENSIM_${var#SWB_} instead (.env/.envrc)" >&2
+        bad=1
+    done
     if [ "$bad" = 1 ]; then
         echo "[just] Project settings are recipe arguments now (name:=value); unset the" \
              "variable(s) above, in this shell and in .env/.envrc, and pass the argument." >&2
         exit 2
     fi
-    swb_check_domains
+    scensim_check_domains
 }
 
-# swb_check_domains -- refuse a ROS domain the localhost Cyclone profile cannot use (roadmap
+# scensim_check_domains -- refuse a ROS domain the localhost Cyclone profile cannot use (roadmap
 # 070, friction 15). Its DomainGain 1000 puts domain d's ports at 7400 + 1000 d up to
 # + 911 (MaxAutoParticipantIndex 450), so d above 57 runs past port 65535, and every node then
 # dies with only `failed to create domain` (the reason is in each node's err log).
-swb_check_domains() {
+scensim_check_domains() {
     local var val
     for var in ROS_DOMAIN_ID EGO_ROS_DOMAIN_ID SCENARIO_ROS_DOMAIN_ID BG_ROS_DOMAIN_ID; do
         val="${!var:-}"
         [ -z "$val" ] && continue
         if ! [[ "$val" =~ ^[0-9]+$ ]] || [ "$val" -gt 57 ]; then
-            echo "[just] $var=$val: use 0-57. swb_launch's Cyclone profile" \
-                 "(src/swb_launch/config/cyclonedds-localhost.xml, DomainGain 1000) puts higher domains'" \
+            echo "[just] $var=$val: use 0-57. scensim_launch's Cyclone profile" \
+                 "(src/scensim_launch/config/cyclonedds-localhost.xml, DomainGain 1000) puts higher domains'" \
                  "ports past 65535, and every node fails with 'failed to create domain'." >&2
             exit 2
         fi
     done
 }
 
-# swb_reject_args PROJECT ARG... -- refuse the launch arguments roadmap 051 renamed
+# scensim_reject_args PROJECT ARG... -- refuse the launch arguments roadmap 051 renamed
 # (carla_control:= -> sim_control:=, vehicle_model:=acb_vehicle -> tesla_model3, ...), which
 # ROS launch would otherwise drop without a word. The list is the profile's
 # (autoware_sim_profile's check_launch_args).
-swb_reject_args() {
+scensim_reject_args() {
     local check="$1/install/autoware_sim_profile/lib/autoware_sim_profile/check_launch_args"
     shift
     [ -x "$check" ] || return 0   # not built yet: the launch itself will say so
     "$check" "$@" || exit 2
 }
 
-# swb_with_defaults OUT DEFAULT... -- ARG...
+# scensim_with_defaults OUT DEFAULT... -- ARG...
 # OUT=(each name:=value DEFAULT whose name no ARG names, then the ARGs). An argument with an
 # empty value (`relay:=`) drops the default and is itself dropped -- ROS launch rejects an
 # empty `name:=` -- so the launch file's own default applies.
-swb_with_defaults() {
+scensim_with_defaults() {
     local -n _out="$1"; shift
     local -a defaults=() given=()
     while [ $# -gt 0 ] && [ "$1" != -- ]; do defaults+=("$1"); shift; done
@@ -134,13 +139,13 @@ swb_with_defaults() {
     return 0
 }
 
-# swb_log_dir PROJECT KIND: the directory play_launch logs a stack of this kind under,
-# $SWB_LOG_ROOT/KIND (default PROJECT/play_log/KIND), created. When the log root is not the
+# scensim_log_dir PROJECT KIND: the directory play_launch logs a stack of this kind under,
+# $SCENSIM_LOG_ROOT/KIND (default PROJECT/play_log/KIND), created. When the log root is not the
 # repo's play_log, PROJECT/play_log/KIND is made a symlink to it, so play_log/<kind>/latest
 # keeps working from the repo.
-swb_log_dir() {
+scensim_log_dir() {
     local project="$1" kind="$2"
-    local root="${SWB_LOG_ROOT:-$project/play_log}"
+    local root="${SCENSIM_LOG_ROOT:-$project/play_log}"
     mkdir -p "$root/$kind"
     if [ "$(realpath -m "$root")" != "$(realpath -m "$project/play_log")" ]; then
         local link="$project/play_log/$kind"
@@ -155,10 +160,10 @@ swb_log_dir() {
     echo "$root/$kind"
 }
 
-# swb_scenario_project SCENARIO PROJECT_ROOT: the project a scenario runs in on the project
+# scensim_scenario_project SCENARIO PROJECT_ROOT: the project a scenario runs in on the project
 # workflow (roadmap 077 step 8), the nearest directory above the scenario that holds a
 # swb.yaml, else PROJECT_ROOT/scenarios/projects/dev.
-swb_scenario_project() {
+scensim_scenario_project() {
     local d
     d=$(dirname "$(realpath -s "$1")")  # -s: a linked scenario runs in the project holding the link
     while [ "$d" != "/" ] && [ ! -f "$d/swb.yaml" ]; do d=$(dirname "$d"); done

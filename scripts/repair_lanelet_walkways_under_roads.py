@@ -5,7 +5,7 @@ The map pack's Lanelet2 maps are flat (every node at z 0), so a walkway that run
 bridge crosses the bridge's lanes in the map. Autoware's walkway and crosswalk modules then
 stop the car on the bridge for a footpath 10 m below it: Town05's ring highway rises to 10 m
 on its west side (OpenDRIVE road 37), and 13 walkway lanelets under it gave a stop-and-go every
-8-15 m (swb roadmap 057, server-241's lap 12, the walkway module's "sidewalk" velocity factor).
+8-15 m (scensim roadmap 057, server-241's lap 12, the walkway module's "sidewalk" velocity factor).
 
 A `walkway` or `crosswalk` lanelet is retagged when its centre line passes inside a road
 lanelet at a point where an OpenDRIVE reference line within NEAR m stands more than LEVEL m
@@ -14,7 +14,7 @@ the reference lines nearest each point of its centre line -- not the one nearest
 point, which for a walkway right under a bridge is the bridge's own (Town05's 100619 and
 103211, which span the ring's raised west side: server-241's lap 20 stopped dead for them). It gets `subtype=unknown` -- kept in the map, ignored by Autoware's walkway and
 crosswalk modules and by its prediction, as repair_lanelet_subtypes.py does for strips with no
-subtype -- and `swb:walkway_under_road=<its old subtype>`. A crossing at one level (an ordinary
+subtype -- and `scensim:walkway_under_road=<its old subtype>`. A crossing at one level (an ordinary
 crosswalk) is not touched. The geometry is OpenDRIVE's line and arc and its cubic elevation
 profile; the map frame is OpenDRIVE's (local coordinates after repair_lanelet_local_coords.py).
 
@@ -202,7 +202,7 @@ def retag(text, rel_id, old):
     sub = re.search(r'([ \t]*)<tag k="subtype" v="%s"\s*/>' % re.escape(old), body)
     if not sub:
         return text, False
-    new = '%s<tag k="subtype" v="unknown"/>\n%s<tag k="swb:walkway_under_road" v="%s"/>' % (
+    new = '%s<tag k="subtype" v="unknown"/>\n%s<tag k="scensim:walkway_under_road" v="%s"/>' % (
         sub.group(1), sub.group(1), old)
     body = body[:sub.start()] + new + body[sub.end():]
     return text[:m.start(2)] + body + text[m.end(2):], True

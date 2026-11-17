@@ -2,14 +2,14 @@
 a running world server, passing on its exit code and its output.
 
 Opt-in, since the check takes the server over and moves bodies in its world (never during a
-scenario): it runs only when SWB_WORLD_CHECK names the simulator, and skips otherwise, so
+scenario): it runs only when SCENSIM_WORLD_CHECK names the simulator, and skips otherwise, so
 `just test` stays simulator-free.
 
-    SWB_WORLD_CHECK=carla SWB_WORLD_MAP=<map dir> python3 -m pytest -q scripts/test_world_conformance.py
-    SWB_WORLD_CHECK=isaac python3 -m pytest -q scripts/test_world_conformance.py
+    SCENSIM_WORLD_CHECK=carla SCENSIM_WORLD_MAP=<map dir> python3 -m pytest -q scripts/test_world_conformance.py
+    SCENSIM_WORLD_CHECK=isaac python3 -m pytest -q scripts/test_world_conformance.py
 
-SWB_WORLD_ENDPOINT is the server's endpoint (default tcp://127.0.0.1:<port>, the port
-WORLD_PORT, else 5591, for carla; ISAAC_PORT, else 5590, for isaac). SWB_WORLD_MAP is the map directory to load (a
+SCENSIM_WORLD_ENDPOINT is the server's endpoint (default tcp://127.0.0.1:<port>, the port
+WORLD_PORT, else 5591, for carla; ISAAC_PORT, else 5590, for isaac). SCENSIM_WORLD_MAP is the map directory to load (a
 CARLA town needs one: its Autoware map, e.g. a project's assets/maps/Town01; with its
 traffic_lights.yaml the signals capability is checked too); Isaac without it loads its
 default world. No bridge may own the server: stop the stack's bridge, or start the world
@@ -35,15 +35,15 @@ def _tool():
 
 
 def _target():
-    sim = os.environ.get("SWB_WORLD_CHECK", "")
+    sim = os.environ.get("SCENSIM_WORLD_CHECK", "")
     if not sim:
-        pytest.skip("SWB_WORLD_CHECK unset (carla or isaac): needs a running world server")
+        pytest.skip("SCENSIM_WORLD_CHECK unset (carla or isaac): needs a running world server")
     if sim not in DEFAULT_PORT:
-        pytest.fail(f"SWB_WORLD_CHECK={sim!r}: carla or isaac")
+        pytest.fail(f"SCENSIM_WORLD_CHECK={sim!r}: carla or isaac")
     var, port = DEFAULT_PORT[sim]
-    endpoint = os.environ.get("SWB_WORLD_ENDPOINT",
+    endpoint = os.environ.get("SCENSIM_WORLD_ENDPOINT",
                               f"tcp://127.0.0.1:{os.environ.get(var, port)}")
-    return sim, endpoint, os.environ.get("SWB_WORLD_MAP")
+    return sim, endpoint, os.environ.get("SCENSIM_WORLD_MAP")
 
 
 def test_the_world_server_passes_conformance():
@@ -51,7 +51,7 @@ def test_the_world_server_passes_conformance():
     tool = _tool()
     assert tool, "swb_world_check not built (colcon build of swb_world_check)"
     if sim == "carla":
-        assert world_map, "SWB_WORLD_MAP: a CARLA town needs its map directory"
+        assert world_map, "SCENSIM_WORLD_MAP: a CARLA town needs its map directory"
     # answering at all first, so a server that is not up reads as that, not as a failed check
     hello = subprocess.run([tool, "hello", endpoint, "--wait", "60"], capture_output=True,
                            text=True, timeout=90)

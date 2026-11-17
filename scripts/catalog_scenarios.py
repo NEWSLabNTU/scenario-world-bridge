@@ -14,7 +14,7 @@ is assigned: `maxSpeed`, `maxAcceleration`, `maxDeceleration` (its `Performance`
 nothing a scenario drives changes.
 
 A vehicle is cataloged when its `name` or `model3d` is an entry's `model3d`. One carrying the
-`swb.box_exempt` property (scripts/check_scenario_vehicles.py) is left inline.
+`scensim.box_exempt` property (scripts/check_scenario_vehicles.py) is left inline.
 """
 
 import argparse
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "src/sim_vehicle_spec/catalogs/vehicles.xosc"
 CATALOG_NAME = "vehicles"
 CATALOG_DIR = "$(find-pkg-share sim_vehicle_spec)/catalogs"
-EXEMPT = "swb.box_exempt"
+EXEMPT = "scensim.box_exempt"
 # The parameters a scenario assigns: (parameter, element under <Vehicle>, attribute)
 ASSIGNED = (("maxSpeed", "Performance", "maxSpeed"),
             ("maxAcceleration", "Performance", "maxAcceleration"),

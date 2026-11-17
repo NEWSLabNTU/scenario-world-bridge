@@ -34,8 +34,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import swb_agent  # noqa: E402
-from swb_agent import protocol as P  # noqa: E402
+import scensim_agent  # noqa: E402
+from scensim_agent import protocol as P  # noqa: E402
 import arena as AR  # noqa: E402
 import cutin_agent as CA  # noqa: E402
 
@@ -77,7 +77,7 @@ class OncomingAgent(CA.CutInAgent):
                 j = w.get_junction()
                 break
         if j is None:
-            raise swb_agent.Failed(f"no junction {self.junction}")
+            raise scensim_agent.Failed(f"no junction {self.junction}")
         for e, x in j.get_waypoints(carla.LaneType.Driving):
             p, n = e.previous(1.0), x.next(1.0)
             if p and n and (p[0].road_id, p[0].lane_id) == self.b_from and (n[0].road_id, n[0].lane_id) == self.b_to:
@@ -90,13 +90,13 @@ class OncomingAgent(CA.CutInAgent):
                         break
                     w = nx[0]
                 return pts
-        raise swb_agent.Failed(f"no connection {self.b_from} -> {self.b_to} in junction {self.junction}")
+        raise scensim_agent.Failed(f"no connection {self.b_from} -> {self.b_to} in junction {self.junction}")
 
     def on_goal(self, goal, waypoints):
         with self._ctl:
             self.other = self._find_other()
             if self.other is None:
-                raise swb_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
+                raise scensim_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
             me = self.world.vehicle
             pc = me.get_physics_control()
             wb = abs(pc.wheels[0].position.x - pc.wheels[2].position.x) / 100.0
@@ -129,7 +129,7 @@ class OncomingAgent(CA.CutInAgent):
             self.lat = lat
             k = next((i for i in range(1, len(self.path)) if lat(*self.path[i - 1][:2]) * lat(*self.path[i][:2]) <= 0), None)
             if k is None:
-                raise swb_agent.Failed("B's path does not cross A's lane")
+                raise scensim_agent.Failed("B's path does not cross A's lane")
             self.s_cross = 0.5 * k  # along B's path, from its stop line
             self.c_fwd = self.fwd(*self.path[k][:2]) - C_BACK
             sx, sy, syaw = self.path[0]
@@ -261,7 +261,7 @@ class OncomingAgent(CA.CutInAgent):
 
 
 def main(argv=None):
-    return swb_agent.main(OncomingAgent, argv)
+    return scensim_agent.main(OncomingAgent, argv)
 
 
 if __name__ == "__main__":

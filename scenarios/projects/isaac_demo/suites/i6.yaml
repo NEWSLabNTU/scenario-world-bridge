@@ -1,6 +1,6 @@
 # Item 17: incident i6 (a cyclist on the inside of a right turn) on Isaac, CenterPoint with the
 # overlay. Reference: roadmap 044, passed 2026-10-23. Once here (CARLA's demo runs it 3 times).
 scenarios:
-  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i6_cyclist_inside.xosc
+  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i6_cyclist_inside.xosc
 retry: {on: error, times: 1}
 expect: {}

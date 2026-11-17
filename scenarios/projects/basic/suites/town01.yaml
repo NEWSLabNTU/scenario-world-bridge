@@ -2,11 +2,11 @@
 # town02_ego_drive); roadmap 034, 6 of 6 (2026-10-16). rear_contact declares its contact,
 # so physical_verdict passes it.
 scenarios:
-  - ../../../src/swb_examples/scenarios/basic/town01_ego_drive.xosc
-  - ../../../src/swb_examples/scenarios/basic/town01_engage_state.xosc
-  - ../../../src/swb_examples/scenarios/basic/town01_pedestrian.xosc
-  - ../../../src/swb_examples/scenarios/basic/town01_rear_contact.xosc
-  - ../../../src/swb_examples/scenarios/basic/town01_simulator_autopilot.xosc
-  - ../../../src/swb_examples/scenarios/basic/town01_traffic_light.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_ego_drive.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_engage_state.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_pedestrian.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_rear_contact.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_simulator_autopilot.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_traffic_light.xosc
 retry: {on: error, times: 1}
 expect: {}

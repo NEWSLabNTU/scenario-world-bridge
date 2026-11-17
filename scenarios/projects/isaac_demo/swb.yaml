@@ -19,7 +19,7 @@ logging:
   keep: {passed: result, failed: full, error: full}
 judges:
   - name: incident
-    run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+    run: [python3, -m, scensim.gap, incident, --incident, auto, --context, context.jsonl]
     needs: [gap_trace, context]
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

@@ -1,7 +1,7 @@
 """The site a world is built for: one YAML per site under sites/, read by every script of the
 pipeline instead of the NTU constants they once carried.
 
-    SWB_TWIN_SITE=coss python3 ground_ortho.py ...     (default: ntu)
+    SCENSIM_TWIN_SITE=coss python3 ground_ortho.py ...     (default: ntu)
 
 Keys: `shift` (the tiles' frame minus the map frame), `map_origin` (the Isaac world is the map
 frame less it), `ortho_m` (orthophoto resolution), `lanelet_xy` (`local`: lanelet nodes'
@@ -28,7 +28,7 @@ def load(name):
 
 
 def current():
-    return load(os.environ.get("SWB_TWIN_SITE", "ntu"))
+    return load(os.environ.get("SCENSIM_TWIN_SITE", "ntu"))
 
 
 def map_frame(site):

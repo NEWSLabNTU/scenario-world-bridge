@@ -1,0 +1,47 @@
+cmake_minimum_required(VERSION 3.14)
+project(scensim_launch)
+
+find_package(ament_cmake REQUIRED)
+
+install(
+  DIRECTORY launch data rviz config
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# launch/ installs recursively: launch/pilots/ (roadmap 076 step 5) comes with it.
+
+# `ros2 run scensim_launch run_suite`: many scenarios, one verdict each, one suite.junit.xml.
+# `ros2 run scensim_launch physical_verdict`: CARLA's contacts as a JUnit testcase (021).
+# `ros2 run scensim_launch carla_poses`: poses on CARLA's map as OpenSCENARIO WorldPositions.
+# `ros2 run scensim_launch chase_view`: a chase camera window on the ego, for demos (027).
+# `ros2 run scensim_launch gap_oracle`: SSv2-vs-CARLA disagreements in a gap trace (024).
+# `ros2 run scensim_launch ego_ready`: exit 0 once the ego's Autoware can take a scenario (070).
+install(
+  PROGRAMS scripts/run_suite scripts/physical_verdict scripts/carla_poses scripts/chase_view scripts/demo_captions
+    scripts/gap_oracle scripts/incident_judge scripts/ego_ready
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
+# Library modules the gap oracle (024) imports from its own directory: oriented-box
+# geometry and the gap trace reader. Not executables.
+install(
+  FILES scripts/gap_geometry.py scripts/gap_trace.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_run_suite test/test_run_suite.py)
+  ament_add_pytest_test(test_physical_verdict test/test_physical_verdict.py)
+  ament_add_pytest_test(test_gap_geometry test/test_gap_geometry.py)
+  ament_add_pytest_test(test_gap_trace test/test_gap_trace.py)
+  ament_add_pytest_test(test_gap_oracle test/test_gap_oracle.py)
+  ament_add_pytest_test(test_incident_judge test/test_incident_judge.py)
+  ament_add_pytest_test(test_ego_ready test/test_ego_ready.py)
+  ament_add_pytest_test(test_stack_domains test/test_stack_domains.py)
+  ament_add_pytest_test(test_pilots test/test_pilots.py)
+  ament_add_pytest_test(test_scensim_launch test/test_scensim_launch.py)
+endif()
+
+ament_package()

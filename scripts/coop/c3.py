@@ -179,7 +179,7 @@ def restart_ego(timeout=600):
         new = [p for p in _ego_launches() if p not in old]
         if not new:
             continue
-        r = subprocess.run(["ros2", "run", "swb_launch", "ego_ready", "--timeout", "10"],
+        r = subprocess.run(["ros2", "run", "scensim_launch", "ego_ready", "--timeout", "10"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if r.returncode == 0:
             time.sleep(10)

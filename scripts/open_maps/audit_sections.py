@@ -61,7 +61,7 @@ def segments(path, shift):
     lan = {}
     for rel in r.findall("relation"):
         t = tags(rel)
-        if t.get("type") != "lanelet" or t.get("subtype") != "road" or "swb:osm_way" not in t:
+        if t.get("type") != "lanelet" or t.get("subtype") != "road" or "scensim:osm_way" not in t:
             continue
         m = {x.get("role"): x.get("ref") for x in rel.findall("member") if x.get("type") == "way"}
         lan[rel.get("id")] = (t, m["left"], m["right"])
@@ -152,7 +152,7 @@ def audit(path, ortho, shift, min_length, window=20.0):
             pk = peaks(prof, off)
             match = [min((abs(p - o), p - o) for p in pk)[1] if pk else None for o in ours]
             rows.append({
-                "osm_way": t0.get("swb:osm_way"), "name": t0.get("name", ""), "at_m": round(s - window),
+                "osm_way": t0.get("scensim:osm_way"), "name": t0.get("name", ""), "at_m": round(s - window),
                 "lanes": nlanes, "our_lines": [round(x, 2) for x in ours],
                 "paint_lines": [round(p, 2) for p in pk],
                 "offsets": [None if m is None else round(m, 2) for m in match],

@@ -304,7 +304,7 @@ def main():
     ap.add_argument("map")
     ap.add_argument("out")
     ap.add_argument("--name", required=True)
-    ap.add_argument("--map-path", required=True, help="the LogicFile path, e.g. $(env SWB_OPEN_MAPS)/ntu/map")
+    ap.add_argument("--map-path", required=True, help="the LogicFile path, e.g. $(env SCENSIM_OPEN_MAPS)/ntu/map")
     ap.add_argument("--start", required=True)
     ap.add_argument("--via", action="append", default=[], help="x,y,heading; repeated, in order")
     ap.add_argument("--goal", required=True)

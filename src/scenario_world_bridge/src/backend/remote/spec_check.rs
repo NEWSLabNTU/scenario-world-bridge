@@ -16,7 +16,26 @@ use std::path::{Path, PathBuf};
 use eyre::{bail, eyre, Result, WrapErr};
 
 /// The catalog's property that carries an entry's spec_hash.
-const PROPERTY: &str = "swb.spec_hash";
+const PROPERTY: &str = "scensim.spec_hash";
+/// Its name before the project became scensim (roadmap 080): refused by name, never read.
+const OLD_PROPERTY: &str = "swb.spec_hash";
+
+/// Why a catalog's `text` is refused for naming the property by its old name, if it does.
+pub fn old_property(text: &str, path: &Path) -> Option<String> {
+    text.contains(&format!("name=\"{OLD_PROPERTY}\"")).then(|| {
+        format!(
+            "vehicle catalog {}: {OLD_PROPERTY} was renamed with the project (roadmap 080); \
+             the catalog must name {PROPERTY} (regenerate it: rebuild sim_vehicle_spec)",
+            path.display()
+        )
+    })
+}
+
+/// The installed catalog's refusal for an old property name, if it has one.
+pub fn installed_refusal() -> Option<String> {
+    let path = installed_catalog()?;
+    old_property(&std::fs::read_to_string(&path).ok()?, &path)
+}
 
 /// The vehicle catalog as installed beside the bridge (sim_vehicle_spec's share, found on
 /// `AMENT_PREFIX_PATH`): the one SSv2 reads when it shares the bridge's workspace.
@@ -100,6 +119,9 @@ pub fn read_catalog(path: &Path) -> Result<HashMap<String, String>> {
             "vehicle catalog {}: not an OpenSCENARIO catalog",
             path.display()
         );
+    }
+    if let Some(why) = old_property(&text, path) {
+        bail!(why);
     }
     let hashes = catalog_hashes(&text);
     if hashes.is_empty() {
@@ -224,11 +246,11 @@ mod tests {
     <Vehicle name="tesla_model3" vehicleCategory="car" model3d="vehicle.tesla.model3">
       <BoundingBox><Center x="1.416" y="0.0" z="0.744" /></BoundingBox>
       <Properties>
-        <Property name="swb.spec_hash" value="d5d4b266c7fd1fb4" />
+        <Property name="scensim.spec_hash" value="d5d4b266c7fd1fb4" />
       </Properties>
     </Vehicle>
     <Vehicle name="box" vehicleCategory="car">
-      <Properties><Property name="swb.spec_hash" value="ffff" /></Properties>
+      <Properties><Property name="scensim.spec_hash" value="ffff" /></Properties>
     </Vehicle>
 </Catalog></OpenSCENARIO>"#;
 
@@ -247,7 +269,7 @@ mod tests {
 
     fn scratch(name: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("swb_spec_check_{}_{name}", std::process::id()));
+            std::env::temp_dir().join(format!("scensim_spec_check_{}_{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -256,10 +278,19 @@ mod tests {
         format!(
             r#"<OpenSCENARIO><Catalog name="vehicles">
   <Vehicle name="outside_car" vehicleCategory="car" model3d="vehicle.example.outside">
-    <Properties><Property name="swb.spec_hash" value="{hash}" /></Properties>
+    <Properties><Property name="scensim.spec_hash" value="{hash}" /></Properties>
   </Vehicle>
 </Catalog></OpenSCENARIO>"#
         )
+    }
+
+    #[test]
+    fn a_catalog_with_the_old_property_name_is_refused_naming_the_new_one() {
+        let dir = scratch("old_property");
+        let old = dir.join("old.xosc");
+        std::fs::write(&old, cart("aaaa").replace("scensim.spec_hash", "swb.spec_hash")).unwrap();
+        let e = format!("{:#}", read_catalog(&old).unwrap_err());
+        assert!(e.contains("swb.spec_hash was renamed") && e.contains("scensim.spec_hash"), "{e}");
     }
 
     #[test]

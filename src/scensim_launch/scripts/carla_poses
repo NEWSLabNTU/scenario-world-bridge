@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Find poses on the CARLA map for a scenario, printed as OpenSCENARIO WorldPositions.
+
+Scenarios give positions in the ROS frame of the Autoware map, which for the CARLA towns is
+CARLA's world with y flipped and the heading negated (CARLA is left-handed). This tool reads
+the map CARLA has loaded and prints poses already converted, ready to paste into a .xosc:
+
+  ros2 run scensim_launch carla_poses spawn-points            # CARLA's spawn points, numbered
+  ros2 run scensim_launch carla_poses ahead 12 --distance 70  # 70 m along the lane from #12
+  ros2 run scensim_launch carla_poses at 190.8 -130.1         # snap a ROS x/y onto its lane
+
+It only reads the world: no actor is spawned and no setting is changed, so it is safe beside
+a running scenario. Maps not in CARLA's frame (carla/map_origin.yaml) are not handled.
+
+CARLA's host and port are scensim's: the host settings' carla.host and carla.port (the project's
+.scensim/local.yaml, ~/.config/scensim/host.yaml), or your seat's own CARLA when the seat table gives
+each seat one (seats.carla). --host and --port, before or after the subcommand, override them.
+"""
+import argparse
+import math
+import signal
+import sys
+
+carla = None  # the CARLA Python API, imported when a command runs (main)
+
+DEFAULT_HOST, DEFAULT_PORT = "localhost", 2000
+
+
+def carla_endpoint(args):
+    """(host, port): --host/--port when given, else scensim's host settings (with the seat's own
+    CARLA, scensim.seat.carla_endpoint), else localhost:2000 when scensim is not installed."""
+    host, port = getattr(args, "host", None), getattr(args, "port", None)
+    if host is not None and port is not None:
+        return host, port
+    try:
+        from scensim import config, seat
+    except ImportError:
+        return host or DEFAULT_HOST, port or DEFAULT_PORT
+    try:
+        try:
+            project = config.find_project()
+        except config.ConfigError:
+            project = None
+        settings = config.host_settings(project)
+        if port is not None:   # the seat's CARLA is only a port
+            return host or str((settings.get("carla") or {}).get("host") or DEFAULT_HOST), port
+        h, p = seat.carla_endpoint(settings, seat.seats_source(project))
+    except config.ConfigError as e:
+        sys.exit(f"carla_poses: {e}")
+    return (host if host is not None else h), p
+
+
+def ros_pose(transform):
+    """CARLA transform -> (x, y, z, heading rad) in the ROS frame."""
+    loc, rot = transform.location, transform.rotation
+    heading = math.atan2(math.sin(-math.radians(rot.yaw)), math.cos(-math.radians(rot.yaw)))
+    return loc.x, -loc.y, loc.z, heading
+
+
+def world_position(transform):
+    x, y, z, h = ros_pose(transform)
+    return f'<WorldPosition x="{x:.2f}" y="{y:.2f}" z="{z:.2f}" h="{h:.5f}" p="0" r="0" />'
+
+
+def lane_note(wp):
+    return f"road {wp.road_id} lane {wp.lane_id}{' (junction)' if wp.is_junction else ''}"
+
+
+def connect(args):
+    client = carla.Client(args.host, args.port)
+    client.set_timeout(20.0)
+    world = client.get_world()
+    town = world.get_map().name.split("/")[-1]
+    print(f"# CARLA {client.get_server_version()} at {args.host}:{args.port}, map {town}")
+    return world.get_map()
+
+
+def cmd_spawn_points(m, args):
+    for i, sp in enumerate(m.get_spawn_points()):
+        wp = m.get_waypoint(sp.location)
+        print(f"{i:4d}  {world_position(sp)}  <!-- {lane_note(wp)} -->")
+
+
+def cmd_ahead(m, args):
+    points = m.get_spawn_points()
+    if not 0 <= args.index < len(points):
+        sys.exit(f"carla_poses: spawn point {args.index} out of range (0..{len(points) - 1})")
+    wp = m.get_waypoint(points[args.index].location)
+    print(f"start  {world_position(wp.transform)}  <!-- spawn point {args.index}, {lane_note(wp)} -->")
+    travelled = 0.0
+    while travelled < args.distance:
+        step = min(args.step, args.distance - travelled)
+        nxt = wp.next(step)
+        if not nxt:
+            print(f"# the lane ends after {travelled:.0f} m")
+            break
+        # At a junction keep the branch closest to straight ahead, unless --turn.
+        def bend(w):
+            return abs((w.transform.rotation.yaw - wp.transform.rotation.yaw + 180) % 360 - 180)
+        wp = (max if args.turn else min)(nxt, key=bend)
+        travelled += step
+        if args.every and travelled < args.distance:
+            print(f"{travelled:5.0f}m {world_position(wp.transform)}  <!-- {lane_note(wp)} -->")
+    print(f"end    {world_position(wp.transform)}  <!-- {travelled:.0f} m on, {lane_note(wp)} -->")
+
+
+def cmd_at(m, args):
+    wp = m.get_waypoint(carla.Location(x=args.x, y=-args.y, z=0.0), project_to_road=True)
+    off = math.hypot(wp.transform.location.x - args.x, -wp.transform.location.y - args.y)
+    print(f"lane   {world_position(wp.transform)}  <!-- {off:.2f} m from the given point, {lane_note(wp)} -->")
+
+
+def parser():
+    # --host/--port before or after the subcommand; SUPPRESS: a subparser's default would
+    # overwrite a value given before it
+    where = argparse.ArgumentParser(add_help=False)
+    where.add_argument("--host", default=argparse.SUPPRESS,
+                       help="CARLA's host (default: the host settings' carla.host)")
+    where.add_argument("--port", type=int, default=argparse.SUPPRESS,
+                       help="CARLA's RPC port (default: the host settings' carla.port, or your seat's)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 parents=[where])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("spawn-points", parents=[where], help="list CARLA's spawn points as WorldPositions")
+    a = sub.add_parser("ahead", parents=[where], help="the lane pose some distance along the road from a spawn point")
+    a.add_argument("index", type=int, help="spawn point number (from spawn-points)")
+    a.add_argument("--distance", type=float, default=50.0, help="metres along the lane (default 50)")
+    a.add_argument("--step", type=float, default=2.0, help="waypoint step, m (default 2)")
+    a.add_argument("--turn", action="store_true", help="at junctions take the sharpest turn, not the straightest")
+    a.add_argument("--every", action="store_true", help="also print every step on the way")
+    t = sub.add_parser("at", parents=[where], help="snap a ROS-frame x/y to the nearest driving lane")
+    t.add_argument("x", type=float)
+    t.add_argument("y", type=float)
+    return ap
+
+
+def main(argv=None):
+    global carla
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `| head` ends quietly
+    args = parser().parse_args(argv)
+    args.host, args.port = carla_endpoint(args)
+    try:
+        import carla
+    except ImportError:
+        sys.exit("carla_poses: the CARLA Python API is needed: pip install carla==<your CARLA version>")
+    m = connect(args)
+    {"spawn-points": cmd_spawn_points, "ahead": cmd_ahead, "at": cmd_at}[args.cmd](m, args)
+
+
+if __name__ == "__main__":
+    main()

@@ -33,7 +33,7 @@ cat > "$ENVSH" <<EOF
 source /opt/autoware/1.5.0/setup.bash
 source $R/install/setup.bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=\${EGO_ROS_DOMAIN_ID:-1}
-export CYCLONEDDS_URI="file://$R/src/swb_launch/config/cyclonedds-localhost.xml"
+export CYCLONEDDS_URI="file://$R/src/scensim_launch/config/cyclonedds-localhost.xml"
 ${GPU:+export CUDA_VISIBLE_DEVICES=$GPU}
 EOF
 in_env() { bash -c "source $ENVSH >/dev/null 2>&1; $*"; }
@@ -52,7 +52,7 @@ setsid just run map_path:="$R/data/carla-autoware-bridge/Town03" \
     gap_trace_dir:="$OUT/traces" ego_launch_args:="max_velocity:=$VB $EXTRA" > "$OUT/stack.console" 2>&1 < /dev/null &
 SPID=$!
 for i in $(seq 1 120); do
-    in_env ros2 run swb_launch ego_ready --timeout 10 > "$OUT/ego_ready.log" 2>&1 && break
+    in_env ros2 run scensim_launch ego_ready --timeout 10 > "$OUT/ego_ready.log" 2>&1 && break
     sleep 10
 done
 

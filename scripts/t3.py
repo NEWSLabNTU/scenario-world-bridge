@@ -2,7 +2,7 @@
 """T3, live regression (roadmap 077): the migrated studies' suites against their references.
 
     scripts/t3.py list                       # the manifest's suites, and which have a reference
-    scripts/t3.py run [--only P/S ...]       # run them (ros2 run swb run, a stack per project)
+    scripts/t3.py run [--only P/S ...]       # run them (ros2 run scensim run, a stack per project)
     scripts/t3.py record [--only P/S ...]    # write each suite's latest results as its reference
     scripts/t3.py compare [--only P/S ...]   # this host's latest results against the references
     ... --part i/n                           # host i of n: its share, whole projects
@@ -18,8 +18,8 @@ that is missing; a duration more than 1.5 times the reference's is reported, not
 differ). Record only on the release commit, so each reference names one commit. The busy check
 and ``gpu_at_record`` are the host's state when ``record`` runs, not while the suite ran.
 
-A project marked ``copy: true`` (an example under src/swb_examples) runs from a copy made
-with ``ros2 run swb project new --from``, under ``--work`` (default /var/tmp/$USER/t3), fetched
+A project marked ``copy: true`` (an example under src/scensim_examples) runs from a copy made
+with ``ros2 run scensim project new --from``, under ``--work`` (default /var/tmp/$USER/t3), fetched
 there; its results are under that copy's name.
 
 ``run`` writes each step's output to ``<work>/logs/<project>/<time>_<n>_<step>.log`` and
@@ -31,7 +31,7 @@ then SIGKILL) at once, and never abandons it. Stop t3 with SIGINT or SIGTERM, ne
 step and its stack are in a session of their own, and only t3's kill path stops them.
 
 A project's suites share its stack, in the manifest's order; before a suite the stack cannot
-serve (swb's ``switch_problem`` for the suite's maps: an Isaac world holds only the worlds it
+serve (scensim's ``switch_problem`` for the suite's maps: an Isaac world holds only the worlds it
 loaded at start) t3 stops it, keeper first, and the suite starts a new one (077 G82). ``run``
 stamps each suite (``<work>/stamps/``: its start time); ``record`` takes only rows of that
 run, and refuses a suite this host never ran with this t3 (one run with an older t3 is
@@ -54,7 +54,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "scenarios" / "t3.yaml"
 SLOW = 1.5
-STOP_GRACE = 180.0   # s for an interrupted swb run to stop its stack (CARLA, Isaac) before SIGTERM
+STOP_GRACE = 180.0   # s for an interrupted scensim run to stop its stack (CARLA, Isaac) before SIGTERM
 STARTED = re.compile(r"^stack\s+starting on seat (\d+) \(pid (\d+)")
 
 
@@ -68,7 +68,7 @@ def load(path=MANIFEST) -> dict:
 
 def project_key(project: str) -> str:
     """A project's name in keys and reference paths: its path under a projects directory."""
-    for root in ("scenarios/projects/", "src/swb_examples/projects/"):
+    for root in ("scenarios/projects/", "src/scensim_examples/projects/"):
         if project.startswith(root):
             return project[len(root):]
     return Path(project).name
@@ -246,9 +246,9 @@ def gpu_uuids() -> dict:
 
 
 def stack_gpus(host: dict, seat_arg=None, environ=None, uuids=gpu_uuids, resolve=None):
-    """``(indices or None, source)``: the GPU(s) the stack uses, as swb takes them: host
+    """``(indices or None, source)``: the GPU(s) the stack uses, as scensim takes them: host
     ``gpu``, else the seat's ``seats.gpus`` entry (``--seat`` or host ``seat``; ``auto``
-    resolved as `swb run` resolves it, the first free seat whose ports are free), else
+    resolved as `scensim run` resolves it, the first free seat whose ports are free), else
     CUDA_VISIBLE_DEVICES (indices, or GPU UUIDs mapped to nvidia-smi's indices; one it does
     not list is refused), else None: every card."""
     environ = os.environ if environ is None else environ
@@ -273,7 +273,7 @@ def stack_gpus(host: dict, seat_arg=None, environ=None, uuids=gpu_uuids, resolve
         for d in (x.strip() for x in cvd.split(",") if x.strip()):
             if d.isdigit():
                 # CUDA's order is FASTEST_FIRST unless CUDA_DEVICE_ORDER=PCI_BUS_ID, not
-                # always nvidia-smi's: the same on one card or identical cards (swb assumes it)
+                # always nvidia-smi's: the same on one card or identical cards (scensim assumes it)
                 out.append(int(d))
                 continue
             table = uuids() if table is None else table
@@ -287,9 +287,9 @@ def stack_gpus(host: dict, seat_arg=None, environ=None, uuids=gpu_uuids, resolve
 
 
 def _auto_seat(host: dict):
-    """The seat `swb run` would take now (seat.resolve with its port check), else None."""
-    sys.path.insert(0, str(ROOT / "src" / "swb"))
-    from swb import config, seat as seatmod
+    """The seat `scensim run` would take now (seat.resolve with its port check), else None."""
+    sys.path.insert(0, str(ROOT / "src" / "scensim"))
+    from scensim import config, seat as seatmod
     try:
         return seatmod.resolve(dict(host, seat="auto"),
                                usable=lambda s: not seatmod.busy_ports(s)).index
@@ -315,7 +315,7 @@ def results_provenance(rows: list, runs: Path) -> dict:
 
 
 def off_pin(submodules: dict) -> str:
-    """The submodules a result's provenance shows off its commit's pins: swb's
+    """The submodules a result's provenance shows off its commit's pins: scensim's
     results.submodule_pins writes ``sha+`` for a checkout off its pin (a stale one after a
     pull: the binaries are not the commit's code) and ``sha-`` for one not initialised.
     "" when none is."""
@@ -340,8 +340,8 @@ def host_load() -> tuple:
 
 
 def host_settings() -> dict:
-    sys.path.insert(0, str(ROOT / "src" / "swb"))
-    from swb import config
+    sys.path.insert(0, str(ROOT / "src" / "scensim"))
+    from scensim import config
     return config.host_settings()
 
 
@@ -358,12 +358,12 @@ def run(entries: list, work: Path, dry_run: bool, logs: Path = None) -> int:
         d = work_dir(es[0], work)
         steps = []
         if es[0].get("copy") and not (d / "swb.yaml").is_file():
-            pkg = f"pkg://swb_examples/projects/{Path(project).name}"
-            steps.append((["ros2", "run", "swb", "project", "new", str(d), "--from", pkg], None))
+            pkg = f"pkg://scensim_examples/projects/{Path(project).name}"
+            steps.append((["ros2", "run", "scensim", "project", "new", str(d), "--from", pkg], None))
         # every project fetched first (nothing to download when it is; G35 skips the hashes)
-        steps.append((["ros2", "run", "swb", "assets", "fetch"], None))
+        steps.append((["ros2", "run", "scensim", "assets", "fetch"], None))
         for i, e in enumerate(es):
-            argv = ["ros2", "run", "swb", "run", f"suites/{e['suite']}.yaml", "--start-stack",
+            argv = ["ros2", "run", "scensim", "run", f"suites/{e['suite']}.yaml", "--start-stack",
                     "--ready-timeout", "1800"]
             if i == len(es) - 1:
                 argv.append("--stop-stack")
@@ -394,7 +394,7 @@ def run(entries: list, work: Path, dry_run: bool, logs: Path = None) -> int:
                 worst = max(worst, code)
                 p = None
         except KeyboardInterrupt:
-            # the step's own group first (swb run stops what it started), then a stack an
+            # the step's own group first (scensim run stops what it started), then a stack an
             # earlier suite of this project left up; t3 exits only once both are gone. A
             # second Ctrl-C hurries the stop on, never abandons it
             global _hurry
@@ -407,7 +407,7 @@ def run(entries: list, work: Path, dry_run: bool, logs: Path = None) -> int:
                 stop_group(p.pid, grace=STOP_GRACE, proc=p)
                 started = scan_started(log) or started
             if started:
-                # normally a no-op (ESRCH): the step's swb run stopped the stack it started
+                # normally a no-op (ESRCH): the step's scensim run stopped the stack it started
                 # itself; it is not when an earlier suite of the project left one up
                 stop_stack(started, logs, d)
             raise
@@ -419,7 +419,7 @@ def run(entries: list, work: Path, dry_run: bool, logs: Path = None) -> int:
 
 
 def stack_record(logs, d: Path, seat: int):
-    """The stack.json of the project's stack on ``seat`` (swb's ``seat-<n>-current`` link
+    """The stack.json of the project's stack on ``seat`` (scensim's ``seat-<n>-current`` link
     under the host's logs), or None."""
     if logs is None:
         return None
@@ -431,23 +431,23 @@ def stack_record(logs, d: Path, seat: int):
 
 
 def suite_maps(d: Path, suite: str) -> list:
-    """The maps a suite's runs are on, in order, by swb's own resolver (``swb run``'s
+    """The maps a suite's runs are on, in order, by scensim's own resolver (``scensim run``'s
     ``expand`` and ``scenario_map``); a scenario whose map it cannot name is left out."""
-    from swb import run as runmod
+    from scensim import run as runmod
     specs, _ = runmod.expand(d / "suites" / f"{suite}.yaml", d)
     return [m for m in dict.fromkeys(runmod.scenario_map(sp.scenario) for sp in specs) if m]
 
 
 def restart_reason(d: Path, rec, suite: str):
     """Why the stack of ``rec`` cannot serve ``suite`` (a ``[t3]`` line: ``map X -> Y``), or
-    None: swb's own ``switch_problem`` for each of the suite's maps (077 G82: on Isaac it
+    None: scensim's own ``switch_problem`` for each of the suite's maps (077 G82: on Isaac it
     refuses even the stack's own first world once the pilots moved off it)."""
     if not rec:
         return None
-    from swb import stack as stackmod
+    from scensim import stack as stackmod
     try:
         maps = suite_maps(d, suite)
-    except Exception as err:   # swb run refuses such a suite in its own words
+    except Exception as err:   # scensim run refuses such a suite in its own words
         warn(f"t3: {suite}: its maps are not known ({err}); the stack is kept\n")
         return None
     for m in maps:
@@ -457,7 +457,7 @@ def restart_reason(d: Path, rec, suite: str):
 
 
 def stop_stack(started: tuple, logs, d: Path, grace: float = STOP_GRACE):
-    """A stack a suite started, as ``swb run --stop-stack`` stops one: its keeper first (it
+    """A stack a suite started, as ``scensim run --stop-stack`` stops one: its keeper first (it
     stops the pilots and the simulator in order; it runs in a session of its own), then the
     launch's process group; returns once both are gone."""
     pid, seat = started
@@ -465,7 +465,7 @@ def stop_stack(started: tuple, logs, d: Path, grace: float = STOP_GRACE):
     # the seat's record is this stack's only while its keeper descends from this launch: by
     # the project's end the seat may hold another's stack, which is not t3's to stop
     if rec and rec.get("pid") and descends(rec["pid"], pid):
-        from swb import stack as stackmod
+        from scensim import stack as stackmod
         try:
             kgroup = os.getpgid(rec["pid"])
         except ProcessLookupError:
@@ -538,9 +538,9 @@ def stamp_path(work: Path, e: dict) -> Path:
 def write_stamp(work: Path, e: dict):
     """When this host's ``t3 run`` started the suite: ``record`` takes only results from that
     run (077 G82: a stale summary.csv from an earlier commit). No commit: t3's checkout need
-    not be the swb that runs (the RC's runs, a build at the tag, are recorded with a newer
+    not be the scensim that runs (the RC's runs, a build at the tag, are recorded with a newer
     t3); the rows' own provenance names it, and ``results_commit`` refuses a mix."""
-    from swb import stack as stackmod   # its run_id prefix, local time: the two must match
+    from scensim import stack as stackmod   # its run_id prefix, local time: the two must match
     path = stamp_path(work, e)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"key": e["key"], "started": stackmod.now_id()}) + "\n")
@@ -548,14 +548,14 @@ def write_stamp(work: Path, e: dict):
 
 def stale_rows(rows: list, stamp) -> list:
     """The rows not from the suite's run that ``stamp`` names: started before it, by their
-    run_id's time (swb's ``now_id``, as the stamp's)."""
+    run_id's time (scensim's ``now_id``, as the stamp's)."""
     return [f"{r['run_id'] or r['scenario']} (before this run, {stamp['started']})"
             for r in rows if (r["run_id"] or "")[:19] < stamp["started"]]
 
 
 def step_log(work: Path, d: Path, n: int, argv: list) -> Path:
     """A step's own output file: the child writes there, not to a pipe of t3's, so t3's death
-    cannot break its writes (a swb run whose stdout pipe lost its reader died on EPIPE while
+    cannot break its writes (a scensim run whose stdout pipe lost its reader died on EPIPE while
     starting its stack and left the stack up; 077 G80)."""
     stamp = time.strftime("%Y-%m-%dT%H-%M-%S")
     what = argv[3] if argv[3] != "run" else Path(argv[4]).stem
@@ -679,11 +679,11 @@ def _on_term(signum, frame):
 
 def take_signals():
     """SIGINT and SIGTERM stop t3 through its kill path, even with SIGINT inherited ignored (a
-    script's ``&`` job; swb.signals, dc350cd): first, before any child starts."""
-    src = str(ROOT / "src" / "swb")
+    script's ``&`` job; scensim.signals, dc350cd): first, before any child starts."""
+    src = str(ROOT / "src" / "scensim")
     if src not in sys.path:
-        sys.path.append(src)   # last: the sourced install's swb, when there is one, comes first
-    from swb import signals
+        sys.path.append(src)   # last: the sourced install's scensim, when there is one, comes first
+    from scensim import signals
     return signals.take_sigint(), signal.signal(signal.SIGTERM, _on_term)
 
 
@@ -707,7 +707,7 @@ def _main(argv=None) -> int:
                                    "compares its own suites' references")
     ap.add_argument("--manifest", type=Path, default=MANIFEST)
     ap.add_argument("--logs", type=Path, help="the host's log root (default: its settings')")
-    ap.add_argument("--work", type=Path, default=Path(f"/var/tmp/{os.environ.get('USER', 'swb')}/t3"))
+    ap.add_argument("--work", type=Path, default=Path(f"/var/tmp/{os.environ.get('USER', 'scensim')}/t3"))
     ap.add_argument("--dry-run", action="store_true", help="run: print the commands only")
     ap.add_argument("--busy-ok", action="store_true",
                     help="record although the GPU is busy (the reference says so)")

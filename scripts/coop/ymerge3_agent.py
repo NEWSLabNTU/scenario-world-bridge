@@ -30,10 +30,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import swb_agent  # noqa: E402
-from swb_agent import protocol as P  # noqa: E402
-from swb_agent.adapters import carla_basic  # noqa: E402
-from swb_agent.adapters.carla_basic import CarlaBasicAgent  # noqa: E402
+import scensim_agent  # noqa: E402
+from scensim_agent import protocol as P  # noqa: E402
+from scensim_agent.adapters import carla_basic  # noqa: E402
+from scensim_agent.adapters.carla_basic import CarlaBasicAgent  # noqa: E402
 
 import arena as AR  # noqa: E402
 import cutin_agent  # noqa: E402
@@ -96,7 +96,7 @@ class YMerge3Agent(CarlaBasicAgent):
                 if a is not None:
                     found[k] = a
                 elif time.monotonic() > t_give_up:
-                    raise swb_agent.Failed(f"no vehicle with role_name {self.roles[k]!r}")
+                    raise scensim_agent.Failed(f"no vehicle with role_name {self.roles[k]!r}")
                 else:
                     time.sleep(0.5)
         with self._ctl:
@@ -244,7 +244,7 @@ class YMerge3Agent(CarlaBasicAgent):
 
 
 def main(argv=None):
-    return swb_agent.main(YMerge3Agent, argv)
+    return scensim_agent.main(YMerge3Agent, argv)
 
 
 if __name__ == "__main__":

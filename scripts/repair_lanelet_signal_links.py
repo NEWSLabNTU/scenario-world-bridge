@@ -29,7 +29,7 @@ TransverseMercator, `autoware_projection.py`) and local_x/local_y, as
 the first run keeps `<map>.orig-signal-links` and every run starts from it, so a rerun
 writes the same file.
 
-Needs CARLA holding the town with something ticking it (swb during a scenario, or a
+Needs CARLA holding the town with something ticking it (scensim during a scenario, or a
 private server): this script never ticks, it waits for a frame, since a client that has
 not seen one sees no actors.
 
@@ -260,7 +260,7 @@ def main():
             f'  <way id="{nid}">\n'
             f'    <nd ref="{ids[0]}"/>\n    <nd ref="{ids[1]}"/>\n'
             f'    <tag k="type" v="stop_line"/>\n'
-            f'    <tag k="swb_signal_link" v="{od}"/>\n'
+            f'    <tag k="scensim_signal_link" v="{od}"/>\n'
             f'  </way>')
         rel_re = re.compile(r'<relation id="%s"[^>]*>.*?</relation>' % re.escape(e), re.S)
         m = rel_re.search(text)

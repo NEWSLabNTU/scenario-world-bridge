@@ -130,6 +130,10 @@ def _results(tmp_path, commits, dirty=False, subs=None):
             "submodules": subs or {"src/swb_isaac_world": "f00"}}}))
         lines.append(f"{rid},/a/a{i}.xosc,,0,,passed,,100,,/p\n")
     (suite / "summary.csv").write_text("".join(lines))
+    stamps = tmp_path / "work" / "stamps"           # this host's `t3.py run` of it (G82)
+    stamps.mkdir(parents=True)
+    (stamps / "zz_t3test__s.json").write_text(json.dumps(
+        {"key": "zz_t3test/s", "started": "2026-11-17T00-00-00"}))
     m = tmp_path / "t3.yaml"
     m.write_text(f"references: {tmp_path / 'refs'}\n"
                  "suites:\n  - {project: scenarios/projects/zz_t3test, suite: s, sim: carla}\n")
@@ -147,25 +151,25 @@ def test_record_names_the_results_commit_not_the_scripts(tmp_path, monkeypatch, 
     import json
     logs, m = _results(tmp_path, ["aaaaaaa", "aaaaaaa"])
     _quiet(monkeypatch)
-    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs)]) == 0
+    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 0
     meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
     assert meta["commit"] == "aaaaaaa" and meta["recorded_with"] == "bbbbbbb"
     assert meta["submodules"] == {"src/swb_isaac_world": "f00"}
     assert meta["gpu_gated"] == {"indices": [0], "source": "host gpu: 0"}
     assert meta["gpu_at_record"] == TWO and meta["notes"] == []
     # compare reads the same field
-    assert t3.main(["compare", "--manifest", str(m), "--logs", str(logs)]) == 0
+    assert t3.main(["compare", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 0
     assert "runs at aaaaaaa; the reference at aaaaaaa" in capsys.readouterr().out
 
 
 def test_record_refuses_a_mix_of_commits_and_the_stacks_busy_gpu(tmp_path, monkeypatch, capsys):
     logs, m = _results(tmp_path, ["aaaaaaa", "ccccccc"])
     _quiet(monkeypatch)
-    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs)]) == 1
+    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 1
     assert "results from more than one commit" in capsys.readouterr().out
     logs2, m2 = _results(tmp_path / "b", ["aaaaaaa"])
     _quiet(monkeypatch, host={"gpu": 1})
-    assert t3.main(["record", "--manifest", str(m2), "--logs", str(logs2)]) == 1
+    assert t3.main(["record", "--manifest", str(m2), "--logs", str(logs2), "--work", str(logs2.parent / "work")]) == 1
     assert "gated GPU [1] from host gpu: 1" in capsys.readouterr().out
 
 
@@ -175,7 +179,7 @@ def test_a_dirty_checkout_is_recorded_with_a_note(tmp_path, monkeypatch, capsys)
     import json
     logs, m = _results(tmp_path, ["aaaaaaa"], dirty=True)
     _quiet(monkeypatch)
-    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs)]) == 0
+    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 0
     meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
     assert meta["commit"] == "aaaaaaa+dirty" and "G79" in meta["notes"][0]
     assert "warning: results' checkout was dirty" in capsys.readouterr().out
@@ -188,7 +192,7 @@ def test_record_refuses_submodules_off_their_pins(tmp_path, monkeypatch, capsys)
                                                     "src/color_names": "c6a3227-",
                                                     "src/sim_vehicle_spec": "9b7e48d"})
     _quiet(monkeypatch)
-    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs)]) == 1
+    assert t3.main(["record", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 1
     assert ("not recorded, submodules off the commit's pins: src/color_names (c6a3227-), "
             "src/swb_isaac_world (f2d7e1a+); git submodule update --init --recursive, "
             "rebuild, run again") in capsys.readouterr().out
@@ -211,8 +215,18 @@ FAKE_ROS2 = r"""#!/usr/bin/env python3
 import os, signal, subprocess, sys, time
 if sys.argv[1:4] == ["run", "swb", "assets"]:
     sys.exit(0)
+log = os.environ.get("T3_FAKE_LOG")
+if log:   # was the previous suite's stack gone when this one started? (G82)
+    try:
+        prev = int(open(os.environ["T3_FAKE_STACK"]).read())
+        os.kill(prev, 0)
+        alive = open(f"/proc/{prev}/stat").read().split(")")[-1].split()[0] != "Z"
+    except (OSError, ValueError):
+        alive = False
+    open(log, "a").write(f"{sys.argv[4]} previous_stack_alive={alive}\n")
 stack = subprocess.Popen(["sleep", "300"], start_new_session=True)
 open(os.environ["T3_FAKE_STACK"], "w").write(str(stack.pid))
+open(os.environ["T3_FAKE_STACK"] + ".all", "a").write(f"{stack.pid}\n")
 print(f"stack    starting on seat 0 (pid {stack.pid}, console x)", flush=True)
 def on_int(*a):
     time.sleep(float(os.environ.get("T3_FAKE_STOP_S", "0")))   # a stack slow to stop
@@ -243,7 +257,8 @@ def _t3_child(tmp_path, env_extra=None, **popen):
                T3_FAKE_STACK=str(tmp_path / "stack.pid"), **(env_extra or {}))
     ignore = lambda: signal.signal(signal.SIGINT, signal.SIG_IGN)   # a script's `&` job
     return subprocess.Popen([sys.executable, str(Path(__file__).with_name("t3.py")), "run",
-                             "--manifest", str(manifest), "--work", str(tmp_path / "work")],
+                             "--manifest", str(manifest), "--work", str(tmp_path / "work"),
+                             "--logs", str(tmp_path / "logs")],
                             env=env, preexec_fn=ignore, text=True, **popen)
 
 
@@ -347,3 +362,121 @@ def test_a_sigterm_with_t3s_stdout_and_stderr_gone_still_stops_the_stack(tmp_pat
             p.kill()
     assert code == 143
     assert not _alive(stack), "the stack the step started is still up"
+
+
+def _two_suites(tmp_path, monkeypatch, rec):
+    """t3 run, in process, of one project's two suites (s1 on Town02, s2 on Town01) with the
+    fake ros2; the stack's record is ``rec``. Returns the fake's start log."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "ros2").write_text(FAKE_ROS2)
+    (bin_ / "ros2").chmod(0o755)
+    proj = tmp_path / "proj"
+    (proj / "assets" / "maps" / "Town01").mkdir(parents=True)
+    monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("T3_FAKE_STACK", str(tmp_path / "stack.pid"))
+    monkeypatch.setenv("T3_FAKE_LOG", str(tmp_path / "starts.log"))
+    monkeypatch.setenv("T3_FAKE_LINES", "5")
+    monkeypatch.setattr(t3, "suite_maps", lambda d, s: {"s1": ["Town02"], "s2": ["Town01"]}[s])
+    monkeypatch.setattr(t3, "stack_record", lambda logs, d, seat: dict(rec, project=str(proj)))
+    entries = [{"project": str(proj), "suite": s, "sim": "isaac", "key": f"proj/{s}"}
+               for s in ("s1", "s2")]
+    try:
+        assert t3.run(entries, tmp_path / "work", False, tmp_path / "logs") == 0
+    finally:
+        for pid in (tmp_path / "stack.pid.all").read_text().split():
+            try:
+                os.kill(int(pid), 9)
+            except ProcessLookupError:
+                pass
+    return (tmp_path / "starts.log").read_text()
+
+
+def test_a_suite_the_stack_cannot_serve_gets_a_new_stack_after_the_old_is_gone(
+        tmp_path, monkeypatch, capsys):
+    """241: isaac_basic/towns left the Isaac world on Town02, and rear_contact (Town01) was
+    refused (G82: swb's switch_problem refuses even the stack's own first world)."""
+    starts = _two_suites(tmp_path, monkeypatch,
+                         {"simulator": "isaac", "map": "Town02", "preload": ["Town02"]})
+    assert "suites/s2.yaml previous_stack_alive=False" in starts
+    assert "[t3] map Town02 -> Town01: restarting the stack" in capsys.readouterr().out
+
+
+def test_a_stack_that_can_switch_is_kept_between_suites(tmp_path, monkeypatch, capsys):
+    starts = _two_suites(tmp_path, monkeypatch, {"simulator": "carla", "map": "Town02",
+                                                 "maps": ["Town01", "Town02"]})
+    assert "suites/s2.yaml previous_stack_alive=True" in starts
+    assert "restarting the stack" not in capsys.readouterr().out
+
+
+def test_record_takes_only_this_hosts_last_run_of_the_suite(tmp_path, monkeypatch, capsys):
+    """G82: rear_contact's summary.csv, from an earlier commit's run, would have been taken."""
+    import json
+    stamp = tmp_path / "work" / "stamps" / "zz_t3test__s.json"
+    logs, m = _results(tmp_path, ["aaaaaaa"])
+    args = ["record", "--manifest", str(m), "--logs", str(logs), "--work", str(tmp_path / "work")]
+    _quiet(monkeypatch)
+    # started after the results' run
+    stamp.write_text(json.dumps({"key": "zz_t3test/s", "started": "2026-11-17T09-00-00"}))
+    assert t3.main(args) == 1
+    assert ("not recorded, results not from this host's last `t3.py run` of it: "
+            "2026-11-17T00-00-00_a0_r0 (before this run, 2026-11-17T09-00-00)"
+            in capsys.readouterr().out)
+    # the run's rows, though t3's own checkout is another commit (243: the RC's runs, built
+    # at the tag, recorded with a newer t3)
+    stamp.write_text(json.dumps({"key": "zz_t3test/s", "started": "2026-11-17T00-00-00"}))
+    assert t3.commit() == "bbbbbbb"                 # _quiet: t3's checkout, not the results'
+    assert t3.main(args) == 0
+    meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
+    assert meta["commit"] == "aaaaaaa" and meta["recorded_with"] == "bbbbbbb"
+    capsys.readouterr()
+    (tmp_path / "refs" / "zz_t3test" / "s.json").unlink()
+    # never run here
+    stamp.unlink()
+    assert t3.main(args) == 1
+    assert "not recorded, no `t3.py run` of it on this host" in capsys.readouterr().out
+    assert not (tmp_path / "refs" / "zz_t3test" / "s.json").exists()
+
+
+def test_the_seats_record_is_stopped_only_when_its_keeper_is_this_stacks(tmp_path, monkeypatch):
+    """By a project's end the seat may hold another's stack: its keeper is not t3's."""
+    import subprocess
+    calls = []
+    import swb.stack
+    monkeypatch.setattr(swb.stack, "stop_keeper", lambda rec: calls.append(rec["pid"]))
+    mine = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    other = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    try:
+        monkeypatch.setattr(t3, "stack_record", lambda logs, d, seat: {"pid": other.pid})
+        t3.stop_stack((mine.pid, 0), None, tmp_path, grace=1)
+        assert calls == [] and other.poll() is None      # not ours: left alone
+        mine = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        monkeypatch.setattr(t3, "stack_record", lambda logs, d, seat: {"pid": mine.pid})
+        t3.stop_stack((mine.pid, 0), None, tmp_path, grace=1)
+        assert calls == [mine.pid]
+    finally:
+        for p in (mine, other):
+            p.kill()
+            p.wait()
+    assert t3.descends(os.getpid(), os.getppid()) and not t3.descends(os.getppid(), os.getpid())
+
+
+def test_compare_takes_references_recorded_before_the_stamps(tmp_path, monkeypatch, capsys):
+    """The release compare runs against the references 118 and 241 recorded with 876f8b3's
+    t3.py, which wrote no run stamps (G82): compare needs none."""
+    import json
+    logs, m = _results(tmp_path, ["aaaaaaa"])
+    (tmp_path / "work" / "stamps" / "zz_t3test__s.json").unlink()   # no stamp on this host
+    ref = tmp_path / "refs" / "zz_t3test" / "s.csv"                # 876f8b3's reference
+    ref.parent.mkdir(parents=True)
+    ref.write_text("scenario,params,repetition,seed,verdict,judges,duration\n"
+                   "a0.xosc,,0,,passed,,100\n")
+    ref.with_suffix(".json").write_text(json.dumps({
+        "commit": "aaaaaaa", "submodules": {"src/swb_isaac_world": "f00"},
+        "recorded_with": "876f8b3", "host": "h", "summary": "s", "runs": 1,
+        "gpu_at_record": TWO, "gpu_gated": {"indices": [0], "source": "host gpu: 0"},
+        "load_at_record": [2.0, 32], "notes": []}))
+    _quiet(monkeypatch)
+    assert t3.main(["compare", "--manifest", str(m), "--logs", str(logs),
+                    "--work", str(tmp_path / "work")]) == 0
+    assert "runs at aaaaaaa; the reference at aaaaaaa" in capsys.readouterr().out

@@ -147,7 +147,8 @@ half and its Isaac half; 3) runs with `t3.py` at 36e4da4 and is recorded with `t
 876f8b3; no RC part is recorded with main's `t3.py`, whose `record` refuses a suite without
 a stamp from its own `run` (G82). Part 3 moved to swb 118 (133, 2026-11-17), since 243's GPU
 stayed held by other work when part 1 finished. `t3.py compare` on the tag commit uses that
-commit's own `t3.py`, which must accept the stampless references recorded at 876f8b3.
+commit's own `t3.py`, which must accept the stampless references recorded at 876f8b3;
+main's `compare` needs no stamp either (G82, tested on a reference in 876f8b3's form).
 
 **Known limits, for the release notes** (drafted by 243 for 133, 2026-11-17; the text is
 for users, so it names no host and no roadmap item):
@@ -1548,6 +1549,34 @@ Isaac's rear contact (inventory row 18).
   `project check` ok). Open question (133): should fetch retry anonymously on an expired
   token, saying so, for a public dataset? A private one would still refuse, naming
   `hf auth login`.
+- **G82, one stack per project in `t3.py run`, and an Isaac stack refusing its own first
+  world (found by swb 241 in T3 part 2, numbered by 133, 2026-11-17; t3.py fixed by 139,
+  `swb run` unchanged for the RC).** isaac_basic/towns ran Town01 then Town02 on one stack
+  (Town02 preloaded), leaving the pilots on Town02; t3 kept the stack for the next suite,
+  rear_contact (Town01), and `swb run` refused it: "the scenario is on map Town01, the
+  stack's Isaac world on Town02". The world still holds Town01 (the world server loads the
+  stack's first map and `isaac.preload` at start), but `stack.switch_problem` accepts only
+  `preload` on Isaac, and `rec["map"]` has moved off the first map, so a stack refuses to go
+  back to its own first world. Fix after the release: accept every world the stack loaded at
+  start (its first map with `preload`). In `t3.py run` now: before each suite after a
+  project's first, swb's own resolver (`swb run`'s `expand` and `scenario_map`) names the
+  suite's maps and the stack's `switch_problem` (its `seat-<n>-current/stack.json`) judges
+  them; on a refusal t3 says `[t3] map X -> Y: restarting the stack` and stops it as `swb run
+  --stop-stack` does, keeper first, then the launch's group, before the next suite starts its
+  own. CARLA stacks switch maps themselves and are kept; the manifest's order is kept. Also
+  `record`: it took a suite's summary.csv whatever run wrote it, so rear_contact's from an
+  earlier commit would have been recorded. `t3.py run` now writes a stamp per suite
+  (`<work>/stamps/`, its start time, swb's `now_id`), and `record` refuses a suite this host
+  never ran with this t3, or any row that started before its stamp (by its run_id's time).
+  No commit in the stamp: t3's checkout need not be the swb that ran (the RC's runs, built at
+  the tag, recorded with a newer t3), and `results_commit` already refuses a mix.
+- **G83, `--ready-timeout` did not end a stack wait (seen by 139, 2026-11-17, while
+  checking G82; unexplained, after the release).** On the g77 fake Isaac root (its venv
+  hangs, so the stack never gets ready), `ros2 run swb run scenarios/drive_to_goal.xosc
+  --start-stack --ready-timeout 90` had not ended its wait 15 minutes later; `timeout 900`
+  ended it (exit 124, "interrupted"). Not looked into: whether another wait (the world
+  server's or the keeper's) is in front of `wait_started`'s deadline, or the flag does not
+  reach it.
 - **G75-G77 landed (139, reviewed by 243, 2026-11-17):** aib 007d4f9, swb_isaac_world
   c9a72de, csb 89fe7a0 (G75, G76), 4bad9c1 (G77), 356a742 (`seat take auto` skips a seat
   whose ports are bound, as `swb run` does). Refusal texts are in host-settings' `isaac.root`

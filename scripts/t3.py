@@ -29,6 +29,13 @@ step runs in its own session) and any stack the project's suites started, then e
 or 143 (SIGTERM); another SIGINT or SIGTERM during that stop moves it to its next stage (SIGTERM,
 then SIGKILL) at once, and never abandons it. Stop t3 with SIGINT or SIGTERM, never SIGKILL: the
 step and its stack are in a session of their own, and only t3's kill path stops them.
+
+A project's suites share its stack, in the manifest's order; before a suite the stack cannot
+serve (swb's ``switch_problem`` for the suite's maps: an Isaac world holds only the worlds it
+loaded at start) t3 stops it, keeper first, and the suite starts a new one (077 G82). ``run``
+stamps each suite (``<work>/stamps/``: its start time); ``record`` takes only rows of that
+run, and refuses a suite this host never ran with this t3 (one run with an older t3 is
+recorded with that t3). ``compare`` needs no stamp.
 """
 import argparse
 import csv
@@ -48,7 +55,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "scenarios" / "t3.yaml"
 SLOW = 1.5
 STOP_GRACE = 180.0   # s for an interrupted swb run to stop its stack (CARLA, Isaac) before SIGTERM
-STARTED = re.compile(r"^stack\s+starting on seat \d+ \(pid (\d+)")
+STARTED = re.compile(r"^stack\s+starting on seat (\d+) \(pid (\d+)")
 
 
 def load(path=MANIFEST) -> dict:
@@ -342,7 +349,7 @@ def logs_root() -> Path:
     return Path(host_settings()["logs"]).expanduser()
 
 
-def run(entries: list, work: Path, dry_run: bool) -> int:
+def run(entries: list, work: Path, dry_run: bool, logs: Path = None) -> int:
     worst = 0
     by_project = {}
     for e in entries:
@@ -352,25 +359,35 @@ def run(entries: list, work: Path, dry_run: bool) -> int:
         steps = []
         if es[0].get("copy") and not (d / "swb.yaml").is_file():
             pkg = f"pkg://swb_examples/projects/{Path(project).name}"
-            steps.append(["ros2", "run", "swb", "project", "new", str(d), "--from", pkg])
+            steps.append((["ros2", "run", "swb", "project", "new", str(d), "--from", pkg], None))
         # every project fetched first (nothing to download when it is; G35 skips the hashes)
-        steps.append(["ros2", "run", "swb", "assets", "fetch"])
+        steps.append((["ros2", "run", "swb", "assets", "fetch"], None))
         for i, e in enumerate(es):
             argv = ["ros2", "run", "swb", "run", f"suites/{e['suite']}.yaml", "--start-stack",
                     "--ready-timeout", "1800"]
             if i == len(es) - 1:
                 argv.append("--stop-stack")
-            steps.append(argv)
-        started = None
+            steps.append((argv, e))
+        started = None    # (pid, seat) of the stack a suite of this project started
         p = None
         try:
-            for n, argv in enumerate(steps):
+            for n, (argv, e) in enumerate(steps):
                 cwd = d if argv[3] != "project" else d.parent
+                if e is not None and started and not dry_run:
+                    # the manifest's order is kept: a suite the project's stack cannot serve
+                    # (an Isaac world holds only the worlds it loaded at start) gets a new one
+                    why = restart_reason(d, stack_record(logs, d, started[1]), e["suite"])
+                    if why:
+                        echo(f"[t3] {why}: restarting the stack\n")
+                        stop_stack(started, logs, d)
+                        started = None
                 echo(f"[t3] ({cwd}) {' '.join(argv)}\n")
                 if dry_run:
                     continue
                 cwd.mkdir(parents=True, exist_ok=True)
                 log = step_log(work, d, n, argv)
+                if e is not None:
+                    write_stamp(work, e)
                 p = start_step(argv, cwd, log)
                 code, got = watch_step(p, log)
                 started = got or started
@@ -392,13 +409,139 @@ def run(entries: list, work: Path, dry_run: bool) -> int:
             if started:
                 # normally a no-op (ESRCH): the step's swb run stopped the stack it started
                 # itself; it is not when an earlier suite of the project left one up
-                stop_group(started, grace=STOP_GRACE)
+                stop_stack(started, logs, d)
             raise
         # --stop-stack stops only a stack that same command started: stop the one an earlier
         # suite of this project started, so each project leaves nothing up
         if started and not dry_run:
-            stop_group(started)
+            stop_stack(started, logs, d, grace=60.0)
     return worst
+
+
+def stack_record(logs, d: Path, seat: int):
+    """The stack.json of the project's stack on ``seat`` (swb's ``seat-<n>-current`` link
+    under the host's logs), or None."""
+    if logs is None:
+        return None
+    try:
+        return json.loads((Path(logs) / d.resolve().name / f"seat-{seat}-current" /
+                           "stack.json").read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def suite_maps(d: Path, suite: str) -> list:
+    """The maps a suite's runs are on, in order, by swb's own resolver (``swb run``'s
+    ``expand`` and ``scenario_map``); a scenario whose map it cannot name is left out."""
+    from swb import run as runmod
+    specs, _ = runmod.expand(d / "suites" / f"{suite}.yaml", d)
+    return [m for m in dict.fromkeys(runmod.scenario_map(sp.scenario) for sp in specs) if m]
+
+
+def restart_reason(d: Path, rec, suite: str):
+    """Why the stack of ``rec`` cannot serve ``suite`` (a ``[t3]`` line: ``map X -> Y``), or
+    None: swb's own ``switch_problem`` for each of the suite's maps (077 G82: on Isaac it
+    refuses even the stack's own first world once the pilots moved off it)."""
+    if not rec:
+        return None
+    from swb import stack as stackmod
+    try:
+        maps = suite_maps(d, suite)
+    except Exception as err:   # swb run refuses such a suite in its own words
+        warn(f"t3: {suite}: its maps are not known ({err}); the stack is kept\n")
+        return None
+    for m in maps:
+        if stackmod.switch_problem(rec, m):
+            return f"map {rec.get('map')} -> {m}"
+    return None
+
+
+def stop_stack(started: tuple, logs, d: Path, grace: float = STOP_GRACE):
+    """A stack a suite started, as ``swb run --stop-stack`` stops one: its keeper first (it
+    stops the pilots and the simulator in order; it runs in a session of its own), then the
+    launch's process group; returns once both are gone."""
+    pid, seat = started
+    rec = stack_record(logs, d, seat)
+    # the seat's record is this stack's only while its keeper descends from this launch: by
+    # the project's end the seat may hold another's stack, which is not t3's to stop
+    if rec and rec.get("pid") and descends(rec["pid"], pid):
+        from swb import stack as stackmod
+        try:
+            kgroup = os.getpgid(rec["pid"])
+        except ProcessLookupError:
+            kgroup = None
+        stackmod.stop_keeper(rec)
+        # its answer (stack.stop) comes before its nested launches are gone, and they are in
+        # groups of their own: wait until no process names the stack's dir (their --log-dir;
+        # their nodes die with them), so the next stack meets no port or lock of this one's
+        stack_dir = str(Path(rec["proc"]).parent) if rec.get("proc") else None
+        if stack_dir and not wait_gone(stack_dir, grace) and kgroup:
+            stop_group(kgroup, grace=grace)
+    stop_group(pid, grace=grace)
+
+
+def wait_gone(mark: str, timeout: float) -> bool:
+    """True once no process's command line contains ``mark``, within ``timeout`` s."""
+    end = time.time() + timeout
+    while True:
+        if not procs_naming(mark):
+            return True
+        if time.time() >= end:
+            return False
+        time.sleep(0.5)
+
+
+def procs_naming(mark: str) -> list:
+    """The pids (other than t3's own) whose command line contains ``mark``."""
+    out = []
+    me = str(os.getpid())
+    for d in os.listdir("/proc"):
+        if not d.isdigit() or d == me:
+            continue
+        try:
+            with open(f"/proc/{d}/cmdline", "rb") as f:
+                if mark.encode() in f.read():
+                    out.append(int(d))
+        except OSError:
+            pass
+    return out
+
+
+def descends(pid: int, ancestor: int) -> bool:
+    """``pid`` is ``ancestor`` or below it, by /proc's parent links."""
+    seen = 0
+    while pid and pid > 1 and seen < 64:
+        if pid == ancestor:
+            return True
+        try:
+            with open(f"/proc/{pid}/stat") as f:
+                pid = int(f.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            return False
+        seen += 1
+    return False
+
+
+def stamp_path(work: Path, e: dict) -> Path:
+    return work / "stamps" / (e["key"].replace("/", "__") + ".json")
+
+
+def write_stamp(work: Path, e: dict):
+    """When this host's ``t3 run`` started the suite: ``record`` takes only results from that
+    run (077 G82: a stale summary.csv from an earlier commit). No commit: t3's checkout need
+    not be the swb that runs (the RC's runs, a build at the tag, are recorded with a newer
+    t3); the rows' own provenance names it, and ``results_commit`` refuses a mix."""
+    from swb import stack as stackmod   # its run_id prefix, local time: the two must match
+    path = stamp_path(work, e)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"key": e["key"], "started": stackmod.now_id()}) + "\n")
+
+
+def stale_rows(rows: list, stamp) -> list:
+    """The rows not from the suite's run that ``stamp`` names: started before it, by their
+    run_id's time (swb's ``now_id``, as the stamp's)."""
+    return [f"{r['run_id'] or r['scenario']} (before this run, {stamp['started']})"
+            for r in rows if (r["run_id"] or "")[:19] < stamp["started"]]
 
 
 def step_log(work: Path, d: Path, n: int, argv: list) -> Path:
@@ -420,14 +563,14 @@ def start_step(argv: list, cwd: Path, log: Path):
 
 
 def watch_step(p, log: Path, poll: float = 0.2) -> tuple:
-    """``p``'s output followed from ``log`` to t3's stdout until it exits: (exit code, the pid
-    of a stack it started, or None)."""
+    """``p``'s output followed from ``log`` to t3's stdout until it exits: (exit code,
+    ``(pid, seat)`` of a stack it started, or None)."""
     started = None
     for line in follow(p, log, poll):
         echo(line)
         m = STARTED.match(line)
         if m:
-            started = int(m.group(1))
+            started = int(m.group(2)), int(m.group(1))
     return p.wait(), started
 
 
@@ -452,12 +595,12 @@ def follow(p, log: Path, poll: float = 0.2):
 
 
 def scan_started(log: Path):
-    """The pid of the stack a step's log says it started, or None."""
+    """``(pid, seat)`` of the stack a step's log says it started, or None."""
     try:
         for line in log.read_text(errors="replace").splitlines():
             m = STARTED.match(line)
             if m:
-                return int(m.group(1))
+                return int(m.group(2)), int(m.group(1))
     except OSError:
         pass
     return None
@@ -566,7 +709,7 @@ def _main(argv=None) -> int:
     refs = ROOT / doc["references"]
     if a.action == "run":
         try:
-            return run(entries, a.work, a.dry_run)
+            return run(entries, a.work, a.dry_run, a.logs or logs_root())
         except KeyboardInterrupt as e:
             warn("t3: interrupted; what this run started is stopped\n")
             return 143 if isinstance(e, Terminated) else 130
@@ -589,6 +732,20 @@ def _main(argv=None) -> int:
         if a.action == "record":
             if why:
                 print(f"{e['key']}: not recorded, {why}")
+                failed += 1
+                continue
+            try:
+                stamp = json.loads(stamp_path(a.work, e).read_text())
+            except (OSError, ValueError):
+                print(f"{e['key']}: not recorded, no `t3.py run` of it on this host "
+                      f"({stamp_path(a.work, e)}); run it, then record")
+                failed += 1
+                continue
+            stale = stale_rows(rows, stamp)
+            if stale:
+                print(f"{e['key']}: not recorded, results not from this host's last `t3.py "
+                      f"run` of it: {'; '.join(stale[:3])}"
+                      f"{f' (+{len(stale) - 3} more)' if len(stale) > 3 else ''}; run it again")
                 failed += 1
                 continue
             off = off_pin(prov["submodules"][at])

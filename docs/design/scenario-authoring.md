@@ -50,7 +50,7 @@ measured box and axles, from `src/scensim_carla_world/scensim_carla_world/config
 `scripts/scenario_vehicle.py <blueprint>` prints them, the generators use it, and
 `scripts/check_scenario_vehicles.py` (in the developers' tests) fails on a named vehicle that declares
 anything else, within 2 cm. A deliberate mismatch carries
-`<Property name="swb.box_exempt" value="why" />` in the vehicle's `Properties`. The world
+`<Property name="scensim.box_exempt" value="why" />` in the vehicle's `Properties`. The world
 server lines the declared box up with CARLA's: a declared box equal to its body's measured
 one has the table's box centre taken off the origin offset, so the rear axle lands on SSv2's
 origin (roadmap 050). Vehicles declared by size instead (any other name) get the body that

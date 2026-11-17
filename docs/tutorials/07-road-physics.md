@@ -132,7 +132,7 @@ lists them.
 ```xml
 <RoadCondition frictionScaleFactor="1.0" wetness="moist">
   <Properties>
-    <Property name="swb.zone.gravel_patch.class" value="dirt" />
+    <Property name="scensim.zone.gravel_patch.class" value="dirt" />
   </Properties>
 </RoadCondition>
 ```
@@ -182,7 +182,7 @@ key, road-detail key and `RoadCondition` property.
    problem. (Autoware has not been validated on the rough road.)
 3. **Open.** Start from old ruts: copy a file of `state/Town01/ruts/runs/` to
    `state/Town01/ruts/worn.npz`, and in a copy of `mud_and_gravel.xosc` add
-   `<Property name="swb.ruts" value="worn"/>` to a `RoadCondition` in the Init. Check: the
+   `<Property name="scensim.ruts" value="worn"/>` to a `RoadCondition` in the Init. Check: the
    world server logs `ruts: set worn from ...`, and the wheels' `sinkage` in the old ruts
    differs from a fresh run's.
 

@@ -197,7 +197,7 @@ RoadCondition names a saved set:
 ```xml
 <RoadCondition frictionScaleFactor="1.0" wetness="dry">
   <Properties>
-    <Property name="swb.ruts" value="worn"/>   <!-- or "fresh"; a parameter works: "$ruts" -->
+    <Property name="scensim.ruts" value="worn"/>   <!-- or "fresh"; a parameter works: "$ruts" -->
   </Properties>
 </RoadCondition>
 ```
@@ -614,8 +614,8 @@ it optional.
       <Environment name="ford_rises">
         <RoadCondition frictionScaleFactor="1.0" wetness="moist">
           <Properties>
-            <Property name="swb.zone.ford_1.water_depth" value="$ford_depth"/>
-            <Property name="swb.zone.track.class" value="gravel"/>
+            <Property name="scensim.zone.ford_1.water_depth" value="$ford_depth"/>
+            <Property name="scensim.zone.track.class" value="gravel"/>
           </Properties>
         </RoadCondition>
       </Environment>
@@ -623,7 +623,7 @@ it optional.
   </GlobalAction>
   ```
 
-  `swb.zone.<id>.<field>` sets one field of a zone, as `surfaces.yaml` names it: `class` (a
+  `scensim.zone.<id>.<field>` sets one field of a zone, as `surfaces.yaml` names it: `class` (a
   class of the table; not on a `soil` zone), `wetness` (an OpenSCENARIO level) or
   `water_depth` (metres; replaces a raster with one depth). Values may be parameters, so a
   distribution can sweep them. An `EnvironmentAction` in the Init sets the start state; one in

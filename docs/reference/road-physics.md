@@ -123,9 +123,9 @@ the Story (`EnvironmentAction`). The surface map says where; the scenario says w
 ```xml
 <RoadCondition frictionScaleFactor="1.0" wetness="moist">
   <Properties>
-    <Property name="swb.zone.puddle_left.water_depth" value="0.003"/>
-    <Property name="swb.zone.gravel_patch.class" value="dirt"/>
-    <Property name="swb.ruts" value="worn"/>
+    <Property name="scensim.zone.puddle_left.water_depth" value="0.003"/>
+    <Property name="scensim.zone.gravel_patch.class" value="dirt"/>
+    <Property name="scensim.ruts" value="worn"/>
   </Properties>
 </RoadCondition>
 ```
@@ -134,10 +134,10 @@ the Story (`EnvironmentAction`). The surface map says where; the scenario says w
 |---|---|
 | `frictionScaleFactor` | multiplies every wheel's friction |
 | `wetness` | the whole road's wetness, where a zone sets none |
-| `swb.zone.<id>.class` | a zone's class (not a soil zone's: its class is its soil's) |
-| `swb.zone.<id>.wetness` | a zone's wetness |
-| `swb.zone.<id>.water_depth` | a zone's water depth, m |
-| `swb.ruts` | `fresh` or a saved set; in the Init: swapping ruts once a wheel has driven on the soil is refused |
+| `scensim.zone.<id>.class` | a zone's class (not a soil zone's: its class is its soil's) |
+| `scensim.zone.<id>.wetness` | a zone's wetness |
+| `scensim.zone.<id>.water_depth` | a zone's water depth, m |
+| `scensim.ruts` | `fresh` or a saved set; in the Init: swapping ruts once a wheel has driven on the soil is refused |
 
 Each `RoadCondition` is the whole road state: zones it does not name go back to the map's
 values. A wrong property (an unknown zone, class or field) fails the scenario with every
@@ -146,7 +146,7 @@ problem listed. A scenario cannot choose the surface map, nor change the label d
 **Ruts.** The world server saves the ruts a run made to
 `state/<map>/ruts/runs/<time>.npz` when the next run begins (each run's initialization
 loads the world's state again, also on the same world), and logs the path; copied to `state/<map>/ruts/<name>.npz`
-it becomes a set a scenario can start from (`swb.ruts`). The
+it becomes a set a scenario can start from (`scensim.ruts`). The
 `isaac-road-physics-stages` dataset carries one, `worn`, for Town01
 (`procedural/ruts/Town01/worn.npz`).
 

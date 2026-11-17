@@ -162,10 +162,11 @@ Two judges come with scensim, both over the run's gap trace:
 ```yaml
 judges:
   - name: gap                         # gap_oracle on each trace of the run
-    run: [python3, -m, swb.gap, oracle]
+    run: [python3, -m, scensim.gap, oracle]
     needs: [gap_trace]
   - name: incident                    # incident_judge, a demo incident's row
-    run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+    run: [python3, -m, scensim.gap, incident, --incident, auto,
+          --context, context.jsonl]
     needs: [gap_trace, context]
 ```
 

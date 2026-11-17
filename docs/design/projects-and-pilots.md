@@ -526,7 +526,7 @@ judges:
     needs: [gap_trace]                # the stack records the gap trace (above)
 ```
 
-`python3 -m swb.gap oracle` and `python3 -m swb.gap incident --incident N --context <log>`
+`python3 -m scensim.gap oracle` and `python3 -m scensim.gap incident --incident N --context <log>`
 are the gap tools as judges: they find the run's traces in `gap_trace/` and run
 `gap_oracle` (verdict `failed` on a G4 disagreement class, `--fail-on never` for data only)
 or `incident_judge` (which also needs a `/simulation/context` state log; nothing in the

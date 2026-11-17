@@ -156,6 +156,12 @@ for users, so it names no host and no roadmap item):
 >   (about 70 s with a camera and a lidar) than scenario_simulator_v2 waits for it, and the
 >   run then ends `error`. A suite's retry on error passes on the second spawn, which is
 >   fast.
+> - **Isaac Sim: back to the map a stack started on.** An Isaac stack whose pilots have
+>   moved to a preloaded map (`isaac.preload`) refuses a later scenario on the map it
+>   started on, although that world is still loaded: `swb run` reports "the stack's Isaac
+>   world on Town02". Run suites on different Isaac maps each on a stack of its own: stop
+>   the stack between them, or run each suite with `ros2 run swb run <suite> --stop-stack`,
+>   which starts a stack for it and stops it afterwards.
 > - **Isaac Sim: contact with the cyclist in the i6 demo.** On Isaac, the i6 scenario's
 >   judges may report contact with the cyclist while scenario_simulator_v2 passes the run:
 >   the ego, approaching at low speed before it yields, comes within about 0.2 m of the

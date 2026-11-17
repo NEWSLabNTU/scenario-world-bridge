@@ -15,7 +15,7 @@ Python client is used by `carla_poses`, which finds poses on a town
 ([Tutorial 2](../tutorials/02-write-a-scenario.md)), and by CARLA's BasicAgent pilot
 ([Tutorial 4](../tutorials/04-several-pilots.md)); it is installed for the user into
 Humble's Python (the system `python3`, 3.10), as are the tools of
-[Install](install.md#your-tools):
+[Install](install.md#recommended-play_launch):
 
 ```bash
 python3 -m pip install --user carla==0.9.16
@@ -40,7 +40,7 @@ drive: no separate process is started, and none remains afterwards. The BasicAge
 needs `carla.root` anyway.
 
 Off-screen means there is no CARLA window. To watch a drive, see
-[Tutorial 1, step 4](../tutorials/01-first-drive.md#4-run-the-scenario).
+[Tutorial 1, step 4](../tutorials/01-first-drive.md#4-run-the-testbench).
 
 ## Or start it yourself
 

@@ -40,6 +40,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash   # also in the containers, whose default is sh
+
 concurrency:
   group: release-${{ inputs.version }}
   cancel-in-progress: false
@@ -157,10 +161,10 @@ jobs:
           git submodule update --init --recursive -- $SIM_SUBMODULES
       - name: rosdep
         run: |
-          set -eu
+          set -e   # not -u: ROS's setup files read unset variables
           mkdir -p /tmp/vendor && vcs import --shallow --input sim.repos /tmp/vendor >/dev/null
           rosdep update -q --rosdistro "$DISTRO" >/dev/null
-          . /opt/ros/$DISTRO/setup.sh
+          source /opt/ros/$DISTRO/setup.bash
           rosdep install --from-paths $SIM_SUBMODULES src/scenario_world_bridge src/scenario_agent_relay \
             src/scensim src/scensim_launch src/scensim_interfaces src/scensim_examples src/scensim_agent \
             src/czp /tmp/vendor --ignore-src -y -q -r \

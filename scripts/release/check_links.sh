@@ -30,6 +30,7 @@ distro=$(echo "$name" | sed -E 's/^scensim-sim-.*-([a-z]+)-[a-z0-9_]+$/\1/')
 IMAGE=${IMAGE:-ros:$distro-ros-core}
 OUT=${OUT:-$(dirname "$TARBALL")/$name.links}
 mkdir -p "$OUT"
+OUT=$(cd "$OUT" && pwd)   # docker -v takes an absolute path only
 command -v docker >/dev/null || { echo "check_links.sh: docker not on PATH" >&2; exit 2; }
 
 # Keys rosdep cannot resolve for the simulation side until 082 step 4 splits the

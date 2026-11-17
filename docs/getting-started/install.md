@@ -57,7 +57,8 @@ downloading scensim 0.0.0-dev for ROS 2 humble, 49.5 MB
   ...
   sha256 ok; unpacking to <home>/0.0.0-dev-humble/sim
 installed in <home>/0.0.0-dev-humble (current)
-missing system packages: run once, as an administrator:
+missing system packages: run once, the second as an administrator:
+  rosdep update
   sudo rosdep install --from-paths <home>/current/sim/share --ignore-src -y
 then, in every terminal (after ROS and your Autoware):
   source <home>/current/sim/setup.bash
@@ -68,9 +69,10 @@ scensim prints the full path where this page writes `<home>` for
 
 ## Once per machine (needs sudo)
 
-The rosdep line printed above installs the system packages scensim's processes load. On a
-shared host an administrator runs it once, and other users omit it. The first two lines
-are needed only where rosdep was never initialised:
+The rosdep lines printed above install the system packages scensim's processes load. On a
+shared host an administrator runs them once, and other users omit them. `rosdep update`
+refreshes rosdep's index first: with an old one a key can fail to resolve. The first line
+is needed only where rosdep was never initialised:
 
 ```bash
 sudo rosdep init          # skip if it says the sources list already exists
@@ -251,6 +253,7 @@ On a host with Autoware, both sides:
 git submodule update --init --recursive
 source /opt/ros/humble/setup.bash
 source /opt/autoware/1.5.0/setup.bash
+rosdep update
 rosdep install --from-paths src --ignore-src -y
 ```
 
@@ -263,6 +266,7 @@ git submodule update --init --recursive src/scenario_simulator_v2 src/color_name
     src/sim_vehicle_spec src/sim_vehicle_ecu
 vcs import src < sim.repos
 source /opt/ros/humble/setup.bash
+rosdep update
 rosdep install --from-paths src --ignore-src -y
 ```
 

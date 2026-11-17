@@ -20,7 +20,7 @@ These steps need sudo, or write to directories students cannot; do them once per
    the apt packages, `sudo rosdep init`, and the kernel socket buffers (`sysctl`).
 2. Clone and build the workspace once, in a directory every student can read, for
    example `/opt/scensim`, following [Install, From source](getting-started/install.md#from-source)
-   (including `rosdep install`, which asks for sudo).
+   (including `rosdep update`, then `rosdep install`, which asks for sudo).
 3. Unpack CARLA 0.9.16 where every student can read it, for example `/opt/CARLA_0.9.16`
    ([Getting started on CARLA](getting-started/carla.md)).
 4. Write the host's settings for every user, `/etc/scensim/host.yaml`:

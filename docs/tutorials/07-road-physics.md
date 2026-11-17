@@ -78,7 +78,7 @@ scensim stack road_physics
 
 **What you see**: as in Tutorial 6.
 
-<!-- TODO(exit run): confirm state/ in the work directory, and its link to ground/. -->
+<!-- TODO(exit run): confirm the stack's link of state/Town01/surfaces.yaml to ground/. -->
 
 **Check**:
 

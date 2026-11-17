@@ -125,8 +125,10 @@ reruns; step 7's T3 references; step 8's developer recipes.
 - item 24, Haruna under Autoware on Isaac (swb 139): localization passes 058 C9, the run
   stops for good before the first hairpin (below); Tsukuba not run yet.
 - item 26, the vision-only speed ladder on Isaac (133, 2026-11-17): 118's ladder at 6098ad5
-  timed out at every rung it reached (below); a quiet rerun follows T3 part 1 and does not
-  gate the release.
+  timed out at every rung it reached (below); parked as known-slow until after the release
+  (133, 2026-11-17): its stuck car was G84 (frame_rate 100 on physics 60; `physics_hz: 100`
+  drives), and what is left, the clock and the overshoot, is G84's post-release plan. It does
+  not gate the release.
 
 **Release candidate called (133, 2026-11-17) at swb 36e4da4**: check_pins 0 mismatches,
 check_docs ok. T3 references are recorded on it in three parts: part 1 is swb 118's, part 2
@@ -1612,7 +1614,11 @@ Isaac's rear contact (inventory row 18).
   (SSv2's 760 s ran out ~400 m short of the ~1477 m lap): RTF 0.15 under load (0.26 quiet
   before), bridge tick p50 35.9 ms for a 10 ms frame, the camera rendered every frame; and
   11.22 m/s is 12 % over rung 10, outside rung_check's 10 % band if it holds on a full lap.
-  Those are item 26's own, not G84's.
+  Those are item 26's own, not G84's. Item 26 is parked as known-slow until after the
+  release (133); its plan then, in this order: (1) the camera at its own 30 Hz rather than
+  rendered every 10 ms frame (118's lead), then measure RTF again; (2) the time budget, the
+  scenario's limit for about 4x the lap's sim time if (1) does not close it; (3) rung_check's
+  10 % speed band against 063's numbers, for the 12 % overshoot at rung 10.
   Fix after the release: the world server (or the bridge) refuses a step whose dt is not its
   own, naming the frame rates that divide physics_hz, or the Isaac side refreshes the
   vehicle after `set_simulation_dt` (an Isaac test first). Also then: speed_ladder logs

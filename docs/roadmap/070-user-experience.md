@@ -103,6 +103,8 @@ the vehicle side), behind the world protocol, so the bridge needs no change at a
 
 ## B. Prebuilt releases (029, brought up to date)
 
+Superseded on 2026-11-17 by [080](080-distribution-and-testbenches.md), which keeps this design's tarballs and adds the pip front end and testbenches.
+
 029's design stands: tarballs of the built workspace, split by side, every CARLA version
 in the same tarball, no Docker, `.deb` later if asked. What changes after 051 and with A:
 

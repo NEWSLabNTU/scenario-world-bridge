@@ -1583,6 +1583,33 @@ Isaac's rear contact (inventory row 18).
   ended it (exit 124, "interrupted"). Not looked into: whether another wait (the world
   server's or the keeper's) is in front of `wait_started`'s deadline, or the flag does not
   reach it.
+- **G84, an Isaac ego stops responding when SSv2's frame is not a whole number of physics
+  steps (item 26 rung 10, found by swb 118, cause read by 139, numbered by 133, 2026-11-17;
+  a known limit for the release, the fix after it; user text: 077's known limits, 32ac7c0).**
+  speed_ladder at `ssv2.frame_rate: 100`
+  with the default `isaac.physics_hz` 60: relay DRIVING, AUTONOMOUS, gear DRIVE (gear_status 2,
+  gear_cmd 2), isaac_vehicle subscribed to control_cmd (RELIABLE/VOLATILE against
+  RELIABLE/TRANSIENT_LOCAL), Autoware commanding v 0.25 m/s at +0.5 m/s^2, and the car never
+  moved (0.0 m of ground truth, three of three). The same rung at frame_rate 20 drove 591 m,
+  top 10.36 m/s (118, 2026-11-17 14:31 and 14:43, 876f8b3). The ECU is not it: drift_mustang's
+  calibration fed that request at standstill gives 119.5 N m per rear wheel (~0.48 m/s^2) at
+  dt 10 ms and 16.7 ms alike; it holds only in PARK or with no request. The mechanism, read:
+  the world server builds PhysX at 1/physics_hz and the bridge splits each frame into
+  n = ceil(frame * physics_hz) substeps of frame / n (scenario_world_bridge
+  remote/mod.rs `physics_steps`); at 20 Hz that is 3 x 1/60 s, the world's own step, while
+  at 100 Hz it is 1 x 10 ms, so `World.step` calls `set_simulation_dt(0.01)` at runtime
+  (swb_isaac_world world.py) after the ego spawned and warmed up at 1/60, and the PhysX
+  vehicle does not move from then on. Why a runtime step change freezes it is not yet shown
+  on Isaac. No swb world-server run has driven after such a change; 057's and 063's 100 Hz
+  laps used aib's runner, which builds its World at a fixed 1/240 s. Safe: a frame_rate that
+  divides physics_hz (with 60: 60, 30, 20, 15, 12, 10 Hz; with 240: 120, 80, 60, 48, 40, 30,
+  20 Hz); 50, 40, 25 and 100 Hz are not, at 60. Every Isaac project here but speed_ladder and
+  drift_lap (both frame_rate 100) runs at SSv2's default 20 Hz. Workaround: `isaac:
+  physics_hz` a multiple of the frame rate (speed_ladder: 100; 118's confirming run pending).
+  Fix after the release: the world server (or the bridge) refuses a step whose dt is not its
+  own, naming the frame rates that divide physics_hz, or the Isaac side refreshes the
+  vehicle after `set_simulation_dt` (an Isaac test first). Also then: speed_ladder logs
+  gear_cmd and gear_status (133).
 - **G75-G77 landed (139, reviewed by 243, 2026-11-17):** aib 007d4f9, swb_isaac_world
   c9a72de, csb 89fe7a0 (G75, G76), 4bad9c1 (G77), 356a742 (`seat take auto` skips a seat
   whose ports are bound, as `swb run` does). Refusal texts are in host-settings' `isaac.root`

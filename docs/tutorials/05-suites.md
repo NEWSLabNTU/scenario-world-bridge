@@ -65,6 +65,13 @@ passed   2026-11-15T15-02-21_follow_to_goal_leadSpeed-2.0_r1  .../runs/...
 summary: .../my_first_drive/suites/follow/summary.csv
 ```
 
+<p align="center">
+  <img src="../media/t5_terminal.webp" alt="A terminal: ros2 run swb run suites/follow.yaml prints six passed lines, leadSpeed 2.0, 4.0 and 6.0 each twice (r0 and r1), then the summary path" width="720"><br>
+  <em>The suite in a terminal: six runs, all passed, then the summary. The pilots were
+  already up on Town01, so no map line (2026-11-17; Autoware 1.5.0, CARLA 0.9.16,
+  <code>ros2 launch</code>; the log root is shortened to <code>...</code>).</em>
+</p>
+
 The command exits 0 only when every run ended as expected (passed, unless the suite's
 `expect:` key names another verdict), 1 when one failed, 2 when one could not be judged.
 

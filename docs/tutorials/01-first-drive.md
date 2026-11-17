@@ -238,6 +238,13 @@ ros2 run swb runs show drive_to_goal
 (`run`, `verdict`, `scenario`, `duration`) and its timeline: one row per event, such as
 SSv2's milestones and every warning in any process's log.
 
+<p align="center">
+  <img src="../media/t1_terminal.webp" alt="A terminal: ros2 run swb run scenarios/drive_to_goal.xosc prints the map line for Town01 and passed with the run id and directory; ros2 run swb runs list then shows the run passed, 101.0 s" width="720"><br>
+  <em>Steps 4 and 5 in a terminal: the run passes on its first attempt, and <code>runs
+  list</code> shows it (2026-11-17; Autoware 1.5.0, CARLA 0.9.16, <code>ros2 launch</code>;
+  the log root is shortened to <code>...</code>).</em>
+</p>
+
 The run's directory holds `result.json` (the verdict, its reason, the pilots and the
 versions that ran), `resolved.yaml` (the scenario and settings as run), `timeline.jsonl`,
 SSv2's `junit.xml`, the contacts the simulator reported under `contacts/` and, for a run

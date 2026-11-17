@@ -30,7 +30,9 @@ container.
 Before the release, 29 suites covering both simulators, the pilot kinds and the
 examples' studies were run on the tested commit and their results kept as references.
 During development, on a fresh clone without play_launch (swb c94b12c, an earlier commit),
-tutorials 1 to 5 were followed as written: 31 runs, all passed.
+tutorials 1 to 5 were followed as written: 31 runs, all passed. On 2026-11-17, with the
+tested code and Autoware's published 1.5.0 packages, Tutorial 1's drive and Tutorial 5's
+suite passed again as written under `ros2 launch`: 7 runs, all passed at the first attempt.
 
 ### What it does
 

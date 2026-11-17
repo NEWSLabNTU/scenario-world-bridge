@@ -89,6 +89,12 @@ tutorials 1 to 5 were followed as written: 31 runs, all passed.
   run then ends `error`. A suite's retry on error passes on the second spawn, which is
   fast. The first spawn of a walker on a freshly started Isaac world server can also take
   more than two minutes.
+- **Isaac Sim: the frame rate must divide the physics rate.** On Isaac, scenario_simulator_v2's
+  frame rate (`ssv2: {frame_rate: ...}` in `swb.yaml`, default 20) must divide the physics
+  rate (`isaac: {physics_hz: ...}`, default 60) exactly: with the default physics, 60, 30,
+  20, 15, 12 or 10 Hz. At another frame rate, for example 50 or 100 Hz, the ego receives
+  its commands and stays in drive, but does not move. This was seen with one car; the
+  others are expected to behave the same.
 - **Isaac Sim: back to the map a stack started on.** An Isaac stack whose pilots have moved
   to a preloaded map (`isaac.preload`) refuses a later scenario on the map it started on,
   although that world is still loaded: `swb run` reports "the stack's Isaac world on

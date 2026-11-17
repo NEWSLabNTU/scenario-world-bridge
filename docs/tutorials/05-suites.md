@@ -5,7 +5,7 @@ each, judges every run with CARLA's own contact check beside SSv2's verdict, and
 one table of results.
 
 ```
-$ ros2 run swb run suites/follow.yaml
+$ ros2 run scensim run suites/follow.yaml
 passed   ..._follow_to_goal_leadSpeed-2.0_r0  ...  judges: physical_verdict=passed
 ...
 summary: .../suites/follow/summary.csv
@@ -23,7 +23,7 @@ summary: .../suites/follow/summary.csv
 
 - [Tutorial 2](02-write-a-scenario.md): the project `~/my_first_drive` with
   `scenarios/follow_to_goal.xosc` and its `leadSpeed` parameter, the stack running on
-  Town01. Every terminal: `source ~/swb.bash`.
+  Town01. Every terminal: `source ~/scensim.bash`.
 - About 15 to 20 minutes: six runs of about a minute each, twice.
 
 ## 1. Write a suite
@@ -45,13 +45,13 @@ Three speeds times two repetitions give six runs. `scenarios:` takes files and d
 (every scenario in them); a pilot of `lifetime: run` receives `{seed}` and
 `{param:<name>}` in its arguments.
 
-**Check**: `ros2 run swb project check` ends `project: ok`; it parses every suite under
+**Check**: `ros2 run scensim project check` ends `project: ok`; it parses every suite under
 `suites/` too.
 
 ## 2. Run it
 
 ```bash
-ros2 run swb run suites/follow.yaml
+ros2 run scensim run suites/follow.yaml
 ```
 
 **What you see**: one line per run, in order, then the summary; a stack whose pilots have
@@ -66,7 +66,7 @@ summary: .../my_first_drive/suites/follow/summary.csv
 ```
 
 <p align="center">
-  <img src="../media/t5_terminal.webp" alt="A terminal: ros2 run swb run suites/follow.yaml prints six passed lines, leadSpeed 2.0, 4.0 and 6.0 each twice (r0 and r1), then the summary path" width="720"><br>
+  <img src="../media/t5_terminal.webp" alt="A terminal: ros2 run scensim run suites/follow.yaml prints six passed lines, leadSpeed 2.0, 4.0 and 6.0 each twice (r0 and r1), then the summary path" width="720"><br>
   <em>The suite in a terminal: six runs, all passed, then the summary. The pilots were
   already up on Town01, so no map line (2026-11-17; Autoware 1.5.0, CARLA 0.9.16,
   <code>ros2 launch</code>; the log root is shortened to <code>...</code>).</em>
@@ -78,7 +78,7 @@ The command exits 0 only when every run ended as expected (passed, unless the su
 **Check**:
 
 ```bash
-ros2 run swb runs summary
+ros2 run scensim runs summary
 column -s, -t < runs/summary.csv
 ```
 
@@ -99,7 +99,7 @@ record. Add it to `swb.yaml`:
 ```yaml
 judges:
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml",
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml",
           --scenario, "{scenario}"]
 ```
 
@@ -112,7 +112,7 @@ Restart the stack, since `swb.yaml` changed (Ctrl-C, then the command of Tutoria
 step 3). Then:
 
 ```bash
-ros2 run swb run suites/follow.yaml
+ros2 run scensim run suites/follow.yaml
 ```
 
 **What you see**: each run line ends with `judges: physical_verdict=passed` (or
@@ -131,8 +131,8 @@ shows the judge's verdict, exit code and duration.
 On two hosts with the same project and lock, each takes half the suite:
 
 ```bash
-ros2 run swb run suites/follow.yaml --shard 1/2    # on the first host
-ros2 run swb run suites/follow.yaml --shard 2/2    # on the second
+ros2 run scensim run suites/follow.yaml --shard 1/2    # on the first host
+ros2 run scensim run suites/follow.yaml --shard 2/2    # on the second
 ```
 
 `--shard i/n` takes every n-th run from the i-th, so the two together cover the suite
@@ -141,7 +141,7 @@ once; each host writes its summary to its own directory, `suites/follow_shard-1-
 already have a result:
 
 ```bash
-ros2 run swb run suites/follow.yaml --resume
+ros2 run scensim run suites/follow.yaml --resume
 ```
 
 **What you see**: `skipped  <run>  (resume: passed in ...)` for each run already done.
@@ -151,8 +151,8 @@ default only the result of a passed run, and everything of a failed one. `runs p
 removes old runs:
 
 ```bash
-ros2 run swb runs prune --older-than 7 --dry-run
-ros2 run swb runs prune --older-than 0 --dry-run
+ros2 run scensim runs prune --older-than 7 --dry-run
+ros2 run scensim runs prune --older-than 0 --dry-run
 ```
 
 **Check**: the runs of this tutorial are less than 7 days old, so the first says `nothing
@@ -180,7 +180,7 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
    `expect: {follow_to_goal.xosc: failed}`. Check: the line reads
    `failed (expected failed)` and the command exits 0.
 3. **Open.** Run the Autoware Foundation's use cases: copy
-   `pkg://swb_examples/projects/safety_suite`, fetch, start its stack and run
+   `pkg://scensim_examples/projects/safety_suite`, fetch, start its stack and run
    `suites/nightly.yaml` (about 45 minutes, measured on 2026-11-16). Check: two `passed` lines, the ACC use case's JUnit with 28 testcases and
    the AEB one's with 10 (27 and 9 variants, plus the `carla_contact` testcase
    `physical_verdict` adds), each judged by `physical_verdict`.
@@ -189,7 +189,7 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
 
 | Symptom | Fix |
 |---|---|
-| `swb run: refused: suites/follow.yaml: unknown key ...` | a suite takes only the keys of the [reference](../reference/project-file.md#suites) |
+| `scensim run: refused: suites/follow.yaml: unknown key ...` | a suite takes only the keys of the [reference](../reference/project-file.md#suites) |
 | `refused: the stack ... was started from another project state` | `swb.yaml` changed: restart the stack |
 | A judge's verdict is `error` | it printed no JSON object, timed out (120 s by default) or exited with another code: its message is in `judges/<name>.json` |
 | `refused: ... budget` | the log disk cannot hold the suite at `logging.budget`: prune runs, or lower `logging.keep` (step 4) |
@@ -197,4 +197,4 @@ without rewriting past results. [Verdicts](../explanation/verdicts.md) explains 
 ## Next
 
 [Tutorial 6: the same project on Isaac Sim](06-carla-assets-on-isaac.md), or
-[Teaching with swb](../teaching.md) for setting up a lab.
+[Teaching with scensim](../teaching.md) for setting up a lab.

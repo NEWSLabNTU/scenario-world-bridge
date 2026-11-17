@@ -4,7 +4,7 @@
 Town01 road to a goal behind a slower car that it must not touch, and the run passes.
 
 ```
-$ ros2 run swb run scenarios/follow_to_goal.xosc
+$ ros2 run scensim run scenarios/follow_to_goal.xosc
 passed   2026-11-15T11-02-13_follow_to_goal_r0  .../runs/2026-11-15T11-02-13_follow_...
 ```
 
@@ -19,7 +19,7 @@ passed   2026-11-15T11-02-13_follow_to_goal_r0  .../runs/2026-11-15T11-02-13_fol
 ## Before you start
 
 - [Tutorial 1](01-first-drive.md): the project `~/my_first_drive` with Town01 fetched, and
-  its stack running. Every terminal: `source ~/swb.bash`.
+  its stack running. Every terminal: `source ~/scensim.bash`.
 - CARLA's Python client, installed in
   [Getting started on CARLA](../getting-started/carla.md#carla-itself).
 - About 30 minutes.
@@ -28,7 +28,7 @@ The finished file ships with the workspace for comparison, in the Isaac Sim exam
 project:
 
 ```bash
-E=$(ros2 pkg prefix --share swb_examples)/projects
+E=$(ros2 pkg prefix --share scensim_examples)/projects
 ls $E/isaac_first_drive/scenarios/follow_to_goal.xosc
 ```
 
@@ -41,7 +41,7 @@ safe beside a running stack), and prints positions already converted. It finds C
 the host settings and the seat that holds the stack, so no address need be given:
 
 ```bash
-ros2 run swb_launch carla_poses spawn-points
+ros2 run scensim_launch carla_poses spawn-points
 ```
 
 **What you see** (each entry is one line; wrapped here):
@@ -61,8 +61,8 @@ Spawn point 2 lies on a long straight road heading west. The lead car's start (2
 the goal (80 m) are found by following its lane:
 
 ```bash
-ros2 run swb_launch carla_poses ahead 2 --distance 20
-ros2 run swb_launch carla_poses ahead 2 --distance 80
+ros2 run scensim_launch carla_poses ahead 2 --distance 20
+ros2 run scensim_launch carla_poses ahead 2 --distance 80
 ```
 
 ```
@@ -93,12 +93,12 @@ cp scenarios/drive_to_goal.xosc scenarios/follow_to_goal.xosc
 
 Four parts remain to be written.
 
-**The map**, by name. `$(env SWB_MAPS)` is the project's `assets/maps/`, which the stack
+**The map**, by name. `$(env SCENSIM_MAPS)` is the project's `assets/maps/`, which the stack
 sets, so the same file works in any project that fetched Town01:
 
 ```xml
 <RoadNetwork>
-  <LogicFile filepath="$(env SWB_MAPS)/Town01" />
+  <LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 </RoadNetwork>
 ```
 
@@ -204,7 +204,7 @@ the timeout.
 **Check**:
 
 ```bash
-ros2 run swb project check
+ros2 run scensim project check
 ```
 
 ends `project: ok`: every scenario parses, its map is fetched, and every entity driven
@@ -213,7 +213,7 @@ from outside (`Autoware` or `agent`) has a pilot.
 ## 3. Run it
 
 ```bash
-ros2 run swb run scenarios/follow_to_goal.xosc
+ros2 run scensim run scenarios/follow_to_goal.xosc
 ```
 
 The lead car pulls away, the ego follows it at a distance, and the run ends when the ego
@@ -227,7 +227,7 @@ only through its own lidar.
 ## 4. Change a parameter per run
 
 ```bash
-ros2 run swb run scenarios/follow_to_goal.xosc --param leadSpeed=2.0
+ros2 run scensim run scenarios/follow_to_goal.xosc --param leadSpeed=2.0
 ```
 
 **What you see**: a run id with the parameter in it,
@@ -276,7 +276,7 @@ lists all of them):
 | Symptom | Fix |
 |---|---|
 | `carla_poses`: `No module named 'carla'` | `python3 -m pip install --user carla==0.9.16` ([Getting started on CARLA](../getting-started/carla.md#carla-itself)) |
-| `project check`: `LogicFile ... does not name a project map` | the `LogicFile` must be `$(env SWB_MAPS)/<map>`, the fix it prints |
+| `project check`: `LogicFile ... does not name a project map` | the `LogicFile` must be `$(env SCENSIM_MAPS)/<map>`, the fix it prints |
 | `project check`: `entity ... has no pilot` | an entity with controller `Autoware` or `agent` needs a pilot in `swb.yaml` (or rename the controller to `""` for SSv2 to drive it) |
 | The run fails at once: `the ego's body ... is not the car SSv2 declared` | the ego must stay the catalog car `tesla_model3` |
 

@@ -1,11 +1,11 @@
 # Your autopilot as a pilot
 
-Drive a scenario entity with an autopilot that is not swb's Autoware profile: a launch
+Drive a scenario entity with an autopilot that is not scensim's Autoware profile: a launch
 file of yours, a program, a ROS 2 stack, or something you start yourself. It assumes a
 project with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)) and the
 pilot kinds of [Tutorial 4](../tutorials/04-several-pilots.md).
 
-An autopilot meets swb at two places:
+An autopilot meets scensim at two places:
 
 - **the scenario side**: an **agent** takes the scenario's commands (reset, drive to this
   goal, keep under this speed, stop) from the relay and reports the vehicle's state;
@@ -21,16 +21,16 @@ project binds a pilot to its name in `swb.yaml`.
 
 | Your autopilot | Kind | The scenario side | The vehicle side |
 |---|---|---|---|
-| Autoware, with your launch or parameters | `autoware` | swb's vehicle agent | started ([Your Autoware](your-autoware.md)) |
+| Autoware, with your launch or parameters | `autoware` | scensim's vehicle agent | started ([Your Autoware](your-autoware.md)) |
 | none of your own: lane following to the goal, no Autoware | `simple` | `simple_pilot` itself | started |
-| a ROS 2 launch that serves Autoware's API (`/api/routing/...`, `/api/operation_mode/...`) | `launch` | swb's vehicle agent, through that API | started |
+| a ROS 2 launch that serves Autoware's API (`/api/routing/...`, `/api/operation_mode/...`) | `launch` | scensim's vehicle agent, through that API | started |
 | a ROS 2 launch with its own way to take a goal | `launch`, `agent: own` | an agent your launch starts (below) | started |
-| a program on swb's agent SDK (Python) | `command` | the program is the agent | only with `args: {vehicle_side: "true"}` |
+| a program on scensim's agent SDK (Python) | `command` | the program is the agent | only with `args: {vehicle_side: "true"}` |
 | started by you, anywhere | `none` | your agent registers with the relay itself | none |
 
 "Started" means: on CARLA, the pilot gets CARLA's vehicle bridge in its own ROS domain;
 on Isaac Sim, the vehicle side is the world server's and the ego's pilot runs in its
-domain. **`agent: own`** means that swb starts no agent for the entity: your launch file
+domain. **`agent: own`** means that scensim starts no agent for the entity: your launch file
 must start one (a program on the agent SDK, or `ros_adapter`, below) that registers the
 entity with the relay given as the `relay` launch argument, or the run waits for it and
 ends `error`.
@@ -117,9 +117,9 @@ The contract above is the vehicle bridges' own. The shipped example of a non-Aut
 autopilot on it is `simple_pilot`, the `simple` kind's driver
 ([The agent SDK](../reference/agent-sdk.md#the-simple-autopilot-simple_pilot)): it routes
 on the map, publishes `control_cmd` and `gear_cmd`, and reads the true pose and
-`velocity_status`. Its launch, `swb_launch`'s `launch/pilots/simple.launch.py`, starts the
+`velocity_status`. Its launch, `scensim_launch`'s `launch/pilots/simple.launch.py`, starts the
 vehicle side and `robot_state_publisher` as above, without Autoware. Start your own from
-its source (`swb_agent/adapters/simple_pilot.py`).
+its source (`scensim_agent/adapters/simple_pilot.py`).
 
 ## The simple pilot
 
@@ -161,7 +161,7 @@ arguments, then `args`:
 | `use_sim_time` | `true` |
 
 Declare the ones you use. With `agent: own` your launch registers the entity itself
-(an agent from the SDK, as below); otherwise swb's vehicle agent does, and drives your
+(an agent from the SDK, as below); otherwise scensim's vehicle agent does, and drives your
 stack through Autoware's API.
 
 ## A program
@@ -174,20 +174,20 @@ pilots:
     lifetime: run
 ```
 
-swb runs the words of `run` (relative paths are the project's; not a shell) with
+scensim runs the words of `run` (relative paths are the project's; not a shell) with
 `--relay <url> --entity <name> --seed <n>` and, per run, `--run-dir <dir>` appended, and
 starts it again when it ends. Substitutions apply in `run` and `args`: `{seed}`,
 `{run_dir}`, `{run_id}`, `{param:<name>}` (a scenario or suite parameter; the pilot must
 then be `lifetime: run`).
 
-The program is an agent: a subclass of `swb_agent.Agent`, which turns the relay's
+The program is an agent: a subclass of `scensim_agent.Agent`, which turns the relay's
 commands (reset, drive to a goal, keep under a speed limit, stop) into your autopilot's
 and reports its state. Start from a skeleton that already passes the conformance check:
 
 ```bash
-ros2 run swb_agent swb-agent new my-pilot
+ros2 run scensim_agent scensim-agent new my-pilot
 cd my-pilot
-ros2 run swb_agent swb-agent check my_pilot.agent:MyPilotAgent
+ros2 run scensim_agent scensim-agent check my_pilot.agent:MyPilotAgent
 ```
 
 The hooks, the state to report and the checks: [The agent SDK](../reference/agent-sdk.md).
@@ -201,7 +201,7 @@ and `ros_adapter` is the agent. As a `command` pilot in the autopilot's domain:
 pilots:
   ego:
     kind: command
-    run: [ros2, run, swb_agent, ros_adapter, --config, agents/my_autopilot.yaml]
+    run: [ros2, run, scensim_agent, ros_adapter, --config, agents/my_autopilot.yaml]
     args: {vehicle_side: "true"}
 ```
 
@@ -211,15 +211,15 @@ The YAML's keys: [The agent SDK, `ros_adapter`](../reference/agent-sdk.md#ros_ad
 
 `kind: none` starts nothing: the stack waits for nothing either, and the run waits for
 the entity's agent to register with the relay. Run your agent against the seat's relay
-port (`ros2 run swb seat show`, `relay 5560` on seat 0), on this host or another:
+port (`ros2 run scensim seat show`, `relay 5560` on seat 0), on this host or another:
 
 ```bash
 python3 -m my_pilot --relay tcp://localhost:5560 --entity ego
 ```
 
-An agent reaches the relay over TCP, so its ROS domain does not matter to swb. A ROS
+An agent reaches the relay over TCP, so its ROS domain does not matter to scensim. A ROS
 agent must share a domain and the DDS settings with the autopilot it drives: `eval
-"$(ros2 run swb seat env 0)"` puts a terminal on the first pilot's domain (`1` for the
+"$(ros2 run scensim seat env 0)"` puts a terminal on the first pilot's domain (`1` for the
 second, and so on; `scenario` for the bridge's).
 
 ## Readiness

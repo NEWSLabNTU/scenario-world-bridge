@@ -1,13 +1,13 @@
 # Host settings
 
 What differs between machines: seats, GPUs, install paths, the log root and the cache. They
-live in files, never in a project's `swb.yaml` and never in exports. Every swb command and
+live in files, never in a project's `swb.yaml` and never in exports. Every scensim command and
 the stack read them, highest first:
 
 1. the command's or the launch's arguments (`--seat`, `seat:=`, `logs:=`, ...);
-2. `<project>/.swb/local.yaml`: this checkout only (git-ignored);
-3. `~/.config/swb/host.yaml`: yours;
-4. `/etc/swb/host.yaml`: the host's, from an administrator (a shared seat table);
+2. `<project>/.scensim/local.yaml`: this checkout only (git-ignored);
+3. `~/.config/scensim/host.yaml`: yours;
+4. `/etc/scensim/host.yaml`: the host's, from an administrator (a shared seat table);
 5. the defaults below.
 
 A mapping merges key by key (`carla: {port: 3000}` keeps the default host).
@@ -15,8 +15,8 @@ A mapping merges key by key (`carla: {port: 3000}` keeps the default host).
 ```yaml
 seat: auto                       # a seat number, or auto: the first free one
 gpu: null                        # a GPU index over the seat table's
-logs: ~/.local/state/swb/logs    # the log root: on a fast disk (an SSD)
-cache: ~/.cache/swb              # the datasets, read-only, shared by your projects
+logs: ~/.local/state/scensim/logs    # the log root: on a fast disk (an SSD)
+cache: ~/.cache/scensim          # the datasets, read-only, shared by your projects
 launcher: auto                   # auto, play_launch or ros2
 # workspaces: {autoware-drift: ~/repos/autoware-drift}   # a pilot's own ROS workspaces
 carla: {root: "", host: localhost, port: 2000}
@@ -29,16 +29,16 @@ seats:
   # carla: {base: 2000, stride: 10}   # optional: seat n's CARLA port base + stride n
   count: 7
   gpus: null                     # a list, seat -> GPU index; null: GPU 0 for every seat
-seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can write
+seat_locks: /tmp/scensim-seats   # the seat locks: a directory every user can write
 ```
 
 | Key | Read by | |
 |---|---|---|
-| `seat` | the stack, `run`, `seat` | your seat; `ros2 run swb seat take <n>` writes it |
+| `seat` | the stack, `run`, `seat` | your seat; `ros2 run scensim seat take <n>` writes it |
 | `gpu` | the stack | `CUDA_VISIBLE_DEVICES` for the stack's processes |
 | `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |
-| `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A project's `- dataset: <name>` entry is then linked from that directory, with the project's `take:`, instead of fetched; `swb.lock` keeps only what came from the Hub, so the project reads the same on every host |
+| `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A project's `- dataset: <name>` entry is then linked from that directory, with the project's `take:`, instead of fetched; `scensim.lock` keeps only what came from the Hub, so the project reads the same on every host |
 | `workspaces` | `project check`, the stack | `{<name>: <directory>}`: ROS workspaces this host has built, for a pilot's `overlays:` entries `{workspace:<name>}/<path>` ([The project file](project-file.md)), as `datasets` names a dataset's copy; a project naming a workspace this host does not have is refused |
 | `carla.host`, `carla.port` | the stack, pilots | where CARLA serves its RPC port |
 | `carla.root` | the stack, pilots | CARLA's install: the `carla_basic` pilot's `agents` package (`<root>/PythonAPI/carla`), and the CARLA the stack starts (`carla.start`) |
@@ -46,7 +46,7 @@ seat_locks: /tmp/swb-seats       # the seat locks: a directory every user can wr
 | `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
 | `carla.map_packages` | `project check` | the directories this host's CARLA towns are installed in (default: `<carla.root>/CarlaUE4/Content`); a project map needs its town there (`<town>.umap` in a package's `Maps/`), so a town you installed into CARLA yourself is this host's, not the project's. Unset with no `carla.root`: not checked |
 | `launcher` | `project check`, `seat show`, the stack, `run` | what starts the stack and each launch of it (its world server, its pilots, a run's SSv2): `auto` (default: play_launch when it is on `PATH` at 0.30 or later, else `ros2 launch`), `play_launch` (refused by `project check` when missing or older) or `ros2`; `launcher:=` on the stack's command line overrides it. `project check` and `seat show` print the choice (`launcher: auto -> play_launch 0.30.0`) |
-| `dds.profile` | the stack, `seat env` | a Cyclone DDS XML for every process of the stack and every exported terminal, in place of swb's localhost profile (a network that needs another, for example unicast on loopback); empty: swb's |
+| `dds.profile` | the stack, `seat env` | a Cyclone DDS XML for every process of the stack and every exported terminal, in place of scensim's localhost profile (a network that needs another, for example unicast on loopback); empty: scensim's |
 | `isaac.root` | the stack, `project check` | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)); required for an Isaac project, with no default. `project check` and the stack refuse an Isaac project when neither `isaac.root` nor `ISAAC_ROOT` is set, or when the root is not an Isaac Sim install (no `venv/bin/activate` or `venv/lib/python3.12/site-packages/isaacsim`, which `install_isaac.sh` makes) |
 | `autoware.setup` | autoware pilots | Autoware's `setup.bash` (`/opt/autoware/1.5.0/setup.bash`); an autoware pilot sources it, then the items below, then this workspace's installs |
 | `autoware.overlay`, `autoware.use_overlay` | autoware pilots | the Autoware fixes this workspace carries, built into `third_party/autoware_overlay` (default); `use_overlay: false` runs stock Autoware |
@@ -64,5 +64,5 @@ last seat ends near `domains.base + stride count`: the default table (base 1, st
 count 7) ends at domain 56. Raising `domains.base` therefore means lowering `count` (or
 `stride`) to match. ROS itself allows domains up to 232, but the Cyclone profile used here
 keeps them at 57 or below.
-`SWB_CONFIG_HOME` and `SWB_SYSTEM_CONFIG` move the user's and the host's directory (for
+`SCENSIM_CONFIG_HOME` and `SCENSIM_SYSTEM_CONFIG` move the user's and the host's directory (for
 tests and containers); nothing else is read from the environment.

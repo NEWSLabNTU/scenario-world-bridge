@@ -1,6 +1,6 @@
 # Developer Guide
 
-For working on scenario-world-bridge itself: building, testing, running against a live
+For working on scensim itself: building, testing, running against a live
 stack, and finding your way around the code and the design documents. Users start at the
 [README](../README.md) and the [tutorials](tutorials/).
 
@@ -9,8 +9,8 @@ stack, and finding your way around the code and the design documents. Users star
 On top of the user prerequisites (ROS 2 Humble, Autoware, CARLA 0.9.16, maps):
 
 ```bash
-git clone --recurse-submodules https://github.com/NEWSLabNTU/scenario-world-bridge.git
-cd scenario-world-bridge
+git clone --recurse-submodules https://github.com/NEWSLabNTU/scensim.git
+cd scensim
 just setup      # rustup, colcon-cargo-ros2, submodules, rosdep, and the dev tools
 just build      # the user's colcon build plus --symlink-install and a dev-release profile
 ```
@@ -26,17 +26,17 @@ recipes. The ones you will use most:
 | `just ci` | build + check + test |
 | `just format` | format the Rust code |
 | `just carla-start` / `carla-status` / `carla-stop` / `carla-health` | CARLA as a background service, and whether it is fit to run a scenario |
-| `just run` | the whole stack (`swb_launch carla.launch.xml`, `sim:=isaac`: `isaac.launch.xml`): world server + bridge + agent relay + the ego (Autoware and its agent, nested, respawned; `ego_launch:=none` for none), play_launch, web UI on 8084. On CARLA every car of the ego's model, the agents' too, runs the spec's physics (`vehicle_physics:=spec`, the default; a path for another file; `none` for the blueprints' own) |
+| `just run` | the whole stack (`scensim_launch carla.launch.xml`, `sim:=isaac`: `isaac.launch.xml`): world server + bridge + agent relay + the ego (Autoware and its agent, nested, respawned; `ego_launch:=none` for none), play_launch, web UI on 8084. On CARLA every car of the ego's model, the agents' too, runs the spec's physics (`vehicle_physics:=spec`, the default; a path for another file; `none` for the blueprints' own) |
 | `just world-check` | the conformance check against the running world server (`sim:=isaac` for Isaac's) |
 | `just ego-av` | the vehicle side for the ego, web UI on 8082 (`just ego-av rviz:=true` for RViz; any acb_launch argument as `name:=value`). It serves one scenario: `just scenario-direct` refuses it, and a `just bg-av` stack, once they have run one (roadmap 077, G64); restart it for the next |
 | `just build-autoware-overlay` | Autoware fixes 1.5.0 lacks, built from a pinned fork commit into `third_party/autoware_overlay/`; `ego-av` / `bg-av` source it by default (`autoware_overlay:=false`: off; roadmap 042) |
 | `just setup-tensorrt` | the TensorRT 10.8.0 runtime Autoware 1.5.0 was compiled against, from NVIDIA's pip wheel into `AUTOWARE_TENSORRT_LIB` (default `third_party/tensorrt/lib`); `ego-av` / `ego-isaac` / `bg-av` put it first on `LD_LIBRARY_PATH`, so CenterPoint's engines survive a restart |
-| `just scenario <file>` | one scenario on the project workflow (`ros2 run swb run <file> --start-stack`) in the project holding it (the nearest `swb.yaml` above it, links not followed), else `scenarios/projects/dev`; the stack stays up. `project:=`, `global_timeout:=`; result under the host's logs (`ros2 run swb runs show <id>`) |
+| `just scenario <file>` | one scenario on the project workflow (`ros2 run scensim run <file> --start-stack`) in the project holding it (the nearest `swb.yaml` above it, links not followed), else `scenarios/projects/dev`; the stack stays up. `project:=`, `global_timeout:=`; result under the host's logs (`ros2 run scensim runs show <id>`) |
 | `just scenario-direct <file>` | the stack-based path: one scenario (web UI on 8081) against `just run`'s stack, which it starts when it is not up; verdict in `<output_directory>/scenario_test_runner/` (`output_directory:=`, default `/tmp`; `sim:=`, `worlds:=`) |
 | `just two-av` | two Autoware stacks, one scenario, on the project workflow (`scenarios/projects/two_av`, its suite `two_av`); `just two-av-direct` is the stack-based path, where `record:=true` records a screencast |
 | `just demo-tour` | the demo tour (one Town01 drive through six incidents) on the project workflow (`scenarios/projects/demo`, its suite `tour`, every incident judged); `just demo-tour-direct` is the stack-based path, with the windows, the captions and `record:=true` |
 | `just prune-logs [days:=7]` | move runs older than that out of the log root into the archive on `/mnt/disk1` (never deletes) |
-| `just e2e [<file>]` | one scenario on the project workflow, as `just scenario` finds its project, starting the stack for it and stopping it after (`ros2 run swb run <file> --stop-stack`); `just e2e-direct` is the stack-based path (`sim:=`, a map, `keep_stacks:=`, `output_directory:=`) |
+| `just e2e [<file>]` | one scenario on the project workflow, as `just scenario` finds its project, starting the stack for it and stopping it after (`ros2 run scensim run <file> --stop-stack`); `just e2e-direct` is the stack-based path (`sim:=`, a map, `keep_stacks:=`, `output_directory:=`) |
 | `just acceptance <file> <runs>` | repeat a scenario and summarise |
 
 The `just` recipes use [play_launch](https://pypi.org/project/play-launch/) (per-node logs
@@ -45,21 +45,21 @@ with plain `ros2 launch`, as the README shows.
 
 Project settings (map, rviz, vehicle and launch choices, scenario output) are recipe
 arguments, `name:=value` as for a launch file; host settings (ports, displays, install and
-data paths such as `CARLA_MAPS` and `AUTOWARE_TENSORRT_LIB`, the log root `SWB_LOG_ROOT`) come from the environment, made
+data paths such as `CARLA_MAPS` and `AUTOWARE_TENSORRT_LIB`, the log root `SCENSIM_LOG_ROOT`) come from the environment, made
 permanent in `.env` or `.envrc`. The recipes refuse to run while one of the environment
 variables that used to carry a project setting is set, naming the argument that replaced it
 (`scripts/just_lib.bash`).
 
-These recipes are the developers' path, beside a project's (`swb.launch.xml`, `ros2 run swb
+These recipes are the developers' path, beside a project's (`scensim.launch.xml`, `ros2 run scensim
 run`). Three things live only here (roadmap 076 step 10): `ego_launch` and `ego_launch_args`
 of `just run` (`carla.launch.xml`, `isaac.launch.xml`, `stack.launch.py`), which a project
-replaces with pilots in `swb.yaml` and `swb.launch.xml` refuses by name; `just bg-av`
+replaces with pilots in `swb.yaml` and `scensim.launch.xml` refuses by name; `just bg-av`
 (`background_av.launch.xml`), which a project replaces with a pilot `bg_av_*: {kind:
-autoware}`; and `CARLA_MAPS`, the developers' map directory. Every recipe exports `SWB_MAPS`
-as `CARLA_MAPS` too, so swb_examples' scenarios, which name their maps `$(env
-SWB_MAPS)/<Town>` as a project's do, run under `just scenario` unchanged; the repository's
+autoware}`; and `CARLA_MAPS`, the developers' map directory. Every recipe exports `SCENSIM_MAPS`
+as `CARLA_MAPS` too, so scensim_examples' scenarios, which name their maps `$(env
+SCENSIM_MAPS)/<Town>` as a project's do, run under `just scenario` unchanged; the repository's
 own `scenarios/` still name `$(env CARLA_MAPS)`. `CARLA_USD` stays the host setting of the
-USD tooling (`just isaac-assets`), and the Isaac world server reads it when `SWB_CARLA_USD`,
+USD tooling (`just isaac-assets`), and the Isaac world server reads it when `SCENSIM_CARLA_USD`,
 which a project's stack sets, is not set.
 
 Notes on a checkout:
@@ -70,13 +70,13 @@ Notes on a checkout:
   crawl would walk into the components' own `deps/` copies and stop on their templates.
 - The build adds `[[patch.unused]]` entries (the message crates it generates) to five lock
   files: the repository root's `Cargo.lock` and those of `src/autoware_carla_bridge`,
-  `src/swb_carla_world`, `src/swb_world_protocol` and `third_party/cuda_ndt_matcher`.
+  `src/scensim_carla_world`, `src/scensim_world_protocol` and `third_party/cuda_ndt_matcher`.
   These entries belong to the build, not to the source: before a `git pull --rebase`,
   discard them with
 
   ```bash
   git checkout -- Cargo.lock
-  for d in src/autoware_carla_bridge src/swb_carla_world src/swb_world_protocol \
+  for d in src/autoware_carla_bridge src/scensim_carla_world src/scensim_world_protocol \
            third_party/cuda_ndt_matcher; do
       git -C "$d" checkout -- Cargo.lock
   done
@@ -123,21 +123,21 @@ src/
                              ego's spawn and spec_hash checks (spec_check.rs)
     src/world_services.rs    the ROS services (weather)
     config/                  bridge_config.yaml
-  swb_world_protocol/      submodule: swb_world.proto and SSv2's protos, swb_core (world
+  scensim_world_protocol/      submodule: scensim_world.proto and SSv2's protos, swb_core (world
                            client and server shell, sim_time, config, NPC tracking, gap
-                           trace, contacts), swb_world_server (Python shell), swb_world_check
-  swb_carla_world/         submodule: the CARLA world server (carla-rust)
-  swb_isaac_world/         submodule: the Isaac world server (Isaac's Python)
+                           trace, contacts), scensim_world_server (Python shell), scensim_world_check
+  scensim_carla_world/     submodule: the CARLA world server (carla-rust)
+  scensim_isaac_world/     submodule: the Isaac world server (Isaac's Python)
   sim_vehicle_spec/        submodule: the car's spec and what is generated from it
   autoware_sim_vehicle/    submodule: the car for Autoware, the profile, vehicle_check
   autoware_carla_bridge/   submodule: acb, the CARLA vehicle bridge
   autoware_isaac_bridge/   submodule: aib, the Isaac vehicle library
   scenario_simulator_v2/   submodule: our SSv2 fork
-  swb_launch/              launch files (simulation, scenario, ego, background AV); run_suite,
+  scensim_launch/          launch files (simulation, scenario, ego, background AV); run_suite,
                            physical_verdict
-  swb_examples/            starter scenarios: basic/, multi_av/, awf/ (installed)
-  swb_interfaces/          ROS services (weather)
-  swb_agent/               the agent SDK, `swb-agent supervise`, the vehicle agent
+  scensim_examples/        starter scenarios: basic/, multi_av/, awf/ (installed)
+  scensim_interfaces/      ROS services (weather)
+  scensim_agent/       the agent SDK, `scensim-agent supervise`, the vehicle agent
   scenario_agent_relay/    the scenario's side of the vehicle agent protocol
 scenarios/                 benchmark and gap reproducer scenarios
 scripts/                   bring-up (carla_up.sh, isaac_up.sh), checks, measurement and media tools
@@ -165,7 +165,7 @@ sides need no shared domain. Details: [architecture](design/architecture.md),
   blueprint chooser, the contact report, `run_suite` and `physical_verdict`. Pure logic is
   kept apart from the CARLA calls so it can be tested without a server.
 - **Live runs**: `just scenario <file>` (the project workflow, its stack started for it),
-  or `just run` (with its ego), then `just scenario-direct <file>` or `ros2 run swb_launch
+  or `just run` (with its ego), then `just scenario-direct <file>` or `ros2 run scensim_launch
   run_suite <dir> --physical-verdict`. The starter scenarios are the regression set; `scenarios/gap/` holds reproducers for fixed SSv2-vs-CARLA disagreements.
 - Before trusting a surprising measurement, check the running binaries against the source
   (`ls -l install/.../acb_bridge`, `/proc/<pid>/cmdline`) and the host's load (`uptime`):

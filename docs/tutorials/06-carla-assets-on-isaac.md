@@ -20,20 +20,20 @@ with a scenario's cars and props rendered in CARLA's models.
 ## Before you start
 
 - [Getting started on Isaac Sim](../getting-started/isaac.md): Isaac Sim installed (6.1
-  is the tested version) and `isaac.root` in `~/.config/swb/host.yaml`.
+  is the tested version) and `isaac.root` in `~/.config/scensim/host.yaml`.
 - [Tutorial 1](01-first-drive.md) and [Tutorial 2](02-write-a-scenario.md), on CARLA:
   everything except the simulator works the same way here.
 - An NVIDIA RTX GPU with 24 GB and 64 GB of RAM
   ([Getting started on Isaac Sim](../getting-started/isaac.md#what-you-need)); no CARLA
   stack beside it.
-- About 19 GB in swb's cache on a fast disk, and several hours for the first download and
+- About 19 GB in scensim's cache on a fast disk, and several hours for the first download and
   the first load of a town (the download took 2 h 28 min on one host on 2026-11-16).
 
 ## 1. Copy the Isaac example
 
 ```bash
-ros2 run swb project new ~/isaac_first_drive \
-    --from pkg://swb_examples/projects/isaac_first_drive
+ros2 run scensim project new ~/isaac_first_drive \
+    --from pkg://scensim_examples/projects/isaac_first_drive
 cd ~/isaac_first_drive
 cat swb.yaml
 ```
@@ -62,12 +62,12 @@ walkers).
 grep LogicFile scenarios/*.xosc
 ```
 
-Both name `$(env SWB_MAPS)/Town01`.
+Both name `$(env SCENSIM_MAPS)/Town01`.
 
 ## 2. Fetch
 
 ```bash
-ros2 run swb assets fetch
+ros2 run scensim assets fetch
 ```
 
 **What you see**: one line per dataset with its commit and file count, the links, and the
@@ -87,19 +87,19 @@ grep '^usd:' assets/maps/Town01/isaac/world.yaml
 ```
 
 ```
-usd: ${SWB_CARLA_USD}/Town01/Town01_physics.usda
+usd: ${SCENSIM_CARLA_USD}/Town01/Town01_physics.usda
 ```
 
-The stack sets `SWB_CARLA_USD` to the project's `assets/carla-usd`, so the world file
+The stack sets `SCENSIM_CARLA_USD` to the project's `assets/carla-usd`, so the world file
 works in any project, on any host.
 
-**Check**: `ros2 run swb assets check` prints `assets: ok`, and `ros2 run swb project
+**Check**: `ros2 run scensim assets check` prints `assets: ok`, and `ros2 run scensim project
 check` prints `project: ok`.
 
 ## 3. Bring up the stack
 
 ```bash
-ros2 launch swb_launch swb.launch.xml
+ros2 launch scensim_launch scensim.launch.xml
 ```
 
 On Isaac the world server is part of the stack and loads its world at start: the first
@@ -107,24 +107,24 @@ map that the project's scenarios name, Town01, which it keeps for the stack's wh
 Autoware starts after it.
 
 **What you see**: the stack's lines as in Tutorial 1, then, after the world has loaded
-(minutes; up to a quarter of an hour the first time), `swb stack: pilot ego ready on
-Town01` and `swb stack ...: ready`.
+(minutes; up to a quarter of an hour the first time), `scensim stack: pilot ego ready on
+Town01` and `scensim stack ...: ready`.
 
 **Check**, from a second terminal; the probe changes nothing:
 
 ```bash
-ros2 run swb_world_check swb_world_check hello tcp://127.0.0.1:5591 --wait 1800
+ros2 run scensim_world_check scensim_world_check hello tcp://127.0.0.1:5591 --wait 1800
 ```
 
 prints the simulator (`isaac`), what it offers (signals, contacts, road conditions, ...)
 and that it is ready. `5591` is seat 0's world server port; on another seat the port is
-the one `ros2 run swb seat show` names.
+the one `ros2 run scensim seat show` names.
 
 ## 4. Run the same scenarios
 
 ```bash
-ros2 run swb run scenarios/drive_to_goal.xosc
-ros2 run swb run scenarios/follow_to_goal.xosc
+ros2 run scensim run scenarios/drive_to_goal.xosc
+ros2 run scensim run scenarios/follow_to_goal.xosc
 ```
 
 The ego drives west as on CARLA, in the second scenario behind a slower car.
@@ -171,14 +171,14 @@ log (`no CARLA body for ...`). The ego is the exception: its body is always its 
 car's.
 
 ```bash
-ros2 run swb run scenarios/follow_the_van.xosc
+ros2 run scensim run scenarios/follow_the_van.xosc
 ```
 
 **What you see**: in Isaac Sim's window, when the stack renders one
 ([Getting started on Isaac Sim](../getting-started/isaac.md)), a Sprinter van leads; the
 run passes.
 
-**Check**: `ros2 run swb runs why follow_the_van` shows no `no CARLA body` warning.
+**Check**: `ros2 run scensim runs why follow_the_van` shows no `no CARLA body` warning.
 
 ## What happened
 
@@ -208,12 +208,12 @@ project.
    from the asset set, in Isaac's Python:
 
    ```bash
-   SWB_CARLA_USD=$PWD/assets/carla-usd \
-       ros2 run swb_isaac_world make_world maps/my_town01 --town Town01
+   SCENSIM_CARLA_USD=$PWD/assets/carla-usd \
+       ros2 run scensim_isaac_world make_world maps/my_town01 --town Town01
    ```
 
    Check: `grep '^usd:' maps/my_town01/isaac/world.yaml` prints
-   `usd: ${SWB_CARLA_USD}/Town01/Town01_physics.usda`, and a stack with `map:=my_town01`
+   `usd: ${SCENSIM_CARLA_USD}/Town01/Town01_physics.usda`, and a stack with `map:=my_town01`
    becomes ready.
 
 ## If it does not work

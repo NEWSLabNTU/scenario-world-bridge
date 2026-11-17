@@ -1,5 +1,5 @@
 # Tutorial 7's rut figure (docs/media/t7_ruts.webp) from a saved rut set, state/<map>/ruts/runs/*.npz
-# (swb_isaac_world soil.save_ruts: "<zone>:<bx>:<by>" 16x16 float32 plastic sinkage in m).
+# (scensim_isaac_world soil.save_ruts: "<zone>:<bx>:<by>" 16x16 float32 plastic sinkage in m).
 #   uv run --no-project --with matplotlib --with numpy python docs/figures/t7_ruts.py <set.npz> ruts.png
 #   ffmpeg -i ruts.png -lossless 1 docs/media/t7_ruts.webp
 import json, sys

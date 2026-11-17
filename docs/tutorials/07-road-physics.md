@@ -13,7 +13,7 @@ surface, slip and sinkage are observed as it crosses.
 - giving a map its ground from the project (`ground:` in `swb.yaml`) and checking it
   without Isaac;
 - changing the road's state from a scenario with `RoadCondition`;
-- observing `/swb/wheels`, and recording it with a run.
+- observing `/scensim/wheels`, and recording it with a run.
 
 ## Before you start
 
@@ -25,10 +25,10 @@ surface, slip and sinkage are observed as it crosses.
 ## 1. Copy the example
 
 ```bash
-ros2 run swb project new ~/road_physics \
-    --from pkg://swb_examples/projects/road_physics
+ros2 run scensim project new ~/road_physics \
+    --from pkg://scensim_examples/projects/road_physics
 cd ~/road_physics
-ros2 run swb assets fetch
+ros2 run scensim assets fetch
 cat swb.yaml ground/town01.yaml
 ```
 
@@ -57,7 +57,7 @@ where the world server reads it, so `ground/town01.yaml` remains the only file t
 **Check**, without Isaac:
 
 ```bash
-ros2 run swb_isaac_world surfaces check ground/town01.yaml
+ros2 run scensim_isaac_world surfaces check ground/town01.yaml
 ```
 
 ```
@@ -71,10 +71,10 @@ and the surface map accepts it by name (`allow_unvalidated: [mud_wet]`).
 ## 2. Bring up the stack
 
 ```bash
-ros2 launch swb_launch swb.launch.xml
+ros2 launch scensim_launch scensim.launch.xml
 ```
 
-**What you see**: as in Tutorial 6, ending `swb stack ...: ready`.
+**What you see**: as in Tutorial 6, ending `scensim stack ...: ready`.
 
 **Check**: `ls -l state/Town01/` shows `surfaces.yaml -> .../ground/town01.yaml`. The world
 server's log (the stack's `proc/simulator/` directory) warns about `mud_wet` and has
@@ -90,14 +90,14 @@ domain's index, not a seat number):
 
 ```bash
 cd ~/road_physics
-eval "$(ros2 run swb seat env 0)"
-ros2 topic echo /swb/wheels --field status
+eval "$(ros2 run scensim seat env 0)"
+ros2 topic echo /scensim/wheels --field status
 ```
 
 In a third terminal, in the project, start the drive:
 
 ```bash
-ros2 run swb run scenarios/mud_and_gravel.xosc
+ros2 run scensim run scenarios/mud_and_gravel.xosc
 ```
 
 **What you see**: in the second terminal, four statuses per sample, one per wheel
@@ -141,10 +141,10 @@ The whole road becomes moist and the gravel patch becomes dirt, while the mud is
 unchanged. A scenario sets the state of the road; it cannot choose the surface map.
 
 ```bash
-ros2 run swb run scenarios/after_rain.xosc --capture full
+ros2 run scensim run scenarios/after_rain.xosc --capture full
 ```
 
-`--capture full` records the run's key topics, `/swb/wheels` among them, as a rosbag, and
+`--capture full` records the run's key topics, `/scensim/wheels` among them, as a rosbag, and
 keeps the recording whatever the verdict.
 
 **What you see**: `passed   <run id>  <run directory>`; the world server's log has
@@ -156,7 +156,7 @@ keeps the recording whatever the verdict.
 ros2 bag info runs/*after_rain*/record/ego
 ```
 
-lists `/swb/wheels` among the recorded topics.
+lists `/scensim/wheels` among the recorded topics.
 
 ## What happened
 
@@ -173,11 +173,11 @@ key, road-detail key and `RoadCondition` property.
 1. **Easy.** Make the mud softer: set `mud_road`'s class to `mud_soft` in
    `ground/town01.yaml`; the change takes effect from the next scenario. Check:
    `mud_and_gravel.xosc` ends `failed` on its 180 s timeout with the car stalled in the
-   mud, and `/swb/wheels` shows the rear wheels' slip near 1.
+   mud, and `/scensim/wheels` shows the rear wheels' slip near 1.
 2. **Medium.** Lay the rough gravel road the stages dataset carries over Town01's
    straight: uncomment `road_detail:` under `ground: Town01:` in `swb.yaml` and restart
    the stack. Check:
-   `ros2 run swb_isaac_world road_detail check state/Town01/road_detail.yaml` prints
+   `ros2 run scensim_isaac_world road_detail check state/Town01/road_detail.yaml` prints
    `1 corridor(s)` and the corridor's 250 m, and the stack starts again without a
    problem. (Autoware has not been validated on the rough road.)
 3. **Open.** Start from old ruts: copy a file of `state/Town01/ruts/runs/` to
@@ -190,9 +190,9 @@ key, road-detail key and `RoadCondition` property.
 
 | Symptom | Fix |
 |---|---|
-| Every wheel's class is `asphalt` | the world server found no surface map: check `ground:` in `swb.yaml` (`ros2 run swb project check`), then restart the stack |
+| Every wheel's class is `asphalt` | the world server found no surface map: check `ground:` in `swb.yaml` (`ros2 run scensim project check`), then restart the stack |
 | The stack is refused, naming `surfaces.yaml` | the file failed its check: run `surfaces check` on it, which lists every problem |
-| `/swb/wheels` shows nothing | the terminal is not on the ego's domain (`eval "$(ros2 run swb seat env 0)"`), or the stack is not up |
+| `/scensim/wheels` shows nothing | the terminal is not on the ego's domain (`eval "$(ros2 run scensim seat env 0)"`), or the stack is not up |
 | `mud_and_gravel.xosc` fails, the car stopped in the mud | the car stalled in the mud: a car that stops in fresh wet mud rarely regains traction, and Autoware does not add torque at low speed; the shipped scenarios do not stop there |
 
 ## Next

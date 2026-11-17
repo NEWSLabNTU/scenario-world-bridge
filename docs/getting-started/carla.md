@@ -1,7 +1,7 @@
 # Getting started on CARLA
 
-This page installs CARLA 0.9.16 and makes it known to swb. The CARLA version is fixed when
-swb is built (a build feature of its CARLA client), and 0.9.16 is the version that build
+This page installs CARLA 0.9.16 and makes it known to scensim. The CARLA version is fixed when
+scensim is built (a build feature of its CARLA client), and 0.9.16 is the version that build
 targets and has been tested with. Most of the time goes to the download: the unpacked
 release measures 30 GB. [Install](install.md) comes first.
 
@@ -24,7 +24,7 @@ python3 -c 'import carla; print(carla.__file__)'
 
 ## Let the stack start it (recommended)
 
-The host settings (`~/.config/swb/host.yaml`) record where CARLA is installed:
+The host settings (`~/.config/scensim/host.yaml`) record where CARLA is installed:
 
 ```yaml
 carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
@@ -35,7 +35,7 @@ With `carla.root` set, the stack starts CARLA itself when nothing answers on the
 stops it with the stack. It runs CARLA off-screen, on the NVIDIA card, at the default
 quality (Epic), and writes CARLA's output to
 `<logs>/<project>/seat-<n>-current/proc/simulator/carla.log` (`logs:` of the host
-settings, `~/.local/state/swb/logs` by default). This mode is recommended for a first
+settings, `~/.local/state/scensim/logs` by default). This mode is recommended for a first
 drive: no separate process is started, and none remains afterwards. The BasicAgent pilot of [Tutorial 4](../tutorials/04-several-pilots.md)
 needs `carla.root` anyway.
 
@@ -72,7 +72,7 @@ prints one `LISTEN` line.
 
 ## Another port or another machine
 
-`localhost:2000` is the default. For another, set it in `~/.config/swb/host.yaml`, for
+`localhost:2000` is the default. For another, set it in `~/.config/scensim/host.yaml`, for
 example `carla: {host: localhost, port: 3000}`. On a host with several stacks, the seat
 table can give every seat its own CARLA port
 ([Several stacks on one host](../how-to/several-stacks.md#one-carla-per-stack)).

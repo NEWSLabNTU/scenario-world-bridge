@@ -53,13 +53,13 @@ blueprint with `role_name=hero` -- from any CARLA client or `demo_scenario.py`, 
 with CARLA's own tools (`generate_traffic.py`, the Traffic Manager), and leaves CARLA's
 lights cycling. acb's `just autoware map:=<town>` attaches to the hero whenever it appears,
 makes it the spec's car (below), and Autoware takes a pose and a goal from RViz or
-`auto_drive`. Nothing of swb runs. Loading another town ends the stack, as any episode
+`auto_drive`. Nothing of scensim runs. Loading another town ends the stack, as any episode
 change does (time-and-ticking, "Episodes and vehicle stacks").
 
 ## Layers
 
 ```
-  SSv2 ─ scenario-world-bridge (adapter, world servers, relay, agent)   needs SSv2
+  SSv2 ─ scensim (adapter, world servers, relay, agent)                 needs SSv2
                 │ uses
   acb (CARLA vehicle bridge)    aib (Isaac vehicle library)           one per simulator
                 │ both use       │ uses
@@ -77,7 +77,7 @@ the spec, the generator library, and the outputs no autopilot owns (CARLA's phys
 sensors, Isaac's rig, SSv2's catalog). `autoware_sim_vehicle` describes it to Autoware:
 the per-car packages, the pedal maps, the profile, the I5 contract and `vehicle_check`.
 Neither knows a simulator's API or SSv2. acb and aib depend on both; the world servers
-depend on `sim_vehicle_spec` only. Neither acb nor aib depends on swb. A run without SSv2
+depend on `sim_vehicle_spec` only. Neither acb nor aib depends on scensim. A run without SSv2
 is the vehicle layer plus one simulator package, which is what acb's and aib's standalone
 runs already are.
 
@@ -90,10 +90,10 @@ Autoware messages, it needs its own vehicle bridge.
 the installed files. Scenarios reach the catalog through `$(find-pkg-share …)`.
 
 **Where it lives**: two repositories of their own (decision V1). acb and aib each need
-them without swb, and swb needs them beside them. They are submodules of all three: acb
-and aib carry them under `deps/`, which holds a committed `COLCON_IGNORE` so swb's workspace, where it is a
+them without scensim, and scensim needs them beside them. They are submodules of all three: acb
+and aib carry them under `deps/`, which holds a committed `COLCON_IGNORE` so scensim's workspace, where it is a
 direct submodule, never builds a second copy (colcon refuses duplicate packages). A pin
-check in swb fails when acb's or aib's pin of either is not an ancestor of swb's
+check in scensim fails when acb's or aib's pin of either is not an ancestor of scensim's
 (roadmap 051, decision 4). Submodules only; no `.repos` files.
 
 ## The car's onboard computers
@@ -118,7 +118,7 @@ lacks (the motor's envelope and lag, the brake hydraulics, the steering motor):
 - **Calibration**: from the spec (`Calibration.from_spec`), overridden per run by an ego
   config's `ecu:` mapping.
 - **Who runs it**: the simulator host, every physics substep, next to the physics: on Isaac
-  aib's `Vehicle.apply` (in swb_isaac_world's world server or `aib.runner`). Not over ROS: a
+  aib's `Vehicle.apply` (in scensim_isaac_world's world server or `aib.runner`). Not over ROS: a
   brake module closes its loop in milliseconds on the car.
 - **CARLA** does not run it: CARLA 0.9.16 takes throttle, brake and steering, not per-wheel
   torque, and its car has its own model. What CARLA cannot express stays listed in
@@ -201,7 +201,7 @@ What is generated from it, and who checks it:
 | output | lives in | for | stale check |
 |---|---|---|---|
 | `isaac` rig | `sim_vehicle_spec` | aib | `check-generated` (byte compare) |
-| `carla_physics.yaml`: every `VehiclePhysicsControl` field CARLA 0.9.16 takes | `sim_vehicle_spec` | acb, swb_carla_world | same |
+| `carla_physics.yaml`: every `VehiclePhysicsControl` field CARLA 0.9.16 takes | `sim_vehicle_spec` | acb, scensim_carla_world | same |
 | `carla_sensors.yaml`: today's `vehicle_config.yaml` | `sim_vehicle_spec` | acb_bridge | same |
 | SSv2 catalog `catalogs/vehicles.xosc`: `BoundingBox`, `Axles`, `Performance` | `sim_vehicle_spec` | scenarios | same, plus a lint: no inline ego `<Vehicle>` in any `.xosc` |
 | Autoware's per-vehicle packages | `autoware_sim_vehicle` | Autoware | same |
@@ -231,7 +231,7 @@ and build-up, motor lag) is either realised in acb_bridge's command path (the la
 knows nothing of the spec, so the writer cannot be the spawner:
 
 - with a world server (SSv2), the world server applies `carla_physics.yaml` right after
-  the spawn, and acb_bridge (`carla_physics:=verify`, set by swb's ego launch) reads
+  the spawn, and acb_bridge (`carla_physics:=verify`, set by scensim's ego launch) reads
   `physics_control` back on attach and refuses to drive a vehicle whose physics differ
   from the file beyond float tolerance, naming the fields;
 - without one (acb's own launches, `carla_physics:=apply`, the default), acb_bridge
@@ -241,7 +241,7 @@ knows nothing of the spec, so the writer cannot be the spawner:
 Either way acb first checks the hero's blueprint against the spec's `carla.blueprint` and
 refuses another car with both names in the message: a scene that spawned the wrong model
 fails at attach, not in the dynamics. Both writers only load the generated file and copy
-fields, with no mapping logic of their own. swb_carla_world's road
+fields, with no mapping logic of their own. scensim_carla_world's road
 friction (047) scales the friction it reads after that write. Today it caches the
 vehicle's "own" friction at its first scaling. It must take the spec's value instead, so
 the two can never race.
@@ -284,12 +284,12 @@ from the spec.
 
 ## A vehicle from another repository
 
-swb does not need to know the car. A car whose spec, rig and Autoware description live in a
-repository of its own (a user of swb, such as a golf cart repository) is plugged in through
+scensim does not need to know the car. A car whose spec, rig and Autoware description live in a
+repository of its own (a user of scensim, such as a golf cart repository) is plugged in through
 these slots, and the `spec_hash` start check covers it like a car of `sim_vehicle_spec`:
 
 - **The world server's ego (Isaac).** The Isaac world server's launch argument `ego:=<yaml>`
-  (`swb_isaac_world.launch.xml`, `just isaac-world ego:=...`) takes an aib ego config from
+  (`scensim_isaac_world.launch.xml`, `just isaac-world ego:=...`) takes an aib ego config from
   anywhere. Its `rig:` and `body:` paths are relative to that file, and the rig names its spec
   relative to itself, so the files can stay in the other repository. The rig's `spec_hash`
   is what the world server reports in `SpawnReply.body`.
@@ -318,7 +318,7 @@ these slots, and the `spec_hash` start check covers it like a car of `sim_vehicl
 
 - **V1. Repository** for the vehicle layer, and its name. [decided 2026-10-23: two
   NEWSLabNTU repositories, `sim_vehicle_spec` (autopilot-neutral) and
-  `autoware_sim_vehicle` (Autoware's), submodules of swb and under acb's and aib's
+  `autoware_sim_vehicle` (Autoware's), submodules of scensim and under acb's and aib's
   `deps/`]
 - **V2. Package names per car.** Autoware needs `<vehicle_model>_description` and
   `_launch`. [proposed: `tesla_model3_description`, `tesla_model3_launch`,

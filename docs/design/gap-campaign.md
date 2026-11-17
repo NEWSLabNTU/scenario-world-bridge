@@ -153,9 +153,9 @@ and is useful on its own.
 The per-episode record the bridge writes and the oracle reads
 ([024](../roadmap/024-gap-trace-and-oracle.md)): JSON Lines, one file per `Initialize`,
 `<gap_trace_dir>/<UTC time>_<episode>.jsonl`, one JSON object per line, each with a `type`.
-The reader is `src/swb_launch/scripts/gap_trace.py` (typed records, validation); the box
+The reader is `src/scensim_launch/scripts/gap_trace.py` (typed records, validation); the box
 geometry the oracle judges with is `gap_geometry.py` next to it. Both are stdlib Python and
-installed beside the `swb_launch` scripts.
+installed beside the `scensim_launch` scripts.
 
 **Conventions.** Everything is in the **ROS map frame** (x east, y north, right-handed, the
 frame SSv2 works in): metres, radians, m/s. CARLA values go through the bridge's existing

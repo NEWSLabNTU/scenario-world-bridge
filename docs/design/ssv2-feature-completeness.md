@@ -8,7 +8,7 @@ to a client-API-only design.
 [roadmap 014](../roadmap/014-feature-completeness.md) and the gap phases 021-024; what is
 left is in [Open gaps](#open-gaps-2026-10-24). The bridge is simulator-free since 046, so
 the tables name what the bridge does and, where it differs, what each world server does
-(`swb_carla_world`, `swb_isaac_world`). Code is cited by file, not line: the 2026-09-25 line
+(`scensim_carla_world`, `scensim_isaac_world`). Code is cited by file, not line: the 2026-09-25 line
 numbers referred to a bridge that no longer exists.
 
 ## Method
@@ -86,7 +86,7 @@ needs a fork protocol slot, as `UpdateEnvironment` was for weather (047).
   servers report contacts, `physical_verdict` joins them to SSv2's verdict, and the gap
   oracle's G1-G4 compare the two geometries on every traced run.
 - **Pose reference point.** Scenario vehicles declare `BoundingBox/Center x="1.5"` (e.g.
-  `src/swb_examples/scenarios/multi_av/town01_two_av.xosc:13`): the SSv2 entity origin is the rear axle. A CARLA vehicle's
+  `src/scensim_examples/scenarios/multi_av/town01_two_av.xosc:13`): the SSv2 entity origin is the rear axle. A CARLA vehicle's
   origin is near its bbox centre. `ros_pose_to_carla_transform` (C:2399) and
   `coordinate_conversion.rs` apply no offset. **Measured 2026-09-25** (`scripts/pose_offset_probe.py`):
   the bridge maps the SSv2 pose to the CARLA actor origin 1:1 (Δ 0.000 m on spawn, teleport and
@@ -118,7 +118,7 @@ needs a fork protocol slot, as `UpdateEnvironment` was for weather (047).
     a millimetre), and every tool that writes or derives positions uses it.
     `repair_lanelet_local_coords.py` rewrites every node's `local_x`/`local_y` from its
     lat/lon, so the tags hold the frame Autoware, SSv2 and CARLA share and every reader of
-    them (swb_core's light fallback, the repair scripts, swb_isaac_world's surface check) is
+    them (swb_core's light fallback, the repair scripts, scensim_isaac_world's surface check) is
     right with no change of its own. `regenerate_light_geometry.py` and
     `repair_lanelet_signal_links.py` write lat/lon with `unproject` (they wrote lat = y / R,
     which TransverseMercator reads 0.7 % short in y: a light head at y = -330 landed 2.3 m

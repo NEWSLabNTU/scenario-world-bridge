@@ -1,4 +1,4 @@
-# Teaching with swb
+# Teaching with scensim
 
 For a course or a lab on automated driving: what a lab host needs, many students sharing
 a few hosts, the tutorials as a lab sequence, a sample schedule, and submitting and
@@ -8,7 +8,7 @@ are in the [glossary](reference/glossary.md).
 
 ## What a student needs
 
-A seat on a GPU host (below), the workspace sourced (`source ~/swb.bash`), and a project
+A seat on a GPU host (below), the workspace sourced (`source ~/scensim.bash`), and a project
 directory of their own. Nothing in a student's project is a path on the host, so the same
 assignment repository works on every lab machine and on a student's own.
 
@@ -19,14 +19,14 @@ These steps need sudo, or write to directories students cannot; do them once per
 1. The machine-wide part of [Install](getting-started/install.md#once-per-machine-needs-sudo):
    the apt packages, `sudo rosdep init`, and the kernel socket buffers (`sysctl`).
 2. Clone and build the workspace once, in a directory every student can read, for
-   example `/opt/scenario-world-bridge`, following [Install, Build](getting-started/install.md#build)
+   example `/opt/scensim`, following [Install, Build](getting-started/install.md#build)
    (including `rosdep install`, which asks for sudo).
 3. Unpack CARLA 0.9.16 where every student can read it, for example `/opt/CARLA_0.9.16`
    ([Getting started on CARLA](getting-started/carla.md)).
-4. Write the host's settings for every user, `/etc/swb/host.yaml`:
+4. Write the host's settings for every user, `/etc/scensim/host.yaml`:
 
 ```yaml
-# /etc/swb/host.yaml
+# /etc/scensim/host.yaml
 seats:
   domains: {base: 1, stride: 8}
   ports: {base: 5555, stride: 100}
@@ -34,14 +34,14 @@ seats:
   carla: {base: 2000, stride: 10}   # seat n: its own CARLA on 2000 + 10 n
   count: 4
   gpus: [0, 0, 1, 1]                # seat -> GPU
-seat_locks: /tmp/swb-seats          # every user can write here
+seat_locks: /tmp/scensim-seats      # every user can write here
 carla:
   root: /opt/CARLA_0.9.16           # each seat's stack starts its own CARLA from here
 ```
 
 With `seats.carla` and `carla.root`, every seat's stack starts its own CARLA on its own
 port when it starts and stops it when it stops: students never start CARLA by hand, and
-never meet another seat's CARLA. `ros2 run swb seat show` prints each seat's CARLA port.
+never meet another seat's CARLA. `ros2 run scensim seat show` prints each seat's CARLA port.
 
 ## What each student does once
 
@@ -49,14 +49,14 @@ Each student, in their own account:
 
 ```bash
 python3 -m pip install --user 'play_launch>=0.30.0'   # Install, "Your tools"
-cat > ~/swb.bash <<'EOF'
+cat > ~/scensim.bash <<'EOF'
 source /opt/autoware/1.5.0/setup.bash
-source /opt/scenario-world-bridge/install/setup.bash
+source /opt/scensim/install/setup.bash
 export PATH=$HOME/.local/bin:$PATH
 EOF
-source ~/swb.bash
+source ~/scensim.bash
 ros2 run autoware_sim_profile setup_autoware_data      # ~/autoware_data, per user
-ros2 run swb seat show
+ros2 run scensim seat show
 ```
 
 `setup_autoware_data` gives each student a writable `~/autoware_data`, where Autoware's
@@ -64,11 +64,11 @@ TensorRT engines are built on the student's first Autoware start and kept. That 
 is the slow one ([Failures in a lab](#failures-in-a-lab)): have every student do it in the
 first session, one after another.
 
-Each student's datasets go to their own cache (`~/.cache/swb` by default). A cache is one
+Each student's datasets go to their own cache (`~/.cache/scensim` by default). A cache is one
 user's: a fetch into a cache another user owns fails on its permissions, so do not point
 several users at one `cache:`. Town01's map is about 0.1 GB, so a per-student cache is
 cheap on CARLA; the USD set for Isaac Sim is several GB per student. Each student's runs
-go to their `logs:` (default `~/.local/state/swb/logs`, on the home disk; point it at a
+go to their `logs:` (default `~/.local/state/scensim/logs`, on the home disk; point it at a
 fast disk if home is slow or has a quota).
 
 ## Capacity
@@ -118,16 +118,16 @@ Two hosts with, say, four seats each serve eight stacks at a time, not twenty. S
 share seats in turns:
 
 - **Book time slots per seat.** A shared sheet: host, seat, time slot, student. In a slot
-  the student takes that seat (`ros2 run swb seat take 2`, written to their own host
+  the student takes that seat (`ros2 run scensim seat take 2`, written to their own host
   settings) and starts their stack; at the end they stop it with Ctrl-C, which frees the
   seat and its CARLA.
 - **Or first come, first served.** Leave every student on `seat: auto`: a stack takes the
   first free seat, and is refused when none is free, naming who holds each.
-  `ros2 run swb seat show` lists the holders.
+  `ros2 run scensim seat show` lists the holders.
 - **Pair up** for the Autoware labs (1 to 5): two students, one seat, one project.
 - **Keep the slow work outside the slots.** Writing scenarios (Tutorial 2, step 1 needs
   CARLA for `carla_poses`, the rest does not), the agent check of Tutorial 4
-  (`swb-agent check`, no simulator), and reading results need no seat.
+  (`scensim-agent check`, no simulator), and reading results need no seat.
 
 A seat is held by a lock the kernel drops when the stack's process ends, however it ends:
 a crashed stack frees its seat at once.
@@ -143,17 +143,17 @@ student can paste.
 | 1 | [First drive](tutorials/01-first-drive.md) | a `passed` run, and `runs show` read aloud: what each timeline row is |
 | 2 | [Write a scenario](tutorials/02-write-a-scenario.md) | their own scenario passing, and a `--param` that makes it fail |
 | 3 | [Other road users](tutorials/03-other-road-users.md) | a pedestrian or traffic-light scenario of their own, passing |
-| 4 | [Several pilots](tutorials/04-several-pilots.md) | a pilot of their own on the SDK passing `swb-agent check`, then a run with it |
+| 4 | [Several pilots](tutorials/04-several-pilots.md) | a pilot of their own on the SDK passing `scensim-agent check`, then a run with it |
 | 5 | [Suites](tutorials/05-suites.md) | a suite over a parameter grid with repetitions, and its `summary.csv` |
 | 6 | [Isaac Sim](tutorials/06-carla-assets-on-isaac.md) | the lab 2 scenario passing on Isaac Sim, unchanged |
-| 7 | [Road physics](tutorials/07-road-physics.md) | a ground that makes the car stall, shown on `/swb/wheels` |
+| 7 | [Road physics](tutorials/07-road-physics.md) | a ground that makes the car stall, shown on `/scensim/wheels` |
 
 Labs 1 to 5 run on CARLA; 6 and 7 need an Isaac seat. Tutorial 4 runs two Autowares in one
 stack: it needs a seat with room for both (32 GB of RAM or more, and the GPU memory of two).
 
 ## A six-week schedule
 
-One session a week, the lab hosts set up and every student's `~/swb.bash` written before
+One session a week, the lab hosts set up and every student's `~/scensim.bash` written before
 week 1.
 
 | Week | In the session | Due the next week |
@@ -161,7 +161,7 @@ week 1.
 | 1 | Lab 1. Every student's first Autoware start, one after another (the TensorRT build) | Lab 1 exercises 1 and 2 |
 | 2 | Lab 2 | a scenario of their own, passing |
 | 3 | Lab 3 | Lab 3 exercise 2; the assignment handed out |
-| 4 | Lab 4 (in pairs, one seat with room for two Autowares) | a pilot passing `swb-agent check` |
+| 4 | Lab 4 (in pairs, one seat with room for two Autowares) | a pilot passing `scensim-agent check` |
 | 5 | Lab 5: suites and judges, the assignment's grading suite run on their own seat | the assignment, submitted |
 | 6 | Labs 6 and 7 on Isaac seats; grading runs | |
 
@@ -172,15 +172,15 @@ with Labs 6 and 7 shown once by the instructor on one Isaac host.
 
 ## Assignments as projects
 
-An assignment is a project: a git repository with `swb.yaml`, `swb.lock`, the scenarios
+An assignment is a project: a git repository with `swb.yaml`, `scensim.lock`, the scenarios
 and suites the students start from, and the judges you grade with. Students copy it into a
 repository of their own:
 
 ```bash
-ros2 run swb project new ~/assignment1 --from /path/to/assignment1
+ros2 run scensim project new ~/assignment1 --from /path/to/assignment1
 cd ~/assignment1
 git init && git add -A && git commit -m "start"
-ros2 run swb assets fetch
+ros2 run scensim assets fetch
 ```
 
 The lock pins every asset's commit and checksum, so every student fetches the same files.
@@ -188,8 +188,8 @@ A run records the scenario's hash, the lock's hash and the workspace's commits i
 `result.json`, so a submitted result says what it ran.
 
 **Submitting** is pushing that repository (to the course's git server) and handing in its
-URL and commit. What belongs in it: `swb.yaml`, `swb.lock`, `scenarios/`, `suites/`,
-`pilots/`. Not `assets/`, `state/`, `runs/` or `.swb/`, which the project's `.gitignore`
+URL and commit. What belongs in it: `swb.yaml`, `scensim.lock`, `scenarios/`, `suites/`,
+`pilots/`. Not `assets/`, `state/`, `runs/` or `.scensim/`, which the project's `.gitignore`
 already leaves out: the grader runs the work again rather than trusting the student's runs.
 
 ## Grading with suites and judges
@@ -231,10 +231,10 @@ git checkout <submitted commit>
 cp -r ~/assignment1/judges .                     # your copies, not theirs
 cp ~/assignment1/suites/grading.yaml suites/
 git diff --stat <assignment start commit> -- swb.yaml   # what they changed
-ros2 run swb assets fetch
-ros2 run swb project check
-ros2 run swb run suites/grading.yaml --seat 3 --stop-stack
-ros2 run swb runs summary
+ros2 run scensim assets fetch
+ros2 run scensim project check
+ros2 run scensim run suites/grading.yaml --seat 3 --stop-stack
+ros2 run scensim runs summary
 ```
 
 `--stop-stack` starts the project's stack on the grading seat, runs the suite, and stops
@@ -244,7 +244,7 @@ suite over the student's, and read the `swb.yaml` diff: the judges a run uses ar
 `judges` column; each judge's full output is `runs/<id>/judges/grade.json`. The run's own
 verdict stays SSv2's: a judge adds to it, never replaces it
 ([Verdicts](explanation/verdicts.md)), so a grading rule can change and be applied again to
-old runs. The exit code of `swb run` (0, 1, 2, 3) tells a script whether every run passed,
+old runs. The exit code of `scensim run` (0, 1, 2, 3) tells a script whether every run passed,
 one failed, the setup broke, or the run was refused; grade a run that ended `error` again,
 not as a fail.
 
@@ -272,14 +272,14 @@ between runs or hosts: grade the method and the evidence, not a value.
 | T3 ex3 | open: `passed` with the student's `RelativeDistanceCondition` present; check the condition's sign and distance in the file |
 | T4 ex1 | `pilot bg_av_2 ready` on the stack console; a third Autoware domain in `stack.json`. Needs room for three Autowares |
 | T4 ex2 | `cut_in.json` distances between 30 and 35 m |
-| T4 ex3 | `swb-agent check` passes; a run ends `passed` or `failed`, not `error` |
+| T4 ex3 | `scensim-agent check` passes; a run ends `passed` or `failed`, not `error` |
 | T5 ex1 | only the two new runs run; the others print `skipped` |
 | T5 ex2 | `failed (expected failed)`, exit code 0 |
 | T5 ex3 | two `passed` lines; the ACC JUnit with 27 testcases, the AEB one with 9 |
 | T6 ex1 | **run-dependent evidence**: `passed`, and no `no CARLA body` line. An absent line proves little on its own: also ask for the world server's log lines naming the walker's model |
 | T6 ex2 | a `passed` run on Town02 |
 | T6 ex3 | the `usd:` line as the tutorial shows; the stack with `map:=my_town01` reaches `ready` |
-| T7 ex1 | **run-dependent**: `failed` on the 180 s timeout, rear-wheel slip near 1 on `/swb/wheels`. After a stall in mud Autoware may not drive again in the next run: restart the stack before the next exercise |
+| T7 ex1 | **run-dependent**: `failed` on the 180 s timeout, rear-wheel slip near 1 on `/scensim/wheels`. After a stall in mud Autoware may not drive again in the next run: restart the stack before the next exercise |
 | T7 ex2 | `1 corridor(s)` and 250 m from `road_detail check`; the stack starts again |
 | T7 ex3 | **run-dependent**: `ruts: set worn from ...` in the world server's log; the sinkage "differs" from a fresh run's, with no fixed amount. Ask for both values |
 
@@ -287,14 +287,14 @@ between runs or hosts: grade the method and the evidence, not a value.
 
 | What students see | Cause, what to do |
 |---|---|
-| `seat <n> is taken: <user> (pid ...)` | a live stack holds it (a lock is freed when its process ends, so it is never stale). `ros2 run swb seat show` names the user and pid: their slot, or a stack left running; the administrator stops it by pid |
+| `seat <n> is taken: <user> (pid ...)` | a live stack holds it (a lock is freed when its process ends, so it is never stale). `ros2 run scensim seat show` names the user and pid: their slot, or a stack left running; the administrator stops it by pid |
 | the stack fails with `Address already in use` on a free seat | child processes of a stack killed by hand still hold the seat's ports: find them (`ps -eo pid,ppid,user,etimes,comm`, parent 1) and stop them by pid |
 | the first Autoware start of every student takes minutes | each student's TensorRT engines are built once, into their `~/autoware_data`. Twenty students starting at once load every core and each build slows the others: have them start one after another in week 1. With `centerpoint` each build takes 3 to 11 minutes |
 | CARLA crashes mid-run | the run fails within about 30 s; a CARLA the stack started is started again by the stack, and the next run waits for it |
 | CARLA crashes when a scenario changes towns | it ran at `-quality-level=Low`; the stack starts CARLA at Epic. Only a CARLA started by hand can be Low |
 | two seats fight over one CARLA | a CARLA started by hand on another seat's port, or no `seats.carla` in the table: let the stacks start CARLA (`carla.root`, `seats.carla`) and nobody start one by hand |
-| runs refused with `budget`, or a full disk | the log root is full: `ros2 run swb runs prune --older-than 7`, or a lower `logging.capture`; check `df -h` on each user's `logs:` |
-| a run refused: `the stack ... was started from another project state` | `swb.yaml`, `swb.lock` or the pilots changed after the stack started: restart the stack |
+| runs refused with `budget`, or a full disk | the log root is full: `ros2 run scensim runs prune --older-than 7`, or a lower `logging.capture`; check `df -h` on each user's `logs:` |
+| a run refused: `the stack ... was started from another project state` | `swb.yaml`, `scensim.lock` or the pilots changed after the stack started: restart the stack |
 | out of GPU memory, a pilot crashing at start | too many seats on one GPU: `nvidia-smi`, then fewer seats per GPU (`gpus:`) |
 
 More symptoms: [Troubleshooting](reference/troubleshooting.md).

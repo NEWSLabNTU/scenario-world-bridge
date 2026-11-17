@@ -1,7 +1,7 @@
 # Cooperative driving: theory and learning, measured
 
 How a car decides when to go, yield or wait among other road users, in a way that can be
-explained and deployed, and how swb measures whether it works. This folds roadmap 074's findings
+explained and deployed, and how scensim measures whether it works. This folds roadmap 074's findings
 (scoring, the two-car games, the N-car formulation, the strategy layer on Autoware) into one
 design. The literature and the long arguments are in `survey-multi-vehicle-cooperation.md`;
 the steps and results in `docs/roadmap/074-cooperation-study.md`. The build spec is [conflict-zone-protocol.md](conflict-zone-protocol.md), its phases [roadmap 078](../roadmap/078-conflict-zone-protocol.md).
@@ -14,7 +14,7 @@ the steps and results in `docs/roadmap/074-cooperation-study.md`. The build spec
  │ contexts (gap, speeds, car types)                            │   │ perception 10 Hz             │
  │      │                                                       │   │      │                       │
  │      v                                                       │   │      v                       │
- │ runs: kinematic ─> arena (CARLA physics) ─> swb (Autoware)   │   │ band detector 10 Hz          │
+ │ runs: kinematic ─> arena (CARLA) ─> scensim (Autoware)       │   │ band detector 10 Hz          │
  │      │            trusted by D2           ground truth       │   │  relation, Δt, own role      │
  │      v                                                       │   │      │ outside a band:       │
  │ ① SCORING  raw measures ─> utility U ─> objective J, welfare │   │      │  dominance (nearer    │
@@ -89,7 +89,7 @@ connected vehicles optional: everything below must hold with no V2X at all.
    never decides. Every learned parameter is tuned on one seed set and read on another,
    pre-registered held-out set.
 6. **Every number is measured on a real stack, or on a model checked against one, and a gap is a
-   model bug first.** swb runs full Autoware stacks; the arena is trusted where it agrees (D2).
+   model bug first.** scensim runs full Autoware stacks; the arena is trusted where it agrees (D2).
    When they disagree, the model is suspected first: the 0.35 s launch delay, the held car's
    creep (247 contacts against the arena's 127), PET's sampling. Every switch is traced and kept
    behind a legacy flag.
@@ -120,9 +120,9 @@ cut-in is a merge that becomes a follow. Head-on drift and running a red light a
 games: they belong to the safety layer, and the design treats them only as type uncertainty
 (a car that may not stop).
 
-**What each scenario needs, and what swb has:**
+**What each scenario needs, and what scensim has:**
 
-| scenario | relation | game when rules are symmetric | arena | swb site | status |
+| scenario | relation | game when rules are symmetric | arena | scensim site | status |
 |---|---|---|---|---|---|
 | following, lead brakes | follow | none: one-sided reaction; a chain externality down a queue | parallel road (exists) | Town03 east straight (E2) | timing measured (E2) |
 | cut-in | merge | sequential leader-follower; chicken only under a commitment | parallel road (exists) | Town03 west straight | C1-C3 done |
@@ -180,13 +180,13 @@ $$U_i = -\ell_i - \rho_i - c_i - 10\cdot\mathbf 1[\text{contact}]$$
   deepest overlap is recorded beside it, since a square-cornered box at a steep yaw touches before
   the body does (S0: 1-8 cm at 14/-3).
 - **Implemented** (S0, 2026-11-14) in `scripts/coop/measures.py` (`push_poses`, `rho`, `utility`)
-  and used by C1 (`cutin_game.utility`), the arena and swb's scoring (`c2b.score`); every car is
+  and used by C1 (`cutin_game.utility`), the arena and scensim's scoring (`c2b.score`); every car is
   an oriented box, $\mathrm{TTC}^{2D}$ is found by stepping both boxes at constant velocity (0.1 s,
   refined by bisection), PET from footprints stored every 0.1 s where headings differ by 30-150
   deg, $a^{\text{lat,max}} = 4$ m/s$^2$.
 
 **Rules that make scores comparable** (learned the hard way, D2: 71 % → 92 %):
-- defined over *time*, never over samples (0.05 s arena ticks and 0.1 s swb logs must agree);
+- defined over *time*, never over samples (0.05 s arena ticks and 0.1 s scensim logs must agree);
 - never scaled by the run's length (a fixed horizon; a longer run adds loss, it does not dilute it);
 - a manoeuvre's end by its plan, not by a threshold a curved road may never reach.
 
@@ -271,7 +271,7 @@ average, 7 at most. So:
    bounds the distance to equilibrium.
 7. **Mean field** beyond the conflict set: $J_i = J^{near}_i(\text{conflict set}) + J^{far}(\rho, \bar v, \text{rule mix})$,
    near field exact, far field as density, mean speed and the population's rule mix. Valid at
-   large N (the only measured threshold is ~30 cars, for routing); swb measures the split's error
+   large N (the only measured threshold is ~30 cars, for routing); scensim measures the split's error
    by running the same scene all-explicit and as a density.
 
 ## The solution concept: constrained, coordinated, robust
@@ -395,7 +395,7 @@ controller per signal, in SUMO, with Lean 4 proofs of its service bounds and no-
 - **Pricing and auctions bought no delay;** they serve as an accounting layer.
 
 **Shared perception and space leases over lossy V2X** (repo crdt-tensor, SEPS): a safety layer
-that gates manoeuvres, on CARLA + swb + Autoware with ns-3 5G radio; its lease is a TLA+ model.
+that gates manoeuvres, on CARLA + scensim + Autoware with ns-3 5G radio; its lease is a TLA+ model.
 - **A lease acts only on an explicit accept from every required party.** Silence, loss or a
   missing party aborts, so loss never yields a false grant. That is safe but not live with a
   non-participant: the car holds. This is the reason connected vehicles stay optional here, as a
@@ -415,7 +415,7 @@ that gates manoeuvres, on CARLA + swb + Autoware with ns-3 5G radio; its lease i
 | reading the other | a probe rule: yield vs hold from filtered acceleration after a nudge | its thresholds under real perception noise | calibration: predicted vs observed yield rates |
 | role facts | the convention's role (who stopped first, who is on the right) | arrival and stop times with calibrated error, which sets the tie margin | the two cars' readings disagree in less than the bound; disagreement fails safe (3b) |
 | others' response | a logit response in a potential game; level-k | one α (or k) per car class | held-out yield rates per class |
-| payoff | kinematic game, pair composition | residual $g_\theta$ over the conflict set (permutation-invariant per slot) | held-out swb runs; the residual's share is reported |
+| payoff | kinematic game, pair composition | residual $g_\theta$ over the conflict set (permutation-invariant per slot) | held-out scensim runs; the residual's share is reported |
 | rules | threshold form, double oracle; conventions per band | an RL auditor searching for profitable deviations outside the rule set (PSRO's oracle) | exploitability; obedience of the convention |
 | size | slots bound the local structure | a set model trained on 2-3 cars | N+1 residual; exact games at small N |
 | far field | mean-field game | the far field's response to density | explicit runs at increasing N |
@@ -554,11 +554,11 @@ Where a value needs training or evaluation, the design assumes one and the evalu
 
 | parameter | assumed | basis | measured by |
 |---|---|---|---|
-| stop and arrival time error e | σ 0.15 s within 30 m | the arena's observer (0.19 s delay) | Autoware tracks against ground truth in swb |
+| stop and arrival time error e | σ 0.15 s within 30 m | the arena's observer (0.19 s delay) | Autoware tracks against ground truth in scensim |
 | tie margin | 2e | 3b | C8's margin(e) |
 | yield vs hold | a deceleration ≥ 0.5 m/s² held 0.5 s is a yield | C3's onset + 1.0 s | probe runs, held out |
 | rationality α | C4's per car class; cautious for trucks and two-wheelers | C4, D5 | held-out yield rates per class |
-| critical gap, left turn | 6.5 s | the literature's 4.5-7 s; S5's band | swb left turns |
+| critical gap, left turn | 6.5 s | the literature's 4.5-7 s; S5's band | scensim left turns |
 | reach contract | reach ≥ v_max × (turn time + 1 s) | S5 | detector reach per class and weather |
 | capability bounds | braking ≥ 4 m/s² car, 3 truck, 4 two-wheeler; wet × 0.6 | E4 | E4-style runs per blueprint |
 | creep | 1 m/s, a 3 s time-out before the next step | none | the dense-traffic runs |
@@ -568,7 +568,7 @@ Where a value needs training or evaluation, the design assumes one and the evalu
 | gate | question | bar | status |
 |---|---|---|---|
 | E1/D1 | is a fast arena faithful to the car? | vehicle check within 0.01 m/s² | met: 10-35 k runs/h |
-| D2 | does the arena agree with swb on Autoware's world? | ≥ 90 % of payoffs inside the arena's intervals | met: 92 %, outcomes 24/24 |
+| D2 | does the arena agree with scensim on Autoware's world? | ≥ 90 % of payoffs inside the arena's intervals | met: 92 %, outcomes 24/24 |
 | D9 | do pairs predict N cars? | residual within tolerance in ≥ 90 % of contexts | met: 92 % of held-out contexts, queues up to 7 cars at 1-1.5 s headway (N3) |
 | D6 | is acting on beliefs worth a node? | regret or value of information ≥ 10 % of stock's welfare loss | decided, confirmed by the user: no belief node; a probe rule and an intent message (C6) |
 | D7 | deployable? | never worse than stock on contact and TTC, also against a car that ignores the convention; a significant welfare gain; within the rate budget | after P1 |
@@ -582,14 +582,14 @@ value of information, measured on deployment code at deployment rates.
   U2, the Y merge), D2 accepted per relation for outcomes and classes; N cars (D9 met, N past ~10
   does not matter in a merge); conventions (C7); beliefs (C6, D6); car models (C5); fits (C4, D5);
   Autoware's knobs as strategies (E3, D3); the left turn on Autoware (S5).
-- The stack work S5 called for is done: CARLA's friction reset fixed in swb, full CenterPoint as
+- The stack work S5 called for is done: CARLA's friction reset fixed in scensim, full CenterPoint as
   `centerpoint`, lidar intensity from the spec (TransFusion sees cars offline).
-- Open: U3, the 4-way stop (games; Autoware on a stop-sign map variant); swb checks with several
+- Open: U3, the 4-way stop (games; Autoware on a stop-sign map variant); scensim checks with several
   cars (C3c, N5) now the friction fix is in; P1 with no V2X (stock, + convention and probe, + learned parameters; messages last, optional); the convention
   table's robustness against non-compliers (D7).
 
 **The scenario plan** (roadmap 074, S0-S6), one relation at a time, each through the same ladder:
-kinematic game, arena (with the geometry it needs), swb with a light agent, swb with Autoware.
+kinematic game, arena (with the geometry it needs), scensim with a light agent, scensim with Autoware.
 
 | step | what | needs |
 |---|---|---|
@@ -598,7 +598,7 @@ kinematic game, arena (with the geometry it needs), swb with a light agent, swb 
 | S2 | cross: straight crossing at an unsignalled junction, with and without a priority rule | an arena crossing; Town01/02 junctions with the lights off (E6) |
 | S3 | merge with a deadline: a lane drop or an on-ramp (war of attrition) | an arena lane end; a site on Autoware's maps (E7) |
 | S4 | oppose: a narrow passage, who waits | an arena two-way road with a narrow stretch |
-| S5 | the left turn in the arena and swb (U1's kinematic results first) | an arena junction; Town05/10 (E5) |
+| S5 | the left turn in the arena and scensim (U1's kinematic results first) | an arena junction; Town05/10 (E5) |
 | S6 | overtaking via the oncoming lane: merge, oppose, merge | a two-way arena road; Town01/02 |
 
 Each step reports the equilibrium map over $(\Delta t, v_A, v_B, r)$, the welfare loss against the

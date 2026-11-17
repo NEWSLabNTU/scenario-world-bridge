@@ -1,6 +1,6 @@
 # How it works
 
-Why scenario-world-bridge (swb) is shaped the way it is: the parts of a run, and the
+Why scensim is shaped the way it is: the parts of a run, and the
 project, stack and run a user works with. No steps here; the tutorials have them.
 
 <p align="center">
@@ -19,7 +19,7 @@ project, stack and run a user works with. No steps here; the tutorials have them
   judges it. It talks to a simulator over its `simulation_interface` protocol; the
   **bridge** (`scenario_world_bridge`) is that simulator, and turns SSv2's requests into
   one simulator-neutral protocol, the world protocol.
-- **The world server**, one per simulator: `swb_carla_world` for CARLA, `swb_isaac_world`
+- **The world server**, one per simulator: `scensim_carla_world` for CARLA, `scensim_isaac_world`
   for Isaac Sim. It loads the map, spawns and moves the other road users, sets the traffic
   lights and steps time. The bridge knows no simulator; a new simulator is a new world
   server ([Your simulator](../how-to/your-simulator.md)).
@@ -58,19 +58,19 @@ stack starts them again.
 | stack | the long-lived processes of a project on one seat: world server, bridge, relay, pilots |
 | run | one scenario (one parameter set, one repetition) against a live stack, ending with a result |
 | suite | many runs: a list, a parameter grid, repetitions |
-| pilot | what drives one scenario entity: a vehicle side swb starts, plus a driver |
+| pilot | what drives one scenario entity: a vehicle side scensim starts, plus a driver |
 | seat | one stack's share of a host: ROS domains, ports, web port, GPU |
 
 **Each fact has one owner.** The scenario owns its map, its entities, their cars and which
 of them are driven from outside SSv2 (controller `Autoware` or `agent`). The project owns
 who drives each of those (`pilots:`), which assets at which versions (`assets:`, pinned by
-`swb.lock`), and the simulator. The host owns its seats, GPUs, install paths, log and
+`scensim.lock`), and the simulator. The host owns its seats, GPUs, install paths, log and
 cache folders. So a scenario runs unchanged in any project with its map, a project runs
 unchanged on any host after `assets fetch`, and a host change never edits a project.
 
 **Assets by name.** A project names datasets and the part of each it takes; `assets fetch`
 puts them in a read-only cache shared by every project and links them into `assets/`.
-Scenarios name maps `$(env SWB_MAPS)/<map>`, world files their stage `${SWB_CARLA_USD}/...`;
+Scenarios name maps `$(env SCENSIM_MAPS)/<map>`, world files their stage `${SCENSIM_CARLA_USD}/...`;
 the stack sets both. What the stack writes for a map (CARLA's signal table, Isaac's ruts,
 the project's ground) goes to the project's `state/<map>/`, never into the shared map.
 

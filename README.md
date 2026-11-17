@@ -1,9 +1,10 @@
-# scenario-world-bridge
+# scensim
 
-scenario-world-bridge (swb) evaluates an autopilot on
-[OpenSCENARIO](https://www.asam.net/standards/detail/openscenario/) scenarios in
-[CARLA](https://carla.org/) or [Isaac Sim](https://developer.nvidia.com/isaac/sim). The
-autopilot drives on **simulated sensors**: the simulator's cameras and lidar feed its own
+scensim runs driving scenarios in simulation: an
+[OpenSCENARIO](https://www.asam.net/standards/detail/openscenario/) scenario, the autopilot
+under test, and [CARLA](https://carla.org/) or
+[Isaac Sim](https://developer.nvidia.com/isaac/sim) as the world. The name stands for
+SCENario SIMulation. The autopilot drives on **simulated sensors**: the simulator's cameras and lidar feed its own
 perception, localization, planning and control, while
 [scenario_simulator_v2](https://github.com/tier4/scenario_simulator_v2) (SSv2) executes the
 scenario and returns the verdict. [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/)
@@ -47,7 +48,7 @@ SSv2's simulator instead, and Autoware has to *see* the pedestrian, the car ahea
 traffic light. For someone who already writes SSv2 scenarios:
 
 - **The same `.xosc` files run**, on either simulator. A scenario names its map through a
-  variable the stack sets to the project's map directory (`$(env SWB_MAPS)/Town01`) and
+  variable the stack sets to the project's map directory (`$(env SCENSIM_MAPS)/Town01`) and
   its cars from the vehicle catalog, never by a path of the local machine.
 - **The sensors are the simulator's.** SSv2's sensor requests are declined; Autoware gets
   the simulator's cameras and lidar.
@@ -73,15 +74,15 @@ are in the [glossary](docs/reference/glossary.md);
 [How it works](docs/explanation/how-it-works.md) says more.
 
 In outline, after [installation](docs/getting-started/install.md), with CARLA installed
-and its directory recorded in the host settings file (`~/.config/swb/host.yaml`, see
+and its directory recorded in the host settings file (`~/.config/scensim/host.yaml`, see
 Install), so that the stack starts it:
 
 ```bash
-ros2 run swb project new ~/my_first_drive        # a starter project
+ros2 run scensim project new ~/my_first_drive    # a starter project
 cd ~/my_first_drive
-ros2 run swb assets fetch                        # its map, from Hugging Face
-ros2 launch swb_launch swb.launch.xml            # the stack: it remains running
-ros2 run swb run scenarios/drive_to_goal.xosc    # in a second terminal
+ros2 run scensim assets fetch                    # its map, from Hugging Face
+ros2 launch scensim_launch scensim.launch.xml    # the stack: it remains running
+ros2 run scensim run scenarios/drive_to_goal.xosc    # in a second terminal
 ```
 
 The run ends with one line, `passed   <run id>  <run directory>`, and exits 0.
@@ -104,14 +105,14 @@ with:
 | Component | Options and tested versions |
 |---|---|
 | Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is fixed at build time, see [Supported and not supported](docs/reference/limits.md#platform)), or Isaac Sim 6.1 (pip install) |
-| Autopilot | [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (tested with 1.5.0, binary packages or a build; swb provides the car's launch files and configuration), CARLA's BasicAgent, a simple pilot on the ground truth, or a launch file or program of one's own |
+| Autopilot | [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (tested with 1.5.0, binary packages or a build; scensim provides the car's launch files and configuration), CARLA's BasicAgent, a simple pilot on the ground truth, or a launch file or program of one's own |
 | Hardware | an NVIDIA GPU that runs the simulator beside the autopilot. Isaac Sim: an RTX GPU with 24 GB and 64 GB of RAM |
 
 SSv2 is bundled (a fork, as a submodule).
 
 ## Start here
 
-Every reader begins with [Install](docs/getting-started/install.md), which builds swb and
+Every reader begins with [Install](docs/getting-started/install.md), which builds scensim and
 its dependencies. The documentation is then organised as follows:
 
 1. **Getting started**: [Install](docs/getting-started/install.md),
@@ -128,14 +129,14 @@ its dependencies. The documentation is then organised as follows:
 4. **Reference**, for exact behaviour: [the list](docs/README.md#reference)
 5. **Explanation**, for the design: [How it works](docs/explanation/how-it-works.md),
    [Verdicts](docs/explanation/verdicts.md), [ROS domains and DDS](docs/explanation/domains-and-dds.md)
-6. **Teaching** and **development**: [Teaching with swb](docs/teaching.md),
+6. **Teaching** and **development**: [Teaching with scensim](docs/teaching.md),
    [the Developer Guide](docs/development.md)
 
 After installation, each reader continues from the point that matches their role:
 
 - **A new user** continues with [Getting started on CARLA](docs/getting-started/carla.md)
   (or [on Isaac Sim](docs/getting-started/isaac.md)), then the tutorials in order.
-- **A project adopting swb**, with its own car, autopilot and maps, continues with
+- **A project adopting scensim**, with its own car, autopilot and maps, continues with
   [Start a project of your own](docs/how-to/start-a-project.md), then the how-to guides
   and the reference.
 - **A scenario author** continues with
@@ -144,17 +145,17 @@ After installation, each reader continues from the point that matches their role
 - **An autopilot integrator** continues with
   [Your autopilot as a pilot](docs/how-to/your-autopilot.md) and
   [the agent SDK](docs/reference/agent-sdk.md).
-- **An instructor** continues with [Teaching with swb](docs/teaching.md): seats on one
+- **An instructor** continues with [Teaching with scensim](docs/teaching.md): seats on one
   host, the tutorials as laboratory sessions, and grading with judges.
-- **A developer of swb itself** continues with [the Developer Guide](docs/development.md).
+- **A developer of scensim itself** continues with [the Developer Guide](docs/development.md).
 
-[All documentation](docs/README.md). What swb does not do, on one page:
+[All documentation](docs/README.md). What scensim does not do, on one page:
 [Supported and not supported](docs/reference/limits.md). What each release holds, and its
 known limits: [Release notes](docs/release-notes.md).
 
 ## Datasets
 
-Public, on Hugging Face. A project names them in `swb.yaml`, and `ros2 run swb assets
+Public, on Hugging Face. A project names them in `swb.yaml`, and `ros2 run scensim assets
 fetch` downloads only what it takes:
 
 | Dataset | Holds | Licence |

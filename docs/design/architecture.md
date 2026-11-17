@@ -8,7 +8,7 @@
 
 ## Overview
 
-`scenario-world-bridge` is a ZMQ+Protobuf server that implements the `simulation_interface` protocol defined by [scenario_simulator_v2](https://github.com/tier4/scenario_simulator_v2) (SSv2). It translates SSv2's 14 protobuf request types into CARLA API calls, making CARLA a drop-in replacement for SSv2's built-in `simple_sensor_simulator` or AWSIM.
+`scensim` is a ZMQ+Protobuf server that implements the `simulation_interface` protocol defined by [scenario_simulator_v2](https://github.com/tier4/scenario_simulator_v2) (SSv2). It translates SSv2's 14 protobuf request types into CARLA API calls, making CARLA a drop-in replacement for SSv2's built-in `simple_sensor_simulator` or AWSIM.
 
 ## System Context
 
@@ -20,7 +20,7 @@ traffic_simulator (NPC behavior, Lanelet2 routing)
     | ZMQ + Protobuf (tcp://host:SSV2_PORT)
     v
 +----------------------------------------------------------+
-|  scenario-world-bridge                                    |
+|  scensim                                    |
 |                                                           |
 |  ZMQ Server (ROUTER socket, one SSv2 session at a time)  |
 |  Coordinator (protobuf <-> SimBackend calls, no simulator)|
@@ -102,7 +102,7 @@ SSv2's `AutowareUniverse` (concealer) must be **disabled** for vehicle status to
 
 ## The simulator seam (roadmap 035)
 
-swb drives SSv2 scenarios on a simulator behind one Rust trait,
+scensim drives SSv2 scenarios on a simulator behind one Rust trait,
 `backend::SimBackend` (`src/scenario_world_bridge/src/backend/mod.rs`); the ROS parameter
 `backend` (`carla`, the default) chooses it, and Isaac Sim is the second implementation
 ([simulator-backends.md](simulator-backends.md), roadmap 037). The layers:
@@ -170,7 +170,7 @@ This is identical to the conversion already implemented in `autoware_carla_bridg
 
 Both processes connect to the same CARLA server. Responsibilities are split:
 
-| Responsibility | scenario-world-bridge | autoware_carla_bridge |
+| Responsibility | scensim | autoware_carla_bridge |
 |---|---|---|
 | Entity spawn/despawn | Yes | No (hero vehicle pattern removed) |
 | NPC pose updates | Yes (set_transform) | No |

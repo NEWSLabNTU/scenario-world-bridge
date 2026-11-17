@@ -1,8 +1,8 @@
 # Results and logs
 
 What a run leaves, where, and what each file holds. The verdicts are explained in
-[Verdicts](../explanation/verdicts.md); the commands that read them are `ros2 run swb runs
-list|show|why|summary|prune` ([Commands](commands.md#ros2-run-swb-runs)).
+[Verdicts](../explanation/verdicts.md); the commands that read them are `ros2 run scensim runs
+list|show|why|summary|prune` ([Commands](commands.md#ros2-run-scensim-runs)).
 
 ## Where
 
@@ -15,11 +15,11 @@ list|show|why|summary|prune` ([Commands](commands.md#ros2-run-swb-runs)).
 <project>/runs  -> <logs>/<project name>/runs
 ```
 
-`<logs>` is the host settings' `logs:` (default `~/.local/state/swb/logs`); keep it on a
+`<logs>` is the host settings' `logs:` (default `~/.local/state/scensim/logs`); keep it on a
 fast disk, since every process of a stack writes there. A stack id is
 `<time>_seat<n>`; a run id `<time>_<scenario>[_<name>-<value>...]_r<k>`.
 
-`stack.json` is the stack's record: its fingerprint (hashes of `swb.yaml` and `swb.lock`,
+`stack.json` is the stack's record: its fingerprint (hashes of `swb.yaml` and `scensim.lock`,
 the pilots, the workspace's build commits), seat, domains and ports, processes, maps, its
 current map, each pilot's entity, kind, domain and readiness, and `state` (`ready` once
 every stack pilot is). A run refuses a stack whose fingerprint is not the project's.
@@ -43,7 +43,7 @@ every stack pilot is). A run refuses a stack whose fingerprint is not the projec
 
 Groups: `simulator`, `bridge`, `relay`, `pilot-<entity>`, `scenario`, `judge`. The key
 topics at `full`: the ego's state, the control command, the vehicle status, the detected
-objects, the trajectory, and `/swb/wheels` on Isaac; `logging.topics` replaces the list.
+objects, the trajectory, and `/scensim/wheels` on Isaac; `logging.topics` replaces the list.
 A run's `capture` sets what it records; `keep` reduces it per verdict once the verdict is
 known ([The project file](project-file.md#logging)).
 
@@ -65,7 +65,7 @@ Schema `swb.result/1`:
   "metrics": {"duration_s": 24.0, "route_completion": 0.62},
   "pilots": {"ego": {"kind": "autoware", "vehicle": "tesla_model3",
                      "inputs": ["sensors"], "version": "..."}},
-  "provenance": {"swb": "<commit>", "submodules": {}, "simulator": "carla",
+  "provenance": {"scensim": "<commit>", "submodules": {}, "simulator": "carla",
                  "swb_lock": "sha256:...", "spec_hash": {"ego": "..."},
                  "host": "...", "gpu": "...", "stack_id": "...",
                  "launcher": "play_launch | ros2"}
@@ -76,7 +76,7 @@ Schema `swb.result/1`:
 uncommitted changes then) and `provenance.built` when; `provenance.checkout` is the
 checkout's commit at run time, present only when it differs. An install built without the
 workspace's build recipe (a plain `colcon build`) records the checkout's commit at run time
-as `swb`.
+as `scensim`.
 
 `provenance.launcher` is the launcher the stack ran its launches with (the host setting
 `launcher`, resolved), so runs under play_launch and `ros2 launch` can be told apart.
@@ -103,7 +103,7 @@ report has no frame metrics (they are absent, not zero).
 
 `timeline.jsonl`: one JSON object per line, `{t_wall, t_sim, group, event, ...}`, ordered
 by wall time: the run's start and end, each pilot's readiness, SSv2's milestones, judge
-events, and every log line at WARN or above in any slice. `ros2 run swb runs show <id>`
+events, and every log line at WARN or above in any slice. `ros2 run scensim runs show <id>`
 prints it as a table; `runs why <id>` prints its first WARN or ERROR and its group.
 
 A slice holds what the launcher wrote, and the two launchers lay it out differently.

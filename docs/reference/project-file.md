@@ -1,7 +1,7 @@
 # The project file
 
-Every key of `swb.yaml`, of a suite file and of `swb.lock`. A key not listed is refused by
-name (`ros2 run swb project check`). Why a project owns what it does:
+Every key of `swb.yaml`, of a suite file and of `scensim.lock`. A key not listed is refused by
+name (`ros2 run scensim project check`). Why a project owns what it does:
 [How it works](../explanation/how-it-works.md).
 
 ## `swb.yaml`
@@ -35,7 +35,7 @@ ssv2: {}                                # SSv2's run settings for every run
 | `assets` | a list of datasets and paths ([Assets](#assets)) |
 | `maps` | map names under `assets/maps/`; default: every map the project's scenarios name. Give it when runs use maps the project's own scenarios do not, or to fix their order |
 | `pilots` | entity name or pattern to a pilot ([Pilots](#pilots)) |
-| `vehicles` | spec files of your own cars: the stack makes each car's catalog entry, physics, sensors and frames from its spec when it starts, into `state/vehicles/`; a scenario names the catalog as `$(env SWB_VEHICLES)` ([Your car](../how-to/your-car.md), [Supported and not supported](limits.md#projects)) |
+| `vehicles` | spec files of your own cars: the stack makes each car's catalog entry, physics, sensors and frames from its spec when it starts, into `state/vehicles/`; a scenario names the catalog as `$(env SCENSIM_VEHICLES)` ([Your car](../how-to/your-car.md), [Supported and not supported](limits.md#projects)) |
 | `ground` | Isaac: `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the project ([Road physics](road-physics.md)) |
 | `logging` | what runs record and keep ([Logging](#logging)) |
 | `judges` | programs run over each finished run ([Judges](#judges)) |
@@ -56,8 +56,8 @@ ssv2: {}                                # SSv2's run settings for every run
 
 `assets fetch` links a map (a directory holding `lanelet2_map.osm`) under
 `assets/maps/<map>/`, the CARLA USD set under `assets/carla-usd/`, and the rest of a
-dataset under `assets/<dataset>/`. Scenarios name maps as `$(env SWB_MAPS)/<map>`; a world
-file's `usd:` may use `${SWB_CARLA_USD}`; the stack sets both for every process. The
+dataset under `assets/<dataset>/`. Scenarios name maps as `$(env SCENSIM_MAPS)/<map>`; a world
+file's `usd:` may use `${SCENSIM_CARLA_USD}`; the stack sets both for every process. The
 published datasets: [Maps and assets](maps-and-assets.md#datasets).
 
 ### Pilots
@@ -78,7 +78,7 @@ match one.
 | `autoware_launch` | `autoware` | another `autoware.launch.xml` for the profile to include |
 | `overlays` | `autoware`, `launch` | ROS workspaces of your own the pilot sources, in order, after this workspace's installs and before the TensorRT runtime: a list of `setup.bash` files, each relative to the project or `{workspace:<name>}/<path>` under a directory the host settings name (`workspaces:`, [Host settings](host-settings.md)) |
 | `launch` | `launch` | the driver: `"<package> <file>"` or a path |
-| `agent` | `launch` | `own`: the launch registers the entity itself; default swb's vehicle agent |
+| `agent` | `launch` | `own`: the launch registers the entity itself; default scensim's vehicle agent |
 | `run` | `command` | the program's words (not a shell), relative paths the project's |
 
 An `autoware` pilot's `args` (and a suite's `pilot_args` for it) are checked by the
@@ -129,7 +129,7 @@ pilot](../how-to/your-autopilot.md).
 | `topics` | the topics `full` records, instead of the key topics |
 | `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `swb.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
 
-`ros2 run swb run --capture <level>` records one run at that level and keeps it whatever
+`ros2 run scensim run --capture <level>` records one run at that level and keeps it whatever
 the verdict. What each level keeps: [Results and logs](results-and-logs.md).
 
 ### Judges
@@ -146,10 +146,10 @@ judges:
 
 A judge runs in the project directory after each run whose verdict is in `on`. It is
 given the run directory as its last argument, unless `{run_dir}` or `{scenario}` (the run's
-scenario file) stands in `run`, and as `SWB_RUN_DIR`. It may print one JSON object, whose
+scenario file) stands in `run`, and as `SCENSIM_RUN_DIR`. It may print one JSON object, whose
 `verdict` (`passed` or `failed`) is the judge's; without one, its exit code is (0 passed,
 1 failed) and its last line the message. Any other exit, JSON that is not an object, or a
-timeout is `error`. swb writes the record, with the judge's name, version, exit code and
+timeout is `error`. scensim writes the record, with the judge's name, version, exit code and
 duration, to `judges/<name>.json`, beside the run's verdict, never in its place.
 
 `needs` turns on what a judge reads that a run records only on request: `gap_trace`, the
@@ -157,7 +157,7 @@ bridge's gap trace (for the whole stack), and `context`, a log of SSv2's storybo
 changes for each run, `context.jsonl` (one JSON object per line: `sim`, `element`, `from`,
 `to`).
 
-Two judges come with swb, both over the run's gap trace:
+Two judges come with scensim, both over the run's gap trace:
 
 ```yaml
 judges:
@@ -200,8 +200,8 @@ world:
 | `config_file` | the bridge's settings file instead of the installed one, relative to the project |
 | `world_config_file` | CARLA: the world server's settings file instead of the installed one |
 
-These go to the bridge and the world server beside swb's own settings, never in their
-place. What swb sets itself is refused here by name, with what to give instead: the state
+These go to the bridge and the world server beside scensim's own settings, never in their
+place. What scensim sets itself is refused here by name, with what to give instead: the state
 directory, the gap trace directory (`logging.gap_trace`), the world server and its ports.
 
 ## Isaac
@@ -213,7 +213,7 @@ isaac:
   follow: false                       # true | false | editor
   physics_hz: 240                     # the physics rate, Hz (default 60)
   preload: [Town05]                   # more maps the world server loads at start
-  wheels_topic: true                  # /swb/wheels on the ego's domain
+  wheels_topic: true                  # /scensim/wheels on the ego's domain
 ```
 
 | Key | |
@@ -223,10 +223,10 @@ isaac:
 | `follow` | with a window: `true` chases the ego, `editor` keeps Isaac's editor around the chase |
 | `physics_hz` | physics steps per simulated second; each SSv2 step is split into steps no longer than one over this |
 | `preload` | maps the world server loads at start beside the stack's first; a run on one of them moves the pilots there instead of being refused. Each must be fetched |
-| `wheels_topic` | `false` turns `/swb/wheels` off |
+| `wheels_topic` | `false` turns `/scensim/wheels` off |
 
 `isaac:` is refused on a CARLA project. The world (`world`) and the state directory are
-swb's: give `maps:` and `map:=` instead.
+scensim's: give `maps:` and `map:=` instead.
 
 ## Run settings
 
@@ -241,14 +241,14 @@ ssv2:
 
 `ssv2:` in `swb.yaml` is every run's default; a suite's `ssv2:` replaces the keys it names
 for its runs, a suite item's (`scenarios: [{path: ..., ssv2: {...}}]`) for that item's, and
-`ros2 run swb run --timeout` replaces `global_timeout` for one command. With
+`ros2 run scensim run --timeout` replaces `global_timeout` for one command. With
 `managed_ego: false` SSv2 does not hand its ego to a pilot: the ego needs no pilot, the run
 waits for none, and the scenario must not use autonomy actions (`RoutingAction` and the
 like). A standing ego on Isaac is the usual case.
 
 ## Suites
 
-A suite is a YAML file in the project, given to `ros2 run swb run`:
+A suite is a YAML file in the project, given to `ros2 run scensim run`:
 
 ```yaml
 scenarios: [scenarios/cut_in.xosc, scenarios/awf/]   # files and directories
@@ -280,7 +280,7 @@ ssv2: {global_timeout: 600}
 
 A run id is `<time>_<scenario>[_<name>-<value>...]_r<k>`.
 
-## `swb.lock`
+## `scensim.lock`
 
 Written by `assets fetch`; commit it. Runs read the lock, never the tag.
 

@@ -39,8 +39,8 @@ every problem listed, and reads it again at every world load.
 Check a file without Isaac:
 
 ```bash
-ros2 run swb_isaac_world surfaces check ground/town01.yaml
-ros2 run swb_isaac_world road_detail check ground/town01_road.yaml
+ros2 run scensim_isaac_world surfaces check ground/town01.yaml
+ros2 run scensim_isaac_world road_detail check ground/town01_road.yaml
 ```
 
 `surfaces plot` and `road_detail preview` draw them (matplotlib).
@@ -195,15 +195,15 @@ the seed and streamed around each car.
 
 ## Watching the wheels
 
-`/swb/wheels`, on the ego's pilot domain: each wheel's ground and tire state as a
+`/scensim/wheels`, on the ego's pilot domain: each wheel's ground and tire state as a
 `diagnostic_msgs/DiagnosticArray`, sampled after a physics step at most every 0.05 s of
 simulation time. One status per wheel, named `<ego>/<front_left|front_right|rear_left|
 rear_right>`, its message the surface class, its values `class`, `zone`, `friction`,
 `slip_ratio`, `slip_angle` (rad), `sinkage` (m) and `normal_load` (N).
 
 ```bash
-eval "$(ros2 run swb seat env 0)"
-ros2 topic echo /swb/wheels --field status
+eval "$(ros2 run scensim seat env 0)"
+ros2 topic echo /scensim/wheels --field status
 ```
 
 A run at `--capture full` records it with the other key topics, into
@@ -215,7 +215,7 @@ friction), and the road condition, soil zones and ruts loaded and saved.
 
 | Not there | What there is |
 |---|---|
-| CARLA | the same `RoadCondition` scales every vehicle's tire friction and makes the road look wet; no zones, soil, ruts or rough road, and `swb.` properties are refused with that reason |
+| CARLA | the same `RoadCondition` scales every vehicle's tire friction and makes the road look wet; no zones, soil, ruts or rough road, and `scensim.` properties are refused with that reason |
 | Deforming ground outside zones | soil only in zones; elsewhere a grip model per class |
 | Soil on a slope with ruts | `ground_z` tiles are flat; a zone without it runs the soil without rut geometry |
 | NPCs feeling the soil | NPC vehicles leave ruts but are not slowed or sunk by it |

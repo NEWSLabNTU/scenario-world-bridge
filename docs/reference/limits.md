@@ -1,6 +1,6 @@
 # Supported and not supported
 
-Everything swb does not do, or does only in part, on one page. The other pages link here
+Everything scensim does not do, or does only in part, on one page. The other pages link here
 instead of repeating it. "Tested" means run end to end on a live stack; "builds" means it
 compiles and the unit tests pass, nothing more.
 
@@ -77,8 +77,8 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
   non-Autoware autopilot on CARLA needs only the spec's outputs and a URDF
   ([Your car](../how-to/your-car.md)).
 - **A third simulator** has a world server protocol, but the project stack
-  (`swb.launch.xml`) starts only `carla` and `isaac`; another simulator runs without
-  projects, seats and `swb run` ([Your simulator](../how-to/your-simulator.md)).
+  (`scensim.launch.xml`) starts only `carla` and `isaac`; another simulator runs without
+  projects, seats and `scensim run` ([Your simulator](../how-to/your-simulator.md)).
 
 ## Pilots and autopilots
 
@@ -103,8 +103,8 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 - **The asset cache is one user's.** A fetch changes the modes of the cache's directories
   and records the project in the cache, so it needs to own them: a cache another user
   fetched into cannot be fetched into. Give every user their own `cache:` (the default,
-  `~/.cache/swb`).
+  `~/.cache/scensim`).
 - **Two hosts, one suite** (`--shard i/n`) leave two run directories; one results table
-  comes from copying both into one place and running `ros2 run swb runs summary <dir>`
+  comes from copying both into one place and running `ros2 run scensim runs summary <dir>`
   there ([Run suites in CI](../how-to/run-in-ci.md)).
 - **Isaac Sim** needs an RTX GPU with 24 GB to itself: one Isaac stack per GPU.

@@ -21,12 +21,12 @@ The course's guardrails and trees are CARLA props from `assets/carla-usd`, which
 project already has. Fetch the dataset and copy the course's scenario into the project:
 
 ```bash
-ros2 run swb assets fetch
+ros2 run scensim assets fetch
 cp assets/maps/haruna/scenarios/haruna_down.xosc scenarios/
 chmod u+w scenarios/haruna_down.xosc
 ```
 
-Files from swb's cache are read-only, and `cp` keeps the mode, hence the `chmod`. The
+Files from scensim's cache are read-only, and `cp` keeps the mode, hence the `chmod`. The
 scenario's ego is the catalog car `drift_mustang`: set its `entryName` to `tesla_model3`,
 the car of the project's pilot (otherwise `project check` names the mismatch and exits 1).
 
@@ -36,7 +36,7 @@ An Isaac stack serves one world for its whole life, so it is stopped (Ctrl-C) an
 again on the course:
 
 ```bash
-ros2 launch swb_launch swb.launch.xml \
+ros2 launch scensim_launch scensim.launch.xml \
     map:=haruna
 ```
 
@@ -46,7 +46,7 @@ on haruna`.
 ## The run
 
 ```bash
-ros2 run swb run scenarios/haruna_down.xosc
+ros2 run scensim run scenarios/haruna_down.xosc
 ```
 
 **Check**: the run ends with a verdict line; a run on Town01 against this stack is

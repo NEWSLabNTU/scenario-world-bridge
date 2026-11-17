@@ -1,12 +1,12 @@
-# Survey: Cooperation Strategies Among Autonomous Vehicles, and What swb Can Measure
+# Survey: Cooperation Strategies Among Autonomous Vehicles, and What scensim Can Measure
 
 This study asks how to evaluate the ways autonomous vehicles decide among each other in
-multi-vehicle traffic, with cooperation strategies in focus, and whether swb can estimate the
+multi-vehicle traffic, with cooperation strategies in focus, and whether scensim can estimate the
 payoffs of those strategies and discover new ones. It looks for a method that keeps game theory's
 explanations and takes learning's scale.
 
 **Source**: user direction 2026-11-13: "Study the ways to evaluate the ways to enable vehicles to
-drive autonomously in a multiple vehicle environment. Focus cooperation strategies. See if our swb
+drive autonomously in a multiple vehicle environment. Focus cooperation strategies. See if our scensim
 can help exploiting payoffs and discover strategies." The user's sketch: car A cuts into car B's
 lane; A takes the lane now or holds, B yields or holds the lane. The 2 x 2 profile is easy, but
 speed and distance matter, which makes the equilibrium hard to model; with more vehicles the
@@ -62,7 +62,7 @@ Three ideas carry over directly to the sketch:
 - **Empirical game-theoretic analysis (EGTA)**, Wellman, Tuyls, Greenwald, JAIR 2025 [18]: build
   the game from a simulator. Choose a restricted set of strategies, estimate each profile's payoff
   from noisy simulation runs, solve the estimated game, and decide which profiles to simulate next.
-  This is the role swb would play.
+  This is the role scensim would play.
 - **PSRO**, Lanctot et al. NeurIPS 2017 [19]: EGTA whose strategy set grows by RL best responses to
   the current equilibrium mixture. RL is only the oracle that proposes strategies; the game solver
   decides what the population plays. This answers the explosion: the set grows only by strategies
@@ -196,14 +196,14 @@ combination is open.
 
 ### Measuring the cost of not knowing
 
-The simulator knows every car's true theta; the cars do not. swb can therefore score both what
+The simulator knows every car's true theta; the cars do not. scensim can therefore score both what
 happened and what would have happened with knowledge:
 
 - **Misbelief regret**: J(true type | belief) - J(true type | true type), per car and run.
 - **Value of information**: its expectation over the type distribution, i.e. what knowing the
   other's capability is worth, and so what a V2X capability broadcast would be worth.
 - **The type-confusion matrix**: assumed class x actual class, with contact rate, minimum TTC and
-  delay in each cell. No AV paper reports it; in swb it is a sweep over two catalog entries and one
+  delay in each cell. No AV paper reports it; in scensim it is a sweep over two catalog entries and one
   belief parameter.
 - The game-to-real gap of Ferguson et al. [49] (utility obtained less utility expected under the
   agent's own model) is the same quantity in general games.
@@ -263,7 +263,7 @@ This changes what a strategy is, and so shrinks the space most:
 - **The other car watches too.** An action is also a signal: A's nudge toward the lane probes B and
   tells B. Model it to one or two levels (level-k [3, 4]), not to infinity.
 - **Mutual waiting.** Both cars wait to learn more and neither moves: the frozen robot, or a
-  deadlock. It needs a tie-break (a time limit, a priority rule, a deliberate probe), and swb can
+  deadlock. It needs a tie-break (a time limit, a priority rule, a deliberate probe), and scensim can
   find where it happens by sweeping contexts.
 
 ### Together
@@ -272,9 +272,9 @@ This changes what a strategy is, and so shrinks the space most:
 |---|---|---|
 | in the car, live | belief update and a short-horizon reactive choice among a few actions | 3 |
 | offline, analysis | local games over the interaction graph, anonymity per car class, double oracle | 1 |
-| offline, scale | a learned proposer feeding the double oracle; exploitability measured in swb; exact agreement at N = 2-3 first | 2 |
+| offline, scale | a learned proposer feeding the double oracle; exploitability measured in scensim; exact agreement at N = 2-3 first | 2 |
 
-swb's part: the exact ground truth at small N with real stacks, the exploitability check (the search
+scensim's part: the exact ground truth at small N with real stacks, the exploitability check (the search
 for profitable deviations against any proposed equilibrium), and the deadlock finder.
 
 ## Theory formulation
@@ -283,7 +283,7 @@ User direction 2026-11-13: explore the theory formulation. This section states t
 the document measures, in the user's terms: a general strategy and payoff space, the car model as a
 restriction, the other car's capability unknown, beliefs updated from observed behaviour. The
 propositions marked as such are standard results or direct consequences; the ones marked
-*hypothesis* are for swb to test.
+*hypothesis* are for scensim to test.
 
 ### Primitives
 
@@ -355,7 +355,7 @@ Bayes' rule on the equilibrium path. Intractable in general; three restrictions 
    floor under it.
 
 The result is an **equilibrium map** $E(c, t)$ over the context $c$ (gap, speeds) and the types: the
-object swb measures.
+object scensim measures.
 
 ### The two-car cut-in: canonical forms
 
@@ -393,7 +393,7 @@ act as correlation devices: they pick one of the asymmetric equilibria for both 
 equilibrium. In this view, cooperation is mostly **equilibrium selection**, and the question of
 which convention to use becomes mechanism design.
 
-### Capability in the game: two hypotheses for swb
+### Capability in the game: two hypotheses for scensim
 
 - **Single-agent monotonicity holds.** Against fixed others, more capability never hurts:
   $\Psi(\theta) \subseteq \Psi(\theta')$, so the best response over the larger set is at least as
@@ -409,7 +409,7 @@ which convention to use becomes mechanism design.
 
 ### N cars: pair terms, composition, residual, mean field
 
-The two-car games above are what swb can measure cheaply (C2a: thousands of runs per hour). An
+The two-car games above are what scensim can measure cheaply (C2a: thousands of runs per hour). An
 N-car scene is built from them, and the error of doing so is measured rather than assumed.
 
 **Locality.** At step $k$ car $i$'s conflict set $K_i(k)$ is the cars whose reachable sets meet
@@ -440,7 +440,7 @@ The composed model $\hat J^{\text{comp}}_i = \mathrm{Agg}_{j \in K_i} J^{(2)}$ i
 pairwise sums of social forces are known to fail in dense crowds (Moussaïd et al. [45]), which
 is why the aggregation is per measure and tested.
 
-**Higher-order residual.** Run the N-car game in the arena and in swb and measure
+**Higher-order residual.** Run the N-car game in the arena and in scensim and measure
 $r_i = J_i - \hat J^{\text{comp}}_i$ per profile and context, with its bootstrap interval. Three
 outcomes: $r$ within noise (pairs suffice: report the variance the pairs explain); $r$ systematic
 but smooth in the slot features (learn it: $J_i = \hat J^{\text{comp}}_i + g_\theta(\{x_j\}_{j \in
@@ -479,7 +479,7 @@ scooter swarms the far field is a porous-flow density [58].
 
 Hybrids of near and far exist in traffic *simulation* (micro-macro coupling at an interface) and
 in generic MARL (attention over near neighbours plus a mean field), but no game model has an exact
-conflict-set game plus a mean-field remainder, and there is no error bound for the split. swb can
+conflict-set game plus a mean-field remainder, and there is no error bound for the split. scensim can
 measure that error directly: the same scene with the far field explicit (all cars as agents) and
 as a density, at increasing $N$.
 
@@ -498,8 +498,8 @@ on top of a game-theoretic payoff model.
 | social cost | $C = -\sum_i U_i \ge 0$ over everyone in the trace, own utilities $U$ (not the SVO-weighted $J$, which would count the others twice); for comparisons across car models in common units (vehicle-seconds of delay), with safety as a constraint | |
 | price of anarchy, of stability | $C(\text{worst eq.}) / C(\text{opt})$, $C(\text{best eq.}) / C(\text{opt})$, both $\ge 1$; the losses $C(\text{eq.}) - C(\text{opt})$ when $C(\text{opt})$ is near 0 | what selfish rules cost against coordination; what a good convention can recover |
 
-Per run, swb and the arena record the same raw measures from truth (`scripts/coop/measures.py`),
-each defined over time rather than samples so that the arena's 0.05 s ticks and swb's 0.1 s logs
+Per run, scensim and the arena record the same raw measures from truth (`scripts/coop/measures.py`),
+each defined over time rather than samples so that the arena's 0.05 s ticks and scensim's 0.1 s logs
 agree, and none scaled by the run's length:
 
 | kind | measures |
@@ -518,7 +518,7 @@ equilibrium map can be checked for how much it depends on the weights.
 
 ### From the theory to the measurement
 
-swb estimates $\hat J_i(\psi, c, t)$ from runs: a mean per profile, context and type pair with its
+scensim estimates $\hat J_i(\psi, c, t)$ from runs: a mean per profile, context and type pair with its
 uncertainty, a surrogate (a Gaussian process) over $c$, and runs placed where the equilibrium map
 changes. A profile is reported as an $\varepsilon$-equilibrium with confidence $1-\alpha$ from the
 estimates' bounds, as in EGTA's statistical results [18]. What is new against the literature: the
@@ -566,7 +566,7 @@ Literature checked by web search the same day (a third round); unchecked items a
 - **Phenomena to test**: gap acceptance by speed difference and by class (a truck merging); the
   courtesy yield's upstream shockwave (simulation evidence only so far, [56]).
 - **Data**: highD, exiD, INTERACTION [57-59].
-- **swb**: CARLA's highway towns (Town04, Town06) have ramps, but swb has no Autoware map of either
+- **scensim**: CARLA's highway towns (Town04, Town06) have ramps, but scensim has no Autoware map of either
   (roadmap 074; Town06 is not in the 0.9.16 binary here), which SSv2 needs; the target-lane traffic can be SSv2's
   NPCs plus background AVs; the upstream cost is read from the trace.
 
@@ -596,10 +596,10 @@ Literature checked by web search the same day (a third round); unchecked items a
   - **HetroD** [67] is drone data from six Taiwanese urban sites, about 70 % vulnerable road users,
     with hook turns, lane splitting and aggressive overtaking, maps and signal states (licence
     unverified). It is the dataset to fit scooter types and payoffs on.
-- **swb**: Town maps for the generic cases; the NTU twin (072, 059) for Taiwan's campus roads, where
+- **scensim**: Town maps for the generic cases; the NTU twin (072, 059) for Taiwan's campus roads, where
   scooters are common. A swarm needs many scooter NPCs. SSv2 scripts its NPCs rather than letting
   them react, so a population that responds to the AV needs a reactive NPC controller. That
-  controller does not exist in swb.
+  controller does not exist in scensim.
 
 ### Night market: shared space at walking speed
 
@@ -620,13 +620,13 @@ Literature checked by web search the same day (a third round); unchecked items a
   pedestrians cover attention (a phone), children and stall operators.
 - **Data**: Hamburg-Bergedorf shared space [71], DUT and CITR [72]. Nothing is at night-market
   density. Golchoubian et al. [73] train a crowd-navigating AV on Bergedorf data (not a game).
-- **swb**: not ready. There is no map, SSv2's pedestrians are scripted, not reactive, and Autoware's
+- **scensim**: not ready. There is no map, SSv2's pedestrians are scripted, not reactive, and Autoware's
   perception of a dense crowd is untested. The first step is offline: fit the sequential chicken on
   Bergedorf or DUT, then add a social-force crowd controller as a world-side NPC driver.
 
 ### Summary
 
-| setting | regime | start from | data | phenomenon | swb today |
+| setting | regime | start from | data | phenomenon | scensim today |
 |---|---|---|---|---|---|
 | on-ramp, weaving | chain + small game | matrix game + branch MPC [53] | exiD, highD, INTERACTION | gap choice, courtesy shockwave | needs a Town04 map (031) |
 | lane drop | N-player alternating priority (new) | none | highD, own sweeps | zipper vs early merge, defection | needs a lane-drop site |
@@ -637,7 +637,7 @@ Literature checked by web search the same day (a third round); unchecked items a
 | night market | population, shared space | sequential chicken [68] + GSFM [69] | Bergedorf, DUT | frozen vehicle vs risk | needs a map and a reactive crowd |
 
 The gaps in the literature are the lane-drop game, the left turn against a queue, any game model of
-scooter traffic, and shared space at night-market density. swb reaches the left turn now; the lane
+scooter traffic, and shared space at night-market density. scensim reaches the left turn now; the lane
 drop needs a site on a mapped town, and the on-ramp a Town04 map (roadmap 074). The other
 two need reactive populations.
 
@@ -703,14 +703,14 @@ lidar 10Hz -> tracking -> prediction 10Hz --+-----------------------------> plan
    multiple models or particles). About 100 B per object: 20 objects are about 20 KB/s.
 2. **`interaction_strategy`, 2-5 Hz, minimum dwell 1 s.** Slower than the planner on purpose: a
    lane change that switches often chatters and cancels. Candidates: go now, wait tau, abort (A);
-   yield, hold (B). Scored by the payoff table built offline in swb, indexed by the ego's car class,
+   yield, hold (B). Scored by the payoff table built offline in scensim, indexed by the ego's car class,
    the belief about the other and the context (gap, speeds): a lookup of microseconds. An online
    game solve for a small group (iLQGames-class, under 50 ms warm for three cars) also fits the
    budget. Each decision is logged with its belief, the candidates' payoffs and the choice; the log
    is the explanation.
 3. **Into Autoware**, from least to most invasive:
    - existing interfaces, no fork: go / wait through RTC (with `enable_rtc` on) or the
-     `external_request_lane_change` module (already in swb's preset); yield / hold through the
+     `external_request_lane_change` module (already in scensim's preset); yield / hold through the
      AD API's velocity limit;
    - belief-shaped predictions: a filter edits the predicted paths of objects whose belief is
      pessimistic, the planner unchanged. Lane change reads only the most confident path
@@ -732,9 +732,9 @@ lidar 10Hz -> tracking -> prediction 10Hz --+-----------------------------> plan
   The same node runs on every car model; only the ego's limits and the table's index change.
 - **It fits an ECU**: a table lookup and a small filter per interacting object.
 
-### How swb tests it
+### How scensim tests it
 
-- The same nodes run inside every ego stack in swb, so the experiments run deployment code.
+- The same nodes run inside every ego stack in scensim, so the experiments run deployment code.
 - One ablation on the same scenarios: stock constants, belief, belief and V2X. The differences are
   the value of information, measured.
 - At deployment rates: 10 Hz perception with a realistic delay, not ground truth at 20 Hz, or the
@@ -742,12 +742,12 @@ lidar 10Hz -> tracking -> prediction 10Hz --+-----------------------------> plan
 - Open: the real perception delay on our stack; whether lane change and obstacle cruise take
   parameter changes at run time.
 
-## What swb brings
+## What scensim brings
 
-| needed for the method | swb today |
+| needed for the method | scensim today |
 |---|---|
 | several AVs in one world, each a real stack | CARLA: the ego plus background AVs, each an Autoware stack in its own ROS domain, reached through the agent relay (`multi_av/town01_two_av.xosc`, `just two-av`, `just bg-av`). Isaac: open (roadmap 039) |
-| a strategy plugged into a car | `swb_agent.Agent`: any Python policy drives a car; Autoware's RTC (operator approval at intersection, lane change and other modules) is reachable through `on_cooperate` / `on_cooperate_auto`, which is a go-now / wait control on a real stack once the module's `enable_rtc` is on (Autoware 1.5's default config has it off for lane change) |
+| a strategy plugged into a car | `scensim_agent.Agent`: any Python policy drives a car; Autoware's RTC (operator approval at intersection, lane change and other modules) is reachable through `on_cooperate` / `on_cooperate_auto`, which is a go-now / wait control on a real stack once the module's `enable_rtc` is on (Autoware 1.5's default config has it off for lane change) |
 | contexts as parameters | OpenSCENARIO parameters and SSv2's parameter sweeps; roadmap 025's genomes, including a cut-in family (gap 5-40 m, merge length 6-30 m, speed 2-10 m/s, acceleration 1-5 m/s^2) |
 | choosing the next runs | 025's ask/tell search (`scripts/gap_search.py`: corpus, archive, Exp3, Thompson sampling; tested offline) and its exploit pipeline (bisecting to a boundary); the same machinery can sample an equilibrium boundary instead of a gap boundary |
 | payoffs from physics | the per-frame trace (024: every entity's pose and velocity), contacts with impulse (021), JUnit verdicts; TTC, PET, delay and comfort follow from the trace |
@@ -757,15 +757,15 @@ lidar 10Hz -> tracking -> prediction 10Hz --+-----------------------------> plan
 What it adds that the literature lacks: payoffs measured on **full production stacks** (perception,
 localization, planning, control), with physical contacts, rather than on policy abstractions. The
 heterogeneous meeting of two different stacks or configurations, which the survey found no work on,
-is a configuration change in swb, not a new simulator.
+is a configuration change in scensim, not a new simulator.
 
 **Gaps to close first:**
 
 - **Cost.** One run is 1-3 minutes with a real Autoware ego, so a few hundred a night per
   pipeline, and two stacks on one host cost about twice the CPU and GPU. Payoff maps need far more
   points than that. Hence fidelities: (1) a kinematic simulator in Python for the theory and for
-  RL best responses; (2) swb with light agents (a `swb_agent` policy on ground-truth localization,
-  no perception) for broad maps; (3) swb with full Autoware stacks to validate the boundaries the
+  RL best responses; (2) scensim with light agents (a `scensim_agent` policy on ground-truth localization,
+  no perception) for broad maps; (3) scensim with full Autoware stacks to validate the boundaries the
   lighter layers found. Parallel pipelines (roadmap 026) multiply the third.
 - **Strategy knobs on Autoware.** Which of Autoware 1.5's parameters make a car "yield" or "hold"
   for a cut-in, beyond RTC's timing, is not established; obstacle cruise's following distance and
@@ -786,10 +786,10 @@ The user's own 2 x 2 cut-in, end to end, before any N-vehicle work:
 1. **Theory baseline.** The cut-in in a kinematic model: A's (g_A, a_A), B's yield or hold;
    payoffs from progress, minimum TTC and contact. Compute the equilibrium map over (gap, speed
    difference) analytically or by grid. This is the prediction.
-2. **swb, light agents.** The same game on Town05 in CARLA, A and B as `swb_agent`
+2. **scensim, light agents.** The same game on Town05 in CARLA, A and B as `scensim_agent`
    policies with the same parameters; the context swept by 025's search, aimed at the equilibrium
    boundaries. Compare the measured map with the predicted one.
-3. **swb, Autoware.** B a full Autoware stack, A a light agent or a second Autoware with RTC timing
+3. **scensim, Autoware.** B a full Autoware stack, A a light agent or a second Autoware with RTC timing
    as its go-now / wait; then both Autoware. Where the measured map leaves the predicted one is
    where the real stack behaves outside the model.
 4. **Fit and explain.** SVO angles and potential-game weights fitted to steps 2 and 3; the fit's

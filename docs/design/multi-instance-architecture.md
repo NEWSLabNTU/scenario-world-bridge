@@ -83,7 +83,7 @@ the ego, `acb_pilot` for each background AV.
 ### Consequence: background AVs are invisible to SSv2
 
 *(historical)* True until roadmap 017. A background AV is now a scenario entity with the
-`agent` controller: swb spawns it and reports CARLA's pose for it every frame, so SSv2's
+`agent` controller: scensim spawns it and reports CARLA's pose for it every frame, so SSv2's
 collision and position conditions see it -- the extension point this section anticipated,
 taken through the simulator-driven entity path rather than a misc object.
 
@@ -126,11 +126,11 @@ every sensor, but nothing pushes it.
 What follows:
 
 - **Collision verdicts are SSv2's.** Its bounding-box `CollisionCondition` covers every pair,
-  NPC-NPC included, as in AWSIM. swb's collision sensor on the ego is diagnostic, and it
-  agrees with SSv2 on ego contacts **provided the contact lasts more than one frame**: swb
+  NPC-NPC included, as in AWSIM. scensim's collision sensor on the ego is diagnostic, and it
+  agrees with SSv2 on ego contacts **provided the contact lasts more than one frame**: scensim
   applies SSv2's NPC pose one frame after SSv2 computes it, so a scenario that ends on the
   first frame of overlap ends before CARLA ever ticks with the bodies touching
-  (`src/swb_examples/scenarios/basic/town01_rear_contact.xosc`; [scenario-authoring.md](scenario-authoring.md)).
+  (`src/scensim_examples/scenarios/basic/town01_rear_contact.xosc`; [scenario-authoring.md](scenario-authoring.md)).
 - **NPC velocity comes from acb, not CARLA.** CARLA ignores `set_target_velocity` and
   `WalkerControl` on a physics-off actor (`get_velocity()` stays 0.000; 1.504 m/s for the
   same call with physics on, roadmap 014). acb differentiates each actor's snapshot pose on
@@ -170,7 +170,7 @@ duplicate is rejected at startup.
 with background AVs switched on -- they are opt-in:
 
 ```bash
-CSB_BACKGROUND_AVS=all just e2e src/swb_examples/scenarios/basic/town01_ego_drive.xosc   # exports ROS_DOMAIN_ID=1 itself
+CSB_BACKGROUND_AVS=all just e2e src/scensim_examples/scenarios/basic/town01_ego_drive.xosc   # exports ROS_DOMAIN_ID=1 itself
 ```
 
 `swb_bridge` loads the map, spawns `bg_av_1` at `Initialize`, then spawns the ego when SSv2
@@ -195,7 +195,7 @@ naming declared-but-disabled AVs, and a WARN naming the pose for each one it doe
 
 ```bash
 ROS_DOMAIN_ID=2 \
-  play_launch launch --web-addr 0.0.0.0:8083 swb_launch background_av.launch.xml \
+  play_launch launch --web-addr 0.0.0.0:8083 scensim_launch background_av.launch.xml \
       vehicle_name:=bg_av_1 \
       map_path:=$PWD/data/carla-autoware-bridge/Town01 \
       goal_poses_file:=$PWD/scenarios/bg_av_1_poses.yaml
@@ -310,15 +310,15 @@ upstream's) and reaches the ego only through the agent relay (roadmap 017).
                              `just ego-av` for D0, `just bg-av` for the rest.
                              SSv2 launches none of them (launch_autoware:=false).
 5. SSv2 up -> Initialize(lanelet2_map_path, step_time)
-     swb: resolve town from lanelet2_map_path, load_world() if different
-     swb: enumerate + freeze all traffic lights, build lanelet <-> actor map
-     swb: spawn background AV vehicles with their configured role_names
-     swb: does NOT enable sync mode yet
+     scensim: resolve town from lanelet2_map_path, load_world() if different
+     scensim: enumerate + freeze all traffic lights, build lanelet <-> actor map
+     scensim: spawn background AV vehicles with their configured role_names
+     scensim: does NOT enable sync mode yet
 6. SSv2 -> SpawnVehicleEntity(ego, is_ego=true)
-     swb: spawn with role_name=hero
+     scensim: spawn with role_name=hero
 7. acb_bridge D0 finds hero; acb_bridge Dk find their role_names; each attaches sensors
 8. First UpdateFrame after ego spawn
-     swb: NOW enable sync mode + fixed_delta_seconds, then tick
+     scensim: NOW enable sync mode + fixed_delta_seconds, then tick
 9. Concealer (D0) initialises localization, sets route, engages
    Background pilots do the same in D1..Dn
 ```
@@ -335,7 +335,7 @@ The ego stack also **outlives the scenario**: with no child process, SSv2 cannot
 down, and consecutive runs re-engage the same stack (verified live, phase 012).
 
 Steps 5 and 8 are superseded by [time-and-ticking.md](time-and-ticking.md) (roadmap 015):
-CARLA is synchronous from swb's first `Initialize` on and swb is its only ticker; idle time
+CARLA is synchronous from scensim's first `Initialize` on and scensim is its only ticker; idle time
 between scenarios is a pause. The deadlock this paragraph used to warn about -- acb polling
 `world.actors()` in a world nothing ticks -- is gone: acb follows `on_tick`, and the ego's
 spawn tick delivers the first frame.
@@ -344,26 +344,26 @@ spawn tick delivers the first frame.
 
 ```
 SSv2 UpdateFrame(current_simulation_time, current_ros_time)
-  -> swb world.tick()                     [blocks until CARLA completes the step]
+  -> scensim world.tick()                 [blocks until CARLA completes the step]
   -> CARLA advances one physics/render step
   -> every acb_bridge's wait_for_tick returns
   -> acb_bridge Dk publishes /clock       [Dk only; D0 stays silent]
   -> sensors fire, stamped from the node's ROS clock
-  -> swb returns UpdateFrameResponse
+  -> scensim returns UpdateFrameResponse
 
 SSv2 UpdateEntityStatus
-  -> scenario NPCs: swb set_transform
-  -> ego:           swb reads PhysX pose/twist/accel -> response
+  -> scenario NPCs: scensim set_transform
+  -> ego:           scensim reads PhysX pose/twist/accel -> response
 
 SSv2 UpdateTrafficLights
-  -> swb maps lanelet signal ID -> CARLA actor, set_state
+  -> scensim maps lanelet signal ID -> CARLA actor, set_state
 ```
 
 ### Clock ownership
 
 Superseded by [time-and-ticking.md](time-and-ticking.md) (roadmap 015). In every domain
 `acb_bridge` publishes `/clock` from CARLA's frame time plus `BASE_NS` (roadmap 051) and stamps
-everything it publishes with the frame's time; SSv2 takes the same time from swb and
+everything it publishes with the frame's time; SSv2 takes the same time from scensim and
 publishes no `/clock`.
 
 ### Traffic lights
@@ -427,7 +427,7 @@ as a gap, not resolved by this document.
 
 ### End-to-end
 
-- Single-ego scenario reaches `exitSuccess` (`src/swb_examples/scenarios/basic/town01_ego_drive.xosc`)
+- Single-ego scenario reaches `exitSuccess` (`src/scensim_examples/scenarios/basic/town01_ego_drive.xosc`)
 - Exactly one `/clock` publisher per domain; no "jump back in time" in any localization node
 - Sensor stamp epoch agrees with `/clock` epoch to within one step time
 - Two-domain run: scenario ego plus one background AV, both localize and drive
@@ -447,10 +447,10 @@ in separate ROS domains, each driving its own vehicle through its own `acb_bridg
 
 ```
 just carla-start                     # one server, shared
-CSB_BACKGROUND_AVS=all just run      # swb: the only ticker, the only vehicle spawner
+CSB_BACKGROUND_AVS=all just run      # scensim: the only ticker, the only vehicle spawner
 just ego-av                          # Autoware + acb_bridge, ROS domain 1, web UI 8082
 just bg-av                           # Autoware + acb_bridge + pilot, domain 2, web UI 8083
-just scenario src/swb_examples/scenarios/basic/town01_ego_drive.xosc
+just scenario src/scensim_examples/scenarios/basic/town01_ego_drive.xosc
 ```
 
 Both vehicles drove, under their own stacks, at the same time:
@@ -461,7 +461,7 @@ hero       start (190.8,-130.1) -> end (124.7,-129.7)  travelled 66.2 m  peak 3.
 ```
 
 `hero` is SSv2's scenario ego, routed by the scenario. `bg_av_1` is outside SSv2's model
-entirely: `swb` spawns it from `background_avs` in `bridge_config.yaml`, and its own Autoware
+entirely: `scensim` spawns it from `background_avs` in `bridge_config.yaml`, and its own Autoware
 drives it to the goal in `scenarios/bg_av_1_poses.yaml`.
 
 ### Invariants, as measured
@@ -472,7 +472,7 @@ drives it to the goal in `scenarios/bg_av_1_poses.yaml`.
 | — One bridge per vehicle | `ros2 node list \| grep acb_bridge` | 1 in each domain |
 | — Domain isolation | SSv2's `openscenario_interpreter` | present in domain 1, absent in domain 2 |
 | — Per-vehicle status | `/vehicle/status/velocity_status` | published in domain 2 by that vehicle's own bridge |
-| 1. One ticker | CARLA in synchronous mode, driven only by swb | the run held its step rate; a second ticker would double-step |
+| 1. One ticker | CARLA in synchronous mode, driven only by scensim | the run held its step rate; a second ticker would double-step |
 
 Domain 1 carried 211 nodes (ego Autoware, SSv2 and its bridge), domain 2 carried 180 (the
 background AV's Autoware and bridge). Two stacks plus CARLA used about 42 GB of RAM.
@@ -502,12 +502,12 @@ restarting, the background AV managed 3.3 m at 1.67 m/s where its first run cove
 
 **Start the bridge with a real detach.** `setsid` alone does not always create a new session,
 so a bridge started that way can be taken down with the shell that launched it. `setsid --fork`
-is reliable. This matters more than it sounds: nothing restarts `swb`, and a scenario run
+is reliable. This matters more than it sounds: nothing restarts `scensim`, and a scenario run
 against a dead bridge spawns no ego at all while still producing a full set of logs.
 
 ## Gaps between this design and the code
 
-Verified against `scenario-world-bridge@5890cae` and `autoware_carla_bridge@c3844bd`.
+Verified against `scensim@5890cae` and `autoware_carla_bridge@c3844bd`.
 
 | # | Gap | Where | Invariant |
 |---|---|---|---|
@@ -519,7 +519,7 @@ Verified against `scenario-world-bridge@5890cae` and `autoware_carla_bridge@c384
 | 6 | `TrafficLightBridge` is dead code | `acb_bridge/src/bridge/trafficlight_bridge.rs` | 3 |
 | 7 | `use_traffic_light_recognition=false` | `acb_launch/launch/carla_simulator.launch.xml` | — |
 | 8 | Tick timeout counts toward disconnect after 3 strikes | `acb_bridge/src/main.rs:578` | — |
-| 9 | ~~No background-AV support~~ **fixed** | `bridge_config.yaml` `background_avs`, `swb_launch/background_av.launch.xml`, `just bg-av` | — |
+| 9 | ~~No background-AV support~~ **fixed** | `bridge_config.yaml` `background_avs`, `scensim_launch/background_av.launch.xml`, `just bg-av` | — |
 | 10 | ~~`--web-addr 0.0.0.0:8082` hardcoded in the concealer patch~~ **closed** — the concealer no longer launches anything (`launch_autoware:=false`), so `launch.hpp` is never called and the address it hardcoded is unreachable | SSv2 `external/concealer/include/concealer/launch.hpp` | — |
 | 11 | Ego respawn unimplemented | `acb_bridge/src/main.rs:564` | — |
 
@@ -531,7 +531,7 @@ Gaps 1, 2 and 3 were regressions of work that was done and lost, not new feature
   the first `UpdateFrame` after it, and ticks thereafter. `update_step_time` only applies
   settings once sync mode is on; `restore_async_mode` is a no-op if we never enabled it.
 - **Gap 2** — `publish_clock` bool parameter on `acb_bridge` (default `true`), plumbed through
-  `acb_bridge.launch.xml` and set to `false` in `swb_launch/demo.launch.xml` where SSv2 owns
+  `acb_bridge.launch.xml` and set to `false` in `scensim_launch/demo.launch.xml` where SSv2 owns
   `/clock`. A `ClockEpoch` helper rebases CARLA server uptime onto scenario time and resets on
   reconnect.
 - **Gap 3** — all five sensor callbacks stamp from `utils::create_ros_header_from_node`, which

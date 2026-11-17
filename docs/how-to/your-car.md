@@ -31,11 +31,11 @@ On CARLA, the stack gives the world server the car's `carla_physics.yaml` (a shi
 from `sim_vehicle_spec`), so the car runs its spec's mass, engine and tyres, and so does
 every other car of the same model, a vehicle agent's too. Before 2026-11-16 a shipped car
 kept CARLA's blueprint's. To run the blueprint's own physics, or another file, pass it
-through the stack; it is merged with what the stack gives the world server itself (the
-state directory, the ports):
+to a stack started in the foreground; it is merged with what the stack gives the world
+server itself (the state directory, the ports):
 
 ```bash
-ros2 launch scensim_launch scensim.launch.xml \
+ros2 launch scensim_launch scensim.launch.xml project:=<logs>/.testbenches/<testbench> \
     stack_args:="sim_args:='vehicle_physics:=none'"
 ```
 
@@ -44,7 +44,7 @@ them against the spec.
 
 ## A car of your own
 
-Start from a spec, `vehicles/<car>.yaml` in your project. The format is
+Start from a spec, `vehicles/<car>.yaml` in your testbench. The format is
 [sim_vehicle_spec's spec format](https://github.com/NEWSLabNTU/sim_vehicle_spec/blob/main/docs/spec-format.md);
 the two shipped specs are worked examples to copy
 (`$(ros2 pkg prefix --share sim_vehicle_spec)/vehicles/tesla_model3.yaml`). The car's

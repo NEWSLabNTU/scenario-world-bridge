@@ -57,14 +57,16 @@ scensim seat take 2       # writes seat: 2 to ~/.config/scensim/host.yaml
 scensim seat release  # back to auto
 ```
 
-A seat for one checkout only goes in its `.scensim/local.yaml` (`seat: 2`), and `seat:=2` on
-`scensim.launch.xml` or `--seat 2` on `scensim run` set it for one command. Under `ros2 launch`
+A seat for one testbench on this host goes in its work directory's `.scensim/local.yaml`
+(`<logs>/.testbenches/<testbench>/`, `seat: 2`), and `--seat 2` on `scensim run` or
+`seat:=2` on `scensim.launch.xml` sets it for one command. Under `ros2 launch`
 the stack needs nothing more. Under play_launch, which binds its web interface before the
-launch file is read, give it the seat's web port on its command line:
+launch file is read, give it the seat's web port on its command line, for a stack in the
+foreground of a terminal (its `project:=` is the testbench's work directory):
 
 ```bash
 play_launch launch --web-addr 127.0.0.1:8100 \
-    scensim_launch scensim.launch.xml
+    scensim_launch scensim.launch.xml project:=<logs>/.testbenches/<testbench>
 ```
 
 The stack's first lines say which seat and web port it took. A terminal of your own joins

@@ -18,12 +18,16 @@ testbench's `assets:` in `testbench.yaml`:
 ```
 
 The course's guardrails and trees are CARLA props from `assets/carla-usd`, which the
-testbench already has. Fetch the dataset and copy the course's scenario into the project:
+testbench already has. Fetch the dataset, copy the course's scenario into the testbench,
+and build, since the scenario is a new file:
 
 ```bash
-scensim assets fetch
-cp assets/maps/haruna/scenarios/haruna_down.xosc scenarios/
+scensim assets fetch isaac_first_drive
+w=~/.local/state/scensim/logs/.testbenches/isaac_first_drive   # the work directory
+cd ~/my_ws/src/isaac_first_drive
+cp "$w"/assets/maps/haruna/scenarios/haruna_down.xosc scenarios/
 chmod u+w scenarios/haruna_down.xosc
+cd ~/my_ws && colcon build --symlink-install
 ```
 
 Files from scensim's cache are read-only, and `cp` keeps the mode, hence the `chmod`. The
@@ -32,21 +36,20 @@ the car of the testbench's pilot (otherwise `testbench check` names the mismatch
 
 ## The stack on the course
 
-An Isaac stack serves one world for its whole life, so it is stopped (Ctrl-C) and started
-again on the course:
+An Isaac stack serves one world for its whole life, so it is stopped, and the run below
+starts it again on the course's map:
 
 ```bash
-ros2 launch scensim_launch scensim.launch.xml \
-    map:=haruna
+scensim stack isaac_first_drive --stop
 ```
 
-**What you see**: the stack's lines with `pilots on haruna`, and in time `pilot ego ready
-on haruna`.
+<!-- TODO(exit run): that the stack started by the run loads the scenario's map (haruna);
+the stack console's `pilots on haruna` and `pilot ego ready on haruna`. -->
 
 ## The run
 
 ```bash
-scensim run scenarios/haruna_down.xosc
+scensim run isaac_first_drive/scenarios/haruna_down.xosc
 ```
 
 **Check**: the run ends with a verdict line; a run on Town01 against this stack is

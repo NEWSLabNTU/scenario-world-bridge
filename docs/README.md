@@ -1,6 +1,6 @@
 # Documentation
 
-New words (project, stack, pilot, seat, run, judge, ...): the [glossary](reference/glossary.md).
+New words (testbench, stack, pilot, seat, run, judge, ...): the [glossary](reference/glossary.md).
 What scensim does not do: [Supported and not supported](reference/limits.md).
 
 ## By reader
@@ -10,7 +10,7 @@ continues from the point that matches their role:
 
 - **A new user** continues with [Getting started on CARLA](getting-started/carla.md) (or
   [on Isaac Sim](getting-started/isaac.md)), then the [tutorials](#tutorials) in order.
-- **A project adopting scensim**, with its own car, autopilot and maps, continues with
+- **A team adopting scensim**, with its own car, autopilot and maps, continues with
   [Start a testbench of your own](how-to/start-a-project.md), then
   [your car](how-to/your-car.md), [your autopilot](how-to/your-autopilot.md),
   [your Autoware](how-to/your-autoware.md) and the [reference](#reference).
@@ -40,7 +40,7 @@ The sections below list every page, in the order a new user reads them.
 Learning by doing: one path each, every step with a check, exercises at the end. CARLA
 first, Isaac Sim from tutorial 6.
 
-1. [First drive](tutorials/01-first-drive.md): a project, its map, the stack, one run, its
+1. [First drive](tutorials/01-first-drive.md): a testbench, its map, the stack, one run, its
    result
 2. [Write a scenario](tutorials/02-write-a-scenario.md): poses, the ego's goal, a pass
    condition, a parameter
@@ -50,14 +50,14 @@ first, Isaac Sim from tutorial 6.
    own agent in one run
 5. [Suites](tutorials/05-suites.md): a parameter grid, repetitions, a judge, the results
    table
-6. [The same project on Isaac Sim](tutorials/06-carla-assets-on-isaac.md): CARLA's assets
+6. [The same testbench on Isaac Sim](tutorials/06-carla-assets-on-isaac.md): CARLA's assets
    in USD, models in a scenario
 7. [Road physics](tutorials/07-road-physics.md): mud, gravel and a wet road, watching the
    wheels
 
 ## How-to guides
 
-A task in your own project, starting from a working stack:
+A task in your own testbench, starting from a working stack:
 
 - [Start a testbench of your own](how-to/start-a-project.md): templates, your maps, sharing
 - [Your car](how-to/your-car.md): a shipped car, or one from your vehicle spec
@@ -97,14 +97,14 @@ A task in your own project, starting from a working stack:
 
 ## Explanation
 
-- [How it works](explanation/how-it-works.md): the parts of a run; project, stack, run
+- [How it works](explanation/how-it-works.md): the parts of a run; testbench, stack, run
 - [ROS domains and DDS](explanation/domains-and-dds.md): why several domains, which
   process lives where
 - [Verdicts](explanation/verdicts.md): passed, failed, error; CARLA's contacts; judges
 
 ## Datasets
 
-Public, on Hugging Face under `jerry73204`; a project fetches them by name
+Public, on Hugging Face under `jerry73204`; a testbench fetches them by name
 ([Maps and assets](reference/maps-and-assets.md#datasets)):
 [carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps),
 [carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd),

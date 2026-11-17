@@ -5,7 +5,9 @@ live in files, never in a testbench's `testbench.yaml` and never in exports. Eve
 the stack read them, highest first:
 
 1. the command's or the launch's arguments (`--seat`, `seat:=`, `logs:=`, ...);
-2. `<project>/.scensim/local.yaml`: this checkout only (git-ignored);
+2. `.scensim/local.yaml` in a testbench's work directory, `<logs>/.testbenches/<testbench>/`:
+   this testbench on this host only (a project directory's own `.scensim/local.yaml` for a
+   project);
 3. `~/.config/scensim/host.yaml`: yours;
 4. `/etc/scensim/host.yaml`: the host's, from an administrator (a shared seat table);
 5. the defaults below.
@@ -16,7 +18,7 @@ A mapping merges key by key (`carla: {port: 3000}` keeps the default host).
 seat: auto                       # a seat number, or auto: the first free one
 gpu: null                        # a GPU index over the seat table's
 logs: ~/.local/state/scensim/logs    # the log root: on a fast disk (an SSD)
-cache: ~/.cache/scensim          # the datasets, read-only, shared by your projects
+cache: ~/.cache/scensim          # the datasets, read-only, shared by your testbenches
 launcher: auto                   # auto, play_launch or ros2
 # workspaces: {autoware-drift: ~/repos/autoware-drift}   # a pilot's own ROS workspaces
 carla: {root: "", host: localhost, port: 2000}
@@ -36,7 +38,7 @@ seat_locks: /tmp/scensim-seats   # the seat locks: a directory every user can wr
 |---|---|---|
 | `seat` | the stack, `run`, `seat` | your seat; `scensim seat take <n>` writes it |
 | `gpu` | the stack | `CUDA_VISIBLE_DEVICES` for the stack's processes |
-| `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
+| `logs` | the stack, `run`, `runs` | `<logs>/<testbench>/` holds the stacks and runs, `<logs>/.testbenches/<testbench>/` the testbench's work directory |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |
 | `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A testbench's `- dataset: <name>` entry is then linked from that directory, with the testbench's `take:`, instead of fetched; `scensim.lock` keeps only what came from the Hub, so the testbench reads the same on every host |
 | `workspaces` | `testbench check`, the stack | `{<name>: <directory>}`: ROS workspaces this host has built, for a pilot's `overlays:` entries `{workspace:<name>}/<path>` ([The testbench file](project-file.md)), as `datasets` names a dataset's copy; a testbench naming a workspace this host does not have is refused |

@@ -65,6 +65,8 @@ A task in your own project, starting from a working stack:
   own process
 - [Your Autoware](how-to/your-autoware.md): arguments, your build, fixes, TensorRT
 - [Your simulator](how-to/your-simulator.md): a world server for another simulator
+- [Your world server in a testbench](how-to/your-world-server.md): run a testbench on a
+  world server from a package of your workspace
 - [Several stacks on one host](how-to/several-stacks.md): seats
 - [Configure the stack](how-to/configure.md): the bridge, the world servers, the weather,
   timeouts
@@ -77,6 +79,7 @@ A task in your own project, starting from a working stack:
 
 - [Commands](reference/commands.md): every `ros2 run scensim` command, the stack's arguments,
   exit codes, the other tools
+- [The testbench](reference/testbench.md): the package, its build type, its rules
 - [The project file](reference/project-file.md): `swb.yaml`, suites, `scensim.lock`
 - [Host settings](reference/host-settings.md): `host.yaml`, `local.yaml`, the seat table
 - [Results and logs](reference/results-and-logs.md): a run's directory, `result.json`, the

@@ -99,7 +99,7 @@ ros2 run scensim run scenarios/pedestrian_crossing.xosc
 
 **What you see**: the ego stops short of the crossing until it is clear; then
 `passed   <run id>  <run directory>`. With RViz enabled (`rviz: true`,
-[Tutorial 1, step 4](01-first-drive.md#4-run-the-scenario)), the walker appears as a
+[Tutorial 1, step 4](01-first-drive.md#4-run-the-testbench)), the walker appears as a
 detected object, since Autoware perceives it only with its own sensors.
 
 <p align="center">

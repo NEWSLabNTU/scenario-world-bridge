@@ -19,7 +19,7 @@ These steps need sudo, or write to directories students cannot; do them once per
 1. The machine-wide part of [Install](getting-started/install.md#once-per-machine-needs-sudo):
    the apt packages, `sudo rosdep init`, and the kernel socket buffers (`sysctl`).
 2. Clone and build the workspace once, in a directory every student can read, for
-   example `/opt/scensim`, following [Install, Build](getting-started/install.md#build)
+   example `/opt/scensim`, following [Install, From source](getting-started/install.md#from-source)
    (including `rosdep install`, which asks for sudo).
 3. Unpack CARLA 0.9.16 where every student can read it, for example `/opt/CARLA_0.9.16`
    ([Getting started on CARLA](getting-started/carla.md)).

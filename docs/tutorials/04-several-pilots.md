@@ -177,14 +177,14 @@ repetition cuts in at a different gap, and the same seed reproduces a run exactl
 A **pilot** is what drives one entity: a **vehicle side** scensim starts (on CARLA, the
 vehicle bridge with the car's sensors), a **driver**, and the agent that registers the
 entity with the relay. The kinds are `autoware`, `carla_basic`, `simple`, `launch`,
-`command` and `none` ([project file reference](../reference/project-file.md#pilots)).
+`command` and `none` ([testbench file reference](../reference/project-file.md#pilots)).
 
 Every pilot gets its own ROS domain, because every Autoware uses the same topic names; the
 scenario reaches each through the relay. A `lifetime: stack` pilot serves run after run; a
 `lifetime: run` pilot starts with each run and can take per-run values (`{seed}`,
 `{run_dir}`, `{param:<name>}`). [Your autopilot as a pilot](../how-to/your-autopilot.md)
 shows `launch` and `command` for a driver of one's own; the
-[project file reference](../reference/project-file.md#pilots) lists every key.
+[testbench file reference](../reference/project-file.md#pilots) lists every key.
 
 ## Exercises
 

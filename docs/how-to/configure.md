@@ -16,7 +16,7 @@ Isaac's world server, and the weather. It assumes a project with a working stack
 | The weather | the bridge's `weather`, ROS services | `world: {weather: ...}`, or at run time (below) |
 | SSv2 | its run settings | `ssv2:`, and per suite ([Run settings](../reference/project-file.md#run-settings)) |
 
-Every key: [The project file](../reference/project-file.md#world). The stack gives these to
+Every key: [The testbench file](../reference/project-file.md#world). The stack gives these to
 the bridge and the world servers beside its own settings (the state directory, the
 seat's ports, the per-run trace and contact directories), never in their place. A change in
 `swb.yaml` needs the stack restarted; a run refuses a stack started from another

@@ -1,0 +1,384 @@
+# The release (roadmap 082, "Cutting a release"): started by hand with the version, never by
+# a pushed tag, so nothing publishes by accident. The tag is made last, on the commit built.
+#
+#   preflight -> build-sim -> links
+#                          -> wheels -> smoke            (stop_after: smoke, the default)
+#                                    -> testpypi          (stop_after: testpypi or publish)
+#                                    -> publish -> after  (stop_after: publish, `pypi` approval)
+#
+# The publishing jobs run only on main, only with stop_after past smoke, and only once the
+# repository variable SCENSIM_RELEASE_ENABLED is "true": the user sets that, the GitHub
+# environments `testpypi` and `pypi` (the user as required reviewer on `pypi`) and the PyPI
+# trusted publishers once (082, "What the user sets up once"). Until then every run stops
+# after smoke.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (0.1.0); must match the pyproject files and docs/release-notes.md"
+        required: true
+        type: string
+      stop_after:
+        description: "Last stage to run; smoke publishes nothing"
+        required: true
+        default: smoke
+        type: choice
+        options: [smoke, testpypi, publish]
+      journey:
+        description: "Smoke: testbench new, colcon build, testbench list (needs a release with the testbench commands, 081)"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  DISTRO: humble
+  ARCH: x86_64
+  # The submodules the simulation side builds from (082 step 4); the two world servers carry
+  # their own deps/ (the protocol, the spec, aib) as submodules, so those go in recursively.
+  SIM_SUBMODULES: >-
+    src/scenario_simulator_v2 src/color_names src/scensim_world_protocol
+    src/scensim_carla_world src/scensim_isaac_world src/sim_vehicle_spec
+
+jobs:
+  preflight:
+    runs-on: ubuntu-22.04
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+      publish_ok: ${{ steps.guard.outputs.publish_ok }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: The version
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-]?(a|b|rc|dev)[0-9]*)?$ ]] \
+            || { echo "::error::version '$VERSION' is not N.N.N[(a|b|rc|dev)N]"; exit 1; }
+          bad=0
+          check() {  # file, the version it holds
+            if [ "$2" != "$VERSION" ]; then echo "::error file=$1::holds version '$2', not $VERSION"; bad=1; fi
+          }
+          v() { python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["version"])' "$1" 2>/dev/null \
+                || sed -nE 's/^version *= *"?([^"]+)"?$/\1/p' "$1" | head -1; }
+          check pypi/scensim/pyproject.toml "$(v pypi/scensim/pyproject.toml)"
+          check pypi/scensim-ros-$DISTRO/pyproject.toml "$(v pypi/scensim-ros-$DISTRO/pyproject.toml)"
+          check pypi/scensim/src/scensim_frontend/__init__.py \
+            "$(sed -nE 's/^__version__ = "([^"]+)"/\1/p' pypi/scensim/src/scensim_frontend/__init__.py)"
+          pin=$(grep -oE "scensim-ros-$DISTRO==[^;\"' ]+" pypi/scensim/pyproject.toml | cut -d= -f3)
+          check "pypi/scensim/pyproject.toml (scensim-ros-$DISTRO pin)" "$pin"
+          if [ -f src/colcon_scensim/setup.cfg ]; then
+            check src/colcon_scensim/setup.cfg "$(sed -nE 's/^version *= *//p' src/colcon_scensim/setup.cfg)"
+          fi
+          grep -qx "## v$VERSION" docs/release-notes.md \
+            || { echo "::error file=docs/release-notes.md::no heading '## v$VERSION'"; bad=1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION exists already"; bad=1
+          fi
+          exit $bad
+      - name: Pins and docs
+        run: |
+          git submodule update --init -- src/   # check_pins reads each component's committed deps/ pins
+          python3 scripts/check_pins.py
+          python3 scripts/check_docs.py
+      - name: The front end's tests
+        run: |
+          python3 -m pip install -q pytest zstandard
+          cd pypi/scensim && python3 -m pytest -q tests
+      - id: guard
+        name: Whether this run may publish
+        env:
+          STOP_AFTER: ${{ inputs.stop_after }}
+          ENABLED: ${{ vars.SCENSIM_RELEASE_ENABLED }}
+        run: |
+          ok=false
+          if [ "$STOP_AFTER" != smoke ]; then
+            [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::publishing runs only on main (this is $GITHUB_REF)"; exit 1; }
+            [ "$ENABLED" = true ] || { echo "::error::SCENSIM_RELEASE_ENABLED is not 'true': the environments and trusted publishers are not set up (082)"; exit 1; }
+            [ -f src/colcon_scensim/setup.cfg ] || { echo "::error::colcon-scensim (src/colcon_scensim, 081) is not on this commit"; exit 1; }
+            ok=true
+          fi
+          echo "publish_ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "stop after: $STOP_AFTER; may publish: $ok" >> "$GITHUB_STEP_SUMMARY"
+
+  build-sim:
+    needs: preflight
+    runs-on: ubuntu-22.04
+    timeout-minutes: 300
+    container:
+      image: ros:humble
+      # the runner's own toolchains, mounted to be deleted: the build needs the disk
+      volumes:
+        - /usr/share/dotnet:/host/dotnet
+        - /usr/local/lib/android:/host/android
+        - /opt/ghc:/host/ghc
+    steps:
+      - name: Free disk
+        run: |
+          rm -rf /host/dotnet/* /host/android/* /host/ghc/* || true
+          df -h / | tail -1
+      - name: Tools
+        run: |
+          set -eu
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          apt-get install -y -qq git curl zstd python3-pip python3-vcstool >/dev/null
+          curl -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          python3 -m pip install -q maturin
+          # 889cb5c: --merge-install support (082 fix 1)
+          python3 -m pip install -q --no-build-isolation \
+            "git+https://github.com/jerry73204/colcon-cargo-ros2@889cb5c#subdirectory=packages/colcon-cargo-ros2"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - name: Submodules
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule update --init --recursive -- $SIM_SUBMODULES
+      - name: rosdep
+        run: |
+          set -eu
+          mkdir -p /tmp/vendor && vcs import --shallow --input sim.repos /tmp/vendor >/dev/null
+          rosdep update -q --rosdistro "$DISTRO" >/dev/null
+          . /opt/ros/$DISTRO/setup.sh
+          rosdep install --from-paths $SIM_SUBMODULES src/scenario_world_bridge src/scenario_agent_relay \
+            src/scensim src/scensim_launch src/scensim_interfaces src/scensim_examples src/scensim_agent \
+            src/czp /tmp/vendor --ignore-src -y -q -r \
+            --skip-keys "aib_launch acb_bridge acb_launch autoware_sim_profile python-yamale-pip"
+      - name: Build and stage
+        run: |
+          start=$(date +%s)
+          scripts/release/build_sim.sh --version "$VERSION" --out dist --jobs "$(nproc)"
+          echo "build-sim: $(( ($(date +%s) - start) / 60 )) min on $(nproc) cores; $(ls -s --block-size=M dist/*.tar.zst | head -1)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tarballs
+          path: dist/
+          if-no-files-found: error
+
+  links:
+    needs: [preflight, build-sim]
+    runs-on: ubuntu-22.04   # the link check starts its own clean container
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          sparse-checkout: scripts/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: dist
+      - run: scripts/release/check_links.sh dist/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst --out links
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: links
+          path: links/
+
+  wheels:
+    needs: [preflight, build-sim]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: dist
+      - name: Build
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          python3 -m pip install -q build
+          tar=dist/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst
+          # the release's manifest names the GitHub Release's URLs
+          python3 pypi/make_manifest.py --version "$VERSION" --distro "$DISTRO" \
+            --base-url "https://github.com/$REPO/releases/download/v$VERSION" "$tar"
+          python3 -m build --wheel -o wheels pypi/scensim
+          python3 -m build --wheel -o wheels pypi/scensim-ros-$DISTRO
+          if [ -f src/colcon_scensim/setup.cfg ]; then
+            python3 -m build --wheel -o wheels src/colcon_scensim
+          else
+            echo "colcon-scensim: not on this commit (081); no wheel" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # the smoke test's manifest names the tarball served on localhost
+          git checkout -- pypi/scensim-ros-$DISTRO
+          python3 pypi/make_manifest.py --version "$VERSION" --distro "$DISTRO" \
+            --base-url http://127.0.0.1:8765 "$tar"
+          python3 -m build --wheel -o smoke-wheels pypi/scensim-ros-$DISTRO
+          # the front end's own dependency, so that the smoke install needs no index
+          python3 -m pip download -q -d smoke-wheels --only-binary=:all: \
+            --python-version 3.10 --platform manylinux2014_x86_64 "zstandard>=0.21"
+          ls wheels smoke-wheels >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: wheels/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-wheels
+          path: smoke-wheels/
+
+  smoke:
+    needs: [wheels]
+    runs-on: ubuntu-22.04
+    container:
+      image: ros:humble
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs
+          path: /srv/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: /tmp/release-wheels
+      - uses: actions/download-artifact@v4
+        with:
+          name: smoke-wheels
+          path: /tmp/wheels
+      - name: Install from the job's files
+        run: |
+          set -eu
+          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip >/dev/null
+          # the release's front end, with the smoke test's manifest wheel (localhost URLs)
+          cp /tmp/release-wheels/scensim-[0-9]*.whl /tmp/wheels/
+          python3 -m pip install -q --user --no-index --find-links /tmp/wheels scensim
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: The first run
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd /srv/release && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          sleep 1
+          scensim --version
+          scensim install | tee /tmp/install.txt
+          # the rosdep line the front end printed
+          rosdep update -q --rosdistro "$DISTRO" >/dev/null
+          line=$(grep -oE 'rosdep install .*' /tmp/install.txt | head -1)
+          echo "rosdep: $line"
+          # skip the keys rosdep cannot resolve for the simulation side until 082 step 4
+          # (check_links.sh's list)
+          eval "$line -q -r --skip-keys 'aib_launch acb_bridge acb_launch autoware_sim_profile czp python-yamale-pip'"
+          scensim --help
+          scensim seat show
+          echo "first run: ok ($(du -sh ~/.local/share/scensim | cut -f1) installed)" >> "$GITHUB_STEP_SUMMARY"
+      - name: A testbench
+        if: inputs.journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /opt/ros/$DISTRO/setup.bash
+          source ~/.local/share/scensim/current/sim/setup.bash
+          git config --global user.name "scensim release" && git config --global user.email release@example.org
+          mkdir -p ~/ws/src && cd ~/ws/src
+          scensim testbench new my_testbench
+          cd ~/ws && colcon build --symlink-install --event-handlers console_cohesion- summary+
+          source install/setup.bash
+          scensim testbench list | tee /tmp/list.txt
+          grep -q '^my_testbench' /tmp/list.txt
+          echo "testbench new, colcon build, testbench list: ok" >> "$GITHUB_STEP_SUMMARY"
+
+  testpypi:
+    needs: [preflight, links, smoke]
+    if: needs.preflight.outputs.publish_ok == 'true'
+    runs-on: ubuntu-22.04
+    environment: testpypi
+    permissions:
+      contents: write      # the draft GitHub Release
+      id-token: write      # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with: {name: tarballs, path: dist}
+      - uses: actions/download-artifact@v4
+        with: {name: wheels, path: wheels}
+      - name: The draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.preflight.outputs.sha }}
+        run: |
+          set -eu
+          python3 - "$VERSION" > notes.md <<'EOF'
+          import re, sys
+          text = open("docs/release-notes.md").read()
+          m = re.search(rf"^## v{re.escape(sys.argv[1])}\n(.*?)(?=^## |\Z)", text, re.S | re.M)
+          print(m.group(1).strip())
+          EOF
+          gh release view "v$VERSION" >/dev/null 2>&1 \
+            || gh release create "v$VERSION" --draft --target "$SHA" --title "v$VERSION" --notes-file notes.md
+          gh release upload "v$VERSION" dist/*.tar.zst dist/SHA256SUMS --clobber
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: wheels/
+      - name: Install from TestPyPI
+        run: |
+          set -eu
+          docker run --rm ros:humble bash -c "
+            apt-get update -qq && apt-get install -y -qq python3-pip >/dev/null
+            python3 -m pip install -q --user --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ scensim==$VERSION
+            ~/.local/bin/scensim --version"
+          # the first-run download needs the tarballs at the release's URLs, which a draft
+          # release does not serve: that check is the `after` job, once published
+
+  publish:
+    needs: [preflight, testpypi]
+    if: needs.preflight.outputs.publish_ok == 'true' && inputs.stop_after == 'publish'
+    runs-on: ubuntu-22.04
+    environment: pypi        # the user's approval (required reviewer)
+    permissions:
+      contents: write        # the release and the tag
+      id-token: write        # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with: {name: wheels, path: wheels}
+      - name: The GitHub Release, from the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "v$VERSION" --draft=false
+      # tarballs are public before any wheel names them
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheels/
+      - name: The tag, last, on the built commit
+        env:
+          SHA: ${{ needs.preflight.outputs.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" "$SHA" -m "scensim $VERSION"
+          git push origin "refs/tags/v$VERSION"
+
+  after:
+    needs: publish
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install from PyPI, the real first run
+        run: |
+          docker run --rm ros:humble bash -c "
+            apt-get update -qq && apt-get install -y -qq python3-pip >/dev/null
+            python3 -m pip install -q --user scensim==$VERSION
+            ~/.local/bin/scensim install && ~/.local/bin/scensim --version" | tee out.txt
+          { echo '### After'; echo '```'; tail -20 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

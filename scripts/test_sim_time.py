@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """One simulation time in every repository (roadmap 051, decision 5): BASE_NS and the nanos
-table are the same in swb_world_protocol (Rust and the Python shell), acb_bridge and aib.
+table are the same in scensim_world_protocol (Rust and the Python shell), acb_bridge and aib.
 
     python3 -m pytest -q scripts/test_sim_time.py      (run by `just test`)
 """
@@ -9,16 +9,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RUST = {
-    "swb_core sim_time.rs": ROOT / "src/swb_world_protocol/swb_core/src/sim_time.rs",
+    "scensim_core sim_time.rs": ROOT / "src/scensim_world_protocol/scensim_core/src/sim_time.rs",
     "acb clock.rs": ROOT / "src/autoware_carla_bridge/src/acb_bridge/src/clock.rs",
 }
 PYTHON = {
-    "swb_world_server protocol.py":
-        ROOT / "src/swb_world_protocol/swb_world_server/swb_world_server/protocol.py",
+    "scensim_world_server protocol.py":
+        ROOT / "src/scensim_world_protocol/scensim_world_server/scensim_world_server/protocol.py",
     "aib sim_time.py": ROOT / "src/autoware_isaac_bridge/src/aib/aib/sim_time.py",
 }
 TABLES = {
-    "swb_core sim_time.rs": RUST["swb_core sim_time.rs"],
+    "scensim_core sim_time.rs": RUST["scensim_core sim_time.rs"],
     "acb clock.rs": RUST["acb clock.rs"],
     "aib test_sim_time.py": ROOT / "src/autoware_isaac_bridge/src/aib/test/test_sim_time.py",
 }
@@ -59,5 +59,5 @@ def test_the_python_nanos_follow_the_table():
         spec = importlib.util.spec_from_file_location(name.split()[0], path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        for secs, ns in table(TABLES["swb_core sim_time.rs"]):
+        for secs, ns in table(TABLES["scensim_core sim_time.rs"]):
             assert module.nanos(secs) == ns, (name, secs)

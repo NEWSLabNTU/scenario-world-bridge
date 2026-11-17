@@ -11,7 +11,7 @@ The world: K parallel straight roads, each two lanes one way (OpenDRIVE right la
 travel along +x), 60 m apart. One pair per road: B in lane -1, A in lane -2 wanting into -1.
 
 The car is the spec's: `sim_vehicle_spec`'s `carla_physics.yaml` applied and read back, the
-physics timing swb_carla_world uses (0.05 s ticks, substeps of DT/16), and the controls the way
+physics timing scensim_carla_world uses (0.05 s ticks, substeps of DT/16), and the controls the way
 acb gives them: a requested acceleration turned into throttle or brake through the car's
 measured pedal maps, then the spec's pedal lags (brake dead time and time constants); a tire
 angle turned into CARLA's steer command through the wheel geometry.
@@ -514,7 +514,7 @@ class Arena:
         s.synchronous_mode = True
         s.fixed_delta_seconds = DT
         s.substepping = True
-        s.max_substep_delta_time, s.max_substeps = DT / 16, 16  # swb_carla_world's
+        s.max_substep_delta_time, s.max_substeps = DT / 16, 16  # scensim_carla_world's
         s.no_rendering_mode = True
         self.world.apply_settings(s)
         self.map = self.world.get_map()

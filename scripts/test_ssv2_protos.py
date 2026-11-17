@@ -1,7 +1,7 @@
-"""SSv2's protos in swb_world_protocol are the SSv2 fork's, byte for byte (roadmap 051).
+"""SSv2's protos in scensim_world_protocol are the SSv2 fork's, byte for byte (roadmap 051).
 
 The two sides of SSv2's wire are built from different files: the fork's runner from its own,
-the bridge (through swb_core) from swb_world_protocol's copy. A field added to one and not
+the bridge (through scensim_core) from scensim_world_protocol's copy. A field added to one and not
 the other (roadmap 015's `simulation_time_ns`) decodes as silence, not as an error. This
 repository holds both, so the check lives here.
 """
@@ -9,7 +9,7 @@ repository holds both, so the check lives here.
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OURS = ROOT / "src/swb_world_protocol/proto"
+OURS = ROOT / "src/scensim_world_protocol/proto"
 FORK = ROOT / "src/scenario_simulator_v2/simulation/simulation_interface/proto"
 SSV2 = ["simulation_api_schema", "geometry_msgs", "traffic_simulator_msgs",
         "builtin_interfaces", "autoware_control_msgs", "autoware_vehicle_msgs",

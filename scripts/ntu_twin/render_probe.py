@@ -10,7 +10,7 @@ from +x) and `pitch` deg down (defaults 3.4, 7.0, 15: the video rig's chase came
 80 deg across, as that camera. Writes OUT_DIR/<name>.png.
 
 `--default-light`: the world's own lights off, and the sun and sky aib's runner and
-swb_isaac_world add to a world with none (the picture before the world had its light).
+scensim_isaac_world add to a world with none (the picture before the world had its light).
 `--exposure`: the camera's auto-exposure (OmniRtxCameraAutoExposureAPI_1), as aib's rig `auto_exposure`.
 """
 import argparse
@@ -72,7 +72,7 @@ own = [p for p in Usd.PrimRange(stage.GetPrimAtPath("/World/env")) if p.HasAPI(U
 if a.default_light or not own:
     for p in own:
         p.SetActive(False)
-    # aib runner.ensure_light / swb_isaac_world's SUN and SKY
+    # aib runner.ensure_light / scensim_isaac_world's SUN and SKY
     sun = UsdLux.DistantLight.Define(stage, "/World/sun")
     sun.CreateIntensityAttr(2500.0)
     sun.CreateAngleAttr(1.0)

@@ -152,7 +152,7 @@ def main():
     tables = [p for p in (mdir / "traffic_lights.yaml", mdir / "carla" / "traffic_lights.yaml")
               if p.exists()]
     if not tables:
-        sys.exit(f"no signal table in {mdir}: swb_carla_world --generate-signal-table {mdir}")
+        sys.exit(f"no signal table in {mdir}: scensim_carla_world --generate-signal-table {mdir}")
     table = yaml.safe_load(tables[0].read_text())
     od_elements = {}
     for s in table["signals"]:

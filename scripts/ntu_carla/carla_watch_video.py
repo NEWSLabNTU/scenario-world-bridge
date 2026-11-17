@@ -14,7 +14,7 @@ the map frame less MAP_ORIGIN; CARLA's frame negates y.
 the rig's poses in Autoware's base_link (the rear axle, on the ground), moved to the CARLA
 actor's origin, which is REAR_AXLE ahead of the axle and at ground level on the model3. So
 CARLA's frames compare with Isaac's one to one. `--mounts legacy` keeps the first videos'; `--mounts isaac_recorder` matches the chase camera of
-swb_isaac_world's recorder, which its NTU videos used until it takes P6's.
+scensim_isaac_world's recorder, which its NTU videos used until it takes P6's.
 `--raw PREFIX` also writes the two cameras alone at 1280x720, PREFIX_chase.mp4 and
 PREFIX_front.mp4, for side-by-side clips.
 """
@@ -60,14 +60,14 @@ def camera(world, ego, sensors, ev, min_bright, tf, fov="80", w="1280", h="720")
     return q
 
 
-REAR_AXLE = 1.386  # m, the model3's rear axle behind the CARLA actor's origin (swb_isaac_world)
+REAR_AXLE = 1.386  # m, the model3's rear axle behind the CARLA actor's origin (scensim_isaac_world)
 # (x, y, z) in base_link, (pitch, yaw) in CARLA's convention (degrees; pitch up, yaw right), fov
 MOUNTS = {
     "rig": {"chase": ((-7.0, 0.0, 3.4), (-15.0, 0.0), 80.0),
             "front": ((0.9, 0.0, 2.0), (-0.86, 2.09), 74.5)},   # aib's camera6
     "legacy": {"chase": ((-7.0 + REAR_AXLE, 0.0, 3.4), (-15.0, 0.0), 80.0),
                "front": ((0.9 + REAR_AXLE, 0.0, 2.0), (0.0, 0.0), 74.5)},
-    # swb_isaac_world's recorder.py chase (its NTU videos so far): eye 3 m to the left, looking
+    # scensim_isaac_world's recorder.py chase (its NTU videos so far): eye 3 m to the left, looking
     # at base_link (3.0, 0.0, 0.3); in base_link y is left, so CARLA's y is -3.0 and its yaw
     # (to the right) +15.9
     "isaac_recorder": {"chase": ((-7.5, -3.0, 3.0), (-13.9, 15.9), 60.0),

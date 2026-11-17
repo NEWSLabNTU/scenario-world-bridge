@@ -11,7 +11,7 @@ environment, after:
 - install paths are reduced to `<install>/<package>/...` (this workspace's, acb's or aib's own
   install, wherever it lives);
 - 051's renames are applied to the before side: the world servers (carla_world ->
-  swb_carla_world, isaac_world -> swb_isaac_world), the profile (acb_launch's config, scripts
+  scensim_carla_world, isaac_world -> scensim_isaac_world), the profile (acb_launch's config, scripts
   and files -> autoware_sim_profile's; carla_* switches -> sim_*), the agent (acb_pilot agent,
   node acb_agent -> scensim_agent vehicle_agent, node vehicle_agent).
 
@@ -31,22 +31,22 @@ RENAMES = [
     (r"<install>/acb_launch/(share|lib)/acb_launch/(config|planning_common_param|launch/components)",
      r"<install>/autoware_sim_profile/\1/autoware_sim_profile/\2"),
     (r"\bacb_agent\b", "vehicle_agent"),
-    (r"(?<!scensim_)\bcarla_world\b", "swb_carla_world"),
-    (r"(?<!scensim_)\bisaac_world_server\b", "swb_isaac_world_server"),
-    (r"(?<!scensim_)\bisaac_world\b", "swb_isaac_world"),
+    (r"(?<!scensim_)\bcarla_world\b", "scensim_carla_world"),
+    (r"(?<!scensim_)\bisaac_world_server\b", "scensim_isaac_world_server"),
+    (r"(?<!scensim_)\bisaac_world\b", "scensim_isaac_world"),
 ]
 INSTALL = re.compile(r"/[^\s\"']*?/install/")
 
 
 def normalise(text, before):
     text = INSTALL.sub("<install>/", text)
-    text = text.replace("/scensim_launch/lib/scensim_launch/swb_isaac_world_server",
-                        "/swb_isaac_world/lib/swb_isaac_world/swb_isaac_world_server")
+    text = text.replace("/scensim_launch/lib/scensim_launch/scensim_isaac_world_server",
+                        "/scensim_isaac_world/lib/scensim_isaac_world/scensim_isaac_world_server")
     if before:
         for pattern, repl in RENAMES:
             text = re.sub(pattern, repl, text)
-        text = text.replace("/scensim_launch/lib/scensim_launch/swb_isaac_world_server",
-                            "/swb_isaac_world/lib/swb_isaac_world/swb_isaac_world_server")
+        text = text.replace("/scensim_launch/lib/scensim_launch/scensim_isaac_world_server",
+                            "/scensim_isaac_world/lib/scensim_isaac_world/scensim_isaac_world_server")
     return text
 
 
@@ -62,7 +62,7 @@ def nodes(path, before):
         if before and record.get("pkg") == "acb_pilot" and record.get("exec") == "agent":
             record["pkg"], record["exec"] = "scensim_agent", "vehicle_agent"
         if before and record.get("pkg") == "scensim_launch" and record.get("exec") == "isaac_world_server":
-            record["pkg"], record["exec"] = "swb_isaac_world", "swb_isaac_world_server"
+            record["pkg"], record["exec"] = "scensim_isaac_world", "scensim_isaac_world_server"
         key = normalise(name, before)
         out[key] = json.loads(normalise(json.dumps(record, sort_keys=True), before))
     return out

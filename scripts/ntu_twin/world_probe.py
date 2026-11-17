@@ -1,10 +1,10 @@
 """Roadmap 059 N6: open the NTU twin in Isaac Sim and check what the RTX camera and lidar see.
 
-    ISAAC_ROOT=... src/swb_isaac_world/spikes/run_spike.sh fastrtps <log> \\
+    ISAAC_ROOT=... src/scensim_isaac_world/spikes/run_spike.sh fastrtps <log> \\
         $PWD/scripts/ntu_twin/world_probe.py <map/isaac/world.yaml> <out dir> [x,y,z,yaw_deg]
     # prints one PROBE-RESULT json; writes cam_*.jpg, sem_*.png and lidar.npy into <out dir>
 
-The world is referenced at /World/env, as swb_isaac_world does. The pose is in the Isaac world
+The world is referenced at /World/env, as scensim_isaac_world does. The pose is in the Isaac world
 frame (map less map_origin), the ground height under the car; the camera sits 1.5 m above it
 and the lidar 1.9 m (aib's OS1). Measured: stage open and payload load, the first frames (shader
 compiles and texture streaming), the frame time after, the process's VRAM, and the lidar's

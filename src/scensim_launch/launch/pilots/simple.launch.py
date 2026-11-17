@@ -54,8 +54,8 @@ CONTRACT = {
     "use_sim_time": ("true", "the agent and robot_state_publisher run on simulation time"),
     "carla_host": ("localhost", "CARLA's RPC host (the vehicle side)"),
     "carla_port": ("2000", "CARLA's RPC port (the vehicle side)"),
-    "release_notify_endpoint": ("tcp://127.0.0.1:5556", "swb_carla_world's release PUB socket"),
-    "release_ack_endpoint": ("tcp://127.0.0.1:5557", "swb_carla_world's release PULL socket"),
+    "release_notify_endpoint": ("tcp://127.0.0.1:5556", "scensim_carla_world's release PUB socket"),
+    "release_ack_endpoint": ("tcp://127.0.0.1:5557", "scensim_carla_world's release PULL socket"),
 }
 EXTRA = {
     "config": ("", "a YAML/JSON file of simple_pilot's settings; empty: its defaults"),

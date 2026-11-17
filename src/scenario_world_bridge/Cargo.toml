@@ -20,7 +20,7 @@ install_to_share = ["config", "launch"]
 [dependencies]
 # The simulator-free core: SSv2's protocol, the world protocol, the policy (roadmap 046). No
 # simulator's client library anywhere in this package's dependency graph.
-swb_core = { path = "../swb_world_protocol/swb_core" }
+scensim_core = { path = "../scensim_world_protocol/scensim_core" }
 
 # ZMQ
 zmq = "0.10"

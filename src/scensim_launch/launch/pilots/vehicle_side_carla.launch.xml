@@ -30,8 +30,8 @@
   <arg name="use_sim_time" default="true" description="taken for the contract; acb_bridge stamps simulation time itself"/>
   <arg name="carla_host" default="localhost"/>
   <arg name="carla_port" default="2000"/>
-  <arg name="release_notify_endpoint" default="tcp://127.0.0.1:5556" description="swb_carla_world's release PUB socket (ssv2_port + 1); empty disables"/>
-  <arg name="release_ack_endpoint" default="tcp://127.0.0.1:5557" description="swb_carla_world's release PULL socket (ssv2_port + 2)"/>
+  <arg name="release_notify_endpoint" default="tcp://127.0.0.1:5556" description="scensim_carla_world's release PUB socket (ssv2_port + 1); empty disables"/>
+  <arg name="release_ack_endpoint" default="tcp://127.0.0.1:5557" description="scensim_carla_world's release PULL socket (ssv2_port + 2)"/>
 
   <!-- acb's -->
   <arg name="vehicle_name" default="$(eval &quot;'hero' if '$(var entity)' == 'ego' else '$(var entity)'&quot;)" description="CARLA role_name of the vehicle acb_bridge attaches to"/>

@@ -4,8 +4,8 @@ frame.
 
 Autoware and SSv2 place a node from its lat/lon, through the TransverseMercator the map's
 `map_projector_info.yaml` declares (`autoware_projection.py`); neither reads the local tags
-(Autoware only under a `Local` projector, SSv2 never). scensim reads them: swb_core's traffic
-light table, the other repair_lanelet_*.py scripts, swb_isaac_world's surface check. So they
+(Autoware only under a `Local` projector, SSv2 never). scensim reads them: scensim_core's traffic
+light table, the other repair_lanelet_*.py scripts, scensim_isaac_world's surface check. So they
 must hold the same frame, or scensim and Autoware disagree about where a thing is.
 
 The pack's tags did not. They were CARLA's spherical Mercator on R = 6 378 137 m about

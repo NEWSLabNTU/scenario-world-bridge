@@ -134,7 +134,7 @@ pilots:
 It follows the lanes from where the car is to the scenario's goal, keeps the speed limits
 and slows for curves, and stops at the goal; it ignores traffic lights and other road
 users. On Isaac Sim it drives on the world server's ground truth, which the stack turns on
-for it. The [simple_drive](../../src/swb_examples/projects/simple_drive/) example project
+for it. The [simple_drive](../../src/scensim_examples/projects/simple_drive/) example project
 runs it on Town01.
 
 ## A launch file

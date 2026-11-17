@@ -775,7 +775,7 @@ mod tests {
         assert_eq!(rc.friction_scale_factor, 0.7);
         assert_eq!(rc.wetness, "wetWithPuddles");
         assert_eq!(rc.properties.len(), 2);
-        assert_eq!(rc.swb_properties().count(), 1);
+        assert_eq!(rc.scensim_properties().count(), 1);
         assert!(!rc.is_default());
         // No wetness is dry; an environment without a road condition changes none.
         c.update_environment(road(1.0, "", &[("other.tool", "x")]));

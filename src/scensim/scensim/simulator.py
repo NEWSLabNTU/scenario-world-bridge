@@ -434,8 +434,8 @@ def town_alias() -> dict:
     try:
         import yaml
         from ament_index_python.packages import get_package_share_directory
-        p = Path(get_package_share_directory("swb_carla_world")) / "config" / \
-            "swb_carla_world.yaml"
+        p = Path(get_package_share_directory("scensim_carla_world")) / "config" / \
+            "scensim_carla_world.yaml"
         return dict((yaml.safe_load(p.read_text()) or {}).get("map_alias") or TOWN_ALIAS)
     except Exception:  # noqa: BLE001 (not installed: the defaults)
         return dict(TOWN_ALIAS)

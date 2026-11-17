@@ -45,7 +45,7 @@ def required_packages(script: Path) -> list:
     return m.group(1).split()
 
 
-# What scripts/install_isaac.sh (swb_isaac_world) makes under the root, and what the world
+# What scripts/install_isaac.sh (scensim_isaac_world) makes under the root, and what the world
 # server's isaac_env.sh checks before it starts (roadmap 077 G76)
 INSTALL = ("venv/bin/activate", "venv/lib/python3.12/site-packages/isaacsim")
 HOST_FIX = "set isaac.root in ~/.config/scensim/host.yaml (or export ISAAC_ROOT)"

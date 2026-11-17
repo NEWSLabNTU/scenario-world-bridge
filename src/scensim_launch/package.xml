@@ -24,8 +24,8 @@
   <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <exec_depend>scenario_test_runner</exec_depend>
   <!-- stack.launch.py: the world servers, the default autopilots, the vehicle catalog -->
-  <exec_depend>swb_carla_world</exec_depend>
-  <exec_depend>swb_isaac_world</exec_depend>
+  <exec_depend>scensim_carla_world</exec_depend>
+  <exec_depend>scensim_isaac_world</exec_depend>
   <exec_depend>aib_launch</exec_depend>
   <exec_depend>sim_vehicle_spec</exec_depend>
   <!-- chase_view (demo camera window); it also needs the CARLA Python API: pip install carla==0.9.16 -->

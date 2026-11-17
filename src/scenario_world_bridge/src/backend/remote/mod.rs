@@ -1,9 +1,9 @@
 //! The bridge's simulator: [`RemoteBackend`], a world server over the world protocol
-//! (roadmaps 037, 046; `proto/swb_world.proto`, `docs/design/simulator-interface-split.md`).
+//! (roadmaps 037, 046; `proto/scensim_world.proto`, `docs/design/simulator-interface-split.md`).
 //!
 //! Every simulator is a world server: a process that owns the simulator and serves the world
-//! protocol on a ZMQ REP socket (the Isaac Sim one, `swb_isaac_world`; the CARLA one,
-//! `swb_carla_world`, a submodule). This backend is the bridge's half, REQ to that REP, two round trips
+//! protocol on a ZMQ REP socket (the Isaac Sim one, `scensim_isaac_world`; the CARLA one,
+//! `scensim_carla_world`, a submodule). This backend is the bridge's half, REQ to that REP, two round trips
 //! per SSv2 frame as SSv2 sends them: `UpdateEntityStatus` becomes `Apply` (every entity's
 //! drive for the coming step; the server answers with what it moves itself), `UpdateFrame`
 //! becomes `Step` (the world advances; the server answers with every entity's state after it
@@ -57,10 +57,10 @@ use crate::map_resolver::{load_map_origin, map_dir_of};
 use crate::npc_tracking::{self, TrackingStats};
 use crate::proto::geometry_msgs::{self, Pose};
 use crate::proto::simulation_api_schema::TrafficSignal;
-use crate::proto::swb_world as wire;
+use crate::proto::scensim_world as wire;
 use crate::proto::traffic_simulator_msgs::{ActionStatus, BoundingBox};
 use crate::weather::{wire_form, WeatherReply, WeatherRequest};
-use swb_core::world_client::{self, CallError, Client};
+use scensim_core::world_client::{self, CallError, Client};
 
 mod signals;
 pub(crate) mod spec_check;
@@ -2329,9 +2329,20 @@ impl SimBackend for RemoteBackend {
                 self.sim(),
             ));
         }
+        // Roadmap 080: a property of the old name (swb.zone.*, ...) is refused, naming its
+        // successor, not dropped as another tool's
+        if let Some(rc) = environment.road_condition.as_ref() {
+            let retired = rc.retired_properties();
+            if !retired.is_empty() {
+                return Err(BackendError::Failed(format!(
+                    "RoadCondition: {}",
+                    retired.join("; ")
+                )));
+            }
+        }
         if let Some(rc) = road {
             let properties = rc
-                .swb_properties()
+                .scensim_properties()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             tracing::info!(

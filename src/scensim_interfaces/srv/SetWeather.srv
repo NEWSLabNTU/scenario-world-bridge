@@ -1,5 +1,5 @@
 # Set the world's weather, by preset or by parameters (roadmap 051: the names are the world
-# server's -- CARLA's presets and WeatherParameters fields, listed in swb_carla_world's README).
+# server's -- CARLA's presets and WeatherParameters fields, listed in scensim_carla_world's README).
 # The world server keeps it and applies it again after every world load.
 #
 #   ros2 service call /scenario_world_bridge/set_weather scensim_interfaces/srv/SetWeather "{preset: ClearNoon}"

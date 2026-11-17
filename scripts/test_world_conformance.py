@@ -1,4 +1,4 @@
-"""T1, world-server conformance (roadmap 077, item 56): `swb_world_check conformance` against
+"""T1, world-server conformance (roadmap 077, item 56): `scensim_world_check conformance` against
 a running world server, passing on its exit code and its output.
 
 Opt-in, since the check takes the server over and moves bodies in its world (never during a
@@ -13,7 +13,7 @@ WORLD_PORT, else 5591, for carla; ISAAC_PORT, else 5590, for isaac). SCENSIM_WOR
 CARLA town needs one: its Autoware map, e.g. a project's assets/maps/Town01; with its
 traffic_lights.yaml the signals capability is checked too); Isaac without it loads its
 default world. No bridge may own the server: stop the stack's bridge, or start the world
-server on its own (`ros2 launch swb_carla_world swb_carla_world.launch.xml port:=...
+server on its own (`ros2 launch scensim_carla_world scensim_carla_world.launch.xml port:=...
 carla_port:=...`, or the Isaac world server).
 """
 import os
@@ -30,8 +30,8 @@ SUMMARY = re.compile(r"^(\d+) passed, (\d+) failed$", re.M)
 
 
 def _tool():
-    built = ROOT / "install/swb_world_check/lib/swb_world_check/swb_world_check"
-    return str(built) if built.exists() else shutil.which("swb_world_check")
+    built = ROOT / "install/scensim_world_check/lib/scensim_world_check/scensim_world_check"
+    return str(built) if built.exists() else shutil.which("scensim_world_check")
 
 
 def _target():
@@ -49,7 +49,7 @@ def _target():
 def test_the_world_server_passes_conformance():
     sim, endpoint, world_map = _target()
     tool = _tool()
-    assert tool, "swb_world_check not built (colcon build of swb_world_check)"
+    assert tool, "scensim_world_check not built (colcon build of scensim_world_check)"
     if sim == "carla":
         assert world_map, "SCENSIM_WORLD_MAP: a CARLA town needs its map directory"
     # answering at all first, so a server that is not up reads as that, not as a failed check

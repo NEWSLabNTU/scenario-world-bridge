@@ -67,11 +67,11 @@ def test_side_args_reach_the_bridge(tmp_path):
 @needs_play_launch
 def test_isaac_options_reach_the_world_server(tmp_path):
     """G6: isaac: in swb.yaml becomes these sim_args (scensim.world.sim_args)."""
-    if not have_package("swb_isaac_world"):
-        pytest.skip("swb_isaac_world not installed")
+    if not have_package("scensim_isaac_world"):
+        pytest.skip("scensim_isaac_world not installed")
     from ament_index_python.packages import get_package_share_directory
-    launch = os.path.join(get_package_share_directory("swb_isaac_world"), "launch",
-                          "swb_isaac_world.launch.xml")
+    launch = os.path.join(get_package_share_directory("scensim_isaac_world"), "launch",
+                          "scensim_isaac_world.launch.xml")
     out = tmp_path / "model.yaml"
     p = subprocess.run(["play_launch", "dump", "-o", str(out), "launch", launch,
                         "ego:=/p/ego.yaml", "world:=/m/Town01,/m/Town05", "render:=headless",

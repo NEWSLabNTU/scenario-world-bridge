@@ -289,7 +289,7 @@ def test_provenance_names_the_carla_world_servers_map_props(tmp_path):
     stack gave the world server, else the installed one; frozen when the key is absent."""
     share = tmp_path / "share"
     (share / "config").mkdir(parents=True)
-    (share / "config" / "swb_carla_world.yaml").write_text("spectator: off\n")
+    (share / "config" / "scensim_carla_world.yaml").write_text("spectator: off\n")
     rec = {"simulator": "carla", "launch_args": {"sim_args": "state_dir:=/x"}}
     assert world.carla_world_settings(rec, share=share) == {"map_props": "frozen"}
     own = tmp_path / "carla_world.yaml"

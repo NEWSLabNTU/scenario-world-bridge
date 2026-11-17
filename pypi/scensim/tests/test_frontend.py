@@ -235,6 +235,7 @@ def test_install_downloads_checks_unpacks_and_prints_next_steps(env) -> None:
     assert "downloading scensim 0.1.0 for ROS 2 humble" in r.stderr
     assert "sha256 ok" in r.stderr
     assert "sudo rosdep install --from-paths" in r.stderr and "/current/sim/share" in r.stderr
+    assert r.stderr.index("  rosdep update\n") < r.stderr.index("sudo rosdep install")
     assert f"source {env.home}/current/sim/setup.bash" in r.stderr
     assert (env.home / "current").resolve() == (env.home / "0.1.0-humble").resolve()
     assert (env.home / "0.1.0-humble" / "sim" / "bin" / "scensim").exists()

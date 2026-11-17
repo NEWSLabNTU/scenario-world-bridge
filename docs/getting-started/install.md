@@ -274,8 +274,8 @@ colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release --cargo-args --release
 
 colcon prints `Summary: <n> packages finished` at the end; a package that failed is named,
 and its log is under `log/latest_build/<package>/`. On a clean Humble container the
-simulation side measured about 11 minutes of preparation and 12 minutes of build on 12
-cores (2026-11-17). With less than 64 GB of memory, add `--parallel-workers 4` and set
+simulation side measured about 15 minutes of preparation (the tools, the message
+packages and rosdep) and 14 minutes of build on 12 cores (2026-11-17). With less than 64 GB of memory, add `--parallel-workers 4` and set
 `export CARGO_BUILD_JOBS=4` first.
 
 In the environment file, `~/scensim/install/setup.bash` then takes the place of the

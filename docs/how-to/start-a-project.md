@@ -1,24 +1,29 @@
-# Start a project of your own
+# Start a testbench of your own
 
-A project is one use case: a directory (a git repository, or a ROS package) with a
-`swb.yaml`, its scenarios and suites. This page starts one, gives it your own maps, and
-shares it. It assumes a working install ([Install](../getting-started/install.md)) and the
-ideas of [Tutorial 1](../tutorials/01-first-drive.md).
+A **testbench** is one use case: a ROS package in a colcon workspace that holds
+`testbench.yaml`, its scenarios and suites. This page creates one, gives it your own maps,
+and shares it. It assumes a working install ([Install](../getting-started/install.md)) and
+the ideas of [Tutorial 1](../tutorials/01-first-drive.md); the package and its build are
+described in [The testbench](../reference/testbench.md).
 
 ## From a template or an example
 
+In the workspace's `src/`:
+
 ```bash
-scensim project new ~/my_project                          # CARLA, Autoware
-scensim project new ~/my_project --template multi-pilot   # three pilot kinds
-scensim project new ~/my_project --template isaac         # Isaac Sim
-scensim project new ~/my_project \
-    --from pkg://scensim_examples/projects/safety_suite            # copies an example
+scensim testbench new my_testbench                          # CARLA, Autoware
+scensim testbench new my_testbench --template multi-pilot   # three pilot kinds
+scensim testbench new my_testbench --template isaac         # Isaac Sim
+scensim testbench new my_testbench \
+    --from pkg://scensim_examples/projects/safety_suite      # copies an example
 ```
 
 The templates are `carla-first-drive` (the default), `multi-pilot` and `isaac`. `--from`
-copies any project directory (an installed example, or a colleague's checkout) without
-what each host makes: `assets/`, `state/`, `runs`, `.scensim/`, `play_log/`. The installed
-examples, each `pkg://scensim_examples/projects/<name>`:
+copies an example or another testbench, without what a host makes, and adds the package
+manifest and a default suite. The installed examples, each
+`pkg://scensim_examples/projects/<name>`:
+
+<!-- TODO(exit run): the examples' names once scensim_examples ships them as testbenches. -->
 
 | Example | Simulator | Shows |
 |---|---|---|
@@ -28,59 +33,55 @@ examples, each `pkg://scensim_examples/projects/<name>`:
 | `isaac_first_drive` | Isaac Sim | one Autoware ego on CARLA's Town01 in USD |
 | `road_physics` | Isaac Sim | mud, gravel and a wet road under the ego's wheels |
 
-Each copy has a README naming its commands, what a passing run prints, and the hardware
-it needs.
-
-Then, in the project:
+Then build, fetch and check:
 
 ```bash
-scensim assets fetch
-scensim project check
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch my_testbench
+scensim testbench check my_testbench
 ```
 
 ## What goes in it
 
 ```
-my_project/
-  swb.yaml          the simulator, the assets, the pilots, logging, judges   (commit)
+src/my_testbench/
+  package.xml       the build type and the packages it names                (commit)
+  testbench.yaml    the simulator, the assets, the pilots, logging, judges   (commit)
   scensim.lock      the assets' exact commits and checksums, written by fetch (commit)
   scenarios/        .xosc and TIER IV .yaml scenarios                         (commit)
-  suites/           suite files                                               (commit)
+  suites/           suite files; `default:` names the one run by name         (commit)
   pilots/, judges/  your own programs, if any                                 (commit)
-  .gitignore        assets/ state/ runs .scensim/ play_log/
-  assets/           links into scensim's cache, made by fetch                 (per host)
-  state/            what the stack writes for a map: signal tables, ruts      (per host)
-  runs/             a link to this project's runs under the log root          (per host)
-  .scensim/local.yaml  host settings for this checkout only                   (per host)
-  play_log/         play_launch's own logs, when it runs in the project       (per host)
 ```
 
-Every key of `swb.yaml` and of a suite: [The project file](../reference/project-file.md).
+What a host makes for a testbench is kept outside the package, in its work directory
+under the log root, `<logs>/.testbenches/<testbench>/`: `assets/` (links into scensim's
+cache), `state/` (what the stack derives for a map, such as signal tables and ruts) and
+`.scensim/local.yaml` (settings for this host only). Runs go to `<logs>/<testbench>/runs/`.
 
 ## Your own maps
 
 A map is a directory holding `lanelet2_map.osm` (and the point cloud, `map_config.yaml`,
 `map_projector_info.yaml`, in Autoware's layout). One of your own goes in `assets:` by
-path, relative to the project, and is linked into `assets/maps/` like a dataset's:
+path, relative to the testbench, and is linked like a dataset's map:
 
 ```yaml
 assets:
-  - path: ../shared/campus_map     # a directory of your own, linked as is
+  - path: maps/campus     # a directory in the testbench, linked as is
     as: campus
 ```
 
-A scenario then names it `$(env SCENSIM_MAPS)/campus`. A map not drawn in CARLA's frame needs
-`carla/map_origin.yaml` in it (the map-frame position of CARLA's world origin); on Isaac a
-map needs `isaac/world.yaml` ([Maps and assets](../reference/maps-and-assets.md)).
+<!-- TODO(exit run): a map from another package of the workspace (pkg://) in assets:. -->
 
-A dataset of your own on Hugging Face works like the public ones: `{dataset: <name>,
-repo: <you>/<name>, take: [...]}`, with `revision:` a tag or commit.
+A scenario then names it `$(env SCENSIM_MAPS)/campus`. A map not drawn in CARLA's frame
+needs `carla/map_origin.yaml` in it (the map-frame position of CARLA's world origin); on
+Isaac a map needs `isaac/world.yaml` ([Maps and assets](../reference/maps-and-assets.md)).
+A dataset of your own on Hugging Face works like the public ones: `{dataset: <name>, repo:
+<you>/<name>, take: [...]}`, with `revision:` a tag or commit.
 
 ## Which maps a stack serves
 
-Without `maps:`, a stack serves every map the project's scenarios name. Name them yourself
-when runs use maps the project's own scenarios do not (a scenario run by path), or to fix
-their order:
+Without `maps:`, a stack serves every map the testbench's scenarios name. Name them
+yourself when runs use maps the testbench's own scenarios do not, or to fix their order:
 
 ```yaml
 maps: [Town01, Town05]
@@ -90,35 +91,27 @@ On CARLA the pilots move to a run's map when it differs (a restart of the pilots
 minute); a suite is ordered by map so that it moves at most once per map. On Isaac a stack
 serves one world for its life.
 
-## Settings that are not the project's
+## Settings that are not the testbench's
 
-Seats, GPUs, install paths, the log root and the cache are the host's, never in
-`swb.yaml`: `~/.config/scensim/host.yaml` for you, `<project>/.scensim/local.yaml` for this
-checkout only (git ignores it). For example, a checkout whose logs go to a second disk:
-
-```yaml
-# my_project/.scensim/local.yaml
-logs: /data/scensim-logs
-```
-
-Every key: [Host settings](../reference/host-settings.md).
+Seats, GPUs, install paths, the log root and the cache belong to the host, never to
+`testbench.yaml`: `~/.config/scensim/host.yaml` for you, and the work directory's
+`.scensim/local.yaml` for one testbench on this host. Every key:
+[Host settings](../reference/host-settings.md).
 
 ## Share it
 
-Commit `swb.yaml`, `scensim.lock` and the project's files. On another machine:
+Commit the package with its `scensim.lock`. On another machine:
 
 ```bash
-git clone <your repository> my_project
-cd my_project
-scensim assets fetch  # exactly the locked files
-scensim project check
+mkdir -p ~/my_ws/src && cd ~/my_ws/src
+git clone <your repository> my_testbench
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+scensim assets fetch my_testbench        # exactly the locked files
+scensim testbench check my_testbench
 ```
 
-`fetch` keeps the lock's commits; `scensim assets fetch --update` resolves each
-dataset again (its `revision:`, else the newest) and rewrites the lock. A run records the
-lock's hash and the workspace's commits in its `result.json`, so two hosts' results say
-whether they ran the same thing.
-
-A project can also be a ROS package that installs its `swb.yaml` and files to its share
-directory; `project:=pkg://<package>` on the stack and `--project pkg://<package>` on the
-commands find it there, and `project new --from pkg://<package>` copies it.
+`fetch` keeps the lock's commits; `scensim assets fetch my_testbench --update` resolves
+each dataset again (its `revision:`, else the newest) and rewrites the lock. A run records
+the lock's hash and the workspace's commits in its `result.json`, so that two hosts'
+results show whether they ran the same thing. A repository may hold several testbenches
+and support packages; the workspace builds them together.

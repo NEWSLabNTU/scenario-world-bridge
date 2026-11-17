@@ -111,7 +111,7 @@ into a directory of your own, from the workspace:
 
 ```bash
 bash -c 'source scripts/autoware_tensorrt.bash; \
-    swb_tensorrt_setup ~/tensorrt-10.8.0/lib'
+    scensim_tensorrt_setup ~/tensorrt-10.8.0/lib'
 ```
 
 and name that directory in your host settings; every autoware pilot then puts it first on

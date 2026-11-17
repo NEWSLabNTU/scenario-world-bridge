@@ -8,13 +8,14 @@ the as-built Isaac stack (037, 038, 043, 044, 045). This was the proposal as wri
 it is now implemented, as the two paragraphs below say: 046 did steps 1-6, 051 the rest.
 
 **Implemented** by [roadmap 046](../roadmap/046-unified-world-interface.md) (2026-10-22),
-inside this repository and under the names `scensim` (`swb_`) after its part B.
+inside this repository and under the names `scenario-world-bridge` (`swb_`) after its part
+B, `scensim` since [roadmap 080](../roadmap/080-rename-to-scensim.md).
 Where the build departed from this design (two round trips per frame, who tracks and reads
 back as capabilities, refusal rather than demotion, one config struct read from two files,
 the bridge surviving a world server restart), the phase doc's "As built" says why.
 
 **Completed** by [roadmap 051](../roadmap/051-target-shape.md) (2026-10-24), steps 7 and 8
-included, with the names this document proposed carrying an `swb_` prefix: the protocol and
+included, with the names this document proposed carrying an `swb_` prefix (`scensim_` since roadmap 080): the protocol and
 its shells are the repository `scensim_world_protocol`; the world servers are `scensim_carla_world`
 and `scensim_isaac_world`, each a repository of its own; the bridge's tree holds no simulator and
 no simulator crate. Time is `nanos(elapsed) + BASE_NS` with no epoch, and an episode change

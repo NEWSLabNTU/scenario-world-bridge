@@ -105,8 +105,8 @@ whole cycle hold:
   Vehicles with a configured `role_name` are already reaped at `Initialize`
   (`reap_orphaned_vehicles`). NPCs, walkers and props carried no mark, so a scensim that died
   mid-scenario left them in the world. Every actor scensim spawns for an SSv2 entity now carries
-  `role_name = swb_entity:<name>` (where the blueprint has the attribute), and `Initialize`
-  destroys any `swb_entity:` actor it does not own. Actors without the mark are somebody
+  `role_name = scensim_entity:<name>` (where the blueprint has the attribute), and `Initialize`
+  destroys any `scensim_entity:` actor it does not own. Actors without the mark are somebody
   else's and are left alone.
 
 ### Panics

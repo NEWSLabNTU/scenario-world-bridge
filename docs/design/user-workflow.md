@@ -336,7 +336,7 @@ protocol (`simulation_api_schema.proto`) and keeps the scenario standard:
 
 scensim (`autopilot.rs`, `coordinator.rs`):
 
-- Spawn: physics on, parked, `swb_entity:<name>` role like every entity (reaped the same
+- Spawn: physics on, parked, `scensim_entity:<name>` role like every entity (reaped the same
   way); one Traffic Manager per scensim process (port and seed: now `traffic_manager` in the
   CARLA world server's `scensim_carla_world.yaml`), created at the first such spawn, synchronous whenever the world is.
   **LibCarla ticks a synchronous Traffic Manager inside `world.tick()`** (verified on
@@ -391,10 +391,10 @@ at every `Initialize` and invisible to SSv2. They are now scenario entities:
 - **scensim** (`agent_link.rs`, `coordinator.rs`):
   - Spawn: physics on, parked (hand brake) like the ego, **`role_name` = the entity name**,
     so the vehicle side started with `vehicle_name:=<entity>` attaches to it; not given to
-    Traffic Manager. Refused if the name is the ego's role name, a `swb_entity:` mark, or a
+    Traffic Manager. Refused if the name is the ego's role name, a `scensim_entity:` mark, or a
     role another CARLA vehicle already has. Spawning succeeds whether or not an agent is
     registered (a vehicle side may come up later).
-  - Reaping: these vehicles carry no `swb_entity:` mark (acb finds them by name), so scensim
+  - Reaping: these vehicles carry no `scensim_entity:` mark (acb finds them by name), so scensim
     records their role names in a ledger on tmpfs (`$XDG_RUNTIME_DIR/scensim/
     agent-vehicles-<host>-<port>`, beside the episode clock) and the reaper at `Initialize`
     destroys vehicles with those names, as it does the ego's `hero`.

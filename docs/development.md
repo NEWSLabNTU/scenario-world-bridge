@@ -123,7 +123,7 @@ src/
                              ego's spawn and spec_hash checks (spec_check.rs)
     src/world_services.rs    the ROS services (weather)
     config/                  bridge_config.yaml
-  scensim_world_protocol/      submodule: scensim_world.proto and SSv2's protos, swb_core (world
+  scensim_world_protocol/      submodule: scensim_world.proto and SSv2's protos, scensim_core (world
                            client and server shell, sim_time, config, NPC tracking, gap
                            trace, contacts), scensim_world_server (Python shell), scensim_world_check
   scensim_carla_world/     submodule: the CARLA world server (carla-rust)

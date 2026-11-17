@@ -118,12 +118,12 @@ needs a fork protocol slot, as `UpdateEnvironment` was for weather (047).
     a millimetre), and every tool that writes or derives positions uses it.
     `repair_lanelet_local_coords.py` rewrites every node's `local_x`/`local_y` from its
     lat/lon, so the tags hold the frame Autoware, SSv2 and CARLA share and every reader of
-    them (swb_core's light fallback, the repair scripts, scensim_isaac_world's surface check) is
+    them (scensim_core's light fallback, the repair scripts, scensim_isaac_world's surface check) is
     right with no change of its own. `regenerate_light_geometry.py` and
     `repair_lanelet_signal_links.py` write lat/lon with `unproject` (they wrote lat = y / R,
     which TransverseMercator reads 0.7 % short in y: a light head at y = -330 landed 2.3 m
     off); a map either one wrote before the fix has its new nodes' lat/lon wrong and its
-    tags right, so rerun that script before the repair. swb_core's fallback for a node with
+    tags right, so rerun that script before the repair. scensim_core's fallback for a node with
     no tags (`lanelet_map.rs`) projects the same way.
   - **45 `road`-subtype lanelets are not driving lanes**: 28 lie on OpenDRIVE sidewalks and
     17 on shoulders. Whether SSv2 or Autoware ever routes or canonicalises onto them is

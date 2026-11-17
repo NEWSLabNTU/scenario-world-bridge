@@ -118,6 +118,48 @@ everything: every `package.xml` declares its real dependencies (079 step 6's Cyc
 one gap), and the Autoware message packages come from the vendored repos file (029) or the
 user's Autoware. A source build is an underlay exactly like the tarball.
 
+## Measured (step 2, 118, 2026-11-17, main e3bfe56, CARLA 0.9.16 only)
+
+The simulation tarball for Humble, built in a clean shell with only `/opt/ros/humble`
+sourced: 51 packages (`--packages-up-to` the simulation set), `--merge-install`, cargo
+`--release`, `CMAKE_BUILD_TYPE=Release`, `BUILD_TESTING=OFF`; the Autoware message packages
+vendored at Autoware 1.5.0's `autoware.repos` pins. Report on the lab NAS, "2026-11-17 082
+step 2 tarball measurement".
+
+| | |
+|---|---|
+| Build, from clean | 382 s wall (48 cores, load 20 to 32) |
+| As built | 912.6 MB |
+| Stripped (276 ELF files) | 290.4 MB; about 170 MB without SSv2's embree tutorials (73 MB), headers (35 MB) and static libraries (11.5 MB) |
+| `tar.zst` | 65.1 MB at `-19` (22.7 s), 101.3 MB at `-3` |
+| Relocation | unpacked elsewhere: `ros2 pkg prefix` and the launch's `--show-args` work; RPATH holds only `/opt/ros/humble/lib` |
+| Link check (`ldd -r`, 276 files) | on a clean `ros:humble-ros-core` image: 68 fail before rosdep, 1 after (the SSv2 RViz plugin's Ogre libraries, likely an `ldd`-only false positive) |
+| rosdep beyond bare Humble | 53 keys, 47 apt packages (41 with `--dependency-types exec`) |
+
+To fix before the release build is scripted (each in step 2, or step 4 for `package.xml`):
+
+1. **colcon-cargo-ros2 0.5.4 breaks under `--merge-install`**: its generated `build.rs`
+   links from `install/<package>/lib` (the isolated layout), so the bridge fails with
+   `unable to find library -lswb_interfaces__rosidl_typesupport_c`. Worked around with
+   `AMENT_PREFIX_PATH=<ws>/install`; to be fixed in colcon-cargo-ros2 (the user's call where
+   it is filed).
+2. **The SSv2 fork fails a Release build on Ubuntu 22.04**: `traffic_simulator`, Boost
+   geometry's `rescale_policy.hpp:46`, `-Werror=maybe-uninitialized` (`just build` sets no
+   build type, so it never meets it). Worked around with `-Wno-error=maybe-uninitialized`;
+   fix in the fork.
+3. **`swb_launch` exec-depends on the vehicle side** (`acb_bridge`, `acb_launch`,
+   `aib_launch`, `autoware_sim_profile`, `czp`), so rosdep refuses the simulation tarball
+   without `--skip-keys`; `scenario_test_runner`'s `python-yamale-pip` does not resolve
+   either. The dependencies split by side (step 4).
+4. **Not relocatable**: `swb_isaac_world`'s scripts default `SWB_ISAAC_DIR` to the source
+   tree; `openscenario_interpreter`'s CMake exports name a `build/` path.
+5. **`--help` is ignored** by `scenario_world_bridge` and `swb_carla_world`: both start
+   serving.
+6. The tarball leaves out build-only parts: embree's tutorials, headers, static libraries,
+   CMake exports (a user workspace builds testbenches, which need no headers; a support
+   package that links scensim's C++ libraries would, so headers move to a `-dev` tarball if
+   one is ever asked for).
+
 ## Cutting a release
 
 ### What one release publishes

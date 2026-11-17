@@ -60,7 +60,7 @@ or `command` with a vehicle side of your own, or `none`.
 ## A minimal one
 
 An `ament_python` package whose console script serves the protocol shell's smallest world.
-Its `package.xml` declares the shell and what it imports, so `rosdep install` brings them:
+Its `package.xml` declares the shell and what it imports, so `rosdep update` and then `rosdep install` bring them:
 
 ```xml
 <!-- my_world/package.xml -->

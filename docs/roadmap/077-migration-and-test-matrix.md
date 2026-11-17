@@ -142,6 +142,12 @@ CUDA_VISIBLE_DEVICES, else every card; the load stays host-wide), and the refere
 refused, t3.py's own as `recorded_with`); a dirty checkout is recorded with a note (G79),
 while a submodule off its pin (`sha+`, `sha-`) is refused by name. The busy check is the
 host at record time, not while the suite ran.
+Which `t3.py` runs, records and compares (133, 2026-11-17): every RC part (1; 2, its CARLA
+half and its Isaac half; 3) runs with `t3.py` at 36e4da4 and is recorded with `t3.py` at
+876f8b3; no RC part is recorded with main's `t3.py`, whose `record` refuses a suite without
+a stamp from its own `run` (G82). Part 3 moved to swb 118 (133, 2026-11-17), since 243's GPU
+stayed held by other work when part 1 finished. `t3.py compare` on the tag commit uses that
+commit's own `t3.py`, which must accept the stampless references recorded at 876f8b3.
 
 **Known limits, for the release notes** (drafted by 243 for 133, 2026-11-17; the text is
 for users, so it names no host and no roadmap item):

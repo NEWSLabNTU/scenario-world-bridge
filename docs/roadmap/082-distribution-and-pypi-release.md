@@ -155,10 +155,11 @@ To fix before the release build is scripted (each in step 2, or step 4 for `pack
    tree; `openscenario_interpreter`'s CMake exports name a `build/` path.
 5. **`--help` is ignored** by `scenario_world_bridge` and `swb_carla_world`: both start
    serving.
-6. The tarball leaves out build-only parts: embree's tutorials, headers, static libraries,
-   CMake exports (a user workspace builds testbenches, which need no headers; a support
-   package that links scensim's C++ libraries would, so headers move to a `-dev` tarball if
-   one is ever asked for).
+6. The tarball leaves out build-only parts (embree's tutorials, static libraries, the CMake
+   exports and headers of internal packages), but keeps what a support package builds
+   against: the message packages (`swb_interfaces` and the vendored Autoware messages) and
+   the world protocol's libraries and headers, since 081's own world server and pilots link
+   them.
 
 ## Cutting a release
 

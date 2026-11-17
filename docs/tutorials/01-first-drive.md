@@ -189,8 +189,9 @@ scensim run my_first_drive/scenarios/drive_to_goal.xosc
 stack, Autoware included, serves one run after another, and the edit applied without a
 rebuild because the build linked the file.
 
-**Check**: `scensim runs list my_first_drive` shows the new run shorter than the first,
-since the goal is closer.
+**Check**: the scenario path in the new run's `resolved.yaml` (in the run directory the
+`passed` line names) leads, through `readlink -f`, to the file you edited,
+`~/my_ws/src/my_first_drive/scenarios/drive_to_goal.xosc`.
 
 To finish, stop the stack: `scensim stack my_first_drive --stop`. It ends every process it
 started, CARLA too if it started CARLA, and frees the seat; this takes about 30 s. `scensim run my_first_drive

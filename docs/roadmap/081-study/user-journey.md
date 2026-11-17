@@ -35,7 +35,7 @@ Recorded at the start of the run, not checked against expectations:
 | 1.5 | yes | `sudo rosdep init` | only where never done; else `default sources list file already exists` | 0 or 1 |
 | 1.6 | no | `rosdep update` | `updated cache in ...` | 0 |
 | 1.7 | yes | the `sudo rosdep install --from-paths ~/.local/share/scensim/current/share --ignore-src -y` line 1.4 printed | apt installs about 47 packages on a bare Humble; `#All required rosdeps installed successfully` | 0 |
-| 1.8 | no | write `~/scensim.bash`: ROS, `/opt/autoware/1.5.0/setup.bash`, `~/.local/share/scensim/current/setup.bash`, in that order | (a file) | |
+| 1.8 | no | write `~/scensim.bash`: ROS, `/opt/autoware/1.5.0/setup.bash`, `~/.local/share/scensim/current/sim/setup.bash`, in that order | (a file) | |
 | 1.9 | no | write `~/.config/scensim/host.yaml` with `carla: {root: <CARLA dir>}` | (a file) | |
 | 1.10 | no | `source ~/scensim.bash && scensim --version` | `scensim <ver> (ROS humble, ~/.local/share/scensim/<ver>-humble)` | 0 |
 | 1.11 | no | `scensim seat show` | the seats, `your seat: auto`, and `launcher: auto -> ros2 (play_launch not on PATH)` | 0 |

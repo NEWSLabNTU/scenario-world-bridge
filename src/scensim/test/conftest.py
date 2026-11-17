@@ -222,6 +222,10 @@ def fake_isaac(tmp, monkeypatch, built=PKGS, autoware_msgs=("_traffic_light_grou
     index = ament / "share" / "ament_index" / "resource_index" / "packages"
     index.mkdir(parents=True, exist_ok=True)
     (index / "rmw_cyclonedds_cpp").write_text("")
+    # and the stock cars' Autoware packages an autoware pilot needs (081 step 3)
+    for car in ("tesla_model3", "lincoln_mkz_2020"):
+        for kind in ("description", "launch"):
+            (index / f"{car}_{kind}").write_text("")
     monkeypatch.setenv("AMENT_PREFIX_PATH", str(ament))
     return root, aw / "setup.bash"
 

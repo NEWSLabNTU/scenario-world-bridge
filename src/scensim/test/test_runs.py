@@ -67,8 +67,8 @@ def test_list(root):
     code, out = call("list", "--root", str(root))
     assert code == 0
     lines = out.splitlines()
-    assert lines[0].split() == ["RUN", "VERDICT", "SCENARIO", "DURATION"]
-    assert lines[2].split() == ["2026-11-14T10-01-00_cut_in_r1", "failed", "cut_in.xosc", "24.0s"]
+    assert lines[0].split() == ["RUN", "VERDICT", "SCENARIO", "DURATION", "WORKSPACE"]
+    assert lines[2].split() == ["2026-11-14T10-01-00_cut_in_r1", "failed", "cut_in.xosc", "24.0s", "-"]
     assert "(none)" in lines[4]
     # columns aligned
     assert len({ln.index(ln.split()[1]) for ln in lines}) == 1

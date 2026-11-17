@@ -195,7 +195,7 @@ def test_simulator_autopilot_is_refused_on_isaac(host):
 
 def test_pilot_car_must_be_the_scenario_car(host):
     d = make(host["tmp"], BASE.replace("tesla_model3", "golf_cart"))
-    [f] = scenario_checks(d)
+    [f] = [f for f in scenario_checks(d) if not f.host]   # its car's packages: the host's
     assert f.what == "entity ego is a tesla_model3, its pilot ego drives a golf_cart"
 
 

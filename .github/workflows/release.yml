@@ -294,7 +294,7 @@ jobs:
         if: inputs.journey
         shell: bash
         run: |
-          set -euo pipefail
+          set -eo pipefail   # not -u: ROS's setup files read unset variables
           source /opt/ros/$DISTRO/setup.bash
           source ~/.local/share/scensim/current/sim/setup.bash
           git config --global user.name "scensim release" && git config --global user.email release@example.org

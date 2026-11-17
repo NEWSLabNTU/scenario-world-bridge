@@ -17,6 +17,7 @@ On top of today's project rules (``scensim.project``), two of 081's:
 Built from today's public ``scensim.project`` functions; splitting ``check_project`` into the
 package's findings and the host's is 241's, after the landing, and then this module calls that.
 """
+import os
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import replace
@@ -75,38 +76,90 @@ def _reference_files(share: Path):
     return out
 
 
+LEAVES_FIX = ("put the file in a package and name it as pkg://<package>/<path>, declared in "
+              "package.xml")
+
+
+def _file_values(f: Path, doc) -> list:
+    """The values that name files: a suite's scenarios and distribution; testbench.yaml's
+    vehicles, ground files, world config files and Isaac ego config. (Not every string: a ROS
+    topic, e.g. a logging topic, is absolute and no path.)"""
+    if not isinstance(doc, dict):
+        return []
+    if f.name != TESTBENCH_FILE:
+        items, _ = projectmod.suite_items(doc.get("scenarios") or [])
+        return [str(p) for p, _ in items] + ([str(doc["distribution"])]
+                                             if doc.get("distribution") else [])
+    out = [v for v in doc.get("vehicles") or [] if isinstance(v, str)]
+    out += list(_strings(doc.get("ground") or {}))
+    world, isaac = doc.get("world") or {}, doc.get("isaac") or {}
+    if isinstance(world, dict):
+        out += [world[k] for k in ("config_file", "world_config_file")
+                if isinstance(world.get(k), str)]
+    if isinstance(isaac, dict) and isinstance(isaac.get("ego"), str):
+        out.append(isaac["ego"])
+    return out
+
+
+def _leaves(share: Path, base: Path, s: str) -> bool:
+    """Whether path ``s`` leaves the package: absolute, or climbing out of it. Lexical
+    (``normpath``), not ``resolve()``: under --symlink-install each installed file is a link
+    into the source, and following it would put every file outside ``share``. Resolved as
+    scensim resolves it (collect_scenarios): from the testbench's root, else from the suite's
+    directory when only that one exists."""
+    if os.path.isabs(s) or s.startswith("~"):
+        return True
+    root = os.path.normpath(share)
+    target = os.path.normpath(os.path.join(share, s))
+    if not os.path.exists(target) and os.path.exists(os.path.join(base, s)):
+        target = os.path.normpath(os.path.join(base, s))
+    return target != root and not target.startswith(root + os.sep)
+
+
 def reference_findings(share: Path, package_xml: Path) -> list:
-    """081's two rules: ``pkg://`` names a declared package; no path leaves the package."""
+    """081's two rules: ``pkg://`` names a declared package; no path leaves the package
+    (``../`` out of it anywhere; an absolute path in a value that names a file)."""
     own = package_name(package_xml)
     declared = declared_packages(package_xml) | {own}
-    root = share.resolve()
     out = []
     for f, base, doc in _reference_files(share):
         rel = f.relative_to(share).as_posix()
+        seen = set()
         for s in _strings(doc):
             for m in PKG_REF.finditer(s):
                 if m.group(1) not in declared:
                     out.append(Finding(rel, f"{m.group(0)}: package {m.group(1)} is not declared",
                                        f"add <exec_depend>{m.group(1)}</exec_depend> to "
                                        "package.xml"))
-            if "pkg://" in s or "://" in s or "$(" in s or not re.search(r"(^|/)\.\.(/|$)", s):
-                continue
-            # as scensim resolves it (collect_scenarios): from the testbench's root, else from
-            # the suite's directory when only that one exists
-            target = (share / s).resolve()
-            if not target.exists() and (base / s).exists():
-                target = (base / s).resolve()
-            if target != root and root not in target.parents:
-                out.append(Finding(rel, f"{s}: leaves the testbench",
-                                   "put the file in a package and name it as "
-                                   "pkg://<package>/<path>, declared in package.xml"))
+            climbs = re.search(r"(^|/)\.\.(/|$)", s)
+            if climbs and "://" not in s and "$(" not in s and _leaves(share, base, s):
+                out.append(Finding(rel, f"{s}: leaves the testbench", LEAVES_FIX))
+                seen.add(s)
+        for s in _file_values(f, doc):
+            if s not in seen and "://" not in s and "$(" not in s and \
+                    (os.path.isabs(s) or s.startswith("~")):
+                out.append(Finding(rel, f"{s}: leaves the testbench", LEAVES_FIX))
+                seen.add(s)
     return out
 
 
-def _host_state(f: Finding) -> bool:
-    """A finding about this host, not the package: an asset or map not fetched here (assets are
-    fetched per host and never installed)."""
-    return "not fetched" in f.what
+# The findings today's project rules make about the host, not the package, that the rules
+# build_findings runs can make: check_scenario's map not fetched here (project.py: f"map {name}
+# is not fetched (assets/maps/{name})"). Assets are fetched per host and never installed. Exact,
+# so no package finding that mentions fetching is dropped; a test holds this list to
+# project.py's wording. In 241's split of check_project this becomes a field of Finding.
+HOST_FINDINGS = (re.compile(r"map \S+ is not fetched \(assets/maps/\S+\)"),)
+
+
+def is_host_finding(f: Finding) -> bool:
+    """A finding about this host (an asset not fetched here), not about the package."""
+    return any(rx.fullmatch(f.what) for rx in HOST_FINDINGS)
+
+
+def split_findings(findings) -> tuple:
+    """``(the package's, the host's)``: what `testbench check` reports in two parts."""
+    package = [f for f in findings if not is_host_finding(f)]
+    return package, [f for f in findings if is_host_finding(f)]
 
 
 def _as_testbench(f: Finding) -> Finding:
@@ -121,7 +174,7 @@ def build_findings(share, package_xml) -> list:
     if not tb.is_file():
         if (share / config.PROJECT_FILE).is_file():
             return [Finding(config.PROJECT_FILE, f"a testbench's file is {TESTBENCH_FILE}, not "
-                            f"{config.PROJECT_FILE} (roadmap 081)",
+                            f"{config.PROJECT_FILE}",
                             f"git mv {config.PROJECT_FILE} {TESTBENCH_FILE}", refused=True)]
         return [Finding(TESTBENCH_FILE, "no such file",
                         "a scensim_testbench package holds testbench.yaml", refused=True)]
@@ -144,20 +197,18 @@ def build_findings(share, package_xml) -> list:
         out.append(Finding("scenarios/", "no scenario", "add one, e.g. scenarios/drive.xosc"))
     out += projectmod.scenario_problems(share, files, settings)
     out += refs
-    return [_as_testbench(f) for f in out if not _host_state(f)]
+    return [_as_testbench(f) for f in split_findings(out)[0]]
 
 
 def build_notes(share) -> list:
-    """What the build says without failing: no committed lock (an installed testbench without
-    its source cannot write one: ``scensim assets fetch --source <dir>``), and that assets are
-    not checked at build."""
+    """What the build says without failing: only that the testbench has no lock yet. (Assets
+    are not checked at build; the docs say so, rather than a line on every build.)"""
     share = Path(share)
-    out = ["assets are not checked at build: they are fetched per host "
-           "(`scensim assets fetch`); `scensim testbench check` checks them"]
-    if not (share / LOCK_FILE).is_file():
-        out.insert(0, f"no {LOCK_FILE}: run `scensim assets fetch` in the testbench's source "
-                      "(or `--source <dir>`) and commit the lock")
-    return out
+    if (share / LOCK_FILE).is_file():
+        return []
+    pkg = share.name
+    return [f"no {LOCK_FILE} yet: run `scensim assets fetch {pkg}` and commit "
+            f"src/{pkg}/{LOCK_FILE}"]
 
 
 def built_over() -> dict:

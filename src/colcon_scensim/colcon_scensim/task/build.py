@@ -34,22 +34,21 @@ logger = colcon_logger.getChild(__name__)
 
 BUILD_TYPE = 'scensim_testbench'
 INDEX = 'share/ament_index/resource_index'
-# what the host writes in a testbench at run time, never installed
-HOST_DIRS = frozenset({'assets', 'state', 'runs', '.scensim', '.swb'})
 # version control, caches and colcon's own markers
 SKIP_DIRS = frozenset({'.git', '.hg', '.svn', '__pycache__', '.pytest_cache', '.mypy_cache'})
 SKIP_FILES = frozenset({'COLCON_IGNORE', 'AMENT_IGNORE', 'CATKIN_IGNORE'})
 
 
-def package_files(path):
-    """The package's files to install, relative to ``path``, sorted."""
+def package_files(path, host_dirs=frozenset()):
+    """The package's files to install, relative to ``path``, sorted; ``host_dirs`` (what the
+    host writes in a testbench at run time: scensim.testbench.HOST_DIRS) are never installed."""
     root = Path(path)
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = Path(dirpath).relative_to(root)
         dirnames[:] = sorted(
             d for d in dirnames
-            if d not in SKIP_DIRS and not (rel_dir == Path('.') and d in HOST_DIRS))
+            if d not in SKIP_DIRS and not (rel_dir == Path('.') and d in host_dirs))
         for f in sorted(filenames):
             if f in SKIP_FILES or f.endswith('.pyc'):
                 continue
@@ -86,7 +85,7 @@ class TestbenchBuildTask(TaskExtensionPoint):
             return 1
 
         share = f'share/{pkg.name}'
-        for rel in package_files(args.path):
+        for rel in package_files(args.path, check.HOST_DIRS):
             install(args, rel, f'{share}/{rel}')
         create_file(args, f'{INDEX}/packages/{pkg.name}')
         create_file(

@@ -94,7 +94,8 @@ tutorials 1 to 5 were followed as written: 31 runs, all passed.
   rate (`isaac: {physics_hz: ...}`, default 60) exactly: with the default physics, 60, 30,
   20, 15, 12 or 10 Hz. At another frame rate, for example 50 or 100 Hz, the ego receives
   its commands and stays in drive, but does not move. This was seen with one car; the
-  others are expected to behave the same.
+  others are expected to behave the same. A frame rate of 50 or 100 Hz needs
+  `isaac: {physics_hz: ...}` set to a multiple of it, for example 100.
 - **Isaac Sim: back to the map a stack started on.** An Isaac stack whose pilots have moved
   to a preloaded map (`isaac.preload`) refuses a later scenario on the map it started on,
   although that world is still loaded: `swb run` reports "the stack's Isaac world on

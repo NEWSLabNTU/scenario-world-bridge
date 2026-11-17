@@ -1,4 +1,4 @@
-# Tutorial 6: The same project on Isaac Sim
+# Tutorial 6: The same testbench on Isaac Sim
 
 **Goal**: Autoware drives the Tutorial 2 scenarios on Isaac Sim, in CARLA's Town01 loaded
 from CARLA's own assets in USD (Universal Scene Description, Isaac Sim's scene format),
@@ -12,7 +12,7 @@ with a scenario's cars and props rendered in CARLA's models.
 
 - that a scenario names its map, not its simulator, so that the same `.xosc` runs on
   CARLA and on Isaac Sim;
-- what CARLA's asset set in USD contains, and how a project takes only the part it needs;
+- what CARLA's asset set in USD contains, and how a testbench takes only the part it needs;
 - how a map's Isaac world file (`isaac/world.yaml`) names the USD scene to load, and how
   to make one with `make_world`;
 - rendering scenario entities in CARLA's models with `model3d`.
@@ -31,14 +31,17 @@ with a scenario's cars and props rendered in CARLA's models.
 
 ## 1. Copy the Isaac example
 
+The example becomes a testbench in the workspace of Tutorial 1:
+
 ```bash
-ros2 run scensim project new ~/isaac_first_drive \
+cd ~/my_ws/src
+scensim testbench new isaac_first_drive \
     --from pkg://scensim_examples/projects/isaac_first_drive
-cd ~/isaac_first_drive
-cat swb.yaml
+cd ~/my_ws && colcon build --symlink-install && source install/setup.bash
+cat src/isaac_first_drive/testbench.yaml
 ```
 
-**What you see**: the project file of Tutorial 1 with `simulator: isaac` and a second
+**What you see**: the testbench file of Tutorial 1 with `simulator: isaac` and a second
 dataset:
 
 ```yaml
@@ -67,7 +70,7 @@ Both name `$(env SCENSIM_MAPS)/Town01`.
 ## 2. Fetch
 
 ```bash
-ros2 run scensim assets fetch
+scensim assets fetch isaac_first_drive
 ```
 
 **What you see**: one line per dataset with its commit and file count, the links, and the
@@ -79,36 +82,47 @@ linked assets/carla-usd -> .../datasets/jerry73204/carla-0.9.16-isaac-usd/<commi
 linked assets/maps/Town01 -> .../jerry73204/carla-town-autoware-maps/<commit>/Town01
 ```
 
-The map's Isaac world file names its **stage**, the USD scene to load, through a variable
-rather than a fixed path:
+The links are made in the testbench's work directory, `<logs>/.testbenches/<testbench>/`,
+which holds what this host keeps for the testbench. The map's Isaac world file names its
+**stage**, the USD scene to load, through a variable rather than a fixed path:
+
+<!-- TODO(exit run): confirm that assets/ is linked in the work directory. -->
 
 ```bash
-grep '^usd:' assets/maps/Town01/isaac/world.yaml
+logs=~/.local/state/scensim/logs     # the log root; the host settings' logs: if set
+w="$logs"/.testbenches/isaac_first_drive
+grep '^usd:' "$w"/assets/maps/Town01/isaac/world.yaml
 ```
 
 ```
 usd: ${SCENSIM_CARLA_USD}/Town01/Town01_physics.usda
 ```
 
-The stack sets `SCENSIM_CARLA_USD` to the project's `assets/carla-usd`, so the world file
-works in any project, on any host.
+The stack sets `SCENSIM_CARLA_USD` to the testbench's `assets/carla-usd`, so the world
+file works in any testbench, on any host.
 
-**Check**: `ros2 run scensim assets check` prints `assets: ok`, and `ros2 run scensim project
-check` prints `project: ok`.
+**Check**: `scensim testbench check isaac_first_drive` ends `testbench: ok`; it checks
+the fetched assets as well.
+
+<!-- TODO(exit run): whether testbench check hashes the assets as assets check did, or
+`scensim assets check <testbench>` remains the command for it. -->
 
 ## 3. Bring up the stack
 
 ```bash
-ros2 launch scensim_launch scensim.launch.xml
+scensim stack isaac_first_drive
 ```
 
 On Isaac the world server is part of the stack and loads its world at start: the first
-map that the project's scenarios name, Town01, which it keeps for the stack's whole life.
+map that the testbench's scenarios name, Town01, which it keeps for the stack's whole life.
 Autoware starts after it.
 
-**What you see**: the stack's lines as in Tutorial 1, then, after the world has loaded
-(minutes; up to a quarter of an hour the first time), `scensim stack: pilot ego ready on
-Town01` and `scensim stack ...: ready`.
+**What you see**: the stack's two lines as in [Tutorial 4](04-several-pilots.md); the
+command returns when the stack is up, while the world may still be loading (minutes; up
+to a quarter of an hour the first time). The stack's console, named in the first line,
+then shows `pilot ego ready on Town01`.
+
+<!-- TODO(exit run): whether scensim stack waits for the Isaac world's load. -->
 
 **Check**, from a second terminal; the probe changes nothing:
 
@@ -118,13 +132,13 @@ ros2 run scensim_world_check scensim_world_check hello tcp://127.0.0.1:5591 --wa
 
 prints the simulator (`isaac`), what it offers (signals, contacts, road conditions, ...)
 and that it is ready. `5591` is seat 0's world server port; on another seat the port is
-the one `ros2 run scensim seat show` names.
+the one `scensim seat show` names.
 
 ## 4. Run the same scenarios
 
 ```bash
-ros2 run scensim run scenarios/drive_to_goal.xosc
-ros2 run scensim run scenarios/follow_to_goal.xosc
+scensim run isaac_first_drive/scenarios/drive_to_goal.xosc
+scensim run isaac_first_drive/scenarios/follow_to_goal.xosc
 ```
 
 The ego drives west as on CARLA, in the second scenario behind a slower car.
@@ -137,7 +151,8 @@ The ego drives west as on CARLA, in the second scenario behind a slower car.
 
 **What you see**: two `passed` lines.
 
-**Check**: `grep '"simulator"' runs/*follow_to_goal*/result.json` shows `isaac`: the
+**Check**: `grep '"simulator"' "$logs"/isaac_first_drive/runs/*follow_to_goal*/result.json`
+shows `isaac`: the
 same file, the other simulator.
 
 ## 5. CARLA's models in a scenario
@@ -145,7 +160,8 @@ same file, the other simulator.
 A scenario names a CARLA model in an entity's `model3d` attribute, by its CARLA blueprint
 id. On Isaac the world server dresses the entity in that model from the asset set; on
 CARLA the same id spawns the same blueprint. In a copy of `follow_to_goal.xosc`,
-`scenarios/follow_the_van.xosc`, give the lead car a model:
+`src/isaac_first_drive/scenarios/follow_the_van.xosc` (a new file: build once), give the
+lead car a model:
 
 ```xml
 <Vehicle name="lead" vehicleCategory="car" model3d="vehicle.mercedes.sprinter">
@@ -157,7 +173,7 @@ lidar remains the declared box; the model is only its appearance. The list gives
 the set holds, with each vehicle's size:
 
 ```bash
-less assets/carla-usd/vehicles/vehicles.md
+less "$w"/assets/carla-usd/vehicles/vehicles.md
 ```
 
 | Entity | `model3d` | Without it |
@@ -171,18 +187,18 @@ log (`no CARLA body for ...`). The ego is the exception: its body is always its 
 car's.
 
 ```bash
-ros2 run scensim run scenarios/follow_the_van.xosc
+scensim run isaac_first_drive/scenarios/follow_the_van.xosc
 ```
 
 **What you see**: in Isaac Sim's window, when the stack renders one
 ([Getting started on Isaac Sim](../getting-started/isaac.md)), a Sprinter van leads; the
 run passes.
 
-**Check**: `ros2 run scensim runs why follow_the_van` shows no `no CARLA body` warning.
+**Check**: `scensim runs why follow_the_van` shows no `no CARLA body` warning.
 
 ## What happened
 
-A scenario names its map, never its simulator, so the project differed from Tutorial 1's
+A scenario names its map, never its simulator, so the testbench differed from Tutorial 1's
 only by one line (`simulator: isaac`) and one dataset. The map directory is the same
 Autoware map as on CARLA plus `isaac/world.yaml`, which names the world's USD stage. On
 Isaac the ego is a PhysX car inside the world server, built from the same vehicle spec as
@@ -191,7 +207,7 @@ CARLA's, so there is no separate vehicle bridge, and the world server carries on
 
 Worlds need not be CARLA towns:
 [Drive a course on Isaac Sim](../how-to/drive-a-course-on-isaac.md) adds the Mount Haruna mountain road, built from open map and elevation data, to this
-project.
+testbench.
 
 ## Exercises
 
@@ -200,31 +216,34 @@ project.
    has no `no CARLA body` line for it.
 2. **Medium.** Drive Town02: take `Town02` from both datasets, copy
    `drive_to_goal.xosc` to `scenarios/town02_drive.xosc` with the `LogicFile` on Town02 and
-   poses from Town02 (on CARLA, `carla_poses`), and restart the stack with `map:=Town02`.
-   Check: the run on Town02 passes.
-3. **Open.** An Isaac world for a new map: copy `assets/maps/Town01` (with
-   `cp -rL`) to `maps/my_town01`, add it to `swb.yaml` as
+   poses from Town02 (on CARLA, `carla_poses`), build, stop the stack, and run the new
+   scenario: the stack starts on its map. Check: the run on Town02 passes.
+
+   <!-- TODO(exit run): that a stack started by scensim run loads the scenario's map. -->
+3. **Open.** An Isaac world for a new map: in `src/isaac_first_drive`, copy
+   `"$w"/assets/maps/Town01` (with `cp -rL`) to `maps/my_town01`, add it to
+   `testbench.yaml` as
    `{path: maps/my_town01, as: my_town01}`, remove its `isaac/`, then make its world file
    from the asset set, in Isaac's Python:
 
    ```bash
-   SCENSIM_CARLA_USD=$PWD/assets/carla-usd \
+   SCENSIM_CARLA_USD="$w"/assets/carla-usd \
        ros2 run scensim_isaac_world make_world maps/my_town01 --town Town01
    ```
 
    Check: `grep '^usd:' maps/my_town01/isaac/world.yaml` prints
-   `usd: ${SCENSIM_CARLA_USD}/Town01/Town01_physics.usda`, and a stack with `map:=my_town01`
-   becomes ready.
+   `usd: ${SCENSIM_CARLA_USD}/Town01/Town01_physics.usda`, and, after a build, a scenario on
+   `my_town01` runs.
 
 ## If it does not work
 
 | Symptom | Fix |
 |---|---|
-| The first `assets check` takes long | it hashes the whole USD set, from a few minutes to a quarter of an hour; later checks hash only files that changed |
+| The first `testbench check` after a fetch takes long | it hashes the whole USD set, from a few minutes to a quarter of an hour; later checks hash only files that changed |
 | `assets fetch` stops with `HTTP Error 429`, then waits and retries | Hugging Face limits anonymous downloads; `hf auth login` with a free account's token raises the limit |
 | The world server never says ready | the first load compiles materials: wait, and watch its log (the stack's `proc/simulator/` directory, or play_launch's web interface); `hello --wait` shows whether it answers |
 | The world server dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself: close other GPU work; on two GPUs pick one with the host setting `gpu:` |
-| `refused: the scenario is on map ..., the stack's Isaac world on ...` | the Isaac stack serves one world: restart it with the `map:=` the message names |
+| `refused: the scenario is on map ..., the stack's Isaac world on ...` | the Isaac stack serves one world: stop it (`scensim stack <testbench> --stop`) and run the scenario again |
 
 More: [Troubleshooting, Isaac Sim](../reference/troubleshooting.md#isaac-sim).
 

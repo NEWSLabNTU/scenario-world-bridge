@@ -12,10 +12,10 @@ program (`pilots/follower.py`, an agent on the scensim_agent SDK) the car behind
 | `pilots/follower.py` | the `command` pilot; fill in its hooks |
 
 ```bash
-ros2 run scensim assets fetch
-ros2 run scensim project check
+scensim assets fetch
+scensim project check
 play_launch launch scensim_launch scensim.launch.xml
-ros2 run scensim run scenarios/three_pilots.xosc
+scensim run scenarios/three_pilots.xosc
 ```
 
 `assets/`, `state/` and `runs/` are made on each host and are not committed.

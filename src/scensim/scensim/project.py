@@ -1,4 +1,4 @@
-"""``ros2 run scensim project new|check``: a starter project, and a project checked before it runs.
+"""``scensim project new|check``: a starter project, and a project checked before it runs.
 
 docs/design/projects-and-pilots.md, "The project file" and "Ownership". The scenario owns its
 map, entities, cars and which entities an external pilot drives (a ``Controller`` named
@@ -366,7 +366,7 @@ def check_schema(settings: dict) -> list:
             out.append(Finding(pf, f"unknown key {k}", f"use only {', '.join(TOP_KEYS)}"))
     for k in REQUIRED:
         if k not in settings:
-            out.append(Finding(pf, f"{k}: is required", "see `ros2 run scensim project new`"))
+            out.append(Finding(pf, f"{k}: is required", "see `scensim project new`"))
     default = settings.get("default")
     if "default" in settings and (not isinstance(default, str) or not default or "/" in default):
         out.append(Finding(pf, "default: is not a suite's name", "default: <suite> "
@@ -977,7 +977,7 @@ def copy_project(src, dest: Path) -> Path:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="ros2 run scensim project",
+    parser = argparse.ArgumentParser(prog="scensim project",
                                      description="Make a starter project, or check one.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("new", help="write a starter project into a new directory")

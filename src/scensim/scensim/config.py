@@ -128,7 +128,7 @@ or a directory in it (``pkg://scensim_examples/projects/first_drive``)."""
         old = old_project_file(d)
         if old:
             raise ConfigError(old)
-    raise ConfigError(f"no {PROJECT_FILE} in {p} or above: run `ros2 run scensim project new <dir>`"
+    raise ConfigError(f"no {PROJECT_FILE} in {p} or above: run `scensim project new <dir>`"
                       " or give project:=<dir>")
 
 
@@ -151,7 +151,7 @@ def writable_project(project) -> Path:
         sub = str(project).split(os.sep + "share" + os.sep + pkg, 1)[-1].strip(os.sep)
         src = f"pkg://{pkg}" + (f"/{sub}" if sub else "")
         raise ConfigError(f"{project} is installed with the package {pkg}, read-only: copy it "
-                          f"and run the copy (`ros2 run scensim project new <dir> --from {src}`); "
+                          f"and run the copy (`scensim project new <dir> --from {src}`); "
                           "its lock, assets, state and runs are then the copy's")
     return Path(project)
 

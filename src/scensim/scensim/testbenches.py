@@ -222,3 +222,15 @@ def split(target: str):
     if name not in names():
         raise TestbenchRefused(not_indexed(name))
     return name, rest.strip("/")
+
+
+def project_for(name: str, logs=None, now: dict = None) -> Path:
+    """The directory a stack of testbench ``name`` runs in (its work directory): what
+    ``testbench:=<name>`` on scensim.launch.xml and ``scensim stack <name>`` resolve, so no one
+    types it. TestbenchRefused for a name not built in the sourced chain, or built over
+    another scensim."""
+    tb = find(name)
+    problem = version_problem(tb, now)
+    if problem:
+        raise TestbenchRefused(problem)
+    return work_dir(tb, config.host_settings(None, {"logs": logs} if logs else {}))

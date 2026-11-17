@@ -1,7 +1,7 @@
-"""``ros2 run scensim drive``: drive an entity's pilot on the project's stack without a scenario
+"""``scensim drive``: drive an entity's pilot on the project's stack without a scenario
 (roadmap 077, G14).
 
-    ros2 run scensim drive --spawn x,y,z,yaw [--goal x,y,z,yaw] [--map Town01] [--entity ego]
+    scensim drive --spawn x,y,z,yaw [--goal x,y,z,yaw] [--map Town01] [--entity ego]
         [--poses <file: initial_pose, goal_pose>]
         [--timeout 600] [--realtime true|false] [--start-stack] [--stop-stack]
 
@@ -253,7 +253,7 @@ def _follow(proc, rec, entity, goal, timeout, up_timeout, events, commander_fn, 
 
 
 def main(argv=None, out=None) -> int:
-    ap = argparse.ArgumentParser(prog="ros2 run scensim drive", description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(prog="scensim drive", description=__doc__.split("\n\n")[0])
     ap.add_argument("--spawn", help="x,y,z,yaw in the map frame (or x,y,yaw)")
     ap.add_argument("--poses", help="a poses file (initial_pose, goal_pose) as acb's pilot "
                                     "takes: the spawn and the goal, unless --spawn/--goal")

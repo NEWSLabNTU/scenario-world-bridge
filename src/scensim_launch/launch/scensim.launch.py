@@ -3,7 +3,8 @@ stack.launch.py with the project's settings applied.
 
     cd my_project
     play_launch launch --web-addr 127.0.0.1:<seat web port> --log-dir <dir> \\
-        scensim_launch scensim.launch.xml [project:=<dir>|pkg://<package>] [seat:=<n>|auto] \\
+        scensim_launch scensim.launch.xml [testbench:=<name>|project:=<dir>|pkg://<package>] \\
+        [seat:=<n>|auto] \\
         [simulator:=carla|isaac] [simulator_start:=auto|start|external] [map:=<map>] \\
         [logs:=<dir>] [gpu:=<n>] [stack_args:="name:=value ..."]
 
@@ -27,7 +28,7 @@ name). On CARLA its pilots start for the first run's map unless map:= names one;
 the world server loads its world at start, so the first map is the stack's.
 
 play_launch binds its web UI and opens its log directory before this file is read, so those
-two are the command line's: give --web-addr the seat's web port (`ros2 run scensim seat show`;
+two are the command line's: give --web-addr the seat's web port (`scensim seat show`;
 this launch and the keeper print it) and --log-dir somewhere outside the project if you mind
 play_log/ there.
 
@@ -57,6 +58,7 @@ from launch.launch_description_sources import AnyLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 ARGS = {
+    "testbench": ("", "a testbench by name, built in the sourced workspace (its stack runs in the host's work directory for it); empty: project:"),
     "project": ("", "the project: a directory or pkg://<package>; empty: the working directory's"),
     "seat": ("", "a seat number or auto; empty: the host settings' seat:"),
     "simulator": ("", "carla or isaac; empty: the project's simulator:"),
@@ -109,8 +111,18 @@ def _swb(context):
     retired = stack.retired_args(n for n in context.launch_configurations if n not in ARGS)
     if retired:
         _refused("; ".join(retired))
+    project = get("project") or None
+    if get("testbench"):
+        # a testbench by name (081 step 3): its work directory, resolved here, never typed
+        if project:
+            _refused("give testbench:= or project:=, not both")
+        from scensim import testbenches
+        try:
+            project = str(testbenches.project_for(get("testbench"), get("logs") or None))
+        except testbenches.TestbenchRefused as e:
+            _refused(e)
     try:
-        plan = stack.plan(project_arg=get("project") or None, seat_arg=get("seat") or None,
+        plan = stack.plan(project_arg=project, seat_arg=get("seat") or None,
                           simulator=get("simulator") or None, map_name=get("map") or None,
                           logs=get("logs") or None, gpu=get("gpu") or None,
                           simulator_start=get("simulator_start") or None,

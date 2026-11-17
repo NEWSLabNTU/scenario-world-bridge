@@ -1,4 +1,4 @@
-"""``ros2 run scensim autoware overlay|tensorrt``: the two pieces an Autoware pilot runs better with.
+"""``scensim autoware overlay|tensorrt``: the two pieces an Autoware pilot runs better with.
 
 ``overlay`` builds the Autoware packages this workspace carries with fixes Autoware 1.5.0
 lacks (roadmap 042: the blind_spot right turn, NDT's step reversal, pose_instability_detector's
@@ -60,7 +60,7 @@ def clean_env() -> dict:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="ros2 run scensim autoware", description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(prog="scensim autoware", description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="what", required=True)
     sub.add_parser("overlay", help="build Autoware's carried fixes")
     sub.add_parser("tensorrt", help="fetch the TensorRT 10.8.0 runtime Autoware 1.5.0 needs")

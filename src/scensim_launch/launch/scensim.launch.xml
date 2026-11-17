@@ -14,14 +14,15 @@
 
   play_launch's web UI and log directory are its own options (web-addr and log-dir, each
   with a double-hyphen prefix, which an XML comment cannot contain): give web-addr the
-  seat's web port, which `ros2 run scensim seat show` lists. Runs go against the stack with
-  `ros2 run scensim run <scenario|suite>`.
+  seat's web port, which `scensim seat show` lists. Runs go against the stack with
+  `scensim run <scenario|suite>`.
 
   Who drives each entity is the project's testbench.yaml (pilots:). The old stack's ego_launch,
   ego_launch_args, agent and map_path are refused by name, here or in stack_args, naming what
   replaced them.
 -->
 <launch>
+  <arg name="testbench" default="" description="a testbench by name, built in the sourced workspace (its stack runs in the host's work directory for it); empty: project:"/>
   <arg name="project" default="" description="the project: a directory or pkg://&lt;package&gt;; empty: the working directory's"/>
   <arg name="seat" default="" description="a seat number or auto; empty: the host settings' seat:"/>
   <arg name="simulator" default="" description="carla or isaac; empty: the project's simulator:"/>
@@ -33,6 +34,7 @@
   <arg name="stack_args" default="" description="name:=value ... for stack.launch.py, after scensim's own (they win); side_args and sim_args merge by name with scensim's, whose own names are refused"/>
 
   <include file="$(find-pkg-share scensim_launch)/launch/scensim.launch.py">
+    <arg name="testbench" value="$(var testbench)"/>
     <arg name="project" value="$(var project)"/>
     <arg name="seat" value="$(var seat)"/>
     <arg name="simulator" value="$(var simulator)"/>

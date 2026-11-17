@@ -1,4 +1,4 @@
-"""``ros2 run scensim run <scenario|suite>``: runs and suites against the project's live stack.
+"""``scensim run <scenario|suite>``: runs and suites against the project's live stack.
 
 docs/design/projects-and-pilots.md, "Runs" and "Suites". The stack is found through
 ``<logs>/<project>/seat-<n>-current/stack.json``; a run refuses (3) a stack that is missing,
@@ -375,9 +375,10 @@ def stack_env(s, base=None, host=None) -> dict:
     return env
 
 
-def start_stack(project: Path, host: dict, command=None, out=None) -> StartedStack:
-    """Start the project's stack (``command(project, host, seat, log_dir) -> argv``, default
-    ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
+def prepare_stack(project: Path, host: dict, plan=True):
+    """``(seat, log_dir)`` for a stack of ``project`` about to start: a free seat whose ports
+    are free, and a new ``<logs>/<project>/stack-launches/<time>/``; with ``plan``, the stack's
+    own plan first, so a refusal is said plainly before anything starts (G68)."""
     from scensim import seat as seatmod
     try:
         s = seatmod.resolve(host, seatmod.seats_source(project),
@@ -399,7 +400,7 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
         except FileExistsError:
             n += 1
             log_dir = root / f"{stackmod.now_id()}-{n}"
-    if command is None:
+    if plan:
         # The stack's own plan, here first (roadmap 077, G68): a refusal from inside the launch
         # reaches the terminal wrapped in play_launch's parser error (and a `--parser python`
         # hint); planned here, it is said plainly and the run exits 3 before anything starts.
@@ -407,6 +408,13 @@ def start_stack(project: Path, host: dict, command=None, out=None) -> StartedSta
             stackmod.plan(project_arg=str(project), seat_arg=str(s.index), logs=host["logs"])
         except stackmod.StackRefused as e:
             raise Refused(f"the stack is refused: {e}") from None
+    return s, log_dir
+
+
+def start_stack(project: Path, host: dict, command=None, out=None) -> StartedStack:
+    """Start the project's stack (``command(project, host, seat, log_dir) -> argv``, default
+    ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
+    s, log_dir = prepare_stack(project, host, plan=command is None)
     argv = (command or stack_argv)(project, host, s.index, log_dir)
     try:
         proc = stackmod.start_process(argv, stack_env(s, host=host), log_dir / "console.log",
@@ -1361,8 +1369,12 @@ def run_suite(ctx: Context, specs, suite_dir: Path = None, resume=False, retry=N
 
 def main(argv=None, out=None, stack_command=None) -> int:
     out = out or sys.stdout
-    ap = argparse.ArgumentParser(prog="ros2 run scensim run", description=__doc__.split("\n")[0])
-    ap.add_argument("target", help="a scenario (.xosc or TIER IV .yaml), a directory, or a suite")
+    ap = argparse.ArgumentParser(
+        prog="scensim run",
+        description="Run a testbench, one of its suites or scenarios, on its stack (started when "
+                    "none serves it, and left up).")
+    ap.add_argument("target", help="<testbench> (its default suite), <testbench>/<suite>, "
+                                   "<testbench>/<path>, or a scenario, suite or directory path")
     ap.add_argument("--repeat", type=int, help="repetitions (a suite's repetitions: otherwise)")
     ap.add_argument("--shard", help="i/n: every n-th run from the i-th (1-based)")
     ap.add_argument("--resume", action="store_true", help="skip a suite's runs with a result")
@@ -1370,7 +1382,8 @@ def main(argv=None, out=None, stack_command=None) -> int:
     ap.add_argument("--capture", choices=runsmod.LEVELS,
                     help="record at this level and keep it whatever the verdict "
                          "(full: + rosbags of the key topics; debug: + every topic)")
-    ap.add_argument("--project", help="the project (default: found from the working dir)")
+    ap.add_argument("--project", help="for a path target: the testbench directory it belongs to "
+                                      "(default: found from the working directory)")
     ap.add_argument("--seat", help="the stack's seat (default: the host settings' seat:)")
     ap.add_argument("--param", action="append", metavar="NAME=VALUE",
                     help="a scenario parameter (repeatable; with a suite, one more grid axis)")

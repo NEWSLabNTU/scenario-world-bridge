@@ -1,4 +1,4 @@
-"""``scensim testbench new|list|check`` (roadmap 081 step 3).
+"""``scensim testbench new|list|check``: testbench packages.
 
 - ``new <name> [--template T | --from pkg://...]``: a testbench package in ``./<name>``: the
   076 starter (or a copy of a project), a ``package.xml`` of build type ``scensim_testbench``
@@ -39,6 +39,21 @@ PACKAGE_XML = """<?xml version="1.0"?>
 </package>
 """
 DEFAULT_SUITE = "first"
+README = """# {name}
+
+A scensim testbench: scenarios, suites and the pilots that drive them, in testbench.yaml.
+
+From the workspace (the directory holding src/), with scensim's setup.bash sourced:
+
+    colcon build --symlink-install
+    source install/setup.bash
+    scensim assets fetch {name}      # this host's maps and datasets; writes scensim.lock here
+    scensim testbench check {name}
+    scensim run {name}               # its default suite; {name}/<suite> or {name}/<path> for others
+
+Commit scensim.lock. With --symlink-install an edit here takes effect without a rebuild;
+adding or removing a file needs one.
+"""
 
 
 def _git(key: str) -> str:
@@ -60,6 +75,9 @@ def new_testbench(name: str, where: Path = None, template: str = None, src: str 
         raise config.ConfigError(f"{name} is not a valid ROS package name (use "
                                  f"{suggested_name(name)})")
     dest = Path(where or Path.cwd()) / name
+    if dest.exists():
+        raise config.ConfigError(f"{_shown(dest)} already exists (fix: another name, or move it "
+                                 "aside)")
     if src:
         projectmod.copy_project(src, dest)
     else:
@@ -76,6 +94,11 @@ def new_testbench(name: str, where: Path = None, template: str = None, src: str 
             suites = [DEFAULT_SUITE]
         with tb.open("a") as f:
             f.write(f"default: {suites[0]}   # the suite `scensim run {name}` runs\n")
+    # a testbench's README and no .gitignore: assets, state and runs never live in src/
+    (dest / "gitignore").unlink(missing_ok=True)
+    (dest / ".gitignore").unlink(missing_ok=True)
+    if not src:   # a copy keeps its own README
+        (dest / "README.md").write_text(README.format(name=name))
     if not (dest / "package.xml").exists():
         maintainer = _git("user.name") or "Maintainer"
         email = _git("user.email") or "maintainer@example.com"
@@ -149,10 +172,17 @@ def check(target=None, live=False, logs=None, out=None) -> int:
     here = host_findings(tb, d)
     if live and not pkg:
         here += live_findings(tb, d, host)
+    def shown(f) -> str:
+        # names relative to the testbench (the files the user edits are src/<tb>/...), and the
+        # asset fix with the testbench, so it runs from the workspace
+        line = f"{f}\n".replace(f"{d}/", "").replace(f"{tb.share}/", "")
+        if tb.installed:
+            line = line.replace("scensim assets fetch)", f"scensim assets fetch {tb.name})")
+        return line
     for f in pkg:
-        out.write(f"{f}\n")
+        out.write(shown(f))
     for f in here:
-        out.write(f"{f}\n".replace("problem: ", "problem (this host): ", 1))
+        out.write(shown(f).replace("problem: ", "problem (this host): ", 1))
     if not pkg and not here:
         out.write("testbench: ok\n")
     return exit_code(pkg + here)
@@ -175,7 +205,8 @@ def list_testbenches(out=None) -> int:
         shown = ", ".join(f"{s} (default)" if s == default else s for s in suites) or "no suite"
         stale = "  [built over another scensim: colcon build]" if \
             testbenches.version_problem(tb) else ""
-        out.write(f"{name:24} {shown}  ({tb.workspace()}){stale}\n")
+        from scensim.assets import _home
+        out.write(f"{name:24} {shown}  ({_home(tb.workspace())}){stale}\n")
     return 0
 
 
@@ -183,7 +214,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="scensim testbench", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     n = sub.add_parser("new", help="write a testbench package in ./<name>")
-    n.add_argument("name")
+    n.add_argument("name", help="a ROS package name: lower case letters, digits, underscores")
     how = n.add_mutually_exclusive_group()
     how.add_argument("--template", help=f"one of {', '.join(projectmod.templates())} "
                                         f"(default {projectmod.DEFAULT_TEMPLATE})")

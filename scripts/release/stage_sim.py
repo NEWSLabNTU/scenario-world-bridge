@@ -27,6 +27,7 @@ import datetime
 import hashlib
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -196,17 +197,34 @@ RELOCATE = """\
 # (setup.sh, local_setup.sh, each package.sh) and ament's parent_prefix_path name their
 # prefix, and POSIX sh cannot find the place of a script it sources; bash's setup.bash
 # finds its own. The pip front end runs this once after unpacking; run it again after
-# moving the directory.
-set -e
-p=$(cd "$(dirname "$0")" && pwd)
-old=$(cat "$p/.scensim-prefix" 2>/dev/null || echo '@SCENSIM_PREFIX@')
-if [ "$old" != "$p" ]; then
-  grep -rlIF -- "$old" "$p" | while IFS= read -r f; do
-    [ "$f" = "$p/relocate.sh" ] && continue
-    sed -i "s|$old|$p|g" "$f"
-  done
-fi
-echo "$p" > "$p/.scensim-prefix"
+# moving the directory. The replacement is literal (Python's str.replace), so a prefix may
+# hold any character, & | and spaces included.
+exec /usr/bin/python3 - "$(cd "$(dirname "$0")" && pwd)" <<'PY'
+import os, sys
+p = sys.argv[1]
+mark = os.path.join(p, ".scensim-prefix")
+try:
+    old = open(mark).read().rstrip("\\n")
+except OSError:
+    old = "@SCENSIM_PREFIX@"
+if old != p:
+    for d, _, files in os.walk(p):
+        for n in files:
+            f = os.path.join(d, n)
+            if os.path.islink(f) or f == os.path.join(p, "relocate.sh") or n.endswith(".pyc"):
+                continue
+            try:
+                with open(f, "rb") as fh:
+                    data = fh.read()
+            except OSError:
+                continue
+            if b"\\0" in data[:8192] or old.encode() not in data:
+                continue
+            with open(f, "wb") as fh:
+                fh.write(data.replace(old.encode(), p.encode()))
+with open(mark, "w") as fh:
+    fh.write(p + "\\n")
+PY
 """
 
 
@@ -286,7 +304,12 @@ def relocatable(prefix: Path, build_install: Path) -> int:
             continue
         data = f.read_bytes()
         if needle in data and b"\0" not in data[:8192]:
-            f.write_bytes(data.replace(needle, PLACEHOLDER.encode()))
+            data = data.replace(needle, PLACEHOLDER.encode())
+            if f.suffix == ".sh":
+                # colcon's setup.sh assigns its prefix unquoted (VAR=/path): quote it, so that
+                # a prefix with a space, & or | survives relocate.sh
+                data = re.sub(rb'=(' + re.escape(PLACEHOLDER.encode()) + rb'[^\s"\';]*)', rb'="\1"', data)
+            f.write_bytes(data)
             n += 1
     (prefix / "relocate.sh").write_text(RELOCATE)
     (prefix / "relocate.sh").chmod(0o755)

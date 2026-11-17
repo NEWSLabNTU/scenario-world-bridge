@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_two_av.xosc,,0,,passed,gap=passed physical_verdict=passed,73.842

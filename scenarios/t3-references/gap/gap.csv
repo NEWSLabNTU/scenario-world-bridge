@@ -1,0 +1,9 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_entity_bodies.xosc,,0,,passed,gap=passed physical_verdict=passed,38.456
+town01_entity_bodies.xosc,,1,,passed,gap=passed physical_verdict=passed,34.397
+town01_motorbike_body.xosc,,0,,passed,gap=passed physical_verdict=passed,33.097
+town01_motorbike_body.xosc,,1,,passed,gap=passed physical_verdict=passed,33.097
+town01_npc_shoulder.xosc,,0,,passed,gap=passed physical_verdict=passed,392.715
+town01_npc_shoulder.xosc,,1,,passed,gap=passed physical_verdict=passed,356.039
+town01_truck_pass.xosc,,0,,failed,gap=failed physical_verdict=passed,28.195
+town01_truck_pass.xosc,,1,,failed,gap=failed physical_verdict=passed,29.849

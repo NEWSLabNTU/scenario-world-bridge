@@ -1,0 +1,4 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_i6_cyclist_inside.xosc,,0,,passed,incident=passed physical_verdict=passed,69.761
+town01_i6_cyclist_inside.xosc,,1,,passed,incident=passed physical_verdict=passed,68.578
+town01_i6_cyclist_inside.xosc,,2,,passed,incident=passed physical_verdict=passed,74.56

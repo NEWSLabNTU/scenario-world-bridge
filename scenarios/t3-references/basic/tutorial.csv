@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_follow_to_goal.xosc,,0,,passed,physical_verdict=passed,46.409

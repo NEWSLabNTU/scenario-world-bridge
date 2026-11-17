@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_tour.xosc,,0,,passed,incident=passed physical_verdict=passed,466.357

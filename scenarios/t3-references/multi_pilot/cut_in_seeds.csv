@@ -1,0 +1,6 @@
+scenario,params,repetition,seed,verdict,judges,duration
+four_pilots.xosc,,0,1000,passed,,92.781
+four_pilots.xosc,,1,1001,passed,,88.106
+four_pilots.xosc,,2,1002,passed,,90.124
+four_pilots.xosc,,3,1003,passed,,90.662
+four_pilots.xosc,,4,1004,passed,,92.09

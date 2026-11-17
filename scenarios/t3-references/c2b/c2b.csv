@@ -1,0 +1,25 @@
+scenario,params,repetition,seed,verdict,judges,duration
+c2b_d10_v-2.xosc,pair=aw,0,0,passed,c2b_score=passed physical_verdict=passed,78.909
+c2b_d10_v-2.xosc,pair=aw,1,1,passed,c2b_score=passed physical_verdict=passed,70.244
+c2b_d10_v-2.xosc,pair=eq,0,0,passed,c2b_score=passed physical_verdict=passed,72.364
+c2b_d10_v-2.xosc,pair=eq,1,1,passed,c2b_score=passed physical_verdict=passed,77.077
+c2b_d10_v0.xosc,pair=aw,0,0,passed,c2b_score=passed physical_verdict=passed,79.633
+c2b_d10_v0.xosc,pair=aw,1,1,passed,c2b_score=passed physical_verdict=passed,75.957
+c2b_d10_v0.xosc,pair=eq,0,0,passed,c2b_score=passed physical_verdict=passed,72.295
+c2b_d10_v0.xosc,pair=eq,1,1,passed,c2b_score=passed physical_verdict=passed,74.965
+c2b_d14_v-3.xosc,pair=aw,0,0,passed,c2b_score=passed physical_verdict=passed,71.019
+c2b_d14_v-3.xosc,pair=aw,1,1,passed,c2b_score=passed physical_verdict=passed,72.562
+c2b_d14_v-3.xosc,pair=eq,0,0,passed,c2b_score=passed physical_verdict=passed,69.674
+c2b_d14_v-3.xosc,pair=eq,1,1,passed,c2b_score=passed physical_verdict=passed,72.944
+c2b_d20_v1.xosc,pair=aw,0,0,passed,c2b_score=passed physical_verdict=passed,69.136
+c2b_d20_v1.xosc,pair=aw,1,1,passed,c2b_score=passed physical_verdict=passed,69.032
+c2b_d20_v1.xosc,pair=eq,0,0,passed,c2b_score=passed physical_verdict=passed,74.506
+c2b_d20_v1.xosc,pair=eq,1,1,passed,c2b_score=passed physical_verdict=passed,70.438
+c2b_d2_v2.xosc,pair=aw,0,0,passed,c2b_score=passed physical_verdict=passed,69.638
+c2b_d2_v2.xosc,pair=aw,1,1,passed,c2b_score=passed physical_verdict=passed,69.137
+c2b_d2_v2.xosc,pair=eq,0,0,passed,c2b_score=passed physical_verdict=passed,76.011
+c2b_d2_v2.xosc,pair=eq,1,1,passed,c2b_score=passed physical_verdict=passed,68.734
+c2b_d6_v0.xosc,pair=aw,0,0,passed,c2b_score=passed physical_verdict=passed,69.602
+c2b_d6_v0.xosc,pair=aw,1,1,passed,c2b_score=passed physical_verdict=passed,71.253
+c2b_d6_v0.xosc,pair=eq,0,0,passed,c2b_score=passed physical_verdict=passed,71.139
+c2b_d6_v0.xosc,pair=eq,1,1,passed,c2b_score=passed physical_verdict=passed,68.841

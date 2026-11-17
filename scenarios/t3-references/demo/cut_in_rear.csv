@@ -1,0 +1,3 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_i7_cut_in.xosc,,0,,passed,incident=passed physical_verdict=passed,87.891
+town01_i8_rear_approach.xosc,,0,,passed,incident=passed physical_verdict=passed,87.92

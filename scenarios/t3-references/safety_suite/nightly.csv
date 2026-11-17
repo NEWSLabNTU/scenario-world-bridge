@@ -1,0 +1,3 @@
+scenario,params,repetition,seed,verdict,judges,duration
+UC-ACC-001-0001_Preceding_vehicle_partial_deceleration.yaml,,0,,passed,physical_verdict=passed,2475.771
+UC-AEB-001-0001_Standing-pedestrian.yaml,,0,,passed,physical_verdict=passed,603.918

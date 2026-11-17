@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_npc_20.xosc,,0,,passed,gap=passed physical_verdict=passed,364.15

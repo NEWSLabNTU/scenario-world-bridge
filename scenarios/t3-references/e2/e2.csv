@@ -1,0 +1,3 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town03_e2_lane_change_west.xosc,,0,,passed,e2_speed=passed physical_verdict=passed,66.528
+town03_e2_lead_brake.xosc,,0,,passed,e2_speed=passed physical_verdict=passed,184.521

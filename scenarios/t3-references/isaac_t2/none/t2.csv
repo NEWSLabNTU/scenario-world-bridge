@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+drive_to_goal_ssv2.xosc,,0,,passed,,27.19

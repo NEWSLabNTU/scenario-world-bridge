@@ -1,0 +1,3 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_ego_drive.xosc,,0,,passed,,49.709
+town02_ego_drive.xosc,,0,,passed,,87.438

@@ -1,0 +1,5 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town02_ego_drive.xosc,,0,,passed,physical_verdict=passed,59.878
+town03_ego_drive.xosc,,0,,passed,physical_verdict=passed,80.437
+town05_ego_drive.xosc,,0,,passed,physical_verdict=passed,94.694
+town10_ego_drive.xosc,,0,,passed,physical_verdict=passed,50.26

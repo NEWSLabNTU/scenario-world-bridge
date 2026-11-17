@@ -1,0 +1,6 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_i1_lead_brake.xosc,,0,,passed,incident=passed physical_verdict=passed,99.612
+town01_i2_ped_dart.xosc,,0,,passed,incident=passed physical_verdict=passed,74.964
+town01_i3_red_light.xosc,,0,,passed,incident=passed physical_verdict=passed,90.162
+town01_i4_blocked_lane.xosc,,0,,passed,incident=passed physical_verdict=passed,123.053
+town01_i5_cross_turn.xosc,,0,,passed,incident=passed physical_verdict=passed,85.649

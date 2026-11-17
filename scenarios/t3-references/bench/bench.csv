@@ -1,0 +1,4 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_npc_10.xosc,,0,,passed,frame_budget=passed,230.239
+town01_npc_20.xosc,,0,,passed,frame_budget=passed,410.465
+town01_npc_50.xosc,,0,,passed,frame_budget=passed,1196.86

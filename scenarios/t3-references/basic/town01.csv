@@ -1,0 +1,7 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town01_ego_drive.xosc,,0,,passed,physical_verdict=passed,49.45
+town01_engage_state.xosc,,0,,passed,physical_verdict=passed,47.56
+town01_pedestrian.xosc,,0,,passed,physical_verdict=passed,134.777
+town01_rear_contact.xosc,,0,,passed,physical_verdict=passed,28.026
+town01_simulator_autopilot.xosc,,0,,passed,physical_verdict=passed,58.766
+town01_traffic_light.xosc,,0,,passed,physical_verdict=passed,189.225

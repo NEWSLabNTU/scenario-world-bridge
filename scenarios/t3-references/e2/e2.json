@@ -1,0 +1,47 @@
+{
+  "commit": "36e4da4a919c8ac1a2c0459d7abef5469fa25ac4+dirty",
+  "submodules": {
+    "src/autoware_carla_bridge": "47f443ae0a0574c3b908e2126b8f6a82d181e333",
+    "src/autoware_isaac_bridge": "007d4f957794058985a7da7351c9f7ad02002405",
+    "src/autoware_sim_vehicle": "8be93638e30f71bd327210a2a9afcd1ab7659f45",
+    "src/color_names": "c6a32273186b2debd20a6af98b42149b411378c1",
+    "src/scenario_simulator_v2": "7e98ecc4f728e3c1b31ced21c01e829c2f91ac0f",
+    "src/sim_vehicle_ecu": "5174d71905805caa143981a53331b42e1198f3ff",
+    "src/sim_vehicle_spec": "9b7e48dbd914aa9febc59f19ea4c55238464212a",
+    "src/swb_carla_world": "5c472873fa8b238bb1ff03074ef72b5baee369a3",
+    "src/swb_isaac_world": "c9a72de01a4b0dd9a94510ec6533e9404f10e4a2",
+    "src/swb_world_protocol": "6f3aba519d997db56fd13dadf723b3ce87405a54",
+    "third_party/cuda_ndt_matcher": "99540d8a1ea3cf1302fa5378f347bf1e4cefc6a5"
+  },
+  "recorded_with": "876f8b3",
+  "host": "newslab-118-server",
+  "summary": "<host logs>/e2/suites/e2/summary.csv",
+  "runs": 2,
+  "gpu_at_record": [
+    {
+      "gpu": 0,
+      "used_mib": 55,
+      "total_mib": 24564,
+      "util_pct": 0
+    },
+    {
+      "gpu": 1,
+      "used_mib": 16852,
+      "total_mib": 24564,
+      "util_pct": 0
+    }
+  ],
+  "gpu_gated": {
+    "indices": [
+      0
+    ],
+    "source": "host gpu: 0"
+  },
+  "load_at_record": [
+    21.4,
+    48
+  ],
+  "notes": [
+    "results' checkout was dirty (provenance names no files; `just build` changes Cargo.lock, G79)"
+  ]
+}

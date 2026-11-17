@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+town02_episode_change.xosc,,0,,passed,physical_verdict=passed,21.025

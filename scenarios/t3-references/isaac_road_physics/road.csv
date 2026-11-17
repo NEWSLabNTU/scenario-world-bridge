@@ -1,0 +1,3 @@
+scenario,params,repetition,seed,verdict,judges,duration
+after_rain.xosc,,0,,passed,,54.606
+mud_and_gravel.xosc,,0,,passed,,64.691

@@ -1,0 +1,20 @@
+{
+  "version": "0.1.0",
+  "ros_distro": "humble",
+  "artefacts": {
+    "x86_64": {
+      "sim": {
+        "url": "https://github.com/NEWSLabNTU/scensim/releases/download/v0.1.0/scensim-sim-0.1.0-humble-x86_64.tar.zst",
+        "size": 0,
+        "sha256": "written-by-the-release-workflow"
+      },
+      "vehicle": {
+        "autoware1.5.0": {
+          "url": "https://github.com/NEWSLabNTU/scensim/releases/download/v0.1.0/scensim-vehicle-0.1.0-autoware1.5.0-x86_64.tar.zst",
+          "size": 0,
+          "sha256": "written-by-the-release-workflow"
+        }
+      }
+    }
+  }
+}

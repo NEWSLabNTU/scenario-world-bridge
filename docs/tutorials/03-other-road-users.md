@@ -1,11 +1,11 @@
 # Tutorial 3: Other road users
 
-**Goal**: three scenarios in the project, each with a different kind of road user: a
+**Goal**: three scenarios in the testbench, each with a different kind of road user: a
 pedestrian crossing among obstacles, a traffic light that the scenario turns red, and a car
 that CARLA's own driver takes to its goal. All three pass with Autoware driving the ego.
 
 ```
-$ ros2 run scensim runs list
+$ scensim runs list my_first_drive
 RUN                                         VERDICT  SCENARIO                 DURATION
 ...pedestrian_crossing_r0                   passed   pedestrian_crossing.xosc ...
 ...red_light_r0                             passed   red_light.xosc           ...
@@ -22,14 +22,19 @@ RUN                                         VERDICT  SCENARIO                 DU
 
 ## Before you start
 
-- [Tutorial 2](02-write-a-scenario.md): the project `~/my_first_drive` with its stack
-  running on Town01, and the scenario written there. Every terminal: `source ~/scensim.bash`.
+- [Tutorial 2](02-write-a-scenario.md): the testbench `my_first_drive` in `~/my_ws`, with
+  the scenario written there. Every terminal: `source ~/scensim.bash` and
+  `source ~/my_ws/install/setup.bash`.
 - About 40 minutes, most of it spent in the runs.
 
-The scenarios ship with the workspace and are copied into the project:
+The scenarios ship with scensim and are copied into the testbench. A copied file is a new
+file of the package, so the workspace is built once after each copy
+(`cd ~/my_ws && colcon build --symlink-install`) before the file is run:
+
+<!-- TODO(exit run): the examples' location once scensim_examples ships testbenches. -->
 
 ```bash
-cd ~/my_first_drive
+cd ~/my_ws/src/my_first_drive
 E=$(ros2 pkg prefix --share scensim_examples)
 ```
 
@@ -42,7 +47,7 @@ its controller:
 | Obstacle | `<MiscObject>` | stays where it is put | off |
 | Car, scripted | `<Vehicle>` or a catalog car, controller `""` | SSv2, as a pose each frame | off |
 | Car, driven by the simulator | controller `simulator_autopilot` | CARLA's Traffic Manager | on |
-| Car with a pilot | controller `agent` | a pilot of the project ([Tutorial 4](04-several-pilots.md)) | on |
+| Car with a pilot | controller `agent` | a pilot of the testbench ([Tutorial 4](04-several-pilots.md)) | on |
 
 A scripted car or pedestrian follows the scenario exactly in every run, and a collision
 never displaces it.
@@ -94,7 +99,7 @@ must hold: `lateral` less than 0.3 and `longitudinal` less than 1.0, each with
 with `exitFailure`.
 
 ```bash
-ros2 run scensim run scenarios/pedestrian_crossing.xosc
+scensim run my_first_drive/scenarios/pedestrian_crossing.xosc
 ```
 
 **What you see**: the ego stops short of the crossing until it is clear; then
@@ -128,10 +133,12 @@ Init, by the Lanelet2 id of the signal, and green again at 150 s:
 
 The world server resolves that id to a CARLA light through the map's signal table, which
 the fetched Town01 includes. For a map without one, the world server writes one into the
-project's `state/<map>/`, the directory where it keeps what it derives for a map.
+testbench's `state/<map>/`, the directory where it keeps what it derives for a map.
+
+<!-- TODO(exit run): where a testbench's state/ lives (source or host directory). -->
 
 ```bash
-ros2 run scensim run scenarios/red_light.xosc
+scensim run my_first_drive/scenarios/red_light.xosc
 ```
 
 **What you see**: the ego stops at the stop line, waits, and drives on when the light turns
@@ -167,14 +174,14 @@ route, brakes for vehicles ahead and for red lights, and stops at the goal. An a
 `SpeedAction` sets its desired speed.
 
 ```bash
-ros2 run scensim project check
-ros2 run scensim run scenarios/autopilot.xosc
+scensim testbench check my_first_drive
+scensim run my_first_drive/scenarios/autopilot.xosc
 ```
 
-**What you see**: the check ends `project: ok`, then the run passes when all three have reached their
+**What you see**: the check ends `testbench: ok`, then the run passes when all three have reached their
 goals and nothing has collided.
 
-**Check**: `ros2 run scensim runs list` shows the three new runs `passed`.
+**Check**: `scensim runs list my_first_drive` shows the three new runs `passed`.
 
 ## What happened
 
@@ -194,7 +201,7 @@ road user: [What a scenario may use](../reference/scenarios.md).
 
 1. **Easy.** Make the pedestrian cross 10 s later: add 10 to every vertex `time` after the
    first. Check: the run still passes, and its duration in `runs list` is about 10 s longer.
-2. **Medium.** Leave the light red: delete the `green` event from the project's copy of
+2. **Medium.** Leave the light red: delete the `green` event from the testbench's copy of
    `red_light.xosc`. Check: the run ends `failed` on its 300 s timeout, and `runs show
    red_light` shows the ego stopped at the line.
 3. **Open.** Give `npc_autopilot` a goal on the ego's own road ahead of it, so that the ego
@@ -205,11 +212,11 @@ road user: [What a scenario may use](../reference/scenarios.md).
 
 | Symptom | Fix |
 |---|---|
-| `project check`: `LogicFile ... does not name a project map` | a scenario from elsewhere names its map another way: set its `LogicFile` to `$(env SCENSIM_MAPS)/Town01` |
-| The light never changes; the bridge's log says `Cannot read the signal table` | the world server found no signal table: for a map without one it writes `state/<map>/traffic_lights.yaml`, so the project directory must be writable |
-| `project check` (or the stack at start) refuses: `controller simulator_autopilot runs on CARLA only, the simulator is isaac ...` | the project is on Isaac Sim, which has no driver of its own |
+| `testbench check`: `LogicFile ... does not name a project map` | a scenario from elsewhere names its map another way: set its `LogicFile` to `$(env SCENSIM_MAPS)/Town01` |
+| The light never changes; the bridge's log says `Cannot read the signal table` | the world server found no signal table: for a map without one it writes `state/<map>/traffic_lights.yaml`, so the testbench's state directory must be writable |
+| `testbench check` (or the stack at start) refuses: `controller simulator_autopilot runs on CARLA only, the simulator is isaac ...` | the testbench is on Isaac Sim, which has no driver of its own |
 | On Isaac Sim, the first run on a new stack ends `error` while an entity spawns | the first spawn on a fresh Isaac world server is slow; run the scenario again, or give a suite a retry on error |
-| The pedestrian run fails on the clearance check | Autoware did not perceive the walker in time: `runs why <run id>` (the id from `runs list`, since a name that matches several runs is refused) and the perception logs in `runs/<id>/logs/pilot-ego/` show why |
+| The pedestrian run fails on the clearance check | Autoware did not perceive the walker in time: `runs why <run id>` (the id from `runs list`, since a name that matches several runs is refused) and the perception logs in the run directory's `logs/pilot-ego/` show why |
 
 ## Next
 

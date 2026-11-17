@@ -23,7 +23,7 @@ from scensim import assets, budget as budgetmod, config, ground as groundmod, is
 from scensim import judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
 from scensim import overlays as overlaysmod, profile as profilemod, record as recordmod
 from scensim import ssv2 as ssv2mod, world as worldmod
-from scensim.findings import REFUSED, Finding, add_project_option, exit_code, ros_args
+from scensim.findings import REFUSED, Finding, add_project_option, exit_code, on_host, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 DEFAULT_TEMPLATE = "carla-first-drive"
@@ -33,7 +33,7 @@ RENAMES = {"gitignore": ".gitignore"}
 NOT_COPIED = ("assets", "state", "runs", ".scensim", "play_log")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
-            "world", "isaac", "ssv2")
+            "world", "isaac", "ssv2", "default")
 REQUIRED = ("simulator", "pilots", "assets")
 SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
@@ -367,6 +367,10 @@ def check_schema(settings: dict) -> list:
     for k in REQUIRED:
         if k not in settings:
             out.append(Finding(pf, f"{k}: is required", "see `ros2 run scensim project new`"))
+    default = settings.get("default")
+    if "default" in settings and (not isinstance(default, str) or not default or "/" in default):
+        out.append(Finding(pf, "default: is not a suite's name", "default: <suite> "
+                           "(suites/<suite>.yaml), the suite `scensim run <testbench>` runs"))
     sim = settings.get("simulator")
     if "simulator" in settings and (not isinstance(sim, str) or not sim):
         out.append(Finding(pf, "simulator: is not a name", "carla, isaac or a simulator package"))
@@ -665,7 +669,7 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
         name = lf[len(MAPS_PREFIX):].strip("/")
         if not (project / "assets" / "maps" / name).is_dir():
             out.append(Finding(rel, f"map {name} is not fetched (assets/maps/{name})",
-                               _map_fix(name, settings), refused=True))
+                               _map_fix(name, settings), refused=True, host=True))
     # roadmap 080: the scenario properties of the old name (swb.spec_hash, swb.zone.*, ...)
     # are not read by any part; each is named with its successor
     for old in sorted(set(re.findall(r'name="(swb\.[^"]+)"', _text(sc.path)))):
@@ -771,6 +775,45 @@ def project_notes(path) -> list:
         return []
 
 
+# what an autoware pilot's car needs installed (autoware_sim_vehicle builds them per car): the
+# vehicle description and the vehicle launch Autoware's planning simulator includes
+VEHICLE_PACKAGES = ("{car}_description", "{car}_launch")
+
+
+def _installed(pkg: str) -> bool:
+    try:
+        from ament_index_python.packages import get_package_prefix
+        get_package_prefix(pkg)
+        return True
+    except Exception:  # noqa: BLE001 (not installed, or no ROS environment)
+        return False
+
+
+def vehicle_package_problems(settings: dict, installed=None) -> list:
+    """Each ``autoware`` pilot's car whose packages the sourced chain lacks, refused by name
+    (081 step 3): the pilot would fail at launch, minutes later, with only Autoware's
+    "package not found"."""
+    installed = installed or _installed
+    pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
+    out = []
+    for key, p in pilots.items():
+        if not isinstance(p, dict) or p.get("kind") != "autoware":
+            continue
+        car = p.get("vehicle")
+        if not isinstance(car, str) or not car:
+            continue
+        missing = [n.format(car=car) for n in VEHICLE_PACKAGES
+                   if not installed(n.format(car=car))]
+        if missing:
+            out.append(Finding(config.PROJECT_FILE,
+                               f"pilots.{key}: vehicle {car}: package "
+                               f"{' and '.join(missing)} not installed",
+                               "source the workspace that builds the car's Autoware packages "
+                               f"(autoware_sim_vehicle for the stock cars), or build {car}'s "
+                               "in yours", refused=True, host=True))
+    return out
+
+
 def check_project(path, scenarios: bool = True) -> list:
     """Every finding for the project at ``path`` (a directory or pkg://<package>).
     ``scenarios=False``: the project's own findings only, what a stack starts on; each
@@ -786,10 +829,11 @@ def check_project(path, scenarios: bool = True) -> list:
         launcher = config.host_settings(project).get("launcher")
     except config.ConfigError:
         launcher = "auto"
-    out += toolsmod.findings(launcher)
-    out += toolsmod.rmw_findings()
-    out += toolsmod.agent_findings(settings)
-    out += assets.check(project, settings)
+    out += on_host(toolsmod.findings(launcher))
+    out += on_host(toolsmod.rmw_findings())
+    out += on_host(toolsmod.agent_findings(settings))
+    out += on_host(assets.check(project, settings))
+    out += vehicle_package_problems(settings)
     missing = False
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (project / v).is_file():
@@ -805,7 +849,7 @@ def check_project(path, scenarios: bool = True) -> list:
     for m in maps if isinstance(maps, list) else []:
         if isinstance(m, str) and m and not (project / "assets" / "maps" / m).is_dir():
             out.append(Finding(config.PROJECT_FILE, f"maps: {m} is not fetched (assets/maps/{m})",
-                               _map_fix(m, settings), refused=True))
+                               _map_fix(m, settings), refused=True, host=True))
     sim = settings.get("simulator") if isinstance(settings.get("simulator"), str) else ""
     if sim == "carla" and isinstance(maps, list):
         from scensim import simulator as simmod
@@ -818,20 +862,20 @@ def check_project(path, scenarios: bool = True) -> list:
                                f"{town} (no {town}.umap under {', '.join(map(str, dirs))})",
                                "install its CARLA map package, or name where this host's are: "
                                "carla: {map_packages: [<dir>]} in ~/.config/scensim/host.yaml",
-                               refused=True))
+                               refused=True, host=True))
     shape = set(worldmod.problems(settings, sim))
     for where, msg in worldmod.problems(settings, sim, project):
         if (where, msg) not in shape:   # the files (check_schema reported the rest)
             out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}",
-                               refused="not fetched" in msg))
+                               refused="not fetched" in msg, host="not fetched" in msg))
     out += profile_problems(project, settings)
     try:
         host = config.host_settings(project)
     except config.ConfigError:
         host = {}
-    out += overlaysmod.problems(project, settings, host)
+    out += on_host(overlaysmod.problems(project, settings, host))
     if sim == "isaac":
-        out += isaacmod.findings(config.host_settings(project))
+        out += on_host(isaacmod.findings(config.host_settings(project)))
     files, found = collect_scenarios(project)
     out += found
     if not files:

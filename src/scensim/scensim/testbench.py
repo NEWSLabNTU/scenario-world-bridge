@@ -153,8 +153,10 @@ HOST_FINDINGS = (re.compile(r"map \S+ is not fetched \(assets/maps/\S+\)"),)
 
 
 def is_host_finding(f: Finding) -> bool:
-    """A finding about this host (an asset not fetched here), not about the package."""
-    return any(rx.fullmatch(f.what) for rx in HOST_FINDINGS)
+    """A finding about this host (an asset not fetched here, its tools, its simulator), not
+    about the package: marked so where it is made (``Finding.host``, 241's split of
+    check_project); the wording rule stays for a finding made before the field existed."""
+    return f.host or any(rx.fullmatch(f.what) for rx in HOST_FINDINGS)
 
 
 def split_findings(findings) -> tuple:
@@ -175,7 +177,7 @@ def build_findings(share, package_xml) -> list:
     if not tb.is_file():
         if (share / config.OLD_PROJECT_FILE).is_file():
             return [Finding(config.OLD_PROJECT_FILE, f"{config.OLD_PROJECT_FILE} is renamed "
-                            f"{TESTBENCH_FILE} (roadmap 081)",
+                            f"{TESTBENCH_FILE}",
                             f"git mv {config.OLD_PROJECT_FILE} {TESTBENCH_FILE}", refused=True)]
         return [Finding(TESTBENCH_FILE, "no such file",
                         "a scensim_testbench package holds testbench.yaml", refused=True)]

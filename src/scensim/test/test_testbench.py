@@ -65,7 +65,7 @@ def test_a_swb_yaml_project_is_refused_naming_its_successor(tmp_path):
     (tb / "testbench.yaml").rename(tb / "swb.yaml")
     got = testbench.build_findings(tb, tb / "package.xml")
     assert len(got) == 1 and got[0].refused
-    assert got[0].what == "swb.yaml is renamed testbench.yaml (roadmap 081)"
+    assert got[0].what == "swb.yaml is renamed testbench.yaml"
     assert got[0].fix == "git mv swb.yaml testbench.yaml"
 
 

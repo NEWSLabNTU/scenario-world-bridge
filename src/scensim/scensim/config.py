@@ -28,7 +28,7 @@ def old_project_file(d: Path) -> str:
     d = Path(d)
     if (d / OLD_PROJECT_FILE).is_file() and not (d / PROJECT_FILE).is_file():
         return (f"{d / OLD_PROJECT_FILE}: {OLD_PROJECT_FILE} is renamed {PROJECT_FILE} "
-                f"(roadmap 081): git mv {OLD_PROJECT_FILE} {PROJECT_FILE}")
+                f"(fix: git mv {OLD_PROJECT_FILE} {PROJECT_FILE})")
     return ""
 LOCK_FILE = "scensim.lock"
 

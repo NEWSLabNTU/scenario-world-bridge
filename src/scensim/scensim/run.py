@@ -57,6 +57,7 @@ from scensim import budget as budgetmod, config, judges as judgesmod, project as
 from scensim import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
+from scensim import testbenches
 from scensim.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -566,6 +567,7 @@ class Context:
     lost_probe: object = None         # callable(rec, entities) -> {entity: why} (tests; G32)
     end_episodes: object = None       # callable(rec, entities, verdict, reason, run_id) (tests; G57)
     pilots_broken: str = None         # the pilots did not come back after a crash (079 step 5)
+    testbench: dict = None            # {name, workspace}: the testbench run (081 step 3)
 
 
 def scenario_map(path: Path, sc=None):
@@ -1164,6 +1166,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     world_server = worldmod.carla_world_settings(rec)
     if world_server:
         prov["world_server"] = world_server
+    if ctx.testbench:
+        prov["testbench"] = dict(ctx.testbench)   # its name and workspace (081 step 3)
     result = results.RunResult(
         run_id=run_id, verdict=verdict, reason=reason,
         scenario={"file": sc_rel, "sha256": resolved["scenario"]["sha256"],
@@ -1405,9 +1409,53 @@ def check_scenarios(project: Path, specs) -> None:
                       "\n".join(str(f) for f in found))
 
 
+def open_testbench(target: str, logs=None):
+    """``(testbench, its directory to run in, the rest of the target)`` when ``target`` names a
+    testbench: ``<tb>[/<rest>]`` from the ament index (its work directory), or a directory
+    holding testbench.yaml (itself); None for any other target. Refused (081 step 3): a name
+    not built in the sourced chain, or built over another scensim."""
+    try:
+        sp = testbenches.split(target)
+        if sp is not None:
+            tb = testbenches.find(sp[0])
+            problem = testbenches.version_problem(tb)
+            if problem:
+                raise Refused(problem)
+            over = {"logs": logs} if logs else {}
+            return tb, testbenches.work_dir(tb, config.host_settings(None, over)), sp[1]
+        t = Path(target).expanduser()
+        if not (t.is_dir() and ((t / config.PROJECT_FILE).is_file()
+                                or config.old_project_file(t))):
+            return None
+        tb = testbenches.at_path(t)
+        return tb, tb.share, ""
+    except (testbenches.TestbenchRefused, config.ConfigError) as e:
+        raise Refused(str(e)) from None
+
+
+def resolve_target(args) -> dict:
+    """A testbench target: ``args.project`` and ``args.target`` set to its directory and the
+    file run (``<tb>`` alone: its default suite; ``<tb>/<suite>`` before ``<tb>/<path>``).
+    ``{name, workspace}``, or None when the target is no testbench."""
+    found = open_testbench(args.target, args.logs)
+    if found is None:
+        return None
+    tb, d, rest = found
+    try:
+        target = testbenches.in_testbench(tb, d, rest)
+    except (testbenches.TestbenchRefused, config.ConfigError) as e:
+        raise Refused(str(e)) from None
+    args.project, args.target = str(d), str(target)
+    return {"name": tb.name, "workspace": str(tb.workspace())}
+
+
 def _main(args, out, stack_command=None) -> int:
     ctx = None
     try:
+        tbinfo = resolve_target(args)
+        if tbinfo is not None:
+            # a testbench's stack is started when none serves it, and left up (081 step 3)
+            args.start_stack = True
         # the scenarios first, before any stack starts for them
         try:
             early = config.find_project(args.project or None)
@@ -1420,6 +1468,7 @@ def _main(args, out, stack_command=None) -> int:
                       start=args.start_stack or args.stop_stack, stack_command=stack_command,
                       stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,
                       out=out)
+        ctx.testbench = tbinfo
         target = Path(args.target)
         specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param))
         if args.timeout:

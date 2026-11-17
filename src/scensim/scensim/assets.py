@@ -694,7 +694,9 @@ def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dic
     text = lock_text(lock)
     if not path.is_file() or path.read_text() != text:
         path.write_text(text)
-        out(f"{config.LOCK_FILE} written")
+        # a testbench's lock links to its source (081 step 3): say where it was written
+        out(f"{os.path.realpath(path)} written" if path.is_symlink() else
+            f"{config.LOCK_FILE} written")
     if lock["datasets"]:
         register(cache, project)
     return lock
@@ -874,6 +876,31 @@ def list_assets(project, out=print):
         out(f"  {spec.name}  path {spec.path}{state}")
 
 
+def testbench_dir(name: str, source=None, fetching=False) -> Path:
+    """The directory to work on for testbench ``name`` (081 step 3): its work directory when it
+    is installed (whose lock links to its source), else the directory itself. A fetch of an
+    installed testbench without a known source is refused, naming --source."""
+    from scensim import testbenches
+    try:
+        sp = testbenches.split(name)
+        if sp is None:
+            return testbenches.at_path(name).share
+        tb = testbenches.find(sp[0])
+        if source:
+            src = Path(source).expanduser().resolve()
+            if not (src / config.PROJECT_FILE).is_file():
+                raise config.ConfigError(f"--source {source}: no {config.PROJECT_FILE} there")
+            tb.source = lambda: src
+        elif fetching and tb.source() is None:
+            raise config.ConfigError(
+                f"testbench {tb.name} was installed without --symlink-install, so its source "
+                f"is not known: name it (scensim assets fetch {tb.name} --source "
+                f"src/{tb.name}), or rebuild with colcon build --symlink-install")
+        return testbenches.work_dir(tb, config.host_settings())
+    except testbenches.TestbenchRefused as e:
+        raise config.ConfigError(str(e)) from None
+
+
 def main(argv=None):
     from scensim import signals
     signals.take_sigint()   # a fetch of GBs stops on its group's SIGINT, even from a `&` job
@@ -892,8 +919,22 @@ def main(argv=None):
     c.add_argument("--hash", action="store_true", help="hash every file, changed or not")
     pr = sub.add_parser("prune", help="remove cached commits no project's scensim.lock names")
     pr.add_argument("--dry-run", action="store_true", help="say what would go, remove nothing")
+    for p in (f, ls, c):
+        p.add_argument("testbench", nargs="?",
+                       help="a testbench by name (the sourced workspace's) or directory")
+    f.add_argument("--source", help="the testbench's source directory, where its lock is "
+                                    "written (needed when it was installed without "
+                                    "--symlink-install)")
     add_project_option(parser, f, ls, c)
     args = parser.parse_args(ros_args(sys.argv[1:] if argv is None else argv))
+    tb_name = getattr(args, "testbench", None)
+    if tb_name:
+        try:
+            args.project = str(testbench_dir(tb_name, getattr(args, "source", None),
+                                             fetching=args.cmd == "fetch"))
+        except config.ConfigError as e:
+            print(f"problem: {e}", file=sys.stderr)
+            return REFUSED
     try:
         if args.cmd == "prune":
             prune(config.host_settings()["cache"], dry_run=args.dry_run)

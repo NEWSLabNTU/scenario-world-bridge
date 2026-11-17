@@ -16,10 +16,19 @@ class Finding:
     what: str
     fix: str = ""
     refused: bool = False
+    # about this host (its tools, fetched assets, simulator install, Autoware), not about the
+    # project or testbench itself: `testbench check` reports these apart (081 step 3)
+    host: bool = False
 
     def __str__(self):
         fix = f" (fix: {self.fix})" if self.fix else ""
         return f"problem: {self.file}: {self.what}{fix}"
+
+
+def on_host(findings) -> list:
+    """``findings``, each marked as the host's."""
+    from dataclasses import replace
+    return [replace(f, host=True) for f in findings]
 
 
 def exit_code(findings) -> int:

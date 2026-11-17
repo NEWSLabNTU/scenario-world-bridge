@@ -82,14 +82,33 @@ def apply_keep(run_dir, verdict: str, keep: dict, judged=()) -> str:
 
 # --- finding runs ---------------------------------------------------------------------------
 
+def _logs() -> Path:
+    try:
+        return Path(config.host_settings()["logs"]).expanduser()
+    except config.ConfigError as e:
+        raise Refused(str(e)) from None
+
+
 def runs_root(args) -> Path:
+    tb = getattr(args, "testbench", None)
     if args.root:
         root = Path(args.root).expanduser()
+    elif tb:
+        # a testbench's runs: <logs>/<pkg>/runs (081 step 3), built or given as a path
+        name = tb if "/" not in tb and not Path(tb).is_dir() else Path(tb).resolve().name
+        root = _logs() / name / "runs"
     else:
         try:
             project = config.find_project(args.project)
         except config.ConfigError as e:
-            raise Refused(f"{e} (or give --root <runs dir>)")
+            ident = getattr(args, "id", None)
+            if ident:
+                # outside any project: the run is found among every testbench's and project's
+                hits = sorted(p.parent for p in _logs().glob(f"*/runs/*{ident}*")
+                              if p.is_dir())
+                if len(set(hits)) == 1:
+                    return hits[0]
+            raise Refused(f"{e} (or name the testbench, or give --root <runs dir>)")
         root = project / "runs"
     if not root.is_dir():
         raise Refused(f"{root}: no runs directory")
@@ -147,12 +166,22 @@ def table(rows, out):
 
 # --- commands -------------------------------------------------------------------------------
 
+def _workspace(r) -> str:
+    """The workspace the run's testbench was built in (081 step 3), ~ for the home."""
+    ws = (((r or {}).get("provenance") or {}).get("testbench") or {}).get("workspace")
+    if not ws:
+        return "-"
+    home = str(Path.home())
+    return "~" + ws[len(home):] if ws == home or ws.startswith(home + "/") else ws
+
+
 def cmd_list(args, out):
     root = runs_root(args)
-    rows = [("RUN", "VERDICT", "SCENARIO", "DURATION")]
+    rows = [("RUN", "VERDICT", "SCENARIO", "DURATION", "WORKSPACE")]
     for d in run_dirs(root):
         r = load(d)
-        rows.append((d.name, (r or {}).get("verdict", "(none)"), _scenario_name(r), _duration(r)))
+        rows.append((d.name, (r or {}).get("verdict", "(none)"), _scenario_name(r), _duration(r),
+                     _workspace(r)))
     table(rows, out)
     return EXIT_OK
 
@@ -370,7 +399,9 @@ def parser():
     common.add_argument("--project", help="the project (default: found from the working dir)")
     common.add_argument("--root", help="a runs directory instead of <project>/runs")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list", parents=[common], help="runs: id, verdict, scenario, duration")
+    ls = sub.add_parser("list", parents=[common],
+                        help="runs: id, verdict, scenario, duration, workspace")
+    ls.add_argument("testbench", nargs="?", help="a testbench (its runs: <logs>/<name>/runs)")
     for name, text in (("show", "a run's result and timeline"),
                        ("why", "a run's reason and first WARN/ERROR")):
         p = sub.add_parser(name, parents=[common], help=text)

@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""scensim's one command (roadmap 081 step 3): <prefix>/bin/scensim, on PATH once scensim's
+setup.bash is sourced. It is scensim.cli.main with this command's arguments, as
+`ros2 run scensim scensim` and the pip front end's exec of it are."""
+import sys
+
+from scensim.cli import main
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

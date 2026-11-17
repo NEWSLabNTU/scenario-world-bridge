@@ -89,5 +89,5 @@ table can give every seat its own CARLA port
 
 ## Next
 
-[Tutorial 1: first drive](../tutorials/01-first-drive.md): a project, its map, the stack
+[Tutorial 1: first drive](../tutorials/01-first-drive.md): a testbench, its map, the stack
 and a first run with Autoware.

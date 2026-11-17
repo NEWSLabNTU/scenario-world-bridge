@@ -8,8 +8,8 @@ are in the [glossary](reference/glossary.md).
 
 ## What a student needs
 
-A seat on a GPU host (below), the workspace sourced (`source ~/scensim.bash`), and a project
-directory of their own. Nothing in a student's project is a path on the host, so the same
+A seat on a GPU host (below), the workspace sourced (`source ~/scensim.bash`), and a testbench
+directory of their own. Nothing in a student's testbench is a path on the host, so the same
 assignment repository works on every lab machine and on a student's own.
 
 ## Setting up a lab host (administrator)
@@ -172,7 +172,7 @@ with Labs 6 and 7 shown once by the instructor on one Isaac host.
 
 ## Assignments as projects
 
-An assignment is a project: a git repository with `swb.yaml`, `scensim.lock`, the scenarios
+An assignment is a project: a git repository with `testbench.yaml`, `scensim.lock`, the scenarios
 and suites the students start from, and the judges you grade with. Students copy it into a
 repository of their own:
 
@@ -188,8 +188,8 @@ A run records the scenario's hash, the lock's hash and the workspace's commits i
 `result.json`, so a submitted result says what it ran.
 
 **Submitting** is pushing that repository (to the course's git server) and handing in its
-URL and commit. What belongs in it: `swb.yaml`, `scensim.lock`, `scenarios/`, `suites/`,
-`pilots/`. Not `assets/`, `state/`, `runs/` or `.scensim/`, which the project's `.gitignore`
+URL and commit. What belongs in it: `testbench.yaml`, `scensim.lock`, `scenarios/`, `suites/`,
+`pilots/`. Not `assets/`, `state/`, `runs/` or `.scensim/`, which the testbench's `.gitignore`
 already leaves out: the grader runs the work again rather than trusting the student's runs.
 
 ## Grading with suites and judges
@@ -237,10 +237,10 @@ scensim run suites/grading.yaml --seat 3 --stop-stack
 scensim runs summary
 ```
 
-`--stop-stack` starts the project's stack on the grading seat, runs the suite, and stops
+`--stop-stack` starts the testbench's stack on the grading seat, runs the suite, and stops
 the stack, so one submission never sees another's stack. Copy your own judges and grading
-suite over the student's, and read the `swb.yaml` diff: the judges a run uses are named in
-`swb.yaml`. `summary.csv` has one row per run, with SSv2's verdict and each judge's in its
+suite over the student's, and read the `testbench.yaml` diff: the judges a run uses are named in
+`testbench.yaml`. `summary.csv` has one row per run, with SSv2's verdict and each judge's in its
 `judges` column; each judge's full output is `runs/<id>/judges/grade.json`. The run's own
 verdict stays SSv2's: a judge adds to it, never replaces it
 ([Verdicts](explanation/verdicts.md)), so a grading rule can change and be applied again to
@@ -294,7 +294,7 @@ between runs or hosts: grade the method and the evidence, not a value.
 | CARLA crashes when a scenario changes towns | it ran at `-quality-level=Low`; the stack starts CARLA at Epic. Only a CARLA started by hand can be Low |
 | two seats fight over one CARLA | a CARLA started by hand on another seat's port, or no `seats.carla` in the table: let the stacks start CARLA (`carla.root`, `seats.carla`) and nobody start one by hand |
 | runs refused with `budget`, or a full disk | the log root is full: `scensim runs prune --older-than 7`, or a lower `logging.capture`; check `df -h` on each user's `logs:` |
-| a run refused: `the stack ... was started from another project state` | `swb.yaml`, `scensim.lock` or the pilots changed after the stack started: restart the stack |
+| a run refused: `the stack ... was started from another project state` | `testbench.yaml`, `scensim.lock` or the pilots changed after the stack started: restart the stack |
 | out of GPU memory, a pilot crashing at start | too many seats on one GPU: `nvidia-smi`, then fewer seats per GPU (`gpus:`) |
 
 More symptoms: [Troubleshooting](reference/troubleshooting.md).

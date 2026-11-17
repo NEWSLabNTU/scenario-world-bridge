@@ -36,7 +36,7 @@ What the bridge does with a scenario file, on either simulator unless named:
 - **SSv2-driven road users go where SSv2 says.** A collision does not change their path;
   for a vehicle that reacts to traffic with physics, use `simulator_autopilot` or `agent`.
 - **`simulator_autopilot` cars (CARLA's Traffic Manager)** and **`agent` cars (a pilot of
-  the project)** do not take `LaneChangeAction`, a relative `SpeedAction` or
+  the testbench)** do not take `LaneChangeAction`, a relative `SpeedAction` or
   `FollowTrajectoryAction`; the run fails naming the action. A controller cannot be
   switched to or from either during a run, and a `TeleportAction` after the start is
   ignored for a `simulator_autopilot` car (the simulator owns its pose).
@@ -53,15 +53,15 @@ What the bridge does with a scenario file, on either simulator unless named:
 
 The rules in full, with what fails and how: [What a scenario may use](scenarios.md).
 
-## Projects
+## Testbenches
 
 - **An own car (`vehicles:`) runs on CARLA only.** On Isaac its rig is not made from the
-  spec yet, and `project check` refuses it there. An `autoware` pilot of an own car needs
+  spec yet, and `testbench check` refuses it there. An `autoware` pilot of an own car needs
   the car's Autoware packages built and installed; a car without measured pedal maps drives
   on the Tesla Model 3's ([Your car](../how-to/your-car.md)).
 - **The bridge's trace and contact directories are the stack's, not a run's.** The bridge
   reads them once, at start; each run takes the files the bridge wrote during it
-  (`gap_trace/`, `contacts/`). `logging.gap_trace` is therefore `swb.yaml`'s, not a
+  (`gap_trace/`, `contacts/`). `logging.gap_trace` is therefore `testbench.yaml`'s, not a
   suite's, and a change needs the stack restarted.
 - **Weather parameters are set once per stack.** A world server restarted after the stack
   was ready keeps a preset (the bridge's `weather`) but not parameters set through the
@@ -76,9 +76,9 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
   The `<car>_description` and `<car>_sensor_kit_*` packages are Autoware's; a car for a
   non-Autoware autopilot on CARLA needs only the spec's outputs and a URDF
   ([Your car](../how-to/your-car.md)).
-- **A third simulator** has a world server protocol, but the project stack
+- **A third simulator** has a world server protocol, but the testbench stack
   (`scensim.launch.xml`) starts only `carla` and `isaac`; another simulator runs without
-  projects, seats and `scensim run` ([Your simulator](../how-to/your-simulator.md)).
+  testbenches, seats and `scensim run` ([Your simulator](../how-to/your-simulator.md)).
 
 ## Pilots and autopilots
 
@@ -101,7 +101,7 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 ## Several users and hosts
 
 - **The asset cache is one user's.** A fetch changes the modes of the cache's directories
-  and records the project in the cache, so it needs to own them: a cache another user
+  and records the testbench in the cache, so it needs to own them: a cache another user
   fetched into cannot be fetched into. Give every user their own `cache:` (the default,
   `~/.cache/scensim`).
 - **Two hosts, one suite** (`--shard i/n`) leave two run directories; one results table

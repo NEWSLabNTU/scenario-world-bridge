@@ -2,7 +2,7 @@
 
 Drive a scenario entity with an autopilot that is not scensim's Autoware profile: a launch
 file of yours, a program, a ROS 2 stack, or something you start yourself. It assumes a
-project with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)) and the
+testbench with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)) and the
 pilot kinds of [Tutorial 4](../tutorials/04-several-pilots.md).
 
 An autopilot meets scensim at two places:
@@ -15,7 +15,7 @@ An autopilot meets scensim at two places:
   from Autoware's status messages ([below](#the-vehicle-interface)).
 
 The entity is the scenario's: a controller named `Autoware` (the ego) or `agent`. The
-project binds a pilot to its name in `swb.yaml`.
+testbench binds a pilot to its name in `testbench.yaml`.
 
 ## Which kind
 
@@ -134,7 +134,7 @@ pilots:
 It follows the lanes from where the car is to the scenario's goal, keeps the speed limits
 and slows for curves, and stops at the goal; it ignores traffic lights and other road
 users. On Isaac Sim it drives on the world server's ground truth, which the stack turns on
-for it. The [simple_drive](../../src/scensim_examples/projects/simple_drive/) example project
+for it. The [simple_drive](../../src/scensim_examples/projects/simple_drive/) example testbench
 runs it on Town01.
 
 ## A launch file
@@ -174,7 +174,7 @@ pilots:
     lifetime: run
 ```
 
-scensim runs the words of `run` (relative paths are the project's; not a shell) with
+scensim runs the words of `run` (relative paths are the testbench's; not a shell) with
 `--relay <url> --entity <name> --seed <n>` and, per run, `--run-dir <dir>` appended, and
 starts it again when it ends. Substitutions apply in `run` and `args`: `{seed}`,
 `{run_dir}`, `{run_id}`, `{param:<name>}` (a scenario or suite parameter; the pilot must

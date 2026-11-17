@@ -17,7 +17,7 @@ needs to reach the relay's port (default 5560).
    └──── agent relay :5560 ◀──── TCP ────▶ your agent (scensim_agent.Agent)
 ```
 
-Every pilot of a project is such an agent: `autoware` pilots run scensim's vehicle agent,
+Every pilot of a testbench is such an agent: `autoware` pilots run scensim's vehicle agent,
 `carla_basic` the SDK's BasicAgent adapter, `simple` the SDK's `simple_pilot`, `command`
 pilots a program of yours on this SDK. Which kind to use, and how the stack starts it: [Your autopilot as a
 pilot](../how-to/your-autopilot.md). This page is the SDK itself.
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     scensim_agent.main(MyPilotAgent)
 ```
 
-As a pilot, `swb.yaml` names it (`{kind: command, run: [python3, -m, my_pilot]}`) and scensim
+As a pilot, `testbench.yaml` names it (`{kind: command, run: [python3, -m, my_pilot]}`) and scensim
 gives it `--relay`, `--entity`, `--seed` and `--run-dir`. By hand, for an entity whose
 pilot is `kind: none`:
 
@@ -310,7 +310,7 @@ Config keys: `carla_host` (localhost), `carla_port` (2000), `role_name` (hero),
 `scensim_agent.adapters.simple_pilot` is a small autopilot of its own, and the SDK's example of
 one that drives through the [vehicle interface](../how-to/your-autopilot.md#the-vehicle-interface)
 instead of a simulator's API. It needs no Autoware and runs on CARLA and Isaac Sim alike.
-It is what the `simple` pilot runs (the `simple_drive` example project).
+It is what the `simple` pilot runs (the `simple_drive` example testbench).
 
 - **Route.** On a goal it loads the scenario's Lanelet2 map (`map_path`, its
   `lanelet2_map.osm` placed by the map's `map_projector_info.yaml`, as Autoware and the

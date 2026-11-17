@@ -2,7 +2,7 @@
 
 Change how the `autoware` pilot runs Autoware: its arguments, your own launch or
 parameters, your own build, the fixes Autoware 1.5.0 lacks, and its TensorRT. It assumes a
-project with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)).
+testbench with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)).
 
 ## What the pilot runs
 
@@ -124,5 +124,5 @@ autoware: {tensorrt_lib: ~/tensorrt-10.8.0/lib}
 
 The first start on 10.8 rebuilds once; after that the engine loads (CenterPoint ready in
 about 20 s instead of minutes). On the default detector (`clustering`) no engine is built.
-`project check` warns when a pilot runs CenterPoint and this is not set, and a pilot is not
+`testbench check` warns when a pilot runs CenterPoint and this is not set, and a pilot is not
 ready while its detector is still loading, so no run starts with the ego blind.

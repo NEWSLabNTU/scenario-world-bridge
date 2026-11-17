@@ -1,7 +1,7 @@
 # How it works
 
 Why scensim is shaped the way it is: the parts of a run, and the
-project, stack and run a user works with. No steps here; the tutorials have them.
+testbench, stack and run a user works with. No steps here; the tutorials have them.
 
 <p align="center">
   <img src="../figures/how-it-works.svg" alt="An OpenSCENARIO file (the ego, a Tesla Model 3 with an Autoware controller, and a walker who crosses its lane) drives the scenario runner; the world bridge moves the simulator, CARLA or Isaac Sim; the agent relay hands goals to the autopilot, which reaches the car through a vehicle bridge" width="900"><br>
@@ -54,29 +54,29 @@ stack starts them again.
 
 | Word | Means |
 |---|---|
-| project | a directory holding one use case: `swb.yaml`, scenarios, suites |
-| stack | the long-lived processes of a project on one seat: world server, bridge, relay, pilots |
+| testbench | a directory holding one use case: `testbench.yaml`, scenarios, suites |
+| stack | the long-lived processes of a testbench on one seat: world server, bridge, relay, pilots |
 | run | one scenario (one parameter set, one repetition) against a live stack, ending with a result |
 | suite | many runs: a list, a parameter grid, repetitions |
 | pilot | what drives one scenario entity: a vehicle side scensim starts, plus a driver |
 | seat | one stack's share of a host: ROS domains, ports, web port, GPU |
 
 **Each fact has one owner.** The scenario owns its map, its entities, their cars and which
-of them are driven from outside SSv2 (controller `Autoware` or `agent`). The project owns
+of them are driven from outside SSv2 (controller `Autoware` or `agent`). The testbench owns
 who drives each of those (`pilots:`), which assets at which versions (`assets:`, pinned by
 `scensim.lock`), and the simulator. The host owns its seats, GPUs, install paths, log and
-cache folders. So a scenario runs unchanged in any project with its map, a project runs
+cache folders. So a scenario runs unchanged in any testbench with its map, a testbench runs
 unchanged on any host after `assets fetch`, and a host change never edits a project.
 
-**Assets by name.** A project names datasets and the part of each it takes; `assets fetch`
-puts them in a read-only cache shared by every project and links them into `assets/`.
+**Assets by name.** A testbench names datasets and the part of each it takes; `assets fetch`
+puts them in a read-only cache shared by every testbench and links them into `assets/`.
 Scenarios name maps `$(env SCENSIM_MAPS)/<map>`, world files their stage `${SCENSIM_CARLA_USD}/...`;
 the stack sets both. What the stack writes for a map (CARLA's signal table, Isaac's ruts,
-the project's ground) goes to the project's `state/<map>/`, never into the shared map.
+the testbench's ground) goes to the testbench's `state/<map>/`, never into the shared map.
 
 **A long-lived stack.** Bringing up a world server and an Autoware takes minutes; a
 scenario takes one. So the stack stays up and serves run after run: a run checks that the
-stack was started from this project's state (a fingerprint of `swb.yaml`, the lock and the
+stack was started from this testbench's state (a fingerprint of `testbench.yaml`, the lock and the
 pilots), moves the pilots to the scenario's map when it differs, starts SSv2 on the
 scenario, and records the result. A pilot that ends (an episode end, a crash) is started
 again by the stack.
@@ -85,10 +85,10 @@ again by the stack.
 and a verdict: `passed`, `failed` or `error`, the last for a run the stack could not judge
 ([Verdicts](verdicts.md)).
 
-**Seats.** Several stacks on one host (users, projects, a lab) must not share a ROS domain,
+**Seats.** Several stacks on one host (users, testbenches, a lab) must not share a ROS domain,
 a port or a CARLA. A seat number gives each its own; the host's table maps the number to
 domains, ports and a GPU ([Several stacks on one host](../how-to/several-stacks.md)).
 
 For developers, the design in full:
-[Projects, stacks, runs and pilots](../design/projects-and-pilots.md) and
+[Testbenches, stacks, runs and pilots](../design/projects-and-pilots.md) and
 [the architecture](../design/architecture.md).

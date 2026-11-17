@@ -1,7 +1,7 @@
 # Host settings
 
 What differs between machines: seats, GPUs, install paths, the log root and the cache. They
-live in files, never in a project's `swb.yaml` and never in exports. Every scensim command and
+live in files, never in a testbench's `testbench.yaml` and never in exports. Every scensim command and
 the stack read them, highest first:
 
 1. the command's or the launch's arguments (`--seat`, `seat:=`, `logs:=`, ...);
@@ -38,16 +38,16 @@ seat_locks: /tmp/scensim-seats   # the seat locks: a directory every user can wr
 | `gpu` | the stack | `CUDA_VISIBLE_DEVICES` for the stack's processes |
 | `logs` | the stack, `run`, `runs` | `<logs>/<project name>/` holds the stacks and runs; `<project>/runs` links there |
 | `cache` | `assets` | `<cache>/datasets/<repo>/<commit>/` per fetched dataset |
-| `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A project's `- dataset: <name>` entry is then linked from that directory, with the project's `take:`, instead of fetched; `scensim.lock` keeps only what came from the Hub, so the project reads the same on every host |
-| `workspaces` | `project check`, the stack | `{<name>: <directory>}`: ROS workspaces this host has built, for a pilot's `overlays:` entries `{workspace:<name>}/<path>` ([The project file](project-file.md)), as `datasets` names a dataset's copy; a project naming a workspace this host does not have is refused |
+| `datasets` | `assets fetch`, `assets check` | `{<dataset>: <directory>}`: datasets this host keeps a copy of itself (on a shared disk, say). A testbench's `- dataset: <name>` entry is then linked from that directory, with the testbench's `take:`, instead of fetched; `scensim.lock` keeps only what came from the Hub, so the testbench reads the same on every host |
+| `workspaces` | `testbench check`, the stack | `{<name>: <directory>}`: ROS workspaces this host has built, for a pilot's `overlays:` entries `{workspace:<name>}/<path>` ([The testbench file](project-file.md)), as `datasets` names a dataset's copy; a testbench naming a workspace this host does not have is refused |
 | `carla.host`, `carla.port` | the stack, pilots | where CARLA serves its RPC port |
 | `carla.root` | the stack, pilots | CARLA's install: the `carla_basic` pilot's `agents` package (`<root>/PythonAPI/carla`), and the CARLA the stack starts (`carla.start`) |
 | `carla.start` | the stack | `auto` (default: start CARLA from `carla.root` when nothing answers on the port), `start` (always; refuse a held port), `external` (never); `simulator_start:=` on the stack's command line overrides it |
 | `carla.ready_timeout` | the stack | seconds to wait for a started CARLA's RPC (300) |
-| `carla.map_packages` | `project check` | the directories this host's CARLA towns are installed in (default: `<carla.root>/CarlaUE4/Content`); a project map needs its town there (`<town>.umap` in a package's `Maps/`), so a town you installed into CARLA yourself is this host's, not the project's. Unset with no `carla.root`: not checked |
-| `launcher` | `project check`, `seat show`, the stack, `run` | what starts the stack and each launch of it (its world server, its pilots, a run's SSv2): `auto` (default: play_launch when it is on `PATH` at 0.30 or later, else `ros2 launch`), `play_launch` (refused by `project check` when missing or older) or `ros2`; `launcher:=` on the stack's command line overrides it. `project check` and `seat show` print the choice (`launcher: auto -> play_launch 0.30.0`) |
+| `carla.map_packages` | `testbench check` | the directories this host's CARLA towns are installed in (default: `<carla.root>/CarlaUE4/Content`); a testbench map needs its town there (`<town>.umap` in a package's `Maps/`), so a town you installed into CARLA yourself is this host's, not the testbench's. Unset with no `carla.root`: not checked |
+| `launcher` | `testbench check`, `seat show`, the stack, `run` | what starts the stack and each launch of it (its world server, its pilots, a run's SSv2): `auto` (default: play_launch when it is on `PATH` at 0.30 or later, else `ros2 launch`), `play_launch` (refused by `testbench check` when missing or older) or `ros2`; `launcher:=` on the stack's command line overrides it. `testbench check` and `seat show` print the choice (`launcher: auto -> play_launch 0.30.0`) |
 | `dds.profile` | the stack, `seat env` | a Cyclone DDS XML for every process of the stack and every exported terminal, in place of scensim's localhost profile (a network that needs another, for example unicast on loopback); empty: scensim's |
-| `isaac.root` | the stack, `project check` | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)); required for an Isaac project, with no default. `project check` and the stack refuse an Isaac project when neither `isaac.root` nor `ISAAC_ROOT` is set, or when the root is not an Isaac Sim install (no `venv/bin/activate` or `venv/lib/python3.12/site-packages/isaacsim`, which `install_isaac.sh` makes) |
+| `isaac.root` | the stack, `testbench check` | Isaac's install, handed to the Isaac world server as `ISAAC_ROOT` ([Getting started on Isaac Sim](../getting-started/isaac.md)); required for an Isaac testbench, with no default. `testbench check` and the stack refuse an Isaac testbench when neither `isaac.root` nor `ISAAC_ROOT` is set, or when the root is not an Isaac Sim install (no `venv/bin/activate` or `venv/lib/python3.12/site-packages/isaacsim`, which `install_isaac.sh` makes) |
 | `autoware.setup` | autoware pilots | Autoware's `setup.bash` (`/opt/autoware/1.5.0/setup.bash`); an autoware pilot sources it, then the items below, then this workspace's installs |
 | `autoware.overlay`, `autoware.use_overlay` | autoware pilots | the Autoware fixes this workspace carries, built into `third_party/autoware_overlay` (default); `use_overlay: false` runs stock Autoware |
 | `autoware.cuda_ndt` | autoware pilots | the GPU NDT matcher's build (default `third_party/cuda_ndt_matcher`), sourced when built |

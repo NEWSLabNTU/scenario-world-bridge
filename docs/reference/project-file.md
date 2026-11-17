@@ -35,7 +35,7 @@ ssv2: {}                                # SSv2's run settings for every run
 | `assets` | a list of datasets and paths ([Assets](#assets)) |
 | `maps` | map names under `assets/maps/`; default: every map the testbench's scenarios name. Give it when runs use maps the testbench's own scenarios do not, or to fix their order |
 | `pilots` | entity name or pattern to a pilot ([Pilots](#pilots)) |
-| `vehicles` | spec files of your own cars: the stack makes each car's catalog entry, physics, sensors and frames from its spec when it starts, into `state/vehicles/`; a scenario names the catalog as `$(env SCENSIM_VEHICLES)` ([Your car](../how-to/your-car.md), [Supported and not supported](limits.md#projects)) |
+| `vehicles` | spec files of your own cars: the stack makes each car's catalog entry, physics, sensors and frames from its spec when it starts, into `state/vehicles/`; a scenario names the catalog as `$(env SCENSIM_VEHICLES)` ([Your car](../how-to/your-car.md), [Supported and not supported](limits.md#testbenches)) |
 | `ground` | Isaac: `{<map>: {surfaces: <file>, road_detail: <file>}}`, paths in the testbench ([Road physics](road-physics.md)) |
 | `logging` | what runs record and keep ([Logging](#logging)) |
 | `judges` | programs run over each finished run ([Judges](#judges)) |

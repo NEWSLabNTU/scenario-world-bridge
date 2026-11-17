@@ -9,7 +9,7 @@ kind of road user does, and what fails. Writing one step by step:
 ## The map
 
 `RoadNetwork/LogicFile` names the map directory as `$(env SCENSIM_MAPS)/<map>`; the stack sets
-`SCENSIM_MAPS` to the project's `assets/maps/`. On CARLA the directory's name is the CARLA town,
+`SCENSIM_MAPS` to the testbench's `assets/maps/`. On CARLA the directory's name is the CARLA town,
 and the bridge loads that town when CARLA holds another. The file itself is never changed.
 
 ## The ego
@@ -72,10 +72,10 @@ vehicle ahead on a single-lane road holds it up. Isaac Sim refuses this controll
 
 ## Vehicles a pilot drives: `agent`
 
-A vehicle whose controller is `agent` is driven by a pilot of the project, often a second
+A vehicle whose controller is `agent` is driven by a pilot of the testbench, often a second
 Autoware ([Tutorial 4](../tutorials/04-several-pilots.md)). This is how a scenario has more
 than one automated vehicle; conditions, distances and `CollisionCondition` see it as any
-other entity. `swb.yaml` binds it to a pilot by its name.
+other entity. `testbench.yaml` binds it to a pilot by its name.
 
 - **Start.** The bridge spawns it parked, with physics on, and tells its agent where it is.
 - **Goal.** `AcquirePositionAction` (or `AssignRouteAction`) becomes the agent's goal once

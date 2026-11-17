@@ -1,8 +1,8 @@
 # Run suites in CI
 
-Run a project's suites unattended (a nightly job, a merge check) and hand the verdicts to
+Run a testbench's suites unattended (a nightly job, a merge check) and hand the verdicts to
 the CI system. It assumes a host with the workspace built, CARLA installed (named in the
-host settings as `carla.root`, so the stack starts it, or already serving), and the project
+host settings as `carla.root`, so the stack starts it, or already serving), and the testbench
 checked out ([Start a testbench](start-a-project.md)); suites are
 [Tutorial 5](../tutorials/05-suites.md).
 
@@ -34,7 +34,7 @@ exit $CODE
 
 `--wait 1200` lets the run wait up to 20 minutes for the stack to become ready, instead of
 refusing at once. `setsid` gives the stack a process group of its own, so the job stops
-exactly what it started. A stack that is already up and from the same project state
+exactly what it started. A stack that is already up and from the same testbench state
 serves the job as it is; one from another state is refused (restart it). `map:=Town01`
 starts the pilots before the first run, so `--wait` covers Autoware's start too.
 
@@ -76,7 +76,7 @@ person books.
 | 0 | every run ended as expected (passed, or what the suite `expect`s) |
 | 1 | a scenario failed |
 | 2 | a run could not be judged for the stack's fault (`error`): a world server or bridge error, a pilot that never became ready |
-| 3 | refused: no stack, a stack of another project state, a missing asset, bad input |
+| 3 | refused: no stack, a stack of another testbench state, a missing asset, bad input |
 
 Each suite writes `summary.csv` and a merged `junit.xml` under
 `<logs>/<project>/suites/<suite>/`, printed on its last line (`summary: <path>`); `ros2 run
@@ -88,7 +88,7 @@ when the stack failed a run SSv2 did not see fail. A judge's verdict is in `summ
 
 ## Two hosts, one suite
 
-With the same project and `scensim.lock` on both:
+With the same testbench and `scensim.lock` on both:
 
 ```bash
 scensim run suites/nightly.yaml --shard 1/2     # host A
@@ -101,7 +101,7 @@ short continues with `--resume`, which skips the runs that already have a result
 
 ## Keep the disk
 
-`logging` in `swb.yaml` (or the suite) sets what a run records (`capture`) and what it
+`logging` in `testbench.yaml` (or the suite) sets what a run records (`capture`) and what it
 keeps once its verdict is known (`keep`), and `budget` refuses a suite the log disk cannot
 hold:
 

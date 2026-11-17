@@ -1,6 +1,6 @@
 # Maps and assets
 
-What a map directory holds, the datasets a project can fetch, and CARLA's assets in USD.
+What a map directory holds, the datasets a testbench can fetch, and CARLA's assets in USD.
 How a testbench takes them: [The testbench file](project-file.md#assets).
 
 ## A map directory
@@ -15,14 +15,14 @@ One directory per map, in Autoware's map layout plus each simulator's files:
         surfaces.yaml               (Isaac Sim: optional, the label defaults)
 ```
 
-A fetched map is read-only. What the stack writes for a map goes to the project's
+A fetched map is read-only. What the stack writes for a map goes to the testbench's
 `state/<map>/`:
 
 | In `state/<map>/` | Written by | What |
 |---|---|---|
 | `traffic_lights.yaml`, `carla/traffic_lights.yaml` | CARLA's world server, the first time it loads the map (and again when the map's lanelet2 changes) | which Lanelet2 signal is which CARLA light |
 | `ruts/runs/<time>.npz` | Isaac's world server, at each scenario's end | the soil's ruts |
-| `surfaces.yaml`, `road_detail.yaml` | you ([Road physics](road-physics.md)) | the project's ground for this map, used over the map's |
+| `surfaces.yaml`, `road_detail.yaml` | you ([Road physics](road-physics.md)) | the testbench's ground for this map, used over the map's |
 
 **A map not drawn in CARLA's frame** needs `carla/map_origin.yaml`: the map-frame position
 of CARLA's world origin, in metres, no rotation. CARLA's towns share CARLA's origin and need
@@ -49,7 +49,7 @@ ground_paths:
   - "/World/env/..."
 ```
 
-`usd:` may name the stage through `${SCENSIM_CARLA_USD}` (the project's `assets/carla-usd`, set
+`usd:` may name the stage through `${SCENSIM_CARLA_USD}` (the testbench's `assets/carla-usd`, set
 by the stack), relative to the map directory, or absolutely. `ros2 run scensim_isaac_world
 make_world <map dir> [--town <Town>] [--usd <stage>]` writes it for a CARLA town from the
 USD set; it runs in Isaac's Python.
@@ -67,7 +67,7 @@ their sizes.
 | [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages) | the flat test ground with 13 surface strips and its surface map, the vehicle check's proving ground, `procedural/` (the rough road for Town01, worn ruts) | Apache-2.0 |
 | [newslab-golfcart-models](https://huggingface.co/datasets/jerry73204/newslab-golfcart-models) | a golf cart for Isaac Sim: body, rig, vehicle spec, catalog entry, RViz mesh | Apache-2.0 |
 
-A project takes only what it names (`take:`): Town01 of the maps is about 0.1 GB; Town01
+A testbench takes only what it names (`take:`): Town01 of the maps is about 0.1 GB; Town01
 and `vehicles/` of the USD set several GB. Each dataset is verified file by file against
 its manifest when it has one.
 

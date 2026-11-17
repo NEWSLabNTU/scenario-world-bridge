@@ -13,7 +13,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | `warning  the workspace is off its pins: <submodule> at <commit> (pinned <commit>)` | a submodule, or a component's `deps/`, is checked out at another commit than its pin; a build from it runs other code (an older vehicle spec, for example, and the ego's spawn is refused): `git submodule update --init --recursive`, then rebuild |
 | `python3 cannot import shapely, networkx, which CARLA's agents need` | `sudo apt install python3-shapely python3-networkx`, or `python3 -m pip install --user shapely networkx` |
 | `play_launch <version> (...) is older than 0.30.0, which the stack needs` | the `play_launch` first on `PATH` is too old: `python3 -m pip install --user 'play_launch>=0.30.0'`, or put the newer one first on `PATH` |
-| RViz dies at start, `could not connect to display` | `DISPLAY` is not set: export it, or `rviz: false` on the pilot; `project check` warns |
+| RViz dies at start, `could not connect to display` | `DISPLAY` is not set: export it, or `rviz: false` on the pilot; `testbench check` warns |
 | `Isaac message bindings: <package> is not built` (or `is stale`) | Isaac's Python lacks an Autoware message package the world server publishes, or it was built from an older Autoware: `scensim isaac msgs` |
 | `WARN dds-env-split: /simulator sets ROS_DOMAIN_ID=<n> where the rest of the launch has <m>` in the stack's console | expected: the world server runs on the ego pilot's domain, on purpose. A stack you started by hand with `play_launch` from a terminal on another domain or DDS profile warns for `/bridge` and `CYCLONEDDS_URI` too; `eval "$(scensim seat env scenario)"` first, or let `scensim run --start-stack` start it |
 | `... seat <n> is taken: <user> (pid ...)` | another stack holds the seat: take another (`scensim seat take auto`) or wait |
@@ -25,11 +25,11 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 
 | Symptom | Cause, fix |
 |---|---|
-| `no stack of project <name> on any seat` | the stack is not up, or was started from another directory: start it in the project |
-| `the stack ... was started from another project state: ... differ; restart the stack` | `swb.yaml`, `scensim.lock` or the pilots changed since the stack started: restart it |
+| `no stack of project <name> on any seat` | the stack is not up, or was started from another directory: start it in the testbench |
+| `the stack ... was started from another project state: ... differ; restart the stack` | `testbench.yaml`, `scensim.lock` or the pilots changed since the stack started: restart it |
 | `the stack ... is not ready (... waiting for ego); try --wait 600` | a pilot is still starting: wait for the stack's `ready` line, or add `--wait` |
-| `stacks of this project on seats 0, 1: give --seat <n>` | two stacks of the project are up: name one |
-| `map <name> is not one of the stack's maps` | add it to `maps:` in `swb.yaml` (or a scenario naming it under `scenarios/`), restart the stack |
+| `stacks of this project on seats 0, 1: give --seat <n>` | two stacks of the testbench are up: name one |
+| `map <name> is not one of the stack's maps` | add it to `maps:` in `testbench.yaml` (or a scenario naming it under `scenarios/`), restart the stack |
 | `the scenario is on map ..., the stack's Isaac world on ...` | an Isaac stack serves one world: restart it with the `map:=` the message names |
 | `entity ... has no pilot in the stack` | the scenario has an `agent` entity the stack started no pilot for: add it to `pilots:`, restart |
 | `refused: ... budget` | the log disk cannot hold the runs at `logging.budget`: prune runs, or capture less |
@@ -64,12 +64,12 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | CARLA crashes when a scenario changes towns | it runs at `-quality-level=Low`, where CARLA 0.9.16 segfaults on a town change: keep the default (Epic) |
 | A second CARLA on a held port crashes at start | the first still holds it: stop it by its pid (SIGKILL if it ignores SIGTERM) |
 | `SSv2 wrote no JUnit: The simulation has timed out. Forcibly inactivate.` | SSv2 ran out of time before the storyboard ended and stopped itself without a verdict: the ego never reached its goal, or a trigger never fired. The run's `timeline.jsonl` and the pilot's log under `logs/` say where it stood; a longer scenario needs a larger `timeout` in its suite |
-| `this host's CARLA has no town <name>` | the project's map is a town that must be installed into the CARLA binary (a map package), and this host's CARLA does not have it: install the package into CARLA, or, if your packages live elsewhere, list their directories as `carla: {map_packages: [<dir>]}` in `~/.config/scensim/host.yaml` |
-| `nothing serves CARLA on localhost:2000 and carla.root is not set` | the stack cannot start CARLA without knowing where it is. Set `carla: {root: <CARLA_0.9.16 directory>}` in `~/.config/scensim/host.yaml` (or the project's `.scensim/local.yaml`) and the stack starts it; or start CARLA yourself; or pass `simulator_start:=external` to wait for one |
+| `this host's CARLA has no town <name>` | the testbench's map is a town that must be installed into the CARLA binary (a map package), and this host's CARLA does not have it: install the package into CARLA, or, if your packages live elsewhere, list their directories as `carla: {map_packages: [<dir>]}` in `~/.config/scensim/host.yaml` |
+| `nothing serves CARLA on localhost:2000 and carla.root is not set` | the stack cannot start CARLA without knowing where it is. Set `carla: {root: <CARLA_0.9.16 directory>}` in `~/.config/scensim/host.yaml` (or the testbench's `.scensim/local.yaml`) and the stack starts it; or start CARLA yourself; or pass `simulator_start:=external` to wait for one |
 | CARLA dies mid-run | the run fails within about 30 s. A CARLA the stack started (`carla.root`) is started again by the stack; one you started, restart yourself. The next run waits for it and runs |
 | The stack stops: CARLA did not serve its RPC within `carla.ready_timeout` | the CARLA it started is slow on this host, or failed: read its log, `proc/simulator/carla.log` in the stack's directory; raise `carla.ready_timeout` |
 | The ego hits a chair, table or cone of the town that a car knocked into its lane (a contact with a `static.prop.mesh`) | the town's own props were simulated: the world server's `map_props` is `live`, or its log has `Map props: could not freeze`. With `map_props: frozen` (the default since 2026-11-16) it logs `Map props: froze N of N static.prop.mesh actor(s)` at each world load and they stay put; a run's `result.json` names the setting (`provenance.world_server.map_props`). The contact still counts |
-| The light never changes; `Cannot read the signal table` | the world server could not write the map's signal table into `state/<map>/`: the project directory must be writable |
+| The light never changes; `Cannot read the signal table` | the world server could not write the map's signal table into `state/<map>/`: the testbench directory must be writable |
 
 ## Isaac Sim
 
@@ -83,7 +83,7 @@ the process group it came from; `runs show <run id>` gives the whole timeline.
 | The ego never leaves `INITIALIZING`; `ndt_scan_matcher` logs `No InputSource`, the world server `sensors not ready after N warm-up frames` | on a two-GPU host the renderer is on another card than CUDA, so the sensors never publish: name the card with the host setting `gpu:` and take any `--/renderer/activeGpu` out of `ISAAC_KIT_ARGS` |
 | It is gone for minutes after dying | the stack respawns it and it loads the world again |
 | A first run ends `error` after SSv2 logs `change_to_stop` 30 times, while the world server logs the ego's spawn with `sensors warm after ... 60 s` or more | the ego's sensors took longer on their first spawn than SSv2 waits for its vehicle (about 90 s); a second spawn on the same world server is fast. A suite's `retry: {on: error, times: 1}` passes it |
-| `... SCENSIM_CARLA_USD not set` | the world server was started outside a project's stack |
+| `... SCENSIM_CARLA_USD not set` | the world server was started outside a testbench's stack |
 
 ## Autoware
 

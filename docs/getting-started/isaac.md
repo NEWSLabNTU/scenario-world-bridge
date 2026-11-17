@@ -18,7 +18,7 @@ there is no separate vehicle bridge. Autoware connects to it over ROS, on the sa
   [requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html)
   apply.
 - **About 50 GB** of disk for Isaac Sim and its caches, and several GB in scensim's cache for
-  the USD towns and cars a project fetches. Put both on a fast disk.
+  the USD towns and cars a testbench fetches. Put both on a fast disk.
 - [uv](https://docs.astral.sh/uv/), which installs Isaac's own Python:
 
   ```bash
@@ -55,7 +55,7 @@ source ~/scensim.bash
 scensim isaac msgs    # builds every package that is missing or stale
 ```
 
-Run it again after Autoware is updated: `project check` and the stack refuse an Isaac project
+Run it again after Autoware is updated: `testbench check` and the stack refuse an Isaac testbench
 while a message package the world server needs is missing or was built from another
 Autoware, naming the package.
 
@@ -66,7 +66,7 @@ stack, since a renderer on another card than CUDA leaves the sensors silent.
 
 Isaac Sim's window renderer crashed at start on the TurboVNC displays we tested, and the
 world server opens a window whenever `DISPLAY` is set, so on a VNC display set
-`isaac: {render: headless}` in the project's `swb.yaml`.
+`isaac: {render: headless}` in the testbench's `testbench.yaml`.
 
 **Check**:
 
@@ -81,10 +81,10 @@ prints nothing and exits 0 when every message package is built.
 | Symptom | Fix |
 |---|---|
 | `install_isaac.sh`: `uv: command not found` | install uv first (above) |
-| `project check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `scensim isaac msgs` |
+| `testbench check`: `Isaac message bindings: <package> is not built` (or `is stale`) | `scensim isaac msgs` |
 | The world server is `not up after 1200 s`, its Kit log ends at `omni.client` and it runs at 100 % CPU | a Kit cache link (`~/.cache/ov`, `~/.local/share/ov`, `~/.nvidia-omniverse`) points at a deleted directory, for example after reinstalling Isaac: create its target (`mkdir -p "$(readlink -m ~/.cache/ov)"`), or run `install_isaac.sh` again, which does |
 | Every process prints `'NetworkInterfaceAddress': deprecated element`; the world server logs a DEBUG traceback, `No module named 'em'` | both harmless |
 
 ## Next
 
-[Tutorial 6: the same project on Isaac Sim](../tutorials/06-carla-assets-on-isaac.md).
+[Tutorial 6: the same testbench on Isaac Sim](../tutorials/06-carla-assets-on-isaac.md).

@@ -1,8 +1,8 @@
 # Record a demo
 
 A screencast like the ones in the README: CARLA from behind the ego, and each Autoware's
-RViz beside it. It assumes a CARLA project with a working stack
-([Tutorial 1](../tutorials/01-first-drive.md)); the two-Autoware layout uses a project
+RViz beside it. It assumes a CARLA testbench with a working stack
+([Tutorial 1](../tutorials/01-first-drive.md)); the two-Autoware layout uses a testbench
 like [Tutorial 4](../tutorials/04-several-pilots.md)'s.
 
 A recorded run is a demo, not a measurement: two Autowares, two RViz windows and a screen
@@ -24,7 +24,7 @@ It needs CARLA's Python client and reads CARLA's port from `CARLA_PORT` (default
 
 **RViz layouts** that put the Autoware windows on the right half of a 1920x1080 screen,
 each following its own vehicle from behind, ship with `scensim_launch`. Give them to the
-pilots in `swb.yaml`:
+pilots in `testbench.yaml`:
 
 ```yaml
 pilots:

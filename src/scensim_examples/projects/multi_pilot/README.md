@@ -34,8 +34,8 @@ it chose goes to `logs/pilot-cut_in/cut_in.json` in the run directory. It finds 
 through the host settings (`carla: {root, host, port}`). Check it without a simulator:
 
 ```bash
-echo '{"world": "fake"}' > /tmp/fake.json
-ros2 run scensim_agent scensim-agent check pilots/cut_in.py:CutIn --config /tmp/fake.json
+echo '{"world": "fake"}' > fake.json
+ros2 run scensim_agent scensim-agent check pilots/cut_in.py:CutIn --config fake.json
 ```
 
 ## Hardware

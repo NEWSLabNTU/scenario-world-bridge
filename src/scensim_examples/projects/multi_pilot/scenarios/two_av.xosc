@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-	Town01: two Autoware-driven vehicles in one lane (roadmap 017 step 6).
+	Town01: two Autoware-driven vehicles in one lane.
 
 	  ego       Autoware (isEgo via the Autoware controller), through the agent relay:
 	            westbound on lanelet 6583 from x = 320 to x = 135.

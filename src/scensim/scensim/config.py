@@ -151,7 +151,7 @@ _hinted = set()
 def renamed_env(environ=None) -> list:
     """One line per variable of the old name in ``environ``, naming the one to set instead."""
     environ = os.environ if environ is None else environ
-    return [f"{k} was renamed with the project (roadmap 080); set "
+    return [f"{k} was renamed with the project; set "
             f"{ENV_PREFIX}{k[len(OLD_ENV_PREFIX):]} instead (unset {k} in this shell and in "
             ".env/.envrc)" for k in sorted(environ) if k.startswith(OLD_ENV_PREFIX)]
 
@@ -180,7 +180,7 @@ def check_renamed(project: Path = None):
         if old in _hinted:
             continue
         _hinted.add(old)
-        print(f"scensim: {old} has the old name and is not read (roadmap 080); move it:\n"
+        print(f"scensim: {old} has the old name and is not read; move it:\n"
               f"    mv {old} {new}", file=sys.stderr)
 
 

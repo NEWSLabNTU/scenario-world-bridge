@@ -659,7 +659,7 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
             # retired for projects (roadmap 076 step 10): the developers' map directory
             what += " (CARLA_MAPS is the developers' map directory, not the project's)"
         elif lf.startswith("$(env SWB_MAPS)/"):
-            what += " (SWB_MAPS was renamed SCENSIM_MAPS with the project, roadmap 080)"
+            what += " (SWB_MAPS was renamed SCENSIM_MAPS with the project)"
         out.append(Finding(rel, what, f'filepath="{MAPS_PREFIX}{tail}"'))
     else:
         name = lf[len(MAPS_PREFIX):].strip("/")
@@ -669,7 +669,7 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
     # roadmap 080: the scenario properties of the old name (swb.spec_hash, swb.zone.*, ...)
     # are not read by any part; each is named with its successor
     for old in sorted(set(re.findall(r'name="(swb\.[^"]+)"', _text(sc.path)))):
-        out.append(Finding(rel, f"property {old} was renamed with the project (roadmap 080)",
+        out.append(Finding(rel, f"property {old} was renamed with the project",
                            f'name="scensim.{old[len("swb."):]}"', refused=True))
     pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
     sim = settings.get("simulator")

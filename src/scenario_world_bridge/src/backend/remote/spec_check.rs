@@ -24,7 +24,7 @@ const OLD_PROPERTY: &str = "swb.spec_hash";
 pub fn old_property(text: &str, path: &Path) -> Option<String> {
     text.contains(&format!("name=\"{OLD_PROPERTY}\"")).then(|| {
         format!(
-            "vehicle catalog {}: {OLD_PROPERTY} was renamed with the project (roadmap 080); \
+            "vehicle catalog {}: {OLD_PROPERTY} was renamed with the project; \
              the catalog must name {PROPERTY} (regenerate it: rebuild sim_vehicle_spec)",
             path.display()
         )

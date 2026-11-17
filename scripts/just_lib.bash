@@ -76,7 +76,7 @@ scensim_reject_env() {
     done
     # roadmap 080: swb became scensim; every SWB_* is refused, naming its SCENSIM_* successor
     for var in $(compgen -e | grep '^SWB_'); do
-        echo "[just] $var was renamed with the project (roadmap 080); set SCENSIM_${var#SWB_} instead (.env/.envrc)" >&2
+        echo "[just] $var was renamed with the project; set SCENSIM_${var#SWB_} instead (.env/.envrc)" >&2
         bad=1
     done
     if [ "$bad" = 1 ]; then

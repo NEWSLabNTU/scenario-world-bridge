@@ -107,7 +107,7 @@ RETIRED_ARGS = {
 
 def retired_args(names) -> list:
     """One line per retired launch argument among ``names``: what to give instead."""
-    return [f"{n}:= is retired (roadmap 076); give {RETIRED_ARGS[n]}. The stack is "
+    return [f"{n}:= is retired; give {RETIRED_ARGS[n]}. The stack is "
             f"`play_launch launch scensim_launch scensim.launch.xml` in the project"
             for n in sorted(set(names)) if n in RETIRED_ARGS]
 

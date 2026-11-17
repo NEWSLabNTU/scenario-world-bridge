@@ -29,7 +29,7 @@
   <!-- The conflict-zone protocol (roadmap 078 I4): czp's interaction_strategy node beside
        Autoware, in this (the ego's) domain. Off by default; on, it puts the RTC modules it drives
        in manual mode only while it holds a decision that is not stock's. -->
-  <arg name="interaction_strategy" default="false" description="true: run czp's interaction_strategy node (roadmap 078)"/>
+  <arg name="interaction_strategy" default="false" description="true: run czp's interaction_strategy node"/>
   <arg name="interaction_strategy_zones" default="" description="czp-zones' zones.yaml for this map; empty = map_path/czp_zones.yaml, else built from the map"/>
   <arg name="interaction_strategy_modules" default="[intersection]" description="the RTC modules the node drives"/>
   <arg name="interaction_strategy_log" default="" description="a file for the decision records (JSON lines); empty = topic only"/>

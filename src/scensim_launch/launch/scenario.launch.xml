@@ -57,7 +57,7 @@
        deterministically. -->
   <arg name="global_real_time_factor" default="1.0" description="SSv2 real-time factor" />
   <arg name="frame_rate" default="20"
-       description="SSv2's frames per simulated second (global_frame_rate): 20, a 50 ms step, as below; 100 for a 10 ms step (a car whose controller needs it, scensim roadmap 057)" />
+       description="SSv2's frames per simulated second (global_frame_rate): 20, a 50 ms step, as below; 100 for a 10 ms step (a car whose controller needs it)" />
   <arg name="vehicle_model" default="tesla_model3"
        description="the ego's car: its &lt;name&gt;_description package and &lt;name&gt;_sensor_kit" />
   <!-- false: an ego no Autoware drives (it stands, or follows a trajectory SSv2 drives),

@@ -14,15 +14,15 @@
 	url = https://github.com/NEWSLabNTU/autoware_isaac_bridge.git
 	branch = main
 [submodule "src/swb_world_protocol"]
-	path = src/swb_world_protocol
+	path = src/scensim_world_protocol
 	url = https://github.com/NEWSLabNTU/swb_world_protocol.git
 	branch = main
 [submodule "src/swb_carla_world"]
-	path = src/swb_carla_world
+	path = src/scensim_carla_world
 	url = https://github.com/NEWSLabNTU/swb_carla_world.git
 	branch = main
 [submodule "src/swb_isaac_world"]
-	path = src/swb_isaac_world
+	path = src/scensim_isaac_world
 	url = https://github.com/NEWSLabNTU/swb_isaac_world.git
 	branch = main
 [submodule "src/autoware_sim_vehicle"]

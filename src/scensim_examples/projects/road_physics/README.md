@@ -16,10 +16,10 @@ reads it, so the fetched map, shared and read-only, is never edited. A scenario 
 (wetness, a zone's class or water depth) through OpenSCENARIO's `RoadCondition`; it cannot
 choose the surface map.
 
-Check the ground without Isaac (from a checkout of `swb_isaac_world`):
+Check the ground without Isaac (from a checkout of `scensim_isaac_world`):
 
 ```bash
-python3 -m swb_isaac_world.surfaces check ground/town01.yaml
+python3 -m scensim_isaac_world.surfaces check ground/town01.yaml
 ```
 
 It warns that the mud's soil parameters are not validated (the map opts in with

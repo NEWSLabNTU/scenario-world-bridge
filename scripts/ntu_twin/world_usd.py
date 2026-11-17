@@ -89,7 +89,7 @@ LABELS = {"Ground": "Q34442", "Building": "Q41176", "Tree": "Q10884"}
 # 0.53 deg (soft shadow edges); the dome's share is about a quarter of the light on the ground
 # under a clear sky (sun : sky ~ 2 : 1 on level ground, tuned by eye against render_probe.py's views),
 # and its colour paler than a real sky's, as a camera's white balance makes the shade look. A world with its own light
-# is lit as it is by aib's runner and swb_isaac_world (their defaults go only into a world with none).
+# is lit as it is by aib's runner and scensim_isaac_world (their defaults go only into a world with none).
 SUN_AZ_EL = (135.0, 55.0)
 SUN_INTENSITY = 3000.0
 SUN_ANGLE = 0.53

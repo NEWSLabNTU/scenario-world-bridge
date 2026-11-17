@@ -12,7 +12,7 @@ world and the ports) is refused by name, in ``swb.yaml`` and in ``stack_args``.
       npc_motion: tracked               # tracked | kinematic
       contact_report_dir: off           # off; a directory of yours; unset: per run (scensim's)
       config_file: config/bridge.yaml   # the bridge's bridge_config.yaml
-      world_config_file: config/carla_world.yaml   # CARLA: swb_carla_world.yaml
+      world_config_file: config/carla_world.yaml   # CARLA: scensim_carla_world.yaml
 
     isaac:
       ego: config/ego_lockstep.yaml     # an aib ego config; default | none
@@ -265,7 +265,7 @@ MAP_PROPS_DEFAULT = "frozen"
 def carla_world_settings(rec: dict, share=None) -> dict:
     """The CARLA world server's settings that change results, for a run's provenance:
     ``{"map_props": ...}`` (roadmap 077 G58) from the config file the stack gave it
-    (``config_file:=`` in its sim_args), else the installed ``swb_carla_world.yaml``
+    (``config_file:=`` in its sim_args), else the installed ``scensim_carla_world.yaml``
     (``share``, found by ament when None). Empty for another simulator; ``None`` values when
     the file cannot be read."""
     if (rec or {}).get("simulator") != "carla":
@@ -279,10 +279,10 @@ def carla_world_settings(rec: dict, share=None) -> dict:
         if share is None:
             try:
                 from ament_index_python.packages import get_package_share_directory
-                share = get_package_share_directory("swb_carla_world")
+                share = get_package_share_directory("scensim_carla_world")
             except Exception:
                 return {"map_props": None}
-        path = Path(share) / "config" / "swb_carla_world.yaml"
+        path = Path(share) / "config" / "scensim_carla_world.yaml"
     try:
         import yaml
         doc = yaml.safe_load(Path(path).read_text()) or {}

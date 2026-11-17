@@ -36,8 +36,8 @@
   <arg name="use_sim_time" default="true"/>
   <arg name="carla_host" default="localhost"/>
   <arg name="carla_port" default="2000"/>
-  <arg name="release_notify_endpoint" default="tcp://127.0.0.1:5556" description="swb_carla_world's release PUB socket (ssv2_port + 1)"/>
-  <arg name="release_ack_endpoint" default="tcp://127.0.0.1:5557" description="swb_carla_world's release PULL socket (ssv2_port + 2)"/>
+  <arg name="release_notify_endpoint" default="tcp://127.0.0.1:5556" description="scensim_carla_world's release PUB socket (ssv2_port + 1)"/>
+  <arg name="release_ack_endpoint" default="tcp://127.0.0.1:5557" description="scensim_carla_world's release PULL socket (ssv2_port + 2)"/>
 
   <!-- autoware's -->
   <arg name="autoware_launch" default="$(find-pkg-share autoware_launch)/launch/autoware.launch.xml" description="the autoware.launch.xml the profile includes (a fork's)"/>

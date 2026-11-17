@@ -7,7 +7,7 @@
 # failing both judges; on the spec's physics (G55's default) 0 of 2, then 1 of 2 with 83da98a.
 # Not the physics: Town01's movable map props, which the world server did not freeze, were
 # knocked into the road by the tracked NPC g_close_1, so a contact was chance (077 G58, fixed
-# in swb_carla_world 8b90053; the tour's reruns on it are G58's follow-up).
+# in scensim_carla_world 8b90053; the tour's reruns on it are G58's follow-up).
 scenarios:
   - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i1_lead_brake.xosc
   - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i2_ped_dart.xosc

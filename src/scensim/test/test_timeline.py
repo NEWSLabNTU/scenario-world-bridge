@@ -91,8 +91,8 @@ def test_a_time_without_a_zone_is_local(monkeypatch):
     try:
         utc = timeline.parse_iso("2026-11-16T09:43:07.091834Z")
         _, t, name, _ = timeline.parse_line(
-            "2026-11-16 17:43:07,091 WARNING swb_world_server: step 2 has run 180.1 s")
-        assert name == "swb_world_server"
+            "2026-11-16 17:43:07,091 WARNING scensim_world_server: step 2 has run 180.1 s")
+        assert name == "scensim_world_server"
         assert abs(t - (utc - 0.000834)) < 1e-6  # the same instant, not 8 h later
         assert timeline.parse_iso("2026-11-16T17:43:07.091834+08:00") == utc  # a zone stays
     finally:
@@ -121,12 +121,12 @@ def test_why_prefers_swbs_own_refusal_and_skips_capability_notes():
     # no refusal from scensim's processes: the first problem, as before
     assert timeline.why([cap, semantic]) is semantic
     # a world server's failure counts too; another group's "failed" does not outrank
-    ws = e(6.0, "simulator", "swb_isaac_world", "ERROR", "load_world failed: no USD stage")
+    ws = e(6.0, "simulator", "scensim_isaac_world", "ERROR", "load_world failed: no USD stage")
     pilot = e(4.0, "pilot-ego", "planning", "WARN", "planning failed to find a path")
     assert timeline.why([cap, pilot, semantic, ws]) is ws
     assert timeline.why([cap, setcap]) is None
     # G70: the world server's watchdog names the request it ended
-    dog = e(7.0, "simulator", "swb_isaac_world", "ERROR",
+    dog = e(7.0, "simulator", "scensim_isaac_world", "ERROR",
             "step 1 (3 x 0.0166667 s at sim time 0.000 s) has run 180.0 s, past its deadline "
             "of 180 s: ending world server 4242 for a fresh one")
     bridge = e(6.5, "bridge", "scenario_world_bridge", "ERROR",

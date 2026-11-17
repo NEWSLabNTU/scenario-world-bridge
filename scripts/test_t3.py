@@ -127,7 +127,7 @@ def _results(tmp_path, commits, dirty=False, subs=None):
         run.mkdir(parents=True)
         run.joinpath("result.json").write_text(json.dumps({"provenance": {
             "swb": c + ("+dirty" if dirty else ""),
-            "submodules": subs or {"src/swb_isaac_world": "f00"}}}))
+            "submodules": subs or {"src/scensim_isaac_world": "f00"}}}))
         lines.append(f"{rid},/a/a{i}.xosc,,0,,passed,,100,,/p\n")
     (suite / "summary.csv").write_text("".join(lines))
     stamps = tmp_path / "work" / "stamps"           # this host's `t3.py run` of it (G82)
@@ -155,7 +155,7 @@ def test_record_names_the_results_commit_not_the_scripts(tmp_path, monkeypatch, 
     meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
     assert meta["commit"] == "aaaaaaa" and meta["recorded_with"] == "bbbbbbb"
     assert meta["summary"] == "<host logs>/zz_t3test/suites/s/summary.csv"   # no host path
-    assert meta["submodules"] == {"src/swb_isaac_world": "f00"}
+    assert meta["submodules"] == {"src/scensim_isaac_world": "f00"}
     assert meta["gpu_gated"] == {"indices": [0], "source": "host gpu: 0"}
     assert meta["gpu_at_record"] == TWO and meta["notes"] == []
     # compare reads the same field
@@ -189,13 +189,13 @@ def test_a_dirty_checkout_is_recorded_with_a_note(tmp_path, monkeypatch, capsys)
 def test_record_refuses_submodules_off_their_pins(tmp_path, monkeypatch, capsys):
     """243's must-fix: a stale submodule after a pull (provenance `sha+`) or one not
     initialised (`sha-`) means the binaries are not the commit's code."""
-    logs, m = _results(tmp_path, ["aaaaaaa"], subs={"src/swb_isaac_world": "f2d7e1a+",
+    logs, m = _results(tmp_path, ["aaaaaaa"], subs={"src/scensim_isaac_world": "f2d7e1a+",
                                                     "src/color_names": "c6a3227-",
                                                     "src/sim_vehicle_spec": "9b7e48d"})
     _quiet(monkeypatch)
     assert t3.main(["record", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 1
     assert ("not recorded, submodules off the commit's pins: src/color_names (c6a3227-), "
-            "src/swb_isaac_world (f2d7e1a+); git submodule update --init --recursive, "
+            "src/scensim_isaac_world (f2d7e1a+); git submodule update --init --recursive, "
             "rebuild, run again") in capsys.readouterr().out
     assert not (tmp_path / "refs" / "zz_t3test" / "s.json").exists()
 
@@ -473,7 +473,7 @@ def test_compare_takes_references_recorded_before_the_stamps(tmp_path, monkeypat
     ref.write_text("scenario,params,repetition,seed,verdict,judges,duration\n"
                    "a0.xosc,,0,,passed,,100\n")
     ref.with_suffix(".json").write_text(json.dumps({
-        "commit": "aaaaaaa", "submodules": {"src/swb_isaac_world": "f00"},
+        "commit": "aaaaaaa", "submodules": {"src/scensim_isaac_world": "f00"},
         "recorded_with": "876f8b3", "host": "h", "summary": "s", "runs": 1,
         "gpu_at_record": TWO, "gpu_gated": {"indices": [0], "source": "host gpu: 0"},
         "load_at_record": [2.0, 32], "notes": []}))

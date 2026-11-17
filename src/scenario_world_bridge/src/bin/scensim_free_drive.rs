@@ -19,11 +19,11 @@ use std::time::{Duration, Instant};
 
 use eyre::{bail, eyre, Result, WrapErr};
 use prost::Message;
-use swb_core::proto::geometry_msgs::{Point, Pose, Quaternion, Vector3};
-use swb_core::proto::simulation_api_schema::{
+use scensim_core::proto::geometry_msgs::{Point, Pose, Quaternion, Vector3};
+use scensim_core::proto::simulation_api_schema::{
     self as api, simulation_request, simulation_response, SimulationRequest, SimulationResponse,
 };
-use swb_core::proto::traffic_simulator_msgs::{
+use scensim_core::proto::traffic_simulator_msgs::{
     Axle, Axles, BoundingBox, EntitySubtype, Performance, VehicleParameters,
 };
 
@@ -174,7 +174,7 @@ fn vehicle_parameters(a: &Args) -> Result<(VehicleParameters, String)> {
         }),
         property: None,
         subtype: Some(EntitySubtype {
-            value: swb_core::proto::traffic_simulator_msgs::entity_subtype::Enum::Car as i32,
+            value: scensim_core::proto::traffic_simulator_msgs::entity_subtype::Enum::Car as i32,
         }),
     };
     Ok((params, v.attribute("model3d").unwrap_or("").to_string()))

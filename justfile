@@ -266,18 +266,18 @@ test:
     cargo nextest run --no-tests pass --no-fail-fast
     # The world protocol's crates, in their own workspace; its gap trace test reads the trace
     # back with this repository's reader
-    (cd src/swb_world_protocol && SCENSIM_GAP_TRACE_READER_DIR="$OLDPWD/src/scensim_launch/scripts" \
+    (cd src/scensim_world_protocol && SCENSIM_GAP_TRACE_READER_DIR="$OLDPWD/src/scensim_launch/scripts" \
         cargo nextest run --no-tests pass --no-fail-fast)
     # The CARLA world server's crate, in its workspace; its wet-road test compares with Isaac's
     # surface classes
-    (cd src/swb_carla_world && SCENSIM_ISAAC_SURFACE_CLASSES="$OLDPWD/src/swb_isaac_world/config/surface_classes.yaml" \
+    (cd src/scensim_carla_world && SCENSIM_ISAAC_SURFACE_CLASSES="$OLDPWD/src/scensim_isaac_world/config/surface_classes.yaml" \
         cargo nextest run --no-tests pass --no-fail-fast)
     # Every component's deps/ pins are this workspace's pins (roadmap 051)
     python3 scripts/check_pins.py
     # The user docs keep their rules: links resolve, no `just`, no banned punctuation, every
     # tutorial in the tutorial format (roadmap 076 B6)
     python3 scripts/check_docs.py
-    # SSv2's protos in swb_world_protocol are the fork's (roadmap 051)
+    # SSv2's protos in scensim_world_protocol are the fork's (roadmap 051)
     # no pytest plugins: ROS's launch_testing hook would import scripts/test_phase1.py, a
     # live ZMQ client (pyzmq, the runtime's protobuf), and fail where those differ (swb 139)
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py scripts/test_ego_used.py
@@ -294,8 +294,8 @@ test:
     python3 -m pytest -q src/czp/test
     # The world server shell, on a fake world (roadmaps 037, 046; protobuf only), and the Isaac
     # world's pure modules
-    python3 -m unittest discover -s src/swb_world_protocol/swb_world_server/test
-    python3 -m unittest discover -s src/swb_isaac_world/test
+    python3 -m unittest discover -s src/scensim_world_protocol/scensim_world_server/test
+    python3 -m unittest discover -s src/scensim_isaac_world/test
     # The Autoware profile's settings (autoware_sim_vehicle)
     python3 -m pytest -q src/autoware_sim_vehicle/test
     # Scenario cars come from sim_vehicle_spec's catalog (roadmap 051); every other vehicle
@@ -817,7 +817,7 @@ run *args:
     export EGO_ROS_DOMAIN_ID={{ego_domain}} SCENARIO_ROS_DOMAIN_ID={{scenario_domain}} \
         SSV2_PORT={{ssv2_port}} AGENT_PORT={{agent_port}} WORLD_PORT={{world_port}} \
         ISAAC_PORT={{isaac_port}} CARLA_PORT={{carla_port}} CARLA_HOST="${CARLA_HOST:-localhost}" \
-        ISAAC_ROOT={{isaac_root}} SCENSIM_ISAAC_DIR="{{project}}/src/swb_isaac_world" \
+        ISAAC_ROOT={{isaac_root}} SCENSIM_ISAAC_DIR="{{project}}/src/scensim_isaac_world" \
         SCENSIM_LOG_ROOT="${SCENSIM_LOG_ROOT:-{{project}}/play_log}"
     export ROS_DOMAIN_ID={{scenario_domain}}
     for kind in ego agent scenario; do scensim_log_dir "{{project}}" "$kind" > /dev/null; done
@@ -843,10 +843,10 @@ isaac_display := env_var_or_default("ISAAC_DISPLAY", ":8")
 # Isaac Sim smoke test: version, start time, step time (headless; DISPLAY set = windowed)
 isaac-check:
     @[ -n "{{isaac_root}}" ] || { echo "isaac-check: ISAAC_ROOT is not set: Isaac Sim 6.1's pip install; set it in .env (no default, 077 G75)" >&2; exit 2; }
-    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/swb_isaac_world/spikes/run_spike.sh" fastrtps {{isaac_root}}/logs/isaac-check.log "{{justfile_directory()}}/src/swb_isaac_world/spikes/smoke.py"; grep SMOKE {{isaac_root}}/logs/isaac-check.log
+    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/scensim_isaac_world/spikes/run_spike.sh" fastrtps {{isaac_root}}/logs/isaac-check.log "{{justfile_directory()}}/src/scensim_isaac_world/spikes/smoke.py"; grep SMOKE {{isaac_root}}/logs/isaac-check.log
 
 # The Isaac Sim world server (roadmaps 037, 038, 046), supervised (043):
-# swb_isaac_world swb_isaac_world.launch.xml under play_launch (web SCENSIM_WEB_PORT+5, logs in $SCENSIM_LOG_ROOT/isaac/),
+# scensim_isaac_world scensim_isaac_world.launch.xml under play_launch (web SCENSIM_WEB_PORT+5, logs in $SCENSIM_LOG_ROOT/isaac/),
 # which respawns it when it dies. Long-lived: start it once, before `just run sim:=isaac`
 # and `just ego-isaac`; `just scenario ... sim:=isaac` starts it when it is not up.
 #
@@ -895,11 +895,11 @@ isaac-world *args:
     # The file above is Cyclone DDS's: without this an unset RMW is Fast DDS, which never
     # reads it and cannot find the Cyclone processes (roadmap 070, friction 14).
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
-    # Built from this checkout's swb_isaac_world; a moved checkout points it here again.
-    export SCENSIM_ISAAC_DIR="{{project}}/src/swb_isaac_world"
+    # Built from this checkout's scensim_isaac_world; a moved checkout points it here again.
+    export SCENSIM_ISAAC_DIR="{{project}}/src/scensim_isaac_world"
     log_dir=$(scensim_log_dir "{{project}}" isaac)
     exec play_launch launch --disable-diagnostics --web-addr 0.0.0.0:$((SCENSIM_WEB_PORT + 5)) --log-dir "$log_dir" \
-        swb_isaac_world swb_isaac_world.launch.xml "${args[@]}"
+        scensim_isaac_world scensim_isaac_world.launch.xml "${args[@]}"
 
 # Is a world server up? One probe Hello (it changes nothing on the server): its simulator,
 # capabilities, owner and readiness. sim:=carla (default, WORLD_PORT) or sim:=isaac
@@ -919,7 +919,7 @@ world-health *args:
     done
     case "$sim" in carla) port={{world_port}} ;; isaac) port={{isaac_port}} ;;
         *) echo "world-health: sim '$sim' is not carla or isaac" >&2; exit 2 ;; esac
-    exec "{{project}}/install/swb_world_check/lib/swb_world_check/swb_world_check" \
+    exec "{{project}}/install/scensim_world_check/lib/scensim_world_check/scensim_world_check" \
         hello "tcp://127.0.0.1:$port" --wait "$wait"
 
 # The Isaac world server's health (`just world-health sim:=isaac`).
@@ -946,13 +946,13 @@ world-check *args:
     done
     case "$sim" in carla) port={{world_port}} ;; isaac) port={{isaac_port}} ;;
         *) echo "world-check: sim '$sim' is not carla or isaac" >&2; exit 2 ;; esac
-    exec "{{project}}/install/swb_world_check/lib/swb_world_check/swb_world_check" \
+    exec "{{project}}/install/scensim_world_check/lib/scensim_world_check/scensim_world_check" \
         conformance "tcp://127.0.0.1:$port" --map "$map"
 
 
 # Build Autoware's message bindings for Isaac's Python (once per Isaac install; roadmap 038)
 isaac-msgs:
-    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/swb_isaac_world/scripts/build_msgs.sh"
+    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/scensim_isaac_world/scripts/build_msgs.sh"
 
 # <map>/isaac/world.yaml: from the map's point cloud as voxels (default), or usd:=<file> -- a
 # USD world in the map frame, e.g. CARLA's SimReady export with its physics layer, ground
@@ -965,17 +965,17 @@ isaac-msgs:
 # A CARLA town as an Isaac world (roadmap 043)
 [positional-arguments]
 isaac-town town *args:
-    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/swb_isaac_world/scripts/isaac_town.sh" "$@"
+    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/scensim_isaac_world/scripts/isaac_town.sh" "$@"
 
 # Usage: just isaac-vehicles [only:=<id>,<id>...] [export:=true] [props|walkers|riders:=true]
 #
 # SimReady export of each vehicle, render-only asset, vehicles.json, into SCENSIM_VEHICLE_USD;
 # host paths from CARLA_SRC and SCENSIM_VEHICLE_USD. Physics afterwards, with CARLA up:
-# src/swb_isaac_world/scripts/dump_vehicle_physics.py --root "$SCENSIM_VEHICLE_USD".
+# src/scensim_isaac_world/scripts/dump_vehicle_physics.py --root "$SCENSIM_VEHICLE_USD".
 # CARLA's vehicles as Isaac assets (roadmap 043)
 [positional-arguments]
 isaac-vehicles *args:
-    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/swb_isaac_world/scripts/isaac_vehicles.sh" "$@"
+    ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/scensim_isaac_world/scripts/isaac_vehicles.sh" "$@"
 
 # Usage: just isaac-assets <check|manifest> [root:=<dir>]
 #
@@ -998,8 +998,8 @@ isaac-assets command *args:
         esac
     done
     [ -n "$root" ] || { echo "isaac-assets: no asset root: root:=<dir> or CARLA_USD" >&2; exit 2; }
-    cd "{{justfile_directory()}}/src/swb_isaac_world"
-    python3 -m swb_isaac_world.asset_set "$command" "$root"
+    cd "{{justfile_directory()}}/src/scensim_isaac_world"
+    python3 -m scensim_isaac_world.asset_set "$command" "$root"
 
 # Usage: just isaac-world-gen [map_path:=<dir>] [usd:=<file>]
 #
@@ -1018,10 +1018,10 @@ isaac-world-gen *args:
         esac
     done
     export ISAAC_ROOT={{isaac_root}}
-    source "{{justfile_directory()}}/src/swb_isaac_world/scripts/isaac_env.sh"
-    cd "{{justfile_directory()}}/src/swb_isaac_world"
-    if [ -n "$usd" ]; then python -m swb_isaac_world.usd_world "$map_path" "$usd"
-    else python -m swb_isaac_world.pcd_world "$map_path"; fi
+    source "{{justfile_directory()}}/src/scensim_isaac_world/scripts/isaac_env.sh"
+    cd "{{justfile_directory()}}/src/scensim_isaac_world"
+    if [ -n "$usd" ]; then python -m scensim_isaac_world.usd_world "$map_path" "$usd"
+    else python -m scensim_isaac_world.pcd_world "$map_path"; fi
 
 # Usage: just surfaces-check [map_path:=<dir>]
 #
@@ -1056,8 +1056,8 @@ _surfaces command *args:
             *) echo "surfaces-$command: unknown argument '$a' (map_path:=$([ "$command" = plot ] && echo ', out:='))" >&2; exit 2 ;;
         esac
     done
-    cd "{{justfile_directory()}}/src/swb_isaac_world"
-    python3 -m swb_isaac_world.surfaces "$command" "$map_path" "${out[@]}"
+    cd "{{justfile_directory()}}/src/scensim_isaac_world"
+    python3 -m scensim_isaac_world.surfaces "$command" "$map_path" "${out[@]}"
 
 # GNOME with 3 static workspaces (Ctrl+Alt+1/2/3), OpenGL on the NVIDIA GPU through
 # VirtualGL (-vgl; scripts/vnc_xstartup.sh). A GL app started from a terminal in the

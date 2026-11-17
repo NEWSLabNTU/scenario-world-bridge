@@ -4,7 +4,7 @@
     $ISAAC_ROOT/venv/bin/python scripts/open_maps/world_usd.py <site.yaml> <out>
 
 One stage in the Isaac world frame (the map frame less the site's map_origin), metres, z up,
-built with 058's helpers (swb_isaac_world.course.usd) so it loads as a course does:
+built with 058's helpers (scensim_isaac_world.course.usd) so it loads as a course does:
 
 - the ground, textured with NLSC's photo (Terrain);
 - the roads (Road), colliders;
@@ -27,9 +27,9 @@ import numpy as np
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "src" / "swb_isaac_world"))
-from swb_isaac_world.course import props as pr  # noqa: E402
-from swb_isaac_world.course.usd import LABELS, LINK, QCODE, _grid_normals, _material, _mesh  # noqa: E402
+sys.path.insert(0, str(REPO / "src" / "scensim_isaac_world"))
+from scensim_isaac_world.course import props as pr  # noqa: E402
+from scensim_isaac_world.course.usd import LABELS, LINK, QCODE, _grid_normals, _material, _mesh  # noqa: E402
 
 ROOT = "/World"
 TREES = ["Town01/Props/SM_Beech.usd", "Town02/Props/SM_Japanese_Maple_01.usd",

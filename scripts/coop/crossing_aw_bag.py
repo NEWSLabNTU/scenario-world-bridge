@@ -31,7 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import crossing_game as G  # noqa: E402
 
-SIM_BASE = 1000.0  # s: ROS stamp = CARLA elapsed + this (swb_core sim_time BASE_NS)
+SIM_BASE = 1000.0  # s: ROS stamp = CARLA elapsed + this (scensim_core sim_time BASE_NS)
 MATCH_R = 3.0  # m: a track within this of A's true centre is A
 REST_V = 0.1  # m/s, czp's rest_speed
 CMD = {0: "DEACTIVATE", 1: "ACTIVATE"}  # tier4_rtc_msgs/Command
@@ -122,7 +122,7 @@ def analyse(rd):
     setup = ev["setup"]
     el_lock = ev["lock"]["el"] if "el" in ev["lock"] else setup["t0"] + ev["lock"]["t"]
     msgs = list(bag_rows(rd / "bag"))
-    # ROS time is CARLA's elapsed + BASE (1000 s) exactly (swb_core sim_time); the offset read from the ego's
+    # ROS time is CARLA's elapsed + BASE (1000 s) exactly (scensim_core sim_time); the offset read from the ego's
     # localization against its truth is kept as a diagnostic: it is that much late (EKF/NDT lag)
     loc_off, spread = clock_offset(msgs, rows)
     off = SIM_BASE

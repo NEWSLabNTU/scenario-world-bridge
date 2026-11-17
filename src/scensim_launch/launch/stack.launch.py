@@ -16,11 +16,11 @@ and which refuses ego_launch, ego_launch_args, agent and map_path by name (roadm
 
 Groups and their ROS domains:
 - sim (ego domain): the world server.
-  - isaac: swb_isaac_world.launch.xml.
-  - carla: swb_carla_world.launch.xml; CARLA itself runs apart (CarlaUE4.sh), or, under
+  - isaac: scensim_isaac_world.launch.xml.
+  - carla: scensim_carla_world.launch.xml; CARLA itself runs apart (CarlaUE4.sh), or, under
     scensim.launch.xml, is started by its keeper (scensim.simulator, `simulator_start`).
   - <package>: that package's launch/world.launch.xml, which starts a world server speaking
-    swb_world.proto (docs/design/simulator-interface-split.md; swb_world_check conformance)
+    scensim_world.proto (docs/design/simulator-interface-split.md; scensim_world_check conformance)
     on `world_endpoint`.
   `sim_args` go to that launch.
 - simulation side (scenario domain): the bridge and the agent relay (simulation.launch.xml).
@@ -371,16 +371,16 @@ def _stack(context):
     # --- sim
     endpoint = get("world_endpoint")
     if sim == "isaac":
-        world = os.path.join(get_package_share_directory("swb_isaac_world"), "launch",
-                             "swb_isaac_world.launch.xml")
+        world = os.path.join(get_package_share_directory("scensim_isaac_world"), "launch",
+                             "scensim_isaac_world.launch.xml")
         port = world_port or _env("ISAAC_PORT", "5590")
         endpoint = endpoint or f"tcp://127.0.0.1:{port}"
-        # swb_isaac_world.launch.xml reads both from the environment
+        # scensim_isaac_world.launch.xml reads both from the environment
         sim_env = {"EGO_ROS_DOMAIN_ID": ego_domain, "ISAAC_PORT": port}
         timeouts = {}
     elif sim == "carla":
-        world = os.path.join(get_package_share_directory("swb_carla_world"), "launch",
-                             "swb_carla_world.launch.xml")
+        world = os.path.join(get_package_share_directory("scensim_carla_world"), "launch",
+                             "scensim_carla_world.launch.xml")
         port = world_port or _env("WORLD_PORT", "5591")
         endpoint = endpoint or f"tcp://127.0.0.1:{port}"
         sim_args = {"port": port, "ssv2_port": ssv2_port,

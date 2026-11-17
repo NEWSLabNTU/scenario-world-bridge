@@ -224,10 +224,10 @@ def meshes(site, out):
 
 
 def signal_table(osm, path):
-    """The map's signal table, as the bridge reads it (swb_core map_resolver: `traffic_lights.yaml`):
+    """The map's signal table, as the bridge reads it (scensim_core map_resolver: `traffic_lights.yaml`):
     per traffic_light way its regulatory elements and an id for the world server, here the way's
     own. No positions: the world has no lamp prims to colour, and the colours reach Autoware
-    without them (swb_isaac_world signals.groups). Without the table nothing publishes the
+    without them (scensim_isaac_world signals.groups). Without the table nothing publishes the
     lights' states and Autoware stops at every signal (062, the first NTU runs)."""
     import xml.etree.ElementTree as ET
     root = ET.parse(osm).getroot()

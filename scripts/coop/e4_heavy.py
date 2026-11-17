@@ -3,7 +3,7 @@
 
 `sim_vehicle_spec` holds two cars (tesla_model3, drift_mustang) and no truck or bus. This tool
 measures the heavy blueprints CARLA ships, with their stock physics (nothing applied), on the
-arena's world (arena.Arena: generated straight roads, swb_carla_world's timing, 0.05 s ticks and
+arena's world (arena.Arena: generated straight roads, scensim_carla_world's timing, 0.05 s ticks and
 16 substeps), one car per road, all in parallel:
 
   physics   what get_physics_control() says: mass, drag, engine (max rpm, torque curve), gears,
@@ -111,7 +111,7 @@ def write_map(path, kind, bp, rows):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         f.write(f"# {kind} response of {bp} on CARLA 0.9.16 (stock physics), measured by scripts/coop/e4_heavy.py\n")
-        f.write("# CARLA tick 0.050 s, physics substeps of 0.0031 s (max 16) -- the timing swb_carla_world uses\n")
+        f.write("# CARLA tick 0.050 s, physics substeps of 0.0031 s (max 16) -- the timing scensim_carla_world uses\n")
         f.write("# Rows: pedal position. Columns: vehicle speed in m/s.\n")
         f.write("# Cells: measured longitudinal acceleration in m/s^2.\n")
         f.write("default," + ",".join(f"{s:.1f}" for s in SPEEDS) + "\n")

@@ -11,7 +11,7 @@ mod world_services;
 mod zmq_server;
 
 // The simulator-free core, under the paths the bridge's modules name.
-pub(crate) use swb_core::{
+pub(crate) use scensim_core::{
     agent_link, autopilot, body_clearance, budgets, config, contact_report, coordinate_conversion,
     entity_manager, environment, gap_trace, map_resolver, npc_tracking, proto, ros_args, weather,
 };
@@ -29,7 +29,7 @@ const TICK_HUNG_EXIT: i32 = 75;
 fn main() -> Result<()> {
     color_eyre::install()?;
     // Ends with its supervisor: a play_launch killed with SIGKILL takes the bridge along.
-    swb_core::world_server::die_with_parent();
+    scensim_core::world_server::die_with_parent();
     // SAFETY: getppid has no preconditions.
     let supervisor = unsafe { libc::getppid() };
     tracing_subscriber::fmt()
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
     // File, then environment, then ROS parameters: each later source is a more specific
     // statement of what this run wants.
     let mut config = config::BridgeConfig::load_for(&config_file, config::ConfigOwner::Bridge)?;
-    config.apply_env_overrides();
+    config.apply_env_overrides()?;
     config.apply_ros_params(&params)?;
 
     let ssv2_port = config.ssv2.port;

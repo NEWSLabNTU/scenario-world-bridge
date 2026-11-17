@@ -5,7 +5,7 @@ members = [
 ]
 # Submodules with workspaces of their own (roadmap 051): their crates are path dependencies
 # here, built and tested in their own workspace.
-exclude = ["src/swb_world_protocol", "src/swb_carla_world"]
+exclude = ["src/scensim_world_protocol", "src/scensim_carla_world"]
 
 [profile.dev-release]
 inherits = "release"

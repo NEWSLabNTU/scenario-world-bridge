@@ -100,8 +100,8 @@ class EgoUsed(unittest.TestCase):
             f.write('<ScenarioObject name="ego"/><ScenarioObject name="bg_x_1"/>')
         sc = f.name
         ego = self.stack(*web(BASE + 2))
-        bg = self.stack(*web(BASE + 3), "swb_launch", "background_av.launch.xml", "entity:=bg_x_1")
-        self.stack(*web(BASE + 7), "swb_launch", "background_av.launch.xml", "entity:=bg_x_9")
+        bg = self.stack(*web(BASE + 3), "scensim_launch", "background_av.launch.xml", "entity:=bg_x_1")
+        self.stack(*web(BASE + 7), "scensim_launch", "background_av.launch.xml", "entity:=bg_x_9")
         # no stack on +4 yet: stack_up starts it without an ego, so the separate one serves
         out = self.sh(f'ego_used_separate "{sc}" 1 {BASE}')[1].splitlines()
         self.assertIn(f"ego {ego.pid}", out)
@@ -110,11 +110,11 @@ class EgoUsed(unittest.TestCase):
         # no ego in the scenario: only the background AV
         self.assertEqual(self.sh(f'ego_used_separate "{sc}" 0 {BASE}')[1], f"bg bg_x_1 {bg.pid}")
         # a stack with its own ego on +4: the separate one does not serve
-        own = self.stack(*web(BASE + 4), "swb_launch", "carla.launch.xml", "map_path:=/m")
+        own = self.stack(*web(BASE + 4), "scensim_launch", "carla.launch.xml", "map_path:=/m")
         self.assertNotIn(f"ego {ego.pid}", self.sh(f'ego_used_separate "{sc}" 1 {BASE}')[1])
         own.kill()
         own.wait()
-        self.stack(*web(BASE + 4), "swb_launch", "carla.launch.xml", "ego_launch:=none")
+        self.stack(*web(BASE + 4), "scensim_launch", "carla.launch.xml", "ego_launch:=none")
         self.assertIn(f"ego {ego.pid}", self.sh(f'ego_used_separate "{sc}" 1 {BASE}')[1])
         Path(sc).unlink()
 

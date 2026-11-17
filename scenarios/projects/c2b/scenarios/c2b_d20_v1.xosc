@@ -9,7 +9,7 @@
 		<ParameterDeclaration name="start_shift" parameterType="double" value="154.4" />
 	</ParameterDeclarations>
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
-	<RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town03" /></RoadNetwork>
+	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town03" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="coop_a">
 			<CatalogReference catalogName="vehicles" entryName="tesla_model3">

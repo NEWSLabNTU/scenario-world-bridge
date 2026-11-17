@@ -2,7 +2,7 @@
 # pilots move to it between the runs). References: roadmap 038, town01 3 of 3 (2026-10-18);
 # 043, town02 passed (2026-10-19).
 scenarios:
-  - ../../../src/swb_examples/scenarios/basic/town01_ego_drive.xosc
-  - ../../../src/swb_examples/scenarios/basic/town02_ego_drive.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town01_ego_drive.xosc
+  - ../../../src/scensim_examples/scenarios/basic/town02_ego_drive.xosc
 retry: {on: error, times: 1}
 expect: {}

@@ -534,7 +534,7 @@ fn the_road_condition_goes_to_a_server_offering_it() {
     let mut b = backend(&server(Box::new(move |req| {
         if let Some(wire::request::Request::SetRoadCondition(r)) = &req.request {
             let rc = r.road_condition.clone().unwrap();
-            let unknown = rc.properties.contains_key("swb.zone.nowhere.class");
+            let unknown = rc.properties.contains_key("scensim.zone.nowhere.class");
             log.lock().unwrap().push(rc);
             if unknown {
                 return Some(refused("zone 'nowhere' is not in the map", false));
@@ -546,7 +546,7 @@ fn the_road_condition_goes_to_a_server_offering_it() {
     let env = road(
         0.8,
         "lowFlooded",
-        &[("swb.zone.ford.water_depth", "0.12"), ("esmini.thing", "1")],
+        &[("scensim.zone.ford.water_depth", "0.12"), ("esmini.thing", "1")],
     );
     assert_eq!(b.update_environment(&env), Ok(()));
     // Only our properties go to the server.
@@ -554,10 +554,10 @@ fn the_road_condition_goes_to_a_server_offering_it() {
     assert_eq!(sent.friction_scale_factor, 0.8);
     assert_eq!(sent.wetness, "lowFlooded");
     assert_eq!(sent.properties.len(), 1);
-    assert_eq!(sent.properties["swb.zone.ford.water_depth"], "0.12");
+    assert_eq!(sent.properties["scensim.zone.ford.water_depth"], "0.12");
     // The server's refusal is SSv2's, word for word.
     let e = b
-        .update_environment(&road(1.0, "dry", &[("swb.zone.nowhere.class", "ice")]))
+        .update_environment(&road(1.0, "dry", &[("scensim.zone.nowhere.class", "ice")]))
         .unwrap_err();
     assert!(
         e.to_string().contains("zone 'nowhere' is not in the map"),
@@ -833,7 +833,7 @@ fn the_map_origin_comes_off_on_the_way_out_and_back_on_the_way_in() {
 
 #[test]
 fn a_world_file_names_the_world_beside_the_map() {
-    let dir = std::env::temp_dir().join(format!("swb-world-file-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("scensim-world-file-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("isaac")).unwrap();
     std::fs::create_dir_all(dir.join("carla")).unwrap();
     let map = dir.join("lanelet2_map.osm");
@@ -870,28 +870,28 @@ fn a_world_file_names_the_world_beside_the_map() {
     // An unset one is an error naming it.
     std::fs::write(
         dir.join("isaac/world.yaml"),
-        "world: ${SWB_TEST_SURELY_UNSET_VAR}/Town01/x.usd\n",
+        "world: ${SCENSIM_TEST_SURELY_UNSET_VAR}/Town01/x.usd\n",
     )
     .unwrap();
     let e = WorldFile::for_map("isaac", &map).unwrap_err().to_string();
-    assert!(e.contains("SWB_TEST_SURELY_UNSET_VAR"), "{e}");
+    assert!(e.contains("SCENSIM_TEST_SURELY_UNSET_VAR"), "{e}");
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]
 fn a_world_path_expands_variables_and_home() {
     let var = |name: &str| match name {
-        "SWB_CARLA_USD" => Some("/data/carla-usd".to_string()),
+        "SCENSIM_CARLA_USD" => Some("/data/carla-usd".to_string()),
         "HOME" => Some("/home/u".to_string()),
         "REL" => Some("worlds".to_string()),
         _ => None,
     };
     let x = |s: &str| expand_path(s, var);
     assert_eq!(
-        x("${SWB_CARLA_USD}/Town01/Town01.usd").unwrap(),
+        x("${SCENSIM_CARLA_USD}/Town01/Town01.usd").unwrap(),
         "/data/carla-usd/Town01/Town01.usd"
     );
-    assert_eq!(x("$SWB_CARLA_USD/T.usd").unwrap(), "/data/carla-usd/T.usd");
+    assert_eq!(x("$SCENSIM_CARLA_USD/T.usd").unwrap(), "/data/carla-usd/T.usd");
     assert_eq!(x("~/w.usd").unwrap(), "/home/u/w.usd");
     assert_eq!(x("~").unwrap(), "/home/u");
     // `~` elsewhere, a `$` before no name, and plain names stay as they are.
@@ -905,7 +905,7 @@ fn a_world_path_expands_variables_and_home() {
     // Unset: an error naming the variable, in either spelling.
     assert!(x("${NOPE}/a").unwrap_err().contains("NOPE"));
     assert!(x("$NOPE/a").unwrap_err().contains("NOPE"));
-    assert!(x("${SWB_CARLA_USD").is_err());
+    assert!(x("${SCENSIM_CARLA_USD").is_err());
     assert!(x("${}/a").is_err());
 }
 
@@ -1105,7 +1105,7 @@ fn signal_changes_go_to_the_world_server_by_opendrive_id() {
 #[test]
 fn a_table_the_world_server_writes_at_the_first_load_is_used() {
     use crate::proto::simulation_api_schema::{traffic_light, TrafficLight};
-    let base = std::env::temp_dir().join(format!("swb-first-load-{}", std::process::id()));
+    let base = std::env::temp_dir().join(format!("scensim-first-load-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     let map = base.join("maps/Town01");
     let state = base.join("state");
@@ -1165,7 +1165,7 @@ fn a_table_the_world_server_writes_at_the_first_load_is_used() {
 /// after the load, even with a state dir that has one.
 #[test]
 fn a_server_without_signals_reads_no_table() {
-    let base = std::env::temp_dir().join(format!("swb-no-signals-{}", std::process::id()));
+    let base = std::env::temp_dir().join(format!("scensim-no-signals-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     std::fs::create_dir_all(base.join("state/Town01")).unwrap();
     std::fs::write(

@@ -1,6 +1,6 @@
 # bench: the bridge's frame-budget benchmark (scenarios/bench/) as a project (roadmap 077
 # step 4, inventory item 13): 10, 20 and 50 SSv2-driven NPCs on Town01, no ego. Each run's
-# frame budget comes from the bridge's log as result.json metrics (swb.frames); the
+# frame budget comes from the bridge's log as result.json metrics (scensim.frames); the
 # frame_budget judge holds it to roadmap 016's bound.
 simulator: carla
 assets:

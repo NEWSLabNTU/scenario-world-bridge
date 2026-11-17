@@ -19,7 +19,7 @@ logging:
   keep: {passed: standard, failed: full, error: full}
 judges:
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
   - name: gap
-    run: [python3, -m, swb.gap, oracle]
+    run: [python3, -m, scensim.gap, oracle]
     needs: [gap_trace]

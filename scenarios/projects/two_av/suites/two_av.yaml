@@ -2,6 +2,6 @@
 # 050's "after" (2026-10-23) and the inventory: SSv2 passes, no contact, gap oracle G1 ego /
 # G2 / G3 0/0/0.
 scenarios:
-  - ../../../src/swb_examples/scenarios/multi_av/town01_two_av.xosc
+  - ../../../src/scensim_examples/scenarios/multi_av/town01_two_av.xosc
 retry: {on: error, times: 1}
 expect: {}

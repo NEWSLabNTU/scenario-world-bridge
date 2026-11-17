@@ -1,5 +1,5 @@
 # isaac_basic: the basic ego drives on Isaac Sim (roadmap 077 step 4, inventory item 16),
-# Autoware on aib's rig. The scenarios stay where they are (swb_examples' scenarios/basic/);
+# Autoware on aib's rig. The scenarios stay where they are (scensim_examples' scenarios/basic/);
 # the suites name them. Town02 is preloaded, so one stack serves both towns.
 simulator: isaac
 assets:

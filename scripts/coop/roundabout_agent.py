@@ -36,10 +36,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import swb_agent  # noqa: E402
-from swb_agent import protocol as P  # noqa: E402
-from swb_agent.adapters import carla_basic  # noqa: E402
-from swb_agent.adapters.carla_basic import CarlaBasicAgent  # noqa: E402
+import scensim_agent  # noqa: E402
+from scensim_agent import protocol as P  # noqa: E402
+from scensim_agent.adapters import carla_basic  # noqa: E402
+from scensim_agent.adapters.carla_basic import CarlaBasicAgent  # noqa: E402
 
 import arena as AR  # noqa: E402
 import crossing_arena as XA  # noqa: E402
@@ -108,7 +108,7 @@ class RoundaboutAgent(CarlaBasicAgent):
         with self._ctl:
             self.other = self._find_other()
             if self.other is None:
-                raise swb_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
+                raise scensim_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
             v = self.world.vehicle
             pc = v.get_physics_control()
             w = pc.wheels
@@ -242,7 +242,7 @@ class RoundaboutAgent(CarlaBasicAgent):
 
 
 def main(argv=None):
-    return swb_agent.main(RoundaboutAgent, argv)
+    return scensim_agent.main(RoundaboutAgent, argv)
 
 
 if __name__ == "__main__":

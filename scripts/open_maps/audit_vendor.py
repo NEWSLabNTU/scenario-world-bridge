@@ -44,7 +44,7 @@ def centres(path, shift, skip_connectors=False):
         t = tags(rel)
         if t.get("type") != "lanelet" or t.get("subtype", "road") != "road":
             continue
-        if skip_connectors and t.get("swb:speed_source") == "connector":
+        if skip_connectors and t.get("scensim:speed_source") == "connector":
             continue
         m = {x.get("role"): x.get("ref") for x in rel.findall("member") if x.get("type") == "way"}
         l, rr = ways.get(m.get("left"), []), ways.get(m.get("right"), [])

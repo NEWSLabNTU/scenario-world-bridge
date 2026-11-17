@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Decide whether the ego's Autoware is ready for SSv2 to drive, and say why if not.
+
+Exit 0 if ready, 1 if not. One line of reasoning either way, in the shape of
+`acb/scripts/carla_health.py`.
+
+This exists because of how the failure looks without it. With `launch_autoware:=false` the
+concealer does not fork Autoware; it attaches to one already running. Its constructor
+queues a `ChangeToStop` against an ADAPI service with a **180 second** timeout, so starting
+a scenario before the ego stack is up does not fail fast -- the run sits there, evaluates
+nothing, and dies three minutes later with an `AutowareError` that names a service rather
+than the ordering mistake. Phase 012 asked for that ordering to be enforced rather than
+merely documented.
+
+What counts as ready is the thing the concealer actually needs: the ADAPI operation-mode
+topic being published. That is later than "the process exists" and earlier than "the ego is
+engaged", which is the window the concealer expects to attach in.
+
+Ready also means planning is alive. play_launch runs each composable node as its own child
+process (`--container-mode isolated`), so one of them can die while its container, the
+ADAPI and the operation-mode topic carry on. behavior_path_planner did exactly that on
+2026-09-28 -- `rclcpp::exceptions::RCLError: failed to add guard condition to wait set:
+guard condition implementation is invalid`, raised while a new route reset its modules
+(autoware_universe#12460, rclcpp#2163, both open) -- and this check answered "ok" for two
+more scenarios that then sat at the spawn until their timeouts. So the check also wants a
+publisher on each planning output and asks play_launch's ledger for crashed composables.
+With `--reload-failed` it asks play_launch to load a crashed composable again and waits for
+the publishers to come back, which is the containment for a race nothing upstream fixes.
+
+    ROS_DOMAIN_ID=1 ros2 run scensim_launch ego_ready [--timeout 10]
+                                                  [--web-port 8082] [--reload-failed]
+
+Installed by scensim_launch as `ego_ready` (roadmap 070, friction 7): the cue a user waits on
+before starting a scenario. The relay's `ego: agent up` comes too early (the agent registers
+while Autoware still starts), and the agent's IDLE too late (it needs the ego spawned, which
+the scenario does).
+"""
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+import urllib.error
+import urllib.request
+
+# What the concealer talks to. Operation mode is the one it drives through
+# (stop -> autonomous) and is published by the ADAPI adaptors, so its presence means the
+# API layer is up rather than merely the launch having been started.
+REQUIRED_TOPIC = "/api/operation_mode/state"
+
+# Planning outputs whose publisher disappears with the node that owns it. Each one is a
+# different composable, so a dead behavior_path_planner, behavior_velocity_planner or
+# motion planner shows up here even though the ADAPI still answers.
+PLANNING_TOPICS = (
+    "/planning/scenario_planning/lane_driving/behavior_planning/path_with_lane_id",
+    "/planning/scenario_planning/lane_driving/behavior_planning/path",
+    "/planning/scenario_planning/trajectory",
+)
+
+
+# Ready also means perception is up (roadmap 077, G54). A detector builds its TensorRT engine
+# inside its constructor (CenterPoint: minutes on a TensorRT other than Autoware's), and until
+# it returns its node has no publisher, while the planners already answer; the ego then drove
+# a scenario blind and hit the lead at 11 m/s (2026-11-16). A perception topic that something
+# subscribes to and nothing publishes is a node still loading. Object recognition only, and
+# not its debug topics: timing checkers subscribe to debug topics no node ever publishes, and
+# the traffic light pipeline subscribes to cameras a sensor kit may not have (camera6),
+# both for good (measured on a ready stack, 2026-11-16).
+PERCEPTION = "/perception/object_recognition"
+
+
+def unpublished_inputs(topics, subscribers, publishers):
+    """The object recognition topics (``/debug/`` excepted) with a subscriber and no
+    publisher."""
+    return sorted(t for t in topics if t.startswith(PERCEPTION + "/") and "/debug/" not in t
+                  and subscribers(t) > 0 and publishers(t) == 0)
+
+
+def play_launch_get(port: int, path: str):
+    """One GET against the stack's play_launch web API, or None if it cannot be asked."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=2) as r:
+            return json.load(r)
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def failed_composables(port: int):
+    """Names of composables play_launch saw crash (state Failed), or None if unknown.
+
+    play_launch 0.12 does not respawn a crashed composable; it only records the state.
+    """
+    nodes = play_launch_get(port, "/api/nodes")
+    if nodes is None:
+        return None
+    if isinstance(nodes, dict):
+        nodes = nodes.get("nodes", list(nodes.values()))
+    failed = []
+    for n in nodes:
+        status = n.get("status") or {}
+        if status.get("type") != "Composable":
+            continue
+        value = status.get("value")
+        state = value.get("status") if isinstance(value, dict) else value
+        if str(state).lower() == "failed":
+            failed.append(n.get("name") or n.get("id"))
+    return failed
+
+
+def reload_composable(port: int, name: str) -> bool:
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/nodes/{name}/load", method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return 200 <= r.status < 300
+    except (urllib.error.URLError, OSError):
+        return False
+
+
+def use_the_stack_transport() -> None:
+    """Default this process's DDS to the stack's, as scensim_launch's launches set it (roadmap
+    070, friction 8): Cyclone with scensim_launch's localhost profile. Without it a user's shell
+    is on Fast DDS, which never sees the Cyclone stack, and this check reports a healthy stack
+    as down. Whatever the environment already names wins. Must run before rclpy loads."""
+    os.environ.setdefault("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp")
+    if "CYCLONEDDS_URI" in os.environ:
+        return
+    profile = None
+    try:
+        from ament_index_python.packages import get_package_share_directory
+
+        profile = Path(get_package_share_directory("scensim_launch")) / "config/cyclonedds-localhost.xml"
+    except Exception:
+        pass
+    if profile is None or not profile.is_file():
+        profile = Path(__file__).resolve().parents[1] / "config/cyclonedds-localhost.xml"
+    if profile.is_file():
+        os.environ["CYCLONEDDS_URI"] = f"file://{profile}"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--timeout",
+        type=float,
+        default=10.0,
+        help="seconds to wait for the topic to appear with a live publisher",
+    )
+    ap.add_argument(
+        "--web-port",
+        type=int,
+        default=8082,
+        help="the stack's play_launch --web-addr port, asked for crashed composables",
+    )
+    ap.add_argument(
+        "--reload-failed",
+        action="store_true",
+        help="ask play_launch to load a crashed composable again instead of refusing",
+    )
+    args = ap.parse_args()
+    use_the_stack_transport()
+
+    try:
+        import rclpy
+    except ImportError as e:
+        print(f"[ego-health] cannot import rclpy: {e}")
+        return 1
+
+    import time
+
+    # Node creation can fail outright -- an unusable ROS_DOMAIN_ID puts Cyclone's ports out
+    # of range, for one -- and a check that answers with a traceback is not a check.
+    try:
+        rclpy.init(args=[])
+        node = rclpy.create_node("ego_ready")
+    except Exception as e:
+        print(f"[ego-health] cannot join the ROS graph: {e}")
+        return 1
+
+    reloaded = []
+    try:
+        deadline = time.time() + args.timeout
+        while time.time() < deadline:
+            if node.count_publishers(REQUIRED_TOPIC) > 0:
+                dead = [t for t in PLANNING_TOPICS if node.count_publishers(t) == 0]
+                loading = unpublished_inputs([t for t, _ in node.get_topic_names_and_types()],
+                                             node.count_subscribers, node.count_publishers)
+                failed = failed_composables(args.web_port) or []
+                if failed and args.reload_failed:
+                    for name in failed:
+                        if name in reloaded:
+                            continue
+                        ok = reload_composable(args.web_port, name)
+                        print(f"[ego-health] composable {name} had crashed; asked "
+                              f"play_launch to load it again: {'accepted' if ok else 'refused'}")
+                        reloaded.append(name)
+                    # Loading takes a few seconds; give the publishers time to come back.
+                    deadline = max(deadline, time.time() + 30.0)
+                    rclpy.spin_once(node, timeout_sec=1.0)
+                    continue
+                if loading and not (dead or failed):
+                    if time.time() + 0.2 < deadline:
+                        rclpy.spin_once(node, timeout_sec=0.2)
+                        continue
+                    print("[ego-health] not ready: planning is up but perception is not -- "
+                          f"nothing publishes {', '.join(loading)} yet (a detector still "
+                          "loading: CenterPoint builds its TensorRT engine at its first start, "
+                          "or at every start on a TensorRT other than Autoware's 10.8; see "
+                          "the pilot's load_node/lidar_centerpoint/err)")
+                    return 1
+                if dead or failed:
+                    if time.time() + 0.2 < deadline:  # discovery may still be settling
+                        rclpy.spin_once(node, timeout_sec=0.2)
+                        continue
+                    print(
+                        "[ego-health] not ready: the ADAPI is up but planning is not -- "
+                        + (f"no publisher on {', '.join(dead)}" if dead else "")
+                        + ("; " if dead and failed else "")
+                        + (f"play_launch reports crashed composable(s): {', '.join(failed)}"
+                           if failed else "")
+                        + ". A composable died inside its container (see "
+                        "play_log/ego/latest/play_launch.log for 'crashed:'); rerun with "
+                        "--reload-failed, `curl -X POST localhost:"
+                        f"{args.web_port}/api/nodes/<name>/load`, or restart `just ego-av`."
+                    )
+                    return 1
+                print(f"[ego-health] ok: {REQUIRED_TOPIC} has a publisher, planning "
+                      "publishes and perception's inputs have publishers; the ego stack is up"
+                      + (f" (reloaded {', '.join(reloaded)})" if reloaded else ""))
+                return 0
+            rclpy.spin_once(node, timeout_sec=0.2)
+        print(f"[ego-health] not ready: nothing publishes {REQUIRED_TOPIC} after "
+              f"{args.timeout:.0f}s. Start the ego stack first (`just ego-av`) and wait "
+              "for 'Startup complete'.")
+        return 1
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,8 +1,8 @@
-# made by swb on each host
+# made by scensim on each host
 assets/
 state/
 runs
-.swb/
+.scensim/
 play_log/
 # a campaign's store (scripts/gap_live.py --store), when kept in the project
 campaigns/

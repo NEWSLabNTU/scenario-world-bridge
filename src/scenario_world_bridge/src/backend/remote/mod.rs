@@ -117,7 +117,7 @@ impl WorldFile {
             .map_err(|e| eyre::eyre!("read {}: {e}", path.display()))?;
         let mut world: Self = serde_yaml::from_str(&text)
             .map_err(|e| eyre::eyre!("parse {}: {e}", path.display()))?;
-        // Variables and `~` first (`${SWB_CARLA_USD}/Town01/...`), so an expanded path is
+        // Variables and `~` first (`${SCENSIM_CARLA_USD}/Town01/...`), so an expanded path is
         // never taken for one beside the map.
         world.world = expand_path(&world.world, |v| std::env::var(v).ok())
             .map_err(|e| eyre::eyre!("{}: world: {e}", path.display()))?;
@@ -838,6 +838,9 @@ impl RemoteBackend {
         asset_key: &str,
         body: &wire::Body,
     ) -> Result<(), BackendError> {
+        if let Some(why) = spec_check::installed_refusal() {
+            return Err(self.refuse_ego(name, handle, why));
+        }
         let catalog = self
             .catalog_hashes
             .get_or_insert_with(spec_check::installed_hashes)

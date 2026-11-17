@@ -82,7 +82,7 @@ impl Sessions {
                 if let Some(s) = current {
                     if s.peer != peer && s.live(entities, now) {
                         return Err(format!(
-                            "swb refused Initialize from SSv2 client {}: another SSv2 is running \
+                            "scensim refused Initialize from SSv2 client {}: another SSv2 is running \
                              a scenario on this bridge, {}. One bridge serves one SSv2 at a time; \
                              stop the other (a scenario_test_runner left over from an earlier \
                              run?) or wait for its scenario to end",
@@ -105,7 +105,7 @@ impl Sessions {
                 Ok(())
             }
             (None, Some(s)) => Err(format!(
-                "swb refused a request from SSv2 client {}, which did not Initialize this \
+                "scensim refused a request from SSv2 client {}, which did not Initialize this \
                  bridge's session: it is {}'s. One bridge serves one SSv2 at a time; a client \
                  starts with Initialize",
                 peer_name(peer),

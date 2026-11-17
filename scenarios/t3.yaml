@@ -29,8 +29,8 @@ suites:
   - {project: scenarios/projects/c2b, suite: c2b, sim: carla, part: 3, parts: 3, minutes: 40}
   - {project: scenarios/projects/s5, suite: s5, sim: carla, part: 1, parts: 3, minutes: 30, needs: [tensorrt], long: true}  # one 7 s run fails physical_verdict as expected
   - {project: scenarios/projects/e2, suite: e2, sim: carla, part: 2, parts: 3, minutes: 10}
-  - {project: src/swb_examples/projects/safety_suite, suite: nightly, sim: carla, part: 1, parts: 3, minutes: 55, copy: true}
-  - {project: src/swb_examples/projects/multi_pilot, suite: cut_in_seeds, sim: carla, part: 3, parts: 3, minutes: 15, copy: true}
+  - {project: src/scensim_examples/projects/safety_suite, suite: nightly, sim: carla, part: 1, parts: 3, minutes: 55, copy: true}
+  - {project: src/scensim_examples/projects/multi_pilot, suite: cut_in_seeds, sim: carla, part: 3, parts: 3, minutes: 15, copy: true}
   # Isaac Sim 6.1, Town01 (077 T2's five pilot cells, swb 241)
   - {project: scenarios/projects/isaac_t2/autoware, suite: t2, sim: isaac, part: 2, parts: 3, minutes: 9}
   - {project: scenarios/projects/isaac_t2/simple, suite: t2, sim: isaac, part: 2, parts: 3, minutes: 8}

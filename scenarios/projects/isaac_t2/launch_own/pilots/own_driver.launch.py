@@ -1,6 +1,6 @@
 """isaac_t2/launch_own's driver: a user's own launch file as the ego's pilot (kind launch, agent: own).
 
-It runs swb_agent's simple_pilot, which registers the entity with the relay itself and drives on
+It runs scensim_agent's simple_pilot, which registers the entity with the relay itself and drives on
 the true pose (`inputs: [ground_truth]` turns Isaac's /ground_truth/odom on). The stack hands every
 launch pilot the common contract (entity, relay, map_path, vehicle, seed, run_dir, sim,
 use_sim_time); this launch turns map_path and sim into simple_pilot's config.
@@ -23,7 +23,7 @@ def driver(context):
     config = os.path.join(out, "own_driver.json")
     with open(config, "w") as f:
         json.dump({"map_path": arg["map_path"], "sim": arg["sim"] or "isaac"}, f)
-    return [ExecuteProcess(cmd=["ros2", "run", "swb_agent", "simple_pilot", "--relay", arg["relay"],
+    return [ExecuteProcess(cmd=["ros2", "run", "scensim_agent", "simple_pilot", "--relay", arg["relay"],
                                 "--entity", arg["entity"], "--config", config],
                            output="screen", respawn=True, respawn_delay=5.0)]
 

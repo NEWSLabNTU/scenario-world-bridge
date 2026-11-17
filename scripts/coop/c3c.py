@@ -153,7 +153,7 @@ def bg_ready(timeout=600):
     env = dict(os.environ, ROS_DOMAIN_ID=os.environ.get("BG_ROS_DOMAIN_ID", "2"))
     t0 = time.time()
     while time.time() - t0 < timeout:
-        r = subprocess.run(["ros2", "run", "swb_launch", "ego_ready", "--timeout", "10"], env=env,
+        r = subprocess.run(["ros2", "run", "scensim_launch", "ego_ready", "--timeout", "10"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if r.returncode == 0:
             return True

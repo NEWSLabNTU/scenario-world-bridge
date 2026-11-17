@@ -6,14 +6,14 @@ while every other light of the group is red. A simulator with no light controlle
 (aib's stand-alone runner on Isaac) runs the same cycle from this file, so the ego meets what
 it would meet on CARLA. Lights are named by OpenDRIVE id, as in the signal table
 (`carla/traffic_lights.yaml`), which says which regulatory elements each one is. The times
-are not in the file: swb freezes CARLA's cycle (every light's green and yellow time set to
+are not in the file: scensim freezes CARLA's cycle (every light's green and yellow time set to
 99999 s), so what a server reports depends on who drove it last; the runner takes CARLA's
 defaults, 10 s green and 3 s amber, as flags.
 
     scripts/generate_signal_groups.py Town01 [--map data/carla-autoware-bridge/Town01]
         [--port 2000]
 
-Needs CARLA holding the town with something ticking it (swb during a scenario, or a private
+Needs CARLA holding the town with something ticking it (scensim during a scenario, or a private
 server): this script never ticks, it waits for a frame, since a client that has not seen one
 sees no actors. It reads the lights and changes nothing.
 

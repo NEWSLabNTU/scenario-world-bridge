@@ -94,7 +94,7 @@ def test_the_stacks_gpu_sources_in_swbs_order():
     env = {"CUDA_VISIBLE_DEVICES": "1"}
     # 1. host gpu, over everything
     assert t3.stack_gpus(dict(seats, gpu=0), environ=env)[0] == [0]
-    # 2. the seat's seats.gpus entry: --seat, host seat, auto as swb run resolves it
+    # 2. the seat's seats.gpus entry: --seat, host seat, auto as scensim run resolves it
     assert t3.stack_gpus(seats, seat_arg="0", environ=env) == ([1], "seats.gpus[0] (seat 0)")
     assert t3.stack_gpus(dict(seats, seat=1), environ=env)[0] == [0]
     assert t3.stack_gpus(seats, environ=env, resolve=lambda h: 1) == \
@@ -210,11 +210,11 @@ def test_a_seat_past_the_table_is_refused_not_an_index_error():
 
 # t3 run's kill path (077: a `&` job ignored its group's SIGINT; a SIGTERM to t3 left the
 # stack its child had just started up). A fake `ros2` on PATH: `assets fetch` exits 0; `run`
-# starts a "stack" in its own session (as swb run does), says so as swb run does, and on
+# starts a "stack" in its own session (as scensim run does), says so as scensim run does, and on
 # SIGINT exits 130 without stopping it (a suite without --stop-stack leaves it up).
 FAKE_ROS2 = r"""#!/usr/bin/env python3
 import os, signal, subprocess, sys, time
-if sys.argv[1:4] == ["run", "swb", "assets"]:
+if sys.argv[1:4] == ["run", "scensim", "assets"]:
     sys.exit(0)
 log = os.environ.get("T3_FAKE_LOG")
 if log:   # was the previous suite's stack gone when this one started? (G82)
@@ -396,7 +396,7 @@ def _two_suites(tmp_path, monkeypatch, rec):
 def test_a_suite_the_stack_cannot_serve_gets_a_new_stack_after_the_old_is_gone(
         tmp_path, monkeypatch, capsys):
     """241: isaac_basic/towns left the Isaac world on Town02, and rear_contact (Town01) was
-    refused (G82: swb's switch_problem refuses even the stack's own first world)."""
+    refused (G82: scensim's switch_problem refuses even the stack's own first world)."""
     starts = _two_suites(tmp_path, monkeypatch,
                          {"simulator": "isaac", "map": "Town02", "preload": ["Town02"]})
     assert "suites/s2.yaml previous_stack_alive=False" in starts
@@ -443,8 +443,8 @@ def test_the_seats_record_is_stopped_only_when_its_keeper_is_this_stacks(tmp_pat
     """By a project's end the seat may hold another's stack: its keeper is not t3's."""
     import subprocess
     calls = []
-    import swb.stack
-    monkeypatch.setattr(swb.stack, "stop_keeper", lambda rec: calls.append(rec["pid"]))
+    import scensim.stack
+    monkeypatch.setattr(scensim.stack, "stop_keeper", lambda rec: calls.append(rec["pid"]))
     mine = subprocess.Popen(["sleep", "30"], start_new_session=True)
     other = subprocess.Popen(["sleep", "30"], start_new_session=True)
     try:
@@ -484,7 +484,7 @@ def test_compare_takes_references_recorded_before_the_stamps(tmp_path, monkeypat
 
 
 def test_the_summary_path_is_relative_to_the_log_root_through_a_link(tmp_path):
-    real = tmp_path / "disk" / "swb-logs"
+    real = tmp_path / "disk" / "scensim-logs"
     summ = real / "proj" / "suites" / "s" / "summary.csv"
     summ.parent.mkdir(parents=True)
     summ.write_text("")

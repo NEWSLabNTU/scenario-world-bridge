@@ -4,7 +4,7 @@
 Each `scenarios/ntu_twin/ntu_twin_<case>.xosc` (Isaac, roadmap 059) is the source of
 `ntu_carla_<case>.xosc` (CARLA, roadmap 072). They differ only in:
 
-- the map dir (`LogicFile`): `$(env SWB_NTU_TWIN)/map` on Isaac, `$(env SWB_NTU_TWIN)/carla/NTU`
+- the map dir (`LogicFile`): `$(env SCENSIM_NTU_TWIN)/map` on Isaac, `$(env SCENSIM_NTU_TWIN)/carla/NTU`
   on CARLA (the bridge takes CARLA's town from the directory name);
 - the header's description and the leading comment (which roadmap, which world);
 - the Story name, which is the file's stem.
@@ -21,8 +21,8 @@ import re
 import sys
 
 DIR = pathlib.Path(__file__).resolve().parents[2] / "scenarios" / "ntu_twin"
-ISAAC_MAP = '<LogicFile filepath="$(env SWB_NTU_TWIN)/map" />'
-CARLA_MAP = '<LogicFile filepath="$(env SWB_NTU_TWIN)/carla/NTU" />'
+ISAAC_MAP = '<LogicFile filepath="$(env SCENSIM_NTU_TWIN)/map" />'
+CARLA_MAP = '<LogicFile filepath="$(env SCENSIM_NTU_TWIN)/carla/NTU" />'
 # (Isaac's words, CARLA's), applied in order to the description and the comment
 WORDS = [
     ("roadmap 059 N8: ", "roadmap 072: "),

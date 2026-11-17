@@ -1,0 +1,7 @@
+# made by scensim on each host; scensim.lock is committed
+# runs is a link to the log root (runs/ would not match a link); play_log/ is play_launch's own
+assets/
+state/
+runs
+.scensim/
+play_log/

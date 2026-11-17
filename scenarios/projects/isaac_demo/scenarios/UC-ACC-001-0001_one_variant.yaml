@@ -1,6 +1,6 @@
-# isaac_demo (roadmap 077 item 17): swb_examples' safety_suite UC-ACC-001-0001 cut to the one
+# isaac_demo (roadmap 077 item 17): scensim_examples' safety_suite UC-ACC-001-0001 cut to the one
 # variant roadmap 044 ran on Isaac (ego 8.333 m/s, NPC 5.556 -> 1.944 m/s; 044's table); the 27-variant file
-# stays in src/swb_examples/projects/safety_suite/scenarios/awf/. Below, the shipped file's own
+# stays in src/scensim_examples/projects/safety_suite/scenarios/awf/. Below, the shipped file's own
 # header and body, its ScenarioModifiers lists cut to one value each.
 # UC-ACC-001-0001_Preceding_vehicle_partial_deceleration -- AWF ODD use case, adapted to the CARLA Town01 map of scenario-world-bridge.
 #
@@ -8,7 +8,7 @@
 #         scenarios/UC-ACC-001-0001_Preceding_vehicle_partial_deceleration.yaml at commit b258e781fdd487b866c3ecc2912e41239b47fef2
 # Copyright the Autoware Foundation contributors; licensed under the Apache License 2.0
 # (http://www.apache.org/licenses/LICENSE-2.0). Modified by scenario-world-bridge:
-#   - RoadNetwork/LogicFile: maps/Town01.osm -> $(env SWB_MAPS)/Town01 (our converted
+#   - RoadNetwork/LogicFile: maps/Town01.osm -> $(env SCENSIM_MAPS)/Town01 (our converted
 #     Town01, the TUM carla-autoware-bridge pack); SceneGraphFile (maps/dummy.pcd) dropped,
 #     as in this repo's other scenarios.
 #   - laneId 1071 -> 5230 everywhere, s and offset unchanged. AWF's Town01.osm and ours share
@@ -85,7 +85,7 @@ OpenSCENARIO:
     CatalogLocation: []
   RoadNetwork:
     LogicFile:
-      filepath: $(env SWB_MAPS)/Town01
+      filepath: $(env SCENSIM_MAPS)/Town01
     TrafficSignals:
       TrafficSignalController: []
   Entities:

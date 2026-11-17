@@ -23,4 +23,4 @@ judges:
     run: [python3, judges/e2_speed.py]
     needs: [gap_trace]
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

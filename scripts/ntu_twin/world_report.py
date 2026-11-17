@@ -10,7 +10,7 @@ Under the lanelets (grown by `--margin`), on the DTM the ground mesh is built fr
   after smooth_dtm.py; a 5 cm wheel (AutoSDV's car A twin) wants no more.
 - `pit_depth_max`: the deepest cell below its 9x9 neighbourhood's median: drains and grates
   the scan saw through.
-Run under the site the world was built for (SWB_TWIN_SITE): the lanelets' frame is the site's.
+Run under the site the world was built for (SCENSIM_TWIN_SITE): the lanelets' frame is the site's.
 Exit status 1 when a lane cell is unmeshed.
 """
 import argparse

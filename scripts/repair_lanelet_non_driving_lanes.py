@@ -5,7 +5,7 @@ The map pack's converter turned some non-driving OpenDRIVE lanes into ordinary r
 On Town03's east straight the "innermost" lanelet (68766) is CARLA's lane 1 of road 65, a
 `bidirectional` lane that is the tunnel's divider, with walls in it from y = 62 on; the lanelet
 map let Autoware change lanes into it, and its AEB stopped the car at the walls over and over
-(swb roadmap 074 E2, 2026-11-13). CARLA's own driving lanes never use such lanes.
+(scensim roadmap 074 E2, 2026-11-13). CARLA's own driving lanes never use such lanes.
 
 Each road lanelet is matched by the middle of its centre line to the nearest OpenDRIVE road
 reference line heading along it (as repair_lanelet_speed_limits.py does), the lateral offset

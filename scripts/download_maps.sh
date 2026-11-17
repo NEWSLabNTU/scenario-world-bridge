@@ -8,15 +8,15 @@
 # data/carla-autoware-bridge/ are per-file links into it, repaired copies where a repair
 # changes a file.
 #
-# SWB_MAP_URL=<url> fetches the same zip from a mirror (the checksum still applies).
-# SWB_MAP_SOURCE=<dir holding Town01/, Town02/, ...> uses a copy you already have instead.
-# SWB_XODR_DIR=<CARLA>/CarlaUE4/Content/Carla/Maps/OpenDrive: the CARLA release's road data,
+# SCENSIM_MAP_URL=<url> fetches the same zip from a mirror (the checksum still applies).
+# SCENSIM_MAP_SOURCE=<dir holding Town01/, Town02/, ...> uses a copy you already have instead.
+# SCENSIM_XODR_DIR=<CARLA>/CarlaUE4/Content/Carla/Maps/OpenDrive: the CARLA release's road data,
 # which the speed-limit and walkway repairs read.
 set -e
 
-MAP_SOURCE="${SWB_MAP_SOURCE:-}"
+MAP_SOURCE="${SCENSIM_MAP_SOURCE:-}"
 
-URL="${SWB_MAP_URL:-https://github.com/NEWSLabNTU/carla-autoware-maps/releases/download/tum-2024-06/carla-autoware-bridge.zip}"
+URL="${SCENSIM_MAP_URL:-https://github.com/NEWSLabNTU/carla-autoware-maps/releases/download/tum-2024-06/carla-autoware-bridge.zip}"
 SHA256="6e582242198ae50aa1d1fd410b53609c8b7ecfc6b9696294c498646783ed4838"
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)/data"
@@ -50,7 +50,7 @@ repair_maps() {
     # Those inner lanes take the opposite lane's left bound as their own, reversed, and
     # Autoware's behavior_path_planner dies on a route through one. Give each its own way.
     python3 "$(dirname "$0")/repair_lanelet_bound_directions.py" "$1"
-    # The pack's local_x/local_y (what swb reads) are a spherical Mercator, 0.7 % long in
+    # The pack's local_x/local_y (what scensim reads) are a spherical Mercator, 0.7 % long in
     # y against the TransverseMercator Autoware and SSv2 project lat/lon with: 2.2 m on
     # Town01's southern road. Rewrite every node's from its lat/lon.
     python3 "$(dirname "$0")/repair_lanelet_local_coords.py" "$1"
@@ -70,19 +70,19 @@ repair_maps() {
     # No lanelet carries a speed_limit, so Autoware drives every road at lanelet2's urban
     # default, 50 km/h (Town05's 65 mph ring too). Tag each road lanelet from its OpenDRIVE
     # road's speed record (after the local coordinates: it matches in OpenDRIVE's frame).
-    # SWB_XODR_DIR: <Town>.xodr or <Town>/main.xodr (default CARLA_SRC's OpenDrive).
+    # SCENSIM_XODR_DIR: <Town>.xodr or <Town>/main.xodr (default CARLA_SRC's OpenDrive).
     python3 "$(dirname "$0")/repair_lanelet_speed_limits.py" "$1" \
-        ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
+        ${SCENSIM_XODR_DIR:+--xodr-dir "$SCENSIM_XODR_DIR"}
     # The maps are flat, so a walkway under a bridge crosses the bridge's lanes: Autoware's
     # walkway module stops on Town05's raised ring highway for footpaths 10 m below.
     python3 "$(dirname "$0")/repair_lanelet_walkways_under_roads.py" "$1" \
-        ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
+        ${SCENSIM_XODR_DIR:+--xodr-dir "$SCENSIM_XODR_DIR"}
     # Some road lanelets lie on OpenDRIVE lanes no car may drive: Town03's twelve
     # `bidirectional` lanes, one of them the east tunnel's divider with walls in it, which
     # Autoware changed lanes into until its AEB stopped it (roadmap 074 E2). Close them to
     # vehicles (participant:vehicle=no), so routing and lane changes leave them out.
     python3 "$(dirname "$0")/repair_lanelet_non_driving_lanes.py" "$1" \
-        ${SWB_XODR_DIR:+--xodr-dir "$SWB_XODR_DIR"}
+        ${SCENSIM_XODR_DIR:+--xodr-dir "$SCENSIM_XODR_DIR"}
 }
 
 # Skip if already present
@@ -128,7 +128,7 @@ fi
 # --- Link the source's towns in, then repair ------------------------------------
 if [ -n "$MAP_SOURCE" ]; then
     if [ ! -d "$MAP_SOURCE" ]; then
-        echo "ERROR: SWB_MAP_SOURCE='$MAP_SOURCE' is not a directory." >&2
+        echo "ERROR: SCENSIM_MAP_SOURCE='$MAP_SOURCE' is not a directory." >&2
         exit 1
     fi
 

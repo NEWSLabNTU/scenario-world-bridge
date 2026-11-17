@@ -4,14 +4,14 @@
   side, one world server over the world protocol on the other: whichever simulator answers
   at world_endpoint. Long-lived: start it once, run any number of scenarios against it. A
   simulator's simulation launch includes this with its world server's endpoint
-  (swb_launch carla_simulation.launch.xml, isaac_simulation.launch.xml).
+  (scensim_launch carla_simulation.launch.xml, isaac_simulation.launch.xml).
 
     play_launch launch scenario_world_bridge bridge.launch.xml world_endpoint:=tcp://127.0.0.1:5591
         [config_file:=...] [ssv2_port:=5555] [weather:=ClearNoon] [gap_trace_dir:=DIR]
         [vehicle_catalogs:=FILE[,FILE...]] [state_dir:=DIR]
 
   The bridge binds the SSv2 port only once a world server has taken it as its owner, and
-  serves /scenario_world_bridge/set_weather and /scenario_world_bridge/get_weather (swb_interfaces) in its ROS domain for a
+  serves /scenario_world_bridge/set_weather and /scenario_world_bridge/get_weather (scensim_interfaces) in its ROS domain for a
   world server that has weather, and /scenario_world_bridge/load_map (a map's world now, between
   scenarios). It serves one SSv2 at a time: a second one's requests are refused while the
   first one's scenario runs.
@@ -42,7 +42,7 @@
   <arg name="gap_trace_dir" default=""
        description="where each episode's gap trace (roadmap 024) is written for gap_oracle; empty keeps the config file's (default: no trace)"/>
   <arg name="contact_report_dir" default=""
-       description="where each ego run's contacts are written for physical_verdict (roadmap 021); 'off' disables; empty keeps the config file's (default ~/.ros/swb/contacts)"/>
+       description="where each ego run's contacts are written for physical_verdict (roadmap 021); 'off' disables; empty keeps the config file's (default ~/.ros/scensim/contacts)"/>
   <arg name="vehicle_catalogs" default=""
        description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
   <arg name="state_dir" default=""

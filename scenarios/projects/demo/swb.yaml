@@ -1,4 +1,4 @@
-# demo: the demo incidents of swb_examples (scenarios/demo/incidents/) as a regression project
+# demo: the demo incidents of scensim_examples (scenarios/demo/incidents/) as a regression project
 # (roadmap 077 step 4, inventory items 8-10). Each incident is judged by incident_judge, by its
 # row of roadmap 033's table, over the run's gap trace and its storyboard log.
 simulator: carla
@@ -23,7 +23,7 @@ judges:
   # the incident's number from the scenario's name (town01_i<N>_...); a scenario with no row
   # in incident_judge's table records an error here, and SSv2's verdict stands
   - name: incident
-    run: [python3, -m, swb.gap, incident, --incident, auto, --context, context.jsonl]
+    run: [python3, -m, scensim.gap, incident, --incident, auto, --context, context.jsonl]
     needs: [gap_trace, context]
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

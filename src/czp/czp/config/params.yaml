@@ -1,7 +1,7 @@
 # The protocol's parameters (docs/design/conflict-zone-protocol.md, "Parameters"). Every entry has a
 # value and a source: `assumed` (the design's assumed table, to be measured in roadmap 078 Phase 2) or
 # the run that measured it. `heldout` is the held-out error once measured (Phase 2), null until then.
-role_time_error_e:        {value: 0.55, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (Autoware 1.5.0 tracks vs swb truth, Town05 j979; held-out e99 0.53 s rounded up; was 074 C8 arena e99 0.25)", heldout: 0.53}
+role_time_error_e:        {value: 0.55, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (Autoware 1.5.0 tracks vs scensim truth, Town05 j979; held-out e99 0.53 s rounded up; was 074 C8 arena e99 0.25)", heldout: 0.53}
 arrival_bias:             {value: -0.24, unit: s, source: "078 P2 EV4, held out, pooled 0-30 m (reading - truth of the other's arrival in the entry band: the track predicts it 0.24 s early, its speed lag while it brakes; corrected = reading - bias, 0.24 s later); 078 P2b held out -0.25; the arena adapter sets its own", heldout: -0.24}
 rest_stamp_bias:          {value: 0.7,  unit: s, source: "078 P2 (reading - truth of the other's rest stamp: the stop instant from Autoware's tracks comes 0.7 s late, median, 0.45-3.55 s; corrected = stamp - bias, 0.7 s earlier); orders stopped_first only (078 P2c ruling): rest_tie's and the fresh-rest guards, the claim and the second round's epoch read the raw stamp, a correction may only lengthen a guard; the arena adapter sets its own", heldout: null}
 tie_threshold_T:          {value: 0.5,  unit: s, source: "074 U3 (TIE)", heldout: null}
@@ -28,7 +28,7 @@ fresh_rest_guard:         {value: true, unit: bool, source: "078 V2b: a first go
 guard_filter_n:           {value: 2,    unit: samples, source: "074 C8 V3: filter the guards over 2-3 samples (141 flips unfiltered at noise x2)", heldout: null}
 latch_s:                  {value: 1.0,  unit: s, source: "design R10: decisions latched >= 1 s", heldout: null}
 mode_hold:                {value: 1.5,  unit: s, source: "078 P2b: RTC stays manual until the decision has been stock-equivalent this long (following the module's own safe meanwhile); 078 P2: 50 of 90 auto spells between manual ones were <= 1.0 s, 64 <= 1.5 s; 1.5 s = see_delay, past latch_s", heldout: null}
-own_base_to_centre:       {value: 1.416, unit: m, source: "sim_vehicle_spec tesla_model3 geometry: (wheel_base 3.005 + front_overhang 0.807 + rear_overhang 0.980) / 2 - rear_overhang; Autoware's kinematic_state is base_link (the rear axle), czp's own pose the centre (078 P2b: measured 1.38 m on swb)", heldout: null}
+own_base_to_centre:       {value: 1.416, unit: m, source: "sim_vehicle_spec tesla_model3 geometry: (wheel_base 3.005 + front_overhang 0.807 + rear_overhang 0.980) / 2 - rear_overhang; Autoware's kinematic_state is base_link (the rear axle), czp's own pose the centre (078 P2b: measured 1.38 m on scensim)", heldout: null}
 go_latch_launch:          {value: true, unit: bool, source: "074 C8 V3: a go is latched for the launch dead time", heldout: null}
 go_latch_motion_timeout:  {value: 3.0,  unit: s, source: "078 P2c: a go from rest is held over soft re-reads until the car moves (> moved_speed), at most this long; Autoware takes about 1.4 s from ACTIVATE at rest to motion (078 P2b), the 0.5 s launch latch let a band re-read flip the go first", heldout: null}
 probe_creep_dist:         {value: 0.5,  unit: m, source: "074 C8: the legible probe, creep about 0.5 m", heldout: null}

@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ROOT / "src/swb_launch/scripts"
+SCRIPTS = ROOT / "src/scensim_launch/scripts"
 sys.path.insert(0, str(SCRIPTS))
 import gap_geometry as gg  # noqa: E402
 import gap_trace  # noqa: E402

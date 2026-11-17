@@ -1,4 +1,4 @@
-"""world.yaml: what aib's runner and swb's world server read. Its `usd:` is relative to the map
+"""world.yaml: what aib's runner and scensim's world server read. Its `usd:` is relative to the map
 dir (the one holding isaac/), so a world copied or mounted elsewhere still loads."""
 import sys
 from pathlib import Path

@@ -1,5 +1,5 @@
 """Lane widths and positions from a public aerial photo (roadmap 062, route C). Experimental:
-off in generate.py unless SWB_IMAGERY=1. Tried 2026-10-31 on the NTU box: 98 of 188 major road
+off in generate.py unless SCENSIM_IMAGERY=1. Tried 2026-10-31 on the NTU box: 98 of 188 major road
 pieces fitted, but neighbouring pieces of one road disagreed (one 新生南路 way: widths 2.7-3.8 m,
 shifts -1.3 to +1.4 m), and 059's survey sees the arterials' paint in only 4 windows of 20 m, too
 few to tell a right fit from a wrong one. Not trusted until it is validated.

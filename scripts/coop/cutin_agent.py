@@ -2,7 +2,7 @@
 """Roadmap 074 C2b: the cut-in's light policies as swb agents, so the arena's runs can be
 checked through swb itself (SSv2, the bridge, the world server, the relay).
 
-One process per car, on carla_basic's pattern (swb_agent.adapters.carla_basic): it finds its
+One process per car, on carla_basic's pattern (scensim_agent.adapters.carla_basic): it finds its
 vehicle and the other car by CARLA role_name (the entity names), never ticks the world, never
 spawns or moves an actor, applies control to its own vehicle only on world ticks, and exits
 (status 3) when the server stops answering. The driving is arena.py's: the warm-up to the
@@ -29,10 +29,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import swb_agent  # noqa: E402
-from swb_agent import protocol as P  # noqa: E402
-from swb_agent.adapters import carla_basic  # noqa: E402
-from swb_agent.adapters.carla_basic import CarlaBasicAgent  # noqa: E402
+import scensim_agent  # noqa: E402
+from scensim_agent import protocol as P  # noqa: E402
+from scensim_agent.adapters import carla_basic  # noqa: E402
+from scensim_agent.adapters.carla_basic import CarlaBasicAgent  # noqa: E402
 
 
 class LightWorld(carla_basic.CarlaWorld):
@@ -172,7 +172,7 @@ class CutInAgent(CarlaBasicAgent):
         with self._ctl:
             self.other = self._find_other()
             if self.other is None:
-                raise swb_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
+                raise scensim_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
             v = self.world.vehicle
             pc = v.get_physics_control()
             wb = abs(pc.wheels[0].position.x - pc.wheels[2].position.x) / 100.0
@@ -377,7 +377,7 @@ class CutInAgent(CarlaBasicAgent):
 
 
 def main(argv=None):
-    return swb_agent.main(CutInAgent, argv)
+    return scensim_agent.main(CutInAgent, argv)
 
 
 if __name__ == "__main__":

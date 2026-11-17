@@ -34,7 +34,7 @@ Rules the templates keep (033 step 2 spike, step 4b):
 (step 5) composes the same pieces under one route.
 
 Usage:
-    scripts/gen_demo_incidents.py                 # writes src/swb_examples/scenarios/demo/incidents/
+    scripts/gen_demo_incidents.py                 # writes src/scensim_examples/scenarios/demo/incidents/
     scripts/gen_demo_incidents.py --out /tmp/x    # elsewhere
 """
 
@@ -52,7 +52,7 @@ import scenario_vehicle  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SITES = ROOT / "scripts/demo_town01_sites.yaml"
-DEFAULT_OUT = ROOT / "src/swb_examples/scenarios/demo/incidents"
+DEFAULT_OUT = ROOT / "src/scensim_examples/scenarios/demo/incidents"
 
 TIMEOUT_S = 300  # sim time; every template's drive is well under 2 min
 GOAL_TOLERANCE_M = 3.0
@@ -169,7 +169,7 @@ def car(name, props=None, S=None):
     if bp:
         vehicle = vehicle.replace(f'<Vehicle name="{name}" ',
                                   f'<Vehicle name="{name}" model3d="{bp}" ', 1).replace(
-            "<Properties />", f'<Properties><Property name="swb.box_exempt" value="{PINNED_BOX}" /></Properties>', 1)
+            "<Properties />", f'<Properties><Property name="scensim.box_exempt" value="{PINNED_BOX}" /></Properties>', 1)
     return npc_object(name, vehicle, props)
 
 
@@ -591,7 +591,7 @@ def template(i, sites):
     params = sorted(set(re.findall(r'parameterRef="([^"]+)"', "".join(groups))))
     decls = "".join(f'<ParameterDeclaration name="{p}" parameterType="integer" value="0" />' for p in params)
     if S.get("stop_line"):
-        # incident_judge's --stop-line, read by `swb.gap incident` (roadmap 077, items 8-10)
+        # incident_judge's --stop-line, read by `scensim.gap incident` (roadmap 077, items 8-10)
         sl = S["stop_line"]
         decls += (f'<ParameterDeclaration name="csbIncidentStopLine" parameterType="string" '
                   f'value="{sl["x"]},{sl["y"]},{sl["yaw"]}" />')
@@ -604,7 +604,7 @@ def template(i, sites):
 	<FileHeader author="scenario-world-bridge" date="2026-10-14T00:00:00+00:00" description="{desc}" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>{decls}</ParameterDeclarations>
 	<CatalogLocations />
-	<RoadNetwork><LogicFile filepath="$(env SWB_MAPS)/Town01" /></RoadNetwork>
+	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town01" /></RoadNetwork>
 	<Entities>
 		{ego_object()}
 		{"".join(entities)}

@@ -1,8 +1,8 @@
 //! The bridge's ROS node: services that configure the world (roadmaps 018, 051).
 //!
-//!   /scenario_world_bridge/set_weather  swb_interfaces/srv/SetWeather
-//!   /scenario_world_bridge/get_weather  swb_interfaces/srv/GetWeather
-//!   /scenario_world_bridge/load_map     swb_interfaces/srv/LoadMap (roadmap 077)
+//!   /scenario_world_bridge/set_weather  scensim_interfaces/srv/SetWeather
+//!   /scenario_world_bridge/get_weather  scensim_interfaces/srv/GetWeather
+//!   /scenario_world_bridge/load_map     scensim_interfaces/srv/LoadMap (roadmap 077)
 //!
 //! The weather is a preset or parameters by name, passed through to the world server, whose
 //! names they are (CARLA's: its presets and `WeatherParameters` fields). `load_map` loads a
@@ -27,9 +27,9 @@ use std::time::Duration;
 
 use futures::channel::oneshot;
 use rclrs::CreateBasicExecutor;
-use swb_interfaces::srv::get_weather::{GetWeather_Request, GetWeather_Response};
-use swb_interfaces::srv::load_map::{LoadMap_Request, LoadMap_Response};
-use swb_interfaces::srv::set_weather::{SetWeather_Request, SetWeather_Response};
+use scensim_interfaces::srv::get_weather::{GetWeather_Request, GetWeather_Response};
+use scensim_interfaces::srv::load_map::{LoadMap_Request, LoadMap_Response};
+use scensim_interfaces::srv::set_weather::{SetWeather_Request, SetWeather_Response};
 
 use crate::weather::{self, WeatherRequest};
 
@@ -114,21 +114,21 @@ pub fn start(
                     .read_only()?;
                 let set = {
                     let tx = tx.clone();
-                    node.create_async_service::<swb_interfaces::srv::SetWeather, _>(
+                    node.create_async_service::<scensim_interfaces::srv::SetWeather, _>(
                         SET_WEATHER,
                         move |req: SetWeather_Request| set_weather(tx.clone(), req),
                     )?
                 };
                 let get = {
                     let tx = tx.clone();
-                    node.create_async_service::<swb_interfaces::srv::GetWeather, _>(
+                    node.create_async_service::<scensim_interfaces::srv::GetWeather, _>(
                         GET_WEATHER,
                         move |_: GetWeather_Request| get_weather(tx.clone()),
                     )?
                 };
                 let load = {
                     let tx = tx.clone();
-                    node.create_async_service::<swb_interfaces::srv::LoadMap, _>(
+                    node.create_async_service::<scensim_interfaces::srv::LoadMap, _>(
                         LOAD_MAP,
                         move |req: LoadMap_Request| load_map(tx.clone(), req),
                     )?
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn a_map_is_named_by_its_directory_or_its_lanelet2_file() {
-        let dir = std::env::temp_dir().join(format!("swb-load-map-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("scensim-load-map-{}", std::process::id()));
         let map = dir.join("Town02");
         std::fs::create_dir_all(&map).unwrap();
         let osm = map.join(LANELET2_FILE);

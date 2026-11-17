@@ -3,7 +3,7 @@
 861 at v, timed to reach the conflict `gap` s after B's front reaches its stop line, then
 holding its speed (left_turn_game's C1 "hold", with its safety layer).
 
-swb starts it per run with `--relay R --entity coop_a --seed S --run-dir D`. v and gap are the
+scensim starts it per run with `--relay R --entity coop_a --seed S --run-dir D`. v and gap are the
 scenario's (its ParameterDeclarations, read from the run's resolved.yaml); B's speed cap is
 --b-vmax, the ego's max_velocity. It runs scripts/coop/oncoming_agent.py with s5_aw.py's
 configuration, which logs both cars' truth to <run dir>/coop_a.jsonl for the judge.
@@ -23,7 +23,7 @@ import make_scenarios  # noqa: E402
 
 
 def host():
-    from swb import config
+    from scensim import config
     return config.host_settings()
 
 

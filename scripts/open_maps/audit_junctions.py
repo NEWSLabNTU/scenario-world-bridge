@@ -10,7 +10,7 @@ A junction is the stop lines within 45 m of each other (`--all`: lane ends withi
 photo (4 cm a pixel), every lane bound thin, each approach lane's last 25 m shaded, its stop
 line red, and at its end its number and movements (L, S, R, U for a U-turn) in the order of the
 lanes from the left. `<out dir>/junctions.json` lists the same per approach: road, lane, the
-movements and where they came from (`swb:turn_source`: osm, mapillary, rule, with +gap or
+movements and where they came from (`scensim:turn_source`: osm, mapillary, rule, with +gap or
 +fallback). Junctions whose box the survey observed less than `--min-observed` of are skipped.
 `--nlsc` draws on NLSC's open 0.27 m orthophoto (fetch.py's mosaic, resampled into the map
 frame at 0.1 m) instead, which covers every junction of the site, not only 059's survey; the
@@ -189,8 +189,8 @@ def main():
                 for sk in succ[k]:
                     st = lanes[sk]["t"]
                     if "turn_direction" in st:
-                        mv.add("uturn" if st.get("swb:uturn") else st["turn_direction"])
-                        src.add(st.get("swb:turn_source", ""))
+                        mv.add("uturn" if st.get("scensim:uturn") else st["turn_direction"])
+                        src.add(st.get("scensim:turn_source", ""))
                 word = "".join(LETTER[m] for m in ("uturn", "left", "straight", "right") if m in mv)
                 e = mid([ln["l"][-1], ln["r"][-1]])
                 d.text(px(e), f"{an}.{i} {word}", fill=(255, 255, 0, 255), font=font, stroke_width=3,

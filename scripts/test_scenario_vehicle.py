@@ -77,7 +77,7 @@ def test_the_lint_names_the_entity_field_and_both_values(tmp_path):
 def test_an_exempt_vehicle_is_listed_not_failed(tmp_path):
     path = tmp_path / "s.xosc"
     path.write_text(OLD.replace("<Properties />",
-                                '<Properties><Property name="swb.box_exempt" value="test" /></Properties>'))
+                                '<Properties><Property name="scensim.box_exempt" value="test" /></Properties>'))
     failures, exempt, checked = lint.check_file(path, sv.load_table(), 0.02)
     assert (failures, checked) == ([], 0)
     assert exempt and exempt[0].endswith(": test")

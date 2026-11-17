@@ -29,7 +29,7 @@ import numpy as np
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import site_params  # noqa: E402  (sites/<SWB_TWIN_SITE>.yaml, default ntu)
+import site_params  # noqa: E402  (sites/<SCENSIM_TWIN_SITE>.yaml, default ntu)
 
 SITE = site_params.current()
 

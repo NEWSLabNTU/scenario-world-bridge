@@ -4,7 +4,7 @@
 The search (gap_search), the genome and its renderer (gap_genome), the run's outcome and the
 campaign store (gap_campaign) and the exploit core (gap_exploit) were built and tested offline;
 this runs them against a live stack on the project workflow. A run is one genome: its scenario
-rendered into the store, `ros2 run swb run <xosc>` in the campaign's project (whose stack
+rendered into the store, `ros2 run scensim run <xosc>` in the campaign's project (whose stack
 records the gap trace and stays up between runs), then the run's JUnit and its trace's findings
 (gap_oracle's findings.json, the oracle output `gap_campaign.classify` takes) classified and
 told to the search.
@@ -44,15 +44,15 @@ VERDICT = re.compile(r"^(passed|failed|error|refused)\s+(\S+)\s+(\S+)", re.M)
 
 
 def classify_run(run_dir, verdict):
-    """A swb run directory as gap_campaign.classify takes it: the run's junit.xml and its gap
+    """A scensim run directory as gap_campaign.classify takes it: the run's junit.xml and its gap
     trace's findings (the first trace's; a TIER IV scenario's variants are not used here). A
-    run swb could not judge (`error`) is infrastructure whatever its JUnit says; a refused
+    run scensim could not judge (`error`) is infrastructure whatever its JUnit says; a refused
     scenario is invalid (the genome rendered something the project cannot run)."""
     if verdict == "refused":
         return gc.RunResult("invalid", gc.gs.Outcome(False, None, 0.0), "none",
-                            "refused by swb", {})
+                            "refused by scensim", {})
     if verdict == "error" or run_dir is None:
-        return gc.RunResult("infrastructure", None, "none", f"swb run: {verdict}", {})
+        return gc.RunResult("infrastructure", None, "none", f"scensim run: {verdict}", {})
     run_dir = Path(run_dir)
     junit = run_dir / "junit.xml"
     findings = sorted((run_dir / "gap_trace").glob("*.findings.json"))
@@ -63,7 +63,7 @@ def classify_run(run_dir, verdict):
     return gc.classify(junit.read_text() if junit.is_file() else None, oracle)
 
 
-class SwbRunner:
+class ScensimRunner:
     """`run(genome) -> RunResult`, each genome rendered into `scenarios` and run in `project`"""
 
     def __init__(self, project, scenarios, log, timeout=None, start_stack=True):
@@ -77,7 +77,7 @@ class SwbRunner:
     def __call__(self, genome):
         xosc = self.scenarios / f"{genome.family}_{genome.id}.xosc"
         xosc.write_text(gg.render(genome))
-        argv = ["ros2", "run", "swb", "run", str(xosc)]
+        argv = ["ros2", "run", "scensim", "run", str(xosc)]
         if self.start_stack:
             argv.append("--start-stack")
         if self.timeout:
@@ -219,7 +219,7 @@ def main():
             store = gc.Store.create(a.store, {
                 "sim": "carla", "families": a.families.split(","), "budget": a.budget,
                 "seed": a.seed, "project": str(a.project.resolve()), "until": a.until})
-        run = SwbRunner(a.project, a.store / "scenarios", a.store / "swb_runs.jsonl", a.timeout)
+        run = ScensimRunner(a.project, a.store / "scenarios", a.store / "scensim_runs.jsonl", a.timeout)
         n, found = loop(store, run, a.max_runs, a.until)
         s = summary(store)
         s["found"] = found
@@ -228,7 +228,7 @@ def main():
         return 0
     genome = gg.Genome.from_json(json.loads(a.genome.read_text()))
     d = a.store / "exploit"
-    run = SwbRunner(a.project, d / "scenarios", d / "swb_runs.jsonl", a.timeout)
+    run = ScensimRunner(a.project, d / "scenarios", d / "scensim_runs.jsonl", a.timeout)
     rep = exploit(genome, run, a.signature, a.tol, a.repeats)
     (d / f"{genome.id}.json").write_text(json.dumps(rep, indent=1))
     print(json.dumps(rep, indent=1))

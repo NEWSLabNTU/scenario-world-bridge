@@ -1,3 +1,0 @@
-# The examples ship without a lock: `ros2 run swb assets fetch` writes swb.lock in your
-# copy, and you commit it there. A fetch run here, in the source tree, stays out of git.
-swb.lock

@@ -1,10 +1,10 @@
 # Item 17: incidents i1 to i5 on Isaac, on the demo tour's ego. Reference: roadmap 044
 # (2026-10-22, server139): i1, i4, i5 passed; i3 2/2; i2 rerun passed 2026-10-24.
 scenarios:
-  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i1_lead_brake.xosc
-  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i2_ped_dart.xosc
-  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i3_red_light.xosc
-  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i4_blocked_lane.xosc
-  - ../../../src/swb_examples/scenarios/demo/incidents/town01_i5_cross_turn.xosc
+  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i1_lead_brake.xosc
+  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i2_ped_dart.xosc
+  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i3_red_light.xosc
+  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i4_blocked_lane.xosc
+  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i5_cross_turn.xosc
 retry: {on: error, times: 1}
 expect: {}

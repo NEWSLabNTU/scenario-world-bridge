@@ -1,6 +1,6 @@
 //! SSv2's `simulation_interface` on a [`SimBackend`] (roadmap 035).
 //!
-//! The coordinator is the protocol side of swb and knows no simulator: it decodes each
+//! The coordinator is the protocol side of scensim and knows no simulator: it decodes each
 //! protobuf request into the backend's terms ([`crate::backend`]), and turns what the
 //! backend did into SSv2's reply. Every failure the backend reports -- refused, unsupported,
 //! disconnected -- is a failed reply with the backend's reason, never a success (roadmap
@@ -765,7 +765,7 @@ mod tests {
         let r = c.update_environment(road(
             0.7,
             "wetWithPuddles",
-            &[("swb.zone.ford.water_depth", "0.1"), ("other.tool", "x")],
+            &[("scensim.zone.ford.water_depth", "0.1"), ("other.tool", "x")],
         ));
         assert!(r.result.unwrap().success);
         let Call::UpdateEnvironment(env) = fake.last_call() else {

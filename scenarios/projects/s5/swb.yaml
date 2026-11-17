@@ -26,4 +26,4 @@ judges:
   - name: s5_score
     run: [python3, judges/s5_score.py]
   - name: physical_verdict
-    run: [ros2, run, swb_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+    run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]

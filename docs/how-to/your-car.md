@@ -35,7 +35,7 @@ to a stack started in the foreground; it is merged with what the stack gives the
 server itself (the state directory, the ports):
 
 ```bash
-ros2 launch scensim_launch scensim.launch.xml project:=<logs>/.testbenches/<testbench> \
+ros2 launch scensim_launch scensim.launch.xml testbench:=my_testbench \
     stack_args:="sim_args:='vehicle_physics:=none'"
 ```
 

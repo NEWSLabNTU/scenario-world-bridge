@@ -96,7 +96,7 @@ the workspace in place of the stock one: [Your world server](../how-to/your-worl
 | `scensim testbench check <name>` | the build's checks and this host's |
 | `scensim run <name>` | the default suite; `<name>/<suite>` another suite; `<name>/scenarios/<file>` one scenario |
 | `scensim assets fetch <name>` | the assets, and the lock |
-| `scensim stack --list`, `scensim stack <name> --stop` | the running stacks; stop one |
+| `scensim stack <name>` (`--foreground`, `--stop`), `scensim stack --list` | start a testbench's stack (in this terminal), stop it; the running stacks |
 
 Every command and option: [Commands](commands.md).
 

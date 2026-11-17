@@ -17,6 +17,10 @@
   <!-- scensim.load_map: the keeper asks the bridge to load a map's town on a CARLA map switch -->
   <exec_depend>rclpy</exec_depend>
   <exec_depend>scensim_interfaces</exec_depend>
+  <!-- scensim assets fetch: the Hugging Face Hub datasets -->
+  <exec_depend>python3-huggingface-hub-pip</exec_depend>
+  <exec_depend>openscenario_interpreter_msgs</exec_depend>
+  <exec_depend>scensim_agent</exec_depend>
   <!-- optional: huggingface_hub (pip), used by `assets fetch` when importable;
        without it the Hub is reached over plain HTTPS with the standard library -->
 

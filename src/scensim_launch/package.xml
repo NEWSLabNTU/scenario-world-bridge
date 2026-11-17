@@ -9,11 +9,12 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- The simulation side only. The vehicle side (acb_launch, aib_launch, autoware_sim_profile,
+       acb_bridge: Autoware) is named by the launches at run time (ego_launch, the pilots) and is
+       not a dependency here, so a host without Autoware resolves this package with rosdep;
+       the vehicle packages declare their own dependencies. -->
   <exec_depend>scenario_world_bridge</exec_depend>
   <exec_depend>scenario_agent_relay</exec_depend>
-  <exec_depend>acb_bridge</exec_depend>
-  <exec_depend>acb_launch</exec_depend>
-  <exec_depend>autoware_sim_profile</exec_depend>
   <exec_depend>scensim_agent</exec_depend>
   <!-- vehicle_agent.launch.xml: interaction_strategy:=true (roadmap 078) -->
   <exec_depend>czp</exec_depend>
@@ -23,14 +24,21 @@
        ROS 2 Humble install may lack: declared so rosdep installs it (roadmap 079, step 6) -->
   <exec_depend>rmw_cyclonedds_cpp</exec_depend>
   <exec_depend>scenario_test_runner</exec_depend>
-  <!-- stack.launch.py: the world servers, the default autopilots, the vehicle catalog -->
+  <!-- stack.launch.py: the world servers and the vehicle catalog -->
   <exec_depend>scensim_carla_world</exec_depend>
   <exec_depend>scensim_isaac_world</exec_depend>
-  <exec_depend>aib_launch</exec_depend>
   <exec_depend>sim_vehicle_spec</exec_depend>
   <!-- chase_view (demo camera window); it also needs the CARLA Python API: pip install carla==0.9.16 -->
   <exec_depend>python3-pygame</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- demo_captions -->
+  <exec_depend>openscenario_interpreter_msgs</exec_depend>
+  <exec_depend>traffic_simulator_msgs</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
 

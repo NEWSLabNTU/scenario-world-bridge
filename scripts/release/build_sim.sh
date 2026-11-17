@@ -47,7 +47,8 @@ fi
 # the vehicle side is left out even where a simulation package names it (082 fix 3).
 SIM_PACKAGES=(scenario_world_bridge scenario_agent_relay scensim scensim_launch
     scensim_interfaces scensim_examples scensim_carla_world scensim_isaac_world
-    scensim_world_check scenario_test_runner)
+    scensim_world_check scenario_test_runner
+    colcon-scensim)  # colcon's scensim_testbench build type (081): no ROS package depends on it
 VEHICLE_SIDE=(acb_bridge acb_launch aib_launch autoware_sim_profile individual_params
     tesla_model3_description tesla_model3_launch tesla_model3_sensor_kit_description
     tesla_model3_sensor_kit_launch)

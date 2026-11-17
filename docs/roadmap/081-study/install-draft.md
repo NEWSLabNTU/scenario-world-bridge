@@ -39,11 +39,11 @@ export PATH=$HOME/.local/bin:$PATH      # where pip --user puts commands (also i
 scensim install
 ```
 
-pip installs a small front end and the colcon plugin for testbenches; it chooses the
-package for your ROS release from the Python version (3.10 is Humble). `scensim install`
-then downloads the built scensim for that release, about 65 MB, checks its checksum and
-unpacks it under `~/.local/share/scensim/`. Any first `scensim` command does the same if
-you omit this step.
+pip installs a small front end; it chooses the package for your ROS release from the
+Python version (3.10 is Humble). `scensim install` then downloads the built scensim for
+that release, about 65 MB, checks its checksum and unpacks it under
+`~/.local/share/scensim/`. If you omit this step, the first command that needs scensim does
+the same and says so, with the size; `scensim --version` never downloads.
 
 **What you see**, ending with two lines to run:
 
@@ -58,8 +58,9 @@ then, in every terminal: source ~/.local/share/scensim/current/setup.bash
 ## Once per machine (needs sudo)
 
 The rosdep line above installs the system packages scensim's processes load (47 apt
-packages on a bare Humble). On a shared host an administrator runs it once; other users
-omit it. rosdep must have been initialised:
+packages on a bare Humble). It is the only step that needs root; on a shared host an
+administrator runs it once, and other users omit it. The first two lines are needed only
+where rosdep was never initialised:
 
 ```bash
 sudo rosdep init          # skip if it says the sources list already exists
@@ -67,18 +68,11 @@ rosdep update
 sudo rosdep install --from-paths ~/.local/share/scensim/current/share --ignore-src -y
 ```
 
-Then enlarge the kernel's socket buffers, so that DDS can deliver point clouds (at the
-default 208 kB a point cloud never arrives):
-
-```bash
-C=~/.local/share/scensim/current/share/scensim_launch/config
-sudo install -m 644 $C/99-cyclonedds-max.conf /etc/sysctl.d/
-sudo sysctl -p /etc/sysctl.d/99-cyclonedds-max.conf
-```
-
 ## The environment file
 
-Every terminal sources one file, here `~/scensim.bash`: ROS, your autopilot, then scensim.
+Every terminal sources one file, here `~/scensim.bash`, in this order: ROS, your autopilot,
+then scensim. scensim chooses the vehicle side it downloads from the Autoware it finds
+sourced, so Autoware comes first.
 
 ```bash
 # ~/scensim.bash
@@ -134,8 +128,9 @@ works; the first keeps the commands of this page unchanged:
 python3 -m pip install --user --break-system-packages scensim
 ```
 
-or a virtual environment that sees the system's packages, so that ROS's Python and colcon
-remain visible:
+or a virtual environment that sees the system's packages, so that ROS's Python remains
+visible (colcon finds the testbench build type through scensim's `setup.bash`, whichever
+form installed the front end):
 
 ```bash
 python3 -m venv --system-site-packages ~/.venvs/scensim
@@ -143,8 +138,9 @@ source ~/.venvs/scensim/bin/activate
 pip install scensim
 ```
 
-The build for ROS 2 Jazzy is not released yet; until it is, pip on Ubuntu 24.04 stops with
-`no scensim build for ROS 2 jazzy yet`.
+The build for ROS 2 Jazzy is not released yet. Until it is, pip installs the front end
+alone, and its first command says `no prebuilt scensim for ROS jazzy yet; build from
+source`, with a link to [From source](#from-source).
 
 ## Updating, and several versions
 
@@ -175,10 +171,11 @@ installed one; the [Developer Guide](../../development.md) has the rest.
 | Symptom | Fix |
 |---|---|
 | `scensim: command not found` | `~/.local/bin` is not on `PATH`: add `export PATH=$HOME/.local/bin:$PATH` to `~/.bashrc` |
-| `scensim is installed for humble, but ROS_DISTRO is jazzy` | the terminal sourced another ROS: source the one the install is for, or `pip install scensim-ros-jazzy` when it exists |
+| `scensim is installed for humble, but ROS_DISTRO is jazzy (python /usr/bin/python3.12)` | the terminal sourced another ROS, or pip ran in another Python than ROS's (a conda or pyenv one): source the ROS the install is for, and install with `/usr/bin/python3 -m pip` |
 | `sha256 mismatch` during `scensim install` | the download was cut: run it again; a partial file is not kept |
 | `ERROR: your rosdep installation has not been initialized yet` | `sudo rosdep init`, then `rosdep update` |
 | `error: externally-managed-environment` | Ubuntu 24.04: use one of the forms in [Ubuntu 24.04](#ubuntu-2404) |
+| `no prebuilt scensim for ROS jazzy yet` | no release for your ROS yet: [From source](#from-source) |
 
 ## Next
 

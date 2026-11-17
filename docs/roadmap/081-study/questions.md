@@ -101,3 +101,35 @@ important first.
     project (about 40) changes. A sentence for users of 0.1.0 is needed once
     (`swb.yaml` is refused naming `testbench.yaml`; their directory becomes a package with a
     `package.xml`), likely in the release notes rather than in each tutorial.
+
+## Answers (2026-11-17)
+
+133 decided items 1 to 8, 13 and 16; the drafts follow these answers. 243 decided the
+others, as recorded; 133 folds both into 081 and 082 after the 080 landing.
+
+| Item | Answer | By |
+|---|---|---|
+| 1 | `scensim run <tb>` starts the testbench's stack when none serves it, says so, and leaves it up (`--stop-stack` stops it after the run); `scensim stack <tb>` runs one in a terminal of its own. The tutorial uses plain `scensim run`. | 133 |
+| 2 | `scensim run <tb>` runs the suite that `default:` in `testbench.yaml` names, and without one refuses, listing the suites. `<tb>/<name>` is a suite; a scenario is named by its path, `<tb>/scenarios/x.xosc`, so stems cannot clash. | 133 |
+| 3 | Package names are unique in a sourced chain. Runs go to `<logs>/<pkg>/runs/`, with the workspace's path in `result.json`; two same-named testbenches in two workspaces share the directory, and `runs list` shows a workspace column. | 133 |
+| 4 | Source order: ROS, the user's Autoware, scensim, then the workspace. | 133 |
+| 5 | `scensim --version` never downloads. The first command that needs the binaries does, saying so with the size; `scensim install` does it on purpose. | 133 |
+| 6 | One root block: `rosdep init` and `update` where never done, then the rosdep install line. No sysctl: the stack's localhost Cyclone profile does not need it; it is added only if a measurement asks. | 133 |
+| 7 | The plugin ships in the tarball and is found through scensim's `setup.bash` (`PYTHONPATH` and its entry points), so apt's colcon sees it whatever pip form installed the front end; the venv form for 24.04 stays valid. 139 implements. | 133 |
+| 8 | With no release package for the user's Python, the front end installs alone and its first command says `no prebuilt scensim for ROS <distro> yet; build from source`, with the link. | 133 |
+| 9 | The front end's guard message names the Python it runs in beside the two ROS releases, since a conda or pyenv Python is the usual cause; the install draft's troubleshooting row shows it. A wording detail of 082 step 3. | 243 |
+| 10 | The drafts keep "rebuild your workspaces after an update". A guard in a workspace's setup that refuses a different scensim than it was built over would remove the rule; proposed to 133 as a design change, not assumed. | 243 |
+| 11 | `testbench new` takes the maintainer from `git config user.name` and `user.email` when set, else a placeholder, and writes `TODO: License declaration` as `ros2 pkg create` does: the licence is the user's choice. | 243 |
+| 12 | `testbench new` refuses a name that is not a valid ROS package name before writing anything, naming the valid form (`my_first_drive`). | 243 |
+| 13 | Without `--symlink-install`, `assets fetch` needs `--source <dir>` to write the lock; the build check warns when an installed testbench has no lock. | 133 |
+| 14 | Covered by 13's warning: a testbench whose lock exists but whose assets are not fetched builds green and is refused at its first run, naming `scensim assets fetch <tb>`, as `project check` does today. | 243 |
+| 15 | Every user page uses `scensim <cmd>`; `ros2 run scensim <cmd>` is named once, on the commands reference. | 243 |
+| 16 | Asked of the user by 133; the troubleshooting row stays as it is until then. | 133 |
+| 17 | The move from project to testbench is told once, in the release notes of the release that ships 081, with the `swb.yaml` refusal; the tutorials say only testbench. 243 writes it with 081 step 6. | 243 |
+
+Open after these answers:
+
+18. **Stopping a stack that `scensim run` left up.** 1 says how to stop it after one run
+    (`--stop-stack`) but not later, from another command. The draft writes `scensim stack
+    my_first_drive --stop`; 081 should name the form (today the stack is stopped by its
+    process group, which a user cannot be expected to find).

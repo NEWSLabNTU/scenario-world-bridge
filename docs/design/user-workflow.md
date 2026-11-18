@@ -57,6 +57,17 @@ decisions about everything but their destination"). The scenario already treats 
 acting, and the scenario plays the operator. Autoware-specific; carried as an optional agent
 command that other autopilots reject.
 
+The table's `/api/external/*` endpoints are TIER IV's `tier4_ad_api_adaptor`, which Autoware
+1.5.0 runs and 2.1.0 does not (2.1.0 keeps only `/api/external/set/engage` and
+`/api/autoware/set/velocity_limit`, in `autoware_evaluation_adapter`; nothing in it serves
+the AD API's cooperation endpoints either). The Autoware agent probes which one is running,
+never by a version flag: it uses the adaptor's RTC when that is up, else the planning
+modules' own `rtc_interface` (`/planning/cooperate_status/<module>`,
+`/planning/cooperate_commands/<module>`, `/planning/enable_auto_mode/<module>`, which the
+adaptor aggregated), else no RTC; without the adaptor its faults come from
+`/api/fail_safe/mrm_state` alone (no separate emergency flag). It logs the path it took
+(`Autoware API: ...`) in its node's log.
+
 ## Architecture
 
 ```

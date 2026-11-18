@@ -10,7 +10,7 @@ GameObject that renders it, under /SVL/Scene), `textures/`, and `world.yaml`.
 
 Frame. SVL places a map with its `MapOrigin` GameObject: a point's UTM coordinates are
 its position in MapOrigin's local frame plus (OriginEasting, OriginNorthing), local x east,
-local z north, y up. Shalun's MapOrigin turns -90 degrees about y, so the map's local east,
+local z north, y up. A MapOrigin turned -90 degrees about y, for example, makes the map's local east,
 north and up are Unity (z, -x, y). That is a reflection of Unity's left-handed frame, so
 every triangle's winding is reversed. The stage is in that local ENU frame (metres, z up);
 the Lanelet2 map's `x`/`y` tags are in the same frame (svl_to_autoware.py). world.yaml's
@@ -72,14 +72,16 @@ def main(argv=None):
     ap.add_argument("dump")
     ap.add_argument("map_dir")
     ap.add_argument("--origin-yaw", type=float, default=None,
-                    help="MapOrigin's rotation about Unity's y, degrees (default: from scene.json)")
+                    help="MapOrigin's rotation about Unity's y, degrees (default: scene.json's map_origin_yaw_deg)")
     a = ap.parse_args(argv)
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
     scene = json.load(open(os.path.join(a.dump, "scene.json")))
     mats = {m["name"]: m for m in json.load(open(os.path.join(a.dump, "materials.json")))}
     man = scene["manifest"]
-    yaw = a.origin_yaw if a.origin_yaw is not None else scene.get("map_origin_yaw_deg", -90.0)
+    yaw = a.origin_yaw if a.origin_yaw is not None else scene.get("map_origin_yaw_deg")
+    if yaw is None:
+        sys.exit("svl_to_usd: scene.json has no map_origin_yaw_deg: give --origin-yaw (MapOrigin's rotation about y)")
     T = unity_to_map(yaw)
 
     out = os.path.join(a.map_dir, "isaac")

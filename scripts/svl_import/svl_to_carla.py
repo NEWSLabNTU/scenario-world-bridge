@@ -3,7 +3,7 @@
 
 Run with a Python that has Blender's `bpy` (pip `bpy`, Python 3.11):
 
-    svl_to_carla.py DUMP_DIR XODR OUT_DIR [--name Shalun]
+    svl_to_carla.py DUMP_DIR XODR OUT_DIR --name NAME
 
 Writes OUT_DIR/<name>/: `<name>.xodr`, `<name>.fbx` (with its textures beside it), and
 OUT_DIR/<name>.json, the package description CARLA's `make import` reads (copy OUT_DIR into
@@ -45,16 +45,17 @@ CLASSES = [  # (material pattern, CARLA object name), the first match wins
     (r"SideWalk|Sidewalk", "Road_Sidewalk"),
     (r"Curb", "Road_Curb"),
     (r"Grass|Background", "Road_Grass"),
-    (r"Building", "Building_Shalun"),
+    (r"Building", "Building_{name}"),
 ]
 
 
-def class_of(materials):
+def class_of(materials, site):
+    """The CARLA object name of an instance; buildings and props carry the map's name."""
     for name in materials:
         for pat, cls in CLASSES:
             if re.search(pat, name):
-                return cls if cls else "skip"
-    return "Prop_Shalun"
+                return cls.format(name=site) if cls else "skip"
+    return f"Prop_{site}"
 
 
 def fix_controllers(root):
@@ -113,7 +114,7 @@ def rotate_xodr(src, dst):
     return n
 
 
-def build_fbx(dump, out_fbx, tex_dir):
+def build_fbx(dump, out_fbx, tex_dir, site):
     import bpy
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -145,7 +146,7 @@ def build_fbx(dump, out_fbx, tex_dir):
 
     groups = {}
     for inst in scene["instances"]:
-        cls = class_of(inst["materials"])
+        cls = class_of(inst["materials"], site)
         if cls == "skip":
             continue
         z = np.load(os.path.join(dump, "meshes", f"{inst['mesh']}.npz"))
@@ -197,13 +198,13 @@ def main():
     ap.add_argument("dump")
     ap.add_argument("xodr")
     ap.add_argument("out")
-    ap.add_argument("--name", default="Shalun")
+    ap.add_argument("--name", required=True, help="the map's name: its package, files and CARLA object names")
     a = ap.parse_args()
     d = os.path.join(a.out, a.name)
     os.makedirs(d, exist_ok=True)
     n = rotate_xodr(a.xodr, os.path.join(d, f"{a.name}.xodr"))
     print(f"xodr: {n} geometries turned into the map frame")
-    build_fbx(a.dump, os.path.join(d, f"{a.name}.fbx"), d)
+    build_fbx(a.dump, os.path.join(d, f"{a.name}.fbx"), d, a.name)
     with open(os.path.join(a.out, f"{a.name}.json"), "w") as f:
         json.dump({"maps": [{"name": a.name, "source": f"./{a.name}/{a.name}.fbx",
                              "use_carla_materials": True, "xodr": f"./{a.name}/{a.name}.xodr"}],

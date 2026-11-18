@@ -974,6 +974,10 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         settings["global_timeout"] = spec.timeout
     sc_rel = _rel(project, spec.scenario)
     infra, events, run_events = [], [], []
+    # an Isaac frame the world server would refuse (issue 051), before any run directory
+    frame = worldmod.isaac_frame_problem(psettings, settings)
+    if frame:
+        raise Refused(f"{sc_rel}: {frame}")
 
     # the scenario's entities against the stack's pilots (refused before any run directory)
     try:

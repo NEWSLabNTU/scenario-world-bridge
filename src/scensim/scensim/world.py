@@ -36,6 +36,9 @@ WORLD_KEYS = ("weather", "npc_motion", "contact_report_dir", "config_file", "wor
               own_world.KEY)
 ISAAC_KEYS = ("ego", "render", "follow", "physics_hz", "preload", "wheels_topic")
 NPC_MOTIONS = ("tracked", "kinematic")
+# The Isaac world server's physics rate when isaac.physics_hz is not given (--physics-hz)
+ISAAC_PHYSICS_HZ = 60
+TOLERANCE = 1e-6
 RENDERS = ("auto", "window", "headless")
 FOLLOWS = ("true", "false", "editor")
 CONTACTS_OFF = "off"
@@ -157,6 +160,38 @@ def problems(settings: dict, simulator: str, project: Path = None) -> list:
                     if not (project / "assets" / "maps" / m).is_dir():
                         out.append(("isaac.preload", f"{m} is not fetched (assets/maps/{m})"))
     return out
+
+
+def frame_rate_problem(frame_rate, physics_hz) -> str:
+    """Why SSv2's ``frame_rate`` cannot run on an Isaac world stepping at ``physics_hz``, or
+    None: each frame must be a whole number of physics steps, or the world server refuses it
+    (scensim issue 051, 077 G84: an ego whose step changes at run time stops moving)."""
+    try:
+        f, hz = float(frame_rate), float(physics_hz)
+    except (TypeError, ValueError):
+        return None
+    if not (f > 0 and hz > 0):
+        return None
+    n = round(hz / f)
+    if n >= 1 and abs(n * f - hz) <= TOLERANCE * hz:
+        return None
+    fits = [int(round(hz / k)) for k in range(1, int(hz) + 1)
+            if abs(hz / k - round(hz / k)) <= TOLERANCE * (hz / k)]
+    return (f"ssv2.frame_rate {f:g} is not a whole number of isaac.physics_hz {hz:g} steps "
+            f"per frame (the Isaac world server refuses it; scensim issue 051): a frame rate of "
+            f"{', '.join(map(str, fits))}, or a physics_hz that is a multiple of {f:g}")
+
+
+def isaac_frame_problem(settings: dict, ssv2_settings: dict = None) -> str:
+    """frame_rate_problem for a project on Isaac, its isaac.physics_hz (default 60) against
+    ``ssv2_settings``' frame_rate (default: the project's, then SSv2's 20)."""
+    if settings.get("simulator") != "isaac":
+        return None
+    i = settings.get("isaac") if isinstance(settings.get("isaac"), dict) else {}
+    ssv2 = ssv2_settings if ssv2_settings is not None else (settings.get("ssv2") or {})
+    if not isinstance(ssv2, dict):
+        return None
+    return frame_rate_problem(ssv2.get("frame_rate", 20), i.get("physics_hz", ISAAC_PHYSICS_HZ))
 
 
 def _flag(v) -> str:

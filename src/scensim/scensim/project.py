@@ -400,6 +400,9 @@ def check_schema(settings: dict) -> list:
         out.append(Finding(pf, f"{where}: {msg}"))
     for where, msg in ssv2mod.problems(settings.get("ssv2")):
         out.append(Finding(pf, f"{where}: {msg}", "ssv2: {global_timeout: 600, frame_rate: 20}"))
+    frame = worldmod.isaac_frame_problem(settings)
+    if frame and not ssv2mod.problems(settings.get("ssv2")):
+        out.append(Finding(pf, frame, refused=True))
     return out
 
 

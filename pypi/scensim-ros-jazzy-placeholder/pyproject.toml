@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+# A placeholder, published once for 0.1.0 (the user's decision, 2026-11-18): scensim 0.1.0's
+# front end requires scensim-ros-jazzy==0.1.0 on Python 3.12, and without this project on
+# PyPI `pip install scensim` on Ubuntu 24.04 fails in pip's resolver. 0.1.0 has no Jazzy
+# release; this package makes every scensim command say so. The real scensim-ros-jazzy comes
+# with 0.2.0 (pypi/scensim-ros-jazzy). Built and uploaded only by release.yml's
+# stop_after: jazzy-placeholder.
+[project]
+name = "scensim-ros-jazzy"
+version = "0.1.0"
+description = "Placeholder: scensim 0.1.0 has no ROS 2 Jazzy release; Jazzy arrives in 0.2.0"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

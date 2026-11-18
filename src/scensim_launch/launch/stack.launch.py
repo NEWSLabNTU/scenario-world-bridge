@@ -109,6 +109,19 @@ def named_args(text, what):
 MAX_DOMAIN = 57
 
 
+def own_world_launch(world_server, world_server_args, port, scensim_share):
+    """A world server of the project's (world.server, scensim.own_world) in place of the stock
+    one: ``(launch file, its arguments)`` for scensim_launch's world_server.launch.py."""
+    words = world_server.split()
+    if len(words) != 2:
+        raise RuntimeError(f"stack: world_server:={world_server!r}: '<package> <executable>'")
+    if not port:
+        raise RuntimeError("stack: world_server:= needs world_port:= (the port it serves on)")
+    return (os.path.join(scensim_share, "launch", "world_server.launch.py"),
+            {"package": words[0], "executable": words[1], "port": port,
+             "args": world_server_args})
+
+
 def check_domains(ego, scenario):
     """Refuse domains the stack cannot run in, before anything starts."""
     ids = {}
@@ -355,8 +368,12 @@ def _stack(context):
     if LAUNCHER["name"] not in ("play_launch", "ros2"):
         raise RuntimeError(f"stack: launcher:={LAUNCHER['name']}: play_launch or ros2")
     sim = get("sim")
+    world_server = get("world_server").strip()
     if not sim:
         raise RuntimeError("stack: sim:= isaac, carla or a package of yours with launch/world.launch.xml")
+    if sim == "none" and not world_server:
+        raise RuntimeError("stack: sim:=none starts no simulator: give world_server:= (your world "
+                           "server, which owns one)")
     ego_domain = get("ego_domain")
     scenario_domain = get("scenario_domain")
     check_domains(ego_domain, scenario_domain)
@@ -370,7 +387,16 @@ def _stack(context):
 
     # --- sim
     endpoint = get("world_endpoint")
-    if sim == "isaac":
+    if world_server:
+        # the project's own world server, on the seat's world port; the simulator's preset
+        # (sim:=carla or isaac) still decides the ego's default and CARLA's timeouts
+        port = world_port or _env("WORLD_PORT", "5591")
+        world, sim_args = own_world_launch(world_server, get("world_server_args"), port, scensim)
+        endpoint = endpoint or f"tcp://127.0.0.1:{port}"
+        sim_env = {}
+        timeouts = ({"world_request_timeout_seconds": "90", "world_load_timeout_seconds": "300"}
+                    if sim == "carla" else {})
+    elif sim == "isaac":
         world = os.path.join(get_package_share_directory("scensim_isaac_world"), "launch",
                              "scensim_isaac_world.launch.xml")
         port = world_port or _env("ISAAC_PORT", "5590")
@@ -536,6 +562,8 @@ def generate_launch_description():
         arg("sim", default_value="", description="isaac, carla, or a package with launch/world.launch.xml"),
         arg("sim_args", default_value="", description="name:=value ... for the world server's launch"),
         arg("world_endpoint", default_value="", description="the world server's tcp://host:port; empty: the preset's"),
+        arg("world_server", default_value="", description="'<package> <executable>': a world server of yours in place of the stock one (world.server of a testbench), started on world_port by world_server.launch.py; with sim:=none the only simulator side"),
+        arg("world_server_args", default_value="", description="world_server's own arguments (scensim appends --port)"),
         arg("ego_launch", default_value="", description="the developers' autopilot launch (just run): a path or '<package> <file>'; empty: the sim's default (carla, isaac; another sim: none); none: no ego. A project gives pilots"),
         arg("ego_launch_args", default_value="", description="name:=value ... for ego_launch"),
         arg("agent", default_value="true", description="start scensim's vehicle agent beside the autopilot (false: ego_launch has its own)"),

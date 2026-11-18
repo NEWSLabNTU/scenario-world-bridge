@@ -667,10 +667,24 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     map_path = map_dir(project, chosen) if chosen else None
 
     bound = assign_domains(bind_pilots(psettings, scenarios), s, sim)
+    carla = dict(host.get("carla") or {})
+    if s.carla_port:
+        carla["port"] = s.carla_port  # the seat table gives each seat its own CARLA
+    carla_run = None
+    if sim == "carla":
+        try:
+            carla_run = CARLA_DECIDE(carla, simulator_start or None, probe or simmod.probe)
+        except simmod.SimulatorRefused as e:
+            raise StackRefused(str(e)) from None
+    # the body every car drives (sim_vehicle_spec's bodies, roadmap 083): the CARLA server's
+    # version's, where the stack knows it (a server already up answers it; one the stack
+    # starts is its carla.root's); else each car's default body
+    body = vehiclesmod.carla_body(carla_run.get("version")) if carla_run else None
     # the project's own cars (vehicles:), generated into state/vehicles/; their pilots get
     # the car's files (roadmap 077, G5)
     try:
-        cars = vehiclesmod.generate(project, psettings) if psettings.get("vehicles") else {}
+        cars = (vehiclesmod.generate(project, psettings, body=body)
+                if psettings.get("vehicles") else {})
     except vehiclesmod.VehicleError as e:
         raise StackRefused(str(e)) from None
     merged_catalog = cars.pop("__catalog__", None)
@@ -708,7 +722,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "RMW_IMPLEMENTATION": "rmw_cyclonedds_cpp",
         "CYCLONEDDS_URI": f"file://{seatmod.cyclone_profile(host)}",
         # the scenarios' vehicle catalog: the project's merged one, else the installed one
-        vehiclesmod.ENV: str(vehiclesmod.catalog_dir(project)),
+        vehiclesmod.ENV: str(vehiclesmod.catalog_dir(project, body)),
     }
     # Isaac's world server finds every car's body (the ego's and the NPCs') under
     # SCENSIM_VEHICLE_USD, by default a host path: the project's fetched USD set has them
@@ -727,15 +741,6 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     ego_domain = s.pilot_domains[0]
     vehicle = next((b.spec.get("vehicle") for b in bound if b.spec.get("vehicle")),
                    DEFAULT_VEHICLE)
-    carla = dict(host.get("carla") or {})
-    if s.carla_port:
-        carla["port"] = s.carla_port  # the seat table gives each seat its own CARLA
-    carla_run = None
-    if sim == "carla":
-        try:
-            carla_run = CARLA_DECIDE(carla, simulator_start or None, probe or simmod.probe)
-        except simmod.SimulatorRefused as e:
-            raise StackRefused(str(e)) from None
     args = {
         "sim": sim,
         "ego_launch": "none",
@@ -835,6 +840,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
 
     common = {"relay": f"tcp://localhost:{s.relay_port}", "vehicle": vehicle, "sim": sim,
               "use_sim_time": "true"}
+    if sim == "carla" and vehicle:
+        # Autoware's car on this body: CARLA 1.0's Model 3 is tesla_model3_carla_1_0
+        # (autoware_sim_vehicle), whose vehicle_info is the body the world server drives
+        common["vehicle_model"] = vehiclesmod.autoware_vehicle_model(vehicle, body)
     if sim == "carla":
         common.update(carla_host=args["carla_host"], carla_port=args["carla_port"],
                       release_notify_endpoint=f"tcp://127.0.0.1:{s.release_ports[0]}",

@@ -786,7 +786,7 @@ def test_an_own_car_reaches_the_bridge_the_world_server_and_its_pilot(where, map
     from scensim import vehicles
     from test_vehicles import INSTALLED, fake_gen, own_spec
     monkeypatch.setattr(vehicles, "run_gen", fake_gen)
-    monkeypatch.setattr(vehicles, "installed_catalog", lambda: INSTALLED)
+    monkeypatch.setattr(vehicles, "installed_catalog", lambda body=None: INSTALLED)
     d = make(where)
     own_spec(d)
     s = yaml.safe_load((d / "testbench.yaml").read_text())

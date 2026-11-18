@@ -101,7 +101,9 @@ def _pilot(context):
     if values["agent"] == "scensim":
         agent = {"map_path": values["map_path"], "use_sim_time": values["use_sim_time"],
                  "relay": "" if values["relay"] == "none" else values["relay"],
-                 "entity": values["entity"], "vehicle_model": values["vehicle"],
+                 "entity": values["entity"],
+                 "vehicle_model": context.launch_configurations.get("vehicle_model")
+                 or values["vehicle"],
                  "spec_hash_file": values["spec_hash_file"], "agent_config": values["agent_config"]}
         actions.append(IncludeLaunchDescription(AnyLaunchDescriptionSource(
             os.path.join(scensim, "launch", "vehicle_agent.launch.xml")),

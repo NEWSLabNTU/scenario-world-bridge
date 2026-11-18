@@ -1929,7 +1929,11 @@ impl SimBackend for RemoteBackend {
                     handle,
                     format!(
                         "the ego's body on {} ({}) is not the car SSv2 declared (the vehicle \
-                         catalog's), more than {EGO_BODY_TOLERANCE} m off: {}",
+                         catalog's), more than {EGO_BODY_TOLERANCE} m off: {}. A scenario \
+                         declares the car from its VehicleCatalog, which must be the catalog \
+                         of the simulator's body: on CARLA 1.0, sim_vehicle_spec's \
+                         catalogs/carla-1.0, or $(env SCENSIM_VEHICLES), which scensim's \
+                         stack sets for the server's version (roadmap 083)",
                         self.sim(),
                         body.model,
                         off.join("; ")

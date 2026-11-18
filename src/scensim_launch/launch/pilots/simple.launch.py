@@ -119,8 +119,10 @@ def _pilot(context):
             with open(values["description"]) as f:
                 description = f.read()
         else:
+            # Autoware's car on the simulator's body (the stack's vehicle_model, roadmap 083)
+            model = passed.get("vehicle_model") or vehicle
             description = Command(["xacro ", XACRO,
-                                   f" vehicle_model:={vehicle}",
+                                   f" vehicle_model:={model}",
                                    f" sensor_model:={vehicle}_sensor_kit"])
         actions.append(Node(package="robot_state_publisher", executable="robot_state_publisher",
                             name="robot_state_publisher", output="screen",

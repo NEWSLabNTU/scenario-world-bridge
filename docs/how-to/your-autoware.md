@@ -11,6 +11,26 @@ An `autoware` pilot runs scensim's **Autoware profile** (`autoware_sim_profile`'
 the car's packages (`vehicle_model`, `sensor_model`), plus the vehicle side (on CARLA, the
 vehicle bridge) and scensim's vehicle agent, all in the pilot's ROS domain.
 
+### The car's body on each simulator
+
+A car's vehicle specification describes the real car, and each simulator drives a body of its
+own: an asset whose wheel base, track, wheel radius and box are measured from that simulator.
+Autoware must plan with the body the simulator drives, so each body has its own Autoware
+vehicle model. The pilot's `vehicle` names the car; the stack selects the vehicle model and the
+scenarios' vehicle catalog (`$(env SCENSIM_VEHICLES)`) from the simulator's version, so a
+testbench names the same `vehicle` on every simulator:
+
+| `vehicle` | Simulator | `vehicle_model` | Body |
+|---|---|---|---|
+| `tesla_model3` | CARLA 0.9.16, Isaac Sim | `tesla_model3` | CARLA 0.9.16's `vehicle.tesla.model3`: 3.005 m wheel base, 0.370 m wheel |
+| `tesla_model3` | CARLA 1.0 | `tesla_model3_carla_1_0` | CARLA 1.0's `vehicle.tesla.model3`, the production car's dimensions: 2.876 m wheel base, 0.336 m wheel |
+
+The sensor kit (`sensor_model`, `tesla_model3_sensor_kit`) is the same on every body. When the
+stack cannot read the CARLA server's version (a remote server, or `simulator_start:=external`
+before one answers), it uses the car's first body, CARLA 0.9.16's. A scenario that names
+`$(find-pkg-share sim_vehicle_spec)/catalogs` directly declares that body as well; on CARLA
+1.0 the scenario bridge refuses its ego with a message naming the catalog it needs.
+
 ## Arguments
 
 A pilot's `args` reach the profile as launch arguments:

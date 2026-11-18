@@ -44,9 +44,24 @@ MIN_LEG = 25.0        # shorter legs get a predecessor or a follower added
 MIN_START_GOAL = 12.0  # m, start to goal (SSv2's reach tolerance is 5 m)
 START_SCAN_DIRS, START_EDGE_MAX = 6, 40.0  # of 8 directions with scan 10-30 m out; m it may move in
 REACH_BEFORE, REACH_CLEAR = 20.0, 7.0  # m: no point this far before the goal comes this close to it
-# tesla_model3's vehicle_info: rear axle to the front edge (wheel_base + front_overhang), to the rear
-# edge, and half the width (wheel_tread / 2 + side overhang)
-FRONT, REAR, HALF_W = 3.005 + 0.807, 0.98, 1.667 / 2 + 0.248
+# tesla_model3's vehicle_info on the body the tour drives (sim_vehicle_spec's carla-0.9.16, the
+# CARLA 0.9.16 Model 3; roadmap 083): rear axle to the front edge (wheel_base + front_overhang),
+# to the rear edge, and half the width (wheel_tread / 2 + side overhang)
+TOUR_BODY = "carla-0.9.16"
+
+
+def footprint(body=TOUR_BODY):
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src/sim_vehicle_spec"))
+    from sim_vehicle_spec import spec as specmod
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    g = specmod.effective(specmod.load(root / "src/sim_vehicle_spec/vehicles/tesla_model3.yaml"),
+                          body).doc["geometry"]
+    return (g["wheel_base"] + g["front_overhang"], g["rear_overhang"],
+            g["wheel_tread"] / 2 + g["left_overhang"])
+
+
+FRONT, REAR, HALF_W = footprint()
 SKIP = {1011236}       # isolated 4 m stub of the r01/r02 merge (059 and 072 agreed to leave it)
 # Transitions a tesla_model3 cannot drive (none now). 1003951 -> 1004230 was a hairpin about 5.5 m
 # across (centreline radius 2.5-2.9 m) against the car's minimum turning radius of 3.57 m at the rear

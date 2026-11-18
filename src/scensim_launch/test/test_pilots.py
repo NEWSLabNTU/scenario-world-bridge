@@ -76,7 +76,7 @@ def test_autoware_composes_profile_vehicle_side_and_agent():
         "$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml"]
     profile = root.findall(".//include")[-1]
     passed = {a.get("name"): a.get("value") for a in profile.findall("arg")}
-    assert passed["vehicle"] == "true" and passed["vehicle_model"] == "$(var vehicle)"
+    assert passed["vehicle"] == "true" and passed["vehicle_model"] == "$(var vehicle_model)"
     assert args["rviz"].get("default") == "false"
     assert "acb_launch carla_simulator" not in ET.tostring(root, encoding="unicode")
 

@@ -37,6 +37,15 @@ from .autoware import NO_RESPONSE, AutopilotPort, AutowareAgent, Snapshot
 
 # tier4 interfaces are optional: the agent degrades (no RTC, no emergency flag, no speed
 # limit) on an Autoware without them rather than refusing to start.
+#
+# Which Autoware serves what (probed while running, never by a version flag):
+# - 1.5.0 runs TIER IV's tier4_ad_api_adaptor: the emergency flag on
+#   /api/external/get/emergency and the aggregated RTC on /api/external/{get,set}/rtc_*.
+# - 2.1.0 has no adaptor (and no AD API cooperation server: autoware_adapi_v1_msgs defines
+#   the messages, nothing serves them). Its RTC is the planning modules' own rtc_interface,
+#   the per-module topics and services the adaptor aggregated (RTC_INTERFACE_NAMES), which
+#   1.5.0 has too; its faults come from /api/fail_safe/mrm_state alone (no emergency flag).
+# - Both serve /api/autoware/set/velocity_limit (2.1.0: autoware_evaluation_adapter).
 try:
     from tier4_external_api_msgs.msg import Emergency
     from tier4_external_api_msgs.msg import ResponseStatus as Tier4Status
@@ -45,9 +54,9 @@ except ImportError:  # pragma: no cover - depends on the installed Autoware
     Emergency = SetVelocityLimit = Tier4Status = None
 try:
     from tier4_rtc_msgs.msg import CooperateCommand, CooperateStatusArray
-    from tier4_rtc_msgs.srv import AutoModeWithModule, CooperateCommands
+    from tier4_rtc_msgs.srv import AutoMode, AutoModeWithModule, CooperateCommands
 except ImportError:  # pragma: no cover
-    CooperateStatusArray = CooperateCommands = AutoModeWithModule = None
+    CooperateStatusArray = CooperateCommands = AutoModeWithModule = AutoMode = None
 # The scan matcher's score (NDT's NVTL); without it the agent does not check a converged
 # re-localization against the scan (AutowareAgent's verify stage passes on no score).
 try:
@@ -68,6 +77,28 @@ RTC_MODULES = {
     "AVOIDANCE_BY_LC_LEFT": 17, "AVOIDANCE_BY_LC_RIGHT": 18, "ROUNDABOUT": 19,
 }
 RTC_MODULE_NAMES = {v: k for k, v in RTC_MODULES.items()}
+
+# The planning modules' rtc_interface (autoware_rtc_interface): each module serves its own
+# commands and auto mode and publishes its own statuses under these, named as its
+# getModuleType names it (the same in universe 0.48.0 and 0.53.2).
+COOPERATE_STATUS_NS = "/planning/cooperate_status/"
+COOPERATE_COMMANDS_NS = "/planning/cooperate_commands/"
+ENABLE_AUTO_MODE_NS = "/planning/enable_auto_mode/"
+RTC_INTERFACE_NAMES = {
+    "blind_spot": "BLIND_SPOT", "crosswalk": "CROSSWALK", "detection_area": "DETECTION_AREA",
+    "intersection": "INTERSECTION", "intersection_occlusion": "INTERSECTION_OCCLUSION",
+    "no_stopping_area": "NO_STOPPING_AREA", "occlusion_spot": "OCCLUSION_SPOT",
+    "stop_line": "NONE", "traffic_light": "TRAFFIC_LIGHT",
+    "virtual_traffic_light": "TRAFFIC_LIGHT", "lane_change_left": "LANE_CHANGE_LEFT",
+    "lane_change_right": "LANE_CHANGE_RIGHT",
+    "external_request_lane_change_left": "EXT_REQUEST_LANE_CHANGE_LEFT",
+    "external_request_lane_change_right": "EXT_REQUEST_LANE_CHANGE_RIGHT",
+    "avoidance_by_lane_change_left": "AVOIDANCE_BY_LC_LEFT",
+    "avoidance_by_lane_change_right": "AVOIDANCE_BY_LC_RIGHT",
+    "static_obstacle_avoidance_left": "AVOIDANCE_LEFT",
+    "static_obstacle_avoidance_right": "AVOIDANCE_RIGHT", "goal_planner": "GOAL_PLANNER",
+    "start_planner": "START_PLANNER", "roundabout": "ROUNDABOUT",
+}
 RTC_STATES = {0: "WAITING_FOR_EXECUTION", 1: "RUNNING", 2: "ABORTING", 3: "SUCCEEDED",
               4: "FAILED"}
 
@@ -126,8 +157,12 @@ class AutowarePort(AutopilotPort):
         self._have = set()  # which state topics have arrived
         self._ready_checked = 0.0
         self._services_ready = False
-        self._rtc_ready = False
-        group = ReentrantCallbackGroup()
+        self._rtc_via = None        # "adaptor" (tier4_ad_api_adaptor), "modules" or None
+        self._api_logged = False
+        self._adaptor_status = None
+        self._modules = {}          # rtc_interface name -> {"commands": cl, "auto_mode": cl}
+        self._module_status = {}    # rtc_interface name -> its latest statuses
+        self._group = group = ReentrantCallbackGroup()
         latched = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                              durability=DurabilityPolicy.TRANSIENT_LOCAL)
         volatile = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
@@ -226,16 +261,74 @@ class AutowarePort(AutopilotPort):
         with self._lock:
             self._s.emergency = msg.emergency
 
-    def _on_rtc(self, msg):
-        statuses = [{
+    @staticmethod
+    def _status_dicts(msg):
+        return [{
             "module": RTC_MODULE_NAMES.get(s.module.type, str(s.module.type)),
             "uuid": bytes(s.uuid.uuid).hex(), "safe": s.safe, "requested": s.requested,
             "command_status": "ACTIVATE" if s.command_status.type == 1 else "DEACTIVATE",
             "state": RTC_STATES.get(s.state.type, str(s.state.type)),
             "auto_mode": s.auto_mode, "start_distance": float(s.start_distance),
             "finish_distance": float(s.finish_distance)} for s in msg.statuses]
+
+    def _on_rtc(self, msg):
+        statuses = self._status_dicts(msg)
         with self._lock:
-            self._s.rtc_status = statuses
+            self._adaptor_status = statuses
+
+    def _on_module_rtc(self, name, msg):
+        statuses = self._status_dicts(msg)
+        with self._lock:
+            self._module_status[name] = statuses
+
+    def _discover_modules(self):
+        """The rtc_interface modules running now: each /planning/cooperate_commands/<name>
+        service found gets its clients and a subscription to its statuses, once."""
+        if CooperateCommands is None:
+            return
+        try:
+            services = self.node.get_service_names_and_types()
+        except Exception:  # noqa: BLE001 (a node shutting down)
+            return
+        for service, _types in services:
+            if not service.startswith(COOPERATE_COMMANDS_NS):
+                continue
+            name = service[len(COOPERATE_COMMANDS_NS):]
+            if name in self._modules or "/" in name:
+                continue
+            self._modules[name] = {
+                "commands": self.node.create_client(CooperateCommands, service,
+                                                    callback_group=self._group),
+                "auto_mode": self.node.create_client(AutoMode, ENABLE_AUTO_MODE_NS + name,
+                                                     callback_group=self._group)}
+            self.node.create_subscription(
+                CooperateStatusArray, COOPERATE_STATUS_NS + name,
+                lambda msg, name=name: self._on_module_rtc(name, msg), 1,
+                callback_group=self._group)
+
+    def _log_api(self):
+        """Which Autoware API the agent uses, once it is known and whenever it changes, so a
+        run's log says which (issue: Autoware 2.1.0 has no tier4_ad_api_adaptor)."""
+        self._api_logged = self._services_ready
+        rtc = {"adaptor": "RTC through tier4_ad_api_adaptor (/api/external/*/rtc_*)",
+               "modules": "RTC through the planning modules' rtc_interface "
+                          f"({', '.join(sorted(self._modules)) or 'none yet'})",
+               None: "no RTC"}[self._rtc_via]
+        emergency = ("emergency from /api/external/get/emergency"
+                     if self.node.count_publishers("/api/external/get/emergency")
+                     else "faults from /api/fail_safe/mrm_state only")
+        self.node.get_logger().info(f"Autoware API: {rtc}; {emergency}")
+
+    def _module_names(self, module, uuid=None):
+        """The running rtc_interface modules of one RTC kind; with a uuid, the one holding
+        it when one does."""
+        names = sorted(n for n in self._modules if RTC_INTERFACE_NAMES.get(n) == module)
+        if uuid:
+            with self._lock:
+                holding = [n for n in names
+                           if any(st["uuid"] == uuid for st in self._module_status.get(n, []))]
+            names = holding or names
+        return names
 
     # -- port -----------------------------------------------------------------------------
     def snapshot(self):
@@ -244,9 +337,17 @@ class AutowarePort(AutopilotPort):
             self._ready_checked = now
             self._services_ready = all(self.clients[n].service_is_ready()
                                        for n in CORE_SERVICES)
-            self._rtc_ready = ("rtc_commands" in self.clients
-                               and self.clients["rtc_commands"].service_is_ready()
-                               and self.clients["rtc_auto_mode"].service_is_ready())
+            if ("rtc_commands" in self.clients
+                    and self.clients["rtc_commands"].service_is_ready()
+                    and self.clients["rtc_auto_mode"].service_is_ready()):
+                via = "adaptor"
+            else:
+                self._discover_modules()
+                via = "modules" if any(
+                    c["commands"].service_is_ready() for c in self._modules.values()) else None
+            if via != self._rtc_via or not self._api_logged and self._services_ready:
+                self._rtc_via = via
+                self._log_api()
         with self._lock:
             s = Snapshot(**vars(self._s))
             # Services alone, not the state topics: Autoware's ADAPI state is latched but
@@ -254,8 +355,13 @@ class AutowarePort(AutopilotPort):
             # CARLA -- a scenario the relay would not start while this reported UNAVAILABLE.
             # Until the states arrive the phase is INITIALIZING (localization unknown).
             s.ready = self._services_ready
-            s.rtc = self._rtc_ready
-            if not s.rtc:
+            s.rtc = self._rtc_via is not None
+            if self._rtc_via == "adaptor":
+                s.rtc_status = self._adaptor_status
+            elif self._rtc_via == "modules":
+                s.rtc_status = [st for n in sorted(self._module_status)
+                                for st in self._module_status[n]]
+            else:
                 s.rtc_status = None
             return s
 
@@ -263,6 +369,9 @@ class AutowarePort(AutopilotPort):
         client = self.clients.get(name)
         if client is None:
             return None, f"{name}: not offered by this Autoware"
+        return self._call_client(client, request, timeout)
+
+    def _call_client(self, client, request, timeout=None):
         if not client.service_is_ready():
             return None, f"{client.srv_name}: service not available"
         done = threading.Event()
@@ -347,20 +456,45 @@ class AutowarePort(AutopilotPort):
             item.uuid.uuid = list(bytes.fromhex(uuid))
         request = CooperateCommands.Request(commands=[item])
         request.stamp = self.node.get_clock().now().to_msg()
-        response, error = self._call("rtc_commands", request, timeout=2.0)
-        if response is None:
-            return False, error
-        return all(r.success for r in response.responses), ""
+        if self._rtc_via != "modules":
+            response, error = self._call("rtc_commands", request, timeout=2.0)
+            if response is None:
+                return False, error
+            return all(r.success for r in response.responses), ""
+        # the modules' own services: the one holding the uuid, else every module of the kind
+        names = self._module_names(module, uuid)
+        if not names:
+            return False, f"no running planning module answers {module}'s RTC"
+        errors = []
+        for name in names:
+            response, error = self._call_client(self._modules[name]["commands"], request,
+                                                timeout=2.0)
+            if response is not None and all(r.success for r in response.responses):
+                return True, ""
+            errors.append(error or f"{name} refused the command")
+        return False, "; ".join(errors)
 
     def cooperate_auto(self, module, enable):
         if module not in RTC_MODULES:
             return False, f"unknown RTC module {module}"
-        request = AutoModeWithModule.Request(enable=bool(enable))
-        request.module.type = RTC_MODULES[module]
-        response, error = self._call("rtc_auto_mode", request, timeout=2.0)
-        if response is None:
-            return False, error
-        return response.success, ""
+        if self._rtc_via != "modules":
+            request = AutoModeWithModule.Request(enable=bool(enable))
+            request.module.type = RTC_MODULES[module]
+            response, error = self._call("rtc_auto_mode", request, timeout=2.0)
+            if response is None:
+                return False, error
+            return response.success, ""
+        names = self._module_names(module)
+        if not names:
+            return False, f"no running planning module answers {module}'s RTC"
+        errors = []
+        for name in names:
+            response, error = self._call_client(self._modules[name]["auto_mode"],
+                                                AutoMode.Request(enable=bool(enable)),
+                                                timeout=2.0)
+            if response is None or not response.success:
+                errors.append(error or f"{name} refused the auto mode")
+        return not errors, "; ".join(errors)
 
 
 class _NodePort(AutowarePort):

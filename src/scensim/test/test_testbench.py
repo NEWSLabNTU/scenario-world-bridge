@@ -124,3 +124,18 @@ def test_a_world_server_from_a_package_is_a_testbench_key(tmp_path):
         "port): drop it",
         "problem: testbench.yaml: world.world_config_file: is the stock CARLA server's; with "
         "world.server, your server takes its own settings as its arguments"]
+
+
+def test_a_fetched_scenario_is_the_hosts_not_the_packages(tmp_path):
+    """Issue 056: courses' scenarios come with its dataset, fetched into assets/ on a host,
+    never into the package: unfetched they are a host finding, and no 'no scenario'."""
+    import shutil
+    from scensim import project as projectmod
+    tb = make(tmp_path, suite=["assets/maps/haruna/scenarios/haruna_down.xosc"])
+    shutil.rmtree(tb / "scenarios")
+    assert findings(tb) == []
+    _, found = projectmod.collect_scenarios(tb)
+    host = [f for f in found if f.host]
+    assert [(f.what, f.fix) for f in host] == [
+        ("scenario assets/maps/haruna/scenarios/haruna_down.xosc: not fetched",
+         "scensim assets fetch")]

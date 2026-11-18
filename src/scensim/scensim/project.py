@@ -621,6 +621,10 @@ def collect_scenarios(project: Path):
                 files += _scenarios_in(p)
             elif p.is_file():
                 files.append(p)
+            elif Path(str(item)).parts[:1] == ("assets",):
+                # fetched with the testbench's assets, never part of the package (issue 056)
+                findings.append(Finding(rel, f"scenario {item}: not fetched",
+                                        "scensim assets fetch", host=True))
             else:
                 findings.append(Finding(rel, f"scenario {item}: no such file or directory"))
     seen, out = set(), []
@@ -879,7 +883,8 @@ def check_project(path, scenarios: bool = True) -> list:
         out += on_host(isaacmod.findings(config.host_settings(project)))
     files, found = collect_scenarios(project)
     out += found
-    if not files:
+    # a scenario still to be fetched is one (issue 056): its finding is the host's
+    if not files and not any(f.host for f in found):
         out.append(Finding("scenarios/", "no scenario", "add one, e.g. scenarios/drive.xosc"))
     if scenarios:
         out += scenario_problems(project, files, settings)

@@ -9,7 +9,7 @@ what was run. -->
 
 scensim 0.2.0 adds Ubuntu 24.04 with ROS 2 Jazzy for the simulation side, and Autoware
 2.1.0 as an autopilot next to 1.5.0. The code of this release was tested at scensim commit
-a25e3aa.
+a25e3aa (to be updated to the release commit).
 
 ### Requirements
 
@@ -49,7 +49,9 @@ wheels in a clean image, on Humble and on Jazzy.
   cannot replace Debian's older typing_extensions and idna. Keep the line as printed.
 - **Autoware 2.1.0.** The car's Autoware profile runs Autoware 2.1.0 (2.0.0 with
   autoware_universe 0.53.2), with a copy of map_based_prediction's parameter file that
-  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks.
+  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks. The
+  release's vehicle side is built for Autoware 1.5.0, so in 0.2.0 an Autoware 2.1.0 ego
+  needs the vehicle side built from source ([Install](getting-started/install.md)).
 - **An autoware pilot follows the host's Autoware.** A stack sets each autoware pilot's
   release from the host's `autoware.setup` (the version-named directory above
   `setup.bash`). A pilot whose arguments name another release is refused, naming both,
@@ -72,21 +74,13 @@ wheels in a clean image, on Humble and on Jazzy.
 - On Ubuntu 24.04, scensim 0.1.0's `pip install scensim` installed `scensim-ros-jazzy`
   0.1.0, a placeholder whose commands refuse and point to Ubuntu 22.04. 0.2.0 replaces it
   with the Jazzy release.
+- **The ego's orientation on a slope (CARLA).** The CARLA vehicle bridge published the
+  ego's odometry with its pitch and roll mirrored: a car on a slope was reported pitched
+  and rolled the wrong way. Level roads were not affected. The bridge now converts CARLA's
+  rotation as LibCarla itself does, and tests check it against LibCarla.
 
-<!-- Open items for the user and 133 before the release:
-1. The acb rotation fix (acb b0428a3: a car on a slope was published pitched and rolled
-   the wrong way in the ego odometry) is on acb main but scensim main still pins acb
-   f93c64a. It belongs here only once the pin moves; its note would go under "Fixed since
-   0.1.0". The same commit adds acb's CARLA 1.0 build (roadmap 083), which is not a 0.2.0
-   feature unless decided otherwise.
-2. Issues 046 to 050 and the PEP 440 version check in the front end (546b258) are in the
-   v0.1.0 tag (d90ac38), so they are not listed as changes in 0.2.0.
-3. Autoware 2.1.0's vehicle side has no release tarball (release.yml builds the vehicle side
-   for Autoware 1.5.0 only): from a release install, 2.1.0 is a source build. Say so here,
-   or add a vehicle tarball for 2.1.0 to the release.
-4. Whether to keep "The code of this release was tested at scensim commit a25e3aa" or move
-   it to the release commit.
--->
+<!-- Open item before the release: fill the Autoware 2.1.0 row of "Tested with" from
+241's live Tutorial 1 on 2.1.0 (NAS "2026-11-18 2.1.0 T1 (241)"). -->
 
 ## v0.1.0
 

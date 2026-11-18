@@ -20,7 +20,9 @@ import time
 
 from scensim_agent import protocol as P
 
-RESET_TIMEOUT = 60.0
+# SSv2's initialize_duration default (120 s): a reset that ends inside the scenario's window is
+# not a failure. Issue 046: one NDT align took 76.5 s at load 56 (60 s expired first).
+RESET_TIMEOUT = 120.0
 
 
 def _same_pose(a, b, tolerance=0.05):

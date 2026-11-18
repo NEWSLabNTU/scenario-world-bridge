@@ -872,8 +872,14 @@ def check_project(path, scenarios: bool = True) -> list:
         out += own_car_problems(project, settings)
     if isinstance(settings.get("ground"), dict):
         for where, msg in groundmod.problems(project, settings["ground"]):
-            if "is not a file" in msg:
-                out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}"))
+            f = str(msg).split(" ", 1)[0]
+            if "is not a file" in msg and Path(f).parts[:1] == ("assets",):
+                # fetched with the testbench's assets, never part of it (issue 055)
+                out.append(Finding(config.PROJECT_FILE, f"{where}: {f} is not fetched",
+                                   "scensim assets fetch", host=True))
+            elif "is not a file" in msg or "is not installed" in msg:
+                out.append(Finding(config.PROJECT_FILE, f"{where}: {msg}",
+                                   host="is not installed" in msg))
     maps = settings.get("maps")
     for m in maps if isinstance(maps, list) else []:
         if isinstance(m, str) and m and not (project / "assets" / "maps" / m).is_dir():

@@ -27,7 +27,7 @@ def source_tb(root: Path, name="tb_one", yaml_text=TB_YAML, suites=("first",)) -
         (src / "suites" / f"{s}.yaml").write_text("scenarios: [scenarios/]\n")
     (src / tbmod.TESTBENCH_FILE).write_text(yaml_text)
     (src / "package.xml").write_text(testbench_cli.PACKAGE_XML.format(
-        name=name, maintainer="m", email="m@example.com"))
+        name=name, maintainer="m", email="m@example.com", license="Apache-2.0", depends=""))
     return src
 
 

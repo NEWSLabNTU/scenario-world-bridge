@@ -33,7 +33,9 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 | Command | Does |
 |---|---|
 | `testbench new <name>` | writes a testbench package into `./<name>` (run it in a workspace's `src/`); `--template carla-first-drive` (default), `multi-pilot` or `isaac`; a name that is not a valid ROS package name is refused |
-| `testbench new <name> --from <project>` | copies a project or testbench (a directory or `pkg://<package>/<dir>`) and adds the package manifest and a default suite |
+| `testbench new <name> --from <project>` | copies a project or testbench (a directory or `pkg://<package>/<dir>`) and adds the package manifest and a default suite. A path that left the source (`../`) becomes `pkg://<package>/<path>` when an installed package holds that file, and the package is declared; what it cannot rewrite is printed as a `note:` |
+| `testbench new ... --default <suite>` | the suite `scensim run <name>` runs. Without it: the source's `default:`, a lone suite, or one named `default`; otherwise the first, with a `note:` |
+| `testbench new ... --maintainer "Name <email>" --license <SPDX id>` | fill package.xml (default: git config's user, and ROS's license placeholder); a placeholder left is printed as a `note:` |
 | `testbench list` | the testbenches of the sourced workspaces, with their suites |
 | `testbench check <name>` (`--live`) | the build's checks (the package's own findings) and this host's, printed as `problem (this host): ...`; ends `testbench: ok`. `--live`: its own world server through the full conformance check, or the stock one of its live stack probed with `Hello` (reference/testbench.md) |
 

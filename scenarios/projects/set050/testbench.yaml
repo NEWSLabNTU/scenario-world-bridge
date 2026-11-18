@@ -10,9 +10,10 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: tesla_model3
     lifetime: run            # afresh per run, so the tour suite can give its own arguments
-  bg_av_*: {kind: autoware, vehicle: tesla_model3, lifetime: run}
+  bg_av_*: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3, lifetime: run}
 logging:
   gap_trace: true            # 050 ran the whole set with the bridge's traces on
   # standard for a pass too: the gap judge can fail a run SSv2 passed (G52)

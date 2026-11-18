@@ -7,8 +7,8 @@ assets:
   - dataset: carla-town-autoware-maps
     take: [Town01]
 pilots:
-  ego: {kind: autoware, vehicle: tesla_model3}
-  bg_av_*: {kind: autoware, vehicle: tesla_model3}
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
+  bg_av_*: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
 logging:
   gap_trace: true
   keep: {passed: standard, failed: full, error: full}

@@ -11,6 +11,7 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: tesla_model3
     lifetime: run
     args: {max_velocity: "8", lidar_detection_model: centerpoint}

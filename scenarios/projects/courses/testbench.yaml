@@ -12,6 +12,7 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: drift_mustang
     args: {max_velocity: 8}        # low speed (058 C9; course_probe drove it at 8 m/s)
     lifetime: stack

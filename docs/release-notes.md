@@ -49,9 +49,11 @@ wheels in a clean image, on Humble and on Jazzy.
   cannot replace Debian's older typing_extensions and idna. Keep the line as printed.
 - **Autoware 2.1.0.** The car's Autoware profile runs Autoware 2.1.0 (2.0.0 with
   autoware_universe 0.53.2), with a copy of map_based_prediction's parameter file that
-  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks. The
-  release's vehicle side is built for Autoware 1.5.0, so in 0.2.0 an Autoware 2.1.0 ego
-  needs the vehicle side built from source ([Install](getting-started/install.md)).
+  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks. As in
+  0.1.0, the release has no prebuilt vehicle side, for 1.5.0 or 2.1.0: an Autoware ego
+  needs the vehicle packages built from source in your workspace
+  ([Install](getting-started/install.md)), and `scensim install` with an Autoware sourced
+  says so.
 - **An autoware pilot follows the host's Autoware.** A stack sets each autoware pilot's
   release from the host's `autoware.setup` (the version-named directory above
   `setup.bash`). A pilot whose arguments name another release is refused, naming both,

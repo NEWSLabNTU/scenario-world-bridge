@@ -182,6 +182,9 @@ class AgentServer:
         self._standing = {}  # entity -> {"goal": args or None, "speed": args or None}
         self._lost = {}      # entity -> (why its goal is gone, wall time it went)
         self._phases = {}    # entity -> the last phase its agent reported
+        # issue 047: called (entity, name, seq) between a command's reply and its note; a
+        # test holds a thread there to replay the race deterministically
+        self._before_note = None
         self.replay_wait = REPLAY_WAIT
         self._commanders = set()
         self._lock = threading.Lock()
@@ -261,34 +264,55 @@ class AgentServer:
                 return None, f"no agent or supervisor registered for entity {entity!r}"
             return P.UNSUPPORTED, (f"the agent of {entity!r} does not offer restart and "
                                    "no supervisor is registered for it")
+        seq = next(self._ids)
         if session is None:
             if name == P.EPISODE_END:
                 # the episode ended whether or not its agent is still here (a `lifetime: run`
                 # pilot is stopped with its run): its goal must not stand into the next run,
                 # whose new agent would be handed it before its teleport (roadmap 077, G57)
-                self._note(entity, name, args, P.OK)
+                self._note(entity, name, args, P.OK, seq)
                 return P.OK, f"no agent registered for entity {entity!r}; its standing commands are dropped"
             return None, f"no agent registered for entity {entity!r}"
-        status, message = session.command(next(self._ids), name, args, timeout)
-        self._note(entity, name, args, status)
+        status, message = session.command(seq, name, args, timeout)
+        if self._before_note is not None:
+            self._before_note(entity, name, seq)
+        self._note(entity, name, args, status, seq)
         return status, message
 
     # -- standing commands (G32) ----------------------------------------------------------
-    def _note(self, entity, name, args, status):
+    def _note(self, entity, name, args, status, seq):
         """Keep the goal and the speed limit an entity's agent accepted; forget them at an
-        episode boundary or when the goal is cleared or the car stopped."""
+        episode boundary or when the goal is cleared or the car stopped.
+
+        Notes are ordered by ``seq``, the order the commands were sent in, not the order their
+        replies came back (issue 047): a goal sent before a STOP, a clear or an episode
+        boundary whose note came first is not recorded after it."""
         with self._lock:
             st = self._standing.setdefault(entity, {"goal": None, "speed": None})
+            goal_newer = seq > st.get("goal_seq", 0)
+            speed_newer = seq > st.get("speed_seq", 0)
             if name == P.SET_GOAL and status == P.OK:
-                st["goal"] = dict(args)
-                self._lost.pop(entity, None)
+                if goal_newer:
+                    st["goal"], st["goal_seq"] = dict(args), seq
+                    self._lost.pop(entity, None)
             elif name == P.SET_SPEED_LIMIT and status == P.OK:
-                st["speed"] = dict(args)
+                if speed_newer:
+                    st["speed"], st["speed_seq"] = dict(args), seq
             elif name in (P.CLEAR_GOAL, P.STOP):
-                st["goal"] = None
+                if goal_newer:
+                    st["goal"], st["goal_seq"] = None, seq
             elif name in (P.RESET, P.TELEPORTED, P.EPISODE_END):
-                st["goal"] = st["speed"] = None
+                if goal_newer:
+                    st["goal"], st["goal_seq"] = None, seq
+                if speed_newer:
+                    st["speed"], st["speed_seq"] = None, seq
                 self._lost.pop(entity, None)
+
+    def _still_standing(self, entity, key, args) -> bool:
+        """``args`` is still the entity's standing ``key`` (goal or speed): nothing cleared or
+        replaced it since it was read."""
+        with self._lock:
+            return (self._standing.get(entity) or {}).get(key) == args
 
     def lost(self, entity):
         """Why the entity's goal is gone (its agent registered again and the goal could not
@@ -318,8 +342,16 @@ class AgentServer:
             why = (f"its agent registered again (it was {phase}) and reported no state "
                    f"within {self.replay_wait:.0f} s, so its goal was not handed back")
         else:
-            if standing.get("speed") is not None:
+            # issue 047: a STOP, a clear or an episode boundary may have come since the agent
+            # registered; what no longer stands is not handed back, and is not lost
+            if standing.get("speed") is not None and \
+                    self._still_standing(entity, "speed", standing["speed"]) and \
+                    self._still_standing(entity, "goal", standing["goal"]):
                 self.command(entity, P.SET_SPEED_LIMIT, REPLAY_TIMEOUT, **standing["speed"])
+            if not self._still_standing(entity, "goal", standing["goal"]):
+                self.log.info(f"entity {entity!r}: its goal was cleared before it could be "
+                              "handed back")
+                return
             status, message = self.command(entity, P.SET_GOAL, REPLAY_TIMEOUT,
                                            **standing["goal"])
             if status == P.OK:
@@ -524,7 +556,7 @@ class AgentServer:
             phase = self._phases.get(entity)
         if standing.get("goal") is not None:
             threading.Thread(target=self._replay, args=(session, standing, phase or "?"),
-                             daemon=True).start()
+                             name=f"replay-{entity}", daemon=True).start()
         elif phase in DRIVING_PHASES:
             # no goal standing: the last one was cleared, stopped or ended with its episode,
             # so this is a new agent's start (a `lifetime: run` pilot for the next run), not

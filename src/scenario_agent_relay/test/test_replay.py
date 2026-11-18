@@ -153,3 +153,72 @@ def test_an_episode_end_after_its_agent_left_drops_the_goal(server):
         b.recv()
     assert server.lost("ego") is None
     b.close()
+
+
+def test_a_stop_noted_while_the_goal_handed_back_awaits_its_note_wins(server):
+    """Issue 047, deterministically: the replay thread has the agent's OK to the goal it handed
+    back and is held before noting it; a STOP is sent, answered and noted first. The goal sent
+    before the STOP must not stand after it, so the next agent is handed nothing."""
+    replied, release = threading.Event(), threading.Event()
+
+    def hold(entity, name, seq):
+        if name == P.SET_GOAL and threading.current_thread().name.startswith("replay-"):
+            replied.set()
+            release.wait(5.0)
+
+    server._before_note = hold
+    drive(server)
+    b = FakeAgent(server.port)
+    state(b, P.IDLE)
+    answer(b)                                   # the speed limit
+    answer(b)                                   # the goal handed back
+    assert replied.wait(3.0)
+    t, out = commanded(server, P.STOP)
+    answer(b)
+    t.join()
+    assert out["r"][0] == P.OK
+    release.set()
+    replay = [th for th in threading.enumerate() if th.name == "replay-ego"]
+    for th in replay:
+        th.join(3.0)
+    with server._lock:
+        assert server._standing["ego"]["goal"] is None
+    assert server.lost("ego") is None
+    b.close()
+    assert wait_until(lambda: server.session("ego") is None)
+    c = FakeAgent(server.port)
+    state(c, P.IDLE)
+    c.sock.settimeout(0.8)
+    with pytest.raises(OSError):   # nothing is handed back
+        c.recv()
+    c.close()
+
+
+def test_a_goal_cleared_before_its_agent_reports_is_not_handed_back_nor_lost(server):
+    """Issue 047: _replay checks that the goal still stands before it hands it back."""
+    server.replay_wait = 3.0
+    drive(server)
+    b = FakeAgent(server.port)          # registers; the replay waits for its first state
+    t, out = commanded(server, P.CLEAR_GOAL)
+    assert answer(b)["command"] == P.CLEAR_GOAL
+    t.join()
+    assert out["r"][0] == P.OK
+    state(b, P.IDLE)
+    b.sock.settimeout(0.8)
+    with pytest.raises(OSError):        # nothing handed back
+        b.recv()
+    assert server.lost("ego") is None
+    b.close()
+
+
+def test_notes_follow_the_order_commands_were_sent_in(server):
+    """A reply that comes back late does not undo a later command's note."""
+    server._note("ego", P.STOP, {}, P.OK, 5)
+    server._note("ego", P.SET_GOAL, {"goal": GOAL}, P.OK, 4)       # sent before the STOP
+    assert server._standing["ego"]["goal"] is None
+    server._note("ego", P.SET_GOAL, {"goal": GOAL}, P.OK, 6)
+    assert server._standing["ego"]["goal"] == {"goal": GOAL}
+    server._note("ego", P.SET_SPEED_LIMIT, {"mps": 8.0}, P.OK, 8)
+    server._note("ego", P.EPISODE_END, {}, P.OK, 7)                 # sent before the limit
+    assert server._standing["ego"]["speed"] == {"mps": 8.0}
+    assert server._standing["ego"]["goal"] is None

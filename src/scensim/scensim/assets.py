@@ -61,6 +61,8 @@ KNOWN = [
      "CARLA 0.9.16's towns, vehicles, props and walkers as Isaac Sim USD (CC BY 4.0)"),
     ("carla-town-autoware-maps", "0.73 GB",
      "Autoware maps of CARLA's towns (lanelet2, point cloud), Town05 ring, Town01 Isaac world"),
+    ("carla-coop-scenario-maps", "0.70 GB",
+     "the coop study's Autoware maps of Town03, 04 and 05 (LGPL-3.0; Town04 CC BY 4.0)"),
     ("haruna-tsukuba-courses", "0.49 GB",
      "the Mount Haruna and Tsukuba courses: maps and Isaac worlds (ODbL, GSI)"),
     ("isaac-road-physics-stages", "2.6 MB",

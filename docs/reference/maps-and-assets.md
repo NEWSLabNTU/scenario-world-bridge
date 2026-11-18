@@ -62,6 +62,7 @@ their sizes.
 | Dataset | Holds | Licence |
 |---|---|---|
 | [carla-town-autoware-maps](https://huggingface.co/datasets/jerry73204/carla-town-autoware-maps) | Town01, 02, 03, 05 and 10 as Autoware maps, each with its Isaac world file; `town05_ring_110kmh/` (Town05's ring road at 110 km/h); `town01_pcd_isaac_world/` (a light Town01 world built from the point cloud, about 10 MB) | LGPL-3.0 |
+| [carla-coop-scenario-maps](https://huggingface.co/datasets/jerry73204/carla-coop-scenario-maps) | the coop study's Autoware maps of Town03, 04 and 05, 0.70 GB | LGPL-3.0; Town04 CC BY 4.0 |
 | [carla-0.9.16-isaac-usd](https://huggingface.co/datasets/jerry73204/carla-0.9.16-isaac-usd) | CARLA 0.9.16's content as SimReady USD, 25.5 GB: six towns, `vehicles/` (41 vehicles, `props/` 97, `walkers/` 52, indexed by `vehicles.json`, `props.json`, `walkers.json`, `vehicles.md`) | CC BY 4.0 |
 | [haruna-tsukuba-courses](https://huggingface.co/datasets/jerry73204/haruna-tsukuba-courses) | the Mount Haruna mountain road and Tsukuba Circuit: Autoware maps, Isaac worlds, a scenario each; their props come from the USD set | ODbL, GSI |
 | [isaac-road-physics-stages](https://huggingface.co/datasets/jerry73204/isaac-road-physics-stages) | the flat test ground with 13 surface strips and its surface map, the vehicle check's proving ground, `procedural/` (the rough road for Town01, worn ruts) | Apache-2.0 |

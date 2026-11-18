@@ -85,7 +85,7 @@ Each Ubuntu LTS pairs one ROS LTS with one system Python, and apt ROS runs on th
 
 | Ubuntu | ROS 2 | Python | Released |
 |---|---|---|---|
-| 22.04 | Humble | 3.10 | 0.1.0: the simulation side and the vehicle side (Autoware 1.5.0) |
+| 22.04 | Humble | 3.10 | 0.1.0: the simulation side only; an Autoware ego builds the vehicle packages from source (found 2026-11-18: release.yml builds no vehicle tarball, though this table and install.md said it did) |
 | 24.04 | Jazzy | 3.12 | 0.2.0: the simulation side only (Autoware 1.5.0 is Humble only); 0.1.0's scensim-ros-jazzy is a placeholder whose commands refuse, naming 22.04 |
 | 26.04 | Lyrical | (to be checked) | none |
 
@@ -169,7 +169,7 @@ To fix before the release build is scripted (each in step 2, or step 4 for `pack
 
 | Where | What |
 |---|---|
-| GitHub Release `v<ver>` | `scensim-sim-<ver>-humble-x86_64.tar.zst`, from 0.2.0 `scensim-sim-<ver>-jazzy-x86_64.tar.zst`, `scensim-vehicle-<ver>-autoware1.5.0-x86_64.tar.zst` (more rows per ROS and Autoware release later), one `SHA256SUMS` for all, the notes |
+| GitHub Release `v<ver>` | `scensim-sim-<ver>-humble-x86_64.tar.zst`, from 0.2.0 `scensim-sim-<ver>-jazzy-x86_64.tar.zst`, planned, not built yet: `scensim-vehicle-<ver>-autoware<rel>-x86_64.tar.zst` per Autoware release (0.1.0 shipped none), one `SHA256SUMS` for all, the notes |
 | PyPI | `scensim` (front end + plugin), `scensim-ros-humble` and from 0.2.0 `scensim-ros-jazzy` (the manifests), `colcon-scensim` (the plugin alone) |
 | git | the annotated tag `v<ver>` on the commit the artefacts were built from |
 

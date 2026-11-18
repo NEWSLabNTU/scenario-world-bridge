@@ -79,6 +79,24 @@ arm64-cpu, jetpack62) and adds `cuda-cudart-12-4`; each passed `ldd -r` and a li
 after a clean install. `apt upgrade` does not repair an existing 1.5.0-3 install (the inner
 packages keep their versions): uninstall, then install `autoware-full-1-5-0` again.
 
+**Vehicle side, decided 2026-11-18 (user).** There is no vehicle tarball. The split is by side,
+not by artefact:
+
+- **scensim side** (in the sim tarball already): the vehicle bridges (acb_bridge, aib), our
+  car's description and sensor-kit description, Autoware's message types (vendored).
+- **Autoware side** (source packages, built in the user's Autoware workspace): the car's
+  Autoware launch, sensor-kit launch and `individual_params`, delivered as source pinned to
+  the release (a `.repos` file) with instructions to bridge any Autoware to a testbench. They
+  build against whatever Autoware the user has, from source, Debian or their own
+  distribution. scensim supports several autopilots; these are the support packages for
+  Autoware builds, the user's and ours alike.
+- **Internal testbed only**: our profile (`autoware_sim_profile`) and the fix overlay, on
+  NEWSLab's Autoware binaries; not part of the user release.
+- **Assumption**: the user's Autoware is sourced, whatever its distribution. The front end runs
+  the sim side with an Autoware sourced and checks the workspace for the Autoware-side
+  packages an Autoware pilot needs, naming any that are missing (0.1.0 refused every command
+  with an Autoware sourced; fixed for 0.2.0).
+
 ### `pip install scensim` picks the release
 
 Each Ubuntu LTS pairs one ROS LTS with one system Python, and apt ROS runs on that Python:

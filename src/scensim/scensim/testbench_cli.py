@@ -323,6 +323,8 @@ def check(target=None, live=False, logs=None, out=None) -> int:
         out.write(shown(f))
     for f in here:
         out.write(shown(f).replace("problem: ", "problem (this host): ", 1))
+    for n in projectmod.autoware_side_notes(config.project_settings(d)):
+        out.write(f"note (this host): {n}\n")
     if not pkg and not here:
         out.write("testbench: ok\n")
     return exit_code(pkg + here)

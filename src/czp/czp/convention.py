@@ -136,24 +136,26 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
         return Verdict(o.id, YIELD, True, "turn")  # in the zone, or seen moving off its line: it has the turn
     b = pv.band or band_of(own_iv, pv.iv, o, params, am.stopping.state, stop_law, am.rest_t is not None,
                            mode=row.get("band", "interval"), own=own)
-    if (not stop_law and row.get("rest_tie", False) and mem.own_rest_t is not None and own.v < params.rest_speed
-            and am.rest_t is not None and b.kind in (BAND, AMBIGUOUS)):
+    both_rest = (not stop_law and row.get("rest_tie", False) and mem.own_rest_t is not None and own.v < params.rest_speed
+                 and am.rest_t is not None)
+    if both_rest and row.get("rest_first", False) and not (b.kind == CLEAR and b.who != own.id) and b.kind != CONTESTED:
+        # 078 P2e: both at rest, a car that came to rest clearly first (stopped_first, with its tie margin, reads the own
+        # car SECOND) keeps the turn, whatever the band reads for the own car (a car resting at the zone's edge reads
+        # itself clear). The guard from the later rest makes the own go come late when the own car rested well after
+        # the other: that go met a patient rule's restart (t1.5p5, 5 s from its own rest), and a car that restarts on
+        # its own reading of the gap (t0.5yp2) at any time. Within the margin the role binds, as before. One way only:
+        # the reading makes a car yield, never go (R5). At e 0.55 > m two cars' stamps can disagree, and a FIRST that
+        # took the turn put two czp cars into the zone (kinematic screen: 5 self-play contacts)
+        r = role_of(STOPPED_FIRST, zone, own, o, params, own_rest_t=mem.own_rest_t, other_rest_t=am.rest_t, t=t,
+                    obs_age=obs_age)
+        if r.reading == SECOND:
+            return Verdict(o.id, YIELD, False, "rest_first", b, r)
+    if both_rest and b.kind in (BAND, AMBIGUOUS):
         # 078 V4: both at rest at their lines is a tie, read the same by both (the rest is filtered memory): the
         # row's role binds after the mutual stop (074 C7) and the priority car goes at once. Read from the
         # noisy band instead, it flickered between ambiguous (wait) and band (the tie's go), and the late go
         # raced an impatient car's restart (the arena's czp-in-B contacts at the crossing)
         b = Band(BAND, None, b.slack_own, b.slack_other)
-        if row.get("rest_first", False):
-            # 078 P2e: a car that came to rest clearly first (stopped_first, with its tie margin, reads the own car
-            # SECOND) keeps the turn. The guard from the later rest makes the own go come late when the own car rested
-            # well after the other: that go met a patient rule's restart (t1.5p5, 5 s from its own rest), and a car that
-            # restarts on its own reading of the gap (t0.5yp2) at any time. Within the margin the role binds, as before.
-            # One way only: the reading makes a car yield, never go (R5). At e 0.55 > m two cars' stamps can disagree,
-            # and a FIRST that took the turn put two czp cars into the zone (kinematic screen: 5 self-play contacts)
-            r = role_of(STOPPED_FIRST, zone, own, o, params, own_rest_t=mem.own_rest_t, other_rest_t=am.rest_t, t=t,
-                        obs_age=obs_age)
-            if r.reading == SECOND:
-                return Verdict(o.id, YIELD, False, "rest_first", b, r)
         v = pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None, guard=False)
         if v.kind != GO:
             return v

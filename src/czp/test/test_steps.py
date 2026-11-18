@@ -575,11 +575,16 @@ def test_clear_go_from_rest_waits_the_mutual_rest_guard():
     clear gos 0.6-1.7 s after the other's rest, the car crawling through as the other restarted on its patience)."""
     guard = P.stop_dwell + CAR.launch_dead + P.see_delay
     own, o = car("B", s_entry=0.2), car("A", s_entry=1.9)
-    v = _verdict(own, o, 6.0, 5.0, 6.0 + guard - 0.1)
+    # A rested 0.5 s before B: within stopped_first's margin, so not rest_first (exact stamps)
+    v = _verdict(own, o, 6.0, 5.5, 6.0 + guard - 0.1, P_EXACT)
     assert v.band.kind == CLEAR and v.band.who == "B"
     assert v.kind == WAIT and v.reason == "fresh_clear" and not v.hard
-    v = _verdict(own, o, 6.0, 5.0, 6.0 + guard + 0.1)
+    v = _verdict(own, o, 6.0, 5.5, 6.0 + guard + 0.1, P_EXACT)
     assert v.kind == GO and v.reason == "clear"
+    # A rested clearly first: it keeps the turn, though B, at rest at the zone's edge, reads itself clear (078 P2e arena)
+    v = _verdict(car("B", s_entry=0.01), o, 8.15, 6.4, 11.2, P_EXACT)
+    assert v.band.kind == CLEAR and v.band.who == "B"
+    assert v.kind == YIELD and v.reason == "rest_first" and not v.hard
     # still rolling below moved_speed, not yet at rest: its rest is still to come, so it waits
     v = _verdict(car("B", s_entry=0.3, v=0.3), o, None, 5.0, 20.0)
     assert v.kind == WAIT and v.reason == "fresh_clear"

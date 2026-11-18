@@ -52,6 +52,15 @@ env:
   SIM_SUBMODULES: >-
     src/scenario_simulator_v2 src/color_names src/scensim_world_protocol
     src/scensim_carla_world src/scensim_isaac_world src/sim_vehicle_spec
+  # The vehicle side the sim set carries (build_sim.sh's SIM_PACKAGES: acb's bridge and the
+  # car's descriptions). acb goes in recursively: acb_bridge builds against its
+  # deps/sim_vehicle_spec. rosdep reads only these packages, not the whole repositories,
+  # whose Autoware launch packages are not in the sim set.
+  VEHICLE_SUBMODULES: src/autoware_carla_bridge src/autoware_sim_vehicle
+  VEHICLE_PACKAGES: >-
+    src/autoware_carla_bridge/src/acb_bridge
+    src/autoware_sim_vehicle/cars/tesla_model3/tesla_model3_description
+    src/autoware_sim_vehicle/cars/tesla_model3/tesla_model3_sensor_kit_description
 
 jobs:
   preflight:
@@ -153,14 +162,15 @@ jobs:
       - name: Submodules
         run: |
           git config --global --add safe.directory '*'
-          git submodule update --init --recursive -- $SIM_SUBMODULES
+          git submodule update --init --recursive -- $SIM_SUBMODULES $VEHICLE_SUBMODULES
       - name: rosdep
         run: |
           set -e   # not -u: ROS's setup files read unset variables
           mkdir -p /tmp/vendor && vcs import --shallow --input sim.repos /tmp/vendor >/dev/null
           rosdep update -q --rosdistro "$DISTRO" >/dev/null
           source /opt/ros/$DISTRO/setup.bash
-          rosdep install --from-paths $SIM_SUBMODULES src/scenario_world_bridge src/scenario_agent_relay \
+          rosdep install --from-paths $SIM_SUBMODULES $VEHICLE_PACKAGES \
+            src/scenario_world_bridge src/scenario_agent_relay \
             src/scensim src/scensim_launch src/scensim_interfaces src/scensim_examples src/scensim_agent \
             src/czp /tmp/vendor --ignore-src -y -q   # every key resolves (082 step 4): no -r, no skips
       - name: Build and stage

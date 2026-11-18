@@ -12,7 +12,9 @@ vehicle specs. In a scenario:
 - a `CatalogReference` to the `vehicles` catalog must name an entry and assign exactly the
   entry's parameters, every one (the entry declares no defaults: in SSv2 a declared default
   would shadow the assignment), and the file's `CatalogLocations` must reach the catalog through
-  `$(find-pkg-share sim_vehicle_spec)/catalogs`.
+  `$(find-pkg-share sim_vehicle_spec)/catalogs`, or, in a testbench (a directory with
+  `testbench.yaml`), through `$(env SCENSIM_VEHICLES)`, the catalog the stack makes for the
+  simulator's body (roadmap 083).
 
 The catalog's own entries are checked against the measured table like any declaration, by
 their `model3d`, and against their specs: an entry whose `scensim.spec_hash` is not the hash of
@@ -95,6 +97,10 @@ def catalog_parameters(path=catalog_scenarios.CATALOG):
             for v in root.iter("Vehicle")}
 
 
+# A testbench's scenarios name the catalog the stack makes for the simulator it runs
+VEHICLES_DIR = "$(env SCENSIM_VEHICLES)"
+
+
 def check_references(path, root, parents, where_of, catalog):
     """Failures of the file's references to the vehicle catalog."""
     failures = []
@@ -118,9 +124,12 @@ def check_references(path, root, parents, where_of, catalog):
                             "no defaults)")
     if refs:
         dirs = [d.get("path") for d in root.findall("CatalogLocations/VehicleCatalog/Directory")]
-        if dirs != [catalog_scenarios.CATALOG_DIR]:
-            failures.append(f"{where_of(root)}: VehicleCatalog is {dirs}, not "
-                            f"[{catalog_scenarios.CATALOG_DIR!r}]")
+        # a testbench's scenario names the stack's catalog, for the simulator's body (roadmap
+        # 083); any other in-repo scenario names the installed one
+        in_testbench = any((d / "testbench.yaml").is_file() for d in Path(path).parents)
+        want = VEHICLES_DIR if in_testbench else catalog_scenarios.CATALOG_DIR
+        if dirs != [want]:
+            failures.append(f"{where_of(root)}: VehicleCatalog is {dirs}, not [{want!r}]")
     return failures
 
 

@@ -96,6 +96,7 @@ class Scenario:
     distribution_of: str = None  # a ParameterValueDistribution's ScenarioFile
     variants: int = 1  # runs SSv2 makes of it: TIER IV ScenarioModifiers, or a distribution's
     time_limit: float = None  # s of simulation time by which the scenario ends itself (G53)
+    vehicle_catalogs: list = field(default_factory=list)  # VehicleCatalog Directory paths
 
 
 # --- reading scenarios: --------------------------------------------------------------------
@@ -237,6 +238,8 @@ def read_scenario(path: Path) -> Scenario:
             raise ValueError(f"the root element is <{root.tag}>, not <OpenSCENARIO>")
         variants = _distribution_variants(root)
     sc = Scenario(path, variants=variants)
+    sc.vehicle_catalogs = [d.get("path") for vc in root.iter("VehicleCatalog")
+                           for d in vc.iter("Directory") if d.get("path")]
     sf = root.find("ParameterValueDistribution/ScenarioFile")
     if sf is not None:
         sc.distribution_of = sf.get("filepath")
@@ -653,11 +656,23 @@ def _map_fix(name, settings):
             f" then {FETCH}")
 
 
+# The installed vehicle catalog, named directly: one body (the cars' default, CARLA 0.9.16's)
+# whatever simulator runs it (roadmap 083)
+INSTALLED_CATALOG = "$(find-pkg-share sim_vehicle_spec)/catalogs"
+VEHICLES_CATALOG = "$(env SCENSIM_VEHICLES)"
+
+
 def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = True) -> list:
     """``managed``: False when the scenario runs with ``managed_ego: false`` (its ego needs
     no pilot)."""
     rel = _rel(project, sc.path)
     out = []
+    if any(d.rstrip("/") == INSTALLED_CATALOG for d in sc.vehicle_catalogs):
+        out.append(Finding(rel, f"its VehicleCatalog is {INSTALLED_CATALOG}, the cars on one "
+                           "body (CARLA 0.9.16's): on CARLA 1.0 the scenario bridge refuses "
+                           "the ego, whose body is not that catalog's",
+                           f'<Directory path="{VEHICLES_CATALOG}" />, the catalog the stack '
+                           "makes for the simulator it runs (and the testbench's own cars)"))
     if sc.distribution_of is not None:
         target = Path(sc.distribution_of)
         if not target.is_absolute():

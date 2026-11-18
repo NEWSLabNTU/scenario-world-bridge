@@ -27,9 +27,11 @@ testbench names the same `vehicle` on every simulator:
 
 The sensor kit (`sensor_model`, `tesla_model3_sensor_kit`) is the same on every body. When the
 stack cannot read the CARLA server's version (a remote server, or `simulator_start:=external`
-before one answers), it uses the car's first body, CARLA 0.9.16's. A scenario that names
-`$(find-pkg-share sim_vehicle_spec)/catalogs` directly declares that body as well; on CARLA
-1.0 the scenario bridge refuses its ego with a message naming the catalog it needs.
+before one answers), it uses the car's first body, CARLA 0.9.16's. A testbench's scenarios
+name the catalog as `<Directory path="$(env SCENSIM_VEHICLES)" />`, as the templates of
+`scensim testbench new` do. A scenario that names `$(find-pkg-share sim_vehicle_spec)/catalogs`
+directly declares CARLA 0.9.16's body on every simulator: `scensim testbench check` reports it,
+and on CARLA 1.0 the scenario bridge refuses its ego with a message naming the catalog it needs.
 
 ## Arguments
 

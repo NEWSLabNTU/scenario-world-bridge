@@ -63,6 +63,8 @@ A task in your own testbench, starting from a working stack:
 - [Your car](how-to/your-car.md): a shipped car, or one from your vehicle spec
 - [Your autopilot as a pilot](how-to/your-autopilot.md): a launch file, a program, your
   own process
+- [Connect your Autoware to a testbench](how-to/connect-autoware.md): the car's Autoware
+  packages in your workspace, stock or scensim's profile, supported releases
 - [Your Autoware](how-to/your-autoware.md): arguments, your build, fixes, TensorRT
 - [Your simulator](how-to/your-simulator.md): a world server for another simulator
 - [Your world server in a testbench](how-to/your-world-server.md): run a testbench on a

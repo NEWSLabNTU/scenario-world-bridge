@@ -9,11 +9,12 @@ scensim installs neither a simulator nor an autopilot. Both are installed separa
 this page assumes that they are, or will be.
 
 There are two ways to install scensim. The released build is installed with pip and needs
-no compiler; it is the way described first. It is the simulation side only: the scenario
-runner, the bridge, the world servers and the pilots that are not Autoware. An Autoware ego
-needs scensim built from source, with its vehicle packages, as described in
-[From source](#from-source). A build from source is also for work on scensim itself, and
-for a platform without a release.
+no compiler; it is the way described first. It installs the simulation side: the scenario
+runner, the bridge, the world servers and the vehicle bridges. To drive a car with Autoware,
+you build the car's Autoware packages in your own Autoware workspace, against your Autoware
+([Connect your Autoware](../how-to/connect-autoware.md)). A build from source
+([From source](#from-source)) is for work on scensim itself, and for a platform without a
+release.
 
 <!-- TODO(exit run): every output below is from the first development build
 (0.0.0-dev, 2026-11-17); replace version, sizes and lines with the release's. -->
@@ -23,7 +24,7 @@ for a platform without a release.
 | | Tested with |
 |---|---|
 | Ubuntu and ROS 2 | Ubuntu 22.04 with ROS 2 Humble from apt ([install](https://docs.ros.org/en/humble/Installation.html)), or Ubuntu 24.04 with ROS 2 Jazzy from apt ([install](https://docs.ros.org/en/jazzy/Installation.html)) for the simulation side only |
-| An autopilot | Autoware 1.5.0, from its binary packages under `/opt/autoware/1.5.0` or a workspace of your own ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/)) |
+| An autopilot | Autoware, for example 1.5.0 from its binary packages under `/opt/autoware/1.5.0`, or a workspace of your own; the releases the car's packages support are in [Connect your Autoware](../how-to/connect-autoware.md#supported-autoware-releases) ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/)) |
 | A simulator | CARLA 0.9.16 ([next page](carla.md)), or Isaac Sim 6.1 ([Isaac Sim](isaac.md)) |
 | A GPU | an NVIDIA card with room for both: on one host CARLA on Town01 held about 2.0 to 2.5 GB of video memory, one Autoware about 1 to 2 GB |
 | Network | PyPI and GitHub (the install), Hugging Face (the maps, later) |
@@ -32,8 +33,9 @@ Memory and processors, for the first drive: CARLA held about 2.4 GB of RAM and 2
 Town01; Autoware is about 90 processes and loads every core while it starts. Isaac Sim
 needs considerably more (an RTX card with 24 GB, 64 GB of RAM).
 
-On Ubuntu 24.04 with ROS 2 Jazzy, scensim runs the simulation side only: Autoware 1.5.0 is
-built for Humble, so an Autoware ego runs from a Humble install. See [Ubuntu 24.04](#ubuntu-2404).
+On Ubuntu 24.04 with ROS 2 Jazzy, an Autoware ego needs an Autoware built for Jazzy (2.1.0
+has one); the car's packages are not tested there yet, and scensim says so. See
+[Ubuntu 24.04](#ubuntu-2404).
 
 ## Install with pip
 
@@ -47,11 +49,10 @@ scensim install
 
 pip installs a small front end. It chooses the build for your ROS release from the
 Python version (3.10 is Humble, 3.12 is Jazzy). `scensim install` downloads that build, checks its size
-and checksum, and unpacks it under `~/.local/share/scensim/`. This is the simulation side
-only: the release has no prebuilt vehicle side, so run the pip-installed scensim in a
-terminal that has not sourced Autoware. With an Autoware sourced, every command refuses
-("no prebuilt vehicle side for Autoware 1.5.0"). For an Autoware ego, build scensim from
-source instead ([From source](#from-source)). If this step is omitted, the first command that needs scensim performs it and says so; `scensim
+and checksum, and unpacks it under `~/.local/share/scensim/`. It is the same with or without an Autoware
+sourced: the car's Autoware packages are never downloaded, you build them
+([Connect your Autoware](../how-to/connect-autoware.md)). scensim 0.1.0 refused every
+command in a terminal with an Autoware sourced; 0.2.0 does not. If this step is omitted, the first command that needs scensim performs it and says so; `scensim
 --version` never downloads anything.
 
 **What you see**, ending with the lines to run next:
@@ -65,12 +66,13 @@ installed in <home>/0.0.0-dev-humble (current)
 missing system packages: run once, the second as an administrator:
   rosdep update
   sudo rosdep install --from-paths <home>/current/sim/share --ignore-src -y
-then, in every terminal (after ROS and your Autoware):
+then, in every terminal (after ROS, and your Autoware if you use one):
   source <home>/current/sim/setup.bash
+an Autoware pilot needs the car's Autoware packages in your Autoware workspace: <guide>
 ```
 
 scensim prints the full path where this page writes `<home>` for
-`~/.local/share/scensim`. The first development build measured 49.5 MB to download and 212 MB unpacked.
+`~/.local/share/scensim`, and the link to [Connect your Autoware](../how-to/connect-autoware.md) for `<guide>`. The first development build measured 49.5 MB to download and 212 MB unpacked.
 
 ## Once per machine (needs sudo)
 
@@ -107,31 +109,25 @@ These are the only steps of the install that need root.
 
 ## The environment file
 
-Every terminal sources one file, here `~/scensim.bash`: ROS, then scensim.
+Every terminal sources one file, here `~/scensim.bash`, in this order: ROS, your Autoware
+(when a pilot is Autoware), scensim, then the workspace with the car's Autoware packages.
 
 ```bash
 # ~/scensim.bash
 source /opt/ros/humble/setup.bash
+source /opt/autoware/1.5.0/setup.bash                 # when the autopilot is Autoware
 source ~/.local/share/scensim/current/sim/setup.bash
+source ~/autoware_side/install/setup.bash             # the car's Autoware packages
 ```
 
-With scensim built from source for an Autoware ego, the file sources ROS, then Autoware,
-then the build: Autoware comes before scensim because scensim's vehicle packages are built
-against it.
-
-```bash
-# ~/scensim.bash, a build from source with Autoware
-source /opt/ros/humble/setup.bash
-source /opt/autoware/1.5.0/setup.bash
-source ~/scensim/install/setup.bash
-```
+The last line is the workspace of [Connect your Autoware](../how-to/connect-autoware.md#import-and-build).
 
 A workspace of your own ([Tutorial 1](../tutorials/01-first-drive.md)) is built over these
 and sourced after them. The ROS domains, the DDS settings and the ports are not exported
 here: the stack sets them for every process it starts, from its seat.
 
-With an Autoware ego (a build from source), once per user, give Autoware a writable data
-directory, `~/autoware_data`, where TensorRT keeps the engines it builds, so that they are
+With scensim's Autoware profile (`autoware_profile: scensim`), once per user, give Autoware
+a writable data directory, `~/autoware_data`, where TensorRT keeps the engines it builds, so that they are
 built once:
 
 ```bash
@@ -233,12 +229,12 @@ source ~/.venvs/scensim/bin/activate
 pip install scensim
 ```
 
-From scensim 0.2.0, pip installs the build for ROS 2 Jazzy there. It is the simulation side
-only: the vehicle side is built for Autoware 1.5.0, and Autoware 1.5.0 runs on ROS 2 Humble
-only. With an Autoware sourced, or with `scensim install --autoware 1.5.0`, scensim refuses
-before it downloads anything and says so. Use pilots that are not Autoware, or run the
-Autoware ego from a Humble install. scensim 0.1.0 has no Jazzy build: on Ubuntu 24.04 its
-commands say so and point to Ubuntu 22.04.
+From scensim 0.2.0, pip installs the build for ROS 2 Jazzy there. An Autoware ego needs an
+Autoware built for Jazzy (Autoware 1.5.0 is built for Humble only; 2.1.0 has a Jazzy build).
+The car's Autoware packages build and resolve against Autoware 2.1.0 on Jazzy, but no live
+run has tested them there yet: `testbench check` and every run say so, and run anyway.
+scensim 0.1.0 has no Jazzy build: on Ubuntu 24.04 its commands say so and point to Ubuntu
+22.04.
 
 The rosdep line `scensim install` prints on Ubuntu 24.04 is
 

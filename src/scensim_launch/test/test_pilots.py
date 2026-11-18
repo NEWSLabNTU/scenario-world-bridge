@@ -363,3 +363,24 @@ def test_pilot_launches_merge_contract():
     assert args == {"relay": "tcp://localhost:5560", "map_path": "/m", "vehicle": "my_car",
                     "sim": "carla", "use_sim_time": "true", "entity": "ego"}
     assert npc[1].endswith("carla_basic.launch.py") and npc[4] is False and npc[3] == "2"
+
+
+def test_the_release_check_resolves_what_the_stock_pilot_passes():
+    """scripts/release/check_autoware_side.sh resolves the user's autoware_launch with the
+    stock pilot's own arguments: the two lists are one."""
+    import re
+    script = os.path.join(os.path.dirname(__file__), "..", "..", "..", "scripts", "release",
+                          "check_autoware_side.sh")
+    if not os.path.isfile(script):   # an installed package without the checkout
+        pytest.skip("not in a scensim checkout")
+    text = open(script).read()
+    words = re.findall(r"(\S+):=(\S+)",
+                       re.search(r'^CAR="(.*?)"', text, re.S | re.M).group(1).replace("\\\n", " ")
+                       + " " + re.search(r'^STOCK="(.*?)"', text, re.S | re.M).group(1)
+                       .replace("\\\n", " "))
+    from_script = {k for k, _ in words} | {"data_path"}
+    _, root = xml_args("autoware.launch.xml")
+    stock = root.findall("group")[-2].find("include")
+    passed = {a.get("name") for a in stock.findall("arg")}
+    # data_path: the check's stub of Autoware's models (a user's own is their Autoware's)
+    assert from_script - {"data_path"} == passed

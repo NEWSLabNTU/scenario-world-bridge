@@ -166,9 +166,54 @@ def sourced_autoware() -> str | None:
     return None
 
 
+# A version as PEP 440 reads it, in the spellings a release and a wheel use: the release's
+# (its tag and manifest: 0.1.0-rc1, 0.0.0-dev) and the wheel's normalised one (0.1.0rc1,
+# 0.0.0.dev0). No dependency on `packaging`: the front end keeps to the standard library.
+_VERSION = re.compile(
+    r"^v?(?P<release>\d+(?:\.\d+)*)"
+    r"(?:[-_.]?(?P<pre>a|b|c|rc|alpha|beta|pre|preview)[-_.]?(?P<pre_n>\d*))?"
+    r"(?:[-_.]?(?P<post>post|rev|r)[-_.]?(?P<post_n>\d*))?"
+    r"(?:[-_.]?(?P<dev>dev)[-_.]?(?P<dev_n>\d*))?$",
+    re.IGNORECASE,
+)
+_PRE = {
+    "a": "a",
+    "alpha": "a",
+    "b": "b",
+    "beta": "b",
+    "c": "rc",
+    "rc": "rc",
+    "pre": "rc",
+    "preview": "rc",
+}
+
+
+def normal_version(text: str) -> tuple | None:
+    """``text`` as PEP 440 normalises it, comparable with ``==``; None when it is not one.
+    ``0.1.0-rc1`` and ``0.1.0rc1`` are the same, and so are ``0.0.0-dev`` and ``0.0.0.dev0``
+    and ``0.1`` and ``0.1.0``."""
+    m = _VERSION.match(str(text).strip())
+    if not m:
+        return None
+    release = [int(x) for x in m["release"].split(".")]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    pre = (_PRE[m["pre"].lower()], int(m["pre_n"] or 0)) if m["pre"] else None
+    post = int(m["post_n"] or 0) if m["post"] else None
+    dev = int(m["dev_n"] or 0) if m["dev"] else None
+    return tuple(release), pre, post, dev
+
+
 def same_version(a: str | None, b: str | None) -> bool:
-    """Versions compare without a leading ``v`` (``v0.1.0`` is ``0.1.0``)."""
-    return bool(a) and bool(b) and str(a).removeprefix("v") == str(b).removeprefix("v")
+    """The same version, by PEP 440: the release's spelling and the wheel's compare equal
+    (``0.1.0-rc1`` is ``0.1.0rc1``, ``v0.1.0`` is ``0.1.0``). A string that is no version
+    compares as written."""
+    if not a or not b:
+        return False
+    na, nb = normal_version(a), normal_version(b)
+    if na is None or nb is None:
+        return str(a).removeprefix("v") == str(b).removeprefix("v")
+    return na == nb
 
 
 def read_release_yaml(prefix: Path) -> dict[str, str]:

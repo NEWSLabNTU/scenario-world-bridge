@@ -423,6 +423,58 @@ def test_release_package_version_skew(env) -> None:
     assert "version skew: the scensim front end is 0.1.0, scensim-ros-humble is 0.0.9" in r.stderr
 
 
+def test_a_release_candidate_is_not_its_final_release(env) -> None:
+    # 0.1.0-rc1 normalises to 0.1.0rc1, which is not 0.1.0: still skew for a 0.1.0 front end
+    publish(env, version="0.1.0-rc1", tar_version="0.1.0-rc1")
+    r = env.run("run", "x")
+    assert r.returncode == 3
+    assert ("version skew: the scensim front end is 0.1.0, scensim-ros-humble is 0.1.0-rc1"
+            in r.stderr)
+
+
+@pytest.mark.parametrize("release, wheel", [
+    ("0.1.0", "0.1.0"),
+    ("v0.1.0", "0.1.0"),
+    ("0.1", "0.1.0"),
+    ("0.1.0-rc1", "0.1.0rc1"),
+    ("0.1.0rc1", "0.1.0rc1"),
+    ("0.1.0-RC.1", "0.1.0rc1"),
+    ("0.1.0-c1", "0.1.0rc1"),
+    ("0.2.0-a2", "0.2.0a2"),
+    ("0.2.0-beta3", "0.2.0b3"),
+    ("0.0.0-dev", "0.0.0.dev0"),
+    ("0.0.0.dev", "0.0.0.dev0"),
+    ("0.1.0-dev2", "0.1.0.dev2"),
+    ("0.1.0-rc1.dev3", "0.1.0rc1.dev3"),
+])
+def test_a_release_and_its_wheel_are_the_same_version(release, wheel) -> None:
+    same_version = _release_module().same_version
+    assert same_version(release, wheel) and same_version(wheel, release)
+
+
+@pytest.mark.parametrize("a, b", [
+    ("0.1.0-rc1", "0.1.0"),     # a release candidate is not the release
+    ("0.1.0-rc1", "0.1.0rc2"),
+    ("0.1.0.dev0", "0.1.0"),
+    ("0.1.0.dev0", "0.1.0rc1"),
+    ("0.1.0", "0.1.1"),
+    ("0.1.0", ""),
+    ("0.1.0", None),
+    ("nightly", "0.1.0"),       # no version: compared as written
+])
+def test_different_versions_stay_different(a, b) -> None:
+    assert not _release_module().same_version(a, b)
+
+
+def _release_module():
+    sys.path.insert(0, str(SRC))
+    try:
+        import scensim_frontend.release as release
+    finally:
+        sys.path.remove(str(SRC))
+    return release
+
+
 def test_tarball_version_skew_installs_nothing(env) -> None:
     publish(env, tar_version="0.0.9")
     r = env.run("install")

@@ -546,7 +546,10 @@ fn the_road_condition_goes_to_a_server_offering_it() {
     let env = road(
         0.8,
         "lowFlooded",
-        &[("scensim.zone.ford.water_depth", "0.12"), ("esmini.thing", "1")],
+        &[
+            ("scensim.zone.ford.water_depth", "0.12"),
+            ("esmini.thing", "1"),
+        ],
     );
     assert_eq!(b.update_environment(&env), Ok(()));
     // Only our properties go to the server.
@@ -891,7 +894,10 @@ fn a_world_path_expands_variables_and_home() {
         x("${SCENSIM_CARLA_USD}/Town01/Town01.usd").unwrap(),
         "/data/carla-usd/Town01/Town01.usd"
     );
-    assert_eq!(x("$SCENSIM_CARLA_USD/T.usd").unwrap(), "/data/carla-usd/T.usd");
+    assert_eq!(
+        x("$SCENSIM_CARLA_USD/T.usd").unwrap(),
+        "/data/carla-usd/T.usd"
+    );
     assert_eq!(x("~/w.usd").unwrap(), "/home/u/w.usd");
     assert_eq!(x("~").unwrap(), "/home/u");
     // `~` elsewhere, a `$` before no name, and plain names stay as they are.

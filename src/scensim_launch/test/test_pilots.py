@@ -64,19 +64,31 @@ def test_vehicle_side_carla_is_acb_bridge_only():
             "release_notify_endpoint", "release_ack_endpoint", "vehicle_name"} <= passed
 
 
-def test_autoware_composes_profile_vehicle_side_and_agent():
+def test_autoware_composes_vehicle_side_agent_and_stock_or_profile():
     args, root = xml_args("autoware.launch.xml")
     assert "autoware_launch" in args
+    assert args["autoware_profile"].get("default") == "stock"
     includes = [i.get("file") for i in root.iter("include")]
-    # the profile last: it sets Autoware's `vehicle` switch (launch arguments are global),
+    # the driver last: it sets Autoware's `vehicle` switch (launch arguments are global),
     # which must not reach the vehicle side and the agent, where `vehicle` is the car
     assert includes == [
         "$(find-pkg-share scensim_launch)/launch/pilots/vehicle_side.launch.xml",
         "$(find-pkg-share scensim_launch)/launch/vehicle_agent.launch.xml",
+        "$(var autoware_launch)",
         "$(find-pkg-share autoware_sim_profile)/launch/autoware.launch.xml"]
-    profile = root.findall(".//include")[-1]
-    passed = {a.get("name"): a.get("value") for a in profile.findall("arg")}
+    stock, profile = root.findall("group")[-2:]
+    assert "== 'stock'" in stock.get("if") and "== 'scensim'" in profile.get("if")
+    passed = {a.get("name"): a.get("value") for a in profile.find("include").findall("arg")}
     assert passed["vehicle"] == "true" and passed["vehicle_model"] == "$(var vehicle_model)"
+    # stock: only what a simulator needs, the rest is the user's Autoware's own
+    passed = {a.get("name"): a.get("value") for a in stock.find("include").findall("arg")}
+    assert passed == {
+        "map_path": "$(var map_path)", "vehicle_model": "$(var vehicle_model)",
+        "sensor_model": "$(var sensor_model)", "use_sim_time": "$(var use_sim_time)",
+        "vehicle": "true", "launch_vehicle_interface": "false",
+        "launch_sensing_driver": "false", "system_run_mode": "logging_simulation",
+        "traffic_light_recognition/use_high_accuracy_detection": "false",
+        "rviz": "$(var rviz)"}
     assert args["rviz"].get("default") == "false"
     assert "acb_launch carla_simulator" not in ET.tostring(root, encoding="unicode")
 

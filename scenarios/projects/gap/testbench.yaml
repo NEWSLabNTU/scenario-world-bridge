@@ -7,7 +7,7 @@ assets:
   - dataset: carla-town-autoware-maps
     take: [Town01]
 pilots:
-  ego: {kind: autoware, vehicle: tesla_model3}
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
 logging:
   # standard for a pass too: the gap judge can fail a run SSv2 passed, and its trace is the
   # evidence (keep follows SSv2's verdict only, 077 G52)

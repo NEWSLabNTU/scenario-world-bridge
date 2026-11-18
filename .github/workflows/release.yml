@@ -49,9 +49,11 @@ env:
   ARCH: x86_64
   # The submodules the simulation side builds from (082 step 4); the two world servers carry
   # their own deps/ (the protocol, the spec, aib) as submodules, so those go in recursively.
+  # sim_vehicle_ecu: scensim_isaac_world's exec_depend (isaac_world d678aa9), carried by the
+  # sim set; the deps/ copies are COLCON_IGNOREd, so it needs its own checkout here.
   SIM_SUBMODULES: >-
     src/scenario_simulator_v2 src/color_names src/scensim_world_protocol
-    src/scensim_carla_world src/scensim_isaac_world src/sim_vehicle_spec
+    src/scensim_carla_world src/scensim_isaac_world src/sim_vehicle_spec src/sim_vehicle_ecu
   # The vehicle side the sim set carries (build_sim.sh's SIM_PACKAGES: acb's bridge and the
   # car's descriptions). acb goes in recursively: acb_bridge builds against its
   # deps/sim_vehicle_spec. rosdep reads only these packages, not the whole repositories,

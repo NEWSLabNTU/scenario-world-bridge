@@ -1,0 +1,19 @@
+# The lidar comparison scene (084/084b), one file for both simulators.
+# Town01's first spawn point with 160 m of straight lane ahead (acb vehicle_check_host's rule),
+# in CARLA's frame (left-handed: map y = -carla y); a hero (the ego, a Tesla Model 3) there,
+# and four parked Model 3s placed by their box centre in the ego's base_link (rear axle on
+# the ground; x forward, y left), yaw relative to the ego's heading.
+map: Town01
+ego:
+  blueprint: vehicle.tesla.model3
+  carla: {x: 299.4, y: 129.75, z: 0.3, yaw: 180.0}
+  rear_axle_m: -1.386          # base_link in the actor frame (Model 3)
+cars:
+  ahead_10m: {centre: [11.42, -0.25], yaw: 0.0}
+  ahead_20m: {centre: [21.42, -0.25], yaw: 0.0}
+  ahead_35m: {centre: [36.42, -0.25], yaw: 0.0}
+  side_15m:  {centre: [16.36, 3.75], yaw: 180.0}
+car_blueprint: vehicle.tesla.model3
+box_centre_m: [1.416, 0.0, 0.744]   # the box centre in a Model 3's entity frame (rear axle origin)
+box_dims_m: [4.792, 2.163, 1.488]   # the catalog's Model 3 (sim_vehicle_spec catalogs/vehicles.xosc)
+hold_s: 40

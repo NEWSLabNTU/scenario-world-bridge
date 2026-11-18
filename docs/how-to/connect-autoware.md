@@ -111,6 +111,25 @@ Autoware 1.9.0 and `~/autoware_data/ml_models` from 2.0.0).
   scenario's pose, and a second initialization would queue a second NDT alignment;
 - a clock guard that ends the pilot when the simulator's clock goes back.
 
+### How stock drives against the profile
+
+Tutorial 1 (`drive_to_goal.xosc` on Town01) with Autoware 1.5.0's binary packages, both ways,
+on the same build and host, one after the other (2026-11-19):
+
+| | `stock` | `scensim` |
+|---|---|---|
+| Result | passed, 43.6 s | passed, 41.4 s |
+| From the stack's start to the pilot ready | about 68 s | about 58 s |
+| Emergency stops | 34, each released within a moment: stock's diagnostic graph reads the localization and routing states as stale and requests one | none |
+| Lidar detector | CenterPoint (GPU) | `clustering` (CPU) |
+| GPU memory beside CARLA | CenterPoint and the point cloud's CUDA preprocessing: they failed to start with about 4.8 GB free on the GPU, and ran with about 7.7 GB free | none needed |
+
+So a stock Autoware drives the tutorial, a little slower and with emergency stops that a
+scenario with tighter timing may not survive, and it needs a GPU with a few GB free once
+CARLA is up. Passing `args: {lidar_detection_model: clustering}` to a stock pilot reaches
+Autoware 1.5.0's perception and moves the detector to the CPU, but the point cloud's CUDA
+preprocessing still needs the GPU.
+
 Its arguments are in [Your Autoware](your-autoware.md). The profile runs Autoware 1.5.0,
 2.0.0 and 2.1.0 and refuses another release by name. With `stock`, any Autoware the car's
 packages support runs.

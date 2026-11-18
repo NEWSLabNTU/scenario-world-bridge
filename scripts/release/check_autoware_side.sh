@@ -43,6 +43,26 @@ step "autoware-side.repos into a workspace over Autoware $REL"
 WS=/tmp/aw-ws; rm -rf "$WS"; mkdir -p "$WS/src"
 vcs import --shallow "$WS/src" < "$REPOS"
 PKGS="tesla_model3_launch tesla_model3_sensor_kit_launch individual_params autoware_sim_profile"
+# the packages' own Autoware dependencies (the sensor kit's exec_depends: imu_corrector,
+# gnss_poser, ...), which autoware_launch alone does not pull; a user's full Autoware has
+# them. localrepo names them ros-<distro>-<name with dashes>-<release with dashes>.
+deps=$(python3 - "$WS/src" $PKGS <<'PY'
+import sys, xml.etree.ElementTree as ET
+from pathlib import Path
+want, out = set(sys.argv[2:]), set()
+for f in Path(sys.argv[1]).rglob("package.xml"):
+    root = ET.parse(f).getroot()
+    if root.findtext("name") in want:
+        out |= {d.text for d in root.iter() if d.tag in ("exec_depend", "depend")
+                and d.text.startswith(("autoware_", "tier4_"))}
+print(" ".join(sorted(out)))
+PY
+)
+echo "their Autoware dependencies: $deps"
+apt=""
+for d in $deps; do apt="$apt ros-$ROS_DISTRO-${d//_/-}-$dash"; done
+[ -z "$apt" ] || apt-get install -y -qq --no-install-recommends $apt >> "$OUT/apt.log" 2>&1 \
+    || { tail -5 "$OUT/apt.log"; exit 1; }
 set +u
 source "/opt/autoware/$REL/setup.bash"
 source /opt/scensim-sim/setup.bash

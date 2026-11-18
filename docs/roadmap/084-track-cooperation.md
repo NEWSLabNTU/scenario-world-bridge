@@ -22,7 +22,7 @@ is planned here.
 
 ## Folded in
 
-- The Isaac lidar intensity fix (the user's option 1: an intensity table in the car spec, times the cosine, by object id and normal) and the reflectance sweep: they decide which detector sees what, which 074's detector results rest on.
+- The Isaac lidar intensity fix (the user's option 1: an intensity table in the car spec, times the cosine, by object id and normal): **landed 2026-11-19** (aib a37d23e, scensim_isaac_world c3d0e2f; report on the NAS, "2026-11-18 084 Isaac lidar intensity fix (139)"). Points of bodies spawned after the map is made take the class of the entity box they fall in. Car intensity now matches CARLA's (medians 69/29/28/41 against 77/27.5/17/38; before 15/5/3/9); TransFusion false positives 1.64 to 1.00 per output (CARLA 0.40). TransFusion's broadside-car recall falls to 0.74, as CARLA's does with the same table (0.36-0.40). Its 35 m recall (0.175 against CARLA's 0.47-0.51) is a point-density gap, not intensity: Isaac's cloud has ~30 % fewer points (88.7k against 112k). Next: the density against CARLA's semantic lidar, then the reflectance sweep.
 - CARLA 1.0's deterministic collisions ([083](083-carla-1-0.md)): contact verdicts that repeat between runs.
 - Deferred: Taiwan's scooters and the night market (reactive NPC populations); the heavy-vehicle spec (built when an Autoware test needs a truck).
 
@@ -30,4 +30,4 @@ is planned here.
 
 1. 078 Phase 2: the scensim grid on the crossing.
 2. 074 U3 (four-way stop) on Autoware.
-3. The Isaac lidar intensity fix.
+3. The Isaac lidar point density against CARLA's (139).

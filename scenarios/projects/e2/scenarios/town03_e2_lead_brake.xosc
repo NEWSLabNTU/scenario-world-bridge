@@ -3,7 +3,7 @@
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-11-13T00:00:00+00:00" description="074 E2 lead_brake: Town03 east straight, outer lane: a lead car 28 m ahead at 6 m/s brakes to a stop at 4 m/s^2 at y = 90, then drives on; perception latency, tracking error, cruise reaction" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town03" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">

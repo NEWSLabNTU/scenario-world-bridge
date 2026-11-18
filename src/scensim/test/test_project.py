@@ -169,8 +169,19 @@ TWO_AV = (EXAMPLES / "multi_av" / "town01_two_av.xosc")
 
 
 @pytest.mark.skipif(not TWO_AV.is_file(), reason="scensim_examples not here")
-def test_patterns_and_isaac_limit(host):
+def test_a_testbench_scenario_on_the_installed_catalog_is_flagged(host):
+    # roadmap 083: the installed catalog is the cars' 0.9.16 body whatever simulator runs
     text = TWO_AV.read_text()
+    assert project.INSTALLED_CATALOG in text
+    pilots = "pilots:\n  ego: {kind: autoware}\n  bg_av_*: {kind: autoware}\n"
+    d = make(host["tmp"], "simulator: carla\nassets: []\n" + pilots, {"two.xosc": text})
+    [f] = scenario_checks(d)
+    assert "VehicleCatalog" in f.what and "SCENSIM_VEHICLES" in f.fix and not f.refused
+
+
+@pytest.mark.skipif(not TWO_AV.is_file(), reason="scensim_examples not here")
+def test_patterns_and_isaac_limit(host):
+    text = TWO_AV.read_text().replace(project.INSTALLED_CATALOG, project.VEHICLES_CATALOG)
     pilots = "pilots:\n  ego: {kind: autoware}\n  bg_av_*: {kind: autoware}\n"
     d = make(host["tmp"], "simulator: carla\nassets: []\n" + pilots, {"two.xosc": text})
     assert scenario_checks(d) == []

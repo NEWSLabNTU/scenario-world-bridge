@@ -8,7 +8,7 @@
 		<ParameterDeclaration name="pair" parameterType="string" value="eq" />
 		<ParameterDeclaration name="start_shift" parameterType="double" value="120.4" />
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town03" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="coop_a">

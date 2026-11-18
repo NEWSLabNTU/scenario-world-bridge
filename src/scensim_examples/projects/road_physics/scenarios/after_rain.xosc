@@ -3,7 +3,7 @@
 	<FileHeader author="scenario-world-bridge" date="2026-10-23T00:00:00+00:00" description="Town01, Isaac: the same drive after rain: the whole road moist, the gravel patch turned to dirt by the scenario (RoadCondition), the mud as it was" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>

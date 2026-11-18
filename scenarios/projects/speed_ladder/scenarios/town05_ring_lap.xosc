@@ -2,7 +2,7 @@
 <OpenSCENARIO>
 	<FileHeader author="autoware-drift" date="2026-10-27T00:00:00+00:00" description="A lap of Town05 ring highway in drift_mustang, Autoware driving at up to 100 km/h, drift_controller taking each bend (scensim roadmap 057)" revMajor="1" revMinor="2" />
 	<ParameterDeclarations><ParameterDeclaration name="rung" parameterType="double" value="10" /></ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/town05_ring_110kmh" />
 	</RoadNetwork>

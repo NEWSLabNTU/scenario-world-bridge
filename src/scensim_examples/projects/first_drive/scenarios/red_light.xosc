@@ -2,7 +2,7 @@
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-08-16T00:00:00+00:00" description="Town01 ego stops at an SSv2-commanded red, then proceeds on green" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>

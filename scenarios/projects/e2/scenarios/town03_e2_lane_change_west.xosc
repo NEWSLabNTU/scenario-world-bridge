@@ -3,7 +3,7 @@
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-11-13T00:00:00+00:00" description="074 E2 lane_change_west: Town03 west straight: start in the right lane (5750), goal in the left lane (8209) 200 m on, past an unsignalled junction; the lane change happens on the move; no other traffic" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town03" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">

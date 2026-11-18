@@ -11,6 +11,8 @@ import scene as scenemod
 port, out = int(sys.argv[1]), sys.argv[2]
 s = scenemod.load(*sys.argv[3:4])
 c = carla.Client("localhost", port); c.set_timeout(60)
+if not c.get_server_version().startswith(s["body"].split("-", 1)[1]):
+    raise SystemExit(f"the scene's bodies are {s['body']}'s; this CARLA is {c.get_server_version()}")
 w = c.get_world()
 if not w.get_map().name.endswith(s["map"]):
     w = c.load_world(s["map"])
@@ -28,6 +30,7 @@ try:
                                            carla.Rotation(yaw=e["yaw"])))
     else:
         actors.append(hero)
+    hero.apply_control(carla.VehicleControl(hand_brake=True, brake=1.0))
     for _ in range(20): w.wait_for_tick(10)
     ht = hero.get_transform(); yaw0 = math.radians(ht.rotation.yaw)
     rear = s["ego"]["rear_axle_m"]

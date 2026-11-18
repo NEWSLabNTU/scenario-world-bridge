@@ -4,6 +4,9 @@
 # and four parked Model 3s placed by their box centre in the ego's base_link (rear axle on
 # the ground; x forward, y left), yaw relative to the ego's heading.
 map: Town01
+# The bodies' values below (rear axle, box) are CARLA 0.9.16's Model 3, which the Isaac world
+# server's assets are exported from too; carla_scene.py refuses a CARLA of another version.
+body: carla-0.9.16
 ego:
   blueprint: vehicle.tesla.model3
   carla: {x: 299.4, y: 129.75, z: 0.3, yaw: 180.0}

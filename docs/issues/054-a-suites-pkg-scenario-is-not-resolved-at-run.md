@@ -37,3 +37,13 @@ that installs it.
 - a suite naming `pkg://<package>/...` of a fixture package on `AMENT_PREFIX_PATH` expands to
   the installed file;
 - an uninstalled package is refused, naming the package.
+
+## Part 2: a `ground:` file (found 2026-11-18, converting isaac_road_physics)
+
+`ground: {<map>: {surfaces: <file>}}` had the same gap: `ground.problems` and `ground.apply`
+took every file as a path in the project. So `pkg://scensim_examples/projects/road_physics/
+ground/town01.yaml` was "not a file in the project". Both now resolve `pkg://` through
+`config.pkg_path` (`ground.source`), and an uninstalled package is refused by name. A link
+into an installed package's share counts as scensim's own (`_ours`), so it is replaced at
+the next start and removed when the testbench stops naming it, as a project file's link is.
+Test: `test_ground.py::test_a_ground_file_from_another_package`.

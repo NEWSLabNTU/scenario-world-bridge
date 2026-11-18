@@ -64,3 +64,30 @@ def test_apply_again_with_a_file_in_a_linked_dataset(tmp_path):
     assert str(dst.readlink()).startswith(str(p.resolve()))
     ground.apply(p, None)
     assert not dst.exists()
+
+
+def test_a_ground_file_from_another_package(tmp_path, monkeypatch):
+    """Issue 054: a testbench names a shared package's ground file as pkg://<package>/<path>;
+    its link is scensim's, so it is replaced and dropped like a project file's."""
+    pytest.importorskip("ament_index_python")
+    prefix = tmp_path / "install"
+    index = prefix / "share" / "ament_index" / "resource_index" / "packages"
+    index.mkdir(parents=True)
+    (index / "road_pkg").write_text("")
+    (prefix / "share" / "road_pkg" / "ground").mkdir(parents=True)
+    shared = prefix / "share" / "road_pkg" / "ground" / "town01.yaml"
+    shared.write_text("surfaces: [mud]\n")
+    monkeypatch.setenv("AMENT_PREFIX_PATH", str(prefix))
+    p = proj(tmp_path / "tb")
+    g = {"Town01": {"surfaces": "pkg://road_pkg/ground/town01.yaml"}}
+    assert ground.problems(p, g) == []
+    ground.apply(p, g)
+    link = p / "state" / "Town01" / "surfaces.yaml"
+    assert link.read_text() == "surfaces: [mud]\n"
+    ground.apply(p, g)                       # again: its own link, replaced
+    ground.apply(p, None)                    # no longer named: dropped
+    assert not link.exists() and not link.is_symlink()
+    msgs = [m for _, m in ground.problems(p, {"Town01": {"surfaces": "pkg://nope/g.yaml"}})]
+    assert any("package nope is not installed" in m for m in msgs)
+    with pytest.raises(ground.GroundError, match="package nope is not installed"):
+        ground.apply(p, {"Town01": {"surfaces": "pkg://nope/g.yaml"}})

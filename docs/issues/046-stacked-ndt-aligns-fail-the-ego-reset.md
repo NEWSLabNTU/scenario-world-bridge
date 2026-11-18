@@ -109,10 +109,20 @@ and `runs show` prints it. This is part of the same fix.
   `046-gnss-enabled` (05453ca, 29ee349); a profile without it ignores the value, so this
   branch is safe before the pin moves. The pin moves once that branch is on
   autoware_sim_vehicle's main.
-- **c.** The agent's per-call budget is the setting `initialize_timeout` (60 s, handed to the
-  port); the relay's `reset_timeout` parameter (60 s) now says why in its description.
+- **c.** The agent's per-call budget is the setting `initialize_timeout`, handed to the port;
+  the relay's `reset_timeout` parameter says why in its description. Both default to 120 s,
+  SSv2's `initialize_duration`, so a reset that ends inside the scenario's window is not
+  logged FAILED. They cannot be derived from `initialize_duration` in one place: the relay
+  and the pilot outlive a run, and that duration is a run's setting.
 - **Load.** `scensim run` records `provenance.load` in `result.json`: `/proc/loadavg` and the
   core count at the run's start and end (`results.host_load`), and `runs show` prints it.
+- **Evidence** (2026-11-18, newslab-server-241, T1 on e87b234 with autoware_sim_vehicle
+  29ee349; `~/nas/autoveh/logs/2026 SSv2 on CARLA/2026-11-18 046 evidence T1 (241)/`):
+  passed at load 56.7/44.0/35.3 at the start (65.9/52.9/39.8 at the end, 24 cores) with one
+  NDT align, 76.5 s, and no automatic_pose_initializer. The initialize call timed out at 60 s
+  (the default then); the agent waited for that align rather than queueing another and was
+  ready at 77 s. The relay's reset_timeout, then 60 s, logged the reset FAILED although the
+  run passed: hence the 120 s defaults.
 - Tests: the agent's timed-out align taking the pose (one call), ending elsewhere (a second
   call only after it ends), staying INITIALIZING (fails after `align_wait`, one call), a
   refusal (unchanged); the pilot's `gnss_enabled` evaluated with and without a relay; the

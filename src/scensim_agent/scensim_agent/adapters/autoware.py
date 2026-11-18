@@ -57,8 +57,9 @@ DEFAULTS = {
     "initialize_attempts": 5,
     # s one /api/localization/initialize may take (issue 046): the call returns when NDT's
     # align server has searched its particles, CPU-bound wall time that a loaded host
-    # stretches past 30 s; the relay's reset_timeout (60 s) bounds the whole reset.
-    "initialize_timeout": 60.0,
+    # stretches: 76.5 s at load 56 (issue 046). 120 s, SSv2's initialize_duration, as the
+    # relay's reset_timeout, which bounds the whole reset.
+    "initialize_timeout": 120.0,
     # s to wait for an align still running after its initialize call timed out (issue 046):
     # the request is not cancelled, so a fresh call would only queue a second align behind it
     "align_wait": 60.0,
@@ -107,7 +108,7 @@ class AutopilotPort:
     """The Autoware interface the agent drives. Each call returns (ok, message)."""
 
     lost_score = 0.0  # a scan-matcher score at or below this does not count in score_above
-    initialize_timeout = 60.0  # s one initialize call may take (the agent's initialize_timeout)
+    initialize_timeout = 120.0  # s one initialize call may take (the agent's initialize_timeout)
 
     def snapshot(self) -> Snapshot:
         raise NotImplementedError

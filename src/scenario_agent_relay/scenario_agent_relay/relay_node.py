@@ -77,8 +77,8 @@ class RelayNode(Node):
         # How long an agent with the `reset` capability has to get ready after SSv2's
         # initialize (protocol v2); the concealer is answered within SLOW_REPLY anyway.
         self.declare_parameter("reset_timeout", RESET_TIMEOUT, ParameterDescriptor(
-            description="s an agent's reset may take (default 60): an Autoware ego's NDT "
-                        "align is CPU-bound and a loaded host stretches it past 30 s; "
+            description="s an agent's reset may take (default 120, SSv2's initialize_duration): "
+                        "an Autoware ego's NDT align is CPU-bound and took 76.5 s at load 56; "
                         "raise it with the agent's initialize_timeout (issue 046)"))
         self.entity = self.get_parameter("entity").value
         host = self.get_parameter("agent_host").value

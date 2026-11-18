@@ -233,7 +233,7 @@ there. The relay never sends a v2 command to a v1 agent, nor `reset` / `restart`
 agent without the capability: it answers the caller `UNSUPPORTED` itself. *Implemented*
 (030 steps 2-3). The relay answers the concealer's `initialize` within its usual 9 s even
 when the reset takes longer: OK, with the agent reporting `INITIALIZING` until ready, and
-the reset bounded by the relay parameter `reset_timeout` (60 s); a retried `initialize`
+the reset bounded by the relay parameter `reset_timeout` (120 s); a retried `initialize`
 for the same pose joins the running reset. A v2 commander's `query` reply carries `reset`
 (`episode`, `status`, `message`, `seconds`, `timed_out`) for the entity's last reset.
 

@@ -45,8 +45,16 @@ FAKE_CARLA = textwrap.dedent('''\
     while True:
         c, _ = s.accept()
         try:
-            c.recv(256)
-            c.sendall(b"\\x94\\x01\\x01\\xc0\\x91\\x92\\x01\\xa60.9.16")
+            req = c.recv(256)
+            maps = here / "maps"
+            if b"get_available_maps" in req and maps.exists():
+                # Response<std::vector<std::string>>: [1, 2, nil, [[1, [names]]]]
+                names = maps.read_text().split()
+                body = bytes([0xdc]) + len(names).to_bytes(2, "big") + b"".join(
+                    bytes([0xd9, len(n)]) + n.encode() for n in names)
+                c.sendall(b"\\x94\\x01\\x02\\xc0\\x91\\x92\\x01" + body)
+            else:
+                c.sendall(b"\\x94\\x01\\x01\\xc0\\x91\\x92\\x01\\xa60.9.16")
         finally:
             c.close()
 ''')
@@ -213,6 +221,57 @@ def test_a_started_carla_whose_version_differs_from_the_plan_is_refused(tmp_path
     err = sim.version_problem({"root": "/opt/carla", "version": None}, "0.9.16")
     assert "says no version" in err and "/opt/carla/VERSION" in err
     assert sim.version_problem(rec, None) is None   # an answer without a version: not judged
+
+
+def pack_maps(names, index=1):
+    """CARLA's reply to get_available_maps: [1, 2, nil, [[index, [names]]]] (index 0: an
+    error, whose ResponseError is an array of its text)."""
+    body = bytes([0x90 | len(names)]) + b"".join(bytes([0xa0 | len(n)]) + n.encode()
+                                                   for n in names)
+    return b"\x94\x01\x02\xc0\x91\x92" + bytes([index]) + body
+
+
+def test_available_maps_reads_carlas_reply():
+    maps = ["/Game/Carla/Maps/Town01_Opt", "/Game/Carla/Maps/Town10HD_Opt"]
+    srv = Server(pack_maps(maps))
+    try:
+        assert sim.available_maps("127.0.0.1", srv.port) == maps
+    finally:
+        srv.close()
+    for reply in (pack_maps(["no such function"], index=0), REPLY,
+                  b"\x94\x01\x02\xa5oops!\xc0"):
+        srv = Server(reply)
+        try:
+            assert sim.available_maps("127.0.0.1", srv.port, timeout=2) is None, reply
+        finally:
+            srv.close()
+    assert sim.available_maps("127.0.0.1", free_port()) is None
+
+
+def test_a_town_a_serving_carla_lacks_is_named():
+    """083: 1.0's towns are in content packs and named only _Opt; 0.9.16's by name."""
+    one = ["/Game/Carla/Maps/Town01_Opt", "/Game/Carla/Maps/Town10HD_Opt"]
+    alias = {"Town10": "Town10HD"}
+    assert sim.served_town_problems(["Town01", "Town10"], one, alias) == []
+    assert sim.served_town_problems(["Town01", "Town03"], one, alias) == [("Town03", "Town03")]
+    old = ["/Game/Carla/Maps/Town01", "/Game/Carla/Maps/Town03_Opt"]
+    assert sim.served_town_problems(["Town01", "Town03", "NTU"], old, alias) == [("NTU", "NTU")]
+
+
+def test_keeper_ends_the_start_when_carla_has_no_town_for_a_map(where, maps_hub):
+    """083: once a started CARLA serves, a map whose town it cannot load ends the start,
+    named, before any pilot; one it can is served as before."""
+    root = fake_root(where["tmp"])
+    (root / "maps").write_text("/Game/Carla/Maps/Town02_Opt /Game/Carla/Maps/Town10HD_Opt\n")
+    d = make(where, {"root": str(root), "port": free_port(), "ready_timeout": 60})
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    stack.write_plan(p)
+    assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot) == 2
+    rec = json.loads(p.stack_json.read_text())
+    assert "maps: Town01" in rec["error"] and "no town Town01 (nor Town01_Opt)" in rec["error"]
+    assert "AdditionalMaps" in rec["error"]
+    assert "pilot.start" not in [e["event"] for e in events(p)]
+    assert gone(json.loads((root / "started.json").read_text())["pid"])
 
 
 def test_decide_refusals(tmp_path):

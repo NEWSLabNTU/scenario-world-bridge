@@ -73,6 +73,114 @@ _VERSION_REQUEST = (bytes([0x94, 0x00, 0x01, 0xa7]) + b"version"
                     + bytes([0x91, 0x91, 0xc2]))
 
 
+# [0, 2, "get_available_maps", [[false]]]: what carla.Client.get_available_maps sends
+_MAPS_REQUEST = (bytes([0x94, 0x00, 0x02, 0xa0 | len("get_available_maps")])
+                 + b"get_available_maps" + bytes([0x91, 0x91, 0xc2]))
+
+
+class _Short(Exception):
+    """The reply is not all here yet."""
+
+
+def _unpack(b: bytes, i: int):
+    """``(value, next index)`` of the msgpack object at ``b[i]``: nil, booleans, integers,
+    strings, arrays and maps, what a CARLA reply holds; _Short when it runs past the end."""
+    def need(n):
+        if i + n > len(b):
+            raise _Short()
+    need(1)
+    t = b[i]
+    i += 1
+    if t <= 0x7f:
+        return t, i
+    if t >= 0xe0:
+        return t - 0x100, i
+    if t == 0xc0:
+        return None, i
+    if t in (0xc2, 0xc3):
+        return t == 0xc3, i
+    sizes = {0xcc: 1, 0xcd: 2, 0xce: 4, 0xcf: 8, 0xd0: 1, 0xd1: 2, 0xd2: 4, 0xd3: 8}
+    if t in sizes:
+        n = sizes[t]
+        need(n)
+        return int.from_bytes(b[i:i + n], "big", signed=t >= 0xd0), i + n
+    if 0xa0 <= t <= 0xbf or t in (0xd9, 0xda, 0xdb):
+        if t <= 0xbf:
+            n = t & 0x1f
+        else:
+            w = {0xd9: 1, 0xda: 2, 0xdb: 4}[t]
+            need(w)
+            n, i = int.from_bytes(b[i:i + w], "big"), i + w
+        need(n)
+        return b[i:i + n].decode("utf-8", "replace"), i + n
+    if 0x90 <= t <= 0x9f or t in (0xdc, 0xdd) or 0x80 <= t <= 0x8f or t in (0xde, 0xdf):
+        is_map = 0x80 <= t <= 0x8f or t in (0xde, 0xdf)
+        if t in (0xdc, 0xdd, 0xde, 0xdf):
+            w = 2 if t in (0xdc, 0xde) else 4
+            need(w)
+            n, i = int.from_bytes(b[i:i + w], "big"), i + w
+        else:
+            n = t & 0x0f
+        items = []
+        for _ in range(n * (2 if is_map else 1)):
+            v, i = _unpack(b, i)
+            items.append(v)
+        return (dict(zip(items[::2], items[1::2])) if is_map else items), i
+    raise ValueError(f"msgpack type 0x{t:02x}")
+
+
+def available_maps(host, port, timeout=10.0):
+    """The maps the CARLA on ``host:port`` can load (``get_available_maps``: ``/Game/Carla/
+    Maps/Town01``, 1.0's ``.../Town01_Opt``), or None when it cannot tell (not serving, an
+    error reply, a reply it cannot read)."""
+    try:
+        s = socket.create_connection((host, int(port)), timeout=timeout)
+    except OSError:
+        return None
+    try:
+        s.settimeout(timeout)
+        s.sendall(_MAPS_REQUEST)
+        data = b""
+        while True:
+            chunk = s.recv(65536)
+            if not chunk:
+                return None
+            data += chunk
+            try:
+                reply, _ = _unpack(data, 0)
+                break
+            except _Short:
+                continue
+        if not (isinstance(reply, list) and len(reply) == 4 and reply[0] == 1
+                and reply[2] is None):
+            return None
+        result = reply[3]
+        # CARLA's Response<T> is a variant [index, value], packed in a one-item array:
+        # index 0 is its ResponseError (whose text would read as a list of strings)
+        if (isinstance(result, list) and len(result) == 1 and isinstance(result[0], list)
+                and len(result[0]) == 2 and isinstance(result[0][0], int)):
+            if result[0][0] == 0:
+                return None
+            result = result[0][1]
+        return result if isinstance(result, list) and all(
+            isinstance(x, str) for x in result) else None
+    except (OSError, ValueError):
+        return None
+    finally:
+        s.close()
+
+
+def served_town_problems(maps, available, alias=None) -> list:
+    """``(map, town)`` for each project map whose town is not among the maps a serving CARLA
+    can load (``available``, available_maps): by its last path segment, the town or its
+    ``_Opt`` name (CARLA 1.0 has only those)."""
+    alias = town_alias() if alias is None else alias
+    have = {str(a).rstrip("/").rsplit("/", 1)[-1] for a in available or []}
+    return [(m, alias.get(m, m)) for m in maps or []
+            if isinstance(m, str) and m and not ({alias.get(m, m), f"{alias.get(m, m)}_Opt"}
+                                                 & have)]
+
+
 class SimulatorRefused(RuntimeError):
     """The simulator cannot be started or used as asked; the message says why."""
 

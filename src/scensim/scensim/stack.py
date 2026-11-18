@@ -589,6 +589,30 @@ def isaac_kit_args(given: str, gpu) -> str:
     pin = f"--/renderer/multiGpu/enabled=false --/renderer/activeGpu={gpu}"
     return f"{given} {pin}".strip()
 
+def served_towns_problem(rec, maps_fn=None, alias=None):
+    """Why the CARLA this stack drives cannot serve its maps, or None: once it serves, its
+    ``get_available_maps`` must hold each map's town, by name or ``_Opt`` name (CARLA 1.0's
+    towns live in content packs, where the install's .umap check cannot see them). A CARLA
+    that does not answer the call is not judged here."""
+    c = rec.get("carla") or {}
+    if rec.get("simulator") != "carla" or not c.get("port"):
+        return None
+    available = (maps_fn or simmod.available_maps)(c.get("host") or "localhost", c["port"])
+    if available is None:
+        print(f"scensim stack: CARLA on {c.get('host') or 'localhost'}:{c['port']} did not "
+              "list its maps (get_available_maps); its towns are not checked", flush=True)
+        return None
+    missing = simmod.served_town_problems(rec.get("maps"), available, alias)
+    if not missing:
+        return None
+    where = f"{c.get('host') or 'localhost'}:{c['port']}"
+    return ("; ".join(f"maps: {m}: CARLA {c.get('version') or ''} on {where} has no town "
+                      f"{town} (nor {town}_Opt) among its {len(available)} maps"
+                      for m, town in missing).replace("  ", " ")
+            + ": install its map pack (CARLA 1.0: the AdditionalMaps pack, Tools/carla_pack.py)"
+              " or take the map out of maps:")
+
+
 def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=None, gpu=None,
          stack_args=None, check=projectmod.check_stack, now=None, simulator_start=None,
          probe=None, launcher=None) -> Plan:
@@ -1665,6 +1689,13 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                 rec["state"] = STARTING   # a started CARLA died; respawned, waited for again
                 write_json(path, rec)
             if not pilots_on and sim_ready:
+                missing = served_towns_problem(rec)
+                if missing:
+                    rec["error"] = missing
+                    event(stack_dir, "carla.towns", error=missing)
+                    print(f"scensim stack: {missing}", file=sys.stderr, flush=True)
+                    code = 2
+                    break
                 pilots_on = True
                 if rec.get("map") and not pilots.procs:
                     pilots.start_all(rec)

@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from scensim import assets, budget as budgetmod, config, ground as groundmod, isaac as isaacmod
+from scensim import assets, autoware_side, budget as budgetmod, config, ground as groundmod
+from scensim import isaac as isaacmod
 from scensim import judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
 from scensim import overlays as overlaysmod, profile as profilemod, record as recordmod
 from scensim import ssv2 as ssv2mod, world as worldmod
@@ -768,16 +769,38 @@ def _package_installed(name: str) -> bool:
 
 
 def project_notes(path) -> list:
-    """Warnings for the project at ``path`` that do not stop it (a host path in testbench.yaml)."""
+    """Warnings for the project at ``path`` that do not stop it (a host path in testbench.yaml;
+    an Autoware the car's Autoware packages support but were not tested on)."""
     try:
-        return overlaysmod.notes(config.project_settings(config.find_project(path)))
+        settings = config.project_settings(config.find_project(path))
     except config.ConfigError:
         return []
+    return overlaysmod.notes(settings) + autoware_side_notes(settings)
 
 
-# what an autoware pilot's car needs installed (autoware_sim_vehicle builds them per car): the
-# vehicle description and the vehicle launch Autoware's planning simulator includes
-VEHICLE_PACKAGES = ("{car}_description", "{car}_launch")
+def autoware_side_problems(settings: dict, env=None, share=None) -> list:
+    """Each autoware pilot whose car's Autoware packages are missing from the sourced
+    workspaces, or whose sourced Autoware is outside a package's supported releases, refused by
+    name (autoware_side)."""
+    kw = {"env": env} if share is None else {"env": env, "share": share}
+    problems, _ = autoware_side.assess(_pilots(settings), **kw)
+    return [Finding(config.PROJECT_FILE, f"{where}: {what}", fix, refused=True, host=True)
+            for where, what, fix in problems]
+
+
+def autoware_side_notes(settings: dict, env=None, share=None) -> list:
+    kw = {"env": env} if share is None else {"env": env, "share": share}
+    return autoware_side.assess(_pilots(settings), **kw)[1]
+
+
+def _pilots(settings: dict) -> dict:
+    return settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
+
+
+# what an autoware pilot's car needs from the simulation side: its description (the stock cars'
+# come with scensim). Its Autoware packages, the vehicle and sensor kit launches, are checked
+# by autoware_side_problems against the sourced Autoware
+VEHICLE_PACKAGES = ("{car}_description",)
 
 
 def _installed(pkg: str) -> bool:
@@ -808,9 +831,9 @@ def vehicle_package_problems(settings: dict, installed=None) -> list:
             out.append(Finding(config.PROJECT_FILE,
                                f"pilots.{key}: vehicle {car}: package "
                                f"{' and '.join(missing)} not installed",
-                               "source the workspace that builds the car's Autoware packages "
-                               f"(autoware_sim_vehicle for the stock cars), or build {car}'s "
-                               "in yours", refused=True, host=True))
+                               "the stock cars' descriptions come with scensim: source its "
+                               f"setup.bash; for a car of your own, build {car}_description in "
+                               "your workspace", refused=True, host=True))
     return out
 
 
@@ -835,6 +858,7 @@ def check_project(path, scenarios: bool = True) -> list:
     out += on_host(assets.check(project, settings))
     out += on_host(assets.hub_findings(project, settings))
     out += vehicle_package_problems(settings)
+    out += autoware_side_problems(settings)
     missing = False
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (project / v).is_file():

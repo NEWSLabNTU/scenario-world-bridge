@@ -92,9 +92,11 @@ def simulator_problems(settings) -> list:
     return out
 
 
-def server_argv(server, port) -> list:
-    """The command that starts ``server`` on ``port``."""
-    return ["ros2", "run", server[0], server[1], *server[2:], "--port", str(port)]
+def server_argv(server, port, command=None) -> list:
+    """The command that starts ``server`` on ``port``: ``ros2 run`` of it, or ``command``
+    (the tests' fixtures, which are no ROS package)."""
+    head = list(command) if command else ["ros2", "run", server[0], server[1], *server[2:]]
+    return [*head, "--port", str(port)]
 
 
 def endpoint(port) -> str:
@@ -118,21 +120,23 @@ def _stop(proc, grace=10.0):
             time.sleep(0.2)
 
 
-def conformance(server, port, *, check=None, start_timeout=60.0, env=None, log=None):
+def conformance(server, port, *, check=None, start_timeout=60.0, env=None, log=None,
+                command=None):
     """Start ``server`` on ``port``, wait for its ``Hello``, run the conformance check against
     it, stop it. ``(passed, report)``: the check's output, or why it did not run.
-    ``check``: the ``scensim_world_check`` command (default ``ros2 run``)."""
+    ``check``: the ``scensim_world_check`` command (default ``ros2 run``); ``command``: the
+    server's (``server_argv``)."""
     check = list(check or CHECK)
     run_env = dict(os.environ if env is None else env, SCENSIM_WORLD_PORT=str(port))
     logf = open(log, "w") if log else None
     try:
-        proc = subprocess.Popen(server_argv(server, port), env=run_env,
+        proc = subprocess.Popen(server_argv(server, port, command), env=run_env,
                                 stdout=logf or subprocess.DEVNULL, stderr=subprocess.STDOUT,
                                 start_new_session=True)
     except OSError as e:
         if logf:
             logf.close()
-        return False, f"{' '.join(server_argv(server, port))}: {e}"
+        return False, f"{' '.join(server_argv(server, port, command))}: {e}"
     try:
         hello = subprocess.run(check + ["hello", endpoint(port), "--wait", str(start_timeout),
                                         "--quiet"], env=run_env, capture_output=True, text=True)
@@ -165,3 +169,25 @@ def conformance_findings(server, port, **kw) -> list:
         return [Finding(where, report.strip().splitlines()[0] if report.strip()
                         else "the conformance check failed", fix)]
     return [Finding(where, f"conformance: {f}", fix) for f in fails]
+
+
+def hello_findings(port, *, check=None, env=None) -> list:
+    """The stock world server of a live stack, on ``port``, probed with ``Hello`` (changes
+    nothing; safe beside a run). A full conformance run is not possible there: the stack's
+    bridge owns the server. Empty: it answered with this protocol version."""
+    check = list(check or CHECK)
+    try:
+        r = subprocess.run(check + ["hello", endpoint(port), "--wait", "5"],
+                           env=dict(os.environ if env is None else env),
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return [Finding("world", f"the stack's world server on {endpoint(port)}: the probe "
+                                 f"did not run ({e})", "source scensim's setup.bash (it "
+                                 "provides scensim_world_check)", host=True)]
+    if r.returncode == 0:
+        return []
+    said = (r.stdout + r.stderr).strip().splitlines()
+    return [Finding("world", f"the stack's world server on {endpoint(port)} did not answer "
+                             "Hello" + (f": {said[-1]}" if said else ""),
+                    "see the stack's world server log (scensim stack <testbench> --list "
+                    "names the stack); restart the stack", host=True)]

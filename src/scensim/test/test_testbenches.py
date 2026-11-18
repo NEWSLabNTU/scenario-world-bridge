@@ -565,3 +565,28 @@ def test_waiting_for_stack_pilots_names_a_launch_that_cannot_start(tmp_path, mon
     msg = run.wait_pilots_ready(ctx)
     assert msg.startswith("pilot ego is not coming up: its launch fails at once: package "
                           "acb_launch not found")
+
+
+def test_check_live_probes_the_stock_world_server_of_a_live_stack(ws, monkeypatch):
+    """081 edit 4: without world.server, the stack's own (stock) world server gets a Hello."""
+    from scensim import own_world
+    seen = {}
+    monkeypatch.setattr(run, "find_stack", lambda d, host: {"ports": {"world": 5791}})
+    monkeypatch.setattr(own_world, "hello_findings",
+                        lambda port, **kw: seen.setdefault("port", port) and [])
+    d = testbenches.work_dir(testbenches.find("tb_one"), {"logs": str(ws["logs"])})
+    tb = testbenches.find("tb_one")
+    assert testbench_cli.live_findings(tb, d, {"logs": str(ws["logs"])}) == []
+    assert seen["port"] == 5791
+
+
+def test_check_live_without_a_stack_says_so_and_finds_nothing(ws, monkeypatch):
+    def none(d, host):
+        raise run.NoStack("no stack")
+    monkeypatch.setattr(run, "find_stack", none)
+    monkeypatch.setattr(testbench_cli, "host_findings", lambda tb, d: [])
+    out = io.StringIO()
+    assert testbench_cli.check("tb_one", live=True, logs=str(ws["logs"]), out=out) == 0
+    assert out.getvalue() == ("note (this host): no stack of tb_one is up, so its world server "
+                              "was not probed (start one: scensim stack tb_one)\n"
+                              "testbench: ok\n")

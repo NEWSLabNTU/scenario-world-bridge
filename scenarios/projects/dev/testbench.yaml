@@ -1,7 +1,7 @@
 # dev: the project `just scenario <xosc>` runs a scenario in when no project holds it
 # (roadmap 077 step 8): CARLA's towns, the default Autoware ego, CARLA's contacts judged.
-# Its scenarios/ links the basic starters (so its stack has something to check); a developer
-# points it at any other scenario.
+# Its default suite names the basic starters (pkg://scensim_examples), so its stack has something
+# to check; a developer points it at any other scenario.
 simulator: carla
 assets:
   - dataset: carla-town-autoware-maps
@@ -13,3 +13,4 @@ logging:
 judges:
   - name: physical_verdict
     run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+default: starters   # the suite `scensim run dev` runs

@@ -1,0 +1,4 @@
+# The basic starters, from scensim_examples: what the dev stack checks and runs when no
+# other scenario is given (`scensim run dev`). `just scenario <xosc>` runs any scenario here.
+scenarios:
+  - pkg://scensim_examples/scenarios/basic/

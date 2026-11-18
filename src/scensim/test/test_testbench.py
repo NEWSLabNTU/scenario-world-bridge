@@ -139,3 +139,23 @@ def test_a_fetched_scenario_is_the_hosts_not_the_packages(tmp_path):
     assert [(f.what, f.fix) for f in host] == [
         ("scenario assets/maps/haruna/scenarios/haruna_down.xosc: not fetched",
          "scensim assets fetch")]
+
+
+def test_the_isaac_ego_configs_rig_is_checked_and_may_name_a_package(tmp_path):
+    """Issue 057: drift_lap's ego config named aib's rig as ../../../../src/...; the leave
+    and declaration rules now read the ego config named by isaac.ego (its rig and body)."""
+    extra = "isaac: {ego: config/ego.yaml}\n"
+    tb = make(tmp_path, extra=extra)
+    (tb / "testbench.yaml").write_text((tb / "testbench.yaml").read_text()
+                                       .replace("simulator: carla", "simulator: isaac"))
+    (tb / "config").mkdir()
+    (tb / "config" / "body").mkdir()
+    (tb / "config" / "body" / "entry.json").write_text("{}")
+    ego = tb / "config" / "ego.yaml"
+    ego.write_text("rig: ../../../../src/aib/config/car.rig.yaml\nbody: body/entry.json\n")
+    got = [str(f) for f in testbench.reference_findings(tb, tb / "package.xml")]
+    assert got == ["problem: config/ego.yaml: ../../../../src/aib/config/car.rig.yaml: leaves "
+                   "the testbench (fix: " + testbench.LEAVES_FIX + ")"]
+    ego.write_text("rig: pkg://aib/config/car.rig.yaml\nbody: body/entry.json\n")
+    got = [str(f) for f in testbench.reference_findings(tb, tb / "package.xml")]
+    assert got and "package aib is not declared" in got[0] and len(got) == 1

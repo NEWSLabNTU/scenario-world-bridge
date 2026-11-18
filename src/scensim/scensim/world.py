@@ -27,10 +27,11 @@ Weather parameters are set through the bridge's ``set_weather`` service once the
 serves it, before the stack is ready (the keeper); a preset goes as the bridge's ``weather``
 argument, which the bridge applies after every world load and reconnect.
 """
+import os
 import shlex
 from pathlib import Path
 
-from scensim import own_world
+from scensim import config, own_world
 
 WORLD_KEYS = ("weather", "npc_motion", "contact_report_dir", "config_file", "world_config_file",
               own_world.KEY)
@@ -215,8 +216,45 @@ def side_args(project: Path, world: dict) -> dict:
     return out
 
 
-def sim_args(project: Path, simulator: str, world: dict, isaac: dict) -> dict:
-    """The world server's launch arguments from ``world:`` and ``isaac:``."""
+ISAAC_EGO_PATHS = ("rig", "body")   # what an aib ego config names, from its own directory
+RESOLVED_EGO = "isaac_ego_resolved.yaml"
+
+
+def isaac_ego_config(path: Path, out_dir: Path = None) -> Path:
+    """The aib ego config to hand the world server for the testbench's ``path``: itself, or,
+    when it names its rig or body as ``pkg://<package>/<path>`` (issue 057), a copy in
+    ``out_dir`` with those made absolute. aib reads only paths (relative to the config's
+    directory), never ``pkg://``. ConfigError when a named package is not installed."""
+    import yaml
+    path = Path(path).resolve()
+    try:
+        doc = yaml.safe_load(path.read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return path   # aib names it when it loads it
+    if not isinstance(doc, dict) or not any(
+            str(doc.get(k, "")).startswith("pkg://") for k in ISAAC_EGO_PATHS):
+        return path
+    for k in ISAAC_EGO_PATHS:
+        v = doc.get(k)
+        if not isinstance(v, str) or not v:
+            continue
+        if v.startswith("pkg://"):
+            doc[k] = str(config.pkg_path(v))
+        else:
+            q = Path(os.path.expandvars(v)).expanduser()
+            doc[k] = str(q if q.is_absolute() else (path.parent / q).resolve())
+    out_dir = Path(out_dir) if out_dir else path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / RESOLVED_EGO
+    out.write_text(f"# {path}, its pkg:// paths resolved by scensim (issue 057)\n"
+                   + yaml.safe_dump(doc, sort_keys=False))
+    return out
+
+
+def sim_args(project: Path, simulator: str, world: dict, isaac: dict,
+             ego_dir: Path = None) -> dict:
+    """The world server's launch arguments from ``world:`` and ``isaac:`` (``ego_dir``: where
+    an ego config with ``pkg://`` paths is written resolved, default the project's state/)."""
     out = {}
     if simulator == "carla" and (world or {}).get("world_config_file"):
         out["config_file"] = str(_path(project, world["world_config_file"]).resolve())
@@ -224,7 +262,8 @@ def sim_args(project: Path, simulator: str, world: dict, isaac: dict) -> dict:
         i = isaac or {}
         if i.get("ego"):
             e = str(i["ego"])
-            out["ego"] = e if e in ("default", "none") else str(_path(project, e).resolve())
+            out["ego"] = e if e in ("default", "none") else str(isaac_ego_config(
+                _path(project, e), ego_dir or Path(project) / "state"))
         for k in ("render", "physics_hz"):
             if i.get(k) is not None:
                 out[k] = str(i[k])

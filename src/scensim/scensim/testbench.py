@@ -61,9 +61,22 @@ def _strings(node):
             yield from _strings(v)
 
 
+ISAAC_EGO_PATHS = ("rig", "body")   # the files an aib ego config names, from its own directory
+
+
+def _isaac_ego_file(share: Path, doc):
+    """The aib ego config testbench.yaml's ``isaac.ego`` names in the package, else None."""
+    isaac = (doc or {}).get("isaac") if isinstance(doc, dict) else None
+    e = isaac.get("ego") if isinstance(isaac, dict) else None
+    if not isinstance(e, str) or e in ("default", "none") or "://" in e or os.path.isabs(e):
+        return None
+    f = Path(os.path.normpath(share / e))
+    return f if f.is_file() and str(f).startswith(os.path.normpath(share) + os.sep) else None
+
+
 def _reference_files(share: Path):
-    """``(file, its directory, document)`` for testbench.yaml and every suite: where the
-    package names other files and packages."""
+    """``(file, its directory, document)`` for testbench.yaml, every suite and the Isaac ego
+    config (issue 057): where the package names other files and packages."""
     out = []
     for f in [share / TESTBENCH_FILE] + sorted((share / "suites").glob("*.y*ml")):
         if not f.is_file():
@@ -73,6 +86,13 @@ def _reference_files(share: Path):
         except (OSError, yaml.YAMLError):
             continue   # the schema check names an unreadable file
         out.append((f, f.parent, doc))
+        if f.name == TESTBENCH_FILE:
+            ego = _isaac_ego_file(share, doc)
+            if ego is not None:
+                try:
+                    out.append((ego, ego.parent, yaml.safe_load(ego.read_text()) or {}))
+                except (OSError, yaml.YAMLError):
+                    pass   # aib names an unreadable config when it loads it
     return out
 
 
@@ -86,6 +106,8 @@ def _file_values(f: Path, doc) -> list:
     topic, e.g. a logging topic, is absolute and no path.)"""
     if not isinstance(doc, dict):
         return []
+    if f.parent.name != "suites" and f.name != TESTBENCH_FILE:   # the Isaac ego config
+        return [str(doc[k]) for k in ISAAC_EGO_PATHS if isinstance(doc.get(k), str)]
     if f.name != TESTBENCH_FILE:
         items, _ = projectmod.suite_items(doc.get("scenarios") or [])
         return [str(p) for p, _ in items] + ([str(doc["distribution"])]

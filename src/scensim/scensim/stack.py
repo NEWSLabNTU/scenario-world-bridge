@@ -791,7 +791,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         first = [str(map_path)] + [str(map_dir(project, m)) for m in preload if m != chosen]
         sim_side = {"world": ",".join(first), "ego": ego, **sim_side}
     if not server:
-        sim_side.update(worldmod.sim_args(project, sim, world, isaac))
+        try:
+            sim_side.update(worldmod.sim_args(project, sim, world, isaac, ego_dir=stack_dir))
+        except config.ConfigError as e:
+            raise StackRefused(f"isaac.ego: {e}") from None
     ego_car = cars.get(vehicle) if vehicle else None
     if server:
         pass

@@ -48,11 +48,14 @@ def test_an_unknown_launcher_is_refused():
     assert f.refused and "'roslaunch' is not one of auto, play_launch, ros2" in f.what
 
 
-def test_cyclone_dds_missing_is_refused_with_its_install():
+def test_cyclone_dds_missing_is_refused_with_its_install(monkeypatch):
     assert tools.rmw_findings(lambda: True) == []
+    monkeypatch.setenv("ROS_DISTRO", "jazzy")
     [f] = tools.rmw_findings(lambda: False)
     assert f.refused and "rmw_cyclonedds_cpp is not installed" in f.what
-    assert "ros-humble-rmw-cyclonedds-cpp" in f.fix
+    assert "ros-jazzy-rmw-cyclonedds-cpp" in f.fix
+    monkeypatch.delenv("ROS_DISTRO")
+    assert "ros-humble-rmw-cyclonedds-cpp" in tools.rmw_findings(lambda: False)[0].fix
 
 
 def test_the_version_line_parses():

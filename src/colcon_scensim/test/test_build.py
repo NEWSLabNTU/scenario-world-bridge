@@ -3,7 +3,7 @@
 package and a support package), with the plugin found only through PYTHONPATH, as scensim's
 setup.bash provides it (roadmap 081, 133's decision 7).
 
-Needs ROS 2 (/opt/ros/humble), colcon with colcon-ros, and pip; skipped without them.
+Needs ROS 2 (the sourced distro's, else /opt/ros/humble), colcon with colcon-ros, and pip; skipped without them.
 """
 import json
 import os
@@ -18,11 +18,12 @@ HERE = Path(__file__).resolve().parent
 PLUGIN = HERE.parent
 SCENSIM_SRC = PLUGIN.parent / "scensim"          # the scensim package's source, for its check
 FIXTURE = HERE / "fixtures" / "ws"
-ROS = Path("/opt/ros/humble/setup.bash")
+# the sourced distro's ROS 2 (ROS_DISTRO), Humble when none is sourced
+ROS = Path(f"/opt/ros/{os.environ.get('ROS_DISTRO') or 'humble'}/setup.bash")
 
 pytestmark = pytest.mark.skipif(
     not ROS.is_file() or shutil.which("colcon") is None,
-    reason="needs ROS 2 Humble and colcon")
+    reason=f"needs ROS 2 ({ROS}) and colcon")
 
 
 @pytest.fixture(scope="session")

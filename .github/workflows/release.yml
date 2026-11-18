@@ -3,20 +3,22 @@
 #
 #   preflight -> build-sim -> links
 #                          -> wheels -> smoke                       (stop_after: smoke, the default)
-#     -> testpypi -> testpypi-more -> testpypi-check                (stop_after: testpypi or publish)
-#     -> publish -> publish-more -> tag -> after                    (stop_after: publish, `pypi` approval)
+#     -> testpypi -> testpypi-colcon -> testpypi-scensim -> testpypi-check
+#                                                                    (stop_after: testpypi or publish)
+#     -> publish -> publish-colcon -> publish-scensim -> tag -> after (stop_after: publish)
 #
 # One GitHub environment per PyPI project (PyPI refuses a second pending trusted publisher
-# with the same repository, workflow and environment): scensim in `testpypi` and `pypi`,
-# scensim-ros-humble in `testpypi-scensim-ros-humble` and `pypi-scensim-ros-humble`,
-# colcon-scensim in `testpypi-colcon-scensim` and `pypi-colcon-scensim`. Each job uploads
-# only its own wheel. The user approves `publish` (environment `pypi`); the other two follow it.
+# with the same repository, workflow and environment), and the dependencies first, so
+# scensim never stands on an index without its pinned scensim-ros-humble:
+# scensim-ros-humble in `testpypi-scensim-ros-humble` / `pypi-scensim-ros-humble` (the
+# user's approval: `publish` waits for it), colcon-scensim in `testpypi-colcon-scensim` /
+# `pypi-colcon-scensim`, scensim in `testpypi` / `pypi`. Each job uploads only its own wheel.
 #
 # The publishing jobs run only on main, only with stop_after past smoke, and only once the
 # repository variable SCENSIM_RELEASE_ENABLED is "true": the user sets that, the six GitHub
-# environments (the user as required reviewer on `pypi` only) and the PyPI and TestPyPI
-# trusted publishers once (082, "What the user sets up once"). Until then every run stops
-# after smoke.
+# environments (the user as required reviewer on `pypi-scensim-ros-humble` only) and the
+# PyPI and TestPyPI trusted publishers once (082, "What the user sets up once"). Until then
+# every run stops after smoke.
 name: release
 
 on:
@@ -369,16 +371,17 @@ jobs:
 
   # Trusted publishing, one GitHub environment per PyPI project: PyPI refuses a second
   # pending publisher with the same (repository, workflow, environment) for another project
-  # name. scensim's job carries the plain environment (testpypi, pypi: the user's approval);
-  # the other two packages follow it in a matrix, each in its own environment, uploading only
-  # its own wheel. The wheels are the `wheels` artifact, one per package.
+  # name. Dependencies go first, so scensim never stands on an index without the
+  # scensim-ros-humble it pins: scensim-ros-humble (on PyPI the user's approval, environment
+  # pypi-scensim-ros-humble), then colcon-scensim, then scensim. Each job uploads only its
+  # own wheel, from the `wheels` artifact.
   testpypi:
     needs: [preflight, links, smoke]
     if: needs.preflight.outputs.publish_ok == 'true'
     runs-on: ubuntu-22.04
-    environment: testpypi
+    environment: testpypi-scensim-ros-humble
     permissions:
-      contents: write      # the draft GitHub Release
+      contents: write      # the GitHub Release
       id-token: write      # trusted publishing
     steps:
       - uses: actions/checkout@v4
@@ -403,21 +406,17 @@ jobs:
           gh release view "v$VERSION" >/dev/null 2>&1 \
             || gh release create "v$VERSION" --draft --target "$SHA" --title "v$VERSION" --notes-file notes.md
           gh release upload "v$VERSION" dist/*.tar.zst dist/SHA256SUMS --clobber
-      - name: scensim's wheel only
-        run: scripts/release/one_wheel.sh wheels scensim upload
+      - name: scensim-ros-humble's wheel only
+        run: scripts/release/one_wheel.sh wheels scensim-ros-humble upload
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: upload/
 
-  testpypi-more:
+  testpypi-colcon:
     needs: [preflight, testpypi]
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [scensim-ros-humble, colcon-scensim]
-    environment: testpypi-${{ matrix.package }}
+    environment: testpypi-colcon-scensim
     permissions:
       id-token: write      # trusted publishing
     steps:
@@ -426,15 +425,34 @@ jobs:
           ref: ${{ needs.preflight.outputs.sha }}
       - uses: actions/download-artifact@v4
         with: {name: wheels, path: wheels}
-      - name: ${{ matrix.package }}'s wheel only
-        run: scripts/release/one_wheel.sh wheels "${{ matrix.package }}" upload
+      - name: colcon-scensim's wheel only
+        run: scripts/release/one_wheel.sh wheels colcon-scensim upload
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: upload/
+
+  testpypi-scensim:
+    needs: [preflight, testpypi-colcon]
+    runs-on: ubuntu-22.04
+    environment: testpypi
+    permissions:
+      id-token: write      # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with: {name: wheels, path: wheels}
+      - name: scensim's wheel only
+        run: scripts/release/one_wheel.sh wheels scensim upload
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: upload/
 
   testpypi-check:
-    needs: testpypi-more
+    needs: testpypi-scensim
     runs-on: ubuntu-22.04
     steps:
       - name: Install from TestPyPI
@@ -452,10 +470,10 @@ jobs:
     needs: [preflight, testpypi-check]
     if: needs.preflight.outputs.publish_ok == 'true' && inputs.stop_after == 'publish'
     runs-on: ubuntu-22.04
-    environment: pypi        # the user's approval (required reviewer); the others follow it
+    environment: pypi-scensim-ros-humble   # the user's approval (required reviewer)
     permissions:
-      contents: write        # the release
-      id-token: write        # trusted publishing
+      contents: write      # the GitHub Release
+      id-token: write      # trusted publishing
     steps:
       - uses: actions/checkout@v4
         with:
@@ -467,36 +485,50 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "v$VERSION" --draft=false
-      - name: scensim's wheel only
-        run: scripts/release/one_wheel.sh wheels scensim upload
+      - name: scensim-ros-humble's wheel only
+        run: scripts/release/one_wheel.sh wheels scensim-ros-humble upload
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload/
 
-  publish-more:
+  publish-colcon:
     needs: [preflight, publish]
     runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        package: [scensim-ros-humble, colcon-scensim]
-    environment: pypi-${{ matrix.package }}
+    environment: pypi-colcon-scensim
     permissions:
-      id-token: write        # trusted publishing
+      id-token: write      # trusted publishing
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.preflight.outputs.sha }}
       - uses: actions/download-artifact@v4
         with: {name: wheels, path: wheels}
-      - name: ${{ matrix.package }}'s wheel only
-        run: scripts/release/one_wheel.sh wheels "${{ matrix.package }}" upload
+      - name: colcon-scensim's wheel only
+        run: scripts/release/one_wheel.sh wheels colcon-scensim upload
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: upload/
+
+  publish-scensim:
+    needs: [preflight, publish-colcon]
+    runs-on: ubuntu-22.04
+    environment: pypi
+    permissions:
+      id-token: write      # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with: {name: wheels, path: wheels}
+      - name: scensim's wheel only
+        run: scripts/release/one_wheel.sh wheels scensim upload
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload/
 
   tag:
-    needs: [preflight, publish-more]
+    needs: [preflight, publish-scensim]
     runs-on: ubuntu-22.04
     permissions:
       contents: write        # the tag

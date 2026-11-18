@@ -198,12 +198,13 @@ publishes by accident; the workflow makes the tag at the end, on the commit it b
 5. **TestPyPI**: publish the wheels to test.pypi.org, install from there on a clean
    container, and repeat step 4's first run against a draft GitHub Release holding the
    tarballs.
-6. **Approval**: the `pypi` GitHub environment requires the user's review. Nothing past this
+6. **Approval**: the `pypi-scensim-ros-humble` GitHub environment (the first upload)
+   requires the user's review. Nothing past this
    point runs without it (standing rule: publishing needs the user's word).
 7. **Publish**: the GitHub Release (from the draft, notes from `docs/release-notes.md`'s
    section), then the wheels to PyPI by trusted publishing (OIDC, no stored token), one job
-   and one environment per project (scensim first, then scensim-ros-humble and
-   colcon-scensim), then the tag pushed on the built commit once all three are up.
+   and one environment per project, dependencies first (scensim-ros-humble, colcon-scensim,
+   then scensim), then the tag pushed on the built commit once all three are up.
 8. **After**: a clean container installs `scensim` from PyPI and runs `scensim --version`
    through the real first-run download; the result goes in the run's summary.
 
@@ -220,20 +221,22 @@ published wheel ever names a missing file.
   the name. Every form takes owner `NEWSLabNTU`, repository `scensim` and workflow
   `release.yml`; the project name and environment differ:
 
-  | Index | PyPI project name | Environment name |
-  |---|---|---|
-  | PyPI | `scensim` | `pypi` |
-  | PyPI | `scensim-ros-humble` | `pypi-scensim-ros-humble` |
-  | PyPI | `colcon-scensim` | `pypi-colcon-scensim` |
-  | TestPyPI | `scensim` | `testpypi` |
-  | TestPyPI | `scensim-ros-humble` | `testpypi-scensim-ros-humble` |
-  | TestPyPI | `colcon-scensim` | `testpypi-colcon-scensim` |
+  | Index | PyPI project name | Environment name | Required reviewer | Order |
+  |---|---|---|---|---|
+  | PyPI | `scensim-ros-humble` | `pypi-scensim-ros-humble` | the user | 1 |
+  | PyPI | `colcon-scensim` | `pypi-colcon-scensim` | none | 2 |
+  | PyPI | `scensim` | `pypi` | none | 3 |
+  | TestPyPI | `scensim-ros-humble` | `testpypi-scensim-ros-humble` | none | 1 |
+  | TestPyPI | `colcon-scensim` | `testpypi-colcon-scensim` | none | 2 |
+  | TestPyPI | `scensim` | `testpypi` | none | 3 |
 
 - The same six GitHub environments in the repository (Settings, Environments), with the user
-  as required reviewer on `pypi` only. The `publish` job (scensim, environment `pypi`) waits
-  for that approval. `publish-more` uploads the other two once it has succeeded, and `tag`
-  tags the release only after all three uploads succeed. The TestPyPI jobs run in the same
-  order, without a reviewer.
+  as required reviewer on `pypi-scensim-ros-humble` only. The dependencies publish first, so
+  scensim never stands on PyPI without the scensim-ros-humble it pins: `publish`
+  (scensim-ros-humble) waits for that approval and makes the draft release public before its
+  upload, then `publish-colcon` (colcon-scensim) and `publish-scensim` (scensim) follow
+  without a reviewer, and `tag` tags the release only after all three uploads succeed. The
+  TestPyPI jobs run in the same order, without a reviewer, then install from TestPyPI.
 - The repository variable `SCENSIM_RELEASE_ENABLED` set to `true`. Until then every run
   stops after smoke.
 - GitHub-hosted runners are assumed; the SSv2 and Rust builds may need a larger runner or a

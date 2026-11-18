@@ -22,9 +22,10 @@ world:
 scensim starts `ros2 run my_world my_world_server --quality low --port <port>` in place of
 the stock server, in the ROS domain of the ego (`EGO_ROS_DOMAIN_ID`, default 1, so its own
 ROS nodes, if any, meet the vehicle side there), restarts it if it ends, and drives it over the
-world protocol on `<port>`, as it drives CARLA's and Isaac's. The other `world:` keys
-(`config_file`, `world_config_file`) configure the stock CARLA server and are refused beside
-`server`: give your server its settings as its arguments.
+world protocol on `<port>`, as it drives CARLA's and Isaac's. `world_config_file` configures
+the stock CARLA server (its `scensim_carla_world.yaml`) and is refused beside `server`: give
+your server its settings as its arguments. The bridge's keys still apply: `config_file` (its
+`bridge_config.yaml`), `weather`, `npc_motion` and `contact_report_dir`.
 
 ## Another simulator: `simulator: none`
 

@@ -8,8 +8,15 @@ A testbench names its own world server, from a package in the user's workspace, 
 
 scensim then starts that executable in place of the stock one (``scensim_carla_world`` or
 ``scensim_isaac_world``), in the stack's ego domain, and drives it over the world protocol
-on the seat's world port, as it drives the stock servers. Every other ``world:`` key is the
-stock CARLA server's and is refused beside ``server``.
+on the seat's world port, as it drives the stock servers. The stock CARLA server's own keys
+(``config_file``, ``world_config_file``) are refused beside ``server``; the bridge's
+(``weather``, ``npc_motion``, ``contact_report_dir``) still apply.
+
+The server takes its settings as its own arguments: scensim gives it none of the stock
+server's launch arguments (its state directory, the Isaac world and ego, CARLA's spec
+physics). The host's environment still reaches it (``ISAAC_ROOT`` on ``simulator: isaac``,
+``CUDA_VISIBLE_DEVICES``, the stack's ``SCENSIM_*``), and on ``simulator: carla`` the stack
+still starts CARLA for it. ``simulator: none`` starts no simulator: the server owns one.
 
 **The contract** (what such a server must do; the how-to "Your world server in a
 testbench", docs/how-to/your-world-server.md):
@@ -22,9 +29,9 @@ testbench", docs/how-to/your-world-server.md):
 - end with its parent (``lifetime.die_with_parent()``) and on SIGINT/SIGTERM;
 - pass ``scensim_world_check conformance`` (``testbench check --live`` runs it).
 
-This module holds the key's rules and the live conformance run; starting the server in the
-stack (``stack.py``, ``stack.launch.py``'s ``world_server`` argument and
-``scensim_launch``'s ``world_server.launch.py``) is wired by 241's change.
+This module holds the key's rules and the live conformance run; ``stack.py`` gives the server
+to ``stack.launch.py`` (``world_server``, ``world_server_args``), which starts it through
+``scensim_launch``'s ``world_server.launch.py``.
 """
 import os
 import re

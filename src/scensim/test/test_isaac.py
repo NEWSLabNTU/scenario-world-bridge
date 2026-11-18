@@ -45,6 +45,18 @@ def test_a_package_built_from_an_older_autoware_is_stale(tmp_path, monkeypatch):
     assert f.refused and "autoware_perception_msgs is stale: lacks msg/predicted_objects" in f.what
 
 
+def test_a_jazzy_autoware_is_read_from_its_python(tmp_path, monkeypatch):
+    """An Autoware built for Jazzy keeps its messages under python3.12, not python3.10."""
+    root, setup = fake_isaac(tmp_path, monkeypatch)
+    lib = tmp_path / "autoware" / "local" / "lib"
+    (lib / "python3.10").rename(lib / "python3.12")
+    assert isaac.findings(host_of(root, setup)) == []
+    (lib / "python3.12" / "dist-packages" / "autoware_perception_msgs" / "msg"
+     / "_predicted_objects.py").write_text("")
+    [f] = isaac.findings(host_of(root, setup))
+    assert "autoware_perception_msgs is stale: lacks msg/predicted_objects" in f.what
+
+
 def test_a_library_older_than_the_install_is_stale(tmp_path, monkeypatch):
     root, setup = fake_isaac(tmp_path, monkeypatch)
     lib = root / "msgs" / "lib" / "libautoware_control_msgs__rosidl_typesupport_c.so"

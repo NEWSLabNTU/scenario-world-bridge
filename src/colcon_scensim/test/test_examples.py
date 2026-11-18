@@ -3,7 +3,7 @@
 workspace, builds with colcon and passes `scensim testbench check` but for this host's
 findings (assets not fetched, Autoware or Isaac not installed).
 
-Needs ROS 2 (/opt/ros/humble), colcon with colcon-ros, and pip; skipped without them.
+Needs ROS 2 (the sourced distro's, else /opt/ros/humble), colcon with colcon-ros, and pip; skipped without them.
 """
 import os
 import subprocess

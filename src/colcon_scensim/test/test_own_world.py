@@ -25,7 +25,8 @@ REPO = HERE.parents[2]
 SCENSIM_SRC = REPO / "src" / "scensim"
 LAUNCH = REPO / "src" / "scensim_launch" / "launch" / "world_server.launch.py"
 FIXTURE = HERE / "fixtures" / "ws"
-ROS = Path("/opt/ros/humble/setup.bash")
+# the sourced distro's ROS 2 (ROS_DISTRO), Humble when none is sourced
+ROS = Path(f"/opt/ros/{os.environ.get('ROS_DISTRO') or 'humble'}/setup.bash")
 SHELL_PY = Path(os.environ.get("SCENSIM_WORLD_SERVER_PY",
                                REPO / "src" / "scensim_world_protocol" / "scensim_world_server"))
 CHECK = os.environ.get("SCENSIM_WORLD_CHECK")

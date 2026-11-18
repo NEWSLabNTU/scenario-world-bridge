@@ -69,13 +69,21 @@ def _modules(d: Path) -> set:
             for p in (d / k).glob("_*.py")} if d.is_dir() else set()
 
 
+def _dist_packages(prefix) -> Path:
+    """The Autoware install's Python messages: ``local/lib/python3.X/dist-packages``, X its
+    distro's Python (3.10 on Humble, 3.12 on Jazzy)."""
+    lib = Path(prefix) / "local" / "lib"
+    found = sorted(lib.glob("python3.*/dist-packages"))
+    return found[-1] if found else lib / "python3.10" / "dist-packages"
+
+
 def problems(isaac_root, prefix, packages) -> list:
     """``[(package, what)]``: each package not built in ``<isaac_root>/msgs``, or built from
     another Autoware than ``prefix`` (a message or service it lacks, or a library older than
     the install's)."""
     out = []
     msgs = Path(isaac_root) / "msgs"
-    src_root = Path(prefix) / "local" / "lib" / "python3.10" / "dist-packages"
+    src_root = _dist_packages(prefix)
     for pkg in packages:
         built = msgs / pkg
         if not (built / "__init__.py").is_file() or \

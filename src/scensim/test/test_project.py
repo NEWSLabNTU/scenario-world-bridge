@@ -511,3 +511,35 @@ def test_a_carla_only_scenario_refuses_its_runs_not_the_stack(host):
     assert not [f for f in check_stack(d) if "simulator_autopilot" in f.what]
     found = scenario_problems(d, [d / "scenarios" / "autopilot.xosc"])
     assert any("simulator_autopilot" in f.what for f in found)
+
+
+# --- issue 051 (077 G84): SSv2's frame against Isaac's physics step -----------------------------
+
+ISAAC = "simulator: isaac\nassets: []\npilots:\n  ego: {kind: simple}\n"
+
+
+def test_an_isaac_frame_rate_that_does_not_divide_physics_hz_is_refused(host):
+    from scensim import world
+    d = make(host["tmp"], ISAAC + "ssv2: {frame_rate: 100}\n")
+    [why] = [w for w in whats(scenario_checks(d)) if "isaac.physics_hz" in w]
+    assert why.startswith("ssv2.frame_rate 100 is not a whole number of isaac.physics_hz 60 "
+                          "steps per frame")
+    assert "60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2, 1" in why
+    assert "a physics_hz that is a multiple of 100" in why
+    # what fits: SSv2's default 20 on the default 60; 100 on 100, 200 or 300
+    for fits in ("", "ssv2: {frame_rate: 20}\n", "ssv2: {frame_rate: 100}\nisaac: {physics_hz: 300}\n",
+                 "ssv2: {frame_rate: 30}\nisaac: {physics_hz: 240}\n"):
+        d = make(host["tmp"], ISAAC + fits)
+        assert not [w for w in whats(scenario_checks(d)) if "isaac.physics_hz" in w], fits
+    # CARLA has no such rule
+    assert world.isaac_frame_problem({"simulator": "carla", "ssv2": {"frame_rate": 100}}) is None
+
+
+def test_a_suites_frame_rate_is_judged_against_the_projects_physics():
+    from scensim import world
+    settings = {"simulator": "isaac", "isaac": {"physics_hz": 100}}
+    assert world.isaac_frame_problem(settings, {"frame_rate": 100}) is None
+    assert world.isaac_frame_problem(settings, {"frame_rate": 50}) is None
+    why = world.isaac_frame_problem(settings, {"frame_rate": 40})
+    assert why and "isaac.physics_hz 100" in why and "100, 50, 25, 20" in why
+    assert world.frame_rate_problem(120, 60)   # shorter than one step

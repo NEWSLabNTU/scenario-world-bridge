@@ -50,6 +50,8 @@ pilots:
       launch_control_validator: false
 isaac:
   ego: config/ego_rec.yaml             # ground truth as the pose, the camera on, no lockstep
+  physics_hz: 100                      # frame_rate 100 must be whole physics steps (issue 051,
+                                       # 077 G84: on the default 60 the ego never moved)
 ssv2:
   frame_rate: 100                      # a 10 ms step: aib publishes the ground truth and the
                                        # camera once per frame (20 Hz at SSv2's default 50 ms)
@@ -66,11 +68,13 @@ logging:
     - /localization/kinematic_state
     - /localization/pose_estimator/pose_with_covariance
     - /control/command/control_cmd
+    - /control/command/gear_cmd        # G84: a car that never moves, gear asked and gear held
+    - /vehicle/status/gear_status
     - /api/operation_mode/state
     - /tf_static
   keep: {passed: standard, failed: full, error: full}
 judges:
   - name: rung_check
     run: [python3, judges/rung_check.py, --min-gt-hz, "90", --min-camera-hz, "25",
-          --speed-tol, "0.10"]
+          --speed-tol, "0.10", --speed-over-mps, "1.5"]
     timeout: 900                       # reads the whole recording, ~8 GB at the 10 m/s rung

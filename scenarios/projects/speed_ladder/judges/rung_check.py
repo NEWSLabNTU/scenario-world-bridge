@@ -9,9 +9,14 @@ simulated time):
   (90; aib publishes it every 10 ms frame);
 - camera rate: /sensing/camera/zed/image_raw images per simulated second, at least
   --min-camera-hz (25; the ZED X left camera at 30 Hz);
-- top speed: the largest /vehicle/status/velocity_status longitudinal speed, within
-  --speed-tol (0.10) of the rung, so the car reached its rung on the ring's straights and
-  did not run past it;
+- top speed: the largest /vehicle/status/velocity_status longitudinal speed, no more than
+  --speed-tol (0.10) of the rung below it (the car reached its rung on the ring's straights)
+  and no more than the larger of --speed-tol of the rung and --speed-over-mps (1.5) above it
+  (it did not run away). Above, a floor in m/s and not a fraction alone: Autoware's
+  longitudinal control overshoots by about a metre per second whatever the rung (077: +0.36
+  at rung 10 at 20 Hz, +1.2 at rung 15 at 20 Hz, +1.22 at rung 10 at 100 Hz, which is 12 %
+  of that rung; 063 recorded none), so a band of 10 % alone fails the low rungs for what is
+  the controller's settling, not the ladder's question;
 - the lap: the ground truth's last position within --finish-m (10) of the scenario's finish
   line (x 90, y 204.1, the scenario's ReachPositionCondition), after at least --min-lap-m
   (1000) driven.
@@ -20,7 +25,8 @@ Passes when all four hold; prints them with the distance driven. No recording, n
 truth or no rung is an error.
 
     python3 judges/rung_check.py [--min-gt-hz 90] [--min-camera-hz 25] [--speed-tol 0.10]
-                                 [--finish-m 10] [--min-lap-m 1000] <run dir>
+                                 [--speed-over-mps 1.5] [--finish-m 10] [--min-lap-m 1000]
+                                 <run dir>
 """
 import argparse
 import json
@@ -89,12 +95,19 @@ def rate(stamps: list, t0: float, t1: float) -> float:
     return n / (t1 - t0) if t1 > t0 else 0.0
 
 
+def speed_ok(top: float, rung: float, tol: float, over_mps: float) -> bool:
+    """The top speed reached the rung (within ``tol`` of it below) and did not run past it
+    (within the larger of ``tol`` of the rung and ``over_mps`` above)."""
+    return rung * (1 - tol) <= top <= rung + max(tol * rung, over_mps)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--min-gt-hz", type=float, default=90.0)
     ap.add_argument("--min-camera-hz", type=float, default=25.0)
     ap.add_argument("--speed-tol", type=float, default=0.10)
+    ap.add_argument("--speed-over-mps", type=float, default=1.5)
     ap.add_argument("--finish-m", type=float, default=10.0)
     ap.add_argument("--min-lap-m", type=float, default=1000.0)
     ap.add_argument("run_dir")
@@ -124,7 +137,7 @@ def main():
     checks = {
         "gt_rate": gt_hz >= a.min_gt_hz,
         "camera_rate": cam_hz >= a.min_camera_hz,
-        "top_speed": abs(top - rung) <= a.speed_tol * rung,
+        "top_speed": speed_ok(top, rung, a.speed_tol, a.speed_over_mps),
         "lap": finish <= a.finish_m and dist >= a.min_lap_m,
     }
     ok = all(checks.values())
@@ -133,7 +146,8 @@ def main():
            "sim_s": round(t1 - t0, 1), "gt_hz": round(gt_hz, 1), "camera_hz": round(cam_hz, 1),
            "finish_m": round(finish, 1), "checks": checks,
            "bounds": {"min_gt_hz": a.min_gt_hz, "min_camera_hz": a.min_camera_hz,
-                      "speed_tol": a.speed_tol, "finish_m": a.finish_m,
+                      "speed_tol": a.speed_tol, "speed_over_mps": a.speed_over_mps,
+                      "finish_m": a.finish_m,
                       "min_lap_m": a.min_lap_m},
            "message": f"rung {rung:g} m/s: top {top:.1f}, {dist:.0f} m, GT {gt_hz:.0f} Hz, "
                       f"camera {cam_hz:.1f} Hz, finish {finish:.1f} m"

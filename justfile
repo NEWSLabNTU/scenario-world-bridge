@@ -300,7 +300,7 @@ test:
     python3 -m pytest -q src/autoware_sim_vehicle/test
     # Scenario cars come from sim_vehicle_spec's catalog (roadmap 051); every other vehicle
     # named by a CARLA blueprint declares that car's measured box and axles (roadmap 050)
-    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_scenario_vehicle.py scripts/test_catalog_scenarios.py
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_scenario_vehicle.py scripts/test_catalog_scenarios.py scripts/test_speed_ladder.py
     python3 scripts/check_scenario_vehicles.py
 
 # Run CI checks: build, check (format + clippy), and tests

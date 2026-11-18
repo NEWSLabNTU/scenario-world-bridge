@@ -833,6 +833,7 @@ def check_project(path, scenarios: bool = True) -> list:
     out += on_host(toolsmod.rmw_findings())
     out += on_host(toolsmod.agent_findings(settings))
     out += on_host(assets.check(project, settings))
+    out += on_host(assets.hub_findings(project, settings))
     out += vehicle_package_problems(settings)
     missing = False
     for v in settings.get("vehicles") or []:

@@ -430,3 +430,78 @@ def test_a_dataset_the_host_keeps_is_linked_from_its_copy_and_never_locked(host,
     shutil.rmtree(copy)
     [f] = assets.check(p)
     assert f.refused and "is not a directory" in f.what
+
+
+# --- issue 050: huggingface_hub 2.x with brotli older than 1.2 ------------------------------
+
+def test_brotli_problem_names_the_mismatch_only_for_hf_2_and_old_brotli():
+    p = assets.brotli_problem("2.4.0", "1.0.9")
+    assert p == ("huggingface_hub 2.4.0 decodes the Hub's brotli responses with brotli 1.2 or "
+                 "newer, and brotli 1.0.9 is installed")
+    assert assets.brotli_problem("2.4.0", "1.1.0")
+    assert assets.brotli_problem("2.4.0", "1.2.0") is None
+    assert assets.brotli_problem("2.4.0", "1.2.1") is None
+    assert assets.brotli_problem("1.3.0", "1.0.9") is None
+    assert assets.brotli_problem("0.36.0", "1.0.9") is None
+
+
+PROBLEM = ("huggingface_hub 2.4.0 decodes the Hub's brotli responses with brotli 1.2 or newer, "
+           "and brotli 1.0.9 is installed")
+
+
+def fake_hf(monkeypatch):
+    """A huggingface_hub that fails every call as 2.4 does with brotli 1.0.9."""
+    import sys
+    import types
+    mod = types.ModuleType("huggingface_hub")
+
+    def fail(*a, **kw):
+        raise TypeError("process() takes no keyword arguments")
+
+    class HfApi:
+        list_repo_refs = dataset_info = staticmethod(fail)
+
+    mod.HfApi, mod.hf_hub_download = HfApi, fail
+    monkeypatch.setitem(sys.modules, "huggingface_hub", mod)
+    monkeypatch.setattr(assets, "brotli_problem", lambda *a: PROBLEM)
+
+
+def test_a_failing_hf_fetch_falls_back_to_https_and_says_why_once(host, maps_hub,
+                                                                  monkeypatch):
+    import io
+    fake_hf(monkeypatch)
+    err = io.StringIO()
+    hub = assets.HfHub(fallback=assets.HttpHub(maps_hub.url, retries=1), err=err)
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, hub=hub, out=lambda s: None)
+    assert (p / "assets" / "maps" / "Town01" / "lanelet2_map.osm").is_file()
+    assert lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    notes = err.getvalue().splitlines()
+    assert len(notes) == 1, notes
+    assert notes[0].startswith(f"note: huggingface_hub failed on {MAPS}")
+    assert PROBLEM in notes[0]
+    assert "fetching over plain HTTPS instead (fix: pip install 'brotli>=1.2')" in notes[0]
+    assert "check the dataset's name" not in err.getvalue()
+
+
+def test_a_missing_dataset_through_hf_is_named_by_the_https_path(host, hub, monkeypatch):
+    import io
+    fake_hf(monkeypatch)
+    hf = assets.HfHub(fallback=assets.HttpHub(hub.url, retries=1), err=io.StringIO())
+    with pytest.raises(assets.AssetError, match="HTTP 404"):
+        hf.revision("jerry73204/nowhere", "main")
+
+
+def test_the_check_warns_of_hf_2_with_old_brotli(host, maps_hub, monkeypatch):
+    p = project(host["tmp"], MAP_PROJECT)
+    settings = {"assets": [{"dataset": "carla-town-autoware-maps", "take": ["Town01"]}]}
+    monkeypatch.setattr(assets, "brotli_problem", lambda *a: "huggingface_hub 2.4.0 ... 1.0.9")
+    assert assets.hub_findings(p, settings) == []          # the host's Hub is not the public one
+    cfg = Path(os.environ["SCENSIM_CONFIG_HOME"]) / "host.yaml"
+    cfg.write_text(yaml.safe_dump({"cache": str(host["cache"])}))
+    [f] = assets.hub_findings(p, settings)
+    assert f.host and not f.refused and f.fix == "pip install 'brotli>=1.2'"
+    assert "falls back to plain HTTPS" in f.what
+    assert assets.hub_findings(p, {"assets": []}) == []     # nothing to fetch
+    monkeypatch.setattr(assets, "brotli_problem", lambda *a: None)
+    assert assets.hub_findings(p, settings) == []

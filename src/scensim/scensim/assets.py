@@ -253,32 +253,108 @@ class HttpHub:
         return out
 
 
-class HfHub:
-    """The Hub through huggingface_hub (its auth, its rate-limit handling)."""
+BROTLI_FIX = "pip install 'brotli>=1.2'"
 
-    def __init__(self):
+
+def _dist_version(name: str):
+    """An installed distribution's version, or None."""
+    try:
+        from importlib.metadata import version
+        return version(name)
+    except Exception:  # noqa: BLE001 (not installed, or no metadata)
+        return None
+
+
+def _release(v) -> tuple:
+    out = []
+    for part in str(v or "").split("."):
+        digits = "".join(c for c in part if c.isdigit()) if part[:1].isdigit() else ""
+        if not digits:
+            break
+        out.append(int(digits))
+    return tuple(out)
+
+
+def brotli_problem(hf_version=None, brotli_version=None):
+    """Why huggingface_hub cannot fetch here (issue 050), or None: huggingface_hub 2.x
+    downloads through httpx2, which asks for brotli whenever ``brotli`` imports and decodes it
+    with a keyword brotli added in 1.2 (``process() takes no keyword arguments`` before)."""
+    hf = hf_version or _dist_version("huggingface_hub")
+    if brotli_version is None:
+        brotli_version = _dist_version("brotli") or _dist_version("Brotli")
+        if brotli_version is None:
+            try:
+                import brotli
+                brotli_version = getattr(brotli, "__version__", None) or "0"
+            except ImportError:
+                return None
+    if not hf or _release(hf)[:1] < (2,) or _release(brotli_version) >= (1, 2):
+        return None
+    return (f"huggingface_hub {hf} decodes the Hub's brotli responses with brotli 1.2 or "
+            f"newer, and brotli {brotli_version} is installed")
+
+
+class HfHub:
+    """The Hub through huggingface_hub (its auth, its rate-limit handling). A call it fails
+    is made again over scensim's own HTTPS (``HttpHub``), which reports what still fails in
+    its own words (issue 050: huggingface_hub 2.x with brotli older than 1.2 fails most
+    downloads, and its error is no reason to blame the dataset)."""
+
+    def __init__(self, fallback=None, err=None):
         from huggingface_hub import HfApi
         self.api = HfApi()
+        self.fallback = fallback or HttpHub()
+        self.err = err or sys.stderr
+        self.noted = False
 
-    def _call(self, what, fn, *a, **kw):
-        try:
-            return fn(*a, **kw)
-        except Exception as e:  # huggingface_hub's errors vary by version
-            raise AssetError(f"{what}: {e} (fix: check the dataset's name and revision)") from None
+    def _note(self, what, e):
+        """Say once why huggingface_hub is bypassed: the brotli mismatch, or its own error."""
+        if self.noted:
+            return
+        self.noted = True
+        problem = brotli_problem()
+        cause = problem or f"{type(e).__name__}: {e}"
+        fix = f" (fix: {BROTLI_FIX})" if problem else ""
+        print(f"note: huggingface_hub failed on {what} ({cause}); fetching over plain HTTPS "
+              f"instead{fix}", file=self.err)
 
     def tags(self, repo):
-        refs = self._call(repo, self.api.list_repo_refs, repo, repo_type="dataset")
+        try:
+            refs = self.api.list_repo_refs(repo, repo_type="dataset")
+        except Exception as e:  # noqa: BLE001 (huggingface_hub's errors vary by version)
+            self._note(repo, e)
+            return self.fallback.tags(repo)
         return [t.name for t in refs.tags]
 
     def revision(self, repo, rev):
-        i = self._call(f"{repo}@{rev}", self.api.dataset_info, repo, revision=rev)
+        try:
+            i = self.api.dataset_info(repo, revision=rev)
+        except Exception as e:  # noqa: BLE001
+            self._note(f"{repo}@{rev}", e)
+            return self.fallback.revision(repo, rev)
         lm = i.last_modified.isoformat() if getattr(i, "last_modified", None) else None
         return RevisionInfo(i.sha, [s.rfilename for s in (i.siblings or [])], lm, rev)
 
     def download(self, repo, commit, rel, tmpd: Path) -> Path:
         from huggingface_hub import hf_hub_download
-        return Path(self._call(f"{repo}/{rel}", hf_hub_download, repo_id=repo, filename=rel,
-                               repo_type="dataset", revision=commit, local_dir=str(tmpd)))
+        try:
+            return Path(hf_hub_download(repo_id=repo, filename=rel, repo_type="dataset",
+                                        revision=commit, local_dir=str(tmpd)))
+        except Exception as e:  # noqa: BLE001
+            self._note(f"{repo}/{rel}", e)
+            return self.fallback.download(repo, commit, rel, tmpd)
+
+
+def hub_findings(project: Path, settings: dict) -> list:
+    """A host warning when this project fetches from the Hub through a huggingface_hub that
+    cannot decode its responses here (issue 050); the fetch still works, more slowly."""
+    url = (config.host_settings(project).get("hub_url") or DEFAULT_HUB).rstrip("/")
+    datasets = parse_assets(project, settings)[0]
+    problem = brotli_problem() if datasets and url == DEFAULT_HUB else None
+    if not problem:
+        return []
+    return [Finding("host", f"{problem}: `{FETCH}` falls back to plain HTTPS", BROTLI_FIX,
+                    host=True)]
 
 
 def make_hub(settings: dict):

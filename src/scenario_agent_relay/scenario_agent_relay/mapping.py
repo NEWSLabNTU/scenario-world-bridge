@@ -85,9 +85,17 @@ _PHASES = {
 }
 
 
+def given(message, key, default):
+    """``message[key]``, or ``default`` when the key is absent **or null** (issue 053): the agent
+    protocol sends a non-finite float as null, and ``dict.get``'s default does not cover a key
+    that is present with None."""
+    value = message.get(key)
+    return default if value is None else value
+
+
 def adapi_view(state) -> AdapiView:
     """Map an agent state message (or None: no agent, or a silent one) to ADAPI values."""
-    phase = P.UNAVAILABLE if state is None else state.get("phase", P.UNAVAILABLE)
+    phase = P.UNAVAILABLE if state is None else given(state, "phase", P.UNAVAILABLE)
     loc, route, mode, control, available, legacy = _PHASES[phase]
 
     fault = P.FAULT_NONE if state is None else (state.get("fault") or P.FAULT_NONE)

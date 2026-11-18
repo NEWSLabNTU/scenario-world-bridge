@@ -346,3 +346,21 @@ def test_a_connection_cannot_switch_versions(server):
     agent.send(P.heartbeat())
     assert wait_until(lambda: server.session("ego") is None)
     agent.close()
+
+
+def test_a_registration_whose_optional_fields_are_null(server):
+    """Issue 053: a key present with null takes the default, as an absent one does."""
+    agent = FakeAgent(server.port, register=False)
+    agent.send_raw(('{"v": %d, "type": "register", "entity": "ego", "agent": null, '
+                    '"capabilities": null, "spec_hash": null}\n' % P.VERSION).encode())
+    message = agent.recv()
+    if message["type"] == P.ERROR:   # the protocol refused it by name: also not a crash
+        assert server.session("ego") is None
+    else:
+        assert message["type"] == P.REGISTERED
+        commander = FakeCommander(server.port)
+        commander.send(P.query(1, "ego"))
+        reply = commander.recv()
+        assert reply["registered"] is True and "spec_hash" not in reply
+        commander.close()
+    agent.close()

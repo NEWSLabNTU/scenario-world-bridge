@@ -12,6 +12,8 @@ import time
 
 from scensim_agent import protocol as P
 
+from .mapping import given
+
 # A commander's command_for waits this long for the agent's reply unless it names its own
 # timeout, which is capped at COMMANDER_MAX_TIMEOUT.
 COMMANDER_TIMEOUT = 9.0
@@ -101,7 +103,7 @@ class AgentSession:
                     return None, "agent connection lost"
                 return None, f"agent did not reply to {name} within {timeout:.1f} s"
             reply = slot[1]
-            return reply["status"], reply.get("message", "")
+            return reply["status"], given(reply, "message", "")
         finally:
             with self._pending_lock:
                 self._pending.pop(command_id, None)
@@ -450,7 +452,7 @@ class AgentServer:
 
     # -- commanders -------------------------------------------------------------------------
     def _serve_commander(self, sock, address, message, reader, pending):
-        commander = CommanderSession(sock, address, message.get("agent", ""),
+        commander = CommanderSession(sock, address, given(message, "agent", ""),
                                      message["v"])
         with self._lock:
             self._commanders.add(commander)
@@ -515,7 +517,7 @@ class AgentServer:
         entity, name = message["entity"], message["command"]
         timeout = min(float(message.get("timeout") or COMMANDER_TIMEOUT),
                       COMMANDER_MAX_TIMEOUT)
-        status, text = self.command(entity, name, timeout, **message.get("args", {}))
+        status, text = self.command(entity, name, timeout, **given(message, "args", {}))
         if status is None:  # no agent, no answer, or the connection dropped
             status = P.FAILED
         session = self.session(entity)
@@ -538,9 +540,9 @@ class AgentServer:
 
     def _register(self, sock, address, message):
         entity = message["entity"]
-        session = AgentSession(self, sock, address, entity, message.get("agent", ""),
-                               message.get("capabilities", []), message["v"],
-                               message.get("spec_hash", ""))
+        session = AgentSession(self, sock, address, entity, given(message, "agent", ""),
+                               given(message, "capabilities", []), message["v"],
+                               given(message, "spec_hash", ""))
         with self._lock:
             previous = self._sessions.get(entity)
             self._sessions[entity] = session
@@ -573,7 +575,7 @@ class AgentServer:
 
     def _register_supervisor(self, sock, address, message):
         entity = message["entity"]
-        session = AgentSession(self, sock, address, entity, message.get("agent", ""),
+        session = AgentSession(self, sock, address, entity, given(message, "agent", ""),
                                [P.RESTART], message["v"])
         session.supervising = True
         with self._lock:

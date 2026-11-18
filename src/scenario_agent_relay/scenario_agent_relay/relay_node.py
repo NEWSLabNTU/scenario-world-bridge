@@ -373,15 +373,17 @@ def _header(stamp, frame_id):
 def _rtc_status(stamp, statuses):
     array = CooperateStatusArray(stamp=stamp)
     for s in statuses:
-        status = CooperateStatus(stamp=stamp, safe=bool(s.get("safe", False)),
-                                 requested=bool(s.get("requested", False)),
-                                 auto_mode=bool(s.get("auto_mode", False)),
-                                 start_distance=float(s.get("start_distance", 0.0)),
-                                 finish_distance=float(s.get("finish_distance", 0.0)))
-        status.module.type = M.RTC_MODULES.get(s.get("module", "NONE"), 0)
-        status.uuid.uuid = list(bytes.fromhex(s.get("uuid", "00" * 16)))
+        # a null distance is an unknown one (a non-finite float, sent as null; issue 053):
+        # inf, never 0.0, which would put the module at the vehicle
+        status = CooperateStatus(stamp=stamp, safe=bool(M.given(s, "safe", False)),
+                                 requested=bool(M.given(s, "requested", False)),
+                                 auto_mode=bool(M.given(s, "auto_mode", False)),
+                                 start_distance=float(M.given(s, "start_distance", math.inf)),
+                                 finish_distance=float(M.given(s, "finish_distance", math.inf)))
+        status.module.type = M.RTC_MODULES.get(M.given(s, "module", "NONE"), 0)
+        status.uuid.uuid = list(bytes.fromhex(M.given(s, "uuid", "00" * 16)))
         status.command_status.type = 1 if s.get("command_status") == "ACTIVATE" else 0
-        status.state.type = RTC_STATES.get(s.get("state", ""), 0)
+        status.state.type = RTC_STATES.get(M.given(s, "state", ""), 0)
         array.statuses.append(status)
     return array
 

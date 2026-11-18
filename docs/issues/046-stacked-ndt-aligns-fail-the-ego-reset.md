@@ -2,8 +2,7 @@
 
 **Severity**: high (on a loaded host, Tutorial 1 ends `error` before the ego drives:
 "Simulator waited for the Autoware state to transition to WAITING_FOR_ROUTE, but time is up.
-The current Autoware state is INITIALIZING"). **Status**: open; the fix lands after the 080
-landing, on its own branch (the rename stays free of behaviour changes). **Found**:
+The current Autoware state is INITIALIZING"). **Status**: fixed (the agent, the autoware pilot, autoware_sim_vehicle 29ee349). **Found**:
 2026-11-18, swb 241, the 080 exit runs of Tutorial 1. Investigation:
 `~/nas/home/2026-11-18 080 T1 NDT investigation (241)/REPORT.md`.
 
@@ -106,9 +105,8 @@ and `runs show` prints it. This is part of the same fix.
 - **b.** `scensim_launch`'s `autoware` pilot declares `gnss_enabled`, default false with a
   relay (a managed ego) and true in local mode, and passes it to `autoware_sim_profile`'s
   `autoware.launch.xml`. The profile's argument is 118's, on autoware_sim_vehicle branch
-  `046-gnss-enabled` (05453ca, 29ee349); a profile without it ignores the value, so this
-  branch is safe before the pin moves. The pin moves once that branch is on
-  autoware_sim_vehicle's main.
+  `046-gnss-enabled` (05453ca, 29ee349), on its main and pinned here since 518c4b6; a
+  profile without it ignores the value.
 - **c.** The agent's per-call budget is the setting `initialize_timeout`, handed to the port;
   the relay's `reset_timeout` parameter says why in its description. Both default to 120 s,
   SSv2's `initialize_duration`, so a reset that ends inside the scenario's window is not

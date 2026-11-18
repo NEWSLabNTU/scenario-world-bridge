@@ -4,6 +4,14 @@
 #   preflight -> build-sim -> links
 #                          -> wheels -> smoke                       (stop_after: smoke, the default)
 #     -> publish -> publish-colcon -> publish-scensim -> tag -> after (stop_after: publish)
+#   preflight -> publish-jazzy-placeholder                         (stop_after: jazzy-placeholder)
+#
+# jazzy-placeholder (0.1.0 only, the user's decision 2026-11-18): scensim 0.1.0 requires
+# scensim-ros-jazzy==0.1.0 on Python 3.12, so without that project on PyPI `pip install
+# scensim` on Ubuntu 24.04 fails in pip's resolver. This mode builds nothing else, makes no
+# GitHub Release and no tag: it builds pypi/scensim-ros-jazzy-placeholder's wheel, checks on
+# Python 3.12 that the published scensim installs with it and refuses by name, and uploads
+# it in the environment `pypi-scensim-ros-jazzy`.
 #
 # One GitHub environment per PyPI project (PyPI refuses a second pending trusted publisher
 # with the same repository, workflow and environment), and the dependencies first, so
@@ -31,7 +39,7 @@ on:
         required: true
         default: smoke
         type: choice
-        options: [smoke, publish]
+        options: [smoke, publish, jazzy-placeholder]
       journey:
         description: "Smoke: testbench new, colcon build, testbench list (needs a release with the testbench commands, 081)"
         required: true
@@ -83,8 +91,18 @@ jobs:
       - id: sha
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: The version
+        env:
+          STOP_AFTER: ${{ inputs.stop_after }}
         run: |
           set -euo pipefail
+          if [ "$STOP_AFTER" = jazzy-placeholder ]; then
+            # only the placeholder's version: the release itself (notes, tag) is out already
+            p=pypi/scensim-ros-jazzy-placeholder/pyproject.toml
+            have=$(python3 -c 'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["version"])' "$p" 2>/dev/null \
+                   || sed -nE 's/^version *= *"?([^"]+)"?$/\1/p' "$p" | head -1)
+            [ "$have" = "$VERSION" ] || { echo "::error file=$p::holds version '$have', not $VERSION"; exit 1; }
+            exit 0
+          fi
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-]?(a|b|rc|dev)[0-9]*)?$ ]] \
             || { echo "::error::version '$VERSION' is not N.N.N[(a|b|rc|dev)N]"; exit 1; }
           bad=0
@@ -137,6 +155,7 @@ jobs:
 
   build-sim:
     needs: preflight
+    if: inputs.stop_after != 'jazzy-placeholder'   # and with it links, wheels, smoke, publish
     runs-on: ubuntu-22.04
     timeout-minutes: 300
     container:
@@ -466,8 +485,20 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$VERSION" "$SHA" -m "scensim $VERSION"
-          git push origin "refs/tags/v$VERSION"
+          # `publish` makes the GitHub Release with --target, which creates the tag itself
+          # (run 44267937009: v0.1.0 was already at d90ac38). The tag on the built commit is
+          # the goal, made here or there; a tag on any other commit is an error.
+          at=$(git ls-remote origin "refs/tags/v$VERSION^{}" | cut -f1)
+          [ -n "$at" ] || at=$(git ls-remote origin "refs/tags/v$VERSION" | cut -f1)
+          if [ -z "$at" ]; then
+            git tag -a "v$VERSION" "$SHA" -m "scensim $VERSION"
+            git push origin "refs/tags/v$VERSION"
+          elif [ "$at" = "$SHA" ]; then
+            echo "v$VERSION is already at the built commit $SHA"
+          else
+            echo "::error::v$VERSION is at $at, not at the built commit $SHA"
+            exit 1
+          fi
 
   after:
     needs: tag
@@ -480,3 +511,33 @@ jobs:
             python3 -m pip install -q --user scensim==$VERSION colcon-scensim==$VERSION
             ~/.local/bin/scensim install && ~/.local/bin/scensim --version" | tee out.txt
           { echo '### After'; echo '```'; tail -20 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-jazzy-placeholder:
+    needs: preflight
+    if: needs.preflight.outputs.publish_ok == 'true' && inputs.stop_after == 'jazzy-placeholder'
+    runs-on: ubuntu-24.04     # Python 3.12: the scensim-ros-jazzy marker
+    environment: pypi-scensim-ros-jazzy
+    permissions:
+      id-token: write         # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - name: The placeholder's wheel
+        run: python3 -m pip wheel -q --no-deps -w upload pypi/scensim-ros-jazzy-placeholder
+      - name: The published scensim installs with it, and refuses by name
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/v
+          /tmp/v/bin/pip install -q --find-links upload "scensim==$VERSION"
+          set +e
+          HOME=$(mktemp -d) /tmp/v/bin/scensim install > out.txt 2>&1; rc=$?
+          set -e
+          cat out.txt
+          [ "$rc" = 3 ] || { echo "::error::scensim install exited $rc, not 3"; exit 1; }
+          grep -q "has no ROS 2 Jazzy release" out.txt \
+            || { echo "::error::scensim install did not name the missing Jazzy release"; exit 1; }
+          { echo '### The placeholder'; echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: upload/

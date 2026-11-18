@@ -1175,14 +1175,37 @@ dependencies = [
  "prost",
  "rclrs",
  "roxmltree",
+ "scensim_core",
+ "scensim_interfaces",
  "serde",
  "serde_json",
  "serde_yaml",
- "swb_core",
- "swb_interfaces",
  "tracing",
  "tracing-subscriber",
  "zmq",
+]
+
+[[package]]
+name = "scensim_core"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "libc",
+ "prost",
+ "prost-build",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tracing",
+ "zmq",
+]
+
+[[package]]
+name = "scensim_interfaces"
+version = "0.0.0"
+dependencies = [
+ "rosidl_runtime_rs",
 ]
 
 [[package]]
@@ -1282,29 +1305,6 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
-
-[[package]]
-name = "swb_core"
-version = "0.1.0"
-dependencies = [
- "eyre",
- "libc",
- "prost",
- "prost-build",
- "roxmltree",
- "serde",
- "serde_json",
- "serde_yaml",
- "tracing",
- "zmq",
-]
-
-[[package]]
-name = "swb_interfaces"
-version = "0.0.0"
-dependencies = [
- "rosidl_runtime_rs",
-]
 
 [[package]]
 name = "syn"
@@ -1818,7 +1818,15 @@ dependencies = [
 ]
 
 [[patch.unused]]
+name = "action_msgs"
+version = "0.0.0"
+
+[[patch.unused]]
 name = "builtin_interfaces"
+version = "0.0.0"
+
+[[patch.unused]]
+name = "example_interfaces"
 version = "0.0.0"
 
 [[patch.unused]]
@@ -1827,4 +1835,12 @@ version = "0.0.0"
 
 [[patch.unused]]
 name = "rmw_dds_common"
+version = "0.0.0"
+
+[[patch.unused]]
+name = "test_msgs"
+version = "0.0.0"
+
+[[patch.unused]]
+name = "unique_identifier_msgs"
 version = "0.0.0"

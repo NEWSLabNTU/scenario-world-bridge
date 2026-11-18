@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
 	Roadmap 032, gap A's reproducer: the 20-NPC bench as generated before 032 step 6, kept
-	below this comment as it was in scenarios/bench/town01_npc_20.xosc (only the FileHeader
+	below this comment as it was in bench/town01_npc_20.xosc (only the FileHeader
 	description and the Story name changed). Not a benchmark any more: regenerate the bench
 	with scripts/gen_npc_benchmark.py instead.
 

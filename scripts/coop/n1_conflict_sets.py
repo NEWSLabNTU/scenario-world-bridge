@@ -14,7 +14,7 @@ is what the literature reports (INTERACTION: 3.2 vehicles on average, 7 at most)
 Sources:
   arena   N2's three-car groups (arena_n traces, groups.jsonl): scenes a and b
   ssv2    SSv2 scenes whose motion the xosc fixes without an ego: the NPC-only Town01 benches
-          (scenarios/bench/town01_npc_{10,20,50}.xosc, scenarios/gap/town01_npc_shoulder.xosc).
+          (src/scensim_study_scenarios/bench/town01_npc_{10,20,50}.xosc, src/scensim_study_scenarios/gap/town01_npc_shoulder.xosc).
           Each NPC starts at its LanePosition at 8 m/s (step) and follows its lanelets on
           Town01's lanelet2 map (projected as SSv2 projects it, gen_npc_benchmark.py), taking
           the `straight` successor at a fork, else the straightest; it keeps 8 m/s, capped by
@@ -48,8 +48,8 @@ import measures as M  # noqa: E402
 SLOT = 1.0  # s
 DT = 0.1  # s, the sample step of every trajectory
 LEN, WID = 4.79, 2.163  # the Model 3's box (sim_vehicle_spec), every car here
-SSV2_SCENES = ["scenarios/bench/town01_npc_10.xosc", "scenarios/bench/town01_npc_20.xosc",
-               "scenarios/bench/town01_npc_50.xosc", "scenarios/gap/town01_npc_shoulder.xosc"]
+SSV2_SCENES = ["src/scensim_study_scenarios/bench/town01_npc_10.xosc", "src/scensim_study_scenarios/bench/town01_npc_20.xosc",
+               "src/scensim_study_scenarios/bench/town01_npc_50.xosc", "src/scensim_study_scenarios/gap/town01_npc_shoulder.xosc"]
 MAP = ROOT / "data/carla-autoware-bridge/Town01/lanelet2_map.osm"
 
 

@@ -1,5 +1,5 @@
 # The gap campaign's positive control as a suite: gap/town01_truck_pass, the declared truck
 # box on a Model 3 body (roadmap 024 step 6). Expected: SSv2 fails it on the overlap of the
 # declared boxes, the gap oracle signs C1:vehicle:ssv2 (overlap only in SSv2).
-scenarios: [../../gap/town01_truck_pass.xosc]
+scenarios: [pkg://scensim_study_scenarios/gap/town01_truck_pass.xosc]
 expect: {town01_truck_pass.xosc: failed}

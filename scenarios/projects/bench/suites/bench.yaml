@@ -3,9 +3,9 @@
 # (10), 1.36/1.79 ms (20), 3.24/4.19 ms (50), about 0.065 ms per NPC; tick p95 1.89, 2.99,
 # 5.06 ms. The frame_budget judge holds every run to 016's 10 ms.
 scenarios:
-  - ../../bench/town01_npc_10.xosc
-  - ../../bench/town01_npc_20.xosc
-  - ../../bench/town01_npc_50.xosc
+  - pkg://scensim_study_scenarios/bench/town01_npc_10.xosc
+  - pkg://scensim_study_scenarios/bench/town01_npc_20.xosc
+  - pkg://scensim_study_scenarios/bench/town01_npc_50.xosc
 # SSv2 alone paced 050's 20-NPC run at about 370 ms a frame on a loaded host (60 s of
 # simulation in about 7.5 min): past the 400 s default, which cut 050's bench short.
 ssv2: {global_timeout: 1200}

@@ -1,4 +1,4 @@
-# gap: the gap scenarios (scenarios/gap/) as a regression project (roadmap 077 step 4,
+# gap: the gap scenarios (scensim_study_scenarios' gap/) as a regression project (roadmap 077 step 4,
 # inventory item 12). Each run is judged three ways: SSv2's verdict, CARLA's own contacts
 # (physical_verdict) and the gap oracle on the bridge's trace of both worlds. The scenarios
 # stay where they are; the suite names them.
@@ -18,3 +18,4 @@ judges:
   - name: gap
     run: [python3, -m, scensim.gap, oracle]
     needs: [gap_trace]
+default: gap   # the suite `scensim run gap` runs

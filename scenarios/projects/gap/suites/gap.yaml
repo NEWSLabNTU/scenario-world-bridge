@@ -8,10 +8,10 @@
 #   (G1 at frames 179-238, penetration 2.30 m): the gap judge's `failed` is the expected
 #   result there.
 scenarios:
-  - ../../gap/town01_entity_bodies.xosc
-  - ../../gap/town01_motorbike_body.xosc
-  - ../../gap/town01_npc_shoulder.xosc
-  - ../../gap/town01_truck_pass.xosc
+  - pkg://scensim_study_scenarios/gap/town01_entity_bodies.xosc
+  - pkg://scensim_study_scenarios/gap/town01_motorbike_body.xosc
+  - pkg://scensim_study_scenarios/gap/town01_npc_shoulder.xosc
+  - pkg://scensim_study_scenarios/gap/town01_truck_pass.xosc
 repetitions: 2
 retry: {on: error, times: 1}
 expect: {town01_truck_pass.xosc: failed}

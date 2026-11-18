@@ -21,7 +21,7 @@ MIN_LANE_WIDTH wide (roadmap 032: lanelet 12083 is tagged `road` but is CARLA's 
 shoulder), near its centre, with no level obstacle within CLEARANCE.
 
 Usage:
-    scripts/gen_npc_benchmark.py --carla-port 2000   # writes scenarios/bench/town01_npc_{10,20,50}.xosc
+    scripts/gen_npc_benchmark.py --carla-port 2000   # writes src/scensim_study_scenarios/bench/town01_npc_{10,20,50}.xosc
     scripts/gen_npc_benchmark.py --carla-port 2000 --counts 20   # the one 024/032 judge
     scripts/gen_npc_benchmark.py --counts 5 100 --out /tmp/bench
 """
@@ -38,7 +38,7 @@ import scenario_vehicle  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 MAP = ROOT / "data/carla-autoware-bridge/Town01/lanelet2_map.osm"
-DEFAULT_OUT = ROOT / "scenarios/bench"
+DEFAULT_OUT = ROOT / "src/scensim_study_scenarios/bench"
 
 DURATION_S = 60
 SPEED_MPS = 8.0

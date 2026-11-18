@@ -151,13 +151,13 @@ for g in "${groups[@]}"; do
                 run "$s" "$basic/$s.xosc"
             done
             for s in town01_entity_bodies town01_motorbike_body town01_npc_shoulder town01_truck_pass; do
-                run "gap_$s" "scenarios/gap/$s.xosc"
+                run "gap_$s" "src/scensim_study_scenarios/gap/$s.xosc"
             done
             ;;
         truck)
             stack_pid $((web + 2)) > /dev/null || start_ego default
             for i in 1 2 3 4; do
-                run "gap_town01_truck_pass_$i" scenarios/gap/town01_truck_pass.xosc
+                run "gap_town01_truck_pass_$i" src/scensim_study_scenarios/gap/town01_truck_pass.xosc
             done
             ;;
         two_av)
@@ -178,7 +178,7 @@ for g in "${groups[@]}"; do
             stop_stack $((web + 2))
             # No ego: `just scenario-direct` starts no ego stack for it. SSv2 alone takes ~370 ms a
             # frame with 20 NPCs here, so 60 s of simulation is ~7.5 min: past the 400 s cap.
-            run bench_town01_npc_20 scenarios/bench/town01_npc_20.xosc global_timeout:=1200
+            run bench_town01_npc_20 src/scensim_study_scenarios/bench/town01_npc_20.xosc global_timeout:=1200
             ;;
         *) say "unknown group $g"; exit 2 ;;
     esac

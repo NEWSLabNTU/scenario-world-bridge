@@ -24,3 +24,4 @@ judges:
   - name: gap
     run: [python3, -m, scensim.gap, oracle, --fail-on, never]
     needs: [gap_trace]
+default: positive_control   # the suite `scensim run gap_campaign` runs

@@ -177,7 +177,7 @@ sides need no shared domain. Details: [architecture](design/architecture.md),
   kept apart from the CARLA calls so it can be tested without a server.
 - **Live runs**: `just scenario <file>` (the project workflow, its stack started for it),
   or `just run` (with its ego), then `just scenario-direct <file>` or `ros2 run scensim_launch
-  run_suite <dir> --physical-verdict`. The starter scenarios are the regression set; `scenarios/gap/` holds reproducers for fixed SSv2-vs-CARLA disagreements.
+  run_suite <dir> --physical-verdict`. The starter scenarios are the regression set; `src/scensim_study_scenarios/gap/` holds reproducers for fixed SSv2-vs-CARLA disagreements.
 - Before trusting a surprising measurement, check the running binaries against the source
   (`ls -l install/.../acb_bridge`, `/proc/<pid>/cmdline`) and the host's load (`uptime`):
   stale builds and other users' jobs have both looked like regressions here.

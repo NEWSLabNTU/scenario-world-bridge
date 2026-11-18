@@ -74,7 +74,7 @@ def test_registers_v2_with_its_capabilities(relay, agent_client):
 def test_reset_round_trip_and_state_before_reply(relay, agent_client):
     agent, _ = agent_client
     agent.report(P.DRIVING)
-    assert wait_until(lambda: relay.session("ego").state["phase"] == P.DRIVING)
+    assert wait_until(lambda: (relay.session("ego").state or {}).get("phase") == P.DRIVING)
     status, _ = relay.command("ego", P.RESET, 5.0, episode="e1", pose=POSE)
     assert status == P.OK and agent.calls == [("reset", "e1")]
     # The ordering rule: the state the command produced arrived before the reply.

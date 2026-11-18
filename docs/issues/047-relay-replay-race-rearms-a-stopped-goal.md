@@ -82,3 +82,13 @@ or `EPISODE_END` that clears the standing commands races the same way.
 - Tests (`test_replay.py`): the race held open deterministically through the
   `_before_note` test hook (a STOP noted while the replay thread waits to note its goal), a
   goal cleared before the re-registered agent reports, and the note order on its own.
+
+## Found on the way: a test that reads a state before the first one arrives
+
+Running the relay tests 24 times for the fix, one run failed in
+`test_sdk_client.py::test_reset_round_trip_and_state_before_reply` with
+`TypeError: 'NoneType' object is not subscriptable`: its `wait_until` polls
+`relay.session("ego").state["phase"]`, and `session.state` is None until the agent's first
+state arrives, so a poll that comes first raises instead of waiting. A test-only race, not the
+relay's; the polls in `test_sdk_client.py` and `test_episodes.py` now read
+`(state or {}).get("phase")`.

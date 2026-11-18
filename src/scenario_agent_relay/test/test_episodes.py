@@ -89,10 +89,10 @@ def test_a_slow_reset_answers_ok_then_goes_on_and_a_retry_joins_it(relay):
     status, message = episodes.initialize("ego", POSE, reply_window=0.3)
     assert status == P.OK and "in progress" in message
     # Meanwhile the agent shows INITIALIZING, which holds the concealer.
-    assert wait_until(lambda: relay.session("ego").state["phase"] == P.INITIALIZING)
+    assert wait_until(lambda: (relay.session("ego").state or {}).get("phase") == P.INITIALIZING)
     status, _ = episodes.initialize("ego", POSE, reply_window=3.0)  # the concealer's retry
     assert status == P.OK and len(agent.resets) == 1
-    assert wait_until(lambda: relay.session("ego").state["phase"] == P.IDLE)
+    assert wait_until(lambda: (relay.session("ego").state or {}).get("phase") == P.IDLE)
     client.stop()
 
 

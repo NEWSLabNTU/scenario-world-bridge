@@ -64,28 +64,52 @@ def test_side_args_reach_the_bridge(tmp_path):
         "WetNoon", "kinematic", "/p/state")
 
 
+def fake_isaac_root(tmp_path):
+    """What the Isaac world launch checks of ISAAC_ROOT before the node starts (its
+    ISAAC_INSTALL list), as empty files: the dump runs without Isaac Sim, as
+    scensim_isaac_world's own test_installed.py does."""
+    root = tmp_path / "isaac"
+    for need in ("venv/bin/activate", "venv/lib/python3.12/site-packages/isaacsim"):
+        (root / need).parent.mkdir(parents=True, exist_ok=True)
+        (root / need).touch()
+    return str(root)
+
+
 @needs_play_launch
 def test_isaac_options_reach_the_world_server(tmp_path):
-    """G6: isaac: in testbench.yaml becomes these sim_args (scensim.world.sim_args)."""
+    """G6: isaac: in testbench.yaml becomes these sim_args (scensim.world.sim_args).
+
+    The launch refuses, before the node exists, an ISAAC_ROOT that is not an Isaac install, an
+    ego file or a world entry that does not exist: so the test makes each of them, in tmp_path,
+    and needs neither Isaac Sim nor the host's settings."""
     if not have_package("scensim_isaac_world"):
         pytest.skip("scensim_isaac_world not installed")
     from ament_index_python.packages import get_package_share_directory
     launch = os.path.join(get_package_share_directory("scensim_isaac_world"), "launch",
                           "scensim_isaac_world.launch.xml")
+    ego = tmp_path / "ego.yaml"
+    ego.write_text("{}\n")
+    town01, town05 = tmp_path / "maps" / "Town01", tmp_path / "maps" / "Town05"
+    town01.mkdir(parents=True)
+    town05.mkdir(parents=True)
+    state = tmp_path / "state"
+    # this host's settings stay out of it: a fake Isaac install, no renamed SWB_ variables
+    env = {k: v for k, v in os.environ.items() if not k.startswith("SWB_")}
+    env["ISAAC_ROOT"] = fake_isaac_root(tmp_path)
     out = tmp_path / "model.yaml"
     p = subprocess.run(["play_launch", "dump", "-o", str(out), "launch", launch,
-                        "ego:=/p/ego.yaml", "world:=/m/Town01,/m/Town05", "render:=headless",
+                        f"ego:={ego}", f"world:={town01},{town05}", "render:=headless",
                         "follow:=editor", "physics_hz:=240", "wheels_topic:=false",
-                        "state_dir:=/p/state"],
-                       capture_output=True, text=True, timeout=600, cwd=str(tmp_path))
+                        f"state_dir:={state}"],
+                       capture_output=True, text=True, timeout=600, cwd=str(tmp_path), env=env)
     assert p.returncode == 0, p.stderr[-2000:]
     [server] = list(nodes(yaml.safe_load(out.read_text())).values())
     args = server["args"]
     pairs = dict(zip(args, args[1:]))
-    assert pairs["--ego"] == "/p/ego.yaml" and pairs["--world"] == "/m/Town01,/m/Town05"
+    assert pairs["--ego"] == str(ego) and pairs["--world"] == f"{town01},{town05}"
     assert (pairs["--render"], pairs["--follow"], pairs["--physics-hz"],
             pairs["--wheels-topic"]) == ("headless", "editor", "240", "false")
-    assert "--state-dir=/p/state" in args
+    assert f"--state-dir={state}" in args
 
 
 @needs_play_launch

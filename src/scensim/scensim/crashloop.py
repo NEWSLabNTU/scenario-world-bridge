@@ -22,22 +22,31 @@ cannot even parse exits 1 at once, again and again) and for the nested launches'
 directories under the stack's ``proc/`` (the world server, the bridge, the relay).
 
 Every exit counts (an exit code or a signal: 1, 139, -11 alike), since the stack is not ready
-yet: nothing it runs has been healthy. ``LIMIT`` (5) exits of one node end the start, naming
-the node, how it exited, its last stderr line and, when Kit wrote one, its crash dump.
+yet: nothing it runs has been healthy. ``ended`` ends the start at the first exit of any node,
+exit 0 too (issue 052: Kit exits 0 after a Python error in the Isaac world server, so ros2
+launch says "finished cleanly"), naming the node, how it exited, its last lines and, when Kit
+wrote one, its crash dump. Only ``RESTART_CODES`` (75, the CARLA world server's restart after a
+hung or vanished CARLA, which a start that brings CARLA up can meet) are left to ``looping``,
+which ends the start at ``LIMIT`` (5) exits of one node.
 """
+import collections
 import re
 import signal
 from pathlib import Path
 
-LIMIT = 5   # a stack node's exits before the stack is ready, before `scensim run` gives up
+LIMIT = 5   # a stack node's restart exits before the stack is ready, before `scensim run` gives up
+RESTART_CODES = (75,)   # EX_TEMPFAIL: a world server asking to be started again (scensim_carla_world)
+TAIL = 6    # lines of a node's output a message shows
 SIDES = ("simulator", "bridge")   # stack.launch.py's nested launches under the stack's proc/
 
-_PL_EXITED = re.compile(r"\[node:/?([^\]]+)\] Exited (?:with code (-?\d+)|without code)")
+_PL_EXITED = re.compile(r"\[node:/?([^\]]+)\] Exited (?:with code (-?\d+)|without code|"
+                        r"(successfully))")
 _PL_STATE = re.compile(r'State event: Exited \{ name: "node:/?([^"]+)", exit_code: '
                        r'(?:Some\((-?\d+)\)|None), signal: (?:Some\((\d+)\)|None)')
 _ERRORISH = re.compile(r"error|Error|ERROR|Traceback|FATAL|fatal|Segmentation|Abort|refused")
 _R2_DIED = re.compile(r"^\[ERROR\] \[([^\]\s]+-\d+)\]: process has died \[pid \d+, "
                       r"exit code (-?\d+)")
+_R2_CLEAN = re.compile(r"^\[INFO\] \[([^\]\s]+-\d+)\]: process has finished cleanly")
 _R2_SHUTDOWN = re.compile(r"^\[(?:INFO|WARNING|ERROR)\] \[launch\]: (?:user interrupted with "
                           r"ctrl-c|.*\bshutting down\b)")
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -61,6 +70,10 @@ def _signame(n: int) -> str:
         return signal.Signals(n).name
     except ValueError:
         return f"signal {n}"
+
+
+def _tail_lines(text: str, n: int = TAIL) -> list:
+    return [x.rstrip() for x in _ANSI.sub("", text).splitlines() if x.strip()][-n:]
 
 
 def _last_line(text: str) -> str:
@@ -103,7 +116,7 @@ def _play_launch(launch_dir: Path) -> list:
             name = m.group(1)
             seen[name] = k = seen.get(name, 0) + 1
             sig = None
-            if m.group(2) is None:
+            if m.group(2) is None and m.group(3) is None:
                 nocode[name] = j = nocode.get(name, 0) + 1
                 sigs = signals.get(name, [])
                 sig = sigs[j - 1] if j <= len(sigs) else None
@@ -112,30 +125,39 @@ def _play_launch(launch_dir: Path) -> list:
             # then (the last exit) it is still `err`
             suffix = f".{k}" if (node_dir / f"err.{k}").exists() else ""
             err = _read(node_dir / f"err{suffix}")
-            out.append({"node": name, "code": int(m.group(2)) if m.group(2) else None,
+            out_text = _read(node_dir / f"out{suffix}")
+            code = int(m.group(2)) if m.group(2) else (0 if m.group(3) else None)
+            out.append({"node": name, "code": code,
                         "signal": sig, "last": _last_line(err),
-                        "dump": _dump(err + _read(node_dir / f"out{suffix}")),
+                        "tail": _tail_lines(err) or _tail_lines(out_text),
+                        "dump": _dump(err + out_text),
                         "log": str(node_dir / f"err{suffix}")})
     return out
 
 
 def _ros2(console: Path) -> list:
-    out, last, dumps = [], {}, {}
+    out, last, dumps, tails = [], {}, {}, {}
     for line in _ANSI.sub("", _read(console)).splitlines():
         if _R2_SHUTDOWN.match(line):
             break   # the stop's deaths, not the node's
-        m = _R2_DIED.match(line)
+        m = _R2_DIED.match(line) or _R2_CLEAN.match(line)
         if m:
             name = m.group(1)
-            out.append({"node": re.sub(r"-\d+$", "", name), "code": int(m.group(2)),
+            code = int(m.group(2)) if m.re is _R2_DIED else 0
+            out.append({"node": re.sub(r"-\d+$", "", name), "code": code,
                         "signal": None, "last": last.get(name, ""),
+                        "tail": list(tails.get(name, [])),
                         "dump": dumps.get(name, ""), "log": str(console)})
+            tails.pop(name, None)
             continue
         if line.startswith("["):
             name, _, rest = line[1:].partition("] ")
             if rest and re.fullmatch(r"\S+-\d+", name):
                 if rest.strip():
-                    last[name] = rest.strip()
+                    tails.setdefault(name, collections.deque(maxlen=TAIL)).append(rest.rstrip())
+                    if _ERRORISH.search(rest) or name not in last or \
+                            not _ERRORISH.search(last[name]):
+                        last[name] = rest.strip()
                 d = _dump(rest)
                 if d:
                     dumps[name] = d
@@ -154,6 +176,25 @@ def exits(proc: Path = None, launch_dir: Path = None) -> list:
         if (d / "console.log").is_file():
             out += _ros2(d / "console.log")
     return out
+
+
+def ended(proc: Path = None, launch_dir: Path = None):
+    """The message for the first exit of a stack node before the stack is ready, else None:
+    any exit but a restart (``RESTART_CODES``), exit 0 too (issue 052)."""
+    for e in exits(proc, launch_dir):
+        if e["signal"] is None and e["code"] in RESTART_CODES:
+            continue
+        msg = f"stack node {e['node']} {how(e['code'], e['signal'])} during the stack's start"
+        if e["code"] == 0 and e["signal"] is None:
+            msg += " (nothing in the stack ends before it is ready)"
+        if e.get("tail"):
+            msg += "; its last lines:\n    " + "\n    ".join(e["tail"])
+        elif e["last"]:
+            msg += f"; its last line: {e['last']}"
+        if e["dump"]:
+            msg += f"\n  crash dump in {e['dump']}"
+        return msg + f"\n  ({e['log']})"
+    return None
 
 
 def looping(proc: Path = None, limit: int = LIMIT, launch_dir: Path = None):

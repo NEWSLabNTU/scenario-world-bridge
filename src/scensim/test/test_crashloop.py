@@ -125,7 +125,7 @@ def test_wait_started_ends_on_a_crash_loop(tmp_path, monkeypatch):
     """`scensim run`'s wait for a stack it started: a crash loop ends it at once, not at the
     timeout ("not ready within 1800 s (starting)", 118)."""
     proc = tmp_path / "stack" / "proc"
-    play_launch_side(proc, "scensim_isaac_world", [(1,)] * 5, ["boom"] * 5)
+    play_launch_side(proc, "scensim_carla_world", [(75,)] * 5, ["CARLA hung"] * 5)
 
     class P:
         def poll(self):
@@ -134,5 +134,94 @@ def test_wait_started_ends_on_a_crash_loop(tmp_path, monkeypatch):
     started = run.StartedStack(proc=P(), argv=[], log=tmp_path / "console.log", seat=0)
     monkeypatch.setattr(run, "find_stack", lambda project, h: {"state": "starting",
                                                                 "proc": str(proc)})
-    with pytest.raises(run.StackFailed, match="scensim_isaac_world exited 1 5 times"):
+    with pytest.raises(run.StackFailed, match="scensim_carla_world exited 75 5 times"):
         run.wait_started(started, tmp_path, {"logs": str(tmp_path)}, timeout=30)
+
+
+# --- issue 052: any exit during the start ends it at once, exit 0 too -------------------------
+
+KIT_CLEAN = ["Traceback (most recent call last):",
+             "ImportError: cannot import name 'step_rate' from 'scensim_isaac_world'",
+             "SimulationApp.close() was not called explicitly. Shutting down automatically"]
+
+
+def test_ros2_launch_a_clean_exit_ends_the_start_with_its_last_lines(tmp_path):
+    """run A (2026-11-18): Kit exits 0 after the world server's ImportError."""
+    side = tmp_path / "simulator"
+    side.mkdir()
+    lines = ["[INFO] [launch]: All log files can be found below /x",
+             "[INFO] [scensim_isaac_world_server-1]: process started with pid [10]"]
+    lines += [f"[scensim_isaac_world_server-1] {x}" for x in KIT_CLEAN]
+    lines += ["[INFO] [scensim_isaac_world_server-1]: process has finished cleanly [pid 10]"]
+    (side / "console.log").write_text("\n".join(lines) + "\n")
+    assert crashloop.looping(tmp_path) is None     # one exit is no loop
+    msg = crashloop.ended(tmp_path)
+    assert msg.startswith("stack node scensim_isaac_world_server exited 0 during the stack's "
+                          "start")
+    assert "ImportError: cannot import name 'step_rate'" in msg
+    assert "Shutting down automatically" in msg
+    assert str(side / "console.log") in msg
+
+
+def test_ros2_launch_exits_after_the_stop_do_not_end_the_start(tmp_path):
+    side = tmp_path / "bridge"
+    side.mkdir()
+    (side / "console.log").write_text(
+        "[INFO] [launch]: user interrupted with ctrl-c (SIGINT)\n"
+        "[INFO] [scenario_world_bridge-1]: process has finished cleanly [pid 10]\n")
+    assert crashloop.ended(tmp_path) is None
+
+
+def test_play_launch_a_successful_exit_ends_the_start(tmp_path):
+    d = tmp_path / "simulator" / PL
+    (d / "node" / "scensim_isaac_world").mkdir(parents=True)
+    (d / "play_launch.log").write_text(
+        "2026-11-18T05:10:01.000000Z  INFO play_launch::member_actor::regular_node_actor: "
+        "[node:/scensim_isaac_world] Exited successfully\n")
+    (d / "node" / "scensim_isaac_world" / "err").write_text("\n".join(KIT_CLEAN) + "\n")
+    msg = crashloop.ended(tmp_path)
+    assert msg.startswith("stack node scensim_isaac_world exited 0 during the stack's start")
+    assert "ImportError" in msg
+
+
+def test_a_restart_exit_is_left_to_the_limit(tmp_path):
+    """The CARLA world server's 75 (restart after a hung CARLA) may happen while CARLA starts."""
+    play_launch_side(tmp_path, "scensim_carla_world", [(75,)] * 4, ["CARLA hung"] * 4)
+    assert crashloop.ended(tmp_path) is None
+    assert crashloop.looping(tmp_path) is None
+    with open(tmp_path / "simulator" / PL / "play_launch.log", "a") as f:
+        f.write(pl_exit("scensim_carla_world", 1))
+    assert crashloop.ended(tmp_path).startswith("stack node scensim_carla_world exited 1 during")
+
+
+@pytest.mark.parametrize("server", ["scensim_isaac_world_server", "scensim_carla_world"])
+def test_wait_started_ends_at_once_on_a_world_server_that_exits_0(tmp_path, monkeypatch, server):
+    """A stub world server that ends cleanly while the stack starts: `wait_started` fails in
+    seconds, naming it, not at the timeout (issue 052)."""
+    proc = tmp_path / "stack" / "proc"
+    side = proc / "simulator"
+    side.mkdir(parents=True)
+    import subprocess
+    import sys
+    # the stub: a world server that prints its error and ends with 0, as Kit does
+    stub = subprocess.run([sys.executable, "-c",
+                           "print(\"ImportError: stub world server cannot start\"); "
+                           "raise SystemExit(0)"], capture_output=True, text=True)
+    assert stub.returncode == 0
+    lines = [f"[{server}-1] {x}" for x in stub.stdout.splitlines()]
+    lines += [f"[INFO] [{server}-1]: process has finished cleanly [pid 10]"]
+    (side / "console.log").write_text("\n".join(lines) + "\n")
+
+    class P:
+        def poll(self):
+            return None
+
+    started = run.StartedStack(proc=P(), argv=[], log=tmp_path / "console.log", seat=0)
+    monkeypatch.setattr(run, "find_stack", lambda project, h: {"state": "starting",
+                                                                "proc": str(proc)})
+    import time
+    t0 = time.time()
+    with pytest.raises(run.StackFailed, match=f"{server} exited 0 during the stack's start") as e:
+        run.wait_started(started, tmp_path, {"logs": str(tmp_path)}, timeout=60)
+    assert time.time() - t0 < 5
+    assert "ImportError: stub world server cannot start" in str(e.value)

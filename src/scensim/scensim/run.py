@@ -487,8 +487,11 @@ def wait_started(started: StartedStack, project: Path, host: dict, timeout: floa
         if time.time() >= next_loop:
             # a required node respawned without end is no slow start (077 G77): the stack's
             # own launch (its nested sides) and, once it has a record, each side's nodes
-            loop = crashloop.looping(Path(rec["proc"]) if rec and rec.get("proc") else None,
-                                     launch_dir=Path(started.log).parent)
+            proc = Path(rec["proc"]) if rec and rec.get("proc") else None
+            # a node that ends at all before the stack is ready ends the start (issue 052),
+            # and one that keeps asking to be restarted does too, at its LIMIT
+            loop = crashloop.ended(proc, launch_dir=Path(started.log).parent) or \
+                crashloop.looping(proc, launch_dir=Path(started.log).parent)
             if loop:
                 raise StackFailed(f"the stack's start is ended: {loop}; {started.log}")
             next_loop = time.time() + 2.0

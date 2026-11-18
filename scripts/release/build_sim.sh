@@ -51,6 +51,7 @@ SIM_PACKAGES=(scenario_world_bridge scenario_agent_relay scensim scensim_launch
     scensim_interfaces scensim_examples scensim_carla_world scensim_isaac_world
     scensim_world_check scenario_test_runner
     colcon-scensim  # colcon's scensim_testbench build type (081): no ROS package depends on it
+    coop_pilots     # scripts/coop as data, for the coop study testbenches (081 step 4, group C)
     # SSv2 loads its entity behaviours with pluginlib at run time; nothing depends on them
     behavior_tree_plugin do_nothing_plugin
     # the vehicle side every non-Autoware pilot on CARLA starts (133, 2026-11-18): acb's

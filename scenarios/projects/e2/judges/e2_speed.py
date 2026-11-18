@@ -23,7 +23,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[3] / "scripts" / "coop"))
+sys.path.insert(0, str(HERE.parent))
+from coop_pilots_dir import coop_dir  # noqa: E402
+sys.path.insert(0, str(coop_dir()))
 
 REFERENCE = {
     "lane_change": {"lane_change_start_s": 4.075, "lane_change_duration_s": 4.825},

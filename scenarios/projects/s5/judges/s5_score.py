@@ -20,8 +20,9 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[3] / "scripts" / "coop"))
 sys.path.insert(0, str(HERE.parent))
+from coop_pilots_dir import coop_dir  # noqa: E402
+sys.path.insert(0, str(coop_dir()))
 import make_scenarios  # noqa: E402
 import s5_aw  # noqa: E402
 

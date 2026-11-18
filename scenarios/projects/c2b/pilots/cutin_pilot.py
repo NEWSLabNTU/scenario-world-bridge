@@ -17,9 +17,10 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
-COOP = HERE.parents[3] / "scripts" / "coop"
-sys.path.insert(0, str(COOP))
 sys.path.insert(0, str(HERE.parent))
+from coop_pilots_dir import coop_dir  # noqa: E402
+COOP = coop_dir()
+sys.path.insert(0, str(COOP))
 import c2b  # noqa: E402
 import make_scenarios  # noqa: E402
 

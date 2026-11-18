@@ -19,3 +19,4 @@ judges:
     run: [python3, judges/c2b_score.py]
   - name: physical_verdict
     run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+default: c2b   # the suite `scensim run c2b` runs

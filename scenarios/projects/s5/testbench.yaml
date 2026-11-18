@@ -27,3 +27,4 @@ judges:
     run: [python3, judges/s5_score.py]
   - name: physical_verdict
     run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+default: s5   # the suite `scensim run s5` runs

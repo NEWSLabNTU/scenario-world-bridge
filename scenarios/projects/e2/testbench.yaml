@@ -24,3 +24,4 @@ judges:
     needs: [gap_trace]
   - name: physical_verdict
     run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+default: e2   # the suite `scensim run e2` runs

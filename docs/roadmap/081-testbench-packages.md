@@ -149,6 +149,9 @@ Each step is pushed after review, with its tests.
    become testbench packages as in the table; `coop_pilots`; the stale locks refreshed;
    t3.yaml follows (the T3 references keep their keys); the private ones moved to the
    user's private repository.
+   `coop_pilots` landed (2026-11-19) as scripts/coop installed as data
+   (`share/coop_pilots/coop`, on the testbenches' sys.path); a Python package
+   (`from coop_pilots import ...`, its 15 modules moved) replaces it once roadmap 078 settles.
 5. **A world server from a support package**: `world: {server: ...}`, the conformance check,
    a fixture world-server package, a how-to.
 6. **Docs for users** (243): the tutorials on a testbench workspace; a reference page for

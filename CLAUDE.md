@@ -117,7 +117,8 @@ measured per map as `# breakaway_pedal:` in accel_map.csv); acb raises a start f
 ├── src/scensim_launch/         # simulation launches (carla_, isaac_), scenario, ego and
 │                               #   background-AV launches, run_suite, gap oracle
 ├── src/scensim_examples/       # Starter scenarios (basic/, multi_av/, awf/); vehicles from the catalog
-├── scenarios/                  # Benchmark scenarios (bench/), goal-pose files
+├── src/scensim_study_scenarios/  # the studies' shared scenarios (bench/, gap/)
+├── scenarios/                  # study testbenches (projects/), goal-pose files
 ├── third_party/cuda_ndt_matcher/  # submodule: NEWSLabNTU's GPU NDT, built on its own (`just
 │                               #   build-cuda-ndt`; CUDA 12.x or 13.x, CUDA_PATH picks one), sourced
 │                               #   by the ego recipes; the profile's ndt:=cuda runs it

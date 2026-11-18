@@ -118,7 +118,9 @@ and each one's `just vehicle-check` (the car's contract and dynamics, no Autowar
 Each component builds on its own against its `deps/` submodules (`git submodule update
 --init --recursive` in it, then its `just build`); `deps/` holds a `COLCON_IGNORE`, so a colcon
 run here never sees a second copy. `just test` here fails when a component's `deps/<repo>` pin
-is not the same as, or an ancestor of, this repository's pin of that repository.
+is not the same commit as this repository's pin of that repository (exact equality, not
+ancestry: `scripts/check_pins.py`). So a pin moved here moves every component's `deps/` pin of
+that repository too, each pushed to the component's main first, or preflight fails.
 
 ## Coding Practices
 

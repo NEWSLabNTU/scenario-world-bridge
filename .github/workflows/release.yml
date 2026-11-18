@@ -2,13 +2,19 @@
 # a pushed tag, so nothing publishes by accident. The tag is made last, on the commit built.
 #
 #   preflight -> build-sim -> links
-#                          -> wheels -> smoke            (stop_after: smoke, the default)
-#                                    -> testpypi          (stop_after: testpypi or publish)
-#                                    -> publish -> after  (stop_after: publish, `pypi` approval)
+#                          -> wheels -> smoke                       (stop_after: smoke, the default)
+#     -> testpypi -> testpypi-more -> testpypi-check                (stop_after: testpypi or publish)
+#     -> publish -> publish-more -> tag -> after                    (stop_after: publish, `pypi` approval)
+#
+# One GitHub environment per PyPI project (PyPI refuses a second pending trusted publisher
+# with the same repository, workflow and environment): scensim in `testpypi` and `pypi`,
+# scensim-ros-humble in `testpypi-scensim-ros-humble` and `pypi-scensim-ros-humble`,
+# colcon-scensim in `testpypi-colcon-scensim` and `pypi-colcon-scensim`. Each job uploads
+# only its own wheel. The user approves `publish` (environment `pypi`); the other two follow it.
 #
 # The publishing jobs run only on main, only with stop_after past smoke, and only once the
-# repository variable SCENSIM_RELEASE_ENABLED is "true": the user sets that, the GitHub
-# environments `testpypi` and `pypi` (the user as required reviewer on `pypi`) and the PyPI
+# repository variable SCENSIM_RELEASE_ENABLED is "true": the user sets that, the six GitHub
+# environments (the user as required reviewer on `pypi` only) and the PyPI and TestPyPI
 # trusted publishers once (082, "What the user sets up once"). Until then every run stops
 # after smoke.
 name: release
@@ -361,6 +367,11 @@ jobs:
           grep -q '^my_testbench' /tmp/list.txt
           echo "testbench new, colcon build, testbench list: ok" >> "$GITHUB_STEP_SUMMARY"
 
+  # Trusted publishing, one GitHub environment per PyPI project: PyPI refuses a second
+  # pending publisher with the same (repository, workflow, environment) for another project
+  # name. scensim's job carries the plain environment (testpypi, pypi: the user's approval);
+  # the other two packages follow it in a matrix, each in its own environment, uploading only
+  # its own wheel. The wheels are the `wheels` artifact, one per package.
   testpypi:
     needs: [preflight, links, smoke]
     if: needs.preflight.outputs.publish_ok == 'true'
@@ -392,28 +403,58 @@ jobs:
           gh release view "v$VERSION" >/dev/null 2>&1 \
             || gh release create "v$VERSION" --draft --target "$SHA" --title "v$VERSION" --notes-file notes.md
           gh release upload "v$VERSION" dist/*.tar.zst dist/SHA256SUMS --clobber
+      - name: scensim's wheel only
+        run: scripts/release/one_wheel.sh wheels scensim upload
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: wheels/
+          packages-dir: upload/
+
+  testpypi-more:
+    needs: [preflight, testpypi]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [scensim-ros-humble, colcon-scensim]
+    environment: testpypi-${{ matrix.package }}
+    permissions:
+      id-token: write      # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with: {name: wheels, path: wheels}
+      - name: ${{ matrix.package }}'s wheel only
+        run: scripts/release/one_wheel.sh wheels "${{ matrix.package }}" upload
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: upload/
+
+  testpypi-check:
+    needs: testpypi-more
+    runs-on: ubuntu-22.04
+    steps:
       - name: Install from TestPyPI
         run: |
           set -eu
           docker run --rm ros:humble bash -c "
             apt-get update -qq && apt-get install -y -qq python3-pip >/dev/null
             python3 -m pip install -q --user --index-url https://test.pypi.org/simple/ \
-              --extra-index-url https://pypi.org/simple/ scensim==$VERSION
+              --extra-index-url https://pypi.org/simple/ scensim==$VERSION colcon-scensim==$VERSION
             ~/.local/bin/scensim --version"
           # the first-run download needs the tarballs at the release's URLs, which a draft
           # release does not serve: that check is the `after` job, once published
 
   publish:
-    needs: [preflight, testpypi]
+    needs: [preflight, testpypi-check]
     if: needs.preflight.outputs.publish_ok == 'true' && inputs.stop_after == 'publish'
     runs-on: ubuntu-22.04
-    environment: pypi        # the user's approval (required reviewer)
+    environment: pypi        # the user's approval (required reviewer); the others follow it
     permissions:
-      contents: write        # the release and the tag
+      contents: write        # the release
       id-token: write        # trusted publishing
     steps:
       - uses: actions/checkout@v4
@@ -421,15 +462,49 @@ jobs:
           ref: ${{ needs.preflight.outputs.sha }}
       - uses: actions/download-artifact@v4
         with: {name: wheels, path: wheels}
+      # the tarballs are public before any wheel names them
       - name: The GitHub Release, from the draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release edit "v$VERSION" --draft=false
-      # tarballs are public before any wheel names them
+      - name: scensim's wheel only
+        run: scripts/release/one_wheel.sh wheels scensim upload
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: wheels/
-      - name: The tag, last, on the built commit
+          packages-dir: upload/
+
+  publish-more:
+    needs: [preflight, publish]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [scensim-ros-humble, colcon-scensim]
+    environment: pypi-${{ matrix.package }}
+    permissions:
+      id-token: write        # trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with: {name: wheels, path: wheels}
+      - name: ${{ matrix.package }}'s wheel only
+        run: scripts/release/one_wheel.sh wheels "${{ matrix.package }}" upload
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: upload/
+
+  tag:
+    needs: [preflight, publish-more]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write        # the tag
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+      - name: The tag, last, on the built commit, once all three packages are up
         env:
           SHA: ${{ needs.preflight.outputs.sha }}
         run: |
@@ -439,7 +514,7 @@ jobs:
           git push origin "refs/tags/v$VERSION"
 
   after:
-    needs: publish
+    needs: tag
     runs-on: ubuntu-22.04
     steps:
       - name: Install from PyPI, the real first run

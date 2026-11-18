@@ -201,8 +201,9 @@ publishes by accident; the workflow makes the tag at the end, on the commit it b
 6. **Approval**: the `pypi` GitHub environment requires the user's review. Nothing past this
    point runs without it (standing rule: publishing needs the user's word).
 7. **Publish**: the GitHub Release (from the draft, notes from `docs/release-notes.md`'s
-   section), then the wheels to PyPI by trusted publishing (OIDC, no stored token), then the
-   tag pushed on the built commit.
+   section), then the wheels to PyPI by trusted publishing (OIDC, no stored token), one job
+   and one environment per project (scensim first, then scensim-ros-humble and
+   colcon-scensim), then the tag pushed on the built commit once all three are up.
 8. **After**: a clean container installs `scensim` from PyPI and runs `scensim --version`
    through the real first-run download; the result goes in the run's summary.
 
@@ -211,12 +212,30 @@ published wheel ever names a missing file.
 
 ### What the user sets up once (the infra)
 
-- A PyPI project for each of the three names, each with a **trusted publisher** for this
-  repository and workflow (`release.yml`, environment `pypi`); the same on TestPyPI
-  (environment `testpypi`). A "pending publisher" can be registered before the first upload,
-  which also holds the name.
-- The GitHub environments `testpypi` and `pypi`, with the user as required reviewer on
-  `pypi`.
+- A **trusted publisher** for each of the three projects on PyPI and on TestPyPI, six in all,
+  each with its own GitHub environment: PyPI refuses a second pending publisher with the same
+  repository, workflow and environment for another project name ("A pending trusted
+  publisher matching this configuration has already been registered for a different project
+  name"). A pending publisher can be registered before the first upload, which also holds
+  the name. Every form takes owner `NEWSLabNTU`, repository `scensim` and workflow
+  `release.yml`; the project name and environment differ:
+
+  | Index | PyPI project name | Environment name |
+  |---|---|---|
+  | PyPI | `scensim` | `pypi` |
+  | PyPI | `scensim-ros-humble` | `pypi-scensim-ros-humble` |
+  | PyPI | `colcon-scensim` | `pypi-colcon-scensim` |
+  | TestPyPI | `scensim` | `testpypi` |
+  | TestPyPI | `scensim-ros-humble` | `testpypi-scensim-ros-humble` |
+  | TestPyPI | `colcon-scensim` | `testpypi-colcon-scensim` |
+
+- The same six GitHub environments in the repository (Settings, Environments), with the user
+  as required reviewer on `pypi` only. The `publish` job (scensim, environment `pypi`) waits
+  for that approval. `publish-more` uploads the other two once it has succeeded, and `tag`
+  tags the release only after all three uploads succeed. The TestPyPI jobs run in the same
+  order, without a reviewer.
+- The repository variable `SCENSIM_RELEASE_ENABLED` set to `true`. Until then every run
+  stops after smoke.
 - GitHub-hosted runners are assumed; the SSv2 and Rust builds may need a larger runner or a
   self-hosted one, measured in step 2.
 

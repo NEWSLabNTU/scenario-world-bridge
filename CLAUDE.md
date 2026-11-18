@@ -45,11 +45,25 @@ naming the `-direct` one. `just acceptance` is unchanged.
 
 Without SSv2: acb's `just sim` / `just autoware`, aib's `just isaac-ego` / `just autoware`,
 and each one's `just vehicle-check` (the car's contract and dynamics, no Autoware).
+CARLA 1.0 leaves a car at rest in neutral below a breakaway throttle (0.40 for the Model 3,
+measured per map as `# breakaway_pedal:` in accel_map.csv); acb raises a start from rest to it.
 
 ## Key Design Decisions
 
 - **AWSIM pattern**: SSv2 puppeteers NPCs via `set_transform()`, the simulator owns ego physics
 - **One car, one source**: the spec in `sim_vehicle_spec`; every output names its `spec_hash`.
+  The spec describes the real car; each simulator drives a body of its own, measured from its
+  asset (`bodies:` in the spec; roadmap 083): the Model 3's `carla-0.9.16` (also Isaac's) and
+  `carla-1.0` (close to the production car). `sim_vehicle_spec.spec.effective(spec, body)` is
+  the spec as that body, and every output a simulator's car is built from is a body's:
+  `carla_physics.yaml` (0.9.16) and `carla_physics_1.0.yaml` (1.0; a carla-10 build of the
+  world server or acb reads `carla_physics_1.0.yaml` even when the launch names
+  `carla_physics.yaml`), `catalogs/vehicles.xosc` (the default body) and
+  `catalogs/<body>/vehicles.xosc`, and Autoware's vehicle model (`tesla_model3`,
+  `tesla_model3_carla_1_0`). `spec_hash` is the file's, the same for every body;
+  `physics_hash`, which the pedal maps record, is a body's. The stack takes the body from the
+  CARLA server's version; a testbench's scenarios name `$(env SCENSIM_VEHICLES)`, so they
+  declare the body the world server drives.
   The bridge refuses an ego whose world server, vehicle agent and catalog name different
   specs, or whose body is more than 2 cm from the catalog's. Every spec car runs its spec's
   physics by default, on `just run` and on project stacks alike (`vehicle_physics:=none`

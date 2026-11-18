@@ -30,3 +30,26 @@ def test_the_commands_run_the_workspaces_scripts(tmp_path):
 def test_a_venv_is_kept_off_the_builds_path(monkeypatch):
     monkeypatch.setenv("PATH", "/x/.venv/bin:/usr/bin")
     assert autoware.clean_env()["PATH"] == "/usr/bin"
+
+
+def test_the_release_is_the_setups_version_directory():
+    assert autoware.release_of("/opt/autoware/2.1.0/setup.bash") == "2.1.0"
+    assert autoware.release_of("/opt/autoware/1.5.0/setup.bash") == "1.5.0"
+    assert autoware.release_of("/srv/aw/2.0.0/install/setup.bash") == "2.0.0"
+    assert autoware.release_of("/opt/ros/humble/setup.bash") is None
+
+
+def test_a_pilots_release_follows_the_host_and_refuses_another():
+    import pytest
+    host = {"autoware": {"setup": "/opt/autoware/2.1.0/setup.bash"}}
+    assert autoware.pilot_release(host, "pilots.ego", {"x": 1}) == \
+        {"x": 1, "autoware_release": "2.1.0"}
+    assert autoware.pilot_release(host, "pilots.ego", {"autoware_release": "2.1.0"}) == \
+        {"autoware_release": "2.1.0"}
+    with pytest.raises(ValueError, match="pilots.ego: autoware_release:=1.5.0, but the host's "
+                       "Autoware is 2.1.0"):
+        autoware.pilot_release(host, "pilots.ego", {"autoware_release": "1.5.0"})
+    # an Autoware in the ROS prefix names no release: the pilot's own choice stands
+    ros = {"autoware": {"setup": "/opt/ros/humble/setup.bash"}}
+    assert autoware.pilot_release(ros, "p", {"autoware_release": "2.0.0"}) == \
+        {"autoware_release": "2.0.0"}

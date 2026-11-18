@@ -16,6 +16,7 @@ and ``just setup-tensorrt`` do; neither needs ``just``.
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,42 @@ from pathlib import Path
 from scensim import config
 
 DEFAULT_SETUP = "/opt/autoware/1.5.0/setup.bash"
+# autoware_sim_profile's autoware_release choices (its check_launch_args); an autoware pilot
+# runs the release of the host's Autoware (autoware.setup), never another
+PROFILE_RELEASES = ("1.5.0", "2.0.0", "2.1.0")
+RELEASE = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def release_of(setup) -> str:
+    """The Autoware release a setup.bash belongs to: the nearest version-named directory above
+    it (/opt/autoware/2.1.0/setup.bash -> 2.1.0), or None (an Autoware in the ROS prefix)."""
+    for part in reversed(Path(os.path.expanduser(str(setup))).parent.parts):
+        if RELEASE.match(part):
+            return part
+    return None
+
+
+def host_setup(host: dict) -> str:
+    return str((host.get("autoware") or {}).get("setup") or DEFAULT_SETUP)
+
+
+def pilot_release(host: dict, where: str, args: dict) -> dict:
+    """An autoware pilot's arguments with ``autoware_release`` set from the host's Autoware
+    (autoware.setup): a pilot naming another release is refused by name, as is a release the
+    profile does not have. Unchanged when the setup's path names no release."""
+    setup = host_setup(host)
+    release = release_of(setup)
+    given = args.get("autoware_release")
+    if release is None:
+        return args
+    if release not in PROFILE_RELEASES:
+        raise ValueError(f"the host's Autoware is {release} ({setup}); autoware_sim_profile "
+                         f"runs {', '.join(PROFILE_RELEASES)}")
+    if given is not None and str(given) != release:
+        raise ValueError(f"{where}: autoware_release:={given}, but the host's Autoware is "
+                         f"{release} ({setup}); leave autoware_release out (scensim sets it "
+                         f"from autoware.setup) or point autoware.setup at Autoware {given}")
+    return {**args, "autoware_release": release}
 
 
 def workspace():

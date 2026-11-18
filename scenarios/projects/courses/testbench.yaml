@@ -32,3 +32,4 @@ logging:
 judges:
   - name: nvtl
     run: [python3, judges/nvtl.py, --min-p05, "2.5"]
+default: haruna   # the suite `scensim run courses` runs

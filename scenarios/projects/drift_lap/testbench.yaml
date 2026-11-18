@@ -61,3 +61,4 @@ logging:
 judges:
   - name: drift_lap
     run: [python3, judges/drift_lap.py, --min-drifts, "1"]
+default: lap   # the suite `scensim run drift_lap` runs

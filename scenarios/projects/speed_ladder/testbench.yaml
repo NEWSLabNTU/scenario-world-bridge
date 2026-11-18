@@ -74,3 +74,4 @@ judges:
     run: [python3, judges/rung_check.py, --min-gt-hz, "90", --min-camera-hz, "25",
           --speed-tol, "0.10"]
     timeout: 900                       # reads the whole recording, ~8 GB at the 10 m/s rung
+default: ladder   # the suite `scensim run speed_ladder` runs

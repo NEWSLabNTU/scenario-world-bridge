@@ -1,8 +1,8 @@
 # The drift lap's ego on Isaac: aib's drift_mustang rig with the Control taken from
 # autoware-drift's drift_controller (between Autoware's command gate and the car), and the
 # world stepped in lockstep with NDT's pose, as aib's ego_drift_mustang.yaml (roadmap 057, lap
-# 32). Paths are relative to this file. The domain follows the stack's EGO_ROS_DOMAIN_ID.
-rig: ../../../../src/autoware_isaac_bridge/src/aib/config/drift_mustang.rig.yaml
+# 32). Paths are relative to this file; the rig is aib's installed one (pkg://). The domain follows the stack's EGO_ROS_DOMAIN_ID.
+rig: pkg://aib/config/drift_mustang.rig.yaml
 domain: 1
 node_name: isaac_vehicle
 control_topic: /control/command/drift/control_cmd

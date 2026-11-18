@@ -10,6 +10,6 @@ assets:
 isaac:
   preload: [Town02]
 pilots:
-  ego: {kind: autoware, vehicle: tesla_model3}
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
 logging:
   keep: {passed: result, failed: full, error: full}

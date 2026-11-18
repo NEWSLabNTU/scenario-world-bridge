@@ -964,9 +964,28 @@ def any_install(monkeypatch):
     monkeypatch.setattr(stack.autowaremod, "install_problems", lambda host, ws: [])
 
 
+def _profiled(d):
+    """The testbench's autoware pilots on autoware_sim_profile (autoware_profile: scensim)."""
+    f = d / "testbench.yaml"
+    tb = yaml.safe_load(f.read_text())
+    for p in tb["pilots"].values():
+        if p.get("kind") == "autoware":
+            p["autoware_profile"] = "scensim"
+    f.write_text(yaml.safe_dump(tb))
+    return d
+
+
+def test_a_stock_autoware_pilot_gets_no_release_switch(where, maps_hub, any_install):
+    """The default, stock: the user's autoware_launch as it is; only the profile has a
+    release switch, and a release it lacks does not stop a stock pilot."""
+    d = make(where, maps_hub=maps_hub)
+    _autoware_setup(where, "/opt/autoware/1.9.0/setup.bash")
+    assert "autoware_release" not in _ego_args(stack.plan(project_arg=str(d), map_name="Town01"))
+
+
 def test_the_autoware_pilot_runs_the_release_of_the_hosts_autoware(where, maps_hub,
                                                                    any_install):
-    d = make(where, maps_hub=maps_hub)
+    d = _profiled(make(where, maps_hub=maps_hub))
     p = stack.plan(project_arg=str(d), map_name="Town01")
     assert _ego_args(p)["autoware_release"] == "1.5.0"      # the default setup's
     _autoware_setup(where, "/opt/autoware/2.1.0/setup.bash")
@@ -980,8 +999,8 @@ def test_the_autoware_pilot_runs_the_release_of_the_hosts_autoware(where, maps_h
 def test_a_pilot_naming_another_release_than_the_hosts_is_refused(where, maps_hub,
                                                                   any_install):
     tb = ("simulator: carla\nassets:\n  - dataset: carla-town-autoware-maps\n"
-          "    take: [Town01]\npilots:\n  ego: {kind: autoware, vehicle: tesla_model3, "
-          "args: {autoware_release: 2.0.0}}\n")
+          "    take: [Town01]\npilots:\n  ego: {kind: autoware, autoware_profile: scensim, "
+          "vehicle: tesla_model3, args: {autoware_release: 2.0.0}}\n")
     d = make(where, maps_hub=maps_hub)
     (d / "testbench.yaml").write_text(tb)
     _autoware_setup(where, "/opt/autoware/2.1.0/setup.bash")
@@ -994,7 +1013,7 @@ def test_a_pilot_naming_another_release_than_the_hosts_is_refused(where, maps_hu
 
 
 def test_a_release_the_profile_does_not_have_is_refused(where, maps_hub, any_install):
-    d = make(where, maps_hub=maps_hub)
+    d = _profiled(make(where, maps_hub=maps_hub))
     _autoware_setup(where, "/opt/autoware/3.0.0/setup.bash")
     with pytest.raises(stack.StackRefused, match="the host's Autoware is 3.0.0"):
         stack.plan(project_arg=str(d), map_name="Town01")

@@ -20,6 +20,7 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: drift_mustang
     lifetime: stack
     overlays: ["{workspace:autoware-drift}/install/setup.bash"]

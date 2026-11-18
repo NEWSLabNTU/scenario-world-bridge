@@ -11,6 +11,7 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: tesla_model3
     args: {max_velocity: "10"}
 logging:

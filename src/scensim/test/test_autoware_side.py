@@ -90,3 +90,19 @@ def test_no_autoware_or_no_export_is_a_note_not_a_refusal(tmp_path):
         PILOTS, env={"AMENT_PREFIX_PATH": "/opt/autoware/1.5.0", "ROS_DISTRO": "humble"},
         share=bare)
     assert problems == [] and all("declares no supported Autoware" in n for n in notes)
+
+
+def test_the_scensim_profile_is_an_import_checked_like_the_cars(tmp_path):
+    pilots = {"ego": {"kind": "autoware", "autoware_profile": "scensim"}}
+    assert autoware_side.required(pilots["ego"])[-1] == "autoware_sim_profile"
+    share = shares(tmp_path, "tesla_model3_launch", "tesla_model3_sensor_kit_launch")
+    env = {"AMENT_PREFIX_PATH": "/opt/autoware/1.5.0", "ROS_DISTRO": "humble"}
+    [(where, what, fix)] = autoware_side.assess(pilots, env=env, share=share)[0]
+    assert "autoware_sim_profile not found" in what
+
+
+def test_autoware_profile_takes_stock_or_scensim():
+    assert project._check_pilot("ego", {"kind": "autoware", "autoware_profile": "scensim"},
+                                "carla") == []
+    [f] = project._check_pilot("ego", {"kind": "autoware", "autoware_profile": "tuned"}, "carla")
+    assert "autoware_profile tuned is not stock or scensim" in f.what

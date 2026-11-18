@@ -42,12 +42,15 @@ LATER_KINDS = ("container",)
 CARLA_ONLY = ("carla_basic",)
 COMMON_PILOT_KEYS = ("kind", "vehicle", "args", "lifetime", "ready", "inputs", "rviz")
 KIND_KEYS = {
-    "autoware": ("autoware_launch", "overlays"),
+    "autoware": ("autoware_launch", "autoware_profile", "overlays"),
     "launch": ("launch", "agent", "overlays"),
     "command": ("run",),
 }
 KIND_REQUIRED = {"launch": "launch", "command": "run"}
 LIFETIMES = ("stack", "run")
+# an autoware pilot's Autoware: stock (the user's autoware_launch, the default) or scensim
+# (autoware_sim_profile, an optional import)
+AUTOWARE_PROFILES = ("stock", "scensim")
 INPUTS = ("sensors", "map", "ground_truth")
 LEVELS = ("result", "standard", "full", "debug")
 VERDICTS = ("passed", "failed", "error")
@@ -441,6 +444,11 @@ def _check_pilot(name, p, sim) -> list:
         if bad or not isinstance(inputs, list):
             out.append(Finding(pf, f"{where}: inputs {bad or inputs} not among"
                                f" {', '.join(INPUTS)}"))
+    if kind == "autoware" and p.get("autoware_profile") not in (None,) + AUTOWARE_PROFILES:
+        out.append(Finding(pf, f"{where}: autoware_profile {p['autoware_profile']} is not "
+                           f"{' or '.join(AUTOWARE_PROFILES)}",
+                           "autoware_profile: stock (your Autoware as it is) or scensim "
+                           "(autoware_sim_profile's tuning)"))
     if p.get("args") is not None and not isinstance(p["args"], dict):
         out.append(Finding(pf, f"{where}: args: is not a mapping", "args: {name: value}"))
     if p.get("vehicle") is not None and not isinstance(p["vehicle"], str):

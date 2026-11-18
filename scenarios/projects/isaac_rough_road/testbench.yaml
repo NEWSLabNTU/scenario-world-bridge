@@ -10,7 +10,7 @@ assets:
   - dataset: isaac-road-physics-stages
     take: [procedural/spikes/road_town]
 pilots:
-  ego: {kind: autoware, vehicle: tesla_model3}
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
 ground:
   Town01:
     # the straight at y -131.1, x 95-345, both lanes: class C roughness, crown, ruts,

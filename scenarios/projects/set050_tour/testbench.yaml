@@ -10,6 +10,7 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: tesla_model3
     args: {max_velocity: "11.11", lidar_detection_model: centerpoint, use_multi_channel_tracker_merger: "false"}
 logging:

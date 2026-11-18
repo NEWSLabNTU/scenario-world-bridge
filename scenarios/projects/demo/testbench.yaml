@@ -8,6 +8,7 @@ assets:
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: tesla_model3
     # the demo tour's ego (inventory item 11), which the incidents are timed for since
     # 2026-10-20 (62eae3c: route C at 40 km/h); at the profile's default 4.17 m/s i1's lead

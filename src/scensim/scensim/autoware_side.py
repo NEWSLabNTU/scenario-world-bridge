@@ -42,11 +42,15 @@ def vtuple(v: str) -> tuple:
 
 def required(pilot: dict) -> list:
     """The Autoware-side packages an autoware pilot's launch looks up: the car's vehicle launch
-    and its sensor kit's launch (the descriptions come with scensim)."""
+    and its sensor kit's launch (the descriptions come with scensim), and with
+    ``autoware_profile: scensim`` autoware_sim_profile."""
     args = pilot.get("args") if isinstance(pilot.get("args"), dict) else {}
     car = pilot.get("vehicle") or "tesla_model3"
     kit = args.get("sensor_model") or f"{car}_sensor_kit"
-    return [f"{car}_launch", f"{kit}_launch"]
+    out = [f"{car}_launch", f"{kit}_launch"]
+    if pilot.get("autoware_profile") == "scensim":
+        out.append("autoware_sim_profile")   # the optional import
+    return out
 
 
 def _share(pkg: str):

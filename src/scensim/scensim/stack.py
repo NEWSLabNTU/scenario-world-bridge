@@ -683,7 +683,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             mixed = autowaremod.install_problems(host, workspace_root())
             if mixed:
                 raise StackRefused("; ".join(mixed))
-            # the profile runs the host's Autoware release (autoware.setup's directory)
+            # the profile runs the host's Autoware release (autoware.setup's directory); a
+            # stock pilot runs the user's autoware_launch as it is, with no release switch
+            if b.spec.get("autoware_profile") != "scensim":
+                continue
             try:
                 b.spec["args"] = autowaremod.pilot_release(
                     host, f"pilots.{b.key} ({b.entity})", b.spec.get("args") or {})

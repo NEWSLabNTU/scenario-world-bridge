@@ -7,4 +7,4 @@ assets:
   - dataset: carla-0.9.16-isaac-usd
     take: [Town01, vehicles]
 pilots:
-  ego: {kind: autoware, vehicle: tesla_model3}
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}

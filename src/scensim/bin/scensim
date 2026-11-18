@@ -1,10 +1,20 @@
-#!/usr/bin/env python3
-"""scensim's one command (roadmap 081 step 3): <prefix>/bin/scensim, on PATH once scensim's
-setup.bash is sourced. It is scensim.cli.main with this command's arguments, as
-`ros2 run scensim scensim` and the pip front end's exec of it are."""
-import sys
-
-from scensim.cli import main
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+#!/bin/sh
+# scensim's one command (roadmap 081 step 3): <prefix>/bin/scensim, on PATH once scensim's
+# setup.bash is sourced. It runs <prefix>/lib/scensim/scensim, the console script colcon
+# generates for scensim.cli:main with the interpreter scensim was built with
+# (#!/usr/bin/python3), as `ros2 run scensim scensim` does. Not `#!/usr/bin/env python3`:
+# that takes whichever python is first on PATH (a uv or conda one), which does not have
+# ROS's modules (issue 062).
+#
+# <prefix> is this script's directory's parent, as it was called (an install made with
+# --symlink-install links this file to the source tree, so its own path is followed only
+# when the called one does not lead to an install: a link to it from elsewhere on PATH).
+for bin in "$(dirname -- "$0")" "$(dirname -- "$(readlink -f -- "$0")")"; do
+    entry="$bin/../lib/scensim/scensim"
+    if [ -x "$entry" ]; then
+        exec "$entry" "$@"
+    fi
+done
+echo "scensim: no lib/scensim/scensim beside $0; rebuild scensim (colcon build)," \
+    "then source its setup.bash" >&2
+exit 127

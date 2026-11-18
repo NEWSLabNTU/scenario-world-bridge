@@ -164,7 +164,7 @@ def test_the_adaptor_is_used_when_it_runs_even_beside_the_modules(make):
     assert ("auto_mode", "adaptor", autoware_ros.RTC_MODULES["TRAFFIC_LIGHT"], True) \
         in fake.calls
     assert not [c for c in fake.calls if c[1] != "adaptor"]
-    assert any("RTC through tier4_ad_api_adaptor" in line for line in log.lines)
+    assert port._rtc_via == "adaptor"
 
 
 def test_without_the_adaptor_the_modules_rtc_interface_is_used(make):
@@ -184,8 +184,7 @@ def test_without_the_adaptor_the_modules_rtc_interface_is_used(make):
         {"traffic_light", "virtual_traffic_light"}
     ok, why = port.cooperate("CROSSWALK", "ACTIVATE", None)
     assert not ok and "no running planning module answers CROSSWALK" in why
-    assert any("RTC through the planning modules' rtc_interface" in line
-               for line in log.lines)
+    assert port._rtc_via == "modules"
 
 
 def test_neither_means_no_rtc(make):
@@ -194,3 +193,59 @@ def test_neither_means_no_rtc(make):
     assert not s.rtc and s.rtc_status is None
     ok, why = port.cooperate("INTERSECTION", "ACTIVATE", UUID_INT)
     assert not ok
+
+
+class FakeClient:
+    def __init__(self, ready):
+        self.ready = ready
+        self.srv_name = "fake"
+
+    def service_is_ready(self):
+        return self.ready[0]
+
+
+class FakeNode:
+    """Enough of a node for AutowarePort's probe: every client answers once ``core[0]``,
+    the adaptor's once ``adaptor[0]``; ``emergency[0]`` publishers on the emergency topic."""
+
+    def __init__(self):
+        self.core, self.adaptor, self.emergency = [False], [False], [0]
+        self.log = Logger()
+
+    def create_subscription(self, *a, **kw):
+        return None
+
+    def create_client(self, _type, name, **kw):
+        return FakeClient(self.adaptor if "/api/external/" in name else self.core)
+
+    def count_publishers(self, topic):
+        return self.emergency[0] if topic == "/api/external/get/emergency" else 0
+
+    def get_service_names_and_types(self):
+        return []
+
+    def get_logger(self):
+        return self.log
+
+
+def probe(port):
+    port._ready_checked = 0.0
+    port.snapshot()
+
+
+def test_the_api_is_logged_once_the_core_answers_then_on_each_change():
+    node = FakeNode()
+    port = AutowarePort(node)
+    node.adaptor[0] = True          # the adaptor answers before the core: nothing logged yet
+    probe(port)
+    assert node.log.lines == []
+    node.core[0], node.emergency[0] = True, 1
+    probe(port)
+    probe(port)                     # nothing changed: no second line
+    assert node.log.lines == [
+        "Autoware API: RTC through tier4_ad_api_adaptor (/api/external/*/rtc_*); "
+        "emergency from /api/external/get/emergency"]
+    node.adaptor[0], node.emergency[0] = False, 0    # the adaptor goes away
+    probe(port)
+    assert node.log.lines[1:] == [
+        "Autoware API: no RTC; faults from /api/fail_safe/mrm_state only"]

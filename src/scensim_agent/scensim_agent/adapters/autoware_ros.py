@@ -158,7 +158,7 @@ class AutowarePort(AutopilotPort):
         self._ready_checked = 0.0
         self._services_ready = False
         self._rtc_via = None        # "adaptor" (tier4_ad_api_adaptor), "modules" or None
-        self._api_logged = False
+        self._api_logged = None     # the (RTC path, emergency source) last logged
         self._adaptor_status = None
         self._modules = {}          # rtc_interface name -> {"commands": cl, "auto_mode": cl}
         self._module_status = {}    # rtc_interface name -> its latest statuses
@@ -307,17 +307,20 @@ class AutowarePort(AutopilotPort):
                 callback_group=self._group)
 
     def _log_api(self):
-        """Which Autoware API the agent uses, once it is known and whenever it changes, so a
-        run's log says which (issue: Autoware 2.1.0 has no tier4_ad_api_adaptor)."""
-        self._api_logged = self._services_ready
+        """Which Autoware API the agent uses, so a run's log says which (Autoware 2.1.0 has
+        no tier4_ad_api_adaptor): once the core services answer, then on any change."""
+        emergency = bool(self.node.count_publishers("/api/external/get/emergency"))
+        state = (self._rtc_via, emergency)
+        if state == self._api_logged:
+            return
+        self._api_logged = state
         rtc = {"adaptor": "RTC through tier4_ad_api_adaptor (/api/external/*/rtc_*)",
                "modules": "RTC through the planning modules' rtc_interface "
                           f"({', '.join(sorted(self._modules)) or 'none yet'})",
                None: "no RTC"}[self._rtc_via]
-        emergency = ("emergency from /api/external/get/emergency"
-                     if self.node.count_publishers("/api/external/get/emergency")
-                     else "faults from /api/fail_safe/mrm_state only")
-        self.node.get_logger().info(f"Autoware API: {rtc}; {emergency}")
+        faults = ("emergency from /api/external/get/emergency" if emergency
+                  else "faults from /api/fail_safe/mrm_state only")
+        self.node.get_logger().info(f"Autoware API: {rtc}; {faults}")
 
     def _module_names(self, module, uuid=None):
         """The running rtc_interface modules of one RTC kind; with a uuid, the one holding
@@ -345,8 +348,8 @@ class AutowarePort(AutopilotPort):
                 self._discover_modules()
                 via = "modules" if any(
                     c["commands"].service_is_ready() for c in self._modules.values()) else None
-            if via != self._rtc_via or not self._api_logged and self._services_ready:
-                self._rtc_via = via
+            self._rtc_via = via
+            if self._services_ready:
                 self._log_api()
         with self._lock:
             s = Snapshot(**vars(self._s))

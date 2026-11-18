@@ -1,8 +1,5 @@
 # Your world server in a testbench
 
-<!-- TODO(exit run): the stack's start of a world.server; check the commands and their
-output on a host. -->
-
 Run your testbench on a world server of your own: a fork of CARLA's with a sensor it lacks, a
 simulator scensim does not ship, or a fake world for CI. The server lives in a package of your
 workspace, beside the testbench, and the testbench names it:
@@ -26,6 +23,14 @@ world protocol on `<port>`, as it drives CARLA's and Isaac's. `world_config_file
 the stock CARLA server (its `scensim_carla_world.yaml`) and is refused beside `server`: give
 your server its settings as its arguments. The bridge's keys still apply: `config_file` (its
 `bridge_config.yaml`), `weather`, `npc_motion` and `contact_report_dir`.
+
+In the stack (`scensim stack my_testbench`, or the stack a `scensim run` starts), the server
+is a process of the simulation side, `scensim_launch`'s `world_server.launch.py`, on the
+seat's world port (5591 on seat 0; `SCENSIM_WORLD_PORT` too). It is respawned 5 s after it
+ends, as the stock servers are. Its output is the stack's
+`proc/simulator/.../node/world_server` log. The stack is ready once the bridge serves, which
+needs your server to answer as its owner; a seat whose world port another process holds is
+refused before anything starts, naming the port.
 
 ## Another simulator: `simulator: none`
 

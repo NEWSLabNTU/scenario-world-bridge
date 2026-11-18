@@ -119,6 +119,11 @@ def is_suite(path: Path) -> bool:
 
 
 def _resolve(item, project: Path, base: Path) -> Path:
+    if str(item).startswith("pkg://"):   # another package's file (081; issue 054)
+        try:
+            return config.pkg_path(str(item))
+        except config.ConfigError as e:
+            raise Refused(str(e)) from None
     p = Path(str(item)).expanduser()
     if p.is_absolute():
         return p

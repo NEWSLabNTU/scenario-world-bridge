@@ -184,6 +184,28 @@ def test_suite_refusals(tmp_path):
         run.expand(tmp_path / "missing.xosc", tmp_path)
 
 
+def test_a_suites_pkg_scenario_is_the_packages_installed_file(tmp_path, monkeypatch):
+    """Issue 054: a testbench names another package's scenario as pkg://<package>/<path>."""
+    pytest.importorskip("ament_index_python")
+    prefix = tmp_path / "install" / "shared_scenarios"
+    index = prefix / "share" / "ament_index" / "resource_index" / "packages"
+    index.mkdir(parents=True)
+    (index / "shared_scenarios").write_text("")
+    (prefix / "share" / "shared_scenarios" / "scenarios").mkdir(parents=True)
+    xosc = prefix / "share" / "shared_scenarios" / "scenarios" / "drive.xosc"
+    xosc.write_text("<OpenSCENARIO/>")
+    monkeypatch.setenv("AMENT_PREFIX_PATH", str(prefix))
+    tb = tmp_path / "tb"
+    (tb / "suites").mkdir(parents=True)
+    (tb / "suites" / "s.yaml").write_text(
+        "scenarios: [pkg://shared_scenarios/scenarios/drive.xosc, pkg://shared_scenarios/scenarios]\n")
+    specs, _ = run.expand(tb / "suites" / "s.yaml", tb)
+    assert [s.scenario for s in specs] == [xosc, xosc]
+    (tb / "suites" / "s.yaml").write_text("scenarios: [pkg://not_built/scenarios/x.xosc]\n")
+    with pytest.raises(run.Refused, match="package not_built is not installed"):
+        run.expand(tb / "suites" / "s.yaml", tb)
+
+
 def test_shard():
     specs = list(range(10))
     assert run.shard(specs, "1/3") == [0, 3, 6, 9]

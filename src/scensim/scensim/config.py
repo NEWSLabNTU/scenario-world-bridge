@@ -109,15 +109,30 @@ def read_yaml(path: Path) -> dict:
     return data
 
 
+def pkg_path(ref: str) -> Path:
+    """``pkg://<package>[/<path>]``: that path in the package's installed share directory;
+    ConfigError naming the package when it is not installed (issue 054)."""
+    pkg, _, sub = str(ref)[len("pkg://"):].partition("/")
+    try:
+        from ament_index_python import packages as index
+    except ImportError:
+        raise ConfigError(f"{ref}: no ament index (fix: source ROS and the workspace that "
+                          f"installs {pkg})") from None
+    not_found = getattr(index, "PackageNotFoundError", LookupError)
+    try:
+        return Path(index.get_package_share_directory(pkg)) / sub
+    except (not_found, ValueError):
+        raise ConfigError(f"{ref}: package {pkg or '(none)'} is not installed (fix: build it, or "
+                          f"source the workspace that installs it)") from None
+
+
 def find_project(start: Path = None) -> Path:
     """The project directory: ``start`` (default the working directory) or the nearest parent
     holding testbench.yaml. A ``pkg://<name>[/<subdir>]`` start is a ROS package's share directory,
 or a directory in it (``pkg://scensim_examples/projects/first_drive``)."""
     start = str(start) if start is not None else os.getcwd()
     if start.startswith("pkg://"):
-        from ament_index_python.packages import get_package_share_directory
-        pkg, _, sub = start[len("pkg://"):].partition("/")
-        root = Path(get_package_share_directory(pkg)) / sub
+        root = pkg_path(start)
         if not (root / PROJECT_FILE).is_file():
             raise ConfigError(f"{start}: the package installs no {PROJECT_FILE}")
         return root

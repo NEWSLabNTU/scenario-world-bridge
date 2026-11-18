@@ -33,7 +33,7 @@ class KinematicWorld(World):
         self.bodies[handle] = pose
 
     def despawn(self, handle):
-        del self.bodies[handle]
+        self.bodies.pop(handle, None)   # the shell refuses an unknown handle first
 
     def step(self, drives, substeps, dt, render, sim_time):
         for handle, drive in drives.items():

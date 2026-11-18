@@ -107,6 +107,26 @@ def server_argv(server, port, command=None) -> list:
     return [*head, "--port", str(port)]
 
 
+# what `ros2 run` says when it finds no such package or executable: the check did not run
+# (issue 048), which is no answer from the server
+_NOT_FOUND = re.compile(r"Package '[^']*' not found|No executable found")
+NO_TOOL_FIX = "source scensim's setup.bash (it provides scensim_world_check)"
+
+
+class CheckNotRun(RuntimeError):
+    """The conformance tool could not be run (not installed, not sourced)."""
+
+
+def _not_run(output: str) -> str:
+    """The line saying the check tool was not found, or ""."""
+    m = _NOT_FOUND.search(output or "")
+    return m.group(0) if m else ""
+
+
+def _no_probe(where, what, why) -> Finding:
+    return Finding(where, f"{what}: the probe did not run ({why})", NO_TOOL_FIX, host=True)
+
+
 def endpoint(port) -> str:
     return f"tcp://{HOST}:{port}"
 
@@ -146,8 +166,15 @@ def conformance(server, port, *, check=None, start_timeout=60.0, env=None, log=N
             logf.close()
         return False, f"{' '.join(server_argv(server, port, command))}: {e}"
     try:
-        hello = subprocess.run(check + ["hello", endpoint(port), "--wait", str(start_timeout),
-                                        "--quiet"], env=run_env, capture_output=True, text=True)
+        try:
+            hello = subprocess.run(check + ["hello", endpoint(port), "--wait",
+                                            str(start_timeout), "--quiet"],
+                                   env=run_env, capture_output=True, text=True)
+        except OSError as e:
+            raise CheckNotRun(str(e)) from e
+        missing = hello.returncode != 0 and _not_run(hello.stdout + hello.stderr)
+        if missing:
+            raise CheckNotRun(missing)
         if hello.returncode != 0:
             ended = proc.poll()
             why = (f"ended ({ended}) before it answered" if ended is not None
@@ -166,10 +193,13 @@ def conformance(server, port, *, check=None, start_timeout=60.0, env=None, log=N
 def conformance_findings(server, port, **kw) -> list:
     """``conformance`` as findings: one per failed check, or one for a server that never came
     up. Empty: it passed."""
-    passed, report = conformance(server, port, **kw)
+    where = f"world.{KEY}"
+    try:
+        passed, report = conformance(server, port, **kw)
+    except CheckNotRun as e:
+        return [_no_probe(where, f"{server[0]} {server[1]}'s conformance", e)]
     if passed:
         return []
-    where = f"world.{KEY}"
     fails = [ln.strip()[len("FAIL"):].strip() for ln in report.splitlines()
              if ln.strip().startswith("FAIL")]
     fix = "see 'Your world server in a testbench' in scensim's docs: what a world server must do"
@@ -189,11 +219,12 @@ def hello_findings(port, *, check=None, env=None) -> list:
                            env=dict(os.environ if env is None else env),
                            capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as e:
-        return [Finding("world", f"the stack's world server on {endpoint(port)}: the probe "
-                                 f"did not run ({e})", "source scensim's setup.bash (it "
-                                 "provides scensim_world_check)", host=True)]
+        return [_no_probe("world", f"the stack's world server on {endpoint(port)}", e)]
     if r.returncode == 0:
         return []
+    missing = _not_run(r.stdout + r.stderr)
+    if missing:
+        return [_no_probe("world", f"the stack's world server on {endpoint(port)}", missing)]
     said = (r.stdout + r.stderr).strip().splitlines()
     return [Finding("world", f"the stack's world server on {endpoint(port)} did not answer "
                              "Hello" + (f": {said[-1]}" if said else ""),

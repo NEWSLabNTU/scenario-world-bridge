@@ -23,13 +23,20 @@ simulation side only. [Install](getting-started/install.md) lists both.
 | ROS 2 | Humble (Ubuntu 22.04, Python 3.10); Jazzy (Ubuntu 24.04, Python 3.12), the simulation side only |
 | CARLA | 0.9.16, the packaged release |
 | Isaac Sim | 6.1.0, pip install |
-| Autoware | 1.5.0, binary packages; 2.1.0 (to be filled in: what was run on it) |
+| Autoware | 1.5.0, binary packages; 2.1.0, binary packages (Tutorial 1, below) |
 | scenario_simulator_v2 | bundled (a fork, as a submodule) |
 
 Before the release, the release workflow built and checked both distributions on the
 tested commit (run 44296930995): the simulation side's tarball for each, its link check
 in a clean ROS image, the wheels for Python 3.10 and 3.12, and the install from those
 wheels in a clean image, on Humble and on Jazzy.
+
+On Autoware 2.1.0, Tutorial 1 passed as written (2026-11-18) with scensim built from
+source against 2.1.0 at commit d3b8952: the pilot ran 2.1.0's own packages only, without
+the fixes scensim carries for 1.5.0, and the agent took RTC from the planning modules.
+That run used the default perception (clustering); CenterPoint, which needs TensorRT, was
+not run on 2.1.0. A build of scensim made with Autoware 1.5.0 sourced cannot run 2.1.0:
+build it with 2.1.0 sourced.
 
 ### What is new
 
@@ -80,9 +87,6 @@ wheels in a clean image, on Humble and on Jazzy.
   ego's odometry with its pitch and roll mirrored: a car on a slope was reported pitched
   and rolled the wrong way. Level roads were not affected. The bridge now converts CARLA's
   rotation as LibCarla itself does, and tests check it against LibCarla.
-
-<!-- Open item before the release: fill the Autoware 2.1.0 row of "Tested with" from
-241's live Tutorial 1 on 2.1.0 (NAS "2026-11-18 2.1.0 T1 (241)"). -->
 
 ## v0.1.0
 

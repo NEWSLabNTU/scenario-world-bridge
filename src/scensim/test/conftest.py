@@ -272,3 +272,14 @@ def agent_modules_present(monkeypatch, tmp_path_factory):
                  f'exec {sys.executable} "$@"\n')
     w.chmod(0o755)
     monkeypatch.setenv("PATH", f"{d}:{os.environ.get('PATH', '')}")
+
+
+@pytest.fixture(autouse=True)
+def no_host_autoware_side(monkeypatch, request):
+    """This host's car Autoware packages and Autoware are not the tests': outside
+    test_autoware_side, which tests the check itself, an autoware pilot's Autoware side is
+    taken as in place and checked against nothing."""
+    if request.module.__name__ == "test_autoware_side":
+        return
+    from scensim import autoware_side
+    monkeypatch.setattr(autoware_side, "assess", lambda pilots, **kw: ([], []))

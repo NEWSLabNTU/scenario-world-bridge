@@ -5,6 +5,7 @@
 # `scensim-sim-<version>-<distro>-<arch>.tar.zst` by stage_sim.py.
 #
 #   scripts/release/build_sim.sh [--version V] [--out DIR] [--jobs N] [--keep-build]
+#   (ROS_DISTRO_BUILD=jazzy for Jazzy; default humble)
 #
 # Run it in a checkout meant for the release (a fresh clone or a worktree, submodules
 # initialised): it builds in this checkout's build/, install/ and log/, which it clears
@@ -26,7 +27,7 @@ while [ $# -gt 0 ]; do
         --out) OUT=$2; shift 2 ;;
         --jobs) JOBS=$2; shift 2 ;;
         --keep-build) KEEP_BUILD=1; shift ;;
-        -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
         *) echo "build_sim.sh: unknown argument $1 (see --help)" >&2; exit 2 ;;
     esac
 done
@@ -68,6 +69,20 @@ vcs import --shallow --input "$ROOT/sim.repos" "$VENDOR" >/dev/null
 # into the release. Only ROS, then this build.
 clean_env=(env -i HOME="$HOME" USER="${USER:-}" TERM=dumb LANG=C.UTF-8
     PATH="$HOME/.cargo/bin:$(dirname "$(command -v python3)"):/usr/local/bin:/usr/bin:/bin")
+# carla-sys 0.15.1 (carla-rust) generates its C++ bindings with autocxx, which reads the
+# headers through libclang. With libclang 18 (Ubuntu 24.04's default) the generated wrappers
+# drop `const` and fail to compile ("invalid conversion from 'const ...*'"); libclang 14
+# (Ubuntu 22.04's default, and apt's libclang-14-dev on 24.04) works. Use 14 when it is
+# there, unless LIBCLANG_PATH names another.
+LIBCLANG_PATH=${LIBCLANG_PATH:-}
+if [ -z "$LIBCLANG_PATH" ] && [ -d /usr/lib/llvm-14/lib ]; then
+    LIBCLANG_PATH=/usr/lib/llvm-14/lib
+fi
+if [ -n "$LIBCLANG_PATH" ]; then
+    clean_env+=(LIBCLANG_PATH="$LIBCLANG_PATH")
+else
+    echo "build_sim.sh: no libclang 14 (/usr/lib/llvm-14/lib); carla-sys may not compile with a newer one (apt install libclang-14-dev)" >&2
+fi
 
 cmake_args=(-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF)
 # 082 fix 2: the SSv2 fork builds in Release once its traffic_simulator keeps Boost's

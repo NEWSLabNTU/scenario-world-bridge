@@ -195,48 +195,47 @@ publishes by accident; the workflow makes the tag at the end, on the commit it b
    tarballs (a local URL), then the first-run download, the rosdep line, `testbench new`,
    `colcon build`, `testbench list` and a run with `--dry-run`. A run against CARLA is the
    manual exit run, done before the workflow is started.
-5. **TestPyPI**: publish the wheels to test.pypi.org, install from there on a clean
-   container, and repeat step 4's first run against a draft GitHub Release holding the
-   tarballs.
+5. **No TestPyPI stage** (the user, 2026-11-18): the release goes from smoke straight to
+   the approval; the first public install is checked by step 8 instead.
 6. **Approval**: the `pypi-scensim-ros-humble` GitHub environment (the first upload)
-   requires the user's review. Nothing past this
-   point runs without it (standing rule: publishing needs the user's word).
-7. **Publish**: the GitHub Release (from the draft, notes from `docs/release-notes.md`'s
-   section), then the wheels to PyPI by trusted publishing (OIDC, no stored token), one job
-   and one environment per project, dependencies first (scensim-ros-humble, colcon-scensim,
-   then scensim), then the tag pushed on the built commit once all three are up.
-8. **After**: a clean container installs `scensim` from PyPI and runs `scensim --version`
-   through the real first-run download; the result goes in the run's summary.
+   requires the user's review. Nothing past this point runs without it (standing rule:
+   publishing needs the user's word).
+7. **Publish**: the GitHub Release (drafted with the tarballs, then made public, notes from
+   `docs/release-notes.md`'s section), then the wheels to PyPI by trusted publishing (OIDC,
+   no stored token), one job and one environment per project, dependencies first
+   (scensim-ros-humble, colcon-scensim, then scensim), then the tag pushed on the built
+   commit once all three are up.
+8. **After**: a clean container installs `scensim` and `colcon-scensim` from PyPI and runs
+   `scensim install` and `scensim --version` through the real first-run download; the result
+   goes in the run's summary.
 
 The tarballs are on the GitHub Release before the manifest wheel is on PyPI, so no
 published wheel ever names a missing file.
 
 ### What the user sets up once (the infra)
 
-- A **trusted publisher** for each of the three projects on PyPI and on TestPyPI, six in all,
-  each with its own GitHub environment: PyPI refuses a second pending publisher with the same
+- A **trusted publisher** on PyPI for each of the three projects, each with its own GitHub
+  environment: PyPI refuses a second pending publisher with the same
   repository, workflow and environment for another project name ("A pending trusted
   publisher matching this configuration has already been registered for a different project
   name"). A pending publisher can be registered before the first upload, which also holds
   the name. Every form takes owner `NEWSLabNTU`, repository `scensim` and workflow
   `release.yml`; the project name and environment differ:
 
-  | Index | PyPI project name | Environment name | Required reviewer | Order |
-  |---|---|---|---|---|
-  | PyPI | `scensim-ros-humble` | `pypi-scensim-ros-humble` | the user | 1 |
-  | PyPI | `colcon-scensim` | `pypi-colcon-scensim` | none | 2 |
-  | PyPI | `scensim` | `pypi` | none | 3 |
-  | TestPyPI | `scensim-ros-humble` | `testpypi-scensim-ros-humble` | none | 1 |
-  | TestPyPI | `colcon-scensim` | `testpypi-colcon-scensim` | none | 2 |
-  | TestPyPI | `scensim` | `testpypi` | none | 3 |
+  | PyPI project name | Environment name | Required reviewer | Order |
+  |---|---|---|---|
+  | `scensim-ros-humble` | `pypi-scensim-ros-humble` | the user | 1 |
+  | `colcon-scensim` | `pypi-colcon-scensim` | none | 2 |
+  | `scensim` | `pypi` | none | 3 |
 
-- The same six GitHub environments in the repository (Settings, Environments), with the user
+- The same three GitHub environments in the repository (Settings, Environments), with the user
   as required reviewer on `pypi-scensim-ros-humble` only. The dependencies publish first, so
   scensim never stands on PyPI without the scensim-ros-humble it pins: `publish`
-  (scensim-ros-humble) waits for that approval and makes the draft release public before its
-  upload, then `publish-colcon` (colcon-scensim) and `publish-scensim` (scensim) follow
-  without a reviewer, and `tag` tags the release only after all three uploads succeed. The
-  TestPyPI jobs run in the same order, without a reviewer, then install from TestPyPI.
+  (scensim-ros-humble) waits for that approval and makes the release, with the tarballs,
+  public before its upload, then `publish-colcon` (colcon-scensim) and `publish-scensim`
+  (scensim) follow without a reviewer, and `tag` tags the release only after all three
+  uploads succeed. No TestPyPI publishers or environments are needed (the user,
+  2026-11-18).
 - The repository variable `SCENSIM_RELEASE_ENABLED` set to `true`. Until then every run
   stops after smoke.
 - GitHub-hosted runners are assumed; the SSv2 and Rust builds may need a larger runner or a
@@ -264,7 +263,8 @@ Each step is pushed after review, with its tests.
    version skew).
 4. **The source build made complete**: every `package.xml`'s dependencies, so `rosdep
    install` alone prepares a clean host; the install page's source section.
-5. **`release.yml`** as above, run end to end against TestPyPI and a draft release.
+5. **`release.yml`** as above, run end to end through smoke (no TestPyPI stage: the user,
+   2026-11-18).
 6. **Docs for users** (243): the install page, pip first, both Ubuntu releases' pip forms,
    the source build second.
 7. **Jazzy**, its own phase (029's note stands: the SSv2 fork and acb are Humble-only; Jazzy
@@ -279,7 +279,8 @@ Each step is pushed after review, with its tests.
 - A mismatched `ROS_DISTRO` and a wheel/tarball version skew are refused at start, naming
   the fix.
 - Every artefact passes the link check on a clean image.
-- `release.yml` has run end to end against TestPyPI and a draft GitHub Release.
+- `release.yml` has run end to end through smoke on main (no TestPyPI stage: the user,
+  2026-11-18).
 - check_docs, the tests and check_pins pass.
 
 ## Settled (133's calls after a builder check, 2026-11-17; the user may overrule)

@@ -943,3 +943,72 @@ def test_simulator_none_starts_no_simulator(where, maps_hub):
         stack.plan(project_arg=str(d))
     with pytest.raises(stack.StackRefused, match="or none with world.server"):
         stack.plan(project_arg=str(d), check=None)
+
+
+def _autoware_setup(where, setup):
+    sysf = where["tmp"] / "system" / "host.yaml"
+    h = yaml.safe_load(sysf.read_text())
+    h["autoware"] = {"setup": setup}
+    sysf.write_text(yaml.safe_dump(h))
+
+
+def _ego_args(p):
+    ego = next(x for x in p.record["pilots"] if x["kind"] == "autoware")
+    return ego["spec"].get("args") or {}
+
+
+def test_the_autoware_pilot_runs_the_release_of_the_hosts_autoware(where, maps_hub):
+    d = make(where, maps_hub=maps_hub)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    assert _ego_args(p)["autoware_release"] == "1.5.0"      # the default setup's
+    _autoware_setup(where, "/opt/autoware/2.1.0/setup.bash")
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    assert _ego_args(p)["autoware_release"] == "2.1.0"
+    # the carla_basic pilot gets nothing of Autoware's
+    lead = next(x for x in p.record["pilots"] if x["kind"] == "carla_basic")
+    assert "autoware_release" not in (lead["spec"].get("args") or {})
+
+
+def test_a_pilot_naming_another_release_than_the_hosts_is_refused(where, maps_hub):
+    tb = ("simulator: carla\nassets:\n  - dataset: carla-town-autoware-maps\n"
+          "    take: [Town01]\npilots:\n  ego: {kind: autoware, vehicle: tesla_model3, "
+          "args: {autoware_release: 2.0.0}}\n")
+    d = make(where, maps_hub=maps_hub)
+    (d / "testbench.yaml").write_text(tb)
+    _autoware_setup(where, "/opt/autoware/2.1.0/setup.bash")
+    with pytest.raises(stack.StackRefused, match=r"pilots.ego \(ego\): autoware_release:=2.0.0, "
+                       r"but the host's Autoware is 2.1.0 \(/opt/autoware/2.1.0/setup.bash\)"):
+        stack.plan(project_arg=str(d), map_name="Town01")
+    _autoware_setup(where, "/opt/autoware/2.0.0/setup.bash")
+    assert _ego_args(stack.plan(project_arg=str(d), map_name="Town01"))["autoware_release"] \
+        == "2.0.0"
+
+
+def test_a_release_the_profile_does_not_have_is_refused(where, maps_hub):
+    d = make(where, maps_hub=maps_hub)
+    _autoware_setup(where, "/opt/autoware/3.0.0/setup.bash")
+    with pytest.raises(stack.StackRefused, match="the host's Autoware is 3.0.0"):
+        stack.plan(project_arg=str(d), map_name="Town01")
+
+
+def test_the_1_5_0_overlay_is_never_sourced_over_another_release(tmp_path):
+    """scripts/autoware_overlay.bash: the overlay is built for 1.5.0; with another Autoware
+    sourced it says so and sources nothing (a built overlay would shadow that release)."""
+    import subprocess as sp
+    ws = stack.workspace_root()
+    if ws is None:
+        pytest.skip("the scensim checkout is not known")
+    built = tmp_path / "overlay" / "install"
+    built.mkdir(parents=True)
+    (built / "local_setup.bash").write_text("export OVERLAY_SOURCED=1\n")
+    script = (f'source "{ws}/scripts/autoware_overlay.bash"; '
+              f'scensim_autoware_overlay_source "{tmp_path / "overlay"}" true; '
+              'echo "sourced=${OVERLAY_SOURCED:-0}"')
+    for prefix, sourced in (("/opt/autoware/2.1.0:/opt/ros/humble", "0"),
+                            ("/opt/autoware/1.5.0:/opt/ros/humble", "1")):
+        r = sp.run(["bash", "-c", script], capture_output=True, text=True,
+                   env=dict(os.environ, AMENT_PREFIX_PATH=prefix))
+        assert r.stdout.split()[-1] == f"sourced={sourced}", r.stderr
+    assert "Autoware 2.1.0: the overlay carries fixes for Autoware 1.5.0 and is not sourced" \
+        in sp.run(["bash", "-c", script], capture_output=True, text=True,
+                  env=dict(os.environ, AMENT_PREFIX_PATH="/opt/autoware/2.1.0")).stderr

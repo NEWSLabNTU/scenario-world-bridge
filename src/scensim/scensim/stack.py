@@ -60,6 +60,7 @@ from scensim import episodes as episodesmod, judges as judgesmod, simulator as s
 from scensim import own_world
 from scensim import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
 from scensim import launcher as launchermod, tools as toolsmod
+from scensim import autoware as autowaremod
 from scensim.config import ConfigError
 
 SCHEMA = "scensim.stack/1"
@@ -677,6 +678,13 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         car = cars.get(b.spec.get("vehicle"))
         if car is not None:
             b.spec["args"] = {**own_car_args(car, b.kind, sim), **(b.spec.get("args") or {})}
+        if b.kind == "autoware":
+            # the profile runs the host's Autoware release (autoware.setup's directory)
+            try:
+                b.spec["args"] = autowaremod.pilot_release(
+                    host, f"pilots.{b.key} ({b.entity})", b.spec.get("args") or {})
+            except ValueError as e:
+                raise StackRefused(str(e)) from None
     stack_pilots = [b for b in bound if b.lifetime == "stack"]
     workspaces = {k: str(v) for k, v in overlaysmod.host_workspaces(host).items()}
     ctx = {"seed": 0, "run_dir": "", "run_id": "", "params": {}, "workspaces": workspaces}

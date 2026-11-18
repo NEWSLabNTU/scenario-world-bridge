@@ -31,6 +31,21 @@ SCENSIM_AUTOWARE_OVERLAY_SOURCES=(
         localization/autoware_localization_util"
 )
 
+# The Autoware release the sources above are built against and fix; the overlay is never sourced
+# over another (its packages would shadow that release's own).
+SCENSIM_AUTOWARE_OVERLAY_RELEASE=1.5.0
+# The release of the Autoware sourced now: the version-named directory of the first
+# AMENT_PREFIX_PATH entry under .../autoware/<X.Y.Z> (/opt/autoware/2.1.0 -> 2.1.0); empty when
+# none is (an Autoware installed into the ROS prefix).
+scensim_sourced_autoware_release() {
+    local p IFS=:
+    for p in ${AMENT_PREFIX_PATH:-}; do
+        if [[ "$p" =~ /autoware/([0-9]+\.[0-9]+\.[0-9]+)(/|$) ]]; then
+            echo "${BASH_REMATCH[1]}"
+            return 0
+        fi
+    done
+}
 # The pins, one line: what install/.scensim_overlay_rev records
 scensim_autoware_overlay_revs() {
     local src
@@ -89,6 +104,13 @@ scensim_autoware_overlay_source() {
         1|true|on) ;;
         *) echo "[just] autoware_overlay:=$2 is not true or false" >&2; exit 2 ;;
     esac
+    local running
+    running=$(scensim_sourced_autoware_release)
+    if [ -n "$running" ] && [ "$running" != "$SCENSIM_AUTOWARE_OVERLAY_RELEASE" ]; then
+        echo "[just] Autoware $running: the overlay carries fixes for Autoware" \
+             "$SCENSIM_AUTOWARE_OVERLAY_RELEASE and is not sourced (stock $running packages)" >&2
+        return 0
+    fi
     if [ ! -f "$dir/install/local_setup.bash" ]; then
         echo "[just] WARNING: Autoware overlay not built; running stock Autoware, which has" >&2
         echo "[just]   the blind_spot right-turn bug (autoware_universe#13509) and NDT's" >&2

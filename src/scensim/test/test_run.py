@@ -269,6 +269,9 @@ def test_run_one_end_to_end(live, where):
     assert stored.provenance["stack_id"] == p.stack_id
     assert stored.provenance["launcher"] in ("play_launch", "ros2")  # 079: from stack.json
     assert stored.provenance["simulator"] == "carla"
+    load = stored.provenance["load"]   # issue 046: the host's load at the start and the end
+    assert len(load["start"]["loadavg"]) == 3 and load["end"]["cores"] >= 1
+    assert load["start"]["t_wall"] <= load["end"]["t_wall"]
     assert "overlays" not in stored.provenance   # no pilot names a workspace of its own
     assert set(stored.pilots) == {"ego", "lead", "follower"}
     assert stored.ssv2["junit"] == "junit.xml" and (run_dir / "junit.xml").is_file()

@@ -94,6 +94,26 @@ def test_show(root):
     assert rows[0].index("slow tick") == rows[1].index("lost CARLA")
 
 
+def test_show_prints_the_hosts_load(root):
+    """Issue 046: the load at the run's start and end, from result.json's provenance."""
+    import json
+    d = root / "2026-11-14T10-01-00_cut_in_r1"
+    f = d / "result.json"
+    r = json.loads(f.read_text())
+    r.setdefault("provenance", {})["load"] = {
+        "start": {"t_wall": 1.0, "loadavg": [23.5, 30.0, 28.1], "cores": 24},
+        "end": {"t_wall": 2.0, "loadavg": [12.0, 20.25, 25.0], "cores": 24}}
+    f.write_text(json.dumps(r))
+    code, out = call("show", "--root", str(root), "cut_in_r1")
+    assert code == 0
+    assert "load      start 23.5/30/28.1, end 12/20.25/25 (1/5/15 min, 24 cores)" in out
+
+
+def test_show_without_a_load_prints_no_load_line(root):
+    code, out = call("show", "--root", str(root), "cut_in_r1")
+    assert code == 0 and "load " not in out
+
+
 def test_show_unknown_and_ambiguous(root):
     assert call("show", "--root", str(root), "nope")[0] == 3
     assert call("show", "--root", str(root), "cut_in")[0] == 3

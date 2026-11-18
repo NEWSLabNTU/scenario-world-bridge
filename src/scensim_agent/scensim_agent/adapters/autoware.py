@@ -36,6 +36,8 @@ from scensim_agent import protocol as P
 
 # autoware_adapi_v1_msgs constants (duplicated so this module needs no ROS)
 LOC_UNKNOWN, LOC_UNINITIALIZED, LOC_INITIALIZING, LOC_INITIALIZED = 0, 1, 2, 3
+# a port's message for a call that got no answer in its time (the request may still run)
+NO_RESPONSE = "no response in"
 ROUTE_UNKNOWN, ROUTE_UNSET, ROUTE_SET, ROUTE_ARRIVED, ROUTE_CHANGING = 0, 1, 2, 3, 4
 MODE_UNKNOWN, MODE_STOP, MODE_AUTONOMOUS, MODE_LOCAL, MODE_REMOTE = 0, 1, 2, 3, 4
 MRM_UNKNOWN, MRM_NORMAL, MRM_OPERATING, MRM_SUCCEEDED, MRM_FAILED = 0, 1, 2, 3, 4
@@ -53,6 +55,13 @@ DEFAULTS = {
     # WAITING_FOR_ROUTE, but that clock now only starts once the agent reports IDLE.
     "converge_timeout": 30.0,
     "initialize_attempts": 5,
+    # s one /api/localization/initialize may take (issue 046): the call returns when NDT's
+    # align server has searched its particles, CPU-bound wall time that a loaded host
+    # stretches past 30 s; the relay's reset_timeout (60 s) bounds the whole reset.
+    "initialize_timeout": 60.0,
+    # s to wait for an align still running after its initialize call timed out (issue 046):
+    # the request is not cancelled, so a fresh call would only queue a second align behind it
+    "align_wait": 60.0,
     # After the estimate agrees: the scan matcher's score (NVTL) must leave exactly 0 within
     # `lost_scores` scores, or the initialization is repeated (roadmap 072: an align that
     # converges and then matches nothing leaves Autoware in PLANNING for good). A stack whose
@@ -98,6 +107,7 @@ class AutopilotPort:
     """The Autoware interface the agent drives. Each call returns (ok, message)."""
 
     lost_score = 0.0  # a scan-matcher score at or below this does not count in score_above
+    initialize_timeout = 60.0  # s one initialize call may take (the agent's initialize_timeout)
 
     def snapshot(self) -> Snapshot:
         raise NotImplementedError
@@ -176,6 +186,8 @@ class Relocalization:
     attempts: int = 0
     next_try: float = 0.0
     unready_since: float | None = None  # Autoware's services went away mid-reset
+    align_pending: bool = False  # an initialize call timed out; its align may still run
+    align_since: float | None = None  # when the agent began waiting for that align
     deadline: float = 0.0
     last_scan_count: int = field(default=0)
     failure: str = ""
@@ -199,6 +211,7 @@ class AutowareAgent(scensim_agent.Agent):
         self._closing = threading.Event()
         self.port = port if port is not None else self.make_port()
         self.port.lost_score = float(self.cfg["lost_score"])
+        self.port.initialize_timeout = float(self.cfg["initialize_timeout"])
         self._core = threading.RLock()
         self.relocalization: Relocalization | None = None
         self.resetting = False  # on_reset runs: INITIALIZING whatever Autoware shows
@@ -460,6 +473,10 @@ class AutowareAgent(scensim_agent.Agent):
                     self.log.info(f"only {r.fresh_scans} fresh scan(s) in "
                                   f"{c['scan_wait']:.0f} s; initializing localization anyway")
                 r.stage, r.next_try = "initialize", now
+        if r.stage == "initialize" and now >= r.next_try and r.align_pending:
+            self._await_align(r, s, now)
+            if r.stage != "initialize" or r.align_pending:
+                return
         if r.stage == "initialize" and now >= r.next_try and not s.ready:
             # Not a refusal: the services are restarting (a healer restarting a hung
             # ADAPI container takes about half a minute). Wait for them, up to
@@ -478,6 +495,7 @@ class AutowareAgent(scensim_agent.Agent):
             r.unready_since = None
             r.attempts += 1
             ok, message = self.port.initialize(r.pose, s.scan_stamp or None)
+            r.align_pending = not ok and NO_RESPONSE in (message or "")
             if ok:
                 r.stage, r.deadline = "converge", self.clock() + c["converge_timeout"]
             elif r.attempts >= c["initialize_attempts"]:
@@ -514,6 +532,33 @@ class AutowareAgent(scensim_agent.Agent):
             elif scores >= c["lost_scores"] or self.clock() >= r.verify_until:
                 self._reinitialize(r, s, f"the scan matcher scored {scores} scan(s) at "
                                          f"{c['lost_score']:g} or below after localizing at the reset pose")
+
+    def _await_align(self, r: Relocalization, s: Snapshot, now: float):
+        """Issue 046: an initialize call that timed out is not cancelled; its align runs on
+        in Autoware's pose_initializer, and another call would queue a second align behind
+        it. Wait while localization reports INITIALIZING (up to `align_wait`); once it ends,
+        an estimate at the reset pose means that align took it (converge from there), else
+        call again."""
+        c = self.cfg
+        if s.localization == LOC_INITIALIZING:
+            if r.align_since is None:
+                r.align_since = now
+                self.log.info("the timed-out initialize is still aligning; waiting for it "
+                              "rather than queueing another")
+            if now - r.align_since >= c["align_wait"]:
+                r.stage = "failed"
+                r.failure = (f"localization stayed INITIALIZING {c['align_wait']:.0f} s after "
+                             "an initialize call timed out")
+                self.log.warning(r.failure)
+                return
+            r.next_try = now + min(c["initialize_retry"], 0.5)
+            return
+        r.align_pending, r.align_since = False, None
+        if (s.localization == LOC_INITIALIZED and s.pose is not None
+                and s.pose_stamp > r.before
+                and consistent(r.pose, s.pose, c["position_tolerance"], c["yaw_tolerance"])):
+            self.log.info("the timed-out initialize aligned at the reset pose after all")
+            r.stage, r.deadline = "converge", now + c["converge_timeout"]
 
     def _reinitialize(self, r: Relocalization, s: Snapshot, why: str):
         """Initialize again at the same pose, or fail once the repeats are spent."""

@@ -152,6 +152,19 @@ def git(cwd, *a):
                         "PATH": "/usr/bin:/bin", "HOME": str(cwd)})
 
 
+def test_host_load_has_the_averages_and_the_cores():
+    """Issue 046: what a run records of its host's load at its start and end."""
+    load = results.host_load()
+    assert len(load["loadavg"]) == 3 and all(x >= 0 for x in load["loadavg"])
+    assert load["cores"] >= 1 and load["t_wall"] > 0
+
+
+def test_host_load_without_loadavg(monkeypatch):
+    def no(): raise OSError("no /proc/loadavg")
+    monkeypatch.setattr(results.os, "getloadavg", no)
+    assert results.host_load()["loadavg"] is None
+
+
 def test_provenance(tmp_path):
     ws = tmp_path / "ws"
     ws.mkdir()

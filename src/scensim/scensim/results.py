@@ -7,9 +7,11 @@ runner's infrastructure errors into the verdict; ``provenance`` records what ran
 import dataclasses
 import hashlib
 import json
+import os
 import re
 import socket
 import subprocess
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -429,6 +431,18 @@ def installed_build(prefix=None):
             except (OSError, ValueError):
                 return None
     return None
+
+
+def host_load() -> dict:
+    """The host's load now (issue 046): /proc/loadavg's 1, 5 and 15 min averages and the
+    core count, recorded at a run's start and end so a failure under load shows as one."""
+    out = {"t_wall": round(time.time(), 3)}
+    try:
+        out["loadavg"] = [round(x, 2) for x in os.getloadavg()]
+    except OSError:
+        out["loadavg"] = None
+    out["cores"] = os.cpu_count()
+    return out
 
 
 def provenance(workspace, project=None, build=None) -> dict:

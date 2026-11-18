@@ -9,9 +9,11 @@ scensim installs neither a simulator nor an autopilot. Both are installed separa
 this page assumes that they are, or will be.
 
 There are two ways to install scensim. The released build is installed with pip and needs
-no compiler; it is the way described first. A build from source is for work on scensim
-itself, or for a platform without a release; it is described in
-[From source](#from-source).
+no compiler; it is the way described first. It is the simulation side only: the scenario
+runner, the bridge, the world servers and the pilots that are not Autoware. An Autoware ego
+needs scensim built from source, with its vehicle packages, as described in
+[From source](#from-source). A build from source is also for work on scensim itself, and
+for a platform without a release.
 
 <!-- TODO(exit run): every output below is from the first development build
 (0.0.0-dev, 2026-11-17); replace version, sizes and lines with the release's. -->
@@ -45,9 +47,11 @@ scensim install
 
 pip installs a small front end. It chooses the build for your ROS release from the
 Python version (3.10 is Humble, 3.12 is Jazzy). `scensim install` downloads that build, checks its size
-and checksum, and unpacks it under `~/.local/share/scensim/`. When an Autoware is
-sourced, it also downloads the vehicle side built for that Autoware release. If this step
-is omitted, the first command that needs scensim performs it and says so; `scensim
+and checksum, and unpacks it under `~/.local/share/scensim/`. This is the simulation side
+only: the release has no prebuilt vehicle side, so run the pip-installed scensim in a
+terminal that has not sourced Autoware. With an Autoware sourced, every command refuses
+("no prebuilt vehicle side for Autoware 1.5.0"). For an Autoware ego, build scensim from
+source instead ([From source](#from-source)). If this step is omitted, the first command that needs scensim performs it and says so; `scensim
 --version` never downloads anything.
 
 **What you see**, ending with the lines to run next:
@@ -103,24 +107,32 @@ These are the only steps of the install that need root.
 
 ## The environment file
 
-Every terminal sources one file, here `~/scensim.bash`, in this order: ROS, the autopilot,
-then scensim. Autoware comes before scensim because scensim's vehicle side is built for
-it.
+Every terminal sources one file, here `~/scensim.bash`: ROS, then scensim.
 
 ```bash
 # ~/scensim.bash
 source /opt/ros/humble/setup.bash
-source /opt/autoware/1.5.0/setup.bash          # when the autopilot is Autoware
 source ~/.local/share/scensim/current/sim/setup.bash
-source ~/.local/share/scensim/current/vehicle-autoware1.5.0/setup.bash   # vehicle side
+```
+
+With scensim built from source for an Autoware ego, the file sources ROS, then Autoware,
+then the build: Autoware comes before scensim because scensim's vehicle packages are built
+against it.
+
+```bash
+# ~/scensim.bash, a build from source with Autoware
+source /opt/ros/humble/setup.bash
+source /opt/autoware/1.5.0/setup.bash
+source ~/scensim/install/setup.bash
 ```
 
 A workspace of your own ([Tutorial 1](../tutorials/01-first-drive.md)) is built over these
 and sourced after them. The ROS domains, the DDS settings and the ports are not exported
 here: the stack sets them for every process it starts, from its seat.
 
-Once per user, give Autoware a writable data directory, `~/autoware_data`, where TensorRT
-keeps the engines it builds, so that they are built once:
+With an Autoware ego (a build from source), once per user, give Autoware a writable data
+directory, `~/autoware_data`, where TensorRT keeps the engines it builds, so that they are
+built once:
 
 ```bash
 source ~/scensim.bash
@@ -318,8 +330,9 @@ simulation side measured about 15 minutes of preparation (the tools, the message
 packages and rosdep) and 14 minutes of build on 12 cores (2026-11-17). With less than 64 GB of memory, add `--parallel-workers 4` and set
 `export CARGO_BUILD_JOBS=4` first.
 
-In the environment file, `~/scensim/install/setup.bash` then takes the place of the
-installed scensim's two `setup.bash` lines. The [Developer Guide](../development.md) has the
+The build has its own `scensim` command, so the pip front end is not needed beside it. In
+the environment file, `~/scensim/install/setup.bash` then takes the place of the installed
+scensim's `setup.bash` line, after Autoware's ([The environment file](#the-environment-file)). The [Developer Guide](../development.md) has the
 rest.
 
 ## If it does not work

@@ -184,7 +184,6 @@ def publish(
     distro: str = "humble",
     bad_sha: bool = False,
     size: int | None = None,
-    vehicle: bool = False,
     top_dir: bool = False,
     links: dict[str, str] | None = None,
     members: dict[str, str] | None = None,
@@ -204,14 +203,6 @@ def publish(
             f"{ctx.server.url}/{sim.name}", sim, sha="0" * 64 if bad_sha else None, size=size
         )
     }
-    if vehicle:
-        veh = make_tarball(
-            ctx.files / f"scensim-vehicle-{version}-autoware1.5.0-x86_64.tar.zst",
-            tar_version,
-            distro,
-            side="vehicle",
-        )
-        arts["vehicle"] = {"autoware1.5.0": artefact(f"{ctx.server.url}/{veh.name}", veh)}
     manifest = {"version": version, "ros_distro": distro, "artefacts": {"x86_64": arts}}
     make_release_package(ctx.pkgs, distro, manifest)
     return manifest
@@ -266,46 +257,32 @@ def test_archive_with_one_top_directory(env) -> None:
     assert (env.home / "0.1.0-humble" / "sim" / "scensim-release.yaml").exists()
 
 
-def test_vehicle_side_for_a_sourced_autoware(env) -> None:
-    publish(env, vehicle=True)
+def test_a_sourced_autoware_runs_the_simulation_side(env) -> None:
+    """0.2.0 (082, decided 2026-11-18): the user's Autoware is always sourced. The front end
+    installs and runs the simulation side with it, and downloads nothing for it."""
+    publish(env)
     aw = {"AMENT_PREFIX_PATH": "/opt/autoware/1.5.0:/opt/ros/humble"}
     r = env.run("run", "x", extra=aw)
     assert r.returncode == 0, r.stderr
-    assert "vehicle side for Autoware 1.5.0" in r.stderr
-    assert "(setup=1, vehicle=1)" in r.stdout
-    r = env.run("install", "--autoware", "2.0.0")
-    assert r.returncode == 3
-    assert "no prebuilt vehicle side for Autoware 2.0.0" in r.stderr and "autoware1.5.0" in r.stderr
+    assert "fake scensim: run x (setup=1, vehicle=0)" in r.stdout
+    assert "vehicle" not in r.stderr and "connect-autoware" in r.stderr
+    assert sorted(p.name for p in (env.home / "0.1.0-humble").iterdir()) == ["sim"]
+    for other in ("2.1.0", "1.9.0"):   # any release, from any distribution
+        r = env.run("runs", "list", extra={"AMENT_PREFIX_PATH": f"/opt/autoware/{other}"})
+        assert r.returncode == 0 and "fake scensim: runs list" in r.stdout, r.stderr
+
+
+def test_install_autoware_is_refused_by_name(env) -> None:
+    publish(env)
+    for args in (("--autoware", "1.5.0"), ("--autoware=2.1.0",)):
+        r = env.run("install", *args)
+        assert r.returncode == 3
+        assert "--autoware was removed in 0.2.0" in r.stderr and "connect-autoware" in r.stderr
+    assert env.server.hits == 0
 
 
 # --- rows 5.x: the guards ---------------------------------------------------------------------
 
-
-def test_an_autoware_without_a_prebuilt_vehicle_side_is_refused_on_every_run(env) -> None:
-    """139's review, 1A: Autoware 2.0.0 sourced, a release with a 1.5.0 vehicle side only."""
-    publish(env, vehicle=True)
-    aw = {"AMENT_PREFIX_PATH": "/opt/autoware/2.0.0:/opt/ros/humble"}
-    for _ in range(2):   # the rerun is refused too, never run without its vehicle side
-        r = env.run("run", "x", extra=aw)
-        assert r.returncode == 3, r.stderr
-        assert "no prebuilt vehicle side for Autoware 2.0.0" in r.stderr
-        assert "this release has: autoware1.5.0" in r.stderr
-        assert "fake scensim" not in r.stdout
-    assert env.server.hits == 0 and not (env.home / "current").exists()
-
-
-def test_a_sim_only_install_gets_its_vehicle_side_once_autoware_is_sourced(env) -> None:
-    """139's review, 1B: a first use without Autoware, then Autoware 1.5.0 sourced."""
-    publish(env, vehicle=True)
-    r = env.run("run", "x")
-    assert r.returncode == 0 and "(setup=1, vehicle=0)" in r.stdout, r.stderr
-    aw = {"AMENT_PREFIX_PATH": "/opt/autoware/1.5.0:/opt/ros/humble"}
-    r = env.run("run", "x", extra=aw)
-    assert r.returncode == 0, r.stderr
-    assert "vehicle side for Autoware 1.5.0" in r.stderr
-    assert "downloading scensim 0.1.0" not in r.stderr.replace("vehicle side", "")
-    assert "(setup=1, vehicle=1)" in r.stdout
-    assert (env.home / "current" / "vehicle-autoware1.5.0" / "setup.bash").exists()
 
 
 def test_a_link_out_of_the_prefix_is_left_out_and_named(env) -> None:
@@ -547,6 +524,12 @@ def test_make_manifest_then_install(env, tmp_path: Path) -> None:
     )
     out = tmp_path / "manifest.json"
     tool = Path(__file__).resolve().parents[2] / "make_manifest.py"
+    base = [sys.executable, str(tool), "--version", "0.1.0", "--distro", "humble",
+            "--base-url", env.server.url, "--out", str(out)]
+    # a vehicle tarball is refused by name: a release has none since 0.2.0
+    r = subprocess.run([*base, str(sim), str(veh)], capture_output=True, text=True)
+    assert r.returncode != 0 and "no vehicle tarball since 0.2.0" in r.stderr
+    tool = Path(__file__).resolve().parents[2] / "make_manifest.py"
     subprocess.run(
         [
             sys.executable,
@@ -560,17 +543,16 @@ def test_make_manifest_then_install(env, tmp_path: Path) -> None:
             "--out",
             str(out),
             str(sim),
-            str(veh),
         ],
         check=True,
         capture_output=True,
     )
     manifest = json.loads(out.read_text())
-    assert manifest["artefacts"]["x86_64"]["vehicle"]["autoware1.5.0"]["size"] == veh.stat().st_size
+    assert list(manifest["artefacts"]["x86_64"]) == ["sim"]
     make_release_package(env.pkgs, "humble", manifest)
-    r = env.run("install", "--autoware", "1.5.0")
+    r = env.run("install")
     assert r.returncode == 0, r.stderr
-    assert (env.home / "current" / "vehicle-autoware1.5.0" / "setup.bash").exists()
+    assert (env.home / "current" / "sim" / "setup.bash").exists()
 
 
 def test_make_manifest_with_a_dashed_version(env, tmp_path: Path) -> None:
@@ -617,18 +599,17 @@ def test_exec_needs_the_prefix_environment_and_passes_the_exit_code(env) -> None
     assert "no environment" not in r.stderr
 
 
-def test_ros_autoware_sim_vehicle_order(env, tmp_path: Path) -> None:
-    """No ROS sourced, Autoware not sourced but installed: ROS, Autoware, sim, vehicle."""
-    publish(env, vehicle=True)
+def test_ros_then_sim_order_with_autoware_left_as_sourced(env, tmp_path: Path) -> None:
+    """No ROS sourced: ROS, then the simulation side. The front end sources no Autoware: the
+    user's is in the terminal already, with its workspace."""
+    publish(env)
     ros = fake_root(tmp_path, "ros", "humble", "FAKE_ROS")
-    aw = fake_root(tmp_path, "autoware", "1.5.0", "FAKE_AW")
-    roots = {"SCENSIM_ROS_ROOT": str(ros), "SCENSIM_AUTOWARE_ROOT": str(aw)}
-    r = env.run("install", "--distro", "humble", "--autoware", "1.5.0", ros=None, extra=roots)
+    roots = {"SCENSIM_ROS_ROOT": str(ros)}
+    r = env.run("install", "--distro", "humble", ros=None, extra=roots)
     assert r.returncode == 0, r.stderr
     r = env.run("run", "x", ros=None, extra=roots)
     assert r.returncode == 0, r.stderr
-    assert "order=ros,autoware,sim,vehicle," in r.stdout
-
+    assert "order=ros,sim," in r.stdout
 
 def test_an_already_sourced_prefix_is_not_sourced_again(env) -> None:
     publish(env)
@@ -688,23 +669,13 @@ def test_help_is_the_front_ends_own_before_any_install(env) -> None:
     assert "fake scensim" not in r.stdout and env.server.hits == 0
 
 
-def test_a_vehicle_side_on_a_ros_autoware_does_not_run_on_is_refused_by_name() -> None:
-    """Jazzy (0.2.0): Autoware 1.5.0 is built for Humble only, so a release for another ROS
-    has no vehicle side, and building one from source is not the way out either."""
+def test_a_release_names_its_sim_artefact_only() -> None:
+    """A manifest's sim artefact is what the front end takes; a 0.1.0-era "vehicle" entry is
+    ignored, on any ROS (Jazzy included: its user's Autoware is theirs to build)."""
     release = _release_module()
-    Refused, Release = release.Refused, release.Release
-
     art = {"url": "http://x/s.tar.zst", "size": 1, "sha256": "0" * 64}
-    jazzy = Release("jazzy", "0.2.0", {"version": "0.2.0", "ros_distro": "jazzy",
-                                       "artefacts": {"x86_64": {"sim": art}}})
-    with pytest.raises(Refused) as e:
-        jazzy.artefact("vehicle", "1.5.0")
-    msg = str(e.value)
-    assert "no prebuilt vehicle side for Autoware 1.5.0" in msg
-    assert "ROS 2 Humble only" in msg and "build" not in msg.split("Humble only")[1].split(".")[0]
-    # Humble keeps the old advice: its Autoware can be built from source
-    humble = Release("humble", "0.2.0", {"version": "0.2.0", "ros_distro": "humble",
-                                         "artefacts": {"x86_64": {"sim": art}}})
-    with pytest.raises(Refused) as e:
-        humble.artefact("vehicle", "1.5.0")
-    assert "build the vehicle packages from source" in str(e.value)
+    for distro in ("humble", "jazzy"):
+        r = release.Release(distro, "0.2.0", {"version": "0.2.0", "ros_distro": distro,
+                            "artefacts": {"x86_64": {"sim": art, "vehicle": {"autoware1.5.0": art}}}})
+        assert r.sim_artefact() == art
+    assert not hasattr(r, "artefact") and not hasattr(release, "vehicle_prefix")

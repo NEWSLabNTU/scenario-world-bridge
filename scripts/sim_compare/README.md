@@ -24,4 +24,9 @@ python3 carla_scene.py PORT truth.json [scene.yaml]
 python3 isaac_scene.py ISAAC_PORT <world.yaml> <map dir> HOLD_S truth.json [scene.yaml]
 ```
 
-Record the sensor on each side while the scene holds (`SCENE-READY` on stdout).
+Record the sensor on each side while the scene holds (`SCENE-READY` on stdout): `ros2 bag record
+/sensing/lidar/top/pointcloud_before_sync /tf_static /tf` on the ego's ROS domain (acb_bridge's
+on CARLA, the Isaac world server's `EGO_ROS_DOMAIN_ID`), with Cyclone as the stack's RMW.
+
+The bodies are CARLA 0.9.16's (`body:` in the scene); on CARLA 1.0 the Model 3 differs (wheel
+base 2.876 m), so a 1.0 comparison needs a scene file with that body's values.

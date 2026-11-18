@@ -104,11 +104,13 @@ ez = es.pose.position.z
 print("ego state", es.pose.position, flush=True)
 gz = ez - ego.body.origin_offset.z  # entity origin height (on the ground)
 
-npcs = {}
+npcs, offsets = {}, {}
 for name, (x, y, yaw) in SCENE["cars_map"].items():
     p = pose(x, y, gz, yaw)
     r = spawn(name, "VEHICLE", "KINEMATIC", p)
     npcs[name] = (r.handle, p)
+    o = r.body.origin_offset
+    offsets[name] = np.array([o.x, o.y, o.z])
 
 for _ in range(20):
     s = step(npcs)
@@ -123,12 +125,20 @@ truth, full = {}, {"ego_body_pose": [ep.position.x, ep.position.y, ep.position.z
                    "ego_origin_offset": [off.x, off.y, off.z], "base_link_in_world": e_org.tolist(),
                    "cars": {}}
 for name, (hd, p) in npcs.items():
+    # measured: the car's state after the steps (its body pose less its origin offset, as the
+    # ego's), not the pose commanded, so a world server that moves a body shows here
+    mp = st[hd].pose
+    mq = (mp.orientation.w, mp.orientation.x, mp.orientation.y, mp.orientation.z)
+    m_org = np.array([mp.position.x, mp.position.y, mp.position.z]) - rot(mq) @ offsets[name]
+    b = Re.T @ (m_org + rot(mq) @ np.array(BOX_C) - e_org)
     q = (p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z)
-    c = np.array([p.position.x, p.position.y, p.position.z]) + rot(q) @ np.array(BOX_C)
-    b = Re.T @ (c - e_org)
+    cmd = np.array([p.position.x, p.position.y, p.position.z])
+    bc = Re.T @ (cmd + rot(q) @ np.array(BOX_C) - e_org)
     truth[name] = [round(float(b[0]), 2), round(float(b[1]), 2)]
-    full["cars"][name] = {"world_origin": [p.position.x, p.position.y, p.position.z],
-                          "box_centre_base_link": [round(float(v), 3) for v in b]}
+    full["cars"][name] = {"commanded_origin": cmd.round(3).tolist(),
+                          "measured_origin": m_org.round(3).tolist(),
+                          "commanded_box_centre_base_link": [round(float(v), 3) for v in bc],
+                          "measured_box_centre_base_link": [round(float(v), 3) for v in b]}
 json.dump(truth, open(OUT, "w"), indent=1)
 json.dump(full, open(OUT.replace(".json", "_full.json"), "w"), indent=1)
 print("truth", truth, flush=True)

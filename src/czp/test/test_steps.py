@@ -537,16 +537,37 @@ def test_rest_tie_guard_counts_from_the_later_rest():
     z = _cross()
     ags = [car("A"), car("B")]  # B comes from A's right: B wins the tie
     guard = P.stop_dwell + CAR.launch_dead + P.see_delay
-    rests = {"A": 0.0, "B": 1.5}
+    late = 0.6  # B rests 0.6 s after A: within stopped_first's margin (T + m), so the tie's role binds
+    rests = {"A": 0.0, "B": late}
     d = decide_all(CONV, z, ags, rests, P_EXACT, t=guard + 0.1, quiet_since=-math.inf)  # the other's rest + guard
     assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait", d["B"]
-    d = decide_all(CONV, z, ags, rests, P_EXACT, t=1.5 + guard - 0.1, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, rests, P_EXACT, t=late + guard - 0.1, quiet_since=-math.inf)
     assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait"
-    d = decide_all(CONV, z, ags, rests, P_EXACT, t=1.5 + guard + 0.1, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, rests, P_EXACT, t=late + guard + 0.1, quiet_since=-math.inf)
     assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
     # the other rested later: the guard runs from its rest, as before
-    d = decide_all(CONV, z, ags, {"A": 1.5, "B": 0.0}, P_EXACT, t=1.5 + guard - 0.1, quiet_since=-math.inf)
+    d = decide_all(CONV, z, ags, {"A": late, "B": 0.0}, P_EXACT, t=late + guard - 0.1, quiet_since=-math.inf)
     assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait"
+
+
+def test_rest_first_keeps_the_turn():
+    """078 P2e: under rest_tie, a car that came to rest clearly first (stopped_first reads the own car SECOND, beyond
+    T + m) keeps the turn: the right-hand car yields to it, in round two as well. One way only: the reading makes a car
+    yield, never go; the first car still yields by the tie's role, so both wait until the last resort (map order)."""
+    z = _cross()
+    ags = [car("A"), car("B")]
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    rests = {"A": 0.0, "B": 1.5}
+    for t in (1.5 + guard + 0.1, 1.5 + guard + P.second_round_H2 + 0.1):
+        d = decide_all(CONV, z, ags, rests, P_EXACT, t=t, quiet_since=-math.inf)
+        assert d["B"].kind != GO and d["B"].reason == "rest_first", (t, d["B"])
+        assert d["A"].kind != GO
+    h3 = P.second_round_H2 + P.tie_threshold_T + P.tie_margin_m + P.role_time_error_e + P.last_resort_extra
+    d = decide_all(CONV, z, ags, rests, P_EXACT, t=1.5 + guard + h3 + 0.2, quiet_since=-math.inf)
+    assert d["A"].kind == GO and d["A"].reason == "last_resort" and d["B"].kind != GO
+    off = dict(CONV, cross_unsignalled=dict(CONV["cross_unsignalled"], rest_first=False))
+    d = decide_all(off, z, ags, rests, P_EXACT, t=1.5 + guard + 0.1, quiet_since=-math.inf)
+    assert d["B"].kind == GO and d["B"].reason == "rest_tie"
 
 
 def test_clear_go_from_rest_waits_the_mutual_rest_guard():
@@ -584,7 +605,7 @@ def test_tie_needs_the_own_car_at_rest():
     assert v.band.kind == BAND and v.role is not None and v.role.reading == TIE
     assert v.kind == WAIT and v.reason == "fresh_tie" and not v.hard
     # at rest itself, B goes by rest_tie once the guard from the later rest has passed
-    v = _verdict(car("B", s_entry=0.5), o, 8.0, 5.0, 8.0 + P.stop_dwell + CAR.launch_dead + P.see_delay + 0.1)
+    v = _verdict(car("B", s_entry=0.5), o, 5.0, 5.0, 5.0 + P.stop_dwell + CAR.launch_dead + P.see_delay + 0.1)
     assert v.kind == GO and v.reason == "rest_tie"
 
 
@@ -634,7 +655,8 @@ def test_protocol_go_waits_for_the_later_rest():
     the guard after its own rest (not after A's), and a restart of A within that guard (a 0.5 s patience after the mutual rest) turns it into a yield."""
     z = _cross()
     guard = P.stop_dwell + CAR.launch_dead + P.see_delay
-    pr = czp.Protocol(CONV, P_EXACT)
+    conv = dict(CONV, cross_unsignalled=dict(CONV["cross_unsignalled"], rest_first=False))  # the guard alone
+    pr = czp.Protocol(conv, P_EXACT)
     first_go = None
     for k in range(0, 120):
         t = k * 0.1
@@ -645,7 +667,7 @@ def test_protocol_go_waits_for_the_later_rest():
             first_go = t
     assert first_go is not None and first_go >= 1.5 + guard - 1e-6, first_go
     # A restarts 1.2 s after the mutual rest (seen moving): B never goes before A
-    pr = czp.Protocol(CONV, P_EXACT)
+    pr = czp.Protocol(conv, P_EXACT)
     for k in range(0, 60):
         t = k * 0.1
         moving = t >= 1.5 + 1.2

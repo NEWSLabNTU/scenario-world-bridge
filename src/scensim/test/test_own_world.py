@@ -1,6 +1,12 @@
 """A world server from a support package (roadmap 081 step 5): world.server's rules, the
 command scensim starts it with, and the conformance report as findings."""
+import os
+import socket
+import subprocess
 import sys
+from pathlib import Path
+
+import pytest
 
 from scensim import own_world
 
@@ -75,3 +81,82 @@ def test_world_server_and_simulator_none_are_world_rules():
     assert ("world.world_config_file", "is the stock CARLA server's; with world.server, your "
             "server takes its own settings as its arguments") in world.problems(
         {"world": {"server": ["a", "b"], "world_config_file": "c.yaml"}}, "carla")
+
+
+# --- the real check against fixture servers (081 edit 4) -------------------------------------
+FIXTURES = Path(__file__).parent / "fixtures" / "world_servers"
+SHELL = Path(__file__).resolve().parents[2] / "scensim_world_protocol" / "scensim_world_server"
+
+
+def _real_check():
+    """scensim_world_check from the sourced workspace, and an environment whose Python finds
+    the scensim_world_server shell (installed, or the protocol submodule's source); skipped
+    without either (no build of the protocol, or no pyzmq)."""
+    try:
+        from ament_index_python.packages import get_package_prefix
+        exe = Path(get_package_prefix("scensim_world_check")) / "lib" / "scensim_world_check" \
+            / "scensim_world_check"
+    except Exception:  # noqa: BLE001 (not built, or no ROS)
+        pytest.skip("scensim_world_check is not in the sourced workspace")
+    if not exe.is_file():
+        pytest.skip(f"{exe}: not built")
+    env = dict(os.environ)
+    if SHELL.is_dir():
+        env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(SHELL), env.get("PYTHONPATH")]))
+    probe = subprocess.run([sys.executable, "-c", "import zmq, scensim_world_server.server"],
+                           env=env, capture_output=True)
+    if probe.returncode != 0:
+        pytest.skip("the scensim_world_server shell or pyzmq is not importable")
+    return [str(exe)], env
+
+
+def _free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _fixture(*flags):
+    return [sys.executable, str(FIXTURES / "kinematic_world.py"), *flags]
+
+
+def test_a_conforming_world_server_passes_the_real_check(tmp_path):
+    check, env = _real_check()
+    got = own_world.conformance_findings(["fixture_world", "kinematic_world"], _free_port(),
+                                         check=check, env=env, start_timeout=20,
+                                         command=_fixture(), log=tmp_path / "server.log")
+    assert got == [], [str(f) for f in got]
+
+
+def test_a_world_server_that_breaks_the_protocol_fails_it_by_name(tmp_path):
+    check, env = _real_check()
+    got = own_world.conformance_findings(["fixture_world", "kinematic_world"], _free_port(),
+                                         check=check, env=env, start_timeout=20,
+                                         command=_fixture("--broken"),
+                                         log=tmp_path / "server.log")
+    assert got and all(f.file == "world.server" and f.what.startswith("conformance: ")
+                       for f in got), [str(f) for f in got]
+
+
+def test_a_live_stacks_world_server_is_probed_with_hello(tmp_path):
+    check, env = _real_check()
+    port = _free_port()
+    assert own_world.hello_findings(port, check=check, env=env) != []   # nothing there
+    proc = subprocess.Popen(_fixture("--port", str(port)), env=env, start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    try:
+        assert own_world.hello_findings(port, check=check, env=env) == []
+    finally:
+        own_world._stop(proc)
+
+
+def test_hello_findings_name_the_endpoint_and_the_server_says_why():
+    got = own_world.hello_findings(5599, check=[sys.executable, "-c",
+                                                "import sys; print('no answer'); sys.exit(1)"])
+    assert len(got) == 1 and got[0].host
+    assert "tcp://127.0.0.1:5599 did not answer Hello: no answer" in got[0].what
+
+
+def test_the_server_command_can_be_given():
+    assert own_world.server_argv(["w", "s", "--x"], 7, command=["python3", "f.py"]) == [
+        "python3", "f.py", "--port", "7"]

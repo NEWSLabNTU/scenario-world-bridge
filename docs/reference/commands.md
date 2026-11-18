@@ -35,7 +35,7 @@ pilot, a suite key it does not know. The stack refuses to start (3) on either.
 | `testbench new <name>` | writes a testbench package into `./<name>` (run it in a workspace's `src/`); `--template carla-first-drive` (default), `multi-pilot` or `isaac`; a name that is not a valid ROS package name is refused |
 | `testbench new <name> --from <project>` | copies a project or testbench (a directory or `pkg://<package>/<dir>`) and adds the package manifest and a default suite |
 | `testbench list` | the testbenches of the sourced workspaces, with their suites |
-| `testbench check <name>` | the build's checks (the package's own findings) and this host's, printed as `problem (this host): ...`; ends `testbench: ok` |
+| `testbench check <name>` (`--live`) | the build's checks (the package's own findings) and this host's, printed as `problem (this host): ...`; ends `testbench: ok`. `--live`: its own world server through the full conformance check, or the stock one of its live stack probed with `Hello` (reference/testbench.md) |
 
 ## `scensim stack`
 

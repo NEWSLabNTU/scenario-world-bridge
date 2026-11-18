@@ -1,7 +1,7 @@
 # Your world server in a testbench
 
-<!-- TODO(exit run): `testbench check --live` and the stack's start of a world.server land
-with `scensim run`'s testbench support (081); check both commands and their output. -->
+<!-- TODO(exit run): the stack's start of a world.server; check the commands and their
+output on a host. -->
 
 Run your testbench on a world server of your own: a fork of CARLA's with a sensor it lacks, a
 simulator scensim does not ship, or a fake world for CI. The server lives in a package of your
@@ -155,9 +155,15 @@ ros2 run scensim_world_check scensim_world_check conformance tcp://127.0.0.1:559
 kill %1          # the server: stop it when the check is done
 ```
 
-`scensim testbench check my_testbench --live` will do the same: start your server as the
-stack would, wait for its `Hello`, run the conformance check, stop it, and report each failed
-check as a problem of `world.server`.
+`scensim testbench check my_testbench --live` does the same: it starts your server as the
+stack would (on a free port), waits for its `Hello`, runs the conformance check, stops it,
+and reports each failed check as a problem of `world.server`:
+
+```
+problem (this host): world.server: conformance: <the check that failed> (fix: ...)
+```
+
+Your server's output goes to `<logs>/my_testbench/world_server.log`.
 
 The build checks `world.server`'s form only (a package, an executable, no `--port`); that
 the package exists and its server conforms is checked live.

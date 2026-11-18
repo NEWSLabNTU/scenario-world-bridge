@@ -60,6 +60,21 @@ such a finding as `problem (this host): ...`. A testbench without `scensim.lock`
 with the warning `no scensim.lock yet: run scensim assets fetch <name> and commit
 src/<name>/scensim.lock`.
 
+`scensim testbench check <name> --live` also checks the testbench's world server over the
+world protocol, once the package itself has no problem:
+
+- **Its own server** (`world: {server: [<package>, <executable>, ...]}`): started on a free
+  port as the stack would start it, run through the full conformance check
+  (`scensim_world_check conformance`), then stopped. Each failed check is a
+  `problem (this host): world.server: conformance: ...`; a server that never answers is one
+  problem naming it, with its log in `<logs>/<name>/world_server.log`.
+- **The stock server** (no `world.server`): needs a simulator, so it is checked only on the
+  testbench's live stack, with a `Hello` probe (it changes nothing, so it is safe beside a
+  run). The stack's bridge owns that server, so a full conformance run is not possible there.
+  A server that does not answer, or refuses this scensim's protocol version, is a
+  `problem (this host): world: ...`. With no stack up, `--live` prints
+  `note (this host): no stack of <name> is up, ...` and checks nothing more.
+
 ## Names of other files and packages
 
 A testbench names its own files by paths relative to itself (a suite's scenarios relative
@@ -93,7 +108,7 @@ the workspace in place of the stock one: [Your world server](../how-to/your-worl
 |---|---|
 | `scensim testbench new <name>` | creates a testbench in the current directory (`src/`) |
 | `scensim testbench list` | the testbenches of the sourced workspaces, with their suites |
-| `scensim testbench check <name>` | the build's checks and this host's |
+| `scensim testbench check <name>` (`--live`) | the build's checks and this host's; `--live` also its world server |
 | `scensim run <name>` | the default suite; `<name>/<suite>` another suite; `<name>/scenarios/<file>` one scenario |
 | `scensim assets fetch <name>` | the assets, and the lock |
 | `scensim stack <name>` (`--foreground`, `--stop`), `scensim stack --list` | start a testbench's stack (in this terminal), stop it; the running stacks |

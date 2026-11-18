@@ -150,12 +150,27 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def live_findings(tb, d: Path, host: dict) -> list:
-    """The testbench's own world server against the conformance check, when it has one."""
+def live_findings(tb, d: Path, host: dict, note=None) -> list:
+    """``--live``: the testbench's own world server (``world.server``) started on a free port
+    and run through the full conformance check; else the stock world server of its live stack
+    probed with ``Hello`` (the stack's bridge owns it, so a conformance run would be refused).
+    No stack up: nothing to probe, said through ``note``."""
+    from scensim import own_world
     world = config.project_settings(d).get("world")
     if not (isinstance(world, dict) and world.get("server")):
-        return []
-    from scensim import own_world
+        from scensim import run as runmod
+        try:
+            rec = runmod.find_stack(d, host)
+        except runmod.NoStack:
+            if note:
+                note(f"no stack of {tb.name} is up, so its world server was not probed "
+                     f"(start one: scensim stack {tb.name})")
+            return []
+        except runmod.Refused as e:   # up but not ready, or another seat's
+            if note:
+                note(f"{e}; its world server was not probed")
+            return []
+        return own_world.hello_findings(rec["ports"]["world"])
     log = Path(host["logs"]).expanduser() / tb.name / "world_server.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     return own_world.conformance_findings(list(world["server"]), _free_port(), log=log)
@@ -171,7 +186,8 @@ def check(target=None, live=False, logs=None, out=None) -> int:
     pkg = package_findings(tb)
     here = host_findings(tb, d)
     if live and not pkg:
-        here += live_findings(tb, d, host)
+        here += live_findings(tb, d, host,
+                              note=lambda text: out.write(f"note (this host): {text}\n"))
     def shown(f) -> str:
         # names relative to the testbench (the files the user edits are src/<tb>/...), and the
         # asset fix with the testbench, so it runs from the workspace

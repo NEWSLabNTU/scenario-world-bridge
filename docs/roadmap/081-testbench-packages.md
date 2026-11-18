@@ -7,9 +7,7 @@ scensim. scensim runs a testbench by its package name. A testbench has its own c
 type, `scensim_testbench`, provided by the colcon plugin `colcon-scensim`: a `package.xml`
 and a `testbench.yaml`, no CMake.
 
-**Status**: planned, 2026-11-17. Nothing is built yet. Follows [080](080-rename-to-scensim.md)
-(the names below are the new ones); [082](082-distribution-and-pypi-release.md) ships the
-plugin and the testbench templates.
+**Status**: done, landed 2026-11-18 with 080 (scensim main 12e54f1), then a testbench's own world server and `simulator: none` (a53a2cb, ee7bb48) and `testbench check --live` (d6cb0eb, issue 048). Left: the internal study projects under `scenarios/projects/` become testbenches (parked).
 
 **Source**: user, 2026-11-17, in one design conversation:
 

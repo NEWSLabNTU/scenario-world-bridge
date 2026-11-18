@@ -7,9 +7,7 @@ workspace. No step but one rosdep line needs root. A source build stays document
 workflow that publishes to GitHub Releases and PyPI behind the user's approval, and makes
 the tag last.
 
-**Status**: planned, 2026-11-17. Nothing is built yet. Follows [080](080-rename-to-scensim.md)
-(names) and ships [081](081-testbench-packages.md)'s plugin and templates. Step 2's local
-measurement publishes nothing and may run before 080.
+**Status**: 0.1.0 released 2026-11-18 (PyPI `scensim`, `scensim-ros-humble`, `colcon-scensim`; GitHub release v0.1.0 on d90ac38; run 44267937009), plus a placeholder `scensim-ros-jazzy` 0.1.0 that refuses clearly on 24.04. Next: 0.2.0 with Jazzy (step 7; the sim set builds on Jazzy, 118's `jazzy-0.2.0`).
 
 **Source**: user, 2026-11-17, in one design conversation:
 

@@ -48,6 +48,12 @@ set -o pipefail
 export DEBIAN_FRONTEND=noninteractive
 # python3-pip as Install has it first: rosdep's pip keys (huggingface-hub, yamale) need it
 apt-get update -qq && apt-get install -y -qq zstd file binutils python3-rosdep python3-pip >/dev/null 2>&1
+# Python 3.11+ (PEP 668; Jazzy's 3.12) is externally managed: rosdep's pip keys need pip
+# allowed next to apt's packages, installing over the Debian-owned dependencies they want
+# newer -- as the front end's rosdep line says on such a Python
+if python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+  export PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1
+fi
 P=/opt/scensim; mkdir -p $P
 zstd -dc /in/release.tar.zst | tar -xf - -C $P
 # the release where the front end puts it: relocated, then sourced from sh as from bash

@@ -2,9 +2,9 @@
 # The link check (roadmap 082): on a clean ROS image with only the tarball and its rosdep
 # packages installed, every shared object and executable in it resolves every library and
 # symbol (`ldd -r`), every script's interpreter exists, every symbolic link resolves
-# inside the prefix, every RPATH/RUNPATH entry is $ORIGIN-relative or a system directory, and
-# setup.sh sources from sh once relocate.sh has run. Fails when one does not,
-# naming it.
+# inside the prefix, every RPATH/RUNPATH entry is $ORIGIN-relative or a system directory, no
+# file of a source build only is left in (built_from), and setup.sh sources from sh once
+# relocate.sh has run. Fails when one does not, naming it.
 #
 #   scripts/release/check_links.sh <scensim-sim-....tar.zst> [--image ros:humble-ros-core]
 #       [--out DIR]
@@ -100,6 +100,10 @@ while IFS= read -r -d '' l; do
     *) echo "${l#$P/} -> $(readlink "$l") (leaves the prefix)" >> /out/links_stray.txt ;; esac
 done < <(find $P -type l -print0)
 echo "symbolic links that dangle or leave the prefix: $(wc -l < /out/links_stray.txt)"
+# files that mean something only in a source build (stage_sim.py's SOURCE_BUILD_ONLY)
+: > /out/source_only.txt
+for f in share/scensim_isaac_world/built_from; do [ -e "$P/$f" ] && echo "$f" >> /out/source_only.txt; done
+echo "files of a source build only: $(wc -l < /out/source_only.txt)"
 # every RPATH/RUNPATH entry is $ORIGIN-relative inside the prefix or a system directory
 : > /out/rpaths_bad.txt
 while IFS= read -r -d '' f; do
@@ -146,6 +150,11 @@ fi
 if [ -s "$OUT/links_stray.txt" ]; then
     echo "check_links.sh: FAILED, symbolic links that dangle or leave the prefix:" | tee -a "$OUT/summary.txt"
     head -20 "$OUT/links_stray.txt" | sed 's/^/  /' | tee -a "$OUT/summary.txt"
+    exit 1
+fi
+if [ -s "$OUT/source_only.txt" ]; then
+    echo "check_links.sh: FAILED, files of a source build only (stage_sim.py leaves them out):" | tee -a "$OUT/summary.txt"
+    sed 's/^/  /' "$OUT/source_only.txt" | tee -a "$OUT/summary.txt"
     exit 1
 fi
 if [ -s "$OUT/shebangs.txt" ]; then

@@ -316,6 +316,24 @@ def relocatable(prefix: Path, build_install: Path) -> int:
     return n
 
 
+# Files that mean something only in a source build, left out of the release. built_from
+# (scensim_isaac_world) names the source tree and prefix the install was built from, for
+# isaac_env.sh's source-tree fallback; relocate.sh would rewrite its prefix, so in a release
+# it would only keep a dead fallback to the build host's tree (139's review of the RC).
+SOURCE_BUILD_ONLY = ["share/scensim_isaac_world/built_from"]
+
+
+def drop_source_build_only(prefix: Path) -> list:
+    """Remove SOURCE_BUILD_ONLY's files from the prefix; return those it removed."""
+    dropped = []
+    for rel in SOURCE_BUILD_ONLY:
+        f = prefix / rel
+        if f.is_file() or f.is_symlink():
+            f.unlink()
+            dropped.append(rel)
+    return dropped
+
+
 def drop_stray_links(prefix: Path) -> list:
     """Remove the symbolic links that dangle or lead out of the prefix; return them.
 
@@ -440,6 +458,9 @@ def main(argv=None) -> int:
     protocol = [n for n, p in pkgs.items() if str(p).startswith(str(root / PROTOCOL_DIR))]
     keep = kept_for_building(stage, protocol)
 
+    source_only = drop_source_build_only(stage)
+    print(f"files of a source build only, left out: {len(source_only)}"
+          + "".join(f"\n  {s}" for s in source_only))
     stray = drop_stray_links(stage)
     print(f"links that dangle or leave the prefix, left out: {len(stray)}"
           + "".join(f"\n  {s}" for s in stray))

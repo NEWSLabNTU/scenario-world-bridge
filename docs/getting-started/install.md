@@ -152,24 +152,11 @@ autoware: {setup: /opt/autoware/1.5.0/setup.bash}
 Every key, and the seat table an administrator sets in `/etc/scensim/host.yaml`, is
 described in [Host settings](../reference/host-settings.md).
 
-## Autoware's fixes
+## NEWSLab's Autoware 1.5.0 binaries
 
-This step applies to Autoware 1.5.0's binary packages. They lack three fixes that
-scensim's scenarios rely on: a right turn on which Autoware's blind-spot check stops the
-car, an oscillation in NDT localization that triggers an occasional emergency stop, and a
-node that aborts on a timestamp a simulator's clock produces. They are built once, in a
-few minutes:
-
-```bash
-scensim autoware overlay
-```
-
-Without them a stack runs stock Autoware and its log says so. With CenterPoint as the
-lidar detector, Autoware 1.5.0 also needs TensorRT 10.8.0, without which the detector's
-engines are rebuilt at every start: `scensim autoware tensorrt` fetches it (3 GB). The
-default detector needs neither. `scensim autoware where` prints where each is placed.
-
-<!-- TODO(exit run): confirm the three autoware commands from the release. -->
+If you use NEWSLab's Autoware 1.5.0 binary packages with scensim's Autoware profile, see the
+[testbed page](../design/autoware-testbed.md) for the fixes and the TensorRT runtime
+scensim's own testbed adds. Your own Autoware needs neither.
 
 ## Recommended: play_launch
 

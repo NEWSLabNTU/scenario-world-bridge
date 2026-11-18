@@ -29,7 +29,9 @@ apt-get update -qq >/dev/null 2>&1
 dash=${REL//./-}
 pkg=$(apt-cache search --names-only "^ros-$ROS_DISTRO-autoware-launch-$dash\$" | awk '{print $1}')
 [ -n "$pkg" ] || { echo "no autoware_launch package for $REL in the localrepo"; exit 1; }
-apt-get install -y -qq --no-install-recommends "$pkg" > "$OUT/apt.log" 2>&1
+# autoware-config-<release> holds /opt/autoware/<release>/setup.bash
+apt-get install -y -qq --no-install-recommends "$pkg" "autoware-config-$dash" \
+    > "$OUT/apt.log" 2>&1
 du -sm "/opt/autoware/$REL" | awk '{print "Autoware installed: "$1" MB"}'
 
 step "the simulation side"

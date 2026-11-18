@@ -81,9 +81,23 @@ def rest_guard(other: Agent, params):
     return params.stop_dwell + other.cap.launch_dead + params.see_delay
 
 
+def other_rest_stamp(other: Agent, am: AgentMemory, params, t):
+    """When the other car came to rest at its line, as a guard reads it: its rest stamp (raw), else -- a car stopped right at
+    the zone's edge, whose noisy position flickers across it, never gets one (078 P2e: a never-yield car held at the edge by
+    its safety layer) -- the stamp since which it has been still, or now while it is still slowing there (below
+    ``moved_speed``). None: it is not at rest near its line (moving, or still far off)."""
+    if am.rest_t is not None:
+        return rest_since(am.rest_t, params)
+    if other.s_entry > params.rest_window + 0.05:
+        return None
+    if am.still_since is not None:
+        return rest_since(am.still_since, params)
+    return t if other.v < params.moved_speed else None
+
+
 def mutual_rest_wait(own: Agent, other: Agent, am: AgentMemory, mem: Memory, params, t, reason, need_rest=False):
     """078 P2e: a go against a car at rest at its line (or just come to rest there) waits one guard counted from the
-    LATER of the two rests. A car that ignores the rule restarts a patience after the mutual rest, not after its own
+    LATER of the two rests (the other's: ``other_rest_stamp``). A car that ignores the rule restarts a patience after the mutual rest, not after its own
     (S2's impatient and never-yield rules, the arena's t0.5yp2: the P2d contacts), so a guard counted from the other's
     rest alone let the go meet that restart. The own rest is the own car's raw stamp; an own car still rolling below
     ``moved_speed`` has its rest still to come (counted from now: it waits, stops, and the guard runs from there).
@@ -94,14 +108,15 @@ def mutual_rest_wait(own: Agent, other: Agent, am: AgentMemory, mem: Memory, par
     from 0 to 9 and 10). With ``need_rest`` a rolling car waits: a tie gives no lead, so the go needs the own car at
     rest (then the guard) or past its commit point. Returns a WAIT verdict or None."""
     from .act import commit_point_passed
-    if not params.fresh_rest_guard or am.rest_t is None or am.moved.state:
+    if not params.fresh_rest_guard or am.moved.state:
         return None
-    if commit_point_passed(own):
+    other_rest = other_rest_stamp(other, am, params, t)
+    if other_rest is None or commit_point_passed(own):
         return None
     if own.v >= params.moved_speed:
         return Verdict(other.id, WAIT, False, reason) if need_rest else None
     own_rest = mem.own_rest_t if mem.own_rest_t is not None else t
-    if t - max(rest_since(am.rest_t, params), own_rest) < rest_guard(other, params):
+    if t - max(other_rest, own_rest) < rest_guard(other, params):
         return Verdict(other.id, WAIT, False, reason)
     return None
 

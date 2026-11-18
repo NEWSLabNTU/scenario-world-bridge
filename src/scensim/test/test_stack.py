@@ -957,7 +957,15 @@ def _ego_args(p):
     return ego["spec"].get("args") or {}
 
 
-def test_the_autoware_pilot_runs_the_release_of_the_hosts_autoware(where, maps_hub):
+@pytest.fixture
+def any_install(monkeypatch):
+    """The workspaces' own build (their chained Autoware) left out: these tests name
+    releases the checkout running them was not built against."""
+    monkeypatch.setattr(stack.autowaremod, "install_problems", lambda host, ws: [])
+
+
+def test_the_autoware_pilot_runs_the_release_of_the_hosts_autoware(where, maps_hub,
+                                                                   any_install):
     d = make(where, maps_hub=maps_hub)
     p = stack.plan(project_arg=str(d), map_name="Town01")
     assert _ego_args(p)["autoware_release"] == "1.5.0"      # the default setup's
@@ -969,7 +977,8 @@ def test_the_autoware_pilot_runs_the_release_of_the_hosts_autoware(where, maps_h
     assert "autoware_release" not in (lead["spec"].get("args") or {})
 
 
-def test_a_pilot_naming_another_release_than_the_hosts_is_refused(where, maps_hub):
+def test_a_pilot_naming_another_release_than_the_hosts_is_refused(where, maps_hub,
+                                                                  any_install):
     tb = ("simulator: carla\nassets:\n  - dataset: carla-town-autoware-maps\n"
           "    take: [Town01]\npilots:\n  ego: {kind: autoware, vehicle: tesla_model3, "
           "args: {autoware_release: 2.0.0}}\n")
@@ -984,7 +993,7 @@ def test_a_pilot_naming_another_release_than_the_hosts_is_refused(where, maps_hu
         == "2.0.0"
 
 
-def test_a_release_the_profile_does_not_have_is_refused(where, maps_hub):
+def test_a_release_the_profile_does_not_have_is_refused(where, maps_hub, any_install):
     d = make(where, maps_hub=maps_hub)
     _autoware_setup(where, "/opt/autoware/3.0.0/setup.bash")
     with pytest.raises(stack.StackRefused, match="the host's Autoware is 3.0.0"):
@@ -1012,3 +1021,14 @@ def test_the_1_5_0_overlay_is_never_sourced_over_another_release(tmp_path):
     assert "Autoware 2.1.0: the overlay carries fixes for Autoware 1.5.0 and is not sourced" \
         in sp.run(["bash", "-c", script], capture_output=True, text=True,
                   env=dict(os.environ, AMENT_PREFIX_PATH="/opt/autoware/2.1.0")).stderr
+
+
+def test_a_workspace_built_against_another_autoware_is_refused(where, maps_hub, monkeypatch):
+    d = make(where, maps_hub=maps_hub)
+    seen = []
+    monkeypatch.setattr(stack.autowaremod, "install_problems",
+                        lambda host, ws: seen.append(host["autoware"]["setup"]) or ["mixed"])
+    _autoware_setup(where, "/opt/autoware/2.1.0/setup.bash")
+    with pytest.raises(stack.StackRefused, match="^mixed$"):
+        stack.plan(project_arg=str(d), map_name="Town01")
+    assert seen == ["/opt/autoware/2.1.0/setup.bash"]

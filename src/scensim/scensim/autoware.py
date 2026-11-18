@@ -43,6 +43,46 @@ def host_setup(host: dict) -> str:
     return str((host.get("autoware") or {}).get("setup") or DEFAULT_SETUP)
 
 
+# colcon's setup.bash names each underlay the build had sourced, in order
+CHAINED = re.compile(r'^COLCON_CURRENT_PREFIX="([^"$`]+)"', re.M)
+
+
+def chained_release(setup_bash) -> str:
+    """The Autoware release a workspace was built against: the first underlay of its
+    ``install/setup.bash`` with a version-named directory (/opt/autoware/1.5.0), or None."""
+    try:
+        text = Path(setup_bash).read_text(errors="replace")
+    except OSError:
+        return None
+    for prefix in CHAINED.findall(text):
+        release = release_of(Path(prefix) / "setup.bash")
+        if release:
+            return release
+    return None
+
+
+def install_problems(host: dict, workspace) -> list:
+    """The workspaces an autoware pilot sources (acb's, then this one's) that were built
+    against another Autoware than autoware.setup's. Their setup.bash sources that Autoware
+    again, ahead of autoware.setup's, so the pilot would run a mix of the two releases."""
+    setup = host_setup(host)
+    want = release_of(setup)
+    if workspace is None or want is None:
+        return []
+    ws = Path(workspace)
+    out = []
+    for f in (ws / "src" / "autoware_carla_bridge" / "install" / "setup.bash",
+              ws / "install" / "setup.bash"):
+        got = chained_release(f)
+        if got and got != want:
+            out.append(f"{f} was built against Autoware {got} and sources it, but autoware.setup "
+                       f"is Autoware {want} ({setup}); the pilot would run {got}'s packages "
+                       f"ahead of {want}'s: rebuild with AUTOWARE_SETUP={setup} (acb's `just "
+                       f"build` first, then this workspace's), or point autoware.setup at "
+                       f"Autoware {got}")
+    return out
+
+
 def pilot_release(host: dict, where: str, args: dict) -> dict:
     """An autoware pilot's arguments with ``autoware_release`` set from the host's Autoware
     (autoware.setup): a pilot naming another release is refused by name, as is a release the

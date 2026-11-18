@@ -16,6 +16,7 @@ import threading
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.qos import (DurabilityPolicy, QoSProfile, ReliabilityPolicy,
                        qos_profile_sensor_data)
@@ -75,7 +76,10 @@ class RelayNode(Node):
         self.declare_parameter("publish_rate", 10.0)
         # How long an agent with the `reset` capability has to get ready after SSv2's
         # initialize (protocol v2); the concealer is answered within SLOW_REPLY anyway.
-        self.declare_parameter("reset_timeout", RESET_TIMEOUT)
+        self.declare_parameter("reset_timeout", RESET_TIMEOUT, ParameterDescriptor(
+            description="s an agent's reset may take (default 60): an Autoware ego's NDT "
+                        "align is CPU-bound and a loaded host stretches it past 30 s; "
+                        "raise it with the agent's initialize_timeout (issue 046)"))
         self.entity = self.get_parameter("entity").value
         host = self.get_parameter("agent_host").value
         port = int(self.get_parameter("agent_port").value)

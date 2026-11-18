@@ -161,6 +161,79 @@ def test_reset_retries_a_refused_initialize(rig):
     assert len(calls) == 3 and agent.phase == P.IDLE
 
 
+TIMED_OUT = f"/api/localization/initialize: {C.NO_RESPONSE} 60.0 s"
+
+
+def _timing_out_first(autoware, then=None):
+    """The first initialize call times out while its align goes on in Autoware (issue 046):
+    the fake's align runs as for an accepted call, the agent sees no answer. `then(autoware)`
+    shapes that align."""
+    calls = []
+    original = autoware.initialize
+
+    def initialize(pose, stamp):
+        calls.append(pose)
+        ok, message = original(pose, stamp)
+        if len(calls) == 1:
+            if then is not None:
+                then(autoware)
+            return False, TIMED_OUT
+        return ok, message
+
+    autoware.initialize = initialize
+    return calls
+
+
+def test_a_timed_out_initialize_whose_align_takes_the_pose_is_not_sent_again(rig):
+    clock, autoware, agent = rig
+    calls = _timing_out_first(autoware)
+    agent.on_reset(Episode(pose=START))
+    assert len(calls) == 1 and agent.phase == P.IDLE
+
+
+def test_a_timed_out_initialize_whose_align_ends_elsewhere_is_sent_again(rig):
+    clock, autoware, agent = rig
+    elsewhere = dict(START, x=START["x"] + 40.0)
+    autoware.CONVERGE_TIME = 5.0          # the align outlasts the retry interval
+    agent.cfg["initialize_retry"] = 0.5
+    calls = _timing_out_first(autoware, lambda a: setattr(a, "init_pose", elsewhere))
+    started = clock()
+    agent.on_reset(Episode(pose=START))
+    assert len(calls) == 2 and agent.phase == P.IDLE
+    # the second call waited for the first align to end, not only the retry interval
+    assert clock() - started >= autoware.CONVERGE_TIME
+
+
+def test_no_initialize_is_queued_while_a_timed_out_align_runs(rig):
+    clock, autoware, agent = rig
+    agent.cfg["align_wait"] = 10.0
+
+    def stuck(a):   # the align never ends
+        a.initialized_at = None
+
+    calls = _timing_out_first(autoware, stuck)
+    with pytest.raises(Failed, match="stayed INITIALIZING 10 s"):
+        agent.on_reset(Episode(pose=START))
+    assert len(calls) == 1
+
+
+def test_a_refused_initialize_is_not_taken_for_an_align_in_flight(rig):
+    clock, autoware, agent = rig
+    autoware.refuse.add("initialize")
+    with pytest.raises(Failed, match="refused"):
+        agent.on_reset(Episode(pose=START))
+    assert autoware.calls.count("initialize") == agent.cfg["initialize_attempts"]
+
+
+def test_the_initialize_timeout_is_a_setting_the_port_gets():
+    clock = Clock()
+    autoware = FakeAutoware(clock)
+    C.AutowareAgent({"step_period": 0, "initialize_timeout": 90.0}, port=autoware,
+                    clock=clock, sleep=clock.sleep)
+    assert autoware.initialize_timeout == 90.0
+    assert C.DEFAULTS["initialize_timeout"] == 60.0
+
+
 def test_reset_gives_up_after_the_initialize_attempts(rig):
     clock, autoware, agent = rig
     autoware.refuse.add("initialize")

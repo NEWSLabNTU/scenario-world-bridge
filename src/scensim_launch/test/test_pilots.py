@@ -97,6 +97,28 @@ def test_xml_frontend_parses():
         assert parser.parse_description(entity).entities
 
 
+@pytest.mark.parametrize("relay,want", [("tcp://localhost:5560", "false"), ("none", "true")])
+def test_a_managed_autoware_ego_starts_no_gnss_initializer(relay, want):
+    """Issue 046: with a relay the agent initializes at the scenario's pose, so the profile's
+    gnss_enabled is false (no automatic_pose_initializer to queue a second align); local mode
+    keeps Autoware's default."""
+    frontend = pytest.importorskip("launch.frontend")
+    pytest.importorskip("launch_xml")
+    from launch import LaunchContext
+    from launch.actions import DeclareLaunchArgument
+    from launch.utilities import perform_substitutions
+    args, root = xml_args("autoware.launch.xml")
+    profile = root.findall(".//include")[-1]
+    passed = {a.get("name"): a.get("value") for a in profile.findall("arg")}
+    assert passed["gnss_enabled"] == "$(var gnss_enabled)"
+    entity, parser = frontend.Parser.load(os.path.join(PILOTS, "autoware.launch.xml"))
+    [declared] = [e for e in parser.parse_description(entity).entities
+                  if isinstance(e, DeclareLaunchArgument) and e.name == "gnss_enabled"]
+    context = LaunchContext()
+    context.launch_configurations["relay"] = relay
+    assert perform_substitutions(context, declared.default_value) == want
+
+
 # --- the kinds' own logic -----------------------------------------------------------------
 def test_command_argv_appends_the_contract():
     values = {"run": "python3 -m my.policy --policy 'push hard'", "relay": "tcp://h:5560",

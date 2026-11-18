@@ -1,7 +1,7 @@
 # 049: Every reset after the first runs two NDT aligns back to back
 
-**Severity**: low (about 7 s more per reset; every run passes). **Status**: open, the fix not
-designed; the source of the second align has a leading candidate below, not yet proven.
+**Severity**: low (about 7 s more per reset; every run passes). **Status**: fixed on branch
+`049-one-align-per-reset` (the cause proven by swb 118; one align per reset measured).
 **Found**: 2026-11-18, swb 241, the post-landing check of Tutorials 1 and 5 on main 546b258.
 
 ## What happens
@@ -47,12 +47,28 @@ request but sends no `/initialpose` (no estimate yet to compare), and there is o
 Every T5 reset shows the pair of lines and the pair of aligns. Not proven: which request
 starts which align is not logged.
 
-## Open
+## Cause (proven, swb 118)
 
-- Prove the source (log the caller, or run T5 with acb_bridge's re-seed off).
-- Then one initializer per reset for a managed ego: the agent initializes at the scenario's
-  pose already, so acb_bridge's re-seed may be redundant when an agent is registered (it is
-  needed stand-alone, without one). The fix lands where the double request comes from.
+acb_bridge's `seed_localization_on_attach`, true by default for stand-alone use, publishes
+`/initialpose` when acb attaches to the car (each teleport). Autoware's initial_pose_adaptor
+turns it into an `/api/localization/initialize` call (its `fit_target` log line follows each
+`Sent /initialpose` within 1 ms), beside the agent's own initialize at the scenario's pose. In
+the post-landing T5 the counts close exactly: 7 agent resets + 6 `/initialpose` = 13
+initialize requests = 13 aligns (118's write-up and trace: `~/nas/home/2026-11-18 049 align
+source (118)/`). The just recipes already passed `seed_localization_on_attach:=false` for a
+managed ego (justfile, `ego-av` and the stack's ego); the stack's pilot launch,
+`scensim_launch`'s `vehicle_side_carla.launch.xml`, defaulted it to true.
+
+## Fix
+
+`vehicle_side_carla.launch.xml` defaults `seed_localization_on_attach` to false with a relay (a
+managed ego, which its agent initializes) and true without one (acb as before). Test:
+`test_pilots.py` evaluates the default both ways.
+
+Measured (2026-11-18, newslab-server-241, branch ab1441a, Tutorial 5's suite on a fresh stack,
+load 15-30): 6/6 passed; 6 resets, 6 aligns (4.2-7.3 s), no `/initialpose` and no `fit_target`;
+the agent localized 4.6-7.7 s after each reset (12.4-25.3 s before). `~/nas/autoveh/logs/2026
+SSv2 on CARLA/2026-11-18 049 one align per reset T5 (241)/`.
 
 ## Evidence
 

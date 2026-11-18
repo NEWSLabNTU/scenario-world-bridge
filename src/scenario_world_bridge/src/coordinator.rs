@@ -765,7 +765,10 @@ mod tests {
         let r = c.update_environment(road(
             0.7,
             "wetWithPuddles",
-            &[("scensim.zone.ford.water_depth", "0.1"), ("other.tool", "x")],
+            &[
+                ("scensim.zone.ford.water_depth", "0.1"),
+                ("other.tool", "x"),
+            ],
         ));
         assert!(r.result.unwrap().success);
         let Call::UpdateEnvironment(env) = fake.last_call() else {

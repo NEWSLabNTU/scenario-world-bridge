@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::proto::simulation_api_schema::{traffic_light, TrafficSignal};
 use crate::proto::scensim_world as wire;
+use crate::proto::simulation_api_schema::{traffic_light, TrafficSignal};
 
 /// Where a map's signal table is, under its map directory (`carla/traffic_lights.yaml`
 /// before roadmap 046, still read).

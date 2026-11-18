@@ -288,9 +288,16 @@ mod tests {
     fn a_catalog_with_the_old_property_name_is_refused_naming_the_new_one() {
         let dir = scratch("old_property");
         let old = dir.join("old.xosc");
-        std::fs::write(&old, cart("aaaa").replace("scensim.spec_hash", "swb.spec_hash")).unwrap();
+        std::fs::write(
+            &old,
+            cart("aaaa").replace("scensim.spec_hash", "swb.spec_hash"),
+        )
+        .unwrap();
         let e = format!("{:#}", read_catalog(&old).unwrap_err());
-        assert!(e.contains("swb.spec_hash was renamed") && e.contains("scensim.spec_hash"), "{e}");
+        assert!(
+            e.contains("swb.spec_hash was renamed") && e.contains("scensim.spec_hash"),
+            "{e}"
+        );
     }
 
     #[test]

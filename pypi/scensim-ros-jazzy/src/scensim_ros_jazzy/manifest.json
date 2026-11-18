@@ -1,0 +1,13 @@
+{
+  "version": "0.1.0",
+  "ros_distro": "jazzy",
+  "artefacts": {
+    "x86_64": {
+      "sim": {
+        "url": "https://github.com/NEWSLabNTU/scensim/releases/download/v0.1.0/scensim-sim-0.1.0-jazzy-x86_64.tar.zst",
+        "size": 0,
+        "sha256": "written-by-the-release-workflow"
+      }
+    }
+  }
+}

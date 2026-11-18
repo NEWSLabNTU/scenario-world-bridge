@@ -8,3 +8,4 @@ assets:
     take: [Town01, vehicles]
 pilots:
   ego: {kind: launch, launch: pilots/own_driver.launch.py, agent: own, vehicle: tesla_model3, inputs: [ground_truth]}
+default: t2   # the suite `scensim run launch_own` runs

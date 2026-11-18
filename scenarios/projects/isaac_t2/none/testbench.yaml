@@ -7,3 +7,4 @@ assets:
   - dataset: carla-0.9.16-isaac-usd
     take: [Town01, vehicles]
 pilots: {}
+default: t2   # the suite `scensim run none` runs

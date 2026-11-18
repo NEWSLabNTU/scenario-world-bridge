@@ -8,3 +8,4 @@ assets:
     take: [Town01, vehicles]
 pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
+default: t2   # the suite `scensim run autoware` runs

@@ -13,3 +13,4 @@ pilots:
     inputs: [ground_truth]
     run: [python3, pilots/simple_cmd.py]
     args: {vehicle_side: true}
+default: t2   # the suite `scensim run command` runs

@@ -8,3 +8,4 @@ assets:
     take: [Town01, vehicles]
 pilots:
   ego: {kind: simple, vehicle: tesla_model3, inputs: [map, ground_truth]}
+default: t2   # the suite `scensim run simple` runs

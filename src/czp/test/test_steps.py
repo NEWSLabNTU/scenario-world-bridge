@@ -515,3 +515,119 @@ def test_crossing_commit_released_by_the_turn_guard():
     fast = car("A", s_entry=3.0, v=6.0)  # 6 m/s 3 m out: past its comfortable stop
     d, _ = latch(Decision(YIELD, "j", "turn"), prev, 0.0, 0.0, fast, True, P, 2.0, row)
     assert d.kind == GO and d.committed
+
+
+# --- 078 P2e: a go against a car at rest waits one guard from the later of the two rests --------------------------
+def _cross():
+    return Zone("x", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+
+
+def _verdict(own, o, own_rest_t, other_rest_t, t, p=P):
+    from czp.convention import PairView, pair_verdict
+    from czp.memory import AgentMemory
+    am = AgentMemory(rest_t=other_rest_t, rest_s=o.s_entry if other_rest_t is not None else None,
+                     stopping=Debounce(state=other_rest_t is not None))
+    return pair_verdict(CONV["cross_unsignalled"], _cross(), own, own_interval(own, p), PairView(o, other_interval(o, p), am),
+                        Memory(own_rest_t=own_rest_t), p, t)
+
+
+def test_rest_tie_guard_counts_from_the_later_rest():
+    """078 P2e: rest_tie's winner waits the guard from the later of the two rests, not from the other's alone. P2d: A
+    rested 1.5 s before B; B's go at A's rest + 3.0 s met A's restart on a 0.5 s patience after the mutual rest."""
+    z = _cross()
+    ags = [car("A"), car("B")]  # B comes from A's right: B wins the tie
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    rests = {"A": 0.0, "B": 1.5}
+    d = decide_all(CONV, z, ags, rests, P_EXACT, t=guard + 0.1, quiet_since=-math.inf)  # the other's rest + guard
+    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait", d["B"]
+    d = decide_all(CONV, z, ags, rests, P_EXACT, t=1.5 + guard - 0.1, quiet_since=-math.inf)
+    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait"
+    d = decide_all(CONV, z, ags, rests, P_EXACT, t=1.5 + guard + 0.1, quiet_since=-math.inf)
+    assert d["B"].kind == GO and d["B"].reason == "rest_tie" and d["A"].kind != GO
+    # the other rested later: the guard runs from its rest, as before
+    d = decide_all(CONV, z, ags, {"A": 1.5, "B": 0.0}, P_EXACT, t=1.5 + guard - 0.1, quiet_since=-math.inf)
+    assert d["B"].kind != GO and d["B"].reason == "rest_tie_wait"
+
+
+def test_clear_go_from_rest_waits_the_mutual_rest_guard():
+    """078 P2e: a band clear go made from rest against a car at rest at its line waits the guard from the later rest (P2d:
+    clear gos 0.6-1.7 s after the other's rest, the car crawling through as the other restarted on its patience)."""
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    own, o = car("B", s_entry=0.2), car("A", s_entry=1.9)
+    v = _verdict(own, o, 6.0, 5.0, 6.0 + guard - 0.1)
+    assert v.band.kind == CLEAR and v.band.who == "B"
+    assert v.kind == WAIT and v.reason == "fresh_clear" and not v.hard
+    v = _verdict(own, o, 6.0, 5.0, 6.0 + guard + 0.1)
+    assert v.kind == GO and v.reason == "clear"
+    # still rolling below moved_speed, not yet at rest: its rest is still to come, so it waits
+    v = _verdict(car("B", s_entry=0.3, v=0.3), o, None, 5.0, 20.0)
+    assert v.kind == WAIT and v.reason == "fresh_clear"
+
+
+def test_clear_go_at_speed_is_not_held():
+    """078 P2e: a clear go while the own car moves at or above moved_speed is not a go from rest and is not held: holding
+    it made the car stop and then meet a patient rule's restart (P2d exp2: 0 to 9 and 10 contacts against t1.5p5 and
+    tinfp5). The other car not at rest: no guard either."""
+    o = car("A", s_entry=1.0)
+    v = _verdict(car("B", s_entry=1.5, v=4.0), o, None, 5.0, 5.5)
+    assert v.kind == GO and v.reason == "clear"
+    far = car("A", s_entry=40.0, v=6.0)
+    v = _verdict(car("B", s_entry=0.2), far, 6.0, None, 6.1)
+    assert v.kind == GO and v.reason == "clear"
+
+
+def test_tie_needs_the_own_car_at_rest():
+    """078 P2e: a tie go against a car at rest needs the own car at rest (then the guard from the later rest) or past its
+    commit point. P2d: tie:right_before_left 0.7-0.8 s after the other's rest, the own car still rolling."""
+    o = car("A", s_entry=1.0)
+    v = _verdict(car("B", s_entry=12.0, v=6.0), o, None, 5.0, 9.5)
+    assert v.band.kind == BAND and v.role is not None and v.role.reading == TIE
+    assert v.kind == WAIT and v.reason == "fresh_tie" and not v.hard
+    # at rest itself, B goes by rest_tie once the guard from the later rest has passed
+    v = _verdict(car("B", s_entry=0.5), o, 8.0, 5.0, 8.0 + P.stop_dwell + CAR.launch_dead + P.see_delay + 0.1)
+    assert v.kind == GO and v.reason == "rest_tie"
+
+
+def test_mutual_rest_wait_exemptions():
+    """078 P2e: past its commit point the own car goes (it can no longer stop comfortably); the guard is off with
+    fresh_rest_guard, or when the other is not at rest at its line (the all-way stop row keeps its own 074 C8 rules:
+    test_four_way_two_cars_tie_right_before_left)."""
+    from czp.convention import mutual_rest_wait
+    from czp.memory import AgentMemory
+    o = car("A", s_entry=1.0)
+    am = AgentMemory(rest_t=5.0, rest_s=1.0)
+    passed = car("B", s_entry=1.0, v=5.0)  # needs 12.5 m/s^2 to stop: past it
+    assert mutual_rest_wait(passed, o, am, Memory(), P, 5.1, "fresh_tie", need_rest=True) is None
+    rolling = car("B", s_entry=12.0, v=6.0)
+    assert mutual_rest_wait(rolling, o, am, Memory(), P, 5.1, "fresh_tie", need_rest=True).kind == WAIT
+    assert mutual_rest_wait(rolling, o, am, Memory(), P, 5.1, "fresh_clear") is None
+    off = P.override(source="test", fresh_rest_guard=False)
+    assert mutual_rest_wait(car("B", s_entry=0.2), o, am, Memory(own_rest_t=6.0), off, 6.5, "fresh_clear") is None
+    assert mutual_rest_wait(car("B", s_entry=0.2), o, AgentMemory(), Memory(own_rest_t=6.0), P, 6.5, "x") is None
+
+
+def test_protocol_go_waits_for_the_later_rest():
+    """078 P2e, through czp.Protocol: B (A's right) rolls up below moved_speed and comes to rest 1.5 s after A; its go comes
+    the guard after its own rest (not after A's), and a restart of A within that guard (a 0.5 s patience after the mutual rest) turns it into a yield."""
+    z = _cross()
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    pr = czp.Protocol(CONV, P_EXACT)
+    first_go = None
+    for k in range(0, 120):
+        t = k * 0.1
+        a = car("A", s_entry=1.0, stamp=t)
+        b = car("B", s_entry=1.0 if t >= 1.5 else 1.0 + (1.5 - t) * 0.3, v=0.0 if t >= 1.5 else 0.3, stamp=t)
+        d, _ = pr.step(t, b, [a], z, inputs=C.Inputs(obs_age=0.0), obs_age=0.0)
+        if d.kind == GO and first_go is None:
+            first_go = t
+    assert first_go is not None and first_go >= 1.5 + guard - 1e-6, first_go
+    # A restarts 1.2 s after the mutual rest (seen moving): B never goes before A
+    pr = czp.Protocol(CONV, P_EXACT)
+    for k in range(0, 60):
+        t = k * 0.1
+        moving = t >= 1.5 + 1.2
+        s_a = 1.0 - (0.5 * 3.0 * (t - 2.7) ** 2 if moving else 0.0)
+        a = car("A", s_entry=s_a, v=3.0 * (t - 2.7) if moving else 0.0, stamp=t)
+        b = car("B", s_entry=1.0 if t >= 1.5 else 1.0 + (1.5 - t) * 0.3, v=0.0 if t >= 1.5 else 0.3, stamp=t)
+        d, _ = pr.step(t, b, [a], z, inputs=C.Inputs(obs_age=0.0), obs_age=0.0)
+        assert d.kind != GO, (t, d)

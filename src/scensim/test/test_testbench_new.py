@@ -92,3 +92,41 @@ def test_an_unfetched_ground_file_is_the_hosts(tmp_path):
     ground = [f for f in project.check_project(d) if "ground" in f.what]
     assert [(f.what, f.host) for f in ground] == [
         ("ground.Town01.road_detail: assets/stages/road_detail.yaml is not fetched", True)]
+
+
+def test_a_project_of_swb_yaml_is_copied_with_the_renames_said(tree, capsys):
+    """Issue 061: a 077-era project (swb.yaml) is a source: its file, its maps variable, its
+    swb.* properties and the installed catalog are renamed, each said; .swb/ is the host's."""
+    old = tree["study"].parent / "old"
+    (old / "scenarios").mkdir(parents=True)
+    (old / "suites").mkdir()
+    (old / "swb.yaml").write_text(TB)
+    (old / ".swb").mkdir()
+    (old / ".swb" / "local.yaml").write_text("seat: 3\n")
+    x = XOSC.replace("$(env SCENSIM_MAPS)", "$(env SWB_MAPS)").replace(
+        project.VEHICLES_CATALOG, project.INSTALLED_CATALOG)
+    x = x.replace('<Property name="maxJerk"',
+                  '<Property name="swb.spec_hash" value="1" /><Property name="maxJerk"', 1)
+    assert "swb.spec_hash" in x
+    (old / "scenarios" / "a.xosc").write_text(x)
+    (old / "suites" / "main.yaml").write_text(
+        "scenarios:\n  - scenarios/a.xosc\n  - ../../src/shared/scenarios/x.xosc\n")
+    assert testbench_cli.main(["new", "migrated", "--from", str(old)]) == 0
+    d = tree["out"] / "migrated"
+    assert (d / "testbench.yaml").is_file() and not (d / "swb.yaml").exists()
+    assert not (d / ".swb").exists()
+    text = (d / "scenarios" / "a.xosc").read_text()
+    assert "SWB_MAPS" not in text and "$(env SCENSIM_MAPS)" in text
+    assert 'name="scensim.spec_hash"' in text and "swb." not in text
+    assert project.INSTALLED_CATALOG not in text and project.VEHICLES_CATALOG in text
+    assert "pkg://shared/scenarios/x.xosc" in (d / "suites" / "main.yaml").read_text()   # 055
+    out = capsys.readouterr().out
+    assert "note: swb.yaml renamed testbench.yaml" in out
+    assert "note: scenarios/a.xosc: SWB_MAPS renamed: $(env SCENSIM_MAPS)" in out
+    assert "note: scenarios/a.xosc: the swb.* scenario properties renamed" in out
+    assert "note: scenarios/a.xosc: the installed VehicleCatalog renamed" in out
+    findings = [f for f in project.check_project(d)
+                if "renamed" in f.what or "swb" in f.what or "VehicleCatalog" in f.what]
+    assert findings == []
+    # the source is untouched
+    assert (old / "swb.yaml").is_file() and "SWB_MAPS" in (old / "scenarios" / "a.xosc").read_text()

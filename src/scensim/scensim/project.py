@@ -30,7 +30,7 @@ DEFAULT_TEMPLATE = "carla-first-drive"
 # a template's files whose names a package cannot carry as they are
 RENAMES = {"gitignore": ".gitignore"}
 # what `new --from` leaves behind: made on each host, never part of a project's source
-NOT_COPIED = ("assets", "state", "runs", ".scensim", "play_log")
+NOT_COPIED = ("assets", "state", "runs", ".scensim", ".swb", "play_log")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
             "world", "isaac", "ssv2", "default")
@@ -975,24 +975,71 @@ def _empty_dest(dest: Path) -> Path:
     return dest
 
 
-def source_project(src) -> Path:
+def source_project(src, old_name=False) -> Path:
     """The project directory ``src`` names: a directory, or ``pkg://<package>[/<subdir>]``
-    (an installed example: ``pkg://scensim_examples/projects/first_drive``)."""
+    (an installed example: ``pkg://scensim_examples/projects/first_drive``). ``old_name``: a
+    directory whose project file is still swb.yaml is one too (issue 061: a copy renames it)."""
     src = str(src)
     if src.startswith("pkg://"):
         return config.find_project(src)
     p = Path(src).expanduser()
+    if old_name and is_old_project(p):
+        return p.resolve()
     if not (p / config.PROJECT_FILE).is_file():
         raise config.ConfigError(f"{p}: no {config.PROJECT_FILE} (fix: a project directory,"
                                  " e.g. pkg://scensim_examples/projects/first_drive)")
     return p.resolve()
 
 
-def copy_project(src, dest: Path) -> Path:
+def is_old_project(d) -> bool:
+    """A project of before roadmap 080: swb.yaml, no testbench.yaml."""
+    d = Path(d).expanduser()
+    return (d / config.OLD_PROJECT_FILE).is_file() and not (d / config.PROJECT_FILE).is_file()
+
+
+# what roadmap 080 renamed inside a project, as check_project's refusals name it: (old, new,
+# what it is); and 083's catalog, which a testbench must name instead of the installed one
+OLD_NAMES = (
+    ("$(env SWB_MAPS)", "$(env SCENSIM_MAPS)", "SWB_MAPS"),
+    ('name="swb.', 'name="scensim.', "the swb.* scenario properties"),
+    (f'path="{INSTALLED_CATALOG}/"', f'path="{VEHICLES_CATALOG}"', "the installed VehicleCatalog"),
+    (f'path="{INSTALLED_CATALOG}"', f'path="{VEHICLES_CATALOG}"', "the installed VehicleCatalog"),
+)
+OLD_NAMED_FILES = (".xosc", ".yaml", ".yml", ".xml")
+
+
+def rename_old(dest: Path) -> list:
+    """In the copy ``dest`` of a project of before roadmap 080: swb.yaml made testbench.yaml,
+    and each old name in its scenarios and settings made its successor (OLD_NAMES). One note
+    per file and name, saying what was renamed."""
+    dest = Path(dest)
+    notes = []
+    old = dest / config.OLD_PROJECT_FILE
+    if old.is_file() and not (dest / config.PROJECT_FILE).exists():
+        old.rename(dest / config.PROJECT_FILE)
+        notes.append(f"{config.OLD_PROJECT_FILE} renamed {config.PROJECT_FILE} (the project "
+                     "was renamed scensim)")
+    for f in sorted(dest.rglob("*")):
+        if not f.is_file() or f.suffix not in OLD_NAMED_FILES:
+            continue
+        text = new = f.read_text(errors="replace")
+        done = []
+        for a, b, what in OLD_NAMES:
+            if a in new:
+                new = new.replace(a, b)
+                if what not in done:
+                    done.append(what)
+                    notes.append(f"{f.relative_to(dest)}: {what} renamed: {b}")
+        if new != text:
+            f.write_text(new)
+    return notes
+
+
+def copy_project(src, dest: Path, old_name=False) -> Path:
     """A copy of the project ``src`` (e.g. an installed, read-only example) in the new
     directory ``dest``: its files, without what each host makes (assets/, state/, runs,
     .scensim/, play_log/). The copies are the user's own: writable, symlinks followed."""
-    root = source_project(src)
+    root = source_project(src, old_name)
     dest = _empty_dest(dest)
     full = dest.resolve()
     if full == root or root in full.parents:

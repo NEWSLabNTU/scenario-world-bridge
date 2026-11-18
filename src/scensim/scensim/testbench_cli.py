@@ -182,8 +182,12 @@ def new_testbench(name: str, where: Path = None, template: str = None, src: str 
 def _fill(dest, name, template, src, default, m, license, notes) -> Path:
     depends = set()
     if src:
-        projectmod.copy_project(src, dest)
-        depends, left = rewrite_leaving_paths(projectmod.source_project(src), dest)
+        # a project of before roadmap 080 (swb.yaml) is copied and renamed (issue 061)
+        old = not str(src).startswith("pkg://") and projectmod.is_old_project(src)
+        projectmod.copy_project(src, dest, old_name=old)
+        if old:
+            notes += projectmod.rename_old(dest)
+        depends, left = rewrite_leaving_paths(projectmod.source_project(src, old), dest)
         notes += left
     else:
         projectmod.new_project(dest, template or projectmod.DEFAULT_TEMPLATE)

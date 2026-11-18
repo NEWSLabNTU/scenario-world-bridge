@@ -1,5 +1,7 @@
 # Phase 052: Isaac Physics, Feature-Complete
 
+**Track**: part of [086](086-track-road-physics.md) (consolidated 2026-11-18).
+
 Close what the Isaac ego's physics still lacks before any of it is calibrated against
 measured ground: every surface class reachable from a scenario, every body on the soil
 feeling it, nothing a finished scenario leaves behind in the next one's sensors, and the

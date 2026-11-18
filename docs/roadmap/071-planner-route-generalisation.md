@@ -1,5 +1,7 @@
 # Phase 071: Does the Race Planner Generalise to Any Route?
 
+**Track**: part of [085](085-track-fast-driving.md) (consolidated 2026-11-18).
+
 The race planner (autoware-drift `race_planner`: L0 the whole-track plan, L1 the IPOPT window of
 200-260 m with its starts G, H, D, F and B, L2 the 50 Hz RTI tracker, the styles S1 and S2) takes
 any road written as one ribbon: a centreline with heading, curvature and grade, the free width

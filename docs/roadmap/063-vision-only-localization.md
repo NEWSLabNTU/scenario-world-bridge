@@ -1,5 +1,7 @@
 # Phase 063: Vision-Only Localization on a Fast Car
 
+**Track**: part of [085](085-track-fast-driving.md) (consolidated 2026-11-18).
+
 Autoware drives 057's Mustang around Town05's ring in Isaac on a pose from a camera, the IMU and
 the wheel speed alone: rig_localization in place of cuda_ndt, no lidar and no point-cloud map.
 The question is how fast, and how far, a car can go on that before it leaves its lane, and what

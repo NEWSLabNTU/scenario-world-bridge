@@ -1,5 +1,7 @@
 # Phase 061: Grip or Drift, Chosen Live (seeded multi-start, measured)
 
+**Track**: part of [085](085-track-fast-driving.md) (consolidated 2026-11-18).
+
 060's live planner (L1: IPOPT on a 200-260 m window, re-planned about once a second) finds the
 optimum its warm start leads to. Grip and drift are separate valleys of a non-convex problem,
 with a slower half-slide ridge between them, so a derivative solver stays in the valley it

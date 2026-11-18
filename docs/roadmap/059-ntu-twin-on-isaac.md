@@ -1,5 +1,7 @@
 # Phase 059: The NTU Campus Twin on Isaac Sim, from the Coloured Point Cloud
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 The NTU campus as an Isaac world in which a driven car's cameras and lidar see the real site.
 The aim is evaluating autopilots in a digital twin under scenarios: Autoware, and
 camera-driven stacks such as Autoware Foundation's Vision Pilot or a VLM agent. The camera

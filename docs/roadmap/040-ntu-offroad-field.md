@@ -1,5 +1,7 @@
 # Phase 040: NTU Off-road Test Field on Isaac Sim
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 The off-road evaluation field as an Isaac world: the vendor's NTU mesh imported as USD with
 colliders and terrain materials, aligned to our Autoware maps so Autoware localizes on the
 real point cloud, with the Lanelet2 trail map SSv2 routes on.

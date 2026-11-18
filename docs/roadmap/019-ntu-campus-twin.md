@@ -1,5 +1,7 @@
 # Phase 019: NTU Campus Digital Twin
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 Build a drivable twin of the NTU campus from the data we already hold, and use it to examine
 how realistic CARLA's camera and lidar can get on a real site. Everything is measured against
 the real point cloud, which is ground truth for geometry and for the lidar.

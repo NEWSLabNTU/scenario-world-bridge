@@ -1,5 +1,7 @@
 # Phase 047: Off-road Surfaces -- Road Conditions and Soft Soil in Zones
 
+**Track**: part of [086](086-track-road-physics.md) (consolidated 2026-11-18).
+
 Rally-grade ground for the Isaac ego on CARLA-scale maps: wet asphalt, puddles and fords,
 gravel, and deformable mud and sand where a map says so, with the road condition named in
 the scenario file. Whole-world deformation is out of reach (the earlier Chrono study); this

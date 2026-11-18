@@ -1,5 +1,7 @@
 # Phase 074: Cooperation Study, the Cases swb Can Run Now
 
+**Track**: part of [084](084-track-cooperation.md) (consolidated 2026-11-18).
+
 Measure how autonomous vehicles cooperate, as games whose payoffs swb measures on real stacks,
 starting with the cases swb can run today. The method, the theory and the literature are in
 [design/survey-multi-vehicle-cooperation.md](../design/survey-multi-vehicle-cooperation.md);

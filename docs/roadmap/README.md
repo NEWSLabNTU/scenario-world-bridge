@@ -3,6 +3,17 @@
 Files are named `NNN-name.md`. Numbers are identifiers, not a strict execution order —
 dependencies are stated in each document.
 
+## Research tracks (consolidated 2026-11-18)
+
+Research runs on current scensim main and moves to each published release; it does not wait
+for releases. Each track's document is its plan and status; the phases it names keep their
+documents as history.
+
+- [084: Track A, Cooperation Between Automated Vehicles](084-track-cooperation.md) — 074, 078, 039
+- [085: Track B, Fast Driving, Drifting and the Race Planner](085-track-fast-driving.md) — 057, 061, 065, 071, 058, 063
+- [086: Track C, Road and Terrain Physics](086-track-road-physics.md) — 047, 052, 053, 056, 066, 069
+- [087: Track D, Maps and Digital Twins](087-track-maps-twins.md) — 019, 059, 072, 062, 040, 064, 031
+
 ## Original plan (001-005)
 
 Written before the multi-instance authority model. 001 and 002 are largely delivered; 003 and
@@ -108,11 +119,11 @@ sponsor's off-road competition on Isaac Sim (user direction 2026-10-16).
 - [075: User Docs the ROS Way, and the Assets Published](075-user-docs-and-assets.md) - **started** (2026-11-14): the user docs rebuilt on the stack launch with ROS commands only (no `just`), play_launch first, a page on domains and DDS and a "build your own stack" guide; the maps and models we built copied to the NAS and published on Hugging Face
 - [076: One Entry Launch, Assets by Name, and Docs by Reader](076-assets-interface-and-docs-by-reader.md) - **in progress** (2026-11-14): `ros2 run swb_launch assets fetch`, one data directory, worlds and scenarios by name, one entry launch (`swb.launch.xml`), the rough road and the surfaces map as package features, `/swb/wheels`; the docs as tutorials, how-to guides, reference and explanation, one source per fact, a tested tutorial format with exercises
 - [078: The Conflict-Zone Protocol, Built, Evaluated and Tested](078-conflict-zone-protocol.md) - **planned** (2026-11-15): 074's strategy as a library and an `interaction_strategy` node beside Autoware (RTC, velocity limit), no V2X needed; phases: verify the conventions (G0), implement (G1), evaluate the assumed parameters (G2; radar, UWB and shared-stop decisions), test runs over twelve scenarios and the deployment matrix (G3, per relation), the user's deployment decision (G4). Build spec [design/conflict-zone-protocol.md](../design/conflict-zone-protocol.md)
-- [079: ROS 2 Compatibility, Without Lab Tooling](079-ros2-compatibility.md) - **planned** (2026-11-16): swb on a stock ROS 2 install, play_launch recommended and never required; the `launcher: auto | play_launch | ros2` host setting, one argv builder, a process-group stop, both log layouts, the DDS profile and Python tools; exit: T1-T5 as written on a host without play_launch, no orphans after a stop, no regression under play_launch
-- [080: The Rename to scensim](080-rename-to-scensim.md) - **planned** (2026-11-17): swb becomes scensim (SCENario SIMulation), a framework for driving scenarios in simulation; framework names (`swb_*`, `SWB_*`, the command, four repositories) take `scensim`, component names that describe a role stay; old names refused by name; first of 080-082
-- [081: Testbenches, a Colcon Package Type, and the User Workspace](081-testbench-packages.md) - **planned** (2026-11-17): a testbench is a ROS package of scenarios, pilots and simulator settings with its own colcon build type (`scensim_testbench`, plugin `colcon-scensim`), checked at build, run by package name, next to the user's support packages (world servers, pilots, cars); today's studies mapped
-- [082: Distribution, `pip install scensim` and the PyPI Release](082-distribution-and-pypi-release.md) - **planned** (2026-11-17): prebuilt install tarballs per ROS LTS fetched on the first run by a pip front end that picks the ROS release by Python version; a documented rosdep + colcon-cargo-ros2 source build; a release workflow to GitHub Releases and PyPI behind the user's approval, the tag made last; supersedes 070 B and 029
-- [083: CARLA 1.0](083-carla-1-0.md) - **planned** (2026-11-17), after 080-082: CARLA 1.0 (UE 5.8, released 2026-11-17) supported next to 0.9.16; carla-rust's `carla-10` feature, the world server and acb per version, Chaos vehicle physics, the classic towns as `_Opt` maps from the AdditionalMaps pack, the corrected rotation order, the CARLA T3 suites compared with 0.9.16
+- [079: ROS 2 Compatibility, Without Lab Tooling](079-ros2-compatibility.md) - **done** (2026-11-17): swb on a stock ROS 2 install, play_launch recommended and never required; the `launcher: auto | play_launch | ros2` host setting, one argv builder, a process-group stop, both log layouts, the DDS profile and Python tools; exit: T1-T5 as written on a host without play_launch, no orphans after a stop, no regression under play_launch
+- [080: The Rename to scensim](080-rename-to-scensim.md) - **done** (landed 2026-11-18): swb becomes scensim (SCENario SIMulation), a framework for driving scenarios in simulation; framework names (`swb_*`, `SWB_*`, the command, four repositories) take `scensim`, component names that describe a role stay; old names refused by name; first of 080-082
+- [081: Testbenches, a Colcon Package Type, and the User Workspace](081-testbench-packages.md) - **done** (landed 2026-11-18): a testbench is a ROS package of scenarios, pilots and simulator settings with its own colcon build type (`scensim_testbench`, plugin `colcon-scensim`), checked at build, run by package name, next to the user's support packages (world servers, pilots, cars); today's studies mapped
+- [082: Distribution, `pip install scensim` and the PyPI Release](082-distribution-and-pypi-release.md) - **0.1.0 released** (2026-11-18): prebuilt install tarballs per ROS LTS fetched on the first run by a pip front end that picks the ROS release by Python version; a documented rosdep + colcon-cargo-ros2 source build; a release workflow to GitHub Releases and PyPI behind the user's approval, the tag made last; supersedes 070 B and 029
+- [083: CARLA 1.0](083-carla-1-0.md) - **started** (2026-11-18), after 080-082: CARLA 1.0 (UE 5.8, released 2026-11-17) supported next to 0.9.16; carla-rust's `carla-10` feature, the world server and acb per version, Chaos vehicle physics, the classic towns as `_Opt` maps from the AdditionalMaps pack, the corrected rotation order, the CARLA T3 suites compared with 0.9.16
 
 035 and 036 can run in parallel; 037 needs both. After 038 the order is 043, 044, 039 (user
 direction 2026-10-18); the target stack is [design/isaac-stack.svg](../design/isaac-stack.svg). 040 can start on the import script as soon as

@@ -1,5 +1,7 @@
 # Phase 069: Road Tilt, Tyre Load and the Road's Edge
 
+**Track**: part of [086](086-track-road-physics.md) (consolidated 2026-11-18).
+
 The race planner (autoware-drift `race_planner`) sees the road as a level ribbon with a grade:
 gravity along the line is in L1, L2 and the test plant, nothing else is. It does not know the
 road's bank or crown, that a crest unloads the car and a sag loads it, or what lies past either

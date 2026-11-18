@@ -1,5 +1,7 @@
 # Phase 064: SVL's Shalun Map in Autoware, CARLA and Isaac Sim
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 LG's SVL (LGSVL) simulator shipped a map of Taiwan CAR Lab, the automated-vehicle test field
 at Shalun, Tainan: a 3D scene of about 200 x 140 m, with Lanelet2, OpenDRIVE, Apollo and
 Autoware vector maps of its roads. SVL's asset store shut down in 2022. This phase brings the

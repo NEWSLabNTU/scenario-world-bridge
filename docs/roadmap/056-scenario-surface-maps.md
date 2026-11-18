@@ -1,5 +1,7 @@
 # Phase 056: The Scenario Chooses Its Ground
 
+**Track**: part of [086](086-track-road-physics.md) (consolidated 2026-11-18).
+
 Let a scenario say which ground it runs on, through the standard `RoadCondition` it already
 uses: which of the map's surface maps (`swb.surface_map`), and which class each ground label
 takes (`swb.default.<Label>`), so that an off-road scenario sets the ground beside the road

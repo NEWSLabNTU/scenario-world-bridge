@@ -1,5 +1,7 @@
 # Phase 058: A Mountain Pass from Open Data (Haruna's Hairpins)
 
+**Track**: part of [085](085-track-fast-driving.md) (consolidated 2026-11-18).
+
 A small, realistic Isaac world built from public data rather than a CARLA town: a 2 km section
 of a real Japanese mountain pass (touge) with its hairpins, its terrain and its aerial photo.
 It gives the drift campaign (057) the turns real drift events use, hairpins taken at 10-15 m/s,

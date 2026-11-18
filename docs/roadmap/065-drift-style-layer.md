@@ -1,5 +1,7 @@
 # Phase 065: Drift Style, Chosen by a Layer over the Solvers
 
+**Track**: part of [085](085-track-fast-driving.md) (consolidated 2026-11-18).
+
 061 gives the live planner a start in each valley, grip and drift, and a gate that picks the
 faster. This phase puts a **style layer** above it, so the same planner can drive three ways:
 the fastest lap (S1, today), a fast lap that takes a drift where it costs little (S2), and a

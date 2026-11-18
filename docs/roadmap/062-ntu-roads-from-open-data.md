@@ -1,5 +1,7 @@
 # Phase 062: The Roads around NTU from Public Data, Audited
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 This phase builds an Autoware Lanelet2 map, a point-cloud map and an Isaac world for the roads
 around NTU from public data alone. It is the first site of the study
 [`survey-open-data-maps.md`](../design/survey-open-data-maps.md).

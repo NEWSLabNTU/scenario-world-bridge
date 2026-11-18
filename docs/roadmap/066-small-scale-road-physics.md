@@ -1,5 +1,7 @@
 # Phase 066: Small-Scale Road Physics -- Rocks, Roughness and the Corner
 
+**Track**: part of [086](086-track-road-physics.md) (consolidated 2026-11-18).
+
 The Isaac ego should feel the road as a real car does: a rock lifts the wheel and can throw
 the car, a pothole drops the wheel and hits it on the far edge, washboard makes the wheels hop
 and lose grip, a crest unloads the car and the landing loads it, and a boulder can hit the

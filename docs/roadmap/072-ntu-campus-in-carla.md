@@ -1,5 +1,7 @@
 # Phase 072: The NTU Campus as a CARLA 0.9.16 Map, Built from the Scan
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 The NTU campus as a CARLA map package that any stock CARLA 0.9.16 binary can install: its
 roads in OpenDRIVE, its ground, buildings and trees as meshes, built straight from the
 vendor's MLS scan and the Autoware maps. It is not a conversion of 059's Isaac world. 059's

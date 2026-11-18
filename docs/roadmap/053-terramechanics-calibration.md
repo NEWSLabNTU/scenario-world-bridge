@@ -1,5 +1,7 @@
 # Phase 053: Soil Calibration Against Published Measurements
 
+**Track**: part of [086](086-track-road-physics.md) (consolidated 2026-11-18).
+
 Calibrate the soil classes against measured ground rather than against other simulators.
 047 S5 fitted sand and dirt to Chrono SCM, and Chrono CRM disagreed with SCM on traction;
 only measurements decide between them. Mud (Wong's clay row, `unvalidated:`) and snow have

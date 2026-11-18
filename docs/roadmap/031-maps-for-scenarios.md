@@ -1,5 +1,7 @@
 # Phase 031: Maps for Scenarios -- deferred
 
+**Track**: part of [087](087-track-maps-twins.md) (consolidated 2026-11-18).
+
 **Status: deferred** (user, 2026-10-13: "defer all stage 1-3 for now, keep them noted").
 Nothing here is scheduled. This doc keeps the analysis so the phase can start from it.
 

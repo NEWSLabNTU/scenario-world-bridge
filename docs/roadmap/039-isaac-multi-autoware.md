@@ -1,5 +1,7 @@
 # Phase 039: Several Autoware Instances on Isaac Sim
 
+**Track**: part of [084](084-track-cooperation.md) (consolidated 2026-11-18).
+
 What 010 and 017 deliver on CARLA, on Isaac: several Autoware egos in one Isaac world, each in
 its own ROS domain, all registered with the agent relay, SSv2 in the scenario domain (9)
 coordinating them. Then V2X between them and the gap campaign (024) on Isaac. Stage 3 of

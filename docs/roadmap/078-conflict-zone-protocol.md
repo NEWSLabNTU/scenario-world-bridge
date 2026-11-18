@@ -1,5 +1,7 @@
 # 078: The conflict-zone protocol, built, evaluated and tested
 
+**Track**: part of [084](084-track-cooperation.md) (consolidated 2026-11-18).
+
 ## Goal
 
 User, 2026-11-15: "Document the design and phase docs for build our conflict zone protocol

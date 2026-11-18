@@ -285,6 +285,15 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   `stop_dwell` after the mutual rest. In the formal check, an adversary with 0-1 s of patience is safe and
   one with 2 s is not. A longer patience is met only by the other car's own safety layer, as with stock.
 
+  **A car that rested clearly first keeps the turn** (`rest_first`, the crossing). The later-rest guard
+  makes the go come late when the own car rested well after the other. There it met the other car's own
+  restart: a 5 s-patience rule, or a gap-test car that restarts on noise. So under `rest_tie`, when
+  `stopped_first` reads the other car as clearly first (beyond T + m), the own car yields to it, in round
+  two as well. The rule works one way only: the reading can make a car yield, never go (R5). At e 0.55 > m,
+  two cars' stamps can disagree, and letting FIRST take the turn put two czp cars into the zone. Two czp
+  cars that both yield wait for the last resort, so the formal worst wait rises (2 cars 12.4 s, 3 cars
+  15.8 s; 19.5 s at `rest_stamp_bias` 0.7).
+
 ## Open questions
 
 - The commit point for a lane change inside Autoware's module: where RTC can still deny.

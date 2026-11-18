@@ -234,8 +234,11 @@ def test_install_downloads_checks_unpacks_and_prints_next_steps(env) -> None:
     assert r.returncode == 0, r.stderr
     assert "downloading scensim 0.1.0 for ROS 2 humble" in r.stderr
     assert "sha256 ok" in r.stderr
-    assert "sudo rosdep install --from-paths" in r.stderr and "/current/sim/share" in r.stderr
-    assert r.stderr.index("  rosdep update\n") < r.stderr.index("sudo rosdep install")
+    # Python 3.11+ (PEP 668, Jazzy's 3.12): rosdep's pip keys need pip allowed next to apt's
+    pep668 = "PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 " if sys.version_info >= (3, 11) else ""
+    line = f"sudo {pep668}rosdep install --from-paths"
+    assert line in r.stderr and "/current/sim/share" in r.stderr
+    assert r.stderr.index("  rosdep update\n") < r.stderr.index(line)
     assert f"source {env.home}/current/sim/setup.bash" in r.stderr
     assert (env.home / "current").resolve() == (env.home / "0.1.0-humble").resolve()
     assert (env.home / "0.1.0-humble" / "sim" / "bin" / "scensim").exists()
@@ -683,3 +686,25 @@ def test_help_is_the_front_ends_own_before_any_install(env) -> None:
     r = env.run("-h")
     assert r.returncode == 0 and "scensim install" in r.stdout
     assert "fake scensim" not in r.stdout and env.server.hits == 0
+
+
+def test_a_vehicle_side_on_a_ros_autoware_does_not_run_on_is_refused_by_name() -> None:
+    """Jazzy (0.2.0): Autoware 1.5.0 is built for Humble only, so a release for another ROS
+    has no vehicle side, and building one from source is not the way out either."""
+    release = _release_module()
+    Refused, Release = release.Refused, release.Release
+
+    art = {"url": "http://x/s.tar.zst", "size": 1, "sha256": "0" * 64}
+    jazzy = Release("jazzy", "0.2.0", {"version": "0.2.0", "ros_distro": "jazzy",
+                                       "artefacts": {"x86_64": {"sim": art}}})
+    with pytest.raises(Refused) as e:
+        jazzy.artefact("vehicle", "1.5.0")
+    msg = str(e.value)
+    assert "no prebuilt vehicle side for Autoware 1.5.0" in msg
+    assert "ROS 2 Humble only" in msg and "build" not in msg.split("Humble only")[1].split(".")[0]
+    # Humble keeps the old advice: its Autoware can be built from source
+    humble = Release("humble", "0.2.0", {"version": "0.2.0", "ros_distro": "humble",
+                                         "artefacts": {"x86_64": {"sim": art}}})
+    with pytest.raises(Refused) as e:
+        humble.artefact("vehicle", "1.5.0")
+    assert "build the vehicle packages from source" in str(e.value)

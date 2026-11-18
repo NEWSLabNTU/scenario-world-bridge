@@ -81,7 +81,11 @@ def install(release: Release, autoware: str | None, force: bool, first_use: bool
     print("missing system packages: run once, the second as an administrator:", file=sys.stderr)
     print("  rosdep update", file=sys.stderr)
     paths = f"{cur}/sim/share" + (f" {cur}/vehicle-autoware{autoware}/share" if autoware else "")
-    print(f"  sudo rosdep install --from-paths {paths} --ignore-src -y", file=sys.stderr)
+    # Python 3.11 and later is "externally managed" (PEP 668, Ubuntu 24.04): rosdep's pip
+    # keys need pip allowed next to apt's packages, and installed over (not uninstalling)
+    # the Debian-owned dependencies they want newer (typing_extensions, idna)
+    pep668 = "PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 " if sys.version_info >= (3, 11) else ""
+    print(f"  sudo {pep668}rosdep install --from-paths {paths} --ignore-src -y", file=sys.stderr)
     print("then, in every terminal (after ROS and your Autoware):", file=sys.stderr)
     print(f"  source {cur}/sim/setup.bash", file=sys.stderr)
     if autoware:

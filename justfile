@@ -51,6 +51,9 @@ acb_src := justfile_directory() + '/src/autoware_carla_bridge'
 # /opt/autoware/1.5.0; other hosts install the same packages straight into the ROS
 # prefix (/opt/ros/humble). Override with AUTOWARE_SETUP when yours is elsewhere.
 autoware_setup := env_var_or_default('AUTOWARE_SETUP', '/opt/autoware/1.5.0/setup.bash')
+# ROS 2's own setup.bash: the sourced distro's (ROS_DISTRO), Humble when none is sourced.
+# Override with ROS_SETUP when ROS lives elsewhere. Autoware 1.5.0 is Humble only.
+ros_setup := env_var_or_default('ROS_SETUP', '/opt/ros/' + env_var_or_default('ROS_DISTRO', 'humble') + '/setup.bash')
 # Autoware packages carried with fixes 1.5.0 lacks (roadmap 042), built by
 # `just build-autoware-overlay` from the commit pinned in scripts/autoware_overlay.bash.
 autoware_overlay_dir := justfile_directory() + '/third_party/autoware_overlay'
@@ -100,7 +103,7 @@ setup:
     fi
 
     # System dependencies, exactly as a user installs them
-    source /opt/ros/humble/setup.bash
+    source "{{ros_setup}}"
     source "{{autoware_setup}}"
     # The packages colcon builds, not `--from-paths src`: rosdep's crawl walks into the
     # components' deps/ copies (COLCON_IGNORE does not stop it) and fails on their templates
@@ -157,7 +160,7 @@ build: _check-setuptools
     set -e
     PATH=$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/\.venv/bin$' | paste -sd:)
     cd "{{project}}"
-    source /opt/ros/humble/setup.bash
+    source "{{ros_setup}}"
     source "{{autoware_setup}}"
     # CARLA_DIR (a host setting, .env) is CARLA's install; carla-sys would take it for a
     # CARLA source tree to build from, and the build fails.
@@ -887,7 +890,7 @@ isaac-world *args:
             *) echo "isaac-world: unknown argument '$a' (ego:=, world:=, follow:=, render:=, record:=, record_view:=, physics_hz:=; the port and display are ISAAC_PORT and DISPLAY)" >&2; exit 2 ;;
         esac
     done
-    source /opt/ros/humble/setup.bash
+    source "{{ros_setup}}"
     source "{{project}}/install/setup.bash"
     # The ego's ROS domain is the ego stack's (`just ego-isaac`), not aib's ego.yaml's.
     export ISAAC_ROOT={{isaac_root}} ISAAC_PORT={{isaac_port}} EGO_ROS_DOMAIN_ID={{ego_domain}}

@@ -26,6 +26,8 @@ _loader.exec_module(gg)
 
 SAMPLE = 200  # mutants per family
 VALIDATOR = _ROOT / "install/openscenario_validator/lib/openscenario_validator/validate"
+# the sourced distro's ROS 2 (ROS_DISTRO), Humble when none is sourced
+ROS_SETUP = Path(f"/opt/ros/{os.environ.get('ROS_DISTRO') or 'humble'}/setup.bash")
 
 
 def mutants(family, n, seed=1):
@@ -269,7 +271,7 @@ class Render(unittest.TestCase):
                     self.assertEqual(failures, [], (f, g.values))
 
     @unittest.skipUnless(VALIDATOR.exists() and shutil.which("bash")
-                         and Path("/opt/ros/humble/setup.bash").exists(),
+                         and ROS_SETUP.exists(),
                          "SSv2's openscenario_validator is not built here")
     def test_mutants_pass_ssv2s_schema(self):
         with tempfile.TemporaryDirectory() as d:
@@ -279,7 +281,7 @@ class Render(unittest.TestCase):
                     p = Path(d) / f"{f}_{g.id}.xosc"
                     p.write_text(gg.render(g))
                     paths.append(str(p))
-            cmd = ("source /opt/ros/humble/setup.bash >/dev/null; "
+            cmd = (f"source {ROS_SETUP} >/dev/null; "
                    f"for f in {' '.join(paths)}; do {VALIDATOR} \"$f\" || exit 1; done")
             r = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True,
                                timeout=1800, env=dict(os.environ))

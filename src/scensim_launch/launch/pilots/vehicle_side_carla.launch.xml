@@ -39,7 +39,12 @@
   <arg name="traffic_light_fusion_only" default="true" description="true: the traffic light camera (camera6) is not spawned"/>
   <arg name="publish_ground_truth_objects" default="false"/>
   <arg name="publish_clock" default="true" description="acb publishes /clock from CARLA in this domain"/>
-  <arg name="seed_localization_on_attach" default="true"/>
+  <!-- issue 049: acb_bridge's re-seed publishes /initialpose when it attaches (a teleport),
+       which Autoware's initial_pose_adaptor turns into a second localization initialize beside
+       the agent's: two NDT aligns per reset. A managed ego (a relay) is initialized by its
+       agent, so false; without a relay acb seeds as stand-alone (the just recipes pass false
+       for a managed ego as well). -->
+  <arg name="seed_localization_on_attach" default="$(eval &quot;'true' if '$(var relay)' == 'none' else 'false'&quot;)" description="acb_bridge publishes /initialpose on attach; default false with a relay (the agent initializes), true without"/>
   <arg name="traffic_light_map_path" default="$(eval &quot;'$(var map_path)/carla/traffic_lights.yaml' if '$(var map_path)' != '' else ''&quot;)" description="the map's CARLA signal table; empty disables V2X signals"/>
   <arg name="traffic_light_state_path" default="" description="the project's state-dir signal table, written by the world server on first load; read first when it exists"/>
   <arg name="map_origin_path" default="$(eval &quot;'$(var map_path)/carla/map_origin.yaml' if '$(var map_path)' != '' else ''&quot;)" description="CARLA's world origin in the map frame; no file = zero"/>

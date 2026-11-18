@@ -119,6 +119,28 @@ def test_a_managed_autoware_ego_starts_no_gnss_initializer(relay, want):
     assert perform_substitutions(context, declared.default_value) == want
 
 
+@pytest.mark.parametrize("relay,want", [("tcp://localhost:5560", "false"), ("none", "true")])
+def test_a_managed_ego_on_carla_is_not_reseeded_by_acb(relay, want):
+    """Issue 049: acb_bridge's /initialpose on attach became a second localization initialize
+    beside the agent's (two NDT aligns per reset); with a relay the agent initializes, so the
+    vehicle side does not seed. Without one acb seeds, as stand-alone."""
+    frontend = pytest.importorskip("launch.frontend")
+    pytest.importorskip("launch_xml")
+    from launch import LaunchContext
+    from launch.actions import DeclareLaunchArgument
+    from launch.utilities import perform_substitutions
+    args, root = xml_args("vehicle_side_carla.launch.xml")
+    passed = {a.get("name"): a.get("value") for a in root.find("include").findall("arg")}
+    assert passed["seed_localization_on_attach"] == "$(var seed_localization_on_attach)"
+    entity, parser = frontend.Parser.load(os.path.join(PILOTS, "vehicle_side_carla.launch.xml"))
+    [declared] = [e for e in parser.parse_description(entity).entities
+                  if isinstance(e, DeclareLaunchArgument)
+                  and e.name == "seed_localization_on_attach"]
+    context = LaunchContext()
+    context.launch_configurations["relay"] = relay
+    assert perform_substitutions(context, declared.default_value) == want
+
+
 # --- the kinds' own logic -----------------------------------------------------------------
 def test_command_argv_appends_the_contract():
     values = {"run": "python3 -m my.policy --policy 'push hard'", "relay": "tcp://h:5560",

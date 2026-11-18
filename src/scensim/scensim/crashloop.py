@@ -51,7 +51,9 @@ _R2_SHUTDOWN = re.compile(r"^\[(?:INFO|WARNING|ERROR)\] \[launch\]: (?:user inte
                           r"ctrl-c|.*\bshutting down\b)")
 _ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 # Kit's crash reporter: "... crash dump ... /path/<uuid>.dmp" (its dumps' directory is named)
-_DUMP = re.compile(r"(/\S+\.dmp)\b")
+# Kit quotes its dump's path, which may hold spaces ('.../Isaac-Sim Python/6.1/<id>.dmp.zip'):
+# a quoted path is taken whole; an unquoted one ends at whitespace (issue 059)
+_DUMP = re.compile(r"""['"](/[^'"\n]+?\.dmp)(?:\.zip)?['"]|(/\S+\.dmp)\b""")
 
 
 def how(code=None, sig=None) -> str:
@@ -90,7 +92,7 @@ def _dump(text: str) -> str:
     m = None
     for m in _DUMP.finditer(text):
         pass
-    return str(Path(m.group(1)).parent) if m else ""
+    return str(Path(m.group(1) or m.group(2)).parent) if m else ""
 
 
 def _read(path: Path) -> str:

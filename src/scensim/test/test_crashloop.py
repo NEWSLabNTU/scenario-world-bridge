@@ -225,3 +225,15 @@ def test_wait_started_ends_at_once_on_a_world_server_that_exits_0(tmp_path, monk
         run.wait_started(started, tmp_path, {"logs": str(tmp_path)}, timeout=60)
     assert time.time() - t0 < 5
     assert "ImportError: stub world server cannot start" in str(e.value)
+
+
+def test_kits_dump_path_with_a_space_is_named_whole(tmp_path):
+    """Issue 059: Kit's dump path holds a space ('Isaac-Sim Python') and is quoted."""
+    kit = ("/mnt/evo/aeon/isaac-sim/venv/lib/python3.12/site-packages/isaacsim/kit/data/Kit/"
+           "Isaac-Sim Python/6.1")
+    line = ("2026-11-18T16:16:42Z [1,123ms] [Error] [carb.crashreporter-breakpad.plugin] [crash] "
+            f"Wrote dump file '{kit}/35c1fbf8-4364-4623-d8eb24ad-880a69b2.dmp.zip'")
+    assert crashloop._dump(line) == kit
+    play_launch_side(tmp_path, "scensim_isaac_world", [(139,)] * 5, ["Segmentation fault"] * 4 + [line])
+    assert f"crash dump in {kit}" in crashloop.looping(tmp_path)
+    assert crashloop._dump("crash dump written to /tmp/kit/dumps/abc-123.dmp") == "/tmp/kit/dumps"

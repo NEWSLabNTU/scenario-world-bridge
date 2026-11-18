@@ -679,6 +679,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         if car is not None:
             b.spec["args"] = {**own_car_args(car, b.kind, sim), **(b.spec.get("args") or {})}
         if b.kind == "autoware":
+            # the workspaces the pilot sources were built against that same release
+            mixed = autowaremod.install_problems(host, workspace_root())
+            if mixed:
+                raise StackRefused("; ".join(mixed))
             # the profile runs the host's Autoware release (autoware.setup's directory)
             try:
                 b.spec["args"] = autowaremod.pilot_release(

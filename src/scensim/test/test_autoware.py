@@ -53,3 +53,36 @@ def test_a_pilots_release_follows_the_host_and_refuses_another():
     ros = {"autoware": {"setup": "/opt/ros/humble/setup.bash"}}
     assert autoware.pilot_release(ros, "p", {"autoware_release": "2.0.0"}) == \
         {"autoware_release": "2.0.0"}
+
+
+def _built_against(ws, rel, release):
+    f = ws / rel / "install" / "setup.bash"
+    f.parent.mkdir(parents=True)
+    f.write_text('COLCON_CURRENT_PREFIX="/opt/ros/humble"\n'
+                 f'COLCON_CURRENT_PREFIX="/opt/autoware/{release}"\n'
+                 'COLCON_CURRENT_PREFIX="$(builtin cd "`dirname "${BASH_SOURCE[0]}"`" && pwd)"\n')
+    return f
+
+
+def test_a_workspaces_autoware_is_its_setups_underlay(tmp_path):
+    f = _built_against(tmp_path, ".", "1.5.0")
+    assert autoware.chained_release(f) == "1.5.0"
+    assert autoware.chained_release(tmp_path / "none.bash") is None
+
+
+def test_a_workspace_built_against_another_release_is_named_with_the_fix(tmp_path):
+    acb = _built_against(tmp_path, "src/autoware_carla_bridge", "2.1.0")
+    own = _built_against(tmp_path, ".", "1.5.0")
+    host = {"autoware": {"setup": "/opt/autoware/2.1.0/setup.bash"}}
+    [why] = autoware.install_problems(host, tmp_path)
+    assert why.startswith(f"{own} was built against Autoware 1.5.0 and sources it, but "
+                          "autoware.setup is Autoware 2.1.0 (/opt/autoware/2.1.0/setup.bash)")
+    assert "rebuild with AUTOWARE_SETUP=/opt/autoware/2.1.0/setup.bash" in why
+    assert str(acb) not in why
+    # with autoware.setup at 1.5.0 it is acb's build that is named
+    [why] = autoware.install_problems({"autoware": {"setup": "/opt/autoware/1.5.0/setup.bash"}},
+                                      tmp_path)
+    assert why.startswith(f"{acb} was built against Autoware 2.1.0")
+    assert autoware.install_problems({"autoware": {"setup": "/opt/ros/humble/setup.bash"}},
+                                     tmp_path) == []
+    assert autoware.install_problems(host, None) == []

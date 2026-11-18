@@ -74,8 +74,12 @@ their workspace, as support packages.
 symbol (`ldd -r` on a clean image of the target release with only the base, the artefact
 and its rosdep packages). An Autoware 1.5.0 rebuilt from a local repository was found on
 2026-11-17 to ship a library that uses `diagnostic_updater` without linking it; that kind of
-fault fails the release, not a user's first run. NEWSLab's Autoware binaries, which now
-carry the overlay's fixes, pass the same check.
+fault fails the release, not a user's first run. That build was NEWSLab's own
+(`autoware-localrepo` 1.5.0-3): its packages failed the check, and 1.5.0-humble-4
+(2026-11-18) fixes the link in all five platforms' packages (amd64, amd64-cpu, sbsa,
+arm64-cpu, jetpack62) and adds `cuda-cudart-12-4`; each passed `ldd -r` and a link scan
+after a clean install. `apt upgrade` does not repair an existing 1.5.0-3 install (the inner
+packages keep their versions): uninstall, then install `autoware-full-1-5-0` again.
 
 ### `pip install scensim` picks the release
 

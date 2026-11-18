@@ -27,10 +27,11 @@ your server its settings as its arguments. The bridge's keys still apply: `confi
 In the stack (`scensim stack my_testbench`, or the stack a `scensim run` starts), the server
 is a process of the simulation side, `scensim_launch`'s `world_server.launch.py`, on the
 seat's world port (5591 on seat 0; `SCENSIM_WORLD_PORT` too). It is respawned 5 s after it
-ends, as the stock servers are. Its output is the stack's
-`proc/simulator/.../node/world_server` log. The stack is ready once the bridge serves, which
-needs your server to answer as its owner; a seat whose world port another process holds is
-refused before anything starts, naming the port.
+ends, as the stock servers are. Its `out` and `err` are under the stack's
+`proc/simulator/.../node/world_server/`. The stack is ready once the bridge serves, which
+needs your server to answer as its owner. A seat you name (`--seat 0`, or `seat:` in
+host.yaml) whose world port another process holds is refused before anything starts, naming
+the port; with `seat: auto` that seat is skipped for the next free one.
 
 ## Another simulator: `simulator: none`
 

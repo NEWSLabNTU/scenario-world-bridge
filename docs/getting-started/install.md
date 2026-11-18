@@ -81,6 +81,10 @@ sudo rosdep install --from-paths ~/.local/share/scensim/current/sim/share \
     --ignore-src -y
 ```
 
+On Ubuntu 22.04 and 24.04 this installs a brotli older than 1.2, with which huggingface_hub
+cannot download the assets, so `scensim assets fetch` takes them over plain HTTPS instead.
+`python3 -m pip install --user 'brotli>=1.2'` lets huggingface_hub download them itself.
+
 The kernel's socket buffers must also be enlarged, so that DDS can deliver point clouds;
 at the default 208 kB a point cloud never arrives:
 

@@ -99,7 +99,7 @@ time, on one thread; do not block in one for longer than its command allows (bel
 
 | Hook | Called when | Must | Time allowed |
 |---|---|---|---|
-| `on_reset(ep)` | a scenario starts (SSv2 initializes the entity) | drop goal, plan and controller state; re-localize at `ep.pose`; return once ready for a goal | the relay's `reset_timeout` (60 s) |
+| `on_reset(ep)` | a scenario starts (SSv2 initializes the entity) | drop goal, plan and controller state; re-localize at `ep.pose`; return once ready for a goal | the relay's `reset_timeout` (120 s) |
 | `on_goal(goal, waypoints)` | the scenario assigns a route | start planning and driving | 9 s |
 | `on_speed_limit(mps)` | a speed limit is set or lifted (`None`) | apply it | 2.5 s |
 | `on_stop()` | the scenario disengages the vehicle | stop, hold until the next goal | 2.5 s |
@@ -231,7 +231,7 @@ ros2 run scensim_agent autoware_agent \
 
 `agent.yaml` takes `use_sim_time` (true for a simulator) and the bounds: `ready_timeout`
 (60 s), `scan_wait` (10), `scans_required` (2), `converge_timeout` (30),
-`initialize_attempts` (5), `initialize_timeout` (60, one `/api/localization/initialize`
+`initialize_attempts` (5), `initialize_timeout` (120, one `/api/localization/initialize`
 call), `align_wait` (60), `engage_retry` (3), `settle` (2). An initialize
 found unavailable (Autoware's services restarting mid-reset, e.g. a healer restarting a hung
 ADAPI container) is not an attempt: the agent waits for the services, up to
@@ -391,7 +391,7 @@ scenarios' to say.
 At the start of every scenario the agent's `on_reset` runs, with the pose the scenario
 places the vehicle at. The scenario simulator waits while the agent reports `INITIALIZING`,
 and goes on once it reports `IDLE`, so a reset may take as long as the autopilot needs to
-re-localize, up to the relay's `reset_timeout` (default 60 s). A reset that fails or runs
+re-localize, up to the relay's `reset_timeout` (default 120 s, SSv2's `initialize_duration`). A reset that fails or runs
 out of time fails that scenario.
 
 ### When a reset fails: restart

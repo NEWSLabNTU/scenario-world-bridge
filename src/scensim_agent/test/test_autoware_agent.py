@@ -231,7 +231,7 @@ def test_the_initialize_timeout_is_a_setting_the_port_gets():
     C.AutowareAgent({"step_period": 0, "initialize_timeout": 90.0}, port=autoware,
                     clock=clock, sleep=clock.sleep)
     assert autoware.initialize_timeout == 90.0
-    assert C.DEFAULTS["initialize_timeout"] == 60.0
+    assert C.DEFAULTS["initialize_timeout"] == 120.0   # SSv2's initialize_duration (issue 046)
 
 
 def test_reset_gives_up_after_the_initialize_attempts(rig):

@@ -82,7 +82,7 @@ RTC_STATES = {0: "WAITING_FOR_EXECUTION", 1: "RUNNING", 2: "ABORTING", 3: "SUCCE
 # and each expired call again queued a retry behind the first. 60 s outlasts that; the
 # scenario's initialize_duration (120 s) bounds the whole start anyway. The default of the
 # agent's `initialize_timeout` (adapters/autoware.py DEFAULTS), which sets the port's.
-INITIALIZE_TIMEOUT = 60.0
+INITIALIZE_TIMEOUT = 120.0
 
 CORE_SERVICES = ("initialize", "set_route_points", "clear_route", "change_to_autonomous",
                  "change_to_stop")

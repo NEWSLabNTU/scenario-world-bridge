@@ -26,16 +26,14 @@ from .release import (
     load_release,
     read_release_yaml,
     same_version,
+    CONNECT_AUTOWARE,
     sim_prefix,
-    sourced_autoware,
-    vehicle_prefix,
 )
 
 ROS_ROOT = os.environ.get("SCENSIM_ROS_ROOT", "/opt/ros")
-AUTOWARE_ROOT = os.environ.get("SCENSIM_AUTOWARE_ROOT", "/opt/autoware")
 
 USAGE = """\
-usage: scensim install [--distro <ros>] [--autoware <release>] [--force]
+usage: scensim install [--distro <ros>] [--force]
        scensim --version
        scensim <command> ...     (scensim's own commands: run, runs, testbench, assets, ...)
 
@@ -43,34 +41,22 @@ The first command that needs scensim downloads the prebuilt release for your ROS
 """
 
 
-def installed(version: str, distro: str, autoware: str | None = None) -> bool:
-    """The simulation side, and with ``autoware`` the vehicle side for that release too."""
-    if not same_version(read_release_yaml(sim_prefix(version, distro)).get("version"), version):
-        return False
-    return autoware is None or same_version(
-        read_release_yaml(vehicle_prefix(version, distro, autoware)).get("version"), version)
+def installed(version: str, distro: str) -> bool:
+    """The simulation side of ``version`` for ``distro`` is unpacked."""
+    return same_version(read_release_yaml(sim_prefix(version, distro)).get("version"), version)
 
 
-def install(release: Release, autoware: str | None, force: bool, first_use: bool) -> None:
-    """Download and unpack what is missing; point ``current`` once every side is in place;
-    print the next steps. Every side's artefact is resolved first, so a sourced Autoware the
-    release has no vehicle side for is refused (exit 3) before anything is downloaded, on
-    every command, not only the first."""
+def install(release: Release, force: bool, first_use: bool) -> None:
+    """Download and unpack the simulation side unless it is in place; point ``current`` at
+    it; print the next steps. A sourced Autoware changes nothing here: the Autoware-side
+    packages are built in the user's Autoware workspace, never downloaded."""
     v, d = release.version, release.distro
-    sides: list[tuple[str, str | None]] = [("sim", None)]
-    if autoware:
-        sides.append(("vehicle", autoware))
-    arts = {side: release.artefact(side, aw) for side, aw in sides}
-    downloads = home() / ".downloads"
-    for side, aw in sides:
-        prefix = sim_prefix(v, d) if side == "sim" else vehicle_prefix(v, d, aw or "")
-        if not force and same_version(read_release_yaml(prefix).get("version"), v):
-            continue
-        art = arts[side]
-        what = "scensim" if side == "sim" else f"scensim's vehicle side for Autoware {aw}"
+    art = release.sim_artefact()
+    prefix = sim_prefix(v, d)
+    if force or not same_version(read_release_yaml(prefix).get("version"), v):
         lead = "first use: downloading" if first_use else "downloading"
-        print(f"{lead} {what} {v} for ROS 2 {d}, {human(int(art['size']))}", file=sys.stderr)
-        archive = download(art, downloads)
+        print(f"{lead} scensim {v} for ROS 2 {d}, {human(int(art['size']))}", file=sys.stderr)
+        archive = download(art, home() / ".downloads")
         print(f"  sha256 ok; unpacking to {prefix}", file=sys.stderr)
         unpack(archive, prefix, v, d)
         archive.unlink(missing_ok=True)
@@ -80,56 +66,31 @@ def install(release: Release, autoware: str | None, force: bool, first_use: bool
     # rosdep update first: an old cache misses keys (python3-yamale-pip) and install exits 1
     print("missing system packages: run once, the second as an administrator:", file=sys.stderr)
     print("  rosdep update", file=sys.stderr)
-    paths = f"{cur}/sim/share" + (f" {cur}/vehicle-autoware{autoware}/share" if autoware else "")
     # Python 3.11 and later is "externally managed" (PEP 668, Ubuntu 24.04): rosdep's pip
     # keys need pip allowed next to apt's packages, and installed over (not uninstalling)
     # the Debian-owned dependencies they want newer (typing_extensions, idna)
     pep668 = "PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 " if sys.version_info >= (3, 11) else ""
-    print(f"  sudo {pep668}rosdep install --from-paths {paths} --ignore-src -y", file=sys.stderr)
-    print("then, in every terminal (after ROS and your Autoware):", file=sys.stderr)
+    print(f"  sudo {pep668}rosdep install --from-paths {cur}/sim/share --ignore-src -y",
+          file=sys.stderr)
+    print("then, in every terminal (after ROS, and your Autoware if you use one):", file=sys.stderr)
     print(f"  source {cur}/sim/setup.bash", file=sys.stderr)
-    if autoware:
-        print(f"  source {cur}/vehicle-autoware{autoware}/setup.bash", file=sys.stderr)
-
-
-def autoware_setup(version: str, distro: str) -> tuple[str | None, Path | None]:
-    """The Autoware to source before the vehicle side: ``(release, its setup.bash)``.
-
-    A sourced Autoware is taken as it is (``setup`` None). Otherwise, an installed vehicle side
-    for release R is paired with ``/opt/autoware/R/setup.bash`` when that exists."""
-    sourced = sourced_autoware()
-    if sourced:
-        return sourced, None
-    root = install_dir(version, distro)
-    for veh in sorted(root.glob("vehicle-autoware*")):
-        rel = veh.name.removeprefix("vehicle-autoware")
-        setup = Path(AUTOWARE_ROOT) / rel / "setup.bash"
-        if (veh / "setup.bash").exists() and setup.exists():
-            return rel, setup
-    return None, None
+    print(f"an Autoware pilot needs the car's Autoware packages in your Autoware workspace: "
+          f"{CONNECT_AUTOWARE}", file=sys.stderr)
 
 
 def environment_lines(release: Release) -> list[str]:
     """What to source before the release's ``bin/scensim``, in order: ROS (when no ROS is
-    sourced), Autoware (when one is detected and not sourced), the simulation side, the
-    vehicle side for that Autoware. A prefix already on ``AMENT_PREFIX_PATH`` is not sourced
-    again."""
+    sourced), then the simulation side unless it is already on ``AMENT_PREFIX_PATH``. A
+    sourced Autoware and its workspace stay as the terminal has them."""
     v, d = release.version, release.distro
     sourced = os.environ.get("AMENT_PREFIX_PATH", "").split(":")
     lines: list[str] = []
     ros = Path(ROS_ROOT) / d / "setup.bash"
     if not os.environ.get("ROS_DISTRO") and ros.exists():
         lines.append(f"source {shlex.quote(str(ros))}")
-    aw, aw_setup = autoware_setup(v, d)
-    if aw_setup is not None:
-        lines.append(f"source {shlex.quote(str(aw_setup))}")
     sim = sim_prefix(v, d)
     if str(sim) not in sourced:
         lines.append(f"source {shlex.quote(str(sim / 'setup.bash'))}")
-    if aw:
-        veh = vehicle_prefix(v, d, aw)
-        if (veh / "setup.bash").exists() and str(veh) not in sourced:
-            lines.append(f"source {shlex.quote(str(veh / 'setup.bash'))}")
     return lines
 
 
@@ -162,8 +123,8 @@ def version_text() -> str:
     return "\n".join(out)
 
 
-def parse_install(args: list[str]) -> tuple[str | None, str | None, bool]:
-    distro = autoware = None
+def parse_install(args: list[str]) -> tuple[str | None, bool]:
+    distro = None
     force = False
     it = iter(args)
     for a in it:
@@ -171,15 +132,17 @@ def parse_install(args: list[str]) -> tuple[str | None, str | None, bool]:
             distro = next(it, None)
         elif a.startswith("--distro="):
             distro = a.split("=", 1)[1]
-        elif a == "--autoware":
-            autoware = next(it, None)
-        elif a.startswith("--autoware="):
-            autoware = a.split("=", 1)[1]
+        elif a == "--autoware" or a.startswith("--autoware="):
+            raise Refused(
+                "scensim install: --autoware was removed in 0.2.0: a release downloads the "
+                "simulation side only, and the car's Autoware packages are built in your "
+                f"Autoware workspace: {CONNECT_AUTOWARE}"
+            )
         elif a == "--force":
             force = True
         else:
             raise Refused(f"scensim install: unknown argument {a!r}\n{USAGE}")
-    return distro, autoware, force
+    return distro, force
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -206,14 +169,13 @@ def main(argv: list[str] | None = None) -> int:
             print(version_text())
             return 0
         if args[0] == "install":
-            distro, autoware, force = parse_install(args[1:])
+            distro, force = parse_install(args[1:])
             release = load_release(choose_distro(distro))
-            install(release, autoware or sourced_autoware(), force, first_use=False)
+            install(release, force, first_use=False)
             return 0
         release = load_release(choose_distro(None))
-        autoware = sourced_autoware()
-        if not installed(release.version, release.distro, autoware):
-            install(release, autoware, force=False, first_use=True)
+        if not installed(release.version, release.distro):
+            install(release, force=False, first_use=True)
         exec_scensim(release, args)
         return 0  # not reached: exec replaces the process
     except Refused as e:

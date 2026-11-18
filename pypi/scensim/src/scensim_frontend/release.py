@@ -22,6 +22,10 @@ PYTHON_TO_DISTRO = {(3, 10): "humble", (3, 12): "jazzy"}
 SOURCE_BUILD = (
     "https://github.com/NEWSLabNTU/scensim/blob/main/docs/getting-started/install.md#from-source"
 )
+# The guide to the Autoware side: the car's Autoware packages, built in the user's workspace
+CONNECT_AUTOWARE = (
+    "https://github.com/NEWSLabNTU/scensim/blob/main/docs/how-to/connect-autoware.md"
+)
 
 
 class Refused(Exception):
@@ -34,35 +38,17 @@ class Release:
     version: str
     manifest: dict[str, Any]
 
-    def artefact(self, side: str, autoware: str | None = None) -> dict[str, Any]:
+    def sim_artefact(self) -> dict[str, Any]:
+        """The simulation side's tarball for this host's arch. A release has no other
+        artefact: the Autoware-side packages are source, built in the user's Autoware
+        workspace (CONNECT_AUTOWARE)."""
         arch = machine()
         by_arch = self.manifest.get("artefacts", {}).get(arch)
         if not by_arch:
             raise Refused(
                 f"no prebuilt scensim {self.version} for {arch}; build from source: {SOURCE_BUILD}"
             )
-        if side == "sim":
-            art = by_arch.get("sim")
-        else:
-            art = by_arch.get("vehicle", {}).get(f"autoware{autoware}")
-            if art is None:
-                have = ", ".join(sorted(by_arch.get("vehicle", {}))) or "none"
-                distro = self.manifest.get("ros_distro", "")
-                if not by_arch.get("vehicle") and distro and distro != "humble":
-                    # the vehicle side is Autoware's packages, and Autoware 1.5.0 is built
-                    # for Humble only: building it from source on this ROS does not work
-                    raise Refused(
-                        f"no prebuilt vehicle side for Autoware {autoware} in scensim "
-                        f"{self.version} for ROS 2 {distro}: the vehicle side runs on ROS 2 "
-                        f"Humble only (Autoware 1.5.0 is built for Humble). On {distro}, "
-                        f"scensim runs the simulation side: use pilots that are not Autoware, "
-                        f"or run the Autoware ego from a Humble install"
-                    )
-                raise Refused(
-                    f"no prebuilt vehicle side for Autoware {autoware} in scensim {self.version} "
-                    f"(this release has: {have}); build the vehicle packages from source in your "
-                    f"workspace"
-                )
+        art = by_arch.get("sim")
         if (
             not art
             or not art.get("size")
@@ -70,7 +56,7 @@ class Release:
         ):
             raise Refused(
                 f"the release package scensim-ros-{self.distro} {self.version} names no usable "
-                f"{side} artefact (a development placeholder?); install a released version"
+                f"sim artefact (a development placeholder?); install a released version"
             )
         return art
 
@@ -161,20 +147,6 @@ def install_dir(version: str, distro: str) -> Path:
 
 def sim_prefix(version: str, distro: str) -> Path:
     return install_dir(version, distro) / "sim"
-
-
-def vehicle_prefix(version: str, distro: str, autoware: str) -> Path:
-    return install_dir(version, distro) / f"vehicle-autoware{autoware}"
-
-
-def sourced_autoware() -> str | None:
-    """The release of an Autoware the terminal sourced (``/opt/autoware/<rel>`` on a prefix
-    path), or None."""
-    for var in ("AMENT_PREFIX_PATH", "CMAKE_PREFIX_PATH", "LD_LIBRARY_PATH"):
-        m = re.search(r"/autoware/(\d+\.\d+\.\d+)(?:/|$|:)", os.environ.get(var, ""))
-        if m:
-            return m.group(1)
-    return None
 
 
 # A version as PEP 440 reads it, in the spellings a release and a wheel use: the release's

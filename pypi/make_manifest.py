@@ -2,11 +2,12 @@
 """Write scensim-ros-<distro>'s manifest.json from a release's built artefacts.
 
     make_manifest.py --version 0.1.0 --distro humble --base-url <release download URL> \
-        scensim-sim-0.1.0-humble-x86_64.tar.zst scensim-vehicle-0.1.0-autoware1.5.0-x86_64.tar.zst
+        scensim-sim-0.1.0-humble-x86_64.tar.zst
 
-The artefact names are the release build's (scripts/release):
-scensim-sim-<ver>-<distro>-<arch>.tar.zst and scensim-vehicle-<ver>-autoware<rel>-<arch>.tar.zst.
-Size and sha256 come from the files themselves.
+The artefact name is the release build's (scripts/release):
+scensim-sim-<ver>-<distro>-<arch>.tar.zst. A release has no other artefact: the car's Autoware
+packages are source, built in the user's Autoware workspace. Size and sha256 come from the
+file itself.
 """
 
 from __future__ import annotations
@@ -19,14 +20,10 @@ from pathlib import Path
 from typing import Any
 
 
-def patterns(version: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
-    """The two artefact names for ``version`` (which may hold dashes, e.g. 0.0.0-dev)."""
+def pattern(version: str) -> re.Pattern[str]:
+    """The artefact name for ``version`` (which may hold dashes, e.g. 0.0.0-dev)."""
     v = re.escape(version)
-    sim = re.compile(rf"scensim-sim-v?{v}-(?P<distro>[a-z]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$")
-    veh = re.compile(
-        rf"scensim-vehicle-v?{v}-autoware(?P<aw>[\d.]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$"
-    )
-    return sim, veh
+    return re.compile(rf"scensim-sim-v?{v}-(?P<distro>[a-z]+)-(?P<arch>[a-z0-9_]+)\.tar\.zst$")
 
 
 def main() -> None:
@@ -38,7 +35,7 @@ def main() -> None:
     ap.add_argument("files", nargs="+", type=Path)
     a = ap.parse_args()
     arts: dict[str, dict[str, Any]] = {}
-    SIM, VEH = patterns(a.version.removeprefix("v"))
+    SIM = pattern(a.version.removeprefix("v"))
     for f in a.files:
         sha = hashlib.sha256()
         with open(f, "rb") as fh:
@@ -53,13 +50,15 @@ def main() -> None:
             if m["distro"] != a.distro:
                 raise SystemExit(f"{f.name} is for {m['distro']}, not {a.distro}")
             arts.setdefault(m["arch"], {})["sim"] = entry
-        elif m := VEH.match(f.name):
-            arts.setdefault(m["arch"], {}).setdefault("vehicle", {})[f"autoware{m['aw']}"] = entry
+        elif f.name.startswith("scensim-vehicle-"):
+            raise SystemExit(
+                f"{f.name}: a release has no vehicle tarball since 0.2.0; the car's Autoware "
+                f"packages are source, built in the user's Autoware workspace"
+            )
         else:
             raise SystemExit(
                 f"{f.name}: not a scensim {a.version} release artefact name "
-                f"(scensim-sim-<ver>-<distro>-<arch>.tar.zst, "
-                f"scensim-vehicle-<ver>-autoware<rel>-<arch>.tar.zst)"
+                f"(scensim-sim-<ver>-<distro>-<arch>.tar.zst)"
             )
     out = (
         Path(a.out)

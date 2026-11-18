@@ -53,7 +53,8 @@ not from a number in step 5.
 
 ## 1. The site file (manual)
 
-`scripts/open_maps/sites/<site>.yaml` holds five things:
+A site file, `<site>.yaml`, kept with the testbench that drives the site (NTU's is in the
+private repository NEWSLabNTU/2026-taiwan-testbenches), holds five things:
 
 - **The box,** south, west, north and east in WGS84.
 - **The frame:** the UTM zone, the MGRS grid square and its offset, which is the map frame
@@ -71,7 +72,7 @@ was chosen.
 
 ## 2. Fetch the sources (auto)
 
-    data/maps/.venv/bin/python scripts/open_maps/fetch.py scripts/open_maps/sites/ntu.yaml data/maps/ntu
+    data/maps/.venv/bin/python scripts/open_maps/fetch.py <site>.yaml data/maps/<site>
 
 The five sources go into `<out>/raw/`, each cached: OSM by Overpass, Overture by DuckDB from
 its S3 release, Mapillary's map features and image metadata, NLSC's 0.27 m orthophoto at
@@ -99,7 +100,7 @@ in tiles. Nothing here needs a person unless a service changes.
 
 ## 3. The baseline, route A (auto, comparison only)
 
-    data/maps/.venv/bin/python scripts/open_maps/baseline.py scripts/open_maps/sites/ntu.yaml data/maps/ntu
+    data/maps/.venv/bin/python scripts/open_maps/baseline.py <site>.yaml data/maps/<site>
 
 This is the off-the-shelf route: OSM, then SUMO netconvert, then OpenDRIVE, then CommonRoad
 Scenario Designer, then Lanelet2. It exists to be beaten, and nothing downstream uses it.
@@ -111,7 +112,7 @@ Making it run at all took workarounds:
 
 ## 4. Generate the map, route B (auto)
 
-    data/maps/.venv/bin/python scripts/open_maps/generate.py scripts/open_maps/sites/ntu.yaml data/maps/ntu
+    data/maps/.venv/bin/python scripts/open_maps/generate.py <site>.yaml data/maps/<site>
 
 This writes `<out>/generated/`: `lanelet2_map.osm`, `map_projector_info.yaml`, `report.json`
 (the build's counts), `bans.json` (each turn banned by a sign, with its evidence and source)
@@ -169,9 +170,9 @@ validate it. `SCENSIM_IMAGERY=1` turns it on.
 
 ## 5. Score it (auto, with a check)
 
-    data/maps/.venv/bin/python scripts/open_maps/check_map.py data/maps/ntu/generated/lanelet2_map.osm
+    data/maps/.venv/bin/python scripts/open_maps/check_map.py data/maps/<site>/generated/lanelet2_map.osm
     source /opt/autoware/1.5.0/setup.bash
-    python3 scripts/open_maps/route_matrix.py data/maps/ntu/generated/lanelet2_map.osm scripts/open_maps/sites/ntu.yaml
+    python3 scripts/open_maps/route_matrix.py data/maps/<site>/generated/lanelet2_map.osm <site>.yaml
 
 `check_map.py` counts what Autoware needs:
 
@@ -203,7 +204,7 @@ which must be 0: Autoware's path ends in one. It was 19 before the paired connec
 
 ## 6. Look at it (check)
 
-    data/maps/.venv/bin/python scripts/open_maps/plot_map.py data/maps/ntu/generated/lanelet2_map.osm out.png [--box x0,y0,x1,y1]
+    data/maps/.venv/bin/python scripts/open_maps/plot_map.py data/maps/<site>/generated/lanelet2_map.osm out.png [--box x0,y0,x1,y1]
 
 The plot draws road lanelets in grey (in the largest connected part) or red (outside it),
 junction paths coloured by turn, dead ends, lanelets with no predecessor, and stop lines.
@@ -318,7 +319,7 @@ the server loads the USD at start, and the stack loads the map and the PCD at st
 ## 9. Plan a drive (manual, with a tool)
 
     source /opt/autoware/1.5.0/setup.bash
-    python3 scripts/open_maps/route_plan.py data/maps/ntu/map/lanelet2_map.osm \
+    python3 scripts/open_maps/route_plan.py data/maps/<site>/map/lanelet2_map.osm \
         52247,67661,180 52200,68205,0 52265,67900,-90 52350,67657,0
 
 A person picks the points, using the plot from step 6 and the road names. The tool snaps each
@@ -337,10 +338,10 @@ The choices:
 
 ## 10. Write the scenario (auto, from step 9's picks)
 
-    data/maps/.venv/bin/python scripts/open_maps/scenario.py data/maps/ntu/map/lanelet2_map.osm scenarios/ntu/<name>.xosc \
+    data/maps/.venv/bin/python scripts/open_maps/scenario.py data/maps/<site>/map/lanelet2_map.osm <testbench>/scenarios/<name>.xosc \
         --name <story> --map-path '$(env SCENSIM_OPEN_MAPS)/ntu/map' \
         --start x,y,h [--via x,y,h ...] --goal x,y,h [--red x,y ...] [--timeout 900]
-        [--signal-plans data/maps/ntu/generated/signal_plans.json [--at "Mon 08:30"]]
+        [--signal-plans data/maps/<site>/generated/signal_plans.json [--at "Mon 08:30"]]
 
 The light ids change with every generation, so the scenario is always written again from the
 map, never edited by hand. Every light gets a state in Init, green unless `--red` names it. A
@@ -365,10 +366,10 @@ The scenarios so far:
 
 ## 11. Drive it in simulation (auto, with a check)
 
-    just isaac-world world:=$PWD/data/maps/ntu/map
+    just isaac-world world:=$PWD/data/maps/<site>/map
     just run sim:=isaac
-    just ego-isaac map_path:=$PWD/data/maps/ntu/map max_velocity:=16.7
-    just scenario scenarios/ntu/<name>.xosc sim:=isaac initialize_duration:=400 global_timeout:=1200 output_directory:=<dir>
+    just ego-isaac map_path:=$PWD/data/maps/<site>/map max_velocity:=16.7
+    just scenario <testbench>/scenarios/<name>.xosc sim:=isaac initialize_duration:=400 global_timeout:=1200 output_directory:=<dir>
 
 `max_velocity` is the profile's cap, upstream's 15 km/h by default. At 16.7 m/s the map's
 speed limits govern: the ego reached 12.2 m/s on 新生南路, which is tagged 50 km/h.

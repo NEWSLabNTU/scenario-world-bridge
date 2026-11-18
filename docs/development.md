@@ -150,10 +150,16 @@ src/
   scensim_interfaces/      ROS services (weather)
   scensim_agent/       the agent SDK, `scensim-agent supervise`, the vehicle agent
   scenario_agent_relay/    the scenario's side of the vehicle agent protocol
-scenarios/                 benchmark and gap reproducer scenarios
+  scensim_study_scenarios/ the studies' shared bench/ and gap/ scenarios (installed)
+  coop_pilots/             scripts/coop installed as data, for the coop studies
+scenarios/                 the studies as testbenches (projects/), T3's manifest and references
 scripts/                   bring-up (carla_up.sh, isaac_up.sh), checks, measurement and media tools
 docs/                      user docs, design docs, roadmap
 ```
+
+NEWSLab's testbenches on Taiwanese sites (the NTU campus twin, the roads around NTU) are not
+in this repository: they are in the private repository NEWSLabNTU/2026-taiwan-testbenches,
+testbench packages over the installed scensim.
 
 Each submodule is a repository that builds and tests on its own against its `deps/`
 submodules (roadmap 051); `just test` here checks that their `deps/` pins match this

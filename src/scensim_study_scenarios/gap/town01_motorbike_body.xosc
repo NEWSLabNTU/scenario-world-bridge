@@ -24,7 +24,7 @@
 		<!-- Empty: the bridge picks the body by size. vehicle.tesla.model3: the pre-022 body. -->
 		<ParameterDeclaration name="MotorbikeBody" parameterType="string" value="" />
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>

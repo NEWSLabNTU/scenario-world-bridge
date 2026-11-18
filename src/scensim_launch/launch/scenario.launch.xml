@@ -30,6 +30,10 @@
   <arg name="dds_config" default="$(env CYCLONEDDS_URI file://$(find-pkg-share scensim_launch)/config/cyclonedds-localhost.xml)" description="CYCLONEDDS_URI for every process this launch starts (default: the environment's, else scensim_launch's localhost profile)"/>
   <set_env name="CYCLONEDDS_URI" value="$(var dds_config)"/>
   <set_env name="RMW_IMPLEMENTATION" value="$(env RMW_IMPLEMENTATION rmw_cyclonedds_cpp)"/>
+  <!-- The scenarios' vehicle catalog, $(env SCENSIM_VEHICLES): the stack sets it for the
+       simulator's body (roadmap 083); a run outside the stack gets the installed catalog, each
+       car's default body (CARLA 0.9.16's). -->
+  <set_env name="SCENSIM_VEHICLES" value="$(env SCENSIM_VEHICLES $(find-pkg-share sim_vehicle_spec)/catalogs)"/>
 
   <!-- User-configurable arguments -->
   <arg name="scenario" description="Path to .xosc scenario file" />

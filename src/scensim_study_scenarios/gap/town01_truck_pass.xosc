@@ -33,7 +33,7 @@
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-10-13T00:00:00+00:00" description="Town01 declared 12 m truck on a Model 3 body holding behind the driving ego, the gap oracle positive control" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>

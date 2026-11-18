@@ -27,7 +27,7 @@
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-10-07T00:00:00+00:00" description="Roadmap 032 gap A reproducer: npc_05 on a 0.3 m shoulder (old 20-NPC bench)" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>

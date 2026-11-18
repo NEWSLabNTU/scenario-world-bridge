@@ -640,7 +640,8 @@ def main():
     for i in a.only or sorted(FILES):
         path = a.out / FILES[i]
         # The Model 3s refer to sim_vehicle_spec's catalog (roadmap 051)
-        path.write_text(catalog_scenarios.rewrite(template(i, sites))[0])
+        path.write_text(catalog_scenarios.rewrite(
+            template(i, sites), directory=catalog_scenarios.VEHICLES_DIR)[0])
         print(path)
 
 

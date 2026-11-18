@@ -2,7 +2,7 @@
 <OpenSCENARIO>
 	<FileHeader author="scenario-world-bridge" date="2026-10-18T00:00:00+00:00" description="Town03 ego drive (lanelet 24435 to 106015, 136 m, left at (8, 135)), no traffic light on the way. Poses are in the map frame as Autoware and SSv2 read it (lat/lon through the TransverseMercator projector, not local_x/local_y); start z is the pcd road height (roadmap 043)" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town03" />
 	</RoadNetwork>

@@ -8,7 +8,8 @@ cataloged car becomes a `CatalogReference` to its entry.
 The catalog is sim_vehicle_spec's `catalogs/vehicles.xosc`, generated from the vehicle specs:
 one entry per car, its box and axles in the spec's base_link, `model3d` its CARLA body. A
 scenario reaches it through `$(find-pkg-share sim_vehicle_spec)/catalogs` (CATALOG_DIR), so
-the box and axles are the spec's, never a copy. What a scenario may choose stays its own and
+the box and axles are the spec's, never a copy; a scenario a testbench runs names
+`$(env SCENSIM_VEHICLES)` (VEHICLES_DIR) instead, the catalog for the simulator's body. What a scenario may choose stays its own and
 is assigned: `maxSpeed`, `maxAcceleration`, `maxDeceleration` (its `Performance`) and
 `maxSteering` (its front axle's). The rewrite assigns all four from the inline declaration, so
 nothing a scenario drives changes.
@@ -27,6 +28,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "src/sim_vehicle_spec/catalogs/vehicles.xosc"
 CATALOG_NAME = "vehicles"
 CATALOG_DIR = "$(find-pkg-share sim_vehicle_spec)/catalogs"
+# What a scenario a testbench runs names instead: the catalog the stack makes for the
+# simulator's body (roadmap 083); scenario.launch.xml defaults it to CATALOG_DIR
+VEHICLES_DIR = "$(env SCENSIM_VEHICLES)"
 EXEMPT = "scensim.box_exempt"
 # The parameters a scenario assigns: (parameter, element under <Vehicle>, attribute)
 ASSIGNED = (("maxSpeed", "Performance", "maxSpeed"),
@@ -69,11 +73,11 @@ def reference(vehicle, entry, indent):
     return "\n".join(lines)
 
 
-def with_location(text):
-    """`text` whose CatalogLocations has the vehicle catalog's directory."""
-    if CATALOG_DIR in text:
+def with_location(text, directory=CATALOG_DIR):
+    """`text` whose CatalogLocations has the vehicle catalog's `directory`."""
+    if directory in text:
         return text
-    vehicle_catalog = f'<VehicleCatalog><Directory path="{CATALOG_DIR}" /></VehicleCatalog>'
+    vehicle_catalog = f'<VehicleCatalog><Directory path="{directory}" /></VehicleCatalog>'
     if EMPTY_LOCATIONS.search(text):
         return EMPTY_LOCATIONS.sub(f"<CatalogLocations>{vehicle_catalog}</CatalogLocations>",
                                    text, count=1)
@@ -85,8 +89,9 @@ def with_location(text):
     return text[:m.end("body")] + vehicle_catalog + text[m.end("body"):]
 
 
-def rewrite(text, catalog=None):
-    """(new text, number of vehicles moved to the catalog)."""
+def rewrite(text, catalog=None, directory=CATALOG_DIR):
+    """(new text, number of vehicles moved to the catalog), the catalog named as
+    `directory`."""
     catalog = catalog if catalog is not None else entries()
     count = 0
 
@@ -100,7 +105,7 @@ def rewrite(text, catalog=None):
         return reference(node, entry, m.group("indent"))
 
     new = VEHICLE.sub(vehicle, text)
-    return (with_location(new) if count else new), count
+    return (with_location(new, directory) if count else new), count
 
 
 def main():

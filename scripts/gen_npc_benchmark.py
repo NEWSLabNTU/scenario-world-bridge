@@ -335,7 +335,8 @@ def main():
         path = args.out / f"town01_npc_{n}.xosc"
         # The Model 3s refer to sim_vehicle_spec's catalog (roadmap 051)
         text = scenario(n, start_positions(lanelets, n, usable))
-        path.write_text(catalog_scenarios.rewrite(text)[0])
+        path.write_text(catalog_scenarios.rewrite(
+            text, directory=catalog_scenarios.VEHICLES_DIR)[0])
         print(f"{path} ({n} NPCs, {len(lanelets)} candidate lanelets)")
 
 

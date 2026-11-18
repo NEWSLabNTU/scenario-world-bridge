@@ -11,10 +11,12 @@ vehicle specs. In a scenario:
   be a `CatalogReference` to the entry (`scripts/catalog_scenarios.py --rewrite` makes it one);
 - a `CatalogReference` to the `vehicles` catalog must name an entry and assign exactly the
   entry's parameters, every one (the entry declares no defaults: in SSv2 a declared default
-  would shadow the assignment), and the file's `CatalogLocations` must reach the catalog through
-  `$(find-pkg-share sim_vehicle_spec)/catalogs`, or, in a testbench (a directory with
-  `testbench.yaml`), through `$(env SCENSIM_VEHICLES)`, the catalog the stack makes for the
-  simulator's body (roadmap 083).
+  would shadow the assignment), and the file's `CatalogLocations` must reach the catalog
+  through `$(env SCENSIM_VEHICLES)`, the catalog the stack makes for the simulator's body
+  (roadmap 083; scenario.launch.xml defaults it to the installed one), or through
+  `$(find-pkg-share sim_vehicle_spec)/catalogs`; in a testbench (a directory with
+  `testbench.yaml`) or a scenario package testbenches run (scensim_examples' scenarios,
+  scensim_study_scenarios), only the former.
 
 The catalog's own entries are checked against the measured table like any declaration, by
 their `model3d`, and against their specs: an entry whose `scensim.spec_hash` is not the hash of
@@ -22,9 +24,9 @@ their `model3d`, and against their specs: an entry whose `scensim.spec_hash` is 
 was not regenerated). So is each body's own catalog (`catalogs/carla-<version>/vehicles.xosc`,
 roadmap 083), against that version's measured table (`blueprint_boxes_<version>.yaml`).
 
-PATHs are `.xosc` files or directories searched for them (default: `src/scensim_examples` and
-`scenarios`). For each `<Vehicle name="...">` whose name is a blueprint with axles in the
-measured table, the declared `BoundingBox` and `Axles` must equal what
+PATHs are `.xosc` files or directories searched for them (default: `src/scensim_examples`,
+`src/scensim_study_scenarios` and `scenarios`). For each `<Vehicle name="...">` whose name is
+a blueprint with axles in the measured table, the declared `BoundingBox` and `Axles` must equal what
 `scripts/scenario_vehicle.py` derives from the table, within the tolerance (default 0.02 m):
 Center x/y/z, Dimensions, both axles' wheelDiameter, trackWidth and positionZ, the front
 axle's positionX, and the rear axle's positionX (0, the vehicle origin).
@@ -47,7 +49,7 @@ import catalog_scenarios  # scripts/, beside this file
 import scenario_vehicle
 
 ROOT = scenario_vehicle.ROOT
-DEFAULT_PATHS = [ROOT / "src/scensim_examples", ROOT / "scenarios"]
+DEFAULT_PATHS = [ROOT / "src/scensim_examples", ROOT / "src/scensim_study_scenarios", ROOT / "scenarios"]
 EXEMPT = "scensim.box_exempt"
 
 # (element path under <Vehicle>, attribute, geometry key; None = expected 0)
@@ -99,6 +101,9 @@ def catalog_parameters(path=catalog_scenarios.CATALOG):
 
 # A testbench's scenarios name the catalog the stack makes for the simulator it runs
 VEHICLES_DIR = "$(env SCENSIM_VEHICLES)"
+# The scenario packages testbenches run (pkg://...): their scenarios name it too, and
+# scenario.launch.xml defaults it to the installed catalog for a run outside the stack
+TESTBENCH_PACKAGES = ("src/scensim_examples/scenarios", "src/scensim_study_scenarios")
 
 
 def check_references(path, root, parents, where_of, catalog):
@@ -126,10 +131,16 @@ def check_references(path, root, parents, where_of, catalog):
         dirs = [d.get("path") for d in root.findall("CatalogLocations/VehicleCatalog/Directory")]
         # a testbench's scenario names the stack's catalog, for the simulator's body (roadmap
         # 083); any other in-repo scenario names the installed one
-        in_testbench = any((d / "testbench.yaml").is_file() for d in Path(path).parents)
-        want = VEHICLES_DIR if in_testbench else catalog_scenarios.CATALOG_DIR
-        if dirs != [want]:
-            failures.append(f"{where_of(root)}: VehicleCatalog is {dirs}, not [{want!r}]")
+        in_testbench = (any((d / "testbench.yaml").is_file() for d in Path(path).parents)
+                        or any(Path(path).resolve().is_relative_to(ROOT / p)
+                               for p in TESTBENCH_PACKAGES))
+        # elsewhere either: scenario.launch.xml defaults $(env SCENSIM_VEHICLES) to the
+        # installed catalog for a run outside the stack
+        wants = ([VEHICLES_DIR] if in_testbench
+                 else [catalog_scenarios.CATALOG_DIR, VEHICLES_DIR])
+        if len(dirs) != 1 or dirs[0] not in wants:
+            failures.append(f"{where_of(root)}: VehicleCatalog is {dirs}, not one of "
+                            f"{wants!r}")
     return failures
 
 

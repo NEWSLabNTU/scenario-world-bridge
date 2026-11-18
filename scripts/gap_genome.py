@@ -315,7 +315,7 @@ def render(genome):
     S = copy.deepcopy(SITES["incidents"][fam.incident])
     fam.apply(S, genome.values)
     text = gen.template(fam.incident, {"incidents": {fam.incident: S}})
-    return catalog_scenarios.rewrite(text)[0]
+    return catalog_scenarios.rewrite(text, directory=catalog_scenarios.VEHICLES_DIR)[0]
 
 
 def main():

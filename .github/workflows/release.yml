@@ -3,14 +3,17 @@
 #
 #   preflight -> build-sim -> links                                 (each per ROS distro:
 #                          -> wheels -> smoke                        humble and jazzy)
+#                          -> autoware-side                          (per Autoware release)
 #                                                                    (stop_after: smoke, the default)
 #     -> publish -> publish-ros-jazzy -> publish-colcon -> publish-scensim -> tag -> after
 #                                                                    (stop_after: publish)
 #
 # Two ROS distros since 0.2.0: Humble (Ubuntu 22.04, Python 3.10) and Jazzy (Ubuntu 24.04,
 # Python 3.12), each with its own sim tarball and release package (scensim-ros-<distro>);
-# the front end and colcon-scensim are one wheel each, built in Humble's leg. Jazzy is the
-# simulation side only: the vehicle side is Autoware 1.5.0's, which is built for Humble.
+# the front end and colcon-scensim are one wheel each, built in Humble's leg. There is no
+# vehicle tarball: the car's Autoware packages are source (autoware-side.repos, attached to
+# the GitHub Release), built in the user's Autoware workspace; autoware-side checks them
+# against NEWSLab's Autoware binaries per release and ROS distro.
 #
 # One GitHub environment per PyPI project (PyPI refuses a second pending trusted publisher
 # with the same repository, workflow and environment), and the dependencies first, so
@@ -438,8 +441,50 @@ jobs:
   # user's approval), then colcon-scensim, then scensim. Each job uploads only its own wheel,
   # from the `wheels` artifact. No TestPyPI (the user, 2026-11-18): `after` checks the first
   # public install instead.
+  # The car's Autoware packages, as a user gets them (no vehicle tarball since 0.2.0): that
+  # Autoware's binaries (NEWSLab's localrepo, CPU build; about 8 minutes), the job's simulation
+  # tarball, autoware-side.repos at this commit's pin, built over that Autoware; then launch
+  # resolution of the stock pilot and of autoware_sim_profile (docs/how-to/connect-autoware.md).
+  autoware-side:
+    needs: [preflight, build-sim]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {distro: humble, autoware: 1.5.0, deb: 1.5.0-humble-4/autoware-localrepo-1-5-0_1.5.0-4ubuntu2204cpu_all.deb}
+          - {distro: humble, autoware: 2.1.0, deb: 2.1.0-1/autoware-localrepo-2-1-0_2.1.0-1ubuntu2204cpu_all.deb}
+          - {distro: jazzy, autoware: 2.1.0, deb: 2.1.0-jazzy-1/autoware-localrepo-2-1-0_2.1.0-1ubuntu2404cpu_all.deb}
+    runs-on: ubuntu-22.04
+    env:
+      DISTRO: ${{ matrix.distro }}
+    container:
+      image: ros:${{ matrix.distro }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.sha }}
+          sparse-checkout: scripts/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: tarballs-${{ matrix.distro }}
+          path: /srv/release
+      - name: Build and resolve against Autoware ${{ matrix.autoware }}
+        run: |
+          set -eu
+          git config --global --add safe.directory "$PWD"
+          python3 scripts/release/autoware_side_repos.py -o /tmp/autoware-side.repos
+          scripts/release/check_autoware_side.sh ${{ matrix.autoware }} \
+            https://github.com/NEWSLabNTU/autoware-localrepo/releases/download/${{ matrix.deb }} \
+            /srv/release/scensim-sim-$VERSION-$DISTRO-$ARCH.tar.zst /tmp/autoware-side.repos \
+            autoware-side-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: autoware-side-${{ matrix.distro }}-${{ matrix.autoware }}
+          path: autoware-side-out/*.log
+
   publish:
-    needs: [preflight, links, smoke]
+    needs: [preflight, links, smoke, autoware-side]
     if: needs.preflight.outputs.publish_ok == 'true' && inputs.stop_after == 'publish'
     runs-on: ubuntu-22.04
     environment: pypi-scensim-ros-humble   # the user's approval (required reviewer)
@@ -480,7 +525,9 @@ jobs:
           EOF
           gh release view "v$VERSION" >/dev/null 2>&1 \
             || gh release create "v$VERSION" --draft --target "$SHA" --title "v$VERSION" --notes-file notes.md
-          gh release upload "v$VERSION" dist/*.tar.zst dist/SHA256SUMS --clobber
+          # the car's Autoware packages, as source at this commit's pin (no vehicle tarball)
+          python3 scripts/release/autoware_side_repos.py -o dist/autoware-side.repos
+          gh release upload "v$VERSION" dist/*.tar.zst dist/SHA256SUMS dist/autoware-side.repos --clobber
           gh release edit "v$VERSION" --draft=false
       - name: scensim-ros-humble's wheel only
         run: scripts/release/one_wheel.sh wheels scensim-ros-humble upload

@@ -19,14 +19,21 @@ get_server_version`` sends), over a plain socket: no carla module, nothing chang
 server, no tick.
 
 A started CARLA is the stack's: the keeper (scensim.stack) starts it in its own session
-(``CarlaUE4.sh -carla-rpc-port=<port> -nosound -RenderOffScreen -quality-level=Epic``,
+(``CarlaUE4.sh -carla-rpc-port=<port> -nosound -RenderOffScreen -quality-level=Epic``; 1.0's
+``CarlaUnreal.sh``; the engine itself where the install has it,
 ``VK_ICD_FILENAMES`` pinned to the NVIDIA ICD when unset), logs it to
 ``<stack>/proc/simulator/carla.log``, waits for its RPC (``carla.ready_timeout``, 300 s)
 before it starts pilots or calls the stack ready, starts it again when it dies after it was
 ready, and stops its process group on the way out (SIGINT, SIGTERM, SIGKILL; by pid, never by
 name). On Isaac the world server starts Isaac itself; the stack only records that.
+
+The version a started CARLA is, which picks the body every car drives (roadmap 083), is its
+install's: ``VERSION`` when it reads as a version, else the layout (``CarlaUnreal.sh``: 1.0;
+1.0's package writes git hashes in VERSION); the probe checks it once CARLA serves, and a
+disagreement, or an install that said none, ends the start naming both.
 """
 import os
+import re
 import shlex
 import signal
 import socket
@@ -40,6 +47,16 @@ STARTED, EXTERNAL, WORLD_SERVER = "started", "external", "world_server"
 STARTING, READY, FAILED, STOPPED = "starting", "ready", "failed", "stopped"
 FREE, CARLA, OTHER = "free", "carla", "other"
 LAUNCHER = "CarlaUE4.sh"
+# each install layout: its launcher script, its engine and the engine's project argument, and
+# the version the layout alone says (CARLA 1.0 ships CarlaUnreal.sh; 0.9.x CarlaUE4.sh, which
+# does not say which 0.9.x)
+LAYOUTS = (
+    ("CarlaUnreal.sh", Path("CarlaUnreal") / "Binaries" / "Linux" / "CarlaUnreal-Linux-Shipping",
+     "CarlaUnreal", "1.0"),
+    (LAUNCHER, Path("CarlaUE4") / "Binaries" / "Linux" / "CarlaUE4-Linux-Shipping",
+     "CarlaUE4", None),
+)
+VERSION_LINE = re.compile(r"^\d+\.\d+(\.\d+)*(-[\w.]+)?$")
 NVIDIA_ICD = "/usr/share/vulkan/icd.d/nvidia_icd.json"
 DEFAULT_READY_TIMEOUT = 300.0
 QUALITY = "Epic"   # Low segfaults on a town change (CLAUDE.md, carla-simulator/carla#4940)
@@ -124,11 +141,23 @@ def is_local(host) -> bool:
     return addr.startswith("127.")
 
 
+def layout(root):
+    """The install layout at ``root`` (a LAYOUTS row, by its launcher script), else None."""
+    root = Path(str(root)).expanduser()
+    for row in LAYOUTS:
+        if (root / row[0]).is_file():
+            return row
+    return None
+
+
 def launcher(root) -> Path:
-    return Path(str(root)).expanduser() / LAUNCHER
+    """The install's launcher script (CarlaUnreal.sh or CarlaUE4.sh); CarlaUE4.sh's path when
+    it has neither."""
+    row = layout(root) or LAYOUTS[-1]
+    return Path(str(root)).expanduser() / row[0]
 
 
-ENGINE = Path("CarlaUE4") / "Binaries" / "Linux" / "CarlaUE4-Linux-Shipping"
+ENGINE = LAYOUTS[-1][1]
 
 
 def carla_argv(root, port, quality=QUALITY) -> list:
@@ -137,10 +166,10 @@ def carla_argv(root, port, quality=QUALITY) -> list:
     root = Path(str(root)).expanduser()
     flags = [f"-carla-rpc-port={int(port)}", "-nosound", "-RenderOffScreen",
              f"-quality-level={quality}"]
-    engine = root / ENGINE
-    if engine.is_file():
-        return [str(engine), "CarlaUE4", *flags]
-    return [str(launcher(root)), *flags]
+    script, engine, project, _v = layout(root) or LAYOUTS[-1]
+    if (root / engine).is_file():
+        return [str(root / engine), project, *flags]
+    return [str(root / script), *flags]
 
 
 def _die_with_parent():
@@ -177,7 +206,8 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
         raise SimulatorRefused(f"carla.ready_timeout {carla.get('ready_timeout')!r}: "
                                "seconds") from None
     out = {"mode": mode, "owner": EXTERNAL, "host": host, "port": port, "root": root or None,
-           "ready_timeout": ready_timeout, "version": None, "state": None, "pid": None,
+           "ready_timeout": ready_timeout, "version": None, "version_from": None,
+           "state": None, "pid": None,
            "log": None, "argv": None, "started_at": None, "ready_at": None, "restarts": 0,
            "error": None}
     if mode == "external":
@@ -209,19 +239,63 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
     if not root:
         raise SimulatorRefused("simulator_start:=start but carla.root is not set (host "
                                "settings: carla: {root: <CARLA_0.9.16 directory>})")
-    if not launcher(root).is_file():
-        raise SimulatorRefused(f"carla.root {root}: no {LAUNCHER} there")
-    out.update(owner=STARTED, argv=carla_argv(root, port), version=root_version(root))
+    if layout(root) is None:
+        raise SimulatorRefused(f"carla.root {root}: no {' or '.join(r[0] for r in LAYOUTS)} "
+                               "there")
+    version, source = root_version_from(root)
+    out.update(owner=STARTED, argv=carla_argv(root, port), version=version,
+               version_from=source)
     return out
 
 
-def root_version(root):
-    """The version of the CARLA install at ``root`` (its ``VERSION`` file: ``0.9.16``, ``1.0``),
-    or None without one."""
+def root_version_from(root):
+    """``(version, source)`` of the CARLA install at ``root``: its ``VERSION`` file when that
+    reads as a version (``0.9.16``; CARLA 1.0's package writes git hashes there instead), else
+    what its layout says (``CarlaUnreal.sh``: ``1.0``), else ``(None, None)``: the probe tells
+    once it serves, and the keeper refuses it then (``version_problem``)."""
+    root = Path(str(root)).expanduser()
     try:
-        return (Path(root) / "VERSION").read_text().strip() or None
+        lines = [x.strip() for x in (root / "VERSION").read_text().splitlines() if x.strip()]
     except OSError:
+        lines = []
+    if lines and VERSION_LINE.match(lines[0]):
+        return lines[0], f"{root / 'VERSION'}"
+    row = layout(root)
+    if row is not None and row[3]:
+        return row[3], f"{root / row[0]}"
+    return None, None
+
+
+def root_version(root):
+    """The version of the CARLA install at ``root`` (``root_version_from``), or None."""
+    return root_version_from(root)[0]
+
+
+def same_version(a, b) -> bool:
+    """``a`` and ``b`` name the same release: equal once a source build's ``-<commit>`` is
+    dropped, or one a prefix of the other at a dot (the layout's ``1.0`` and ``1.0.0``)."""
+    pa, pb = (str(v).strip().split("-")[0].split(".") for v in (a, b))
+    n = min(len(pa), len(pb))
+    return pa[:n] == pb[:n]
+
+
+def version_problem(rec: dict, probed):
+    """Why a started CARLA that answers ``probed`` is not the one the stack planned for, or
+    None. The stack chose its cars' bodies from the version it knew before CARLA started."""
+    planned = rec.get("version")
+    if not probed:
         return None
+    if planned and not same_version(planned, probed):
+        return (f"CARLA at {rec.get('root')} answers version {probed}, but the stack planned "
+                f"for {planned} (from {rec.get('version_from')}): the cars would drive the "
+                "wrong body; fix that file or carla.root, then restart the stack")
+    if not planned:
+        return (f"CARLA at {rec.get('root')} answers version {probed}, but its install says "
+                "no version (no VERSION file that reads as one, no known layout), so the stack "
+                "chose its cars before it knew the body; write "
+                f"{probed.split('-')[0]} into {Path(str(rec.get('root'))).expanduser() / 'VERSION'}, "
+                "then restart the stack")
+    return None
 
 
 class Carla:
@@ -308,6 +382,12 @@ class Carla:
             self.next_probe = now + PROBE_EVERY
             state, version = self.probe(self.rec["host"], self.rec["port"])
             if state == CARLA:
+                problem = version_problem(self.rec, version)
+                if problem:
+                    self.stop()
+                    self.rec.update(state=FAILED, error=problem)
+                    self.events("carla.failed", error="version")
+                    return True
                 self.rec.update(state=READY, ready_at=_iso(), version=version,
                                 ready_after_s=round(now - self.t_start, 1))
                 self.events("carla.ready", after_s=round(now - self.t_start, 1))

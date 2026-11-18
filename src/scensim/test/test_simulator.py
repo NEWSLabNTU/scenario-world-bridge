@@ -114,6 +114,7 @@ def fake_root(tmp: Path) -> Path:
     (root / "CarlaUE4.sh").write_text(
         f'#!/bin/sh\n"{sys.executable}" "$(dirname "$0")/fake_carla.py" "$@"\n')
     (root / "CarlaUE4.sh").chmod(0o755 | stat.S_IXUSR)
+    (root / "VERSION").write_text("0.9.16\n")   # what the package ships
     return root
 
 
@@ -147,10 +148,7 @@ def test_decide(tmp_path, carla_rpc):
     d = sim.decide({"root": str(root), "host": "localhost", "port": port, "ready_timeout": 42})
     assert d["owner"] == sim.STARTED and d["mode"] == "auto" and d["ready_timeout"] == 42
     # the version the stack starts: its install's VERSION (roadmap 083: the body follows it)
-    assert d["version"] == sim.root_version(root)
-    (root / "VERSION").write_text("0.9.16\n")
-    assert sim.decide({"root": str(root), "port": port})["version"] == "0.9.16"
-    (root / "VERSION").unlink()
+    assert d["version"] == "0.9.16" and d["version_from"] == str(root / "VERSION")
     assert d["argv"] == [str(root / "CarlaUE4.sh"), f"-carla-rpc-port={port}", "-nosound",
                          "-RenderOffScreen", "-quality-level=Epic"]
     # auto, CARLA answering: that one, external
@@ -160,6 +158,61 @@ def test_decide(tmp_path, carla_rpc):
     with pytest.raises(sim.SimulatorRefused, match="already serves"):
         sim.decide({"root": str(root), "host": "127.0.0.1", "port": carla_rpc.port,
                     "start": "start"})
+
+
+# CARLA 1.0's packaged VERSION file, as the release ships it: git hashes, no version (issue:
+# the stack took the whole text for one, and the cars fell back to the 0.9.16 body)
+CARLA_1_0_VERSION = (
+    "Carla git hash:         3ea166118d2c3c094b13b15c5b7a66a9a279998d\n"
+    "Content git hash:       3ea166118d2c3c094b13b15c5b7a66a9a279998d\n"
+    "UnrealEngine git hash:  \n")
+
+
+def carla_1_0_root(tmp: Path) -> Path:
+    root = tmp / "Carla-1.0-Linux-Shipping"
+    (root / "CarlaUnreal" / "Binaries" / "Linux").mkdir(parents=True)
+    (root / "CarlaUnreal.sh").write_text("#!/bin/sh\n")
+    (root / "VERSION").write_text(CARLA_1_0_VERSION)
+    return root
+
+
+def test_a_carla_1_0_package_is_1_0_by_its_layout(tmp_path):
+    """083: 1.0's VERSION holds git hashes, so its version comes from its layout
+    (CarlaUnreal.sh), never the text, and never nothing (the 0.9.16 body)."""
+    root = carla_1_0_root(tmp_path)
+    assert sim.root_version_from(root) == ("1.0", str(root / "CarlaUnreal.sh"))
+    from scensim import vehicles
+    assert vehicles.carla_body(sim.root_version(root)) == "carla-1.0"
+    d = sim.decide({"root": str(root), "port": free_port()}, "start",
+                   lambda *a: (sim.FREE, None))
+    assert d["owner"] == sim.STARTED and d["version"] == "1.0"
+    engine = root / "CarlaUnreal" / "Binaries" / "Linux" / "CarlaUnreal-Linux-Shipping"
+    assert d["argv"][0] == str(root / "CarlaUnreal.sh")   # no engine: the script
+    engine.write_text("")
+    assert sim.carla_argv(root, 2400)[:2] == [str(engine), "CarlaUnreal"]
+    # a VERSION that reads as one wins over the layout (a source build's 1.0-<commit> too)
+    (root / "VERSION").write_text("1.0-3ea1661\n")
+    assert sim.root_version(root) == "1.0-3ea1661"
+    # 0.9.x's layout says no version: without its VERSION the root says nothing
+    old = fake_root(tmp_path)
+    (old / "VERSION").unlink()
+    assert sim.root_version_from(old) == (None, None)
+
+
+def test_a_started_carla_whose_version_differs_from_the_plan_is_refused(tmp_path):
+    """083: the probe after start checks the root's version; a disagreement, or a root that
+    said none, ends the start naming both (the cars' body was chosen from the plan)."""
+    rec = {"root": "/opt/carla", "version": "1.0", "version_from": "/opt/carla/CarlaUnreal.sh"}
+    assert sim.version_problem(rec, "1.0") is None
+    assert sim.version_problem(rec, "1.0.0") is None
+    assert sim.version_problem(rec, "1.0-3ea1661") is None
+    err = sim.version_problem(rec, "0.9.16")
+    assert "answers version 0.9.16" in err and "planned for 1.0" in err
+    assert "/opt/carla/CarlaUnreal.sh" in err
+    assert sim.version_problem({**rec, "version": "0.9.16"}, "0.9.15") is not None
+    err = sim.version_problem({"root": "/opt/carla", "version": None}, "0.9.16")
+    assert "says no version" in err and "/opt/carla/VERSION" in err
+    assert sim.version_problem(rec, None) is None   # an answer without a version: not judged
 
 
 def test_decide_refusals(tmp_path):
@@ -174,7 +227,7 @@ def test_decide_refusals(tmp_path):
     port = free_port()
     with pytest.raises(sim.SimulatorRefused, match="carla.root is not set"):
         sim.decide({"root": "", "port": port}, "start")
-    with pytest.raises(sim.SimulatorRefused, match="no CarlaUE4.sh"):
+    with pytest.raises(sim.SimulatorRefused, match="no CarlaUnreal.sh or CarlaUE4.sh"):
         sim.decide({"root": str(tmp_path), "port": port}, "start")
     with pytest.raises(sim.SimulatorRefused, match="not this host"):
         sim.decide({"root": str(root), "host": "carla.example.invalid", "port": port}, "start",
@@ -283,6 +336,21 @@ def test_keeper_fails_when_carla_never_serves(where, maps_hub):
     rec = json.loads(p.stack_json.read_text())
     assert rec["state"] == "stopped" and "did not serve RPC" in rec["error"]
     assert "carla.ready_timeout" in rec["error"]
+    assert "pilot.start" not in [e["event"] for e in events(p)]
+    assert gone(json.loads((root / "started.json").read_text())["pid"])
+
+
+def test_keeper_ends_the_start_when_carla_answers_another_version(where, maps_hub):
+    """083: a root that says 1.0 serving 0.9.16 is refused once it serves, naming both, and
+    no pilot starts on the wrong body."""
+    root = fake_root(where["tmp"])
+    (root / "VERSION").write_text("1.0\n")
+    d = make(where, {"root": str(root), "port": free_port(), "ready_timeout": 60})
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    stack.write_plan(p)
+    assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot) == 2
+    rec = json.loads(p.stack_json.read_text())
+    assert "answers version 0.9.16" in rec["error"] and "planned for 1.0" in rec["error"]
     assert "pilot.start" not in [e["event"] for e in events(p)]
     assert gone(json.loads((root / "started.json").read_text())["pid"])
 

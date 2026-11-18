@@ -33,6 +33,15 @@ Rows (the zone's kind, conventions/generic.yaml):
 No post-start shield: the study's safety layer is off (as c8_fourway_check), so a violation is a run in which
 the protocol left safety to the AEB.
 
+Adversaries (--adversary, the crossing with two cars; 078 P2e): one car is not czp's, the other is, in either place,
+against the same perception family on the czp car's side. Every czp car before 078 P2e met only other czp cars,
+which never restart after a mutual rest, as S2's impatient and never-yield rules do (078 P2d):
+  impatient  ignores the rule: brakes for its line and waits there until the other is through, but restarts once
+             both cars have been at rest for --adv-patience s (0.5) as it sees them (OBS + DECIDE late); no safety
+             layer: a contact with it is the czp car's go
+  never      never yields: drives through at its speed, stopped only by its own safety layer (crossing_game's,
+             REACT s late), and restarts when that releases
+
 Properties per context, over the adversary family:
   safety    cross / narrow: never two conflicting cars in the zone at once; merge: no contact and no run-out
             (A's front past the lane's end less than half across);
@@ -42,6 +51,7 @@ Properties per context, over the adversary family:
 
 Usage:
   scripts/coop/czp_rows_check.py --row cross|narrow|merge --cars 2|3 --out <dir> [--e 0.25] [--jobs 24]
+  scripts/coop/czp_rows_check.py --row cross --cars 2 --adversary both --out <dir> [--e 0.55] [--adv-patience 0.5]
 """
 
 from __future__ import annotations
@@ -107,6 +117,46 @@ class Car:
         return stamp, u_now, v, a
 
 
+class Adversary:
+    """A car that is not czp's (--adversary): ``impatient`` or ``never``; same interface as Car for run_passage."""
+
+    def __init__(self, name, approach, u0, v0, exit_, lags, kind, patience):
+        self.name, self.approach, self.exit, self.leader = name, approach, exit_, None
+        self.u, self.v, self.v0, self.a = u0, v0, v0, 0.0
+        self.act = X.Actuator(lags)
+        self.hist = [(0.0, u0, v0, 0.0)]
+        self.wait = 0.0
+        self.t_in = None
+        self.kind, self.patience = kind, patience
+        self.go = False
+        self.mutual_since = None
+        self.p = CA.params_for(True, 0.0, None)
+        self.cap = self.p.capability("car", v_max=v0, length=X.L)
+        if kind == "never":
+            role = "A" if approach == "A" else "B"
+            rule = ("go", -math.inf, False, math.inf) if role == "A" else ("hold", None, None)
+            self.pol = X.Policy(role, rule, v0, "hold", exit_)
+
+    seen = Car.seen
+
+    def command(self, t, other):
+        """The acceleration this car commands at t, from what it sees of the other car (OBS + DECIDE late, no error)."""
+        if self.kind == "never":
+            self.pol.perceive(t, other.u, other.v, other.a)  # truth stamped now: the policy applies its own delays
+            return self.pol.step(t, self.u, self.v)
+        stamp, ou, ov, _ = other.seen(t, X.OBS + X.DECIDE, 0.0)
+        if not self.go:
+            if ou >= other.exit:
+                self.go = True  # the other is through
+            elif self.v < 0.1 and self.u < 0 and ov < 0.1 and ou < 0:
+                self.mutual_since = t if self.mutual_since is None else self.mutual_since
+                if t - self.mutual_since >= self.patience - 1e-9:
+                    self.go = True  # both at rest: it restarts after its patience, whatever the rule says
+            else:
+                self.mutual_since = None
+        return X.drive(self.v, self.v0) if self.go else X.hold_out(self.u, self.v)
+
+
 def zone_of(row, n):
     if row == "cross":
         aps = [CM.Approach("A", heading=0.0, order=0), CM.Approach("B", heading=math.pi / 2, order=1)]
@@ -117,9 +167,10 @@ def zone_of(row, n):
                                              CM.Approach("B", heading=math.pi, order=1)))
 
 
-def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True):
+def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True, adversary=None):
     """One run of the crossing or the narrow passage. ctx: (v, wn, arrivals {name: (approach, t_arrive)},
-    leaders {name: leader}); adv: {(i, j): (mode, delay)}."""
+    leaders {name: leader}); adv: {(i, j): (mode, delay)}; adversary: None or (name, kind, patience), that car not
+    czp's (Adversary)."""
     import narrow_game as N
     v, wn, arr, leaders = ctx
     n = len(arr)
@@ -127,13 +178,21 @@ def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True):
     exit_ = X.EXIT if row == "cross" else wn + 2 * N.Z_PAD + X.L
     cars = {}
     for name, (ap, ta) in arr.items():
-        cars[name] = Car(name, ap, -v * ta, v, exit_, lags, row, zone, leaders.get(name))
+        if adversary is not None and name == adversary[0]:
+            cars[name] = Adversary(name, ap, -v * ta, v, exit_, lags, adversary[1], adversary[2])
+        else:
+            cars[name] = Car(name, ap, -v * ta, v, exit_, lags, row, zone, leaders.get(name))
     conflicts = {frozenset((i, j)) for i in cars for j in cars if i < j and conflict(row, cars[i].approach, cars[j].approach)}
     t = 0.0
     unsafe = None
     while t < T_MAX - 1e-9:
         cmd = {}
         for c in cars.values():
+            if isinstance(c, Adversary):
+                cmd[c.name] = c.command(t, next(o for o in cars.values() if o is not c))
+                if trace is not None:
+                    trace.append((round(t, 2), c.name, round(c.u, 2), round(c.v, 2), c.kind, "go" if c.go else ""))
+                continue
             own = CM.Agent(c.name, approach=c.approach, s_entry=-c.u, s_exit=c.exit - c.u, v=c.v, a=c.a, stamp=t, cap=c.cap)
             others, bys, age = [], [], 0.0
             for o in cars.values():
@@ -292,7 +351,8 @@ def contexts(args):
 
 
 def check_context(job):
-    row, ctx, names, key, e, ncars, bystanders = job
+    row, ctx, names, key, e, ncars, bystanders = job[:7]
+    adversary = job[7] if len(job) > 7 else None  # (name, kind, patience): that car is not czp's
     lags = X.car_lags()
     if row == "merge":
         conflicts = {frozenset("AB")}
@@ -304,8 +364,14 @@ def check_context(job):
     worst_wait = 0.0
     examples = {}
     orders = Counter()
-    for adv in advs(names, conflicts, ncars, row == "merge"):
-        r = run_merge(ctx, adv, e, lags) if row == "merge" else run_passage(row, ctx, adv, e, lags, bystanders=bystanders)
+    if adversary is None:
+        family = advs(names, conflicts, ncars, row == "merge")
+    else:  # only the czp car's reading of the adversary varies (the adversary reads the truth, delayed)
+        me = next(n for n in names if n != adversary[0])
+        family = ({(me, adversary[0]): (m, d)} for m in MODES2 for d in DELAYS)
+    for adv in family:
+        r = run_merge(ctx, adv, e, lags) if row == "merge" else run_passage(row, ctx, adv, e, lags, bystanders=bystanders,
+                                                                             adversary=adversary)
         res["runs"] += 1
         res["unsafe"] += r["unsafe"] is not None
         res["follow_contact"] += r["follow_contact"]
@@ -318,8 +384,8 @@ def check_context(job):
             examples["unsafe"] = {"adv": {f"{i}>{j}": v for (i, j), v in adv.items()}, "at": r["unsafe"]}
         if not r["live"] and r["unsafe"] is None and "not_live" not in examples:
             examples["not_live"] = {"adv": {f"{i}>{j}": v for (i, j), v in adv.items()}}
-    return {"row": row, "key": key, "names": names, **res, "worst_wait": round(worst_wait, 2),
-            "orders": dict(orders), "examples": examples}
+    return {"row": row, "key": key if adversary is None else [adversary[0] + ":" + adversary[1], ctx[0], key], "names": names,
+            **res, "worst_wait": round(worst_wait, 2), "orders": dict(orders), "examples": examples}
 
 
 def main():
@@ -331,15 +397,25 @@ def main():
     ap.add_argument("--jobs", type=int, default=24)
     ap.add_argument("--no-bystanders", action="store_true", help="a car does not see the cars outside its conflict set")
     ap.add_argument("--limit", type=int, default=0, help="the first N contexts only (a smoke test)")
+    ap.add_argument("--adversary", choices=("none", "impatient", "never", "both"), default="none",
+                    help="cross, 2 cars: one car not czp's, in either place (see above)")
+    ap.add_argument("--adv-patience", type=float, default=0.5, help="the impatient car's patience after a mutual rest (s)")
     CA.add_bias_args(ap)
     a = ap.parse_args()
     CA.set_bias(a)
     if a.row == "merge" and a.cars == 3:
         ap.error("the merge is a pair model (merge_game)")
+    if a.adversary != "none" and (a.row != "cross" or a.cars != 2):
+        ap.error("--adversary: the crossing with two cars")
     ctxs = contexts(a)
     if a.limit:
         ctxs = ctxs[:a.limit]
-    jobs = [(row, ctx, names, key, a.e, a.cars, not a.no_bystanders) for row, ctx, names, key in ctxs]
+    if a.adversary == "none":
+        jobs = [(row, ctx, names, key, a.e, a.cars, not a.no_bystanders) for row, ctx, names, key in ctxs]
+    else:
+        kinds = ("impatient", "never") if a.adversary == "both" else (a.adversary,)
+        jobs = [(row, ctx, names, key, a.e, a.cars, not a.no_bystanders, (place, k, a.adv_patience))
+                for row, ctx, names, key in ctxs for k in kinds for place in ("A", "B")]
     with Pool(a.jobs) as pool:
         res = pool.map(check_context, jobs, chunksize=1)
     os.makedirs(a.out, exist_ok=True)
@@ -347,15 +423,18 @@ def main():
     for r in res:
         for k in ("runs", "unsafe", "not_live", "deadlock", "follow_contact", "stopped"):
             tot[k] += r.get(k, 0)
-    summ = {"row": a.row, "cars": a.cars, "e": a.e, "rest_stamp_bias": a.rest_stamp_bias, "arrival_bias": a.arrival_bias,
+    summ = {"row": a.row, "cars": a.cars, "e": a.e, "adversary": a.adversary, "adv_patience": a.adv_patience, "rest_stamp_bias": a.rest_stamp_bias, "arrival_bias": a.arrival_bias,
             "contexts": len(res), **tot,
             "contexts_unsafe": sum(1 for r in res if r.get("unsafe")),
             "contexts_not_live": sum(1 for r in res if r.get("not_live")),
             "worst_wait": max(r["worst_wait"] for r in res),
             "safe": tot["unsafe"] == 0, "live": tot["not_live"] == 0}
-    tag = f"{a.row}{a.cars}_e{a.e:g}" + ("_nobystanders" if a.no_bystanders else "")
+    tag = f"{a.row}{a.cars}_e{a.e:g}" + ("_nobystanders" if a.no_bystanders else "") + (
+        "" if a.adversary == "none" else f"_adv-{a.adversary}-p{a.adv_patience:g}")
     json.dump({"summary": summ, "contexts": res}, open(os.path.join(a.out, f"{tag}.json"), "w"), indent=1)
-    lines = [f"# czp_rows_check {a.row}, {a.cars} cars, e {a.e:g}: {len(res)} contexts, {tot['runs']} runs",
+    lines = [f"# czp_rows_check {a.row}, {a.cars} cars, e {a.e:g}"
+             + ("" if a.adversary == "none" else f", adversary {a.adversary} (patience {a.adv_patience:g} s)")
+             + f": {len(res)} contexts, {tot['runs']} runs",
              f"safety {'HOLDS' if summ['safe'] else 'FAILS'}: {tot['unsafe']} unsafe runs in {summ['contexts_unsafe']} contexts",
              f"liveness {'HOLDS' if summ['live'] else 'FAILS'}: {tot['not_live']} runs not through by {T_MAX:g} s "
              f"({tot['deadlock']} deadlocks) in {summ['contexts_not_live']} contexts",

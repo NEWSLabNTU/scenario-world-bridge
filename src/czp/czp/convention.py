@@ -75,6 +75,37 @@ def rest_since(stamp, params):
     return None if stamp is None else stamp - min(0.0, params.rest_stamp_bias)
 
 
+def rest_guard(other: Agent, params):
+    """The fresh-rest guard's length: the other's start after a full stop would be seen by then (dwell + its launch dead
+    time + see_delay; 3.0 s for a car)."""
+    return params.stop_dwell + other.cap.launch_dead + params.see_delay
+
+
+def mutual_rest_wait(own: Agent, other: Agent, am: AgentMemory, mem: Memory, params, t, reason, need_rest=False):
+    """078 P2e: a go against a car at rest at its line (or just come to rest there) waits one guard counted from the
+    LATER of the two rests. A car that ignores the rule restarts a patience after the mutual rest, not after its own
+    (S2's impatient and never-yield rules, the arena's t0.5yp2: the P2d contacts), so a guard counted from the other's
+    rest alone let the go meet that restart. The own rest is the own car's raw stamp; an own car still rolling below
+    ``moved_speed`` has its rest still to come (counted from now: it waits, stops, and the guard runs from there).
+
+    Exempt: the own car past its commit point (it can no longer stop comfortably), and -- unless ``need_rest`` (the tie)
+    -- an own car still moving at or above ``moved_speed``: a clear go at speed is not a go from rest, and holding it
+    made the car stop and then meet a patient rule's restart (P2d exp2: czp-in-B contacts against t1.5p5 and tinfp5
+    from 0 to 9 and 10). With ``need_rest`` a rolling car waits: a tie gives no lead, so the go needs the own car at
+    rest (then the guard) or past its commit point. Returns a WAIT verdict or None."""
+    from .act import commit_point_passed
+    if not params.fresh_rest_guard or am.rest_t is None or am.moved.state:
+        return None
+    if commit_point_passed(own):
+        return None
+    if own.v >= params.moved_speed:
+        return Verdict(other.id, WAIT, False, reason) if need_rest else None
+    own_rest = mem.own_rest_t if mem.own_rest_t is not None else t
+    if t - max(rest_since(am.rest_t, params), own_rest) < rest_guard(other, params):
+        return Verdict(other.id, WAIT, False, reason)
+    return None
+
+
 def far_test(other: Agent, params):
     return other.s_entry > params.far_distance or (
         other.v > params.moved_speed and other.s_entry / max(other.v, 0.1) > params.far_time and other.a > -params.yield_decel)
@@ -97,23 +128,34 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
         # noisy band instead, it flickered between ambiguous (wait) and band (the tie's go), and the late go
         # raced an impatient car's restart (the arena's czp-in-B contacts at the crossing)
         b = Band(BAND, None, b.slack_own, b.slack_other)
-        v = pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None)
+        v = pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None, guard=False)
         if v.kind != GO:
             return v
-        # the winner waits as the fresh-rest guard does (dwell + the other's launch + see_delay): a car that
-        # ignores the role and goes on a short patience (S2's 2 s) is seen starting first; then the probe
-        if params.fresh_rest_guard and t - rest_since(am.rest_t, params) < params.stop_dwell + o.cap.launch_dead + params.see_delay:
+        # the winner waits as the fresh-rest guard does (dwell + the other's launch + see_delay), counted from the later
+        # of the two rests (078 P2e): a car that ignores the role restarts a patience after the mutual rest (S2's
+        # impatient rules), and is seen starting first; then the probe. From the other's rest alone, the go came 3.0 s
+        # after it, about 1.5 s after the own rest, and met a 0.5 s-patience car's restart (the arena's P2d contacts)
+        if params.fresh_rest_guard and t - max(rest_since(am.rest_t, params), mem.own_rest_t) < rest_guard(o, params):
             return Verdict(o.id, WAIT, False, "rest_tie_wait", b, v.role)
         return Verdict(v.other, v.kind, v.hard, "rest_tie", v.band, v.role)
     return pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b)
 
 
-def pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None):
-    """pair_verdict past the guards and the band: contested, clear, then the row's role."""
+def pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None, guard=True):
+    """pair_verdict past the guards and the band: contested, clear, then the row's role. guard: a go against a car at
+    rest waits the mutual-rest guard (``mutual_rest_wait``; rest_tie applies its own)."""
     o, am = pv.other, pv.mem
     if b.kind == CONTESTED:
         return Verdict(o.id, YIELD, True, "contested", b)
     v = _role_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age, b)
+    if v.kind == GO and guard and not row.get("stop"):
+        # 078 P2e: every go against a car at rest or just come to rest -- clear, first, a tie -- waits one guard from the
+        # later of the two rests; a tie also needs the own car at rest (or past its commit point). Not at an all-way stop
+        # (``stop``: every car rests by law, and its row keeps 074 C8's checked rules: stopped_first's fresh-rest guard)
+        tie = v.reason.startswith("tie:")
+        w = mutual_rest_wait(own, o, am, mem, params, t, "fresh_" + ("tie" if tie else v.reason), need_rest=tie)
+        if w is not None:
+            return Verdict(w.other, w.kind, w.hard, w.reason, b, v.role)
     if v.kind == GO and row.get("claim"):
         # 078 V4, the claim (design step 7): a go by arrival order or by the role, not out before the other could be
         # in (the interval test), needs the other to have yielded: at rest at its line for the fresh-rest guard's

@@ -118,9 +118,9 @@ def test_a_world_server_from_a_package_is_a_testbench_key(tmp_path):
     assert findings(make(tmp_path, extra="world: {server: [my_world, my_server]}\n")) == []
     got = findings(make(tmp_path, name="tb2",
                         extra="world: {server: [my_world, my_server, --port, '1'], "
-                              "config_file: c.yaml}\n"))
+                              "world_config_file: c.yaml}\n"))
     assert got == [
         "problem: testbench.yaml: world.server: --port is scensim's to give (the seat's world "
         "port): drop it",
-        "problem: testbench.yaml: world.config_file: is the stock CARLA server's; with "
+        "problem: testbench.yaml: world.world_config_file: is the stock CARLA server's; with "
         "world.server, your server takes its own settings as its arguments"]

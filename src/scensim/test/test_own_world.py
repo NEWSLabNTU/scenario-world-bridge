@@ -20,8 +20,10 @@ def test_a_bad_server_is_refused_by_what_is_wrong():
         ("world.server", "my-world: not a package name")]
     got = own_world.server_problems({"server": ["w", "s", "--port", "1"]})
     assert got == [("world.server", "--port is scensim's to give (the seat's world port): drop it")]
-    got = own_world.server_problems({"server": ["w", "s"], "config_file": "c.yaml"})
-    assert got[0][0] == "world.config_file" and "stock CARLA server's" in got[0][1]
+    got = own_world.server_problems({"server": ["w", "s"], "world_config_file": "c.yaml"})
+    assert got[0][0] == "world.world_config_file" and "stock CARLA server's" in got[0][1]
+    # config_file is the bridge's (bridge_config.yaml): it stays beside a server of one's own
+    assert own_world.server_problems({"server": ["w", "s"], "config_file": "c.yaml"}) == []
 
 
 def test_a_server_that_never_comes_up_is_one_finding(tmp_path):
@@ -70,6 +72,6 @@ def test_world_server_and_simulator_none_are_world_rules():
     assert world.problems({"simulator": "none"}, "none") == [
         ("simulator", "none needs world.server: your world server, which owns the simulator "
                       "(world: {server: [<package>, <executable>]})")]
-    assert ("world.config_file", "is the stock CARLA server's; with world.server, your server "
-            "takes its own settings as its arguments") in world.problems(
-        {"world": {"server": ["a", "b"], "config_file": "c.yaml"}}, "carla")
+    assert ("world.world_config_file", "is the stock CARLA server's; with world.server, your "
+            "server takes its own settings as its arguments") in world.problems(
+        {"world": {"server": ["a", "b"], "world_config_file": "c.yaml"}}, "carla")

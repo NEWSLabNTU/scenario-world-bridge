@@ -8,9 +8,9 @@ A testbench names its own world server, from a package in the user's workspace, 
 
 scensim then starts that executable in place of the stock one (``scensim_carla_world`` or
 ``scensim_isaac_world``), in the stack's ego domain, and drives it over the world protocol
-on the seat's world port, as it drives the stock servers. The stock CARLA server's own keys
-(``config_file``, ``world_config_file``) are refused beside ``server``; the bridge's
-(``weather``, ``npc_motion``, ``contact_report_dir``) still apply.
+on the seat's world port, as it drives the stock servers. The stock CARLA server's own key
+(``world_config_file``) is refused beside ``server``; the bridge's (``config_file``,
+``weather``, ``npc_motion``, ``contact_report_dir``) still apply.
 
 The server takes its settings as its own arguments: scensim gives it none of the stock
 server's launch arguments (its state directory, the Isaac world and ego, CARLA's spec
@@ -43,8 +43,9 @@ from scensim.findings import Finding
 
 KEY = "server"
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
-# the stock CARLA server's keys: they configure scensim_carla_world, not a server of one's own
-STOCK_ONLY = ("config_file", "world_config_file")
+# the stock CARLA server's key: it configures scensim_carla_world, not a server of one's own
+# (world.config_file is the bridge's bridge_config.yaml, which still applies)
+STOCK_ONLY = ("world_config_file",)
 CHECK = ["ros2", "run", "scensim_world_check", "scensim_world_check"]
 HOST = "127.0.0.1"
 # simulator: none -- scensim starts no simulator; the testbench's world server owns its own

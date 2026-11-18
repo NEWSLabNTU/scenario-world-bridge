@@ -132,8 +132,13 @@ def findings(setting="auto", version_fn=None) -> list:
 
 
 RMW = "rmw_cyclonedds_cpp"
-RMW_FIX = ("sudo apt install ros-humble-rmw-cyclonedds-cpp (or rosdep update, then rosdep "
-           "install --from-paths src --ignore-src -y in the workspace)")
+
+
+def rmw_fix(distro: str = None) -> str:
+    """The install line for the sourced distro (ROS_DISTRO; humble when none is sourced)."""
+    distro = distro or os.environ.get("ROS_DISTRO") or "humble"
+    return (f"sudo apt install ros-{distro}-rmw-cyclonedds-cpp (or rosdep update, then rosdep "
+            "install --from-paths src --ignore-src -y in the workspace)")
 
 
 def rmw_installed() -> bool:
@@ -151,7 +156,7 @@ def rmw_findings(installed_fn=None) -> list:
     (scensim_launch's DDS profile), and a stock ROS 2 install may not have it."""
     if (installed_fn or rmw_installed)():
         return []
-    return [Finding("host", f"{RMW} is not installed (the stack runs on Cyclone DDS)", RMW_FIX,
+    return [Finding("host", f"{RMW} is not installed (the stack runs on Cyclone DDS)", rmw_fix(),
                     refused=True)]
 
 

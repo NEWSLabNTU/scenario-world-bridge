@@ -17,7 +17,8 @@ vehicle specs. In a scenario:
 The catalog's own entries are checked against the measured table like any declaration, by
 their `model3d`, and against their specs: an entry whose `scensim.spec_hash` is not the hash of
 `sim_vehicle_spec/vehicles/<entry>.yaml` as it stands fails (a spec changed and the catalog
-was not regenerated).
+was not regenerated). So is each body's own catalog (`catalogs/carla-<version>/vehicles.xosc`,
+roadmap 083), against that version's measured table (`blueprint_boxes_<version>.yaml`).
 
 PATHs are `.xosc` files or directories searched for them (default: `src/scensim_examples` and
 `scenarios`). For each `<Vehicle name="...">` whose name is a blueprint with axles in the
@@ -214,6 +215,19 @@ def main():
     failures, exemptions, checked, files = [], [], 0, 0
     f, e, c = check_file(catalog_scenarios.CATALOG, table, args.tolerance)
     failures, exemptions, checked, files = f + check_catalog_specs(), e, c, 1
+    # each CARLA body's catalog against its own version's table (roadmap 083)
+    for body_catalog in sorted(catalog_scenarios.CATALOG.parent.glob("carla-*/vehicles.xosc")):
+        version = body_catalog.parent.name[len("carla-"):]
+        body_table = args.table.with_name(f"blueprint_boxes_{version}.yaml")
+        if not body_table.is_file():
+            failures.append(f"{body_catalog}: no measured table {body_table.name} for it")
+            continue
+        f, e, c = check_file(body_catalog, scenario_vehicle.load_table(body_table),
+                             args.tolerance)
+        failures += f + check_catalog_specs(body_catalog)
+        exemptions += e
+        checked += c
+        files += 1
     for path in scenario_files(args.paths or DEFAULT_PATHS):
         f, e, c = check_file(path.resolve(), table, args.tolerance, catalog, bodies)
         failures += f

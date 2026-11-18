@@ -24,6 +24,7 @@
   <arg name="relay" default="none" description="the agent relay, tcp://host:port; none = no relay (unused here)"/>
   <arg name="map_path" default="" description="the map directory (its carla/ signal table and origin)"/>
   <arg name="vehicle" default="tesla_model3" description="the car: its spec name (sim_vehicle_spec, autoware_sim_vehicle)"/>
+  <arg name="vehicle_model" default="$(var vehicle)" description="Autoware's vehicle_model for the car on this CARLA's body: its pedal maps and spec_hash.yaml"/>
   <arg name="seed" default="0" description="the run's seed (unused here)"/>
   <arg name="run_dir" default="" description="the run's directory (unused here)"/>
   <arg name="sim" default="carla" description="carla (this file is CARLA's)"/>
@@ -52,10 +53,10 @@
   <arg name="carla_physics_mode" default="verify" description="verify (the world server applied it; scensim's case) | apply"/>
   <!-- The pedal maps belong to the physics: the blueprint's (acb_bridge's measured ones) with
        carla_physics none, the spec car's otherwise. -->
-  <arg name="vehicle_maps_dir" default="$(eval &quot;'$(find-pkg-share acb_bridge)/config/blueprint/$(var vehicle)' if '$(var carla_physics)' == 'none' else '$(find-pkg-share $(var vehicle)_description)/config'&quot;)"/>
+  <arg name="vehicle_maps_dir" default="$(eval &quot;'$(find-pkg-share acb_bridge)/config/blueprint/$(var vehicle)' if '$(var carla_physics)' == 'none' else '$(find-pkg-share $(var vehicle_model)_description)/config'&quot;)"/>
   <arg name="accel_map_path" default="$(var vehicle_maps_dir)/accel_map.csv"/>
   <arg name="brake_map_path" default="$(var vehicle_maps_dir)/brake_map.csv"/>
-  <arg name="autoware_spec_hash_file" default="$(find-pkg-share $(var vehicle)_description)/config/spec_hash.yaml" description="the car's Autoware spec_hash.yaml; none = no check"/>
+  <arg name="autoware_spec_hash_file" default="$(find-pkg-share $(var vehicle_model)_description)/config/spec_hash.yaml" description="the car's Autoware spec_hash.yaml; none = no check"/>
   <arg name="report_measured_steering" default="false"/>
   <arg name="steering_multiplier" default="1.0"/>
   <arg name="steer_rate_limit_deg_s" default="0.0"/>

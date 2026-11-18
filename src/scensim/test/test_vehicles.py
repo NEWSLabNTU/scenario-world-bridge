@@ -71,7 +71,7 @@ def test_urdf_has_the_kit_and_every_sensor_frame():
 
 
 def test_generate_writes_each_car_and_the_merged_catalog(tmp_path, monkeypatch):
-    monkeypatch.setattr(vehicles, "installed_catalog", lambda: INSTALLED)
+    monkeypatch.setattr(vehicles, "installed_catalog", lambda body=None: INSTALLED)
     own_spec(tmp_path)
     cars = vehicles.generate(tmp_path, {"vehicles": ["vehicles/my_lincoln.yaml"]}, gen=fake_gen)
     c = cars["my_lincoln"]
@@ -116,3 +116,33 @@ def test_pedal_maps_beside_the_spec_else_the_teslas(tmp_path):
     (d / "accel_map.csv").write_text("x")
     (d / "brake_map.csv").write_text("x")
     assert vehicles.pedal_maps(spec, "my_lincoln") == {"dir": str(d), "fallback": False}
+
+
+def test_the_body_follows_the_carla_version(tmp_path, monkeypatch):
+    # roadmap 083: CARLA 1.0's Model 3 is another body, its catalog in a directory of its own
+    assert vehicles.carla_body(None) is None
+    assert vehicles.carla_body("1.0") == "carla-1.0"
+    assert vehicles.carla_body("1.0-82c52a7c2") == "carla-1.0"  # a source build's version
+    assert vehicles.carla_body("0.9.16") == "carla-0.9.16"
+    cats = INSTALLED.parent
+    assert vehicles.body_file(cats, "carla-1.0") == cats / "carla-1.0" / "vehicles.xosc"
+    # a body with no catalog of its own, or none: the default
+    assert vehicles.body_file(cats, "carla-0.9.16") == INSTALLED
+    assert vehicles.body_file(cats, None) == INSTALLED
+    one = (cats / "carla-1.0" / "vehicles.xosc").read_text()
+    assert 'length="4.694"' in one and 'length="4.792"' in INSTALLED.read_text()
+    # Autoware's car on a body it has no package for is the car itself
+    assert vehicles.autoware_vehicle_model("tesla_model3", None) == "tesla_model3"
+    assert vehicles.autoware_vehicle_model("no_such_car", "carla-1.0") == "no_such_car"
+
+
+def test_the_merged_catalog_is_the_bodys(tmp_path, monkeypatch):
+    monkeypatch.setattr(vehicles, "installed_catalog",
+                        lambda body=None: vehicles.body_file(INSTALLED.parent, body))
+    own_spec(tmp_path)
+    cars = vehicles.generate(tmp_path, {"vehicles": ["vehicles/my_lincoln.yaml"]}, gen=fake_gen,
+                             body="carla-1.0")
+    text = Path(cars["__catalog__"]).read_text()
+    assert 'length="4.694"' in text and "my_lincoln" in text
+    # no own cars: the scenarios read the installed catalog of the body
+    assert vehicles.catalog_dir(tmp_path / "empty", "carla-1.0") == INSTALLED.parent / "carla-1.0"

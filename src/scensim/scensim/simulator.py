@@ -211,8 +211,17 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
                                "settings: carla: {root: <CARLA_0.9.16 directory>})")
     if not launcher(root).is_file():
         raise SimulatorRefused(f"carla.root {root}: no {LAUNCHER} there")
-    out.update(owner=STARTED, argv=carla_argv(root, port))
+    out.update(owner=STARTED, argv=carla_argv(root, port), version=root_version(root))
     return out
+
+
+def root_version(root):
+    """The version of the CARLA install at ``root`` (its ``VERSION`` file: ``0.9.16``, ``1.0``),
+    or None without one."""
+    try:
+        return (Path(root) / "VERSION").read_text().strip() or None
+    except OSError:
+        return None
 
 
 class Carla:

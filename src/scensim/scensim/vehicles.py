@@ -31,33 +31,72 @@ class VehicleError(RuntimeError):
     pass
 
 
-def installed_catalog() -> Path:
-    """sim_vehicle_spec's catalog: the installed share's, else the workspace's."""
+def carla_body(version):
+    """The body a car drives on a CARLA server of ``version`` (sim_vehicle_spec's ``bodies``,
+    roadmap 083): ``carla-1.0`` for 1.0, ``carla-0.9.16`` for 0.9.16; None when the version
+    is not known (each car's default body)."""
+    if not version:
+        return None
+    v = str(version).strip().split("-")[0]  # a source build reports "1.0-<commit>"
+    return f"carla-{v}"
+
+
+def body_file(directory: Path, body) -> Path:
+    """``<directory>/<body>/vehicles.xosc`` when a car has a catalog for that body (sim_vehicle_
+    spec writes a body other than the default in a directory of its own), else the default
+    ``<directory>/vehicles.xosc``."""
+    if body and (Path(directory) / body / CATALOG).is_file():
+        return Path(directory) / body / CATALOG
+    return Path(directory) / CATALOG
+
+
+def _spec_share() -> Path:
     try:
         from ament_index_python.packages import get_package_share_directory
-        return Path(get_package_share_directory("sim_vehicle_spec")) / "catalogs" / CATALOG
+        return Path(get_package_share_directory("sim_vehicle_spec"))
     except Exception:
-        return Path(__file__).resolve().parents[2] / "sim_vehicle_spec" / "catalogs" / CATALOG
+        return Path(__file__).resolve().parents[2] / "sim_vehicle_spec"
+
+
+def installed_catalog(body=None) -> Path:
+    """sim_vehicle_spec's catalog (the installed share's, else the workspace's), for ``body``
+    where it has one (``catalogs/<body>/vehicles.xosc``)."""
+    return body_file(_spec_share() / "catalogs", body)
+
+
+def autoware_vehicle_model(car: str, body) -> str:
+    """Autoware's vehicle_model for ``car`` on ``body``: autoware_sim_vehicle's
+    ``<car>_<body>`` (non-alphanumerics as ``_``: tesla_model3_carla_1_0) when that package
+    is installed, else ``car`` (its default body, or a car with no such body)."""
+    import re
+
+    if not body:
+        return car
+    model = f"{car}_{re.sub('[^a-z0-9]+', '_', body.lower()).strip('_')}"
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        get_package_share_directory(f"{model}_description")
+        return model
+    except Exception:
+        return car
 
 
 def installed_physics(car: str):
     """An installed car's CARLA physics (sim_vehicle_spec's generated/<car>/carla_physics.yaml,
     the installed share's, else the workspace's), or None when sim_vehicle_spec has no such
-    car."""
-    try:
-        from ament_index_python.packages import get_package_share_directory
-        root = Path(get_package_share_directory("sim_vehicle_spec"))
-    except Exception:
-        root = Path(__file__).resolve().parents[2] / "sim_vehicle_spec"
-    f = root / "generated" / car / "carla_physics.yaml"
+    car. One path for every CARLA: built for 1.0, the world server and acb take its sibling
+    carla_physics_1.0.yaml."""
+    f = _spec_share() / "generated" / car / "carla_physics.yaml"
     return f if f.is_file() else None
 
 
-def catalog_dir(project) -> Path:
+def catalog_dir(project, body=None) -> Path:
     """What ``$(env SCENSIM_VEHICLES)`` names for a project: its merged catalog's directory when
-    it has own cars, else the installed one's."""
+    it has own cars, else the installed one's for ``body`` (the CARLA server's, ``carla_body``):
+    the scenarios then declare the body the world server drives, which the bridge checks to
+    2 cm."""
     d = Path(project) / STATE / CATALOG_DIR
-    return d if (d / CATALOG).is_file() else installed_catalog().parent
+    return d if (d / CATALOG).is_file() else installed_catalog(body).parent
 
 
 def _vehicles(catalog: Path) -> list:
@@ -111,11 +150,12 @@ def problems(project, settings: dict, installed: dict = None) -> list:
     return out
 
 
-def generate(project, settings: dict, gen=None) -> dict:
+def generate(project, settings: dict, gen=None, body=None) -> dict:
     """Generate every own car (``gen(spec, out_dir) -> None``, default sim_vehicle_spec.gen)
     and the merged catalog. ``{name: {spec, dir, catalog, spec_hash_file, spec_hash,
     carla_physics, carla_sensors}}`` and ``"__catalog__"``: the merged catalog (None without
-    own cars)."""
+    own cars). The merged catalog is ``body``'s where a car has a catalog for it (the CARLA
+    server's, ``carla_body``)."""
     cars = spec_names(project, settings)
     root = Path(project) / STATE
     out = {}
@@ -137,7 +177,8 @@ def generate(project, settings: dict, gen=None) -> dict:
     merged = None
     if out:
         merged = root / CATALOG_DIR / CATALOG
-        merge([installed_catalog()] + [Path(c["catalog"]) for c in out.values()], merged)
+        merge([installed_catalog(body)]
+              + [body_file(Path(c["dir"]), body) for c in out.values()], merged)
     out["__catalog__"] = str(merged) if merged else None
     return out
 

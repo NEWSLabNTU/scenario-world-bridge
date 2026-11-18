@@ -146,6 +146,11 @@ def test_decide(tmp_path, carla_rpc):
     port = free_port()
     d = sim.decide({"root": str(root), "host": "localhost", "port": port, "ready_timeout": 42})
     assert d["owner"] == sim.STARTED and d["mode"] == "auto" and d["ready_timeout"] == 42
+    # the version the stack starts: its install's VERSION (roadmap 083: the body follows it)
+    assert d["version"] == sim.root_version(root)
+    (root / "VERSION").write_text("0.9.16\n")
+    assert sim.decide({"root": str(root), "port": port})["version"] == "0.9.16"
+    (root / "VERSION").unlink()
     assert d["argv"] == [str(root / "CarlaUE4.sh"), f"-carla-rpc-port={port}", "-nosound",
                          "-RenderOffScreen", "-quality-level=Epic"]
     # auto, CARLA answering: that one, external

@@ -2,7 +2,7 @@
 # with the overlay on.
 # Reference: roadmap 042, 3/3 with the ego yielding (2026-10-18).
 scenarios:
-  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i6_cyclist_inside.xosc
+  - pkg://scensim_examples/scenarios/demo/incidents/town01_i6_cyclist_inside.xosc
 repetitions: 3
 retry: {on: error, times: 1}
 expect: {}

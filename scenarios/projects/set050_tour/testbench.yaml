@@ -21,3 +21,4 @@ judges:
   - name: gap
     run: [python3, -m, scensim.gap, oracle]
     needs: [gap_trace]
+default: tour   # the suite `scensim run set050_tour` runs

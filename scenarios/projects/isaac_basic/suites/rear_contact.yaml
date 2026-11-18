@@ -3,7 +3,7 @@
 # contact, which the scenario declares (csbExpectedContacts). Reference: roadmap 037/044,
 # SSv2 passed with the contact.
 scenarios:
-  - path: ../../../src/scensim_examples/scenarios/isaac/town01_rear_contact.xosc
+  - path: pkg://scensim_examples/scenarios/isaac/town01_rear_contact.xosc
     ssv2: {managed_ego: false}
 retry: {on: error, times: 1}
 expect: {}

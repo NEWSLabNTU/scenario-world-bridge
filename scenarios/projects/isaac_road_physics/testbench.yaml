@@ -11,6 +11,7 @@ pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
 ground:
   Town01:
-    surfaces: ../../../src/scensim_examples/projects/road_physics/ground/town01.yaml
+    surfaces: pkg://scensim_examples/projects/road_physics/ground/town01.yaml
 logging:
   keep: {passed: result, failed: full, error: full}
+default: road   # the suite `scensim run isaac_road_physics` runs

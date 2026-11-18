@@ -18,3 +18,4 @@ judges:
   - name: gap
     run: [python3, -m, scensim.gap, oracle]
     needs: [gap_trace]
+default: two_av   # the suite `scensim run two_av` runs

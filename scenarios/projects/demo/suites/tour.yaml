@@ -4,7 +4,7 @@
 # RViz cast of `just demo-tour` (077's G4, deferred). Reference: roadmap 033, take_1
 # 2026-10-21: PASS, incident_judge 6/6, no contact, 4.6 min sim, 5.7 min wall.
 scenarios:
-  - ../../../src/scensim_examples/scenarios/demo/town01_tour.xosc
+  - pkg://scensim_examples/scenarios/demo/town01_tour.xosc
 ssv2: {global_timeout: 1200}
 retry: {on: error, times: 1}
 expect: {}

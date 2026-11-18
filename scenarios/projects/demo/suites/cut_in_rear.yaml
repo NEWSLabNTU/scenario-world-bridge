@@ -3,7 +3,7 @@
 # >= 2 m) and i8 (row 8: i3's red light, no contact, the rear car closed in at >= 3 m/s and
 # rested >= 1 m behind the ego).
 scenarios:
-  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i7_cut_in.xosc
-  - ../../../src/scensim_examples/scenarios/demo/incidents/town01_i8_rear_approach.xosc
+  - pkg://scensim_examples/scenarios/demo/incidents/town01_i7_cut_in.xosc
+  - pkg://scensim_examples/scenarios/demo/incidents/town01_i8_rear_approach.xosc
 retry: {on: error, times: 1}
 expect: {}

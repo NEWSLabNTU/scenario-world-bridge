@@ -13,3 +13,4 @@ pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
 logging:
   keep: {passed: result, failed: full, error: full}
+default: towns   # the suite `scensim run isaac_basic` runs

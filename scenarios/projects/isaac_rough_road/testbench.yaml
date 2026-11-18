@@ -18,3 +18,4 @@ ground:
     road_detail: assets/isaac-road-physics-stages/procedural/spikes/road_town/road_detail.yaml
 logging:
   keep: {passed: result, failed: full, error: full}
+default: rough   # the suite `scensim run isaac_rough_road` runs

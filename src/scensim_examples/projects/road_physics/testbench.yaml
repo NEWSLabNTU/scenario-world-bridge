@@ -9,6 +9,7 @@ assets:
     take: [procedural/spikes/road_town]           # Town01's rough gravel road, for an exercise
 pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
+default: first   # the suite `scensim run <testbench>` runs
 ground:                                           # per map: this project's surface files
   Town01:
     surfaces: ground/town01.yaml

@@ -7,3 +7,4 @@ assets:
     take: [Town01, vehicles]     # the town and the cars in USD: 19 GB of the 25.5
 pilots:
   ego: {kind: autoware, vehicle: tesla_model3}
+default: first   # the suite `scensim run <testbench>` runs

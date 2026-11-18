@@ -56,8 +56,8 @@ pilots:
 default: first   # the suite `scensim run isaac_first_drive` runs
 ```
 
-The example names no suite of its own, so `testbench new` added `suites/first.yaml`, every
-scenario once, and the `default:` line. `carla-0.9.16-isaac-usd` is CARLA 0.9.16's content exported to USD (six towns and the
+The example's suite, `suites/first.yaml`, runs every scenario once; the `default:` line
+names it. `carla-0.9.16-isaac-usd` is CARLA 0.9.16's content exported to USD (six towns and the
 assets). `take:` fetches only Town01 and `vehicles/` (CARLA's vehicles, props and
 walkers).
 

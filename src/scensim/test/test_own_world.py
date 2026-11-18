@@ -57,3 +57,19 @@ def test_simulator_none_needs_a_server_and_no_stock_vehicle_side():
     assert [w for w, _ in got] == ["simulator", "pilots.ego"]
     assert "none needs world.server" in got[0][1]
     assert "kind autoware drives through CARLA's or Isaac's vehicle side" in got[1][1]
+
+
+def test_world_server_and_simulator_none_are_world_rules():
+    """The world rules (scensim.world, every project check) know world.server and
+    simulator: none, so a project and a testbench refuse the same things."""
+    from scensim import world
+    ok = {"simulator": "none", "world": {"server": ["my_world", "my_server"]}}
+    assert world.problems(ok, "none") == []
+    assert world.problems({"world": {"server": ["my_world", "my_server"], "weather": "WetNoon"}},
+                          "carla") == []
+    assert world.problems({"simulator": "none"}, "none") == [
+        ("simulator", "none needs world.server: your world server, which owns the simulator "
+                      "(world: {server: [<package>, <executable>]})")]
+    assert ("world.config_file", "is the stock CARLA server's; with world.server, your server "
+            "takes its own settings as its arguments") in world.problems(
+        {"world": {"server": ["a", "b"], "config_file": "c.yaml"}}, "carla")

@@ -57,6 +57,7 @@ from pathlib import Path
 
 from scensim import config, ground as groundmod, project as projectmod, results, seat as seatmod
 from scensim import episodes as episodesmod, judges as judgesmod, simulator as simmod
+from scensim import own_world
 from scensim import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
 from scensim import launcher as launchermod, tools as toolsmod
 from scensim.config import ConfigError
@@ -620,8 +621,13 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                                "\n".join(str(f) for f in findings), findings)
 
     sim = simulator or psettings.get("simulator")
-    if sim not in projectmod.SIMULATORS:
-        raise StackRefused(f"simulator {sim!r}: this stack starts carla or isaac")
+    world = psettings.get("world") if isinstance(psettings.get("world"), dict) else {}
+    # world.server: the user's world server in place of the stock one (scensim.own_world);
+    # simulator: none, only with it, starts no simulator (that server owns one)
+    server = world.get(own_world.KEY)
+    if sim not in projectmod.SIMULATORS and not (sim == own_world.NONE and server):
+        raise StackRefused(f"simulator {sim!r}: this stack starts carla or isaac, or none with "
+                           f"world.{own_world.KEY} (your world server)")
     if simulator_start not in (None, "") and simulator_start not in simmod.MODES:
         raise StackRefused(f"simulator_start {simulator_start!r}: one of "
                            + ", ".join(simmod.MODES))
@@ -644,7 +650,6 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     maps = served_maps(psettings, scenarios)
     if map_name and map_name not in maps:
         maps.append(map_name)
-    world = psettings.get("world") if isinstance(psettings.get("world"), dict) else {}
     isaac = psettings.get("isaac") if isinstance(psettings.get("isaac"), dict) else {}
     preload = [str(m) for m in (isaac.get("preload") or [])] if sim == "isaac" else []
     maps += [m for m in preload if m not in maps]
@@ -704,7 +709,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             env["ISAAC_KIT_ARGS"] = isaac_kit_args(os.environ.get("ISAAC_KIT_ARGS", ""), s.gpu)
     # Isaac's world server finds its install by ISAAC_ROOT; the host settings' isaac.root
     isaac_root = str((host.get("isaac") or {}).get("root") or "")
-    if sim == "isaac" and isaac_root:
+    if sim == "isaac" and isaac_root and not server:
         env["ISAAC_ROOT"] = os.path.expanduser(isaac_root)
 
     ego_domain = s.pilot_domains[0]
@@ -757,7 +762,11 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     # and surfaces) into the project's state dir, never into the fetched (read-only) map
     sim_side = {"state_dir": str(project / "state")}
     isaac_ego = None
-    if sim == "isaac":
+    if server:
+        # the user's server takes its own settings as its arguments (world.server); the stock
+        # server's (state_dir, the Isaac world and ego, CARLA's spec physics) are not its
+        sim_side = {}
+    elif sim == "isaac":
         sided = [b for b in bound if b.sided()]
         ego = "default" if sided else "none"
         # a pilot of a ground-truth kind, or one that says it drives on the true pose
@@ -769,9 +778,12 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             ego = isaac_ego["path"]
         first = [str(map_path)] + [str(map_dir(project, m)) for m in preload if m != chosen]
         sim_side = {"world": ",".join(first), "ego": ego, **sim_side}
-    sim_side.update(worldmod.sim_args(project, sim, world, isaac))
+    if not server:
+        sim_side.update(worldmod.sim_args(project, sim, world, isaac))
     ego_car = cars.get(vehicle) if vehicle else None
-    if sim == "carla" and ego_car is not None:
+    if server:
+        pass
+    elif sim == "carla" and ego_car is not None:
         # the world server applies an own car's physics to it, on every car of its model
         # (the agents' too); the pilot's vehicle bridge then checks them against the spec
         sim_side["vehicle_physics"] = ego_car["carla_physics"]
@@ -789,6 +801,10 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     # stack_args (the developers'): side_args and sim_args merge into scensim's, by name; a name
     # scensim owns is refused (they used to replace scensim's whole text, state_dir with it)
     user = dict(stack_args or {})
+    if server and user.get("sim_args"):
+        raise StackRefused(f"stack_args sim_args: with world.{own_world.KEY} your world server "
+                           "takes its arguments from world.server itself ([<package>, "
+                           "<executable>, args...])")
     try:
         side = worldmod.merge_user(side, worldmod.named(user.pop("side_args", ""), "side_args"),
                                    worldmod.SIDE_OWNED, "stack_args side_args")
@@ -799,6 +815,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         raise StackRefused(str(e)) from None
     args["side_args"] = worldmod.joined(side)
     args["sim_args"] = worldmod.joined(sim_side)
+    if server:
+        args["world_server"] = f"{server[0]} {server[1]}"
+        args["world_server_args"] = shlex.join(str(a) for a in server[2:])
     for k, v in user.items():
         args[k] = v
 
@@ -849,6 +868,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "carla": carla_run,
         "switch": None,
         "isaac_ego": isaac_ego,
+        "world_server": list(server) if server else None,
         "fingerprint": fingerprint(project, psettings),
         "autoware_env": autoware_env(host, workspace_root()),
         "seat": numbers,

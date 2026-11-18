@@ -26,7 +26,6 @@ from pathlib import Path
 import yaml
 
 from scensim import config
-from scensim import own_world
 from scensim import project as projectmod
 from scensim.findings import Finding
 
@@ -187,14 +186,8 @@ def build_findings(share, package_xml) -> list:
         return [Finding(TESTBENCH_FILE, str(e).split(": ", 1)[-1], refused=True)]
     refs = reference_findings(share, package_xml)
     escaping = {f.what.split(": ", 1)[0] for f in refs}
-    # world.server (step 5) is checked here; today's world rules know only the stock keys
-    world = settings.get("world")
-    out = [Finding(TESTBENCH_FILE, f"{where}: {what}")
-           for where, what in own_world.server_problems(world)
-           + own_world.simulator_problems(settings)]
-    if isinstance(world, dict) and own_world.KEY in world:
-        settings = dict(settings, world={k: v for k, v in world.items() if k != own_world.KEY})
-    out += projectmod.check_schema(settings)
+    # world.server and simulator: none are the world rules' (scensim.world, own_world)
+    out = projectmod.check_schema(settings)
     for v in settings.get("vehicles") or []:
         if isinstance(v, str) and not (share / v).is_file() and v not in escaping:
             out.append(Finding(TESTBENCH_FILE, f"vehicles: {v}: no such file"))

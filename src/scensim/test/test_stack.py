@@ -877,3 +877,61 @@ def test_isaac_renders_on_the_cuda_card():
     # the user's own come first; the stack's activeGpu, the last one, wins
     assert stack.isaac_kit_args("--/x=1 --/renderer/activeGpu=0", 1).endswith(
         "--/renderer/activeGpu=0 --/renderer/multiGpu/enabled=false --/renderer/activeGpu=1")
+
+
+OWN_SERVER = """simulator: carla
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: simple, vehicle: tesla_model3}
+world:
+  server: [my_world, my_world_server, --level, "two words"]
+"""
+
+
+def test_a_world_server_of_the_projects_replaces_the_stock_one(where, maps_hub):
+    """081 step 5: world.server goes to stack.launch.py as world_server (package, executable)
+    and world_server_args (its own arguments); the stock server's arguments are not its."""
+    d = make(where, template="carla-first-drive", testbench_yaml=OWN_SERVER)
+    p = stack.plan(project_arg=str(d))
+    a = p.launch_args
+    assert a["sim"] == "carla" and a["world_port"] == "5791"
+    assert a["world_server"] == "my_world my_world_server"
+    assert a["world_server_args"] == "--level 'two words'"
+    assert a["sim_args"] == ""   # no state_dir, no spec physics: those are the stock server's
+    assert "carla_physics" not in p.record["pilot_contract"]
+    assert p.record["world_server"] == ["my_world", "my_world_server", "--level", "two words"]
+    assert p.record["carla"] is not None   # CARLA is still the keeper's to start
+    with pytest.raises(stack.StackRefused, match="world.server itself"):
+        stack.plan(project_arg=str(d), stack_args={"sim_args": "vehicle_physics:=none"})
+
+
+NONE_SERVER = """simulator: none
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+pilots:
+  ego: {kind: command, run: [python3, -c, "import time; time.sleep(60)"]}
+world:
+  server: [my_world, my_world_server]
+"""
+
+
+def test_simulator_none_starts_no_simulator(where, maps_hub):
+    """simulator: none with world.server: the user's server owns the simulator, so the stack
+    decides no CARLA and gives no Isaac world or ego; without world.server it is refused."""
+    d = make(where, template="carla-first-drive", testbench_yaml=NONE_SERVER)
+    p = stack.plan(project_arg=str(d))
+    a = p.launch_args
+    assert p.simulator == "none" and a["sim"] == "none" and a["ego_launch"] == "none"
+    assert a["world_server"] == "my_world my_world_server" and a["world_server_args"] == ""
+    assert a["sim_args"] == ""
+    assert p.record["carla"] is None and p.record["isaac_ego"] is None
+    assert "ISAAC_ROOT" not in p.env
+    (d / "testbench.yaml").write_text(NONE_SERVER.replace(
+        "world:\n  server: [my_world, my_world_server]\n", ""))
+    with pytest.raises(stack.StackRefused, match="simulator: none needs world.server"):
+        stack.plan(project_arg=str(d))
+    with pytest.raises(stack.StackRefused, match="or none with world.server"):
+        stack.plan(project_arg=str(d), check=None)

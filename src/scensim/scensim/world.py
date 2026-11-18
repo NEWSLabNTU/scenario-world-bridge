@@ -13,6 +13,7 @@ world and the ports) is refused by name, in ``testbench.yaml`` and in ``stack_ar
       contact_report_dir: off           # off; a directory of yours; unset: per run (scensim's)
       config_file: config/bridge.yaml   # the bridge's bridge_config.yaml
       world_config_file: config/carla_world.yaml   # CARLA: scensim_carla_world.yaml
+      # server: [my_world, my_world_server, --flag]  # your own world server (scensim.own_world)
 
     isaac:
       ego: config/ego_lockstep.yaml     # an aib ego config; default | none
@@ -29,7 +30,10 @@ argument, which the bridge applies after every world load and reconnect.
 import shlex
 from pathlib import Path
 
-WORLD_KEYS = ("weather", "npc_motion", "contact_report_dir", "config_file", "world_config_file")
+from scensim import own_world
+
+WORLD_KEYS = ("weather", "npc_motion", "contact_report_dir", "config_file", "world_config_file",
+              own_world.KEY)
 ISAAC_KEYS = ("ego", "render", "follow", "physics_hz", "preload", "wheels_topic")
 NPC_MOTIONS = ("tracked", "kinematic")
 RENDERS = ("auto", "window", "headless")
@@ -89,7 +93,12 @@ def problems(settings: dict, simulator: str, project: Path = None) -> list:
     if w is not None and not isinstance(w, dict):
         out.append(("world", "is not a mapping: {weather: ClearNoon}"))
         w = None
+    # world.server: a world server of the user's in place of the stock one (scensim.own_world),
+    # and simulator: none, which needs it
+    out += own_world.server_problems(w) + own_world.simulator_problems(settings)
     for k, v in (w or {}).items():
+        if k == own_world.KEY:
+            continue
         if k not in WORLD_KEYS:
             why = SIDE_OWNED.get(k)
             out.append(("world", f"{k} is scensim's ({why})" if why else

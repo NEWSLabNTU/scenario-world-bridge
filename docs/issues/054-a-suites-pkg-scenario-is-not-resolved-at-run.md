@@ -47,3 +47,14 @@ ground/town01.yaml` was "not a file in the project". Both now resolve `pkg://` t
 into an installed package's share counts as scensim's own (`_ours`), so it is replaced at
 the next start and removed when the testbench stops naming it, as a project file's link is.
 Test: `test_ground.py::test_a_ground_file_from_another_package`.
+
+## Part 3: the stack's own check (found 2026-11-18, the same day)
+
+The check a stack runs before it starts (`project.check_stack`, through `collect_scenarios`)
+took a suite's `pkg://` item as a path in the project too. It found it "no such file or
+directory", and the stack refused to start on that finding. So the studies converted that day
+(basic, group A, isaac_t2) passed `testbench check`, which leaves `pkg://` to the run, but
+their stacks would not start. `collect_scenarios` now resolves `pkg://` through
+`config.pkg_path`, as the run does. A package that is not installed is a host finding: build
+it, or source the workspace that installs it. Test:
+`test_run.py::test_the_stack_check_finds_a_suites_pkg_scenario`.

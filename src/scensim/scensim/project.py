@@ -614,9 +614,18 @@ def collect_scenarios(project: Path):
         if data.get("distribution"):
             listed = list(listed) + [data["distribution"]]
         for item in listed:
-            p = project / str(item)
-            if not p.exists() and (suite.parent / str(item)).exists():
-                p = suite.parent / str(item)
+            if str(item).startswith("pkg://"):   # another package's (issue 054)
+                try:
+                    p = config.pkg_path(str(item))
+                except config.ConfigError as e:
+                    findings.append(Finding(rel, str(e).split(" (fix: ")[0],
+                                            "build it, or source the workspace that installs it",
+                                            host=True))
+                    continue
+            else:
+                p = project / str(item)
+                if not p.exists() and (suite.parent / str(item)).exists():
+                    p = suite.parent / str(item)
             if p.is_dir():
                 files += _scenarios_in(p)
             elif p.is_file():

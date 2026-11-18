@@ -1338,3 +1338,25 @@ def test_a_scenario_longer_than_the_timeout_gets_its_own_limit(live, where):
     # the call's --timeout is the last word, even shorter
     api.run_one(d, "scenarios/three_pilots.xosc", {**base, "timeout": 300})
     assert "global_timeout:=300" in seen[-1]
+
+
+def test_the_stack_check_finds_a_suites_pkg_scenario(tmp_path, monkeypatch):
+    """Issue 054, part 3: the check a stack runs before it starts (collect_scenarios) resolves
+    pkg:// as the run does; an uninstalled package is the host's finding."""
+    pytest.importorskip("ament_index_python")
+    from scensim import project as projectmod
+    prefix = tmp_path / "install"
+    index = prefix / "share" / "ament_index" / "resource_index" / "packages"
+    index.mkdir(parents=True)
+    (index / "shared_scenarios").write_text("")
+    (prefix / "share" / "shared_scenarios" / "scenarios").mkdir(parents=True)
+    xosc = prefix / "share" / "shared_scenarios" / "scenarios" / "drive.xosc"
+    xosc.write_text("<OpenSCENARIO/>")
+    monkeypatch.setenv("AMENT_PREFIX_PATH", str(prefix))
+    tb = tmp_path / "tb"
+    (tb / "suites").mkdir(parents=True)
+    (tb / "suites" / "s.yaml").write_text(
+        "scenarios: [pkg://shared_scenarios/scenarios/drive.xosc, pkg://not_built/x.xosc]\n")
+    files, found = projectmod.collect_scenarios(tb)
+    assert files == [xosc]
+    assert [(f.host, "package not_built is not installed" in f.what) for f in found] == [(True, True)]

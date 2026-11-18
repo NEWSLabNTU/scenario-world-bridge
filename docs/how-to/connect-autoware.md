@@ -76,7 +76,10 @@ pilots:
 | `autoware_launch` | your Autoware's | the `autoware.launch.xml` to start, for a fork of autoware_launch |
 
 `tesla_model3` is the car on CARLA 0.9.16 and on Isaac Sim alike: the same vehicle model and
-sensor kit, the simulator's vehicle bridge publishing the same sensors.
+sensor kit, the simulator's vehicle bridge publishing the same sensors. CARLA 1.0, from a
+source build of scensim, has its own body: scensim's stack picks its vehicle model,
+`tesla_model3_carla_1_0`, and the workspace needs `tesla_model3_carla_1_0_launch` (add it to
+the `colcon build` list; `autoware-side.repos` has it).
 
 ## Two ways to configure Autoware
 
@@ -124,7 +127,10 @@ on the same build and host, one after the other (2026-11-19):
 | Lidar detector | CenterPoint (GPU) | `clustering` (CPU) |
 | GPU memory beside CARLA | CenterPoint and the point cloud's CUDA preprocessing: they failed to start with about 4.8 GB free on the GPU, and ran with about 7.7 GB free | none needed |
 
-So a stock Autoware drives the tutorial, a little slower and with emergency stops that a
+**A known stock behaviour:** stock Autoware's diagnostic graph reads the localization and
+routing states as stale under a simulator and requests brief emergency stops, 34 in this
+run, each released within a moment. The profile replaces that graph and requests none. So
+a stock Autoware drives the tutorial, a little slower and with emergency stops that a
 scenario with tighter timing may not survive, and it needs a GPU with a few GB free once
 CARLA is up. Passing `args: {lidar_detection_model: clustering}` to a stock pilot reaches
 Autoware 1.5.0's perception and moves the detector to the CPU, but the point cloud's CUDA

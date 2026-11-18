@@ -3,7 +3,7 @@
 **Severity**: medium (rare: a STOP or clear_goal must arrive while a goal handed back to a
 re-registered agent is still unanswered; then the next agent of the entity is given a goal that
 was stopped, and a stopped car may drive again or its run may end as a lost goal). **Status**:
-open. The fix lands after the 080 landing, on this branch. **Found**: 2026-11-17, swb 241,
+fixed on this branch (lands after the 080 landing). **Found**: 2026-11-17, swb 241,
 `just test` during the 080 rename (a flake in `test_replay.py`); the same race is in main
 before the rename (the rename changed only the test file's import).
 
@@ -70,3 +70,15 @@ or `EPISODE_END` that clears the standing commands races the same way.
 - `/home/aeon/coop-c3/r080/test3.log` on newslab-server-241 (the failing `just test`, 2026-11-17).
 - `src/scenario_agent_relay/scenario_agent_relay/server.py` at ac5b709: `command` (250-273),
   `_note` (277-291), `_replay` (307-333).
+
+## Fix
+
+- `AgentServer.command` takes the command's sequence number before sending it and hands it to
+  `_note`, which keeps per entity the sequence of the last goal note and of the last speed
+  note. A note older than the last one of its kind is dropped, so a goal sent before a STOP,
+  a clear or an episode boundary no longer stands after it, whichever reply came back first.
+- `_replay` checks that the goal (and the speed limit) it read at registration still stands
+  before each send; a goal cleared meanwhile is neither handed back nor reported lost.
+- Tests (`test_replay.py`): the race held open deterministically through the
+  `_before_note` test hook (a STOP noted while the replay thread waits to note its goal), a
+  goal cleared before the re-registered agent reports, and the note order on its own.

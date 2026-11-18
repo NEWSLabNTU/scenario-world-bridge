@@ -603,7 +603,30 @@ def test_mutual_rest_wait_exemptions():
     assert mutual_rest_wait(rolling, o, am, Memory(), P, 5.1, "fresh_clear") is None
     off = P.override(source="test", fresh_rest_guard=False)
     assert mutual_rest_wait(car("B", s_entry=0.2), o, am, Memory(own_rest_t=6.0), off, 6.5, "fresh_clear") is None
-    assert mutual_rest_wait(car("B", s_entry=0.2), o, AgentMemory(), Memory(own_rest_t=6.0), P, 6.5, "x") is None
+    moving = car("A", s_entry=1.0, v=4.0)
+    assert mutual_rest_wait(car("B", s_entry=0.2), moving, AgentMemory(), Memory(own_rest_t=6.0), P, 6.5, "x") is None
+    far_still = car("A", s_entry=P.rest_window + 5.0)
+    assert mutual_rest_wait(car("B", s_entry=0.2), far_still, AgentMemory(still_since=1.0), Memory(own_rest_t=6.0), P, 9.5,
+                            "x") is None
+
+
+def test_other_at_the_zone_edge_counts_as_at_rest():
+    """078 P2e: a car stopped right at the zone's edge (a never-yield car held there by its safety layer) gets no rest stamp
+    while its noisy position flickers across the edge; a guard reads the stamp since which it has been still, or now while
+    it is still slowing there. A go against it waits the guard from the later rest all the same."""
+    from czp.convention import mutual_rest_wait, other_rest_stamp
+    from czp.memory import AgentMemory
+    guard = P.stop_dwell + CAR.launch_dead + P.see_delay
+    edge = car("A", s_entry=0.1, v=0.05)
+    assert other_rest_stamp(edge, AgentMemory(rest_t=7.0), P, 9.0) == 7.0
+    assert other_rest_stamp(edge, AgentMemory(still_since=7.4), P, 9.0) == 7.4
+    assert other_rest_stamp(edge, AgentMemory(), P, 9.0) == 9.0
+    assert other_rest_stamp(car("A", s_entry=0.1, v=1.0), AgentMemory(), P, 9.0) is None
+    own = car("B", s_entry=1.0)
+    am = AgentMemory(still_since=7.7)
+    w = mutual_rest_wait(own, edge, am, Memory(own_rest_t=7.6), P, 7.7 + guard - 0.1, "fresh_tie", need_rest=True)
+    assert w is not None and w.kind == WAIT
+    assert mutual_rest_wait(own, edge, am, Memory(own_rest_t=7.6), P, 7.7 + guard + 0.1, "fresh_tie", need_rest=True) is None
 
 
 def test_protocol_go_waits_for_the_later_rest():

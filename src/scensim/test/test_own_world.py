@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -160,3 +161,42 @@ def test_hello_findings_name_the_endpoint_and_the_server_says_why():
 def test_the_server_command_can_be_given():
     assert own_world.server_argv(["w", "s", "--x"], 7, command=["python3", "f.py"]) == [
         "python3", "f.py", "--port", "7"]
+
+
+# --- issue 048: the check tool missing is a host finding, not the server's ----------------
+NO_PACKAGE = [sys.executable, "-c",
+              "import sys; print(\"Package 'scensim_world_check' not found\"); sys.exit(1)"]
+
+
+def test_a_missing_check_tool_is_not_blamed_on_the_stacks_server():
+    got = own_world.hello_findings(5599, check=NO_PACKAGE)
+    assert len(got) == 1 and got[0].host and got[0].file == "world"
+    assert "the probe did not run (Package 'scensim_world_check' not found)" in got[0].what
+    assert "did not answer" not in got[0].what
+    assert got[0].fix == own_world.NO_TOOL_FIX
+
+
+def test_a_missing_check_tool_is_not_blamed_on_an_own_server(tmp_path):
+    started = time.time()
+    got = own_world.conformance_findings(
+        ["w", "s"], 5599, check=NO_PACKAGE, start_timeout=60,
+        command=[sys.executable, "-c", "import time; time.sleep(30)"])
+    assert time.time() - started < 20       # no wait for a Hello that cannot be asked
+    assert len(got) == 1 and got[0].host and got[0].file == "world.server"
+    assert "the probe did not run (Package 'scensim_world_check' not found)" in got[0].what
+    assert got[0].fix == own_world.NO_TOOL_FIX
+
+
+def test_a_check_tool_that_cannot_start_is_the_same_finding():
+    got = own_world.conformance_findings(["w", "s"], 5599, check=["/nonexistent/check"],
+                                         command=[sys.executable, "-c", "pass"])
+    assert len(got) == 1 and got[0].host and "the probe did not run" in got[0].what
+
+
+def test_the_fixture_world_despawns_an_unknown_handle_without_raising():
+    _, env = _real_check()          # skips where the shell is not importable
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); import kinematic_world as k; "
+            "w = k.KinematicWorld(); w.despawn(99); print('ok')")
+    r = subprocess.run([sys.executable, "-c", code, str(FIXTURES)], env=env,
+                       capture_output=True, text=True)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr

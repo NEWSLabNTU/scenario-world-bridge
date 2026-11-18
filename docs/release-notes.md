@@ -67,6 +67,11 @@ build it with 2.1.0 sourced.
   as is a release the profile does not have. The fixes scensim carries for Autoware
   (its overlay) are for 1.5.0: over another release they are not sourced, and scensim says
   so.
+- **A workspace built against another Autoware is refused.** An autoware pilot whose
+  workspaces were built with a different Autoware release than the host's `autoware.setup`
+  would run a mix of the two. scensim now refuses such a pilot before the run, naming the
+  workspace's `setup.bash`, both releases and the fix: rebuild with the release
+  `autoware.setup` names, or point `autoware.setup` at the release they were built with.
 - **The agent on Autoware 2.1.0.** Autoware 2.1.0 no longer has TIER IV's
   tier4_ad_api_adaptor, which served the agent's RTC and emergency endpoints. The agent
   now finds which API the running Autoware serves: the adaptor's RTC (1.5.0), else each

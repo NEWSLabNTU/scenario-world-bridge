@@ -7,7 +7,14 @@ scensim. scensim runs a testbench by its package name. A testbench has its own c
 type, `scensim_testbench`, provided by the colcon plugin `colcon-scensim`: a `package.xml`
 and a `testbench.yaml`, no CMake.
 
-**Status**: done, landed 2026-11-18 with 080 (scensim main 12e54f1), then a testbench's own world server and `simulator: none` (a53a2cb, ee7bb48) and `testbench check --live` (d6cb0eb, issue 048). Left: the internal study projects under `scenarios/projects/` become testbenches (parked).
+**Status**: done, landed 2026-11-18 with 080 (scensim main 12e54f1), then a testbench's own world server and `simulator: none` (a53a2cb, ee7bb48) and `testbench check --live` (d6cb0eb, issue 048). Step 4 done 2026-11-19 (swb 241, scensim main f9fdb9e to 544b3be): every study under
+`scenarios/projects/` is a testbench package, its scenarios and files from other packages named
+by `pkg://` (issues 054 to 057 on the way), the shared bench/gap scenarios in
+`scensim_study_scenarios`, scripts/coop as `coop_pilots`. Left: the private studies (NTU twin,
+NTU open roads, Shalun, golf cart) to the user's private repository; `src/scensim_examples/
+projects/*` stay copy sources for `testbench new --from` (055 makes each copy a package), not
+packages of their own; and step 7's exit runs, the T3 suites from the testbenches against
+36e4da4's references.
 
 **Source**: user, 2026-11-17, in one design conversation:
 
@@ -149,6 +156,8 @@ Each step is pushed after review, with its tests.
    become testbench packages as in the table; `coop_pilots`; the stale locks refreshed;
    t3.yaml follows (the T3 references keep their keys); the private ones moved to the
    user's private repository.
+   **Done 2026-11-19** (status above). The committed locks of courses, drift_lap and
+   speed_ladder now name the Isaac USD dataset they ask for.
    `coop_pilots` landed (2026-11-19) as scripts/coop installed as data
    (`share/coop_pilots/coop`, on the testbenches' sys.path); a Python package
    (`from coop_pilots import ...`, its 15 modules moved) replaces it once roadmap 078 settles.

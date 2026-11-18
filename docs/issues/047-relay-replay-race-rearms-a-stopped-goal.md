@@ -3,7 +3,7 @@
 **Severity**: medium (rare: a STOP or clear_goal must arrive while a goal handed back to a
 re-registered agent is still unanswered; then the next agent of the entity is given a goal that
 was stopped, and a stopped car may drive again or its run may end as a lost goal). **Status**:
-fixed on this branch (lands after the 080 landing). **Found**: 2026-11-17, swb 241,
+fixed, main 7b21bec. **Found**: 2026-11-17, swb 241,
 `just test` during the 080 rename (a flake in `test_replay.py`); the same race is in main
 before the rename (the rename changed only the test file's import).
 

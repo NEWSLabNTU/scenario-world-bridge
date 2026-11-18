@@ -13,23 +13,28 @@ a25e3aa (to be updated to the release commit).
 
 ### Requirements
 
-Ubuntu 22.04 with ROS 2 Humble, as in 0.1.0, or Ubuntu 24.04 with ROS 2 Jazzy for the
-simulation side only. [Install](getting-started/install.md) lists both.
+Ubuntu 22.04 with ROS 2 Humble, as in 0.1.0, or Ubuntu 24.04 with ROS 2 Jazzy.
+[Install](getting-started/install.md) lists both. For an Autoware ego, your Autoware, with
+the car's Autoware packages built in your workspace
+([Connect your Autoware](how-to/connect-autoware.md)).
 
 ### Tested with
 
 | Component | Version |
 |---|---|
-| ROS 2 | Humble (Ubuntu 22.04, Python 3.10); Jazzy (Ubuntu 24.04, Python 3.12), the simulation side only |
+| ROS 2 | Humble (Ubuntu 22.04, Python 3.10); Jazzy (Ubuntu 24.04, Python 3.12) |
 | CARLA | 0.9.16, the packaged release |
 | Isaac Sim | 6.1.0, pip install |
-| Autoware | 1.5.0, binary packages; 2.1.0, binary packages (Tutorial 1, below) |
+| Autoware | 1.5.0 and 2.1.0, binary packages (live, below); the car's Autoware packages build and resolve on 1.5.0 and 2.1.0 (Humble) and 2.1.0 (Jazzy) in the release workflow |
 | scenario_simulator_v2 | bundled (a fork, as a submodule) |
 
 Before the release, the release workflow built and checked both distributions on the
 tested commit (run 44296930995): the simulation side's tarball for each, its link check
 in a clean ROS image, the wheels for Python 3.10 and 3.12, and the install from those
-wheels in a clean image, on Humble and on Jazzy.
+wheels in a clean image, on Humble and on Jazzy. For each of Autoware 1.5.0 and 2.1.0 on
+Humble, and 2.1.0 on Jazzy, it installed NEWSLab's Autoware binaries, built the car's
+Autoware packages from `autoware-side.repos` over them, and followed Autoware's launch to its
+last node, stock and with scensim's profile.
 
 On Autoware 2.1.0, Tutorial 1 passed as written (2026-11-18) with scensim built from
 source against 2.1.0 at commit d3b8952: the pilot ran 2.1.0's own packages only, without
@@ -46,22 +51,34 @@ build it with 2.1.0 sourced.
   the bridge, the world servers and the agent SDK. The release now publishes one
   simulation tarball per ROS distribution, `scensim-sim-0.2.0-humble-x86_64.tar.zst` and
   `scensim-sim-0.2.0-jazzy-x86_64.tar.zst`, under one `SHA256SUMS`.
-- **The vehicle side stays on Humble.** Autoware 1.5.0 is built for ROS 2 Humble only, so on
-  Jazzy, with an Autoware sourced or with `scensim install --autoware 1.5.0`, scensim
-  refuses before it downloads anything and says why. Use pilots that are not Autoware there,
-  or run the Autoware ego from a Humble install.
+- **Your Autoware drives the car.** A release has no vehicle download. The car's Autoware
+  packages (its vehicle and sensor kit launches, `individual_params`) are source:
+  `autoware-side.repos`, attached to each release, imports them into your Autoware
+  workspace, and they build against your Autoware, from binary packages, a source build or
+  your own distribution ([Connect your Autoware](how-to/connect-autoware.md)). With an
+  Autoware sourced, the pip front end installs and runs the simulation side as without one.
+  `scensim install --autoware` is gone, and refused by name.
+- **Stock Autoware by default, scensim's profile on request.** An `autoware` pilot starts your
+  `autoware.launch.xml` as your Autoware ships it, told only what a simulator needs (the
+  map, the car, sim time, no vehicle interface and no sensor drivers). `autoware_profile:
+  scensim` starts scensim's Autoware profile around it instead, the settings scensim's own
+  scenarios are tested with: traffic signals from the simulator, the `clustering` lidar
+  detector, parameters for a simulated car. The profile is an optional package in the same
+  `autoware-side.repos`.
+- **The car's Autoware packages are checked against your Autoware.** Each declares the
+  Autoware releases it supports and those it was tested on. `testbench check` and every run
+  refuse a missing package or an Autoware outside the supported releases, naming both, and
+  warn about a supported one that is not tested: Autoware 1.5.0, 2.0.0 and 2.1.0 on Humble are
+  tested; 1.7.1 and 1.9.0, and 2.1.0 on Jazzy, are supported but not tested yet.
 - **rosdep on Ubuntu 24.04.** The rosdep line that `scensim install` prints starts with
   `PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1` on Python 3.11 and newer: without
   them, Ubuntu 24.04 refuses rosdep's two pip packages (PEP 668), and huggingface_hub
   cannot replace Debian's older typing_extensions and idna. Keep the line as printed.
 - **Autoware 2.1.0.** The car's Autoware profile runs Autoware 2.1.0 (2.0.0 with
   autoware_universe 0.53.2), with a copy of map_based_prediction's parameter file that
-  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks. As in
-  0.1.0, the release has no prebuilt vehicle side, for 1.5.0 or 2.1.0: an Autoware ego
-  needs the vehicle packages built from source in your workspace
-  ([Install](getting-started/install.md)), and `scensim install` with an Autoware sourced
-  says so.
-- **An autoware pilot follows the host's Autoware.** A stack sets each autoware pilot's
+  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks.
+- **scensim's profile follows the host's Autoware.** A stack sets each `autoware_profile:
+  scensim` pilot's
   release from the host's `autoware.setup` (the version-named directory above
   `setup.bash`). A pilot whose arguments name another release is refused, naming both,
   as is a release the profile does not have. The fixes scensim carries for Autoware
@@ -84,6 +101,17 @@ build it with 2.1.0 sourced.
   the three differences from a Humble build.
 
 ### Fixed since 0.1.0
+
+- With an Autoware sourced, scensim 0.1.0's pip front end refused every command, looking for
+  a vehicle download the release did not have. 0.2.0 runs as without one.
+- **A stack whose node ends during its start.** A node that exited before the stack was
+  ready, with exit 0 as Isaac Sim's world server does after a Python error, left `scensim
+  run` waiting out its whole start limit. Now any exit before ready ends the start at once,
+  naming the node, how it exited, its last log lines and its log.
+- **The agent relay on Autoware 2.1.0.** 2.1.0's planning modules publish non-finite RTC
+  distances, which reach the relay as null, and the relay died and restarted on them. A null
+  distance is now an unknown one, and every optional protocol field takes its default when
+  it is null.
 
 - On Ubuntu 24.04, scensim 0.1.0's `pip install scensim` installed `scensim-ros-jazzy`
   0.1.0, a placeholder whose commands refuse and point to Ubuntu 22.04. 0.2.0 replaces it

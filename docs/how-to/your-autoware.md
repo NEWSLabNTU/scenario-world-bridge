@@ -1,24 +1,31 @@
 # Your Autoware
 
 Change how the `autoware` pilot runs Autoware: its arguments, your own launch or
-parameters, your own build, the fixes Autoware 1.5.0 lacks, and its TensorRT. It assumes a
-testbench with a working stack ([Tutorial 1](../tutorials/01-first-drive.md)).
+parameters, your own build, the fixes Autoware 1.5.0 lacks, and its TensorRT. It assumes
+your Autoware is connected ([Connect your Autoware](connect-autoware.md)).
 
 ## What the pilot runs
 
-An `autoware` pilot runs scensim's **Autoware profile** (`autoware_sim_profile`'s
-`autoware.launch.xml`, in `autoware_sim_vehicle`) around a stock `autoware.launch.xml`, with
-the car's packages (`vehicle_model`, `sensor_model`), plus the vehicle side (on CARLA, the
-vehicle bridge) and scensim's vehicle agent, all in the pilot's ROS domain.
+An `autoware` pilot runs the vehicle side (on CARLA, the vehicle bridge) and scensim's
+vehicle agent, and Autoware with the car's packages (`vehicle_model`, `sensor_model`), all in
+the pilot's ROS domain. Autoware is configured one of two ways
+([Connect your Autoware](connect-autoware.md#two-ways-to-configure-autoware)):
+
+- `autoware_profile: stock`, the default: your `autoware.launch.xml` as it is, told only
+  what a simulator needs;
+- `autoware_profile: scensim`: scensim's **Autoware profile** (`autoware_sim_profile`'s
+  `autoware.launch.xml`, in `autoware_sim_vehicle`) around it.
 
 ## Arguments
 
-A pilot's `args` reach the profile as launch arguments:
+A pilot's `args` reach Autoware as launch arguments. With `stock` they are your
+`autoware.launch.xml`'s; the table below is the profile's, with `autoware_profile: scensim`:
 
 ```yaml
 pilots:
   ego:
     kind: autoware
+    autoware_profile: scensim
     vehicle: tesla_model3
     rviz: true
     args: {max_velocity: "11.11", lidar_detection_model: centerpoint}
@@ -58,9 +65,11 @@ To change the arguments per run (a suite comparing two detectors), make the pilo
 
 ## Your own build
 
-Build your Autoware of the 1.5.0 release and source its `setup.bash` in `~/scensim.bash`
-instead of `/opt/autoware/1.5.0/setup.bash`, then rebuild this workspace against it. A
-different Autoware release is not supported.
+Source your Autoware build's `setup.bash` in `~/scensim.bash` instead of
+`/opt/autoware/1.5.0/setup.bash`, then rebuild the car's Autoware packages against it
+([Connect your Autoware](connect-autoware.md#import-and-build)). Its release must be one the
+packages support ([Supported Autoware releases](connect-autoware.md#supported-autoware-releases));
+the profile runs 1.5.0, 2.0.0 and 2.1.0.
 
 ## Fixes Autoware 1.5.0 lacks
 

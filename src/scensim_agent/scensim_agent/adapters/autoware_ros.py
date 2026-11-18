@@ -33,7 +33,7 @@ from sensor_msgs.msg import PointCloud2
 
 import scensim_agent
 
-from .autoware import AutopilotPort, AutowareAgent, Snapshot
+from .autoware import NO_RESPONSE, AutopilotPort, AutowareAgent, Snapshot
 
 # tier4 interfaces are optional: the agent degrades (no RTC, no emergency flag, no speed
 # limit) on an Autoware without them rather than refusing to start.
@@ -80,7 +80,8 @@ RTC_STATES = {0: "WAITING_FOR_EXECUTION", 1: "RUNNING", 2: "ABORTING", 3: "SUCCE
 # attempt and each retry queued another align behind the first. On Isaac Sim (scensim roadmap
 # 043) a freshly started stack on a host at load 40-60 kept NDT aligning for well over 30 s,
 # and each expired call again queued a retry behind the first. 60 s outlasts that; the
-# scenario's initialize_duration (120 s) bounds the whole start anyway.
+# scenario's initialize_duration (120 s) bounds the whole start anyway. The default of the
+# agent's `initialize_timeout` (adapters/autoware.py DEFAULTS), which sets the port's.
 INITIALIZE_TIMEOUT = 60.0
 
 CORE_SERVICES = ("initialize", "set_route_points", "clear_route", "change_to_autonomous",
@@ -269,7 +270,8 @@ class AutowarePort(AutopilotPort):
         future.add_done_callback(lambda _: done.set())
         if not done.wait(timeout or self.call_timeout):
             future.cancel()
-            return None, f"{client.srv_name}: no response in {timeout or self.call_timeout} s"
+            # NO_RESPONSE: the agent waits for a timed-out initialize's align (issue 046)
+            return None, f"{client.srv_name}: {NO_RESPONSE} {timeout or self.call_timeout} s"
         return future.result(), ""
 
     @staticmethod
@@ -296,7 +298,8 @@ class AutowarePort(AutopilotPort):
                           else self.node.get_clock().now().to_msg())
         _pose_msg(pose, p.pose.pose)
         request.pose = [p]
-        return self._adapi(self._call("initialize", request, timeout=INITIALIZE_TIMEOUT))
+        return self._adapi(self._call("initialize", request,
+                                      timeout=self.initialize_timeout or INITIALIZE_TIMEOUT))
 
     def set_route(self, goal, waypoints, allow_goal_modification, segments):
         if segments:

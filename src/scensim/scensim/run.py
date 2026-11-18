@@ -1080,6 +1080,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     procs, recorders = [], []
     ssv2 = None
     crashed = []   # pilots whose process crashed during the run
+    load_start = load_end = None
     try:
         for p, entry in (run_pilots if not infra else []):
             log_dir = logs / f"pilot-{p['entity']}"
@@ -1131,6 +1132,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         mark0 = slices.LogMark.take(proc_dir)
         episodes = episodesmod.Mark.take(rec.get("episodes") or {})
         t_start = time.time()
+        load_start = results.host_load()   # issue 046: every run records its host's load
         if not infra:
             wants = judgesmod.needed(config.project_settings(project).get("judges"))
             for name, domain, rargv in recordmod.plan(run_dir, capture, pilots,
@@ -1173,6 +1175,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                     infra.append(f"SSv2 did not end within {limit:.0f} s; stopped")
                 run_events.append({"t_wall": time.time(), "event": "ssv2.exit", "code": code})
         t_end = time.time()
+        load_end = results.host_load()
         mark1 = slices.LogMark.take(proc_dir)
     finally:
         # SSv2 first: interrupted, it would go on talking to the stack's bridge and join the
@@ -1217,6 +1220,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 launcher=launchermod.of(rec),  # 079: which launcher ran the stack
                 spec_hash=rec.get("spec_hash") or {})
+    if load_start is not None:
+        prov["load"] = {"start": load_start, "end": load_end or results.host_load()}
     overlays = {p["entity"]: p["overlays"] for p in pilots if p.get("overlays")}
     if overlays:
         prov["overlays"] = overlays   # each pilot's own workspaces, path and commit (G60)

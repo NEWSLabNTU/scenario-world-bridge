@@ -231,10 +231,16 @@ ros2 run scensim_agent autoware_agent \
 
 `agent.yaml` takes `use_sim_time` (true for a simulator) and the bounds: `ready_timeout`
 (60 s), `scan_wait` (10), `scans_required` (2), `converge_timeout` (30),
-`initialize_attempts` (5), `engage_retry` (3), `settle` (2). An initialize
+`initialize_attempts` (5), `initialize_timeout` (60, one `/api/localization/initialize`
+call), `align_wait` (60), `engage_retry` (3), `settle` (2). An initialize
 found unavailable (Autoware's services restarting mid-reset, e.g. a healer restarting a hung
 ADAPI container) is not an attempt: the agent waits for the services, up to
-`ready_timeout`. `scensim_launch vehicle_agent.launch.xml` takes the same file as
+`ready_timeout`. An initialize call that times out is not cancelled in Autoware, so the agent
+does not call again while localization reports INITIALIZING (up to `align_wait`); if that
+align ends at the reset pose, the reset goes on from there (issue 046). The relay's
+`reset_timeout` bounds the whole reset: raise both together on a loaded host. An `autoware`
+pilot with a relay starts Autoware without its GNSS initializer (`gnss_enabled:=false`), as
+the agent always initializes at the scenario's pose. `scensim_launch vehicle_agent.launch.xml` takes the same file as
 `agent_config:=agent.yaml`, and an `autoware` pilot as `args: {agent_config: ...}`. Each step is a method to override in a subclass:
 
 ```python

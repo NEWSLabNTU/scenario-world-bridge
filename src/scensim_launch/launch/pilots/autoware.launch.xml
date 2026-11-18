@@ -50,6 +50,11 @@
   <arg name="agent_config" default="" description="the vehicle agent's settings (YAML/JSON); empty = defaults"/>
   <arg name="goal_poses_file" default="" description="local mode's goal when relay is none"/>
   <arg name="rviz" default="false" description="Autoware's RViz (a display is needed; the pilot's `rviz: true`)"/>
+  <!-- issue 046: a managed ego (a relay) is initialized by its agent at the scenario's pose, so
+       Autoware's automatic_pose_initializer (a GNSS initialization at start) only competes with
+       it and queues a second NDT align; local mode keeps Autoware's default. Needs
+       autoware_sim_profile's gnss_enabled argument (an older profile ignores it). -->
+  <arg name="gnss_enabled" default="$(eval &quot;'true' if '$(var relay)' == 'none' else 'false'&quot;)" description="GNSS for the initial pose; default false with a relay (the agent initializes), true in local mode"/>
 
 
   <include file="$(find-pkg-share scensim_launch)/launch/pilots/vehicle_side.launch.xml">
@@ -81,6 +86,7 @@
     <arg name="sensor_model" value="$(var sensor_model)"/>
     <arg name="traffic_light_fusion_only" value="$(var traffic_light_fusion_only)"/>
     <arg name="publish_ground_truth_objects" value="$(var publish_ground_truth_objects)"/>
+    <arg name="gnss_enabled" value="$(var gnss_enabled)"/>
   </include>
   </group>
 </launch>

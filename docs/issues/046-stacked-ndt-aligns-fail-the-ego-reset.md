@@ -95,3 +95,25 @@ and `runs show` prints it. This is part of the same fix.
 - `/home/aeon/swb-logs/my_first_drive/runs/*drive_to_goal*/result.json`
 - `/home/aeon/coop-c3/r080/exit/run3/` on newslab-server-241 (run consoles), and
   `aligns.sh` there, which prints each align's duration from a stack directory
+
+## Fix (this branch)
+
+- **a.** The agent (`adapters/autoware.py`) marks an initialize call that got no answer
+  (the port's `NO_RESPONSE` message) and, before any further call, waits while localization
+  reports INITIALIZING, up to `align_wait` (60 s), without spending an attempt. When the
+  align ends with the estimate at the reset pose, the reset goes on to converge from there;
+  otherwise the agent calls again. A refused call is not taken for an align in flight.
+- **b.** `scensim_launch`'s `autoware` pilot declares `gnss_enabled`, default false with a
+  relay (a managed ego) and true in local mode, and passes it to `autoware_sim_profile`'s
+  `autoware.launch.xml`. The profile's argument is 118's, on autoware_sim_vehicle branch
+  `046-gnss-enabled` (05453ca, 29ee349); a profile without it ignores the value, so this
+  branch is safe before the pin moves. The pin moves once that branch is on
+  autoware_sim_vehicle's main.
+- **c.** The agent's per-call budget is the setting `initialize_timeout` (60 s, handed to the
+  port); the relay's `reset_timeout` parameter (60 s) now says why in its description.
+- **Load.** `scensim run` records `provenance.load` in `result.json`: `/proc/loadavg` and the
+  core count at the run's start and end (`results.host_load`), and `runs show` prints it.
+- Tests: the agent's timed-out align taking the pose (one call), ending elsewhere (a second
+  call only after it ends), staying INITIALIZING (fails after `align_wait`, one call), a
+  refusal (unchanged); the pilot's `gnss_enabled` evaluated with and without a relay; the
+  load in a run's result and in `runs show`.

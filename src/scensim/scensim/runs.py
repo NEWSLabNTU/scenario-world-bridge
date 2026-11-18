@@ -160,6 +160,21 @@ def find_run(root: Path, ident: str) -> Path:
                   + (" ..." if len(hits) > 5 else ""))
 
 
+def _load(r) -> str:
+    """The host's load at the run's start and end (issue 046), or ""."""
+    load = ((r or {}).get("provenance") or {}).get("load") or {}
+
+    def one(sample):
+        avg = (sample or {}).get("loadavg")
+        return "/".join(f"{x:g}" for x in avg) if avg else "?"
+
+    if not load:
+        return ""
+    cores = (load.get("start") or load.get("end") or {}).get("cores")
+    return (f"start {one(load.get('start'))}, end {one(load.get('end'))} (1/5/15 min"
+            + (f", {cores} cores)" if cores else ")"))
+
+
 def _duration(r):
     d = ((r or {}).get("metrics") or {}).get("duration_s")
     return f"{d:.1f}s" if isinstance(d, (int, float)) else "-"
@@ -233,6 +248,9 @@ def _header(d, r, out):
         out.write(f"reason    {r['reason']}\n")
     out.write(f"scenario  {(r.get('scenario') or {}).get('file', '-')}\n")
     out.write(f"duration  {_duration(r)}\n")
+    load = _load(r)
+    if load:
+        out.write(f"load      {load}\n")
 
 
 def cmd_show(args, out):

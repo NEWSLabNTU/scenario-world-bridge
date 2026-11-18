@@ -47,6 +47,17 @@ class Release:
             art = by_arch.get("vehicle", {}).get(f"autoware{autoware}")
             if art is None:
                 have = ", ".join(sorted(by_arch.get("vehicle", {}))) or "none"
+                distro = self.manifest.get("ros_distro", "")
+                if not by_arch.get("vehicle") and distro and distro != "humble":
+                    # the vehicle side is Autoware's packages, and Autoware 1.5.0 is built
+                    # for Humble only: building it from source on this ROS does not work
+                    raise Refused(
+                        f"no prebuilt vehicle side for Autoware {autoware} in scensim "
+                        f"{self.version} for ROS 2 {distro}: the vehicle side runs on ROS 2 "
+                        f"Humble only (Autoware 1.5.0 is built for Humble). On {distro}, "
+                        f"scensim runs the simulation side: use pilots that are not Autoware, "
+                        f"or run the Autoware ego from a Humble install"
+                    )
                 raise Refused(
                     f"no prebuilt vehicle side for Autoware {autoware} in scensim {self.version} "
                     f"(this release has: {have}); build the vehicle packages from source in your "

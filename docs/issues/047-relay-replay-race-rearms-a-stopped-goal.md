@@ -92,3 +92,11 @@ Running the relay tests 24 times for the fix, one run failed in
 state arrives, so a poll that comes first raises instead of waiting. A test-only race, not the
 relay's; the polls in `test_sdk_client.py` and `test_episodes.py` now read
 `(state or {}).get("phase")`.
+
+## Found on the way: a load-sensitive runner test
+
+`src/scensim/test/test_run.py::test_sigterm_stops_what_the_runner_started` failed once in a full
+scensim test run on newslab-server-241 at load ~12 (2026-11-18, testing the issue 046 branch,
+which does not touch it). It passed run alone and in a rerun of the three runner test files
+(85 passed). Load-sensitive, not fixed here; noted so a failure under load is not taken for a
+regression.

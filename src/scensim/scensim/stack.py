@@ -709,7 +709,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             env["ISAAC_KIT_ARGS"] = isaac_kit_args(os.environ.get("ISAAC_KIT_ARGS", ""), s.gpu)
     # Isaac's world server finds its install by ISAAC_ROOT; the host settings' isaac.root
     isaac_root = str((host.get("isaac") or {}).get("root") or "")
-    if sim == "isaac" and isaac_root and not server:
+    if sim == "isaac" and isaac_root:
         env["ISAAC_ROOT"] = os.path.expanduser(isaac_root)
 
     ego_domain = s.pilot_domains[0]

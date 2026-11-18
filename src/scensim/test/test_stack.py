@@ -478,6 +478,14 @@ def test_isaac_root_reaches_the_world_server(where, maps_hub, monkeypatch):
     h["autoware"] = {"setup": str(setup)}
     sysf.write_text(yaml.safe_dump(h))
     assert stack.plan(project_arg=str(d)).env["ISAAC_ROOT"] == str(where["tmp"] / "isaac-sim")
+    # an Isaac project's own world server gets the host's ISAAC_ROOT too (own_world: the host's
+    # environment still reaches it), but none of the stock server's arguments
+    tb = d / "testbench.yaml"
+    tb.write_text(tb.read_text() + "world: {server: [my_isaac_world, my_server]}\n")
+    p = stack.plan(project_arg=str(d))
+    assert p.env["ISAAC_ROOT"] == str(where["tmp"] / "isaac-sim")
+    assert p.launch_args["world_server"] == "my_isaac_world my_server"
+    assert p.launch_args["sim_args"] == "" and p.record["isaac_ego"] is None
 
 
 def test_retired_args_refused_by_name(where, maps_hub):

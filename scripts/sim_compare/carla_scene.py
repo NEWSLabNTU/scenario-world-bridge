@@ -52,8 +52,8 @@ try:
         p = inv @ np.array([l.x, l.y, l.z, 1.0])
         truth[k] = [round(p[0] - rear, 2), round(-p[1], 2)]
     json.dump(truth, open(out, "w"), indent=1); print("truth", truth, flush=True)
-    err = max(math.hypot(truth[k][0] - car["centre"][0], truth[k][1] - car["centre"][1])
-              for k, car in s["cars"].items())
+    err = max((math.hypot(truth[k][0] - car["centre"][0], truth[k][1] - car["centre"][1])
+               for k, car in s["cars"].items()), default=0.0)
     if err > 0.05:  # a Model 3's box centre is 3 cm off its actor origin
         raise SystemExit(f"cars placed up to {err:.2f} m from the scene's centres")
     print("SCENE-READY", flush=True)

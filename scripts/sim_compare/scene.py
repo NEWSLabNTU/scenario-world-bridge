@@ -5,9 +5,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def load(path=os.path.join(HERE, "lidar_compare.yaml")):
     s = yaml.safe_load(open(path))
     e = s["ego"]["carla"]
-    ex, ey, eyaw = e["x"], -e["y"], math.radians(-e["yaw"])     # CARLA -> map
-    s["ego_map"] = (ex, ey, eyaw)
+    # CARLA spawns the actor's origin there; base_link (the rear axle, the Isaac entity's
+    # origin) is rear_axle_m along the actor's heading from it (-1.386 m on a Model 3)
+    eyaw = math.radians(-e["yaw"])                                  # CARLA -> map
     c, sn = math.cos(eyaw), math.sin(eyaw)
+    ra = s["ego"]["rear_axle_m"]
+    ex, ey = e["x"] + c * ra, -e["y"] + sn * ra
+    s["ego_map"] = (ex, ey, eyaw)
     bx = s["box_centre_m"][0]
     s["cars_map"] = {}
     for name, car in s["cars"].items():

@@ -62,6 +62,11 @@ STEP = 0.05
 sub = max(1, round(STEP / dt))
 t = time.time()
 o = wy.get("map_origin", [0, 0, 0])
+if any(o):
+    # the scene's poses are map-frame and go to the world server as they are; the bridge would
+    # subtract map_origin first, which this script does not
+    raise SystemExit(f"{world_yaml}: map_origin {o} is not zero; isaac_scene.py places map-frame "
+                     f"poses as they are and supports only a zero map_origin")
 lw = call(load_world=P.LoadWorld(world=wy["usd"], ground_paths=wy.get("ground_paths", []),
                                  map_dir=map_dir, lanelet2_map_path=f"{map_dir}/lanelet2_map.osm",
                                  map_origin=P.Vec3(x=o[0], y=o[1], z=o[2]), step_time=STEP,
@@ -142,8 +147,8 @@ for name, (hd, p) in npcs.items():
 json.dump(truth, open(OUT, "w"), indent=1)
 json.dump(full, open(OUT.replace(".json", "_full.json"), "w"), indent=1)
 print("truth", truth, flush=True)
-err = max(math.hypot(truth[k][0] - c["centre"][0], truth[k][1] - c["centre"][1])
-          for k, c in SCENE["cars"].items())
+err = max((math.hypot(truth[k][0] - c["centre"][0], truth[k][1] - c["centre"][1])
+           for k, c in SCENE["cars"].items()), default=0.0)
 if err > 0.05:
     raise SystemExit(f"cars placed up to {err:.2f} m from the scene's centres")
 print("SCENE-READY", flush=True)

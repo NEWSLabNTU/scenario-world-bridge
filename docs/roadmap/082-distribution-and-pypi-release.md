@@ -83,11 +83,11 @@ packages keep their versions): uninstall, then install `autoware-full-1-5-0` aga
 
 Each Ubuntu LTS pairs one ROS LTS with one system Python, and apt ROS runs on that Python:
 
-| Ubuntu | ROS 2 | Python |
-|---|---|---|
-| 22.04 | Humble | 3.10 |
-| 24.04 | Jazzy | 3.12 |
-| 26.04 | Lyrical | (to be checked) |
+| Ubuntu | ROS 2 | Python | Released |
+|---|---|---|---|
+| 22.04 | Humble | 3.10 | 0.1.0: the simulation side and the vehicle side (Autoware 1.5.0) |
+| 24.04 | Jazzy | 3.12 | 0.2.0: the simulation side only (Autoware 1.5.0 is Humble only); 0.1.0's scensim-ros-jazzy is a placeholder whose commands refuse, naming 22.04 |
+| 26.04 | Lyrical | (to be checked) | none |
 
 - **`scensim`** (pure Python, `py3-none-any`): a thin front end and `colcon-scensim`. It
   imports no ROS. Its metadata requires the release package by environment marker:
@@ -169,8 +169,8 @@ To fix before the release build is scripted (each in step 2, or step 4 for `pack
 
 | Where | What |
 |---|---|
-| GitHub Release `v<ver>` | `scensim-sim-<ver>-humble-x86_64.tar.zst`, `scensim-vehicle-<ver>-autoware1.5.0-x86_64.tar.zst` (more rows per ROS and Autoware release later), `SHA256SUMS`, the notes |
-| PyPI | `scensim` (front end + plugin), `scensim-ros-humble` (the manifest), `colcon-scensim` (the plugin alone) |
+| GitHub Release `v<ver>` | `scensim-sim-<ver>-humble-x86_64.tar.zst`, from 0.2.0 `scensim-sim-<ver>-jazzy-x86_64.tar.zst`, `scensim-vehicle-<ver>-autoware1.5.0-x86_64.tar.zst` (more rows per ROS and Autoware release later), one `SHA256SUMS` for all, the notes |
+| PyPI | `scensim` (front end + plugin), `scensim-ros-humble` and from 0.2.0 `scensim-ros-jazzy` (the manifests), `colcon-scensim` (the plugin alone) |
 | git | the annotated tag `v<ver>` on the commit the artefacts were built from |
 
 ### The workflow (`.github/workflows/release.yml`)
@@ -223,6 +223,7 @@ published wheel ever names a missing file.
   | PyPI project name | Environment name | Required reviewer | Order |
   |---|---|---|---|
   | `scensim-ros-humble` | `pypi-scensim-ros-humble` | the user | 1 |
+  | `scensim-ros-jazzy` | `pypi-scensim-ros-jazzy` | none | 2 (from 0.2.0; 0.1.0's placeholder was published on its own) |
   | `colcon-scensim` | `pypi-colcon-scensim` | none | 2 |
   | `scensim` | `pypi` | none | 3 |
 
@@ -265,8 +266,13 @@ Each step is pushed after review, with its tests.
    2026-11-18).
 6. **Docs for users** (243): the install page, pip first, both Ubuntu releases' pip forms,
    the source build second.
-7. **Jazzy**, its own phase (029's note stands: the SSv2 fork and acb are Humble-only; Jazzy
-   needs Ubuntu 24.04). This phase makes it one more matrix row; Lyrical after.
+7. **Jazzy**, its own phase, one more matrix row in release.yml (0.2.0); Lyrical after.
+   The feasibility build (118, 2026-11-18, ros:jazzy) found 029's note no longer holds:
+   the SSv2 fork and acb build on Jazzy. What Jazzy needs: libclang 14 for carla-sys
+   (autocxx's bindings drop `const` with 18), `--break-system-packages` and
+   `PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1` for pip and rosdep's pip keys
+   (PEP 668), the release package `scensim-ros-jazzy`. The simulation side only: Autoware
+   1.5.0 is Humble only, and the front end refuses the vehicle side on Jazzy by name.
 8. **Exit runs.**
 
 ## Exit criteria

@@ -20,7 +20,7 @@ itself, or for a platform without a release; it is described in
 
 | | Tested with |
 |---|---|
-| Ubuntu and ROS 2 | Ubuntu 22.04 with ROS 2 Humble from apt ([install](https://docs.ros.org/en/humble/Installation.html)) |
+| Ubuntu and ROS 2 | Ubuntu 22.04 with ROS 2 Humble from apt ([install](https://docs.ros.org/en/humble/Installation.html)), or Ubuntu 24.04 with ROS 2 Jazzy from apt ([install](https://docs.ros.org/en/jazzy/Installation.html)) for the simulation side only |
 | An autopilot | Autoware 1.5.0, from its binary packages under `/opt/autoware/1.5.0` or a workspace of your own ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/)) |
 | A simulator | CARLA 0.9.16 ([next page](carla.md)), or Isaac Sim 6.1 ([Isaac Sim](isaac.md)) |
 | A GPU | an NVIDIA card with room for both: on one host CARLA on Town01 held about 2.0 to 2.5 GB of video memory, one Autoware about 1 to 2 GB |
@@ -30,7 +30,8 @@ Memory and processors, for the first drive: CARLA held about 2.4 GB of RAM and 2
 Town01; Autoware is about 90 processes and loads every core while it starts. Isaac Sim
 needs considerably more (an RTX card with 24 GB, 64 GB of RAM).
 
-Ubuntu 24.04 with ROS 2 Jazzy has no release yet: see [Ubuntu 24.04](#ubuntu-2404).
+On Ubuntu 24.04 with ROS 2 Jazzy, scensim runs the simulation side only: Autoware 1.5.0 is
+built for Humble, so an Autoware ego runs from a Humble install. See [Ubuntu 24.04](#ubuntu-2404).
 
 ## Install with pip
 
@@ -43,7 +44,7 @@ scensim install
 ```
 
 pip installs a small front end. It chooses the build for your ROS release from the
-Python version (3.10 is Humble). `scensim install` downloads that build, checks its size
+Python version (3.10 is Humble, 3.12 is Jazzy). `scensim install` downloads that build, checks its size
 and checksum, and unpacks it under `~/.local/share/scensim/`. When an Autoware is
 sourced, it also downloads the vehicle side built for that Autoware release. If this step
 is omitted, the first command that needs scensim performs it and says so; `scensim
@@ -80,6 +81,9 @@ rosdep update
 sudo rosdep install --from-paths ~/.local/share/scensim/current/sim/share \
     --ignore-src -y
 ```
+
+On Ubuntu 24.04 the printed line starts with `PIP_BREAK_SYSTEM_PACKAGES=1
+PIP_IGNORE_INSTALLED=1`; keep it as printed (see [Ubuntu 24.04](#ubuntu-2404)).
 
 On Ubuntu 22.04 and 24.04 this installs a brotli older than 1.2, with which huggingface_hub
 cannot download the assets, so `scensim assets fetch` takes them over plain HTTPS instead.
@@ -217,9 +221,23 @@ source ~/.venvs/scensim/bin/activate
 pip install scensim
 ```
 
-The build for ROS 2 Jazzy is not released yet. Until it is, pip installs the front end
-alone, and its first command refuses with `no prebuilt scensim for ROS jazzy yet; build
-from source`, followed by a link to [From source](#from-source).
+From scensim 0.2.0, pip installs the build for ROS 2 Jazzy there. It is the simulation side
+only: the vehicle side is built for Autoware 1.5.0, and Autoware 1.5.0 runs on ROS 2 Humble
+only. With an Autoware sourced, or with `scensim install --autoware 1.5.0`, scensim refuses
+before it downloads anything and says so. Use pilots that are not Autoware, or run the
+Autoware ego from a Humble install. scensim 0.1.0 has no Jazzy build: on Ubuntu 24.04 its
+commands say so and point to Ubuntu 22.04.
+
+The rosdep line `scensim install` prints on Ubuntu 24.04 is
+
+```bash
+sudo PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 rosdep install \
+    --from-paths ~/.local/share/scensim/current/sim/share --ignore-src -y
+```
+
+Two of the keys are Python packages that rosdep installs with pip. The first setting lets
+pip install them beside Ubuntu's own packages. The second lets them bring newer copies of
+packages Ubuntu installed (typing_extensions, idna), which pip cannot remove.
 
 ## Updating, and several versions
 
@@ -245,6 +263,16 @@ python3 -m pip install --user colcon-cargo-ros2
 git clone https://github.com/NEWSLabNTU/scensim.git ~/scensim
 cd ~/scensim
 ```
+
+On Ubuntu 24.04 with Jazzy, build the simulation side only, and three things differ:
+
+- the CARLA client library compiles with libclang 14, not Ubuntu 24.04's default 18:
+  `sudo apt install libclang-14-dev` and `export LIBCLANG_PATH=/usr/lib/llvm-14/lib`;
+- pip needs `--break-system-packages`:
+  `python3 -m pip install --user --break-system-packages colcon-cargo-ros2`;
+- rosdep needs the two settings of [Ubuntu 24.04](#ubuntu-2404):
+  `sudo PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 rosdep install ...`, and
+  `/opt/ros/jazzy` takes the place of `/opt/ros/humble` below.
 
 scensim has two sides. The **simulation side** (the scenario runner, the bridge, the world
 servers) needs only ROS 2; the **vehicle side** (the CARLA and Isaac Sim vehicle bridges

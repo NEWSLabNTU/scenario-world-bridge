@@ -448,6 +448,36 @@ at the G0 fresh-seed check, as the brief said.**
   diagnosis 7, 8, 12, 13, 21.
 - **Next: the scensim grid** (`grid.sh` and the EV4 addendum).
 
+**Phase 2f, the scensim grid on the crossing (133, 2026-11-18/19; scensim main aeedbce, czp
+4208162; NAS `logs/2026 SSv2 on CARLA/2026-11-18 078 P2 crossing grid/`). Fails on Autoware.**
+- Autoware egos on CARLA 0.9.16, Town01's j108210 crossing, against the scripted other car;
+  64 runs (one setup failure, rerun valid), the stock arm (group d) on the same build.
+
+  | cell | arm | n | contacts | ego first | last out (s) | wait (s) |
+  |---|---|---|---|---|---|---|
+  | left, t1.5p5, all Δt (seeds 0-3) | stock | 20 | 0 | 18 | 14.2 | 7.5 |
+  | left, t1.5p5, all Δt | czp | 20 | **5** | 3 | 17.5 | 9.2 |
+  | left, t1.5p5, Δt −0.3/0/0.3 | stock | 12 | 0 | 12 | 16.5 | 11.0 |
+  | left, t1.5p5, Δt −0.3/0/0.3 | czp | 12 | **5** | 0 | 20.7 | 12.7 |
+  | left, hold rule (EV5) | stock | 6 | 1 | 1 | 13.6 | 1.7 |
+  | left, hold rule | czp | 6 | 0 | 0 | 12.4 | 2.5 |
+  | right, t1.5p5 | stock | 6 | 0 | 6 | 8.5 | 0.2 |
+  | right, t1.5p5 | czp | 6 | 0 | 6 | 8.4 | 0.2 |
+
+- **EV4 passes:** held-out e99 pooled 0-30 m (tracks ≥ 0.5 s) 0.528 s ≤ 0.55 (n 1699; fit 0.468).
+- **The contacts are the mutual-rest case on a real Autoware:** both cars stop, wait ~5 s, and
+  both go. czp's log: `rest_tie_wait`, then `rest_tie` go about 3 s after the later rest, a
+  `round2` go, then a seen start (`turn`, yield) after it is already `inside`. The t1.5p5 car's
+  5 s patience lands on czp's guard: Autoware's launch from rest is longer than the arena's
+  kinematic launch, which the guard (dwell + launch + see delay, 3.0 s) assumes. czp's `self`
+  contract also fails for single ticks (value ~0.02), handing the decision to stock and back.
+- Stock never waits for a tie: it goes first in 18 of 20 and clears sooner. czp yields more
+  (ego first 3 of 20) and is slower to clear, so on this cell it is worse on both safety and
+  time.
+- **Next:** measure Autoware's launch from rest and its seen-start delay on the crossing,
+  set the guard from them, fix the `self` contract's flicker, then the arena's launch model
+  to match, and rerun this cell (seeds not used here) before the full grid.
+
 ### Phase 3: test runs
 
 | step | what | measures |

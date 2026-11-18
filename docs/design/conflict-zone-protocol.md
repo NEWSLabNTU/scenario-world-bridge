@@ -269,6 +269,22 @@ error once measured. Roadmap 078's evaluation phase replaces them.
   `own_base_to_centre` from the spec. Autoware takes about 1.4 s from ACTIVATE at rest to motion,
   so a go from rest must stay latched until the car moves.
 
+- **Phase 2e (078, 2026-11-18): the guard runs from the later rest.** A car that ignores the convention
+  restarts a patience after the *mutual* rest, not after its own. So every go against a car at rest at its
+  line, or just come to rest there, waits one fresh-rest guard (`stop_dwell` + its `launch_dead` +
+  `see_delay`, 3.0 s) counted from the later of the two rests. This covers `rest_tie`, a band `clear`, a
+  role-first go and a tie. An own car still rolling below `moved_speed` has its rest still to come, so it
+  waits. A tie also needs the own car at rest, or past its commit point. Two cases are exempt:
+  - the own car past its commit point;
+  - a `clear` or first go while the own car moves at or above `moved_speed`. Holding that go made the car
+    stop and then meet a patient rule's restart; the commit point alone as the exemption brought that
+    cost back.
+
+  A car stopped right at the zone's edge counts as at rest even without a rest stamp, from the stamp since
+  which it has been still. The all-way stop row keeps 074 C8's rules. The guard covers restarts up to about
+  `stop_dwell` after the mutual rest. In the formal check, an adversary with 0-1 s of patience is safe and
+  one with 2 s is not. A longer patience is met only by the other car's own safety layer, as with stock.
+
 ## Open questions
 
 - The commit point for a lane change inside Autoware's module: where RTC can still deny.

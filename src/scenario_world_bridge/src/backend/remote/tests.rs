@@ -910,6 +910,60 @@ fn a_world_path_expands_variables_and_home() {
 }
 
 #[test]
+fn a_published_world_files_old_usd_token_is_expanded_from_scensim_carla_usd() {
+    // The map datasets published before roadmap 080 write `${SWB_CARLA_USD}`: a data-format
+    // token, expanded from SCENSIM_CARLA_USD, never read from the environment by its own name.
+    let with = |pairs: &'static [(&'static str, &'static str)]| {
+        move |name: &str| {
+            pairs
+                .iter()
+                .find(|(k, _)| *k == name)
+                .map(|(_, v)| v.to_string())
+        }
+    };
+    let set = with(&[("SCENSIM_CARLA_USD", "/data/carla-usd")]);
+    assert_eq!(
+        expand_path("${SWB_CARLA_USD}/Town01/Town01_physics.usda", set).unwrap(),
+        "/data/carla-usd/Town01/Town01_physics.usda"
+    );
+    assert_eq!(
+        expand_path("$SWB_CARLA_USD/T.usd", set).unwrap(),
+        "/data/carla-usd/T.usd"
+    );
+    // Unset: the error names the variable to set, not the token.
+    let e = expand_path("${SWB_CARLA_USD}/Town01/x.usd", with(&[])).unwrap_err();
+    assert!(e.contains("SCENSIM_CARLA_USD"), "{e}");
+    assert!(!e.contains("SWB_"), "{e}");
+    // An SWB_CARLA_USD in the environment does not stand in for it (no shims).
+    let old_only = with(&[("SWB_CARLA_USD", "/old/carla-usd")]);
+    let e = expand_path("${SWB_CARLA_USD}/Town01/x.usd", old_only).unwrap_err();
+    assert!(e.contains("SCENSIM_CARLA_USD"), "{e}");
+}
+
+#[test]
+fn a_world_file_with_the_old_usd_token_resolves_through_scensim_carla_usd() {
+    let dir = std::env::temp_dir().join(format!("scensim-world-token-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("isaac")).unwrap();
+    let map = dir.join("lanelet2_map.osm");
+    std::fs::write(
+        dir.join("isaac/world.yaml"),
+        "usd: ${SWB_CARLA_USD}/Town01/Town01_physics.usda\nmap_origin: [0.0, 0.0, 0.0]\n",
+    )
+    .unwrap();
+    let var = |name: &str| (name == "SCENSIM_CARLA_USD").then(|| "/data/carla-usd".to_string());
+    let (w, _) = WorldFile::for_map_with("isaac", &map.to_string_lossy(), var).unwrap();
+    assert_eq!(w.world, "/data/carla-usd/Town01/Town01_physics.usda");
+    let e = WorldFile::for_map_with("isaac", &map.to_string_lossy(), |_| None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        e.contains("SCENSIM_CARLA_USD") && !e.contains("SWB_"),
+        "{e}"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn an_absent_box_is_the_kinds_default() {
     let (_, dims, declared) = entity_box(None, wire::Kind::Vehicle);
     assert_eq!((dims, declared), ([4.5, 2.1, 1.8], false));

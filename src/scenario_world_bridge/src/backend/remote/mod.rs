@@ -101,6 +101,15 @@ impl WorldFile {
     /// read from (`None`: the default). A file that does not parse is an error, not a silent
     /// default. CARLA's maps may instead carry only `carla/map_origin.yaml` (the older file).
     pub fn for_map(name: &str, lanelet2_map_path: &str) -> eyre::Result<(Self, Option<PathBuf>)> {
+        Self::for_map_with(name, lanelet2_map_path, |v| std::env::var(v).ok())
+    }
+
+    /// `for_map`, with the world path's variables taken from `var` (tests).
+    fn for_map_with(
+        name: &str,
+        lanelet2_map_path: &str,
+        var: impl Fn(&str) -> Option<String>,
+    ) -> eyre::Result<(Self, Option<PathBuf>)> {
         let map_dir = map_dir_of(Path::new(lanelet2_map_path));
         let path = map_dir.join(Self::subpath(name));
         if !path.exists() {
@@ -117,9 +126,10 @@ impl WorldFile {
             .map_err(|e| eyre::eyre!("read {}: {e}", path.display()))?;
         let mut world: Self = serde_yaml::from_str(&text)
             .map_err(|e| eyre::eyre!("parse {}: {e}", path.display()))?;
-        // Variables and `~` first (`${SCENSIM_CARLA_USD}/Town01/...`), so an expanded path is
+        // Variables and `~` first (`${SCENSIM_CARLA_USD}/Town01/...`; a published file's
+        // `${SWB_CARLA_USD}` is a data-format token for it, `FILE_TOKENS`), so an expanded path is
         // never taken for one beside the map.
-        world.world = expand_path(&world.world, |v| std::env::var(v).ok())
+        world.world = expand_path(&world.world, var)
             .map_err(|e| eyre::eyre!("{}: world: {e}", path.display()))?;
         // A world named by a path beside the map is resolved against the map directory.
         if !world.world.is_empty() && Path::new(&world.world).is_relative() {
@@ -132,11 +142,28 @@ impl WorldFile {
     }
 }
 
+/// The variable that names the CARLA USD set's root (the stack sets it).
+const CARLA_USD_ENV: &str = "SCENSIM_CARLA_USD";
+
+/// Tokens of published world files that are data-format names, not settings: each is
+/// expanded from the variable it maps to, and is never read from the environment itself
+/// (roadmap 080's data-format exceptions). The map datasets published before the rename
+/// write `${SWB_CARLA_USD}/<Town>/...`. Mirrors the Isaac world server's
+/// `scensim_isaac_world/names.py` (`CARLA_USD_FILE_TOKEN`, listed in `renamed.py`).
+const FILE_TOKENS: &[(&str, &str)] = &[("SWB_CARLA_USD", CARLA_USD_ENV)];
+
 /// A path with its `${VAR}` and `$VAR` replaced by `var(VAR)` and a leading `~` (alone or
-/// before `/`) by `HOME`. A variable that is unset is an error naming it; a `$` not followed
-/// by a name stays as it is.
+/// before `/`) by `HOME`. A data-format token (`FILE_TOKENS`) is replaced by the variable it
+/// maps to. A variable that is unset is an error naming it (for a token, the variable it
+/// maps to); a `$` not followed by a name stays as it is.
 fn expand_path(text: &str, var: impl Fn(&str) -> Option<String>) -> Result<String, String> {
-    let lookup = |name: &str| var(name).ok_or_else(|| format!("${{{name}}} is not set"));
+    let lookup = |name: &str| {
+        let name = FILE_TOKENS
+            .iter()
+            .find(|(token, _)| *token == name)
+            .map_or(name, |(_, to)| *to);
+        var(name).ok_or_else(|| format!("${{{name}}} is not set"))
+    };
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     if rest == "~" || rest.starts_with("~/") {

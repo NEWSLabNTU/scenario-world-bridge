@@ -116,3 +116,34 @@ def test_an_old_directory_is_not_read_and_its_move_is_printed(tmp_path, monkeypa
     assert f"mv {proj}/.swb {proj}/.scensim" in err
     (tmp_path / ".config" / "scensim").mkdir()
     assert (tmp_path / ".config" / "swb", tmp_path / ".config" / "scensim") not in config.old_dirs(proj)
+
+
+def test_an_old_directory_is_hinted_once_not_on_every_command(tmp_path, monkeypatch, capsys):
+    """issue 058: the hint leaves a marker in the old directory, so a later process (the next
+    command) does not repeat it; the new directory is not made, so the printed mv renames."""
+    monkeypatch.delenv("SCENSIM_CONFIG_HOME", raising=False)
+    monkeypatch.setattr(config.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(config, "_hinted", set())
+    (tmp_path / ".cache" / "swb").mkdir(parents=True)
+    config.host_settings()
+    assert "mv " + str(tmp_path / ".cache" / "swb") in capsys.readouterr().err
+    assert (tmp_path / ".cache" / "swb" / config.HINTED_MARKER).is_file()
+    assert not (tmp_path / ".cache" / "scensim").exists()
+    monkeypatch.setattr(config, "_hinted", set())   # the next command: a new process
+    config.host_settings()
+    assert "old name" not in capsys.readouterr().err
+
+
+def test_an_unwritable_old_directory_is_hinted_once_per_process(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("SCENSIM_CONFIG_HOME", raising=False)
+    monkeypatch.setattr(config.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(config, "_hinted", set())
+    old = tmp_path / ".local" / "state" / "swb"
+    old.mkdir(parents=True)
+    old.chmod(0o500)
+    try:
+        config.host_settings()
+        config.host_settings()
+        assert capsys.readouterr().err.count("mv " + str(old)) == 1
+    finally:
+        old.chmod(0o700)

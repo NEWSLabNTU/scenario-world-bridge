@@ -57,6 +57,24 @@ def test_fetch_takes_links_and_locks(host, maps_hub):
     assert any("scensim.lock written" in o for o in out)
 
 
+def test_a_linked_lock_is_named_from_the_working_directory(host, maps_hub, monkeypatch):
+    """issue 058: a testbench's lock links to its source; the line names it as Tutorial 1 shows,
+    relative to where the command ran when below it, else absolute."""
+    p = project(host["tmp"], MAP_PROJECT)
+    src = host["tmp"] / "ws" / "src" / "tb"
+    src.mkdir(parents=True)
+    (p / "scensim.lock").symlink_to(src / "scensim.lock")
+    monkeypatch.chdir(host["tmp"] / "ws")
+    out = []
+    assets.fetch(p, out=out.append)
+    assert "src/tb/scensim.lock written" in out
+    (src / "scensim.lock").unlink()
+    monkeypatch.chdir(p)
+    out = []
+    assets.fetch(p, out=out.append)
+    assert f"{(src / 'scensim.lock').resolve()} written" in out
+
+
 def test_fetch_is_idempotent(host, maps_hub):
     p = project(host["tmp"], MAP_PROJECT)
     assets.fetch(p, out=lambda s: None)

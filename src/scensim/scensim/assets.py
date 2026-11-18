@@ -724,6 +724,14 @@ def apply_links(project: Path, want: dict) -> list:
 
 # --- the commands: -------------------------------------------------------------------------
 
+def _shown(path) -> str:
+    """``path`` relative to the working directory when it is below it, else absolute."""
+    try:
+        return str(Path(path).relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(path)
+
+
 def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dict:
     """Fetch the project's assets, write its lock and links; returns the lock. ``verify``:
     hash every cached file, not only those whose record says they changed (G35)."""
@@ -770,8 +778,9 @@ def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dic
     text = lock_text(lock)
     if not path.is_file() or path.read_text() != text:
         path.write_text(text)
-        # a testbench's lock links to its source (081 step 3): say where it was written
-        out(f"{os.path.realpath(path)} written" if path.is_symlink() else
+        # a testbench's lock links to its source (081 step 3): say where it was written,
+        # from the directory the command ran in when it is below it (issue 058)
+        out(f"{_shown(os.path.realpath(path))} written" if path.is_symlink() else
             f"{config.LOCK_FILE} written")
     if lock["datasets"]:
         register(cache, project)

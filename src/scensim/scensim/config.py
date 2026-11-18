@@ -199,19 +199,31 @@ def old_dirs(project: Path = None, home: Path = None) -> list:
     return [(o, n) for o, n in pairs if o.is_dir() and not n.exists()]
 
 
+# left in an old directory once its hint is printed: the hint is printed once, not on every
+# command (issue 058). It goes in the old directory, not the new one, so that the printed ``mv``
+# still renames rather than moving the old directory into an existing new one.
+HINTED_MARKER = ".scensim-rename-hinted"
+
+
 def check_renamed(project: Path = None):
-    """Refuse a variable of the old name (ConfigError, every one named); print, once per
-    directory and process, the ``mv`` that moves an old directory. Old paths are never read."""
+    """Refuse a variable of the old name (ConfigError, every one named); print the ``mv`` that
+    moves an old directory, once (a marker in it; once per process where it cannot be written).
+    Old paths are never read."""
     lines = renamed_env()
     if lines:
         raise ConfigError("; ".join(lines))
     import sys
     for old, new in old_dirs(project):
-        if old in _hinted:
+        marker = old / HINTED_MARKER
+        if old in _hinted or marker.exists():
             continue
         _hinted.add(old)
-        print(f"scensim: {old} has the old name and is not read; move it:\n"
+        print(f"scensim: {old} has the old name and is not read; move it (this is said once):\n"
               f"    mv {old} {new}", file=sys.stderr)
+        try:
+            marker.touch()
+        except OSError:
+            pass
 
 
 def host_settings(project: Path = None, overrides: dict = None) -> dict:

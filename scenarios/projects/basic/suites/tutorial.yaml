@@ -1,6 +1,6 @@
 # Item 6: the tutorial's follow-to-goal (Town01). Reference: the tutorial check, SSv2 PASS
 # (2026-10-12).
 scenarios:
-  - ../../../src/scensim_examples/scenarios/tutorial/town01_follow_to_goal.xosc
+  - pkg://scensim_examples/scenarios/tutorial/town01_follow_to_goal.xosc
 retry: {on: error, times: 1}
 expect: {}

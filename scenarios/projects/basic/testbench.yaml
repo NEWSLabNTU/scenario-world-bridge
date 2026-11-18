@@ -1,6 +1,6 @@
 # basic: the starter scenarios of scensim_examples (scenarios/basic/) as a regression project
 # (roadmap 077 step 4, inventory items 1-3). The scenarios stay where they are; the suites
-# name them.
+# name them, by pkg:// (081 step 4).
 simulator: carla
 assets:
   - dataset: carla-town-autoware-maps
@@ -14,3 +14,4 @@ judges:
   # --physical-verdict did for these
   - name: physical_verdict
     run: [ros2, run, scensim_launch, physical_verdict, "{run_dir}/junit.xml", --scenario, "{scenario}"]
+default: town01   # the suite `scensim run basic` runs

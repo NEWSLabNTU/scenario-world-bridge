@@ -1,6 +1,6 @@
 # Item 3: a town load inside the scenario (no ego). Reference: roadmap 024, a load time-out
 # then 2 of 2 on a rerun (2026-10-13). CARLA at Epic quality only.
 scenarios:
-  - ../../../src/scensim_examples/scenarios/basic/town02_episode_change.xosc
+  - pkg://scensim_examples/scenarios/basic/town02_episode_change.xosc
 retry: {on: error, times: 1}
 expect: {}

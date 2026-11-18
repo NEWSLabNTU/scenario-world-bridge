@@ -1,5 +1,93 @@
 # Release notes
 
+## v0.2.0 (draft, not released)
+
+<!-- Draft. Before the release: the heading becomes "## v0.2.0" (release.yml's preflight
+refuses a version without that exact heading, so this draft cannot ship by accident), the
+open items below are settled or removed, and the "Tested with" row for Autoware 2.1.0 names
+what was run. -->
+
+scensim 0.2.0 adds Ubuntu 24.04 with ROS 2 Jazzy for the simulation side, and Autoware
+2.1.0 as an autopilot next to 1.5.0. The code of this release was tested at scensim commit
+a25e3aa.
+
+### Requirements
+
+Ubuntu 22.04 with ROS 2 Humble, as in 0.1.0, or Ubuntu 24.04 with ROS 2 Jazzy for the
+simulation side only. [Install](getting-started/install.md) lists both.
+
+### Tested with
+
+| Component | Version |
+|---|---|
+| ROS 2 | Humble (Ubuntu 22.04, Python 3.10); Jazzy (Ubuntu 24.04, Python 3.12), the simulation side only |
+| CARLA | 0.9.16, the packaged release |
+| Isaac Sim | 6.1.0, pip install |
+| Autoware | 1.5.0, binary packages; 2.1.0 (to be filled in: what was run on it) |
+| scenario_simulator_v2 | bundled (a fork, as a submodule) |
+
+Before the release, the release workflow built and checked both distributions on the
+tested commit (run 44296930995): the simulation side's tarball for each, its link check
+in a clean ROS image, the wheels for Python 3.10 and 3.12, and the install from those
+wheels in a clean image, on Humble and on Jazzy.
+
+### What is new
+
+- **Ubuntu 24.04 with ROS 2 Jazzy, the simulation side.** On Python 3.12,
+  `pip install scensim` brings the Jazzy release package, `scensim-ros-jazzy`, and
+  `scensim install` downloads the simulation side built for Jazzy: the scenario runner,
+  the bridge, the world servers and the agent SDK. The release now publishes one
+  simulation tarball per ROS distribution, `scensim-sim-0.2.0-humble-x86_64.tar.zst` and
+  `scensim-sim-0.2.0-jazzy-x86_64.tar.zst`, under one `SHA256SUMS`.
+- **The vehicle side stays on Humble.** Autoware 1.5.0 is built for ROS 2 Humble only, so on
+  Jazzy, with an Autoware sourced or with `scensim install --autoware 1.5.0`, scensim
+  refuses before it downloads anything and says why. Use pilots that are not Autoware there,
+  or run the Autoware ego from a Humble install.
+- **rosdep on Ubuntu 24.04.** The rosdep line that `scensim install` prints starts with
+  `PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1` on Python 3.11 and newer: without
+  them, Ubuntu 24.04 refuses rosdep's two pip packages (PEP 668), and huggingface_hub
+  cannot replace Debian's older typing_extensions and idna. Keep the line as printed.
+- **Autoware 2.1.0.** The car's Autoware profile runs Autoware 2.1.0 (2.0.0 with
+  autoware_universe 0.53.2), with a copy of map_based_prediction's parameter file that
+  adds the three parameters 0.53.2 requires and autoware_launch 0.53.0 lacks.
+- **An autoware pilot follows the host's Autoware.** A stack sets each autoware pilot's
+  release from the host's `autoware.setup` (the version-named directory above
+  `setup.bash`). A pilot whose arguments name another release is refused, naming both,
+  as is a release the profile does not have. The fixes scensim carries for Autoware
+  (its overlay) are for 1.5.0: over another release they are not sourced, and scensim says
+  so.
+- **The agent on Autoware 2.1.0.** Autoware 2.1.0 no longer has TIER IV's
+  tier4_ad_api_adaptor, which served the agent's RTC and emergency endpoints. The agent
+  now finds which API the running Autoware serves: the adaptor's RTC (1.5.0), else each
+  planning module's own cooperate_commands service, else none. Faults then come from
+  `/api/fail_safe/mrm_state` alone. The agent logs the path it took once Autoware's core
+  services answer, and again only when it changes.
+- **A source build on Jazzy.** The CARLA client library compiles with libclang 14, not
+  Ubuntu 24.04's default 18; `scripts/release/build_sim.sh` uses
+  `/usr/lib/llvm-14/lib` when it is installed. [Install](getting-started/install.md) lists
+  the three differences from a Humble build.
+
+### Fixed since 0.1.0
+
+- On Ubuntu 24.04, scensim 0.1.0's `pip install scensim` installed `scensim-ros-jazzy`
+  0.1.0, a placeholder whose commands refuse and point to Ubuntu 22.04. 0.2.0 replaces it
+  with the Jazzy release.
+
+<!-- Open items for the user and 133 before the release:
+1. The acb rotation fix (acb b0428a3: a car on a slope was published pitched and rolled
+   the wrong way in the ego odometry) is on acb main but scensim main still pins acb
+   f93c64a. It belongs here only once the pin moves; its note would go under "Fixed since
+   0.1.0". The same commit adds acb's CARLA 1.0 build (roadmap 083), which is not a 0.2.0
+   feature unless decided otherwise.
+2. Issues 046 to 050 and the PEP 440 version check in the front end (546b258) are in the
+   v0.1.0 tag (d90ac38), so they are not listed as changes in 0.2.0.
+3. Autoware 2.1.0's vehicle side has no release tarball (release.yml builds the vehicle side
+   for Autoware 1.5.0 only): from a release install, 2.1.0 is a source build. Say so here,
+   or add a vehicle tarball for 2.1.0 to the release.
+4. Whether to keep "The code of this release was tested at scensim commit a25e3aa" or move
+   it to the release commit.
+-->
+
 ## v0.1.0
 
 The first release of scenario-world-bridge (swb). It evaluates an autopilot on

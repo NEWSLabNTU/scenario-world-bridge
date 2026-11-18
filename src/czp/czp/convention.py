@@ -143,6 +143,17 @@ def pair_verdict(row, zone: Zone, own: Agent, own_iv: ZoneInterval, pv: PairView
         # noisy band instead, it flickered between ambiguous (wait) and band (the tie's go), and the late go
         # raced an impatient car's restart (the arena's czp-in-B contacts at the crossing)
         b = Band(BAND, None, b.slack_own, b.slack_other)
+        if row.get("rest_first", False):
+            # 078 P2e: a car that came to rest clearly first (stopped_first, with its tie margin, reads the own car
+            # SECOND) keeps the turn. The guard from the later rest makes the own go come late when the own car rested
+            # well after the other: that go met a patient rule's restart (t1.5p5, 5 s from its own rest), and a car that
+            # restarts on its own reading of the gap (t0.5yp2) at any time. Within the margin the role binds, as before.
+            # One way only: the reading makes a car yield, never go (R5). At e 0.55 > m two cars' stamps can disagree,
+            # and a FIRST that took the turn put two czp cars into the zone (kinematic screen: 5 self-play contacts)
+            r = role_of(STOPPED_FIRST, zone, own, o, params, own_rest_t=mem.own_rest_t, other_rest_t=am.rest_t, t=t,
+                        obs_age=obs_age)
+            if r.reading == SECOND:
+                return Verdict(o.id, YIELD, False, "rest_first", b, r)
         v = pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, first_override=None, guard=False)
         if v.kind != GO:
             return v
@@ -381,7 +392,8 @@ def decide(conv, zone: Zone, own: Agent, own_iv: ZoneInterval, pairs, mem: Memor
         tr = row.get("tie", "map_order")
         others = [pv.other for pv in rest_pvs]
         agents = [own] + others
-        if all(tie_rule(tr, zone, own, o) for o in others):
+        # (078 P2e) not over a car that came to rest clearly first: it keeps the turn in round two as well
+        if all(tie_rule(tr, zone, own, o) for o in others) and not any(v.reason == "rest_first" for v in soft):
             return _go_probe(zone, row_name, "round2", exit_clear), verdicts
         h3 = params.second_round_H2 + params.tie_threshold_T + params.tie_margin_m + params.role_time_error_e + \
             params.last_resort_extra

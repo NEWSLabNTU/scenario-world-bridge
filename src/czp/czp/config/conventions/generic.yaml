@@ -14,6 +14,7 @@ all_way_stop:                     # 074 U3, C8 (e)
 cross_unsignalled:                # 074 S2, C7
   band: entry                     # outside the tie band the nearer car goes (S2), inside it the role
   rest_tie: true                  # both at rest at their lines: a tie, the role binds after the stop (C7; 078 V4)
+  rest_first: true                # ... unless one came to rest clearly first (stopped_first): it keeps the turn (078 P2e)
   first: map_priority             # major road goes
   tie: right_before_left
   last: map_order

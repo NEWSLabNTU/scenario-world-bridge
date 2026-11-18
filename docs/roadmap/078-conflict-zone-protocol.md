@@ -18,7 +18,8 @@ the all-way stop, the narrow passage and the lane drop stay stock. G1 passed for
 a seen start, G0 for the crossing passes again; e 0.55 s confirmed on held-out runs; a base_link pose
 bug fixed. Phase 2c: a second own-rest bug found; the guards must not take the rest-stamp
 correction. Phase 2d: G0 fails on two fresh seed sets: the protocol car goes against a car that has
-just come to rest. **Parked behind the UX release**; the fix is specified.
+just come to rest. Phase 2e (2026-11-18): the fix plus `rest_first` pass G0 on three fresh sets and
+a biased one; the pinned and patient cells are 0 of 400. Next: the scensim grid.
 
 ## Inputs, already in place
 
@@ -414,6 +415,38 @@ at the G0 fresh-seed check, as the brief said.**
 - **078 is parked behind the UX release** (user, 2026-11-17: the UX campaign first). The next
   round is the fix above, then G0, then the swb grid (`grid.sh` and the EV4 addendum are ready).
   The node is off by default, so nothing on the car is affected.
+
+**Phase 2e on the crossing (133's subagent, 2026-11-18; main 4208162; NAS
+`logs/2026 SSv2 on CARLA/2026-11-18 078 P2 crossing P2e/`). G0 passes.**
+- **The fix as specified:** `mutual_rest_wait`: a go against a car at rest or just come to rest
+  (`rest_tie`, `clear`, `first`, a tie) waits one guard (dwell + launch + see delay, 3.0 s) from
+  the later rest, on raw stamps. A car rolling below `moved_speed` still has its rest to come and
+  waits. A tie needs the own car at rest or past its commit point. Exempt: past the commit point,
+  and a `clear` or `first` go at own speed >= `moved_speed` (the literal spec cost exp2's 37
+  contacts on both patient rules in the kinematic screen; with the exemption, 0 and 2). A car
+  stopped at the zone edge gets no rest stamp and falls back to `still_since`.
+- **`rest_first`, a convention change (074 C7's role binding after a mutual stop; user,
+  2026-11-18: land it).** Under `rest_tie`, a car that reads the other as clearly first to rest
+  (beyond T + m) yields, in round 2 too, also over a `clear` reading from rest. One way only:
+  letting the first car take the turn gave 5 self-play contacts in the screen (e 0.55 > m).
+- **Formal (e 0.55), with the new adversaries** (`--adversary impatient|never|both`): main had
+  168 unsafe of 7560 runs and 131/197/397 against an impatient car of patience 0/1/2 s; the final
+  code is safe and live (6.65 s) and 0/0/297 (patience 2 s outlasts the guard, as for stock). The
+  cost: the czp-czp worst wait is 12.35 s for 2 cars and 15.8 s for 3 (19.45 at bias 0.7), against
+  7.3 / 10.9 s, because two protocol cars both yield until the last resort.
+- **G0 (arena, 5 seeds, 90 runs per cell; 0 self-play contacts and 0 deadlocks in every set):**
+  0 cells worse in each of seeds 17, 18, 19 and seed 3 at bias 0.7 (the fix alone: 0 worse in 9,
+  10, 11 and 3 at 0.7). Contacts against the patient rules tinfp5 and t1.5p5: 0 in every final
+  set (stock 50-53).
+- **Pinned and patient cells (traces):** B vs t0.5yp2 at Δt −0.7: 0/400 on seeds 12 and 21 (P2d
+  8/200; the fix alone 1/400). B vs t1.5p5 at Δt −0.7 and −1.5: 0/400 (the fix alone 10/400,
+  closed by `rest_first`; stock 8-21). Stock is 0/400 in every pinned run.
+- 62 czp tests pass (8 new; 5 of the first 6 fail on the old code).
+- **Open:** a `clear` go while rolling slowly is not committed; it is withdrawn and the car stops
+  at the zone edge, the setting of both late pinned contacts. The arena is not deterministic per
+  seed (stock t1.5p5 on one seed gave 21/14/19/8 of 400). Seeds used: G0 2-6, 9-11, 14-19;
+  diagnosis 7, 8, 12, 13, 21.
+- **Next: the scensim grid** (`grid.sh` and the EV4 addendum).
 
 ### Phase 3: test runs
 

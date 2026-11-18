@@ -17,7 +17,7 @@ is planned here.
 | phase | what | status | left |
 |---|---|---|---|
 | [074](074-cooperation-study.md) | the cooperation study: games, arena, strategy atlas | started 2026-11-13; most site types done in the kinematic model and the arena (S1-S6, U1-U3, Y merge); stock-Autoware runs for the Y merge and the left turn; atlas v11 | Autoware on the four-way stop (U3); the reflectance sweep (user's call) |
-| [078](078-conflict-zone-protocol.md) | the conflict-zone protocol: library, node, evaluation | phases 0-1 done; phase 2 on the crossing: 2d failed G0 on fresh seeds (a go against a car just at rest) | the 2d fix (running 2026-11-18, P2e), G0, then the scensim grid; phases 3-4 |
+| [078](078-conflict-zone-protocol.md) | the conflict-zone protocol: library, node, evaluation | phases 0-1 done; phase 2 on the crossing: G0 passes (P2e, 2026-11-18: the mutual-rest guard plus `rest_first`) | the scensim grid; phases 3-4 |
 | [039](039-isaac-multi-autoware.md) | several Autoware instances on Isaac Sim, V2X | planned | one ROS domain per ego on the world server; V2X |
 
 ## Folded in
@@ -28,6 +28,6 @@ is planned here.
 
 ## Next
 
-1. 078 Phase 2d fix, then G0 (subagent on 133, 2026-11-18).
+1. 078 Phase 2: the scensim grid on the crossing.
 2. 074 U3 (four-way stop) on Autoware.
 3. The Isaac lidar intensity fix.

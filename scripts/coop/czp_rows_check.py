@@ -425,10 +425,13 @@ def main():
                     "counted from a rest)")
     ap.add_argument("--cross-probe", action="store_true", help="078 P2g: the crossing probes a go from a mutual rest "
                     "(creep, watch, go), as the all-way stop does")
+    ap.add_argument("--probe-watch", type=float, default=None, help="078 P2g: czp's probe_watch (s)")
     CA.add_bias_args(ap)
     a = ap.parse_args()
     X.REST_LAG = a.rest_lag
-    if a.guard_extra or a.cross_probe:
+    if a.probe_watch is not None:
+        os.environ["P2G_PROBE_WATCH"] = str(a.probe_watch)
+    if a.guard_extra or a.cross_probe or a.probe_watch is not None:
         os.environ["P2G_GUARD_EXTRA"] = str(a.guard_extra)
         os.environ["P2G_CROSS_PROBE"] = "1" if a.cross_probe else "0"
         import p2g_guard_pre  # noqa: F401  (czp_adapter.params_for and conventions_for take it)
@@ -456,7 +459,7 @@ def main():
         for k in ("runs", "unsafe", "not_live", "deadlock", "follow_contact", "stopped"):
             tot[k] += r.get(k, 0)
     summ = {"row": a.row, "cars": a.cars, "e": a.e, "adversary": a.adversary, "adv_patience": a.adv_patience, "rest_stamp_bias": a.rest_stamp_bias, "arrival_bias": a.arrival_bias,
-            "autoware_launch": a.autoware_launch, "rest_lag": a.rest_lag, "guard_extra": a.guard_extra, "cross_probe": a.cross_probe,
+            "autoware_launch": a.autoware_launch, "rest_lag": a.rest_lag, "guard_extra": a.guard_extra, "cross_probe": a.cross_probe, "probe_watch": a.probe_watch,
             "contexts": len(res), **tot,
             "contexts_unsafe": sum(1 for r in res if r.get("unsafe")),
             "contexts_not_live": sum(1 for r in res if r.get("not_live")),
@@ -465,7 +468,8 @@ def main():
     tag = f"{a.row}{a.cars}_e{a.e:g}" + ("_nobystanders" if a.no_bystanders else "") + (
         "" if a.adversary == "none" else f"_adv-{a.adversary}-p{a.adv_patience:g}") + (
         f"_aw{a.autoware_launch.replace(',', '-')}" if a.autoware_launch else "") + (f"_lag{a.rest_lag:g}" if a.rest_lag else "") + (
-        f"_g{a.guard_extra:g}" if a.guard_extra else "") + ("_probe" if a.cross_probe else "")
+        f"_g{a.guard_extra:g}" if a.guard_extra else "") + ("_probe" if a.cross_probe else "") + (
+        f"_w{a.probe_watch:g}" if a.probe_watch is not None else "")
     json.dump({"summary": summ, "contexts": res}, open(os.path.join(a.out, f"{tag}.json"), "w"), indent=1)
     lines = [f"# czp_rows_check {a.row}, {a.cars} cars, e {a.e:g}"
              + ("" if a.adversary == "none" else f", adversary {a.adversary} (patience {a.adv_patience:g} s)")

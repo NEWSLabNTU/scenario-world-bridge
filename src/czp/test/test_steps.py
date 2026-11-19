@@ -362,6 +362,9 @@ def test_probe_is_not_bypassed_by_another_go():
     d, _ = probe(Decision(GO, "j", "inside"), car("A", s_entry=0.0, v=1.0), ProbeState("watch", 10.6, 1.0, "round2"),
                  P, 10.8, row)
     assert d.kind == GO and d.reason == "inside"
+    # after an abort the next go, whatever its reason, probes again from where the car is
+    d, ps = probe(Decision(GO, "j", "clear"), own, ProbeState("abort", 11.0, 1.0, "turn"), P, 11.1, row)
+    assert d.kind == CREEP and ps.phase in ("creep", "watch")
     # without a probe under way a go that is not probed passes as before
     d, ps = probe(Decision(GO, "j", "clear"), own, ProbeState(), P, 12.0, row)
     assert d.kind == GO and d.reason == "clear"

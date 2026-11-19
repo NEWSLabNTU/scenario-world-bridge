@@ -114,7 +114,8 @@ Live runs before the release (scensim built from source):
   On CARLA 1.0:
   - a pilot that drives through CARLA's Python API gets the server's own client: the stack
     unpacks this Python's wheel from `<carla.root>/PythonAPI/carla/dist` and puts it first on
-    the pilots' `PYTHONPATH`. Without `carla.root`, a `carla_basic` pilot is refused, naming
+    the pilots' `PYTHONPATH`. Without a wheel for this Python under `carla.root` (or without
+    `carla.root`), a `carla_basic` pilot is refused, naming
     both releases and the wheel to install, as 0.9.16's client fails on a 1.0 server;
   - the AWF use cases (`safety_suite`, `scensim_examples/scenarios/awf`, `isaac_demo`) take
     the ego from the testbench's vehicle catalog, so they run on either body;

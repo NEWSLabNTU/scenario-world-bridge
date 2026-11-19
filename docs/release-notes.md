@@ -130,6 +130,11 @@ Live runs before the release (scensim built from source):
     the ego from the testbench's vehicle catalog, so they run on either body;
   - the `coop_pilots` drive the server's body, with 1.0's physics and measured pedal maps,
     and read its wheel positions.
+- **The towns' maps, revision v2026.11b.** The maps dataset's towns declare CARLA's projector
+  scale factor, 1.0, where Autoware's default 0.9996 applied before: on Town01 the
+  registration error against CARLA's roads fell from 0.159 m to 0.007 m (p95); Town02 0.012,
+  Town05 0.005, Town10 0.007 m. Every shipped testbench's `scensim.lock` names this revision.
+  Town03 is still off (below).
 - **Isaac Sim's lidar intensity.** The Isaac lidar returns an intensity from the spec's
   table (reflectance by the surface's SimReady class, times the cosine of incidence), where
   it returned none.
@@ -152,7 +157,7 @@ Live runs before the release (scensim built from source):
   TensorRT 10.8.0 runtime of `autoware.tensorrt_lib` avoids the rebuild.
 
 - **Town03's lanelets** (issue 068): a share of them sit about 1.3 m off CARLA's OpenDRIVE
-  lanes, so the ego's path, a scenario's lanelet poses and CARLA's road disagree there by
+  lanes (p95 1.365 m), so the ego's path, a scenario's lanelet poses and CARLA's road disagree there by
   more than a metre.
 
 ### Fixed since 0.1.0

@@ -343,7 +343,7 @@ def _params(r):
 
 
 SUMMARY_FIELDS = ("run_id", "scenario", "params", "repetition", "seed", "verdict", "reason",
-                  "duration", "judges", "path")
+                  "duration", "judges", "path", "overload")
 
 
 def summarize(run_root: Path) -> tuple:
@@ -363,7 +363,8 @@ def summarize(run_root: Path) -> tuple:
                         sc.get("repetition", ""), "" if sc.get("seed") is None else sc["seed"],
                         r.get("verdict", ""), r.get("reason", ""),
                         "" if dur is None else dur,
-                        " ".join(f"{k}={v}" for k, v in judges.summary(d).items()), str(d)])
+                        " ".join(f"{k}={v}" for k, v in judges.summary(d).items()), str(d),
+                        _overload(d)])
             suite = _junit_suite(d, r)
             for k in totals:
                 totals[k] += int(suite.get(k, 0))
@@ -374,6 +375,14 @@ def summarize(run_root: Path) -> tuple:
     ET.indent(suites)
     ET.ElementTree(suites).write(junit_path, encoding="unicode", xml_declaration=True)
     return csv_path, junit_path
+
+
+def _overload(d: Path) -> str:
+    """Why a run of ``scensim run --seats`` was overloaded (its dispatch.json), else ""."""
+    try:
+        return str((json.loads((d / "dispatch.json").read_text()) or {}).get("overloaded") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
 
 
 def _junit_suite(d: Path, r: dict):

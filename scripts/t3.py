@@ -135,7 +135,9 @@ def read_summary(path: Path) -> list:
                          "scenario": Path(r["scenario"]).name, "repetition": r["repetition"],
                          "seed": r.get("seed", ""), "params": r.get("params", ""),
                          "verdict": r["verdict"], "judges": r.get("judges", ""),
-                         "duration": r.get("duration", ""), "reason": r.get("reason", "")})
+                         "duration": r.get("duration", ""), "reason": r.get("reason", ""),
+                         # scensim run --seats: why the host was overloaded during the run
+                         "overload": r.get("overload", "")})
     return latest(rows)
 
 
@@ -167,7 +169,8 @@ def compare_rows(ref: list, got: list) -> tuple:
             continue
         if g["verdict"] != r["verdict"]:
             problems.append(f"{name}: {g['verdict']}, the reference {r['verdict']}"
-                            + (f" ({g['reason']})" if g["reason"] else ""))
+                            + (f" ({g['reason']})" if g["reason"] else "")
+                            + (f" [overloaded run: {g['overload']}]" if g.get("overload") else ""))
         rj, gj = judges_of(r["judges"]), judges_of(g["judges"])
         for j in sorted(set(rj) | set(gj)):
             if rj.get(j) != gj.get(j):

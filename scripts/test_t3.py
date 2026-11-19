@@ -575,3 +575,27 @@ def test_compare_flags_a_pair_with_another_carla_launch(tmp_path, monkeypatch, c
     capsys.readouterr()
     assert t3.main(["record", *w]) == 1
     assert "results from more than one CARLA launch" in capsys.readouterr().out
+
+def test_an_overloaded_parallel_run_is_named_in_the_problem(tmp_path):
+    """scensim run --seats writes dispatch.json beside an overloaded run; runs.summarize (the
+    real writer, not a copy of its columns) puts it in summary.csv, and compare says it."""
+    import json
+    from scensim import runs as runsmod
+    suite = tmp_path / "suite"
+    suite.mkdir()
+    for name, verdict, over in (("a", "failed", "mean load 78.4 (limit 32)"),
+                                ("b", "passed", "")):
+        d = tmp_path / "runs" / f"t_{name}_r0"
+        d.mkdir(parents=True)
+        (d / "result.json").write_text(json.dumps({
+            "run_id": d.name, "verdict": verdict,
+            "scenario": {"file": f"{name}.xosc", "repetition": 0}}))
+        (d / "dispatch.json").write_text(json.dumps({"seat": 0, "overloaded": over}))
+        (suite / f"{name}_r0").symlink_to(d)
+    csv_path, _ = runsmod.summarize(suite)
+    ref = tmp_path / "ref.csv"
+    ref.write_text("scenario,params,repetition,seed,verdict,judges,duration\n"
+                   "a.xosc,,0,,passed,,\nb.xosc,,0,,passed,,\n")
+    problems, _ = t3.compare_rows(t3.read_summary(ref), t3.read_summary(csv_path))
+    assert problems == ["a.xosc r0: failed, the reference passed "
+                        "[overloaded run: mean load 78.4 (limit 32)]"]

@@ -13,7 +13,8 @@ from scensim import config, dispatch, results, run, runs as runsmod
 
 SEATS = {"domains": {"base": 1, "stride": 3}, "ports": {"base": 5555, "stride": 100},
          "web": {"base": 8080, "stride": 10}, "count": 4, "carla": {"base": 3000, "stride": 10}}
-CFG = {"vram_per_seat_mb": 3000, "load_per_seat": 12, "skip_limit": 20, "start_gap": 0}
+CFG = {"vram_per_seat_mb": 3000, "load_per_seat": 12, "skip_limit": 12, "start_gap": 0,
+       "overload_load": 32}
 
 
 def host(**over):
@@ -160,6 +161,7 @@ FAKE_WORKER = textwrap.dedent('''\
         key = o["spec"]["scenario"].rsplit("/", 1)[-1].removesuffix(".xosc") + "_r0"
         if plan.get("die_on") == n:
             os._exit(9)
+        broken = plan.get("broken_on") == n
         time.sleep(plan.get("run_time", 0.05))
         verdict = plan.get("verdicts", {}).get(key, "passed")
         if o.get("attempt"):
@@ -170,8 +172,15 @@ FAKE_WORKER = textwrap.dedent('''\
             json.dump({"run_id": os.path.basename(d), "verdict": verdict,
                        "scenario": {"file": key + ".xosc", "repetition": 0},
                        "seat": seat}, f)
+        if broken:
+            verdict = "error"
+        why = "its pilot ego's launch did not load /perception/occupancy_grid_map" if broken else ""
         emit(event="done", key=key, run_dir=d, verdict=verdict,
-             line=f"{verdict:8} {key}  seat {seat}", outcome=0 if verdict == "passed" else 1)
+             line=f"{verdict:8} {key}  seat {seat}", outcome={"passed": 0, "failed": 1}.get(verdict, 2),
+             seat_broken=why)
+        if broken:
+            emit(event="retired", why=why)
+            break
     print(f"seat {seat} worker stops its stack", file=sys.stderr, flush=True)
 ''')
 
@@ -200,7 +209,8 @@ def dispatcher(tmp_path, fake, n=6, plan=None, seat_idx=(0, 1), retry=None, **kw
     d = dispatch.Dispatcher(specs(n), seats(*seat_idx), {**CFG, **kw.pop("cfg", {})}, suite,
                             retry, out=out, worker_argv=fake(plan),
                             admit=kw.pop("admit", lambda s: ""),
-                            skips=kw.pop("skips", lambda w: 0), **kw)
+                            skips=kw.pop("skips", lambda w: 0),
+                            load=kw.pop("load", lambda: 4.0), **kw)
     return d, suite, out
 
 
@@ -257,21 +267,42 @@ def test_every_seat_retired_leaves_the_rest_unrun(tmp_path, fake):
     assert "every seat is retired; 3 run(s) not run" in out.getvalue()
 
 
-def test_overload_parks_a_seat_and_the_suite_finishes_on_the_rest(tmp_path, fake):
-    seen = {"n": 0}
+def test_an_overloaded_run_is_run_again_on_one_seat_fewer(tmp_path, fake):
+    """acb_bridge's skips in one run past the limit: that try stays on disk, unlinked; the run
+    goes back to the queue once; its seat is parked."""
+    first = {"done": False}
 
     def skips(w):
-        # the first run's end on seat 1 reports a spike; every other look reports nothing
-        if w.seat.index == 1 and w.state == "busy" and w.job is None:
-            seen["n"] += 1
-            return 34 if seen["n"] == 1 else 0
+        # the end of seat 1's first run reports 34 skips; every other look nothing
+        if w.seat.index == 1 and w.job is None and not first["done"]:
+            first["done"] = True
+            return 34
         return 0
     d, suite, out = dispatcher(tmp_path, fake, n=6, seat_idx=(0, 1), skips=skips,
-                               plan={"0": {"run_time": 0.2}, "1": {"run_time": 0.05}})
+                               plan={"0": {"run_time": 0.3}, "1": {"run_time": 0.05}})
     assert d.run() == 0
     text = out.getvalue()
-    assert "seat 1: acb_bridge skipped 34 CARLA frames" in text and "1 seat(s) take work" in text
-    assert d.limit == 1 and len(rows(suite)) == 6
+    assert "overloaded: acb_bridge skipped 34 CARLA frames (limit 12)" in text
+    assert "seat 1: the host is overloaded" in text and "1 seat(s) take work" in text
+    assert "run again (overloaded)" in text
+    assert d.limit == 1 and len(rows(suite)) == 6   # one row per run: the second try linked
+    tries = sorted((tmp_path / "runs").iterdir())
+    assert len(tries) == 7
+    flagged = [json.loads((x / "dispatch.json").read_text()) for x in tries
+               if json.loads((x / "dispatch.json").read_text())["overloaded"]]
+    assert len(flagged) == 1 and flagged[0]["seat"] == 1 and flagged[0]["acb_skipped_frames"] == 34
+    assert all(r["overload"] == "" for r in rows(suite))
+
+
+def test_a_run_overloaded_twice_keeps_its_verdict_flagged(tmp_path, fake):
+    """The host's mean load past overload_load in every run: each run is tried twice, and the
+    second try's verdict stands, flagged in summary.csv."""
+    d, suite, out = dispatcher(tmp_path, fake, n=2, seat_idx=(0,), load=lambda: 78.4,
+                               plan={"0": {"run_time": 1.5}})
+    assert d.run() == 0
+    got = rows(suite)
+    assert len(got) == 2 and all("mean load 78.4 (limit 32)" in r["overload"] for r in got)
+    assert out.getvalue().count("run again (overloaded)") == 2
 
 
 def test_admission_waits_for_room_then_starts_the_seat(tmp_path, fake):
@@ -298,8 +329,11 @@ def test_start_gap_spaces_the_seats(tmp_path, fake):
     d._admit_next()
     assert [w.state for w in d.workers] == ["starting", "waiting"]
     now["t"] = 31.0
+    d._admit_next()   # the first seat is still coming up: one at a time
+    assert [w.state for w in d.workers] == ["starting", "waiting"]
+    d.workers[0].state = "ready"
     d._admit_next()
-    assert [w.state for w in d.workers] == ["starting", "starting"]
+    assert [w.state for w in d.workers] == ["ready", "starting"]
     d.stop(grace=5)
 
 
@@ -355,3 +389,46 @@ def test_the_worker_reports_with_the_runners_own_line_and_exit(tmp_path):
     assert done["verdict"] == "failed" and done["run_dir"] == str(tmp_path / res.run_id)
     assert done["line"] == run.line(res, tmp_path / res.run_id, "failed")
     assert done["outcome"] == run.outcome(res, "failed") == run.EXIT_OK
+
+
+# ------------------------------------------- issue 064: a seat whose composable did not load
+
+ROS_LAUNCH_LOAD_FAILED = (
+    "[ERROR] [launch_ros.actions.load_composable_nodes]: Failed to load node 'lidar_centerpoint' "
+    "of type 'autoware::lidar_centerpoint::LidarCenterPointNode' in container "
+    "'pointcloud_container': Component constructor threw an exception: Failed to setup TRT "
+    "engine.")   # as ros2 launch printed it on 118, 2026-11-18 (a CUDA out of memory)
+
+
+def test_a_seat_whose_composable_did_not_load_retires_through_issue_064s_check(tmp_path):
+    """The worker asks timeline.missing_composables (the real check scensim run's readiness
+    uses) of its stack pilots' consoles after an error run: a line ros2 launch printed retires
+    the seat, naming the composable; a console without one does not."""
+    proc = tmp_path / "proc"
+    console = proc / "pilot-ego" / "console.log"
+    console.parent.mkdir(parents=True)
+    console.write_text("[INFO] [launch]: All log files can be found below /x\n"
+                       + ROS_LAUNCH_LOAD_FAILED + "\n")
+    ctx = SimpleNamespace(stack={"proc": str(proc), "pilots": [{"entity": "ego"}]},
+                          runs_root=tmp_path, pilots_broken=None)
+    assert "lidar_centerpoint" in dispatch.stack_pilot_broken(ctx)
+    inp = io.StringIO(json.dumps({"run": True, "spec": dispatch.spec_to_json(specs(1)[0])})
+                      + "\n" + json.dumps({"run": True,
+                                           "spec": dispatch.spec_to_json(specs(2)[1])}) + "\n")
+    out = io.StringIO()
+    dispatch.worker_loop(ctx, inp, out,
+                         run_one=lambda c, s, a: results.RunResult("r", results.ERROR))
+    events = [json.loads(x) for x in out.getvalue().splitlines()]
+    assert [e["event"] for e in events] == ["ready", "done", "retired"]   # the 2nd run not taken
+    assert "did not load" in events[1]["seat_broken"] and "lidar_centerpoint" in events[2]["why"]
+    console.write_text("[INFO] [launch]: All log files can be found below /x\n")
+    assert dispatch.stack_pilot_broken(ctx) == ""
+
+
+def test_a_broken_seats_run_goes_to_another_seat(tmp_path, fake):
+    d, suite, out = dispatcher(tmp_path, fake, n=4, plan={"0": {"broken_on": 1}})
+    assert d.run() == 0
+    text = out.getvalue()
+    assert "back in the queue (seat 0 is broken)" in text
+    assert "seat 0: retired: its pilot ego's launch did not load" in text
+    assert sorted(r["verdict"] for r in rows(suite)) == ["passed"] * 4

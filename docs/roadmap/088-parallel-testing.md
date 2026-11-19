@@ -116,18 +116,24 @@ Findings for step 2:
 - **Admission.** A seat starts its stack only when the host has room for it: free VRAM on its
   GPU (`nvidia-smi`) at least `dispatch.vram_per_seat_mb` (3000, step 1's ~3 GB per ego seat)
   and the 1-minute load plus `dispatch.load_per_seat` (12) at most the core count; seats
-  start `dispatch.start_gap` s apart (30), so one seat's start load is seen before the next.
-  A seat that cannot be admitted waits, and the suite runs on the seats that were.
-- **Overload.** After each run the dispatcher reads the seat's acb_bridge `Skipped N CARLA
-  frame(s)` lines from the stack's logs since the run started. A run with more than
-  `dispatch.skip_limit` (20; step 1: 7-12 per suite at <= 2 seats, 34+ per seat at 3) lowers
-  the number of seats handed work by one (never below one): the seat that saw it finishes
-  its run and is parked, its stack left up and idle. The limit is not raised again within a
-  suite; the next suite starts from all admitted seats.
-- **Retirement.** A seat whose stack does not become ready (issue 064's readiness, its
-  `StackFailed`), or whose pilots do not come back after a crash (`pilots_broken`), is
-  retired: its worker stops its stack and ends, its run goes back to the queue once, and the
-  report names the seat and why. No seat is restarted within a suite.
+  start one at a time, the next only once the last is ready and `dispatch.start_gap` s
+  (30) after it, so one seat's start load is seen before the next. A seat that cannot be
+  admitted waits, and the suite runs on the seats that were.
+- **Overload, per run.** While a run goes, the dispatcher samples the host's 1-minute load;
+  when it ends, it reads the seat's acb_bridge `Skipped N CARLA frame(s)` lines written since
+  the run started. A run is overloaded when it skipped more than `dispatch.skip_limit` (12)
+  frames or the mean load during it passed `dispatch.overload_load` (the core count). An
+  overloaded run's verdict is the host's as much as the scenario's: the try stays on disk
+  unlinked, the run goes back to the queue once, and one seat fewer takes work from then on
+  (never below one; that seat is parked, its stack up and idle). A second overloaded try keeps
+  its verdict. Each run's `dispatch.json` holds its seat, skips, load mean and max, and why it
+  was overloaded; `summary.csv`'s `overload` column says the last, and `t3.py compare` adds
+  it to a changed verdict's line, so an overload failure reads apart from a real one.
+- **Retirement.** A seat whose stack does not become ready, whose pilots do not come back
+  after a crash (`pilots_broken`), or whose stack pilot's launch did not load a composable
+  (issue 064: after an `error` run the worker asks `timeline.missing_composables`, the check
+  readiness uses) is retired: its worker stops its stack and ends, its run goes back to the
+  queue once, and the report names the seat and why. No seat is restarted within a suite.
 - **One report.** Runs go under the host's one log root (`new_run_dir` is safe across
   processes), so `runs list` sees them all; the suite's directory is the usual
   `<logs>/<testbench>/suites/<suite>/`, one link per run, and its `summary.csv` and
@@ -139,6 +145,19 @@ Findings for step 2:
 - **Refused:** `--seats` with `--seat`, `--shard`, a project not on CARLA, a seat table
   without `seats.carla` (two seats would share one CARLA), a seat named twice or outside the
   table, and `auto` when no seat is free.
+
+### Step 2 live check, first try (133, 2026-11-19)
+
+Branch 088-dispatcher 0b1eb1d, basic's town01 (6 runs) on seats 0 and 1, the host also
+loaded by another session's builds: 502 s, 43.0 scenarios/h, 5 passed and
+town01_pedestrian failed (the ego within 1 m of the pedestrian), step 1's 3-seat failure.
+Seat 0 waited three times on the load before starting; no park, no retirement; nothing was
+left running. Mean load 78.4 on 32 cores (peak 225), acb skipped 19 frames on seat 0's stack
+over the suite and 7 on seat 1's. The verdict changed under overload and nothing caught it:
+the load was checked only at a seat's start, the second seat started while the first was
+still loading, and a limit of 20 skips was too lax. Hence the per-run overload above, the
+limit of 12, and one seat starting at a time. NAS: `home/2026-11-19 088 dispatcher live (118,
+run on 133)/`.
 
 ## Open questions
 

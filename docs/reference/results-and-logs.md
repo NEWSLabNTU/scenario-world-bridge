@@ -130,6 +130,7 @@ name, as play_launch names its process.
 ## A suite's table
 
 `summary.csv` has one row per run: `run_id`, `scenario`, `params`, `repetition`, `seed`,
-`verdict`, `reason`, `duration`, `judges`, `path`. The merged `junit.xml` holds one test
+`verdict`, `reason`, `duration`, `judges`, `path`, `overload` (a run of `run --seats` during
+which the host was overloaded, and why; empty otherwise). The merged `junit.xml` holds one test
 suite per run with SSv2's testcases, plus a testcase standing for an `error` (or a
 failure) SSv2 did not report.

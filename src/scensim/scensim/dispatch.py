@@ -52,7 +52,9 @@ class DispatchRefused(Exception):
 def settings(host: dict) -> dict:
     d = dict(config.DEFAULTS["dispatch"])
     d.update(host.get("dispatch") or {})
-    for k in ("vram_per_seat_mb", "load_per_seat", "skip_limit", "start_gap"):
+    if d.get("overload_load") is None:
+        d["overload_load"] = float(os.cpu_count() or 1)
+    for k in ("vram_per_seat_mb", "load_per_seat", "skip_limit", "start_gap", "overload_load"):
         v = d.get(k)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
             raise DispatchRefused(f"host settings: dispatch.{k} must be a number >= 0, not {v!r}")
@@ -170,12 +172,32 @@ def emit(out, **event):
 
 # ------------------------------------------------------------------------------- the worker
 
-def worker_loop(ctx, inp, out, run_one=None, line=None, outcome=None) -> int:
-    """Serve ``run`` orders on ``inp`` with ``ctx`` until ``stop`` or EOF; answer on ``out``."""
+def stack_pilot_broken(ctx) -> str:
+    """A stack pilot of the seat whose launch did not load a composable (issue 064's check,
+    timeline.missing_composables on its console), named with why; "" when none. Such a seat
+    will not recover by running again."""
+    from scensim import run as runmod, timeline
+    rec = ctx.stack or {}
+    if not rec.get("proc"):
+        return ""
+    for p in rec.get("pilots") or []:
+        if p.get("lifetime", "stack") != "stack":
+            continue
+        missing = timeline.missing_composables(runmod.pilot_console(rec, p, None))
+        if missing:
+            return f"pilot {p['entity']}'s launch did not load {missing}"
+    return ""
+
+
+def worker_loop(ctx, inp, out, run_one=None, line=None, outcome=None, broken=None) -> int:
+    """Serve ``run`` orders on ``inp`` with ``ctx`` until ``stop`` or EOF; answer on ``out``.
+    After a run that ended ``error``, a seat whose pilots are broken (they did not come back
+    after a crash, or a composable did not load) says so in its ``done`` and retires."""
     from scensim import run as runmod
     run_one = run_one or runmod.run_spec
     line = line or runmod.line
     outcome = outcome or runmod.outcome
+    broken = broken or stack_pilot_broken
     emit(out, event="ready", stack=ctx.stack.get("stack_id"), proc=str(ctx.stack.get("proc")))
     for raw in inp:
         try:
@@ -187,11 +209,17 @@ def worker_loop(ctx, inp, out, run_one=None, line=None, outcome=None) -> int:
         spec = spec_from_json(order["spec"])
         res = run_one(ctx, spec, int(order.get("attempt") or 0))
         d = ctx.runs_root / res.run_id
+        why = ""
+        if getattr(ctx, "pilots_broken", None):
+            why = f"its pilots did not come back: {ctx.pilots_broken}"
+        elif res.verdict == results.ERROR:
+            found = broken(ctx)
+            why = f"its {found}" if found else ""
         emit(out, event="done", key=spec.key, run_dir=str(d), verdict=res.verdict,
              line=line(res, d, spec.expect), outcome=outcome(res, spec.expect),
-             pilots_broken=getattr(ctx, "pilots_broken", None) or "")
-        if getattr(ctx, "pilots_broken", None):
-            emit(out, event="retired", why=f"its pilots are broken: {ctx.pilots_broken}")
+             seat_broken=why)
+        if why:
+            emit(out, event="retired", why=why)
             break
     return 0
 
@@ -247,11 +275,13 @@ class Worker:
     offsets: dict = dataclasses.field(default_factory=dict)
     why: str = ""
     buf: str = ""
+    loads: list = dataclasses.field(default_factory=list)   # 1-min load, sampled in the run
 
 
 class Dispatcher:
     def __init__(self, specs, seats, cfg: dict, suite_dir: Path, retry: dict, out=None,
-                 worker_argv=None, admit=None, skips=None, clock=time.monotonic):
+                 worker_argv=None, admit=None, skips=None, clock=time.monotonic,
+                 load=lambda: os.getloadavg()[0]):
         self.queue = deque((s, 0) for s in specs)
         self.workers = [Worker(seat=s) for s in seats]
         self.cfg = cfg
@@ -263,6 +293,8 @@ class Dispatcher:
         self.admit = admit or (lambda seat: admission(seat, cfg))
         self.skips = skips or (lambda w: acb_skips(w.proc_dir, w.offsets))
         self.clock = clock
+        self.load = load
+        self.overload_requeued = set()   # keys run again once after an overloaded run
         self.limit = len(self.workers)   # seats handed work; lowered on overload
         self.worst = 0
         self.requeued = set()
@@ -304,6 +336,7 @@ class Dispatcher:
         spec, attempt = self.queue.popleft()
         w.job = (spec, attempt)
         w.state = "busy"
+        w.loads = []
         self.skips(w)   # the run's skips are counted from here
         self._send(w, run=True, spec=spec_to_json(spec), attempt=attempt)
 
@@ -321,24 +354,65 @@ class Dispatcher:
         w.state = "retired"
         self._send(w, stop=True)
 
+    def overload(self, skipped: int, loads: list) -> str:
+        """Why a run was overloaded (its acb_bridge skipped frames, or the host's mean load
+        while it ran), or ""."""
+        why = []
+        if skipped > self.cfg["skip_limit"]:
+            why.append(f"acb_bridge skipped {skipped} CARLA frames (limit "
+                       f"{self.cfg['skip_limit']:.0f})")
+        mean = sum(loads) / len(loads) if loads else 0.0
+        if mean > self.cfg["overload_load"]:
+            why.append(f"mean load {mean:.1f} (limit {self.cfg['overload_load']:.0f})")
+        return "; ".join(why)
+
     def _done(self, w: Worker, ev: dict):
         spec, attempt = w.job
         w.job = None
-        self.say(ev.get("line") or f"{ev.get('verdict')}  {spec.key}")
-        if ev.get("verdict") == results.ERROR and attempt < self.retries:
+        run_dir = Path(ev["run_dir"])
+        skipped = self.skips(w)
+        loads = w.loads
+        why = self.overload(skipped, loads)
+        self._record(run_dir, w, skipped, loads, why)
+        self.say((ev.get("line") or f"{ev.get('verdict')}  {spec.key}")
+                 + (f"  overloaded: {why}" if why else ""))
+        parked = False
+        if why and self.limit > 1:
+            self.limit -= 1
+            parked = True
+            self.say(f"dispatch seat {w.seat.index}: the host is overloaded ({why}); seat "
+                     f"parked, {self.limit} seat(s) take work from now")
+        if ev.get("seat_broken") and spec.key not in self.requeued:
+            # the seat broke, not the scenario: the run goes to another seat, once
+            self.requeued.add(spec.key)
+            self.queue.appendleft((spec, attempt))
+            self.say(f"dispatch {spec.key}: back in the queue (seat {w.seat.index} is broken)")
+            self._retire(w, ev["seat_broken"])
+            return
+        elif why and spec.key not in self.overload_requeued:
+            # an overloaded run's verdict is the host's as much as the scenario's: run it
+            # again (once), on fewer seats; the first try stays on disk, unlinked
+            self.overload_requeued.add(spec.key)
+            self.queue.appendleft((spec, attempt))
+            self.say(f"dispatch {spec.key}: run again (overloaded)")
+        elif ev.get("verdict") == results.ERROR and attempt < self.retries:
             self.queue.appendleft((spec, attempt + 1))
         else:
-            self._link(spec.key, Path(ev["run_dir"]))
+            self._link(spec.key, run_dir)
             self.worst = max(self.worst, int(ev.get("outcome") or 0))
-        skipped = self.skips(w)
-        if skipped > self.cfg["skip_limit"] and self.limit > 1:
-            self.limit -= 1
-            w.state = "parked"
-            self.say(f"dispatch seat {w.seat.index}: acb_bridge skipped {skipped} CARLA frames "
-                     f"in {spec.key} (limit {self.cfg['skip_limit']:.0f}): the host is "
-                     f"overloaded; seat parked, {self.limit} seat(s) take work from now")
-            return
-        w.state = "ready"
+        w.state = "parked" if parked else "ready"
+
+    def _record(self, run_dir: Path, w: Worker, skipped: int, loads: list, why: str):
+        """dispatch.json in the run's directory: the seat, its acb_bridge skips and the
+        host's load while it ran, and whether it was overloaded (runs.summarize reads it)."""
+        try:
+            (run_dir / "dispatch.json").write_text(json.dumps({
+                "seat": w.seat.index, "acb_skipped_frames": skipped,
+                "load_mean": round(sum(loads) / len(loads), 1) if loads else None,
+                "load_max": round(max(loads), 1) if loads else None,
+                "overloaded": why}, indent=2) + "\n")
+        except OSError:
+            pass
 
     def _link(self, key: str, run_dir: Path):
         if self.suite_dir is None:
@@ -382,6 +456,9 @@ class Dispatcher:
             return
         waiting = [w for w in self.workers if w.state == "waiting"]
         if not waiting:
+            return
+        # one seat comes up at a time: its start load shows before the next is admitted
+        if any(w.state == "starting" for w in self.workers):
             return
         if self.last_start is not None and self.clock() - self.last_start < self.cfg["start_gap"]:
             return
@@ -441,6 +518,11 @@ class Dispatcher:
                     break
                 for key, _ in self.sel.select(timeout=POLL):
                     self._read(key.data)
+                if any(w.state == "busy" for w in self.workers):
+                    now = self.load()
+                    for w in self.workers:
+                        if w.state == "busy":
+                            w.loads.append(now)
         except KeyboardInterrupt:
             self.say("dispatch interrupted: stopping every seat's run and stack")
             self.stop(now=True)

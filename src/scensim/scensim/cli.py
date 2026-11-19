@@ -21,7 +21,7 @@ COMMANDS = {
 # the pip front end's own commands (082): after a release's setup.bash, this entry is first on
 # PATH and the front end's `scensim` is shadowed, so these are passed to it when it is
 # installed, and answered here (a source build, or a release without it) when it is not
-FRONT_END = ("install", "--version", "-V")
+FRONT_END = ("install", "setup", "autoware-side", "carla", "--version", "-V")
 FRONT_END_MODULE = "scensim_frontend.cli"
 
 
@@ -56,11 +56,12 @@ def front_end_command(cmd: str, rest: list) -> int:
     from pathlib import Path
     prefix = tbmod.built_over().get("prefix")
     if prefix and (Path(prefix) / tbmod.RELEASE_FILE).is_file():
-        sys.stderr.write("scensim install: refused: the pip front end is not installed "
-                         "(fix: pip install scensim, then scensim install)\n")
+        sys.stderr.write(f"scensim {cmd}: refused: the pip front end is not installed "
+                         f"(fix: pip install scensim, then scensim {cmd})\n")
     else:
-        sys.stderr.write("scensim install: refused: this scensim is a source build; update "
-                         "it with git and colcon (git pull --rebase, then colcon build)\n")
+        hint = ("set it up with `just setup`" if cmd in ("setup", "autoware-side", "carla")
+                else "update it with git and colcon (git pull --rebase, then colcon build)")
+        sys.stderr.write(f"scensim {cmd}: refused: this scensim is a source build; {hint}\n")
     return 3
 
 

@@ -90,10 +90,11 @@ the front end's, so the two never collide.
 
    `--no-sudo` prints the script and goes on with the user's steps; the check at the end
    names what is still missing.
-4. `~/scensim.bash`: ROS, the Autoware, the release's `current/sim/setup.bash`, then
-   `~/autoware_side/install/setup.bash` when built (install.md's order).
-5. `~/.config/scensim/host.yaml`: `carla.root` and `autoware.setup` as detected.
-6. `scensim autoware-side build`, when there is an Autoware.
+4. `scensim autoware-side build`, when there is an Autoware.
+5. `~/scensim.bash`: ROS, the Autoware, the release's `current/sim/setup.bash`, then
+   `~/autoware_side/install/setup.bash` when built (install.md's order). It is written after
+   the build, so it never sources a workspace that failed to build.
+6. `~/.config/scensim/host.yaml`: `carla.root` and `autoware.setup` as detected.
 7. `ros2 run autoware_sim_profile setup_autoware_data`, once (it is idempotent).
 8. The check (below).
 
@@ -125,8 +126,8 @@ holds other packages is refused unless `--workspace` names another directory.
 
 - CARLA (about 10 GB): `scensim carla fetch 0.9.16`. It downloads CARLA's own release
   tarball, checks it against a size and sha256 that the front end pins (CARLA publishes
-  none), and unpacks it to `~/CARLA_0.9.16`. It sets `carla.root` only when host.yaml has
-  none, and otherwise prints the line. 0.9.16 only: the release's binaries serve no other.
+  none), and unpacks it to `~/CARLA_0.9.16`. It writes host.yaml with `carla.root` only when
+  there is no host.yaml, and otherwise prints the line to add. 0.9.16 only: the release's binaries serve no other.
 - TensorRT 10.8.0 for Autoware 1.5.0 (2.6 GB): the release's `scensim autoware tensorrt`,
   which setup recommends for 1.5.0 and does not run.
 - Maps: `scensim assets fetch <testbench>`, as Tutorial 1 has it.
@@ -178,6 +179,13 @@ It runs in Docker on 118:
    stay as a reference section.
 5. A clean-machine check: a fresh Ubuntu 22.04 container (and 24.04 for the simulation side)
    from `pip install` to Tutorial 1's first run.
+
+## Progress
+
+- 2026-11-19, branch `089-setup`: steps 2 and 3 in the front end (`setup.py`, `carla.py`),
+  13 tests in `pypi/scensim/tests/test_setup.py` (stubs, no network, sudo or ROS). The
+  CARLA 0.9.16 size and sha256 were measured on 118's copy of CARLA's tarball
+  (8346095504 bytes). CARLA's CDN answered 403 to 118, so the download itself is untested.
 
 ## Exit criteria
 

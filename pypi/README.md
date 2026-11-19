@@ -14,4 +14,4 @@
   marker (`python_version == "3.10"`; Jazzy's, 3.12, requires scensim-ros-jazzy).
 
 Tests (a fake release served on localhost): `cd scensim && uv run --no-project --with pytest
---with zstandard python -m pytest tests`.
+--with zstandard --with pyyaml python -m pytest tests`.

@@ -1,6 +1,6 @@
 """``scensim``: the pip front end.
 
-``scensim --version`` and ``scensim install`` are its own; every other command is scensim's,
+``scensim --version``, ``install``, ``setup``, ``autoware-side`` and ``carla`` are its own; every other command is scensim's,
 from the prebuilt release for this host's ROS 2, which the first such command downloads
 (saying so, with the size) and then runs.
 
@@ -34,6 +34,9 @@ ROS_ROOT = os.environ.get("SCENSIM_ROS_ROOT", "/opt/ros")
 
 USAGE = """\
 usage: scensim install [--distro <ros>] [--force]
+       scensim setup [--no-sudo] [--force] [--autoware <setup.bash>|none] [--check]
+       scensim autoware-side build [--autoware <setup.bash>] [--workspace <dir>] [--force]
+       scensim carla fetch <version> [--dir <parent>]
        scensim --version
        scensim <command> ...     (scensim's own commands: run, runs, testbench, assets, ...)
 
@@ -46,7 +49,8 @@ def installed(version: str, distro: str) -> bool:
     return same_version(read_release_yaml(sim_prefix(version, distro)).get("version"), version)
 
 
-def install(release: Release, force: bool, first_use: bool) -> None:
+def install(release: Release, force: bool, first_use: bool,
+            quiet_next_steps: bool = False) -> None:
     """Download and unpack the simulation side unless it is in place; point ``current`` at
     it; print the next steps. A sourced Autoware changes nothing here: the Autoware-side
     packages are built in the user's Autoware workspace, never downloaded."""
@@ -63,6 +67,9 @@ def install(release: Release, force: bool, first_use: bool) -> None:
     point_current(install_dir(v, d))
     cur = home() / "current"
     print(f"installed in {install_dir(v, d)} (current)", file=sys.stderr)
+    if quiet_next_steps:  # `scensim setup` does them
+        return
+    print("next: `scensim setup` does the rest (or, by hand:)", file=sys.stderr)
     # rosdep update first: an old cache misses keys (python3-yamale-pip) and install exits 1
     print("missing system packages: run once, the second as an administrator:", file=sys.stderr)
     print("  rosdep update", file=sys.stderr)
@@ -168,6 +175,17 @@ def main(argv: list[str] | None = None) -> int:
         if args[0] in ("--version", "-V"):
             print(version_text())
             return 0
+        if args[0] == "carla":
+            from .carla import fetch
+            return fetch(args[1:])
+        if args[0] in ("setup", "autoware-side"):
+            from . import setup as setup_mod
+            release = load_release(choose_distro(None))
+            if args[0] == "setup":
+                return setup_mod.setup(release, args[1:], install)
+            if not installed(release.version, release.distro):
+                install(release, force=False, first_use=True)
+            return setup_mod.autoware_side(release, args[1:])
         if args[0] == "install":
             distro, force = parse_install(args[1:])
             release = load_release(choose_distro(distro))

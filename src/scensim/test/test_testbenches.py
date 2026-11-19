@@ -487,7 +487,10 @@ def test_the_front_ends_commands_go_to_it_when_it_is_installed(monkeypatch):
     got = []
     monkeypatch.setattr(cli, "_front_end", lambda: lambda argv: got.append(argv) or 0)
     assert cli.main(["--version"]) == 0 and cli.main(["install", "--force"]) == 0
-    assert got == [["--version"], ["install", "--force"]]
+    assert cli.main(["setup", "--no-sudo"]) == 0 and cli.main(["carla", "fetch", "0.9.16"]) == 0
+    assert cli.main(["autoware-side", "build"]) == 0
+    assert got == [["--version"], ["install", "--force"], ["setup", "--no-sudo"],
+                   ["carla", "fetch", "0.9.16"], ["autoware-side", "build"]]
 
 
 def test_without_the_front_end_a_source_build_answers_version_and_refuses_install(
@@ -500,6 +503,9 @@ def test_without_the_front_end_a_source_build_answers_version_and_refuses_instal
     assert cli.main(["install"]) == 3
     assert "this scensim is a source build; update it with git and colcon" in \
         capsys.readouterr().err
+    assert cli.main(["setup"]) == 3
+    assert "scensim setup: refused: this scensim is a source build; set it up with " \
+        "`just setup`" in capsys.readouterr().err
 
 
 def test_a_release_is_known_by_its_own_version_and_a_source_build_by_its_commit(tmp_path):

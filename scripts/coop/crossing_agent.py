@@ -102,6 +102,11 @@ class CrossingAgent(CA.CutInAgent):
         self.b_right = bool(c.get("b_right", True))
         self.stop_line_m = float(c.get("stop_line_m", 0.5))
         self.dt = float(c["dt"])
+        # 074 U3: what A's pacing aims at is dt plus a measured calibration, so the two cars' rest times at their
+        # lines, not their pacing estimates, differ by dt (Autoware brakes for its line gentler and cruises below
+        # b_vmax; the pace stage measured rest_d - dt = -1.45/-1.20/-1.50 at dt -1/0/1, seed 9)
+        self.rest_offset = float(c.get("rest_offset", 0.0))
+        self.dt_aim = self.dt + self.rest_offset
         self.v_ref = float(c.get("v", 8.0))
         self.b_vmax = float(c.get("b_vmax", 8.0))
         self.a_ref = c.get("a_ref", (-100.0, -4.2))
@@ -177,7 +182,7 @@ class CrossingAgent(CA.CutInAgent):
                          round(w.transform.rotation.yaw, 2)]  # noqa: E731
         self.log.info(f"A: rule {self.rule_name}, dt {self.dt}, v {self.v_ref}; Z at {self.centre[0]:.2f}, {self.centre[1]:.2f}; "
                       f"physics {'OFF ' + str(off) if off else 'as the spec'}")
-        self.log_event("setup", rule=self.rule_name, dt=self.dt, v=self.v_ref, ext=self.ext, centre=list(self.centre),
+        self.log_event("setup", rule=self.rule_name, dt=self.dt, rest_offset=self.rest_offset, v=self.v_ref, ext=self.ext, centre=list(self.centre),
                        lane_a=la(wa), lane_b=la(wbp), exit=self.exit, t0=self.t0, physics_off=bool(off), stops=self.stops,
                        fw_role=(None if not self.fw_rule else ("A" if self.b_right else "B")),
                        u0={"A": self._u("A", me.get_location()), "B": self._u("B", self.other.get_location())})
@@ -242,11 +247,11 @@ class CrossingAgent(CA.CutInAgent):
         seen = self.obs.push(t, ub, 0.0, vb)
         if self.stage == "wait":
             accel = -3.0
-            if t > 0.5 and eta_b + self.dt <= t_cover(-pa, v, self.v_ref, A_ACC) + G.LAUNCH_DEAD:
+            if t > 0.5 and eta_b + self.dt_aim <= t_cover(-pa, v, self.v_ref, A_ACC) + G.LAUNCH_DEAD:
                 self.stage = "approach"
                 self.log_event("launch", t=t, ua=ua, ub=ub, vb=vb, ab=ab, eta_b=eta_b)
         if self.stage == "approach":
-            want = eta_b + self.dt
+            want = eta_b + self.dt_aim
             dv = DV  # the whole band to the lock: at dt -1 A needs ~12 m/s against an ego still accelerating
             self.v_cmd = max(self.v_ref - dv, min(self.v_ref + dv, -pa / max(want, 0.1))) if pa < 0 else self.v_ref
             if v < self.v_cmd - 0.5 and t_cover(-pa, v, self.v_cmd, A_ACC) > want:

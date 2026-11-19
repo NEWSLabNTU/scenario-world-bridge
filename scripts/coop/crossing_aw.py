@@ -42,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import crossing_game as G  # noqa: E402
 import measures as M  # noqa: E402
 import n5_swb as N5  # noqa: E402
+import four_way_game as FW  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 MAP = ROOT / "data/carla-autoware-bridge/Town05"
@@ -326,7 +327,8 @@ def run_one(out, arm, dt, rule, seed, side, a):
     gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
            "a_ref": list(site["a_ref"]), "b_ref": list(site["b_ref"]), "log": str(rd / "coop_a.jsonl"),
-           "carla_port": a.carla_port, "b_right": side == "left"}
+           "carla_port": a.carla_port, "b_right": side == "left",
+           "rest_offset": a.rest_offset if any(r[0] == rule for r in FW.RULES) else 0.0}
     (rd / "coop_a.json").write_text(json.dumps(cfg))
     agent = subprocess.Popen([sys.executable, str(ROOT / "scripts/coop/crossing_agent.py"), "--relay", a.relay,
                               "--entity", "coop_a", "--config", str(rd / "coop_a.json")],
@@ -400,6 +402,8 @@ def main():
     ap.add_argument("--only", help="arm:dt:rule:seed[:side],... instead of the grid")
     ap.add_argument("--redo-invalid", type=int, default=1)
     ap.add_argument("--max-load", type=float, default=0.0, help="wait before each run until the 1-min load stays below this (0: no wait)")
+    ap.add_argument("--rest-offset", type=float, default=1.4,
+                    help="stop-sign rules: s added to A's pacing aim so rest_d lands on dt (074 U3 pace stage: 1.4)")
     ap.add_argument("--rescore", action="store_true")
     ap.add_argument("--start-gate", default="", help="a shell command run after the ego is ready, before the scenario")
     ap.add_argument("--load-log", default="", help="the host's load samples: <epoch s> <1-min load> <PSI cpu avg10>")

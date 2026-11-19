@@ -106,7 +106,7 @@ play_launch launch --web-addr 127.0.0.1:<seat web port> \
 | `project` | the working directory's | a project directory or `pkg://<package>` |
 | `seat` | the host settings' `seat:` | a seat number or `auto` |
 | `simulator` | the project's `simulator:` | `carla` or `isaac` |
-| `map` | CARLA: the first run's map; Isaac: the first map of the project's | the map the stack's pilots start on |
+| `map` | CARLA: the first run's map; Isaac: the first map of the project's (a stack `scensim run` starts: that run's map) | the map the stack's pilots start on |
 | `logs` | the host settings' `logs:` | the log root |
 | `gpu` | the seat's | the GPU index (`CUDA_VISIBLE_DEVICES`) |
 | `launcher` | the host settings' `launcher:` | `auto`, `play_launch` or `ros2`: what starts the stack's own launches |

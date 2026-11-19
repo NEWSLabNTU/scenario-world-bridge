@@ -395,14 +395,15 @@ class StartedStack:
                     "its pilots and CARLA were ended by their backstops\n")
 
 
-def stack_argv(project: Path, host: dict, seat: int, log_dir: Path) -> list:
+def stack_argv(project: Path, host: dict, seat: int, log_dir: Path, map_name=None) -> list:
     """The stack as the user starts it: play_launch of scensim.launch.xml for ``project``, on
-    ``seat``, its web UI on the seat's port."""
+    ``seat``, its web UI on the seat's port; its pilots on ``map_name`` when given."""
     from scensim import seat as seatmod
     s = seatmod.table(host, seatmod.seats_source(project))[seat]
     name = toolsmod.launcher(host.get("launcher"))[0]
     return launchermod.command(name, ["scensim_launch", "scensim.launch.xml"],
-                               {"project": project, "seat": seat, "logs": host["logs"]},
+                               {"project": project, "seat": seat, "logs": host["logs"],
+                                **({"map": map_name} if map_name else {})},
                                log_dir, web_port=s.web_port, diagnostics=True)
 
 
@@ -475,11 +476,14 @@ def _simulator(project: Path):
     return {"carla": "CARLA", "isaac": "Isaac Sim"}.get(sim, sim)
 
 
-def start_stack(project: Path, host: dict, command=None, out=None) -> StartedStack:
+def start_stack(project: Path, host: dict, command=None, out=None, map_name=None) -> StartedStack:
     """Start the project's stack (``command(project, host, seat, log_dir) -> argv``, default
-    ``stack_argv``) in its own session, its console in ``<logs>/<project>/stack-launches/``."""
+    ``stack_argv``, its pilots on ``map_name`` when given: the first run's map, which an Isaac
+    world cannot change once loaded) in its own session, its console in
+    ``<logs>/<project>/stack-launches/``."""
     s, log_dir = prepare_stack(project, host, plan=command is None)
-    argv = (command or stack_argv)(project, host, s.index, log_dir)
+    argv = (command(project, host, s.index, log_dir) if command is not None
+            else stack_argv(project, host, s.index, log_dir, map_name=map_name))
     try:
         proc = stackmod.start_process(argv, stack_env(s, host=host), log_dir / "console.log",
                                       cwd=str(project))
@@ -1392,12 +1396,12 @@ def line(result: results.RunResult, run_dir: Path, expect=None) -> str:
 # --- the command ----------------------------------------------------------------------------
 
 def context(project_arg=None, seat=None, logs=None, wait=0.0, start=False, stack_command=None,
-            stack_timeout=None, **kw) -> Context:
+            stack_timeout=None, map_name=None, **kw) -> Context:
     """The project, its host settings and its live stack. ``start``: when the project has no
-    live stack, start one (``start_stack``) and wait for it (``stack_timeout``, else ``wait``
-    when given, else STACK_START_TIMEOUT); ``Context.started`` is then that stack, which the
-    caller stops or keeps. A stack that is up but differs from the project is refused, never
-    replaced."""
+    live stack, start one (``start_stack``, its pilots on ``map_name``, the first run's map)
+    and wait for it (``stack_timeout``, else ``wait`` when given, else STACK_START_TIMEOUT);
+    ``Context.started`` is then that stack, which the caller stops or keeps. A stack that is
+    up but differs from the project is refused, never replaced."""
     try:
         project = config.writable_project(config.find_project(project_arg or None))
         over = {}
@@ -1414,7 +1418,7 @@ def context(project_arg=None, seat=None, logs=None, wait=0.0, start=False, stack
     except NoStack:
         if not start:
             raise
-        started = start_stack(project, host, stack_command, kw.get("out"))
+        started = start_stack(project, host, stack_command, kw.get("out"), map_name=map_name)
         try:
             rec = wait_started(started, project, host,
                                stack_timeout or (wait or None) or STACK_START_TIMEOUT)
@@ -1720,10 +1724,14 @@ def _main(args, out, stack_command=None) -> int:
             early = config.find_project(args.project or None)
         except config.ConfigError:
             early = None   # context() refuses it, in its own words
+        first_map = None
         if early is not None:
-            check_scenarios(early, expand(Path(args.target), early, args.repeat,
-                                          _parse_params(args.param), args.seed)[0],
+            early_specs = expand(Path(args.target), early, args.repeat,
+                                 _parse_params(args.param), args.seed)[0]
+            check_scenarios(early, early_specs,
                             testbench=early.name if testbenches.is_work_dir(early) else None)
+            first_map = next((m for m in (scenario_map(s.scenario) for s in early_specs) if m),
+                             None)
         if args.seats:
             if early is not None:
                 check_project_once(early, testbench=early.name
@@ -1732,7 +1740,7 @@ def _main(args, out, stack_command=None) -> int:
         ctx = context(args.project, args.seat, args.logs, args.wait,
                       start=args.start_stack or args.stop_stack, stack_command=stack_command,
                       stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,
-                      out=out)
+                      out=out, map_name=first_map)
         ctx.testbench = tbinfo
         target = Path(args.target)
         specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param),

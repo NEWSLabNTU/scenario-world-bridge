@@ -827,6 +827,34 @@ def test_stop_stack_starts_runs_and_stops(where, maps_hub, launcher):
     assert console.is_file()
 
 
+def test_a_stack_the_run_starts_is_on_the_runs_map(where, maps_hub, monkeypatch):
+    """An Isaac world cannot change its map once loaded: the stack a run starts gets the
+    first run's map (map:=), not the project's first (the how-to's haruna course started
+    on Town01)."""
+    d = make(where)
+    seen = {}
+
+    def ctx(*a, **kw):
+        seen.update(kw)
+        raise run.Refused("stop here")
+    monkeypatch.setattr(run, "context", ctx)
+    assert run.main(["scenarios/three_pilots.xosc", "--project", str(d), "--start-stack"],
+                    out=io.StringIO()) == run.EXIT_REFUSED
+    assert seen["map_name"] == run.scenario_map(d / "scenarios" / "three_pilots.xosc")
+    assert seen["map_name"]
+
+
+def test_stack_argv_names_the_map_only_when_given(where, maps_hub):
+    d = make(where)
+    host = run.config.host_settings(d, {})
+    log_dir = where["tmp"] / "launch"
+    log_dir.mkdir()
+    from scensim import seat as seatmod
+    seat = seatmod.table(host, seatmod.seats_source(d))[0].index
+    assert "map:=haruna" in run.stack_argv(d, host, seat, log_dir, map_name="haruna")
+    assert not any(w.startswith("map:=") for w in run.stack_argv(d, host, seat, log_dir))
+
+
 def test_start_stack_leaves_it_up_and_reuses_a_live_one(where, maps_hub, launcher):
     d = make(where)
     cmd, calls = launcher

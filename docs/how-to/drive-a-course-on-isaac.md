@@ -33,18 +33,27 @@ cd ~/my_ws && colcon build --symlink-install
 Files from scensim's cache are read-only, and `cp` keeps the mode, hence the `chmod`. The
 scenario's ego is the catalog car `drift_mustang`: set its `entryName` to `tesla_model3`,
 the car of the testbench's pilot (otherwise `testbench check` names the mismatch and exits 1).
+The dataset's scenario predates scensim's names: `testbench check` names its two old lines
+with their fix, the map as `$(env SCENSIM_MAPS)/haruna` and the vehicle catalog as
+`$(env SCENSIM_VEHICLES)`:
+
+```bash
+f=src/isaac_first_drive/scenarios/haruna_down.xosc   # from ~/my_ws
+sed -i -e 's|entryName="drift_mustang"|entryName="tesla_model3"|' \
+    -e 's|$(env SWB_MAPS)/haruna|$(env SCENSIM_MAPS)/haruna|' \
+    -e 's|<Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" */>|'\
+'<Directory path="$(env SCENSIM_VEHICLES)" />|' "$f"
+scensim testbench check isaac_first_drive
+```
 
 ## The stack on the course
 
 An Isaac stack serves one world for its whole life, so it is stopped, and the run below
-starts it again on the course's map:
+starts it again on the course's map (a stack a run starts is on that run's map):
 
 ```bash
 scensim stack isaac_first_drive --stop
 ```
-
-<!-- TODO(exit run): that the stack started by the run loads the scenario's map (haruna);
-the stack console's `pilots on haruna` and `pilot ego ready on haruna`. -->
 
 ## The run
 

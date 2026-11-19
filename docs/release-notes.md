@@ -1,5 +1,51 @@
 # Release notes
 
+## v0.2.1 (draft, not released)
+
+scensim 0.2.1 runs a suite or a scenario's rollouts on several seats of one host at once, and
+fixes what 0.2.0's release showed. Nothing changes in the simulation side's components (no
+submodule moved since `v0.2.0`), the requirements or the install.
+
+### What is new
+
+- **`scensim run --seats <list|auto>`** (roadmap 088). A suite, or a scenario's rollouts, on
+  several seats at once, each with its own stack and CARLA (the seat table needs
+  `seats.carla`); a free seat takes the next run, and every run goes into one report under
+  `suites/`. Seats start one at a time, each only with room on its GPU and in the host load
+  for the testbench's CARLA and each of its Autoware pilots (`dispatch` in the host settings).
+  A run during which the host was overloaded (its vehicle bridge skipped CARLA frames, its
+  ticks ran over budget, or the CPU was stalled) runs again once on one seat fewer; a seat
+  whose stack does not become ready, or whose pilot's launch did not load a node, is retired
+  and its run goes to another. `--keep-stacks` leaves the seats' stacks up. On host 133 two
+  seats ran basic's town01 suite at 1.8 times one seat's rate, with no verdict changed in 28
+  runs; simulated durations on two seats are a few seconds longer than on one, so compare
+  timing metrics at the same seat count.
+- **Rollouts.** `--seeds A-B` runs one run per seed; `--param NAME=[a,b,c]` runs each value
+  (a grid axis, a scenario's too); a suite's `cases:` lists parameter sets run as they are.
+  A scenario run more than once gets a report directory like a suite's
+  (`suites/rollouts-<scenario>/`), so `--resume` works for it. Beside `summary.csv`, a report
+  has `rollouts.csv` (per scenario and parameter set: counts, pass rate, seeds, the
+  duration's spread) and `rollout_metrics.csv` (each numeric metric's spread).
+- T3's comparison names an overloaded run beside a verdict that differs.
+
+### Fixed since 0.2.0
+
+- **`--stop-stack`** stops only a stack this command started; one already up stays up, as
+  the help and the reference now say.
+- **`scensim assets fetch`** no longer rewrites a `scensim.lock` whose data is unchanged (a
+  lock written by an older scensim kept its header comment, and the rewrite left a checkout
+  dirty).
+- The release workflow retries the published packages' install while PyPI's index catches up,
+  and writes its summary when that install fails.
+
+### Before the release
+
+- The Isaac examples' live check (`isaac_first_drive`, `road_physics`), promised for 0.2.1
+  in 0.2.0's notes.
+- Branch `088-startup-hold` (no run starts beside another seat's stack start-up), after 133's
+  check.
+- The version, the tag and the publish are the user's.
+
 ## v0.2.0
 
 scensim 0.2.0 drives a car with your own Autoware: the car's Autoware packages are source

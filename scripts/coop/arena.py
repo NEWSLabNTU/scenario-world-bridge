@@ -583,15 +583,29 @@ class Arena:
                     a.destroy()
 
 
+def wheel_xy(w):
+    """A wheel's world position (x, y) in metres. CARLA 0.9.x has `position` in centimetres;
+    CARLA 1.0 (Chaos) dropped it and gives `location` in metres."""
+    p = getattr(w, "position", None)
+    if p is not None:
+        return p.x / 100.0, p.y / 100.0
+    return w.location.x, w.location.y
+
+
+def wheel_geometry(wheels):
+    """(wheelbase, track) in metres from a physics control's wheels (FL, FR, RL, RR):
+    distances, so that any heading works."""
+    (fx, fy), (rx, ry), (lx, ly) = wheel_xy(wheels[0]), wheel_xy(wheels[1]), wheel_xy(wheels[2])
+    return math.hypot(fx - lx, fy - ly), math.hypot(fx - rx, fy - ry)
+
+
 class Car:
     def __init__(self, arena, actor):
         self.arena = arena
         self.a = actor
         pc = actor.get_physics_control()
         wheels = pc.wheels
-        # world positions (cm): distances, so that any heading works
-        wb = math.hypot(wheels[0].position.x - wheels[2].position.x, wheels[0].position.y - wheels[2].position.y) / 100.0
-        track = math.hypot(wheels[0].position.x - wheels[1].position.x, wheels[0].position.y - wheels[1].position.y) / 100.0
+        wb, track = wheel_geometry(wheels)
         self.wheelbase = wb
         self.steering = Steering(math.radians(wheels[0].max_steer_angle), track / wb)
         self.lon = Longitudinal()

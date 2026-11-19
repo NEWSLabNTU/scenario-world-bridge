@@ -1,6 +1,6 @@
 # 070: The Isaac ego does not start from rest on a downhill under Autoware
 
-**Severity**: high (the how-to's Haruna course cannot be driven on Isaac). **Status**: open (cause found).
+**Severity**: high (the how-to's Haruna course cannot be driven on Isaac). **Status**: fixed (aib bd3aab4, scensim pins e81dbf9a).
 **Found**: 2026-11-20, swb 118, the 0.2.1 live check of the Isaac examples
 (`drive-a-course-on-isaac.md`, `haruna_down` on `isaac_first_drive`).
 
@@ -47,16 +47,30 @@ The test (aib's vehicle and onboard computers as `aib.steptest` builds them, gra
 | the same, sticky threshold speed 0 (sticky off) | rolls: 9.7 m/s (open loop) |
 | 0 m/s^2, 0.25 m/s | rolls |
 
-## Proposed fix (waiting for a decision)
+## Fix
 
-In gear, a target velocity over 0.01 m/s, no drive torque and every brake below
-`brake_floor`: a release torque of 1 N m on each driven wheel (about 0.003 m/s^2), so PhysX
-leaves its sticky state when the brakes are released, as a real car is free to roll. Tested
-as a patch in the test script: the downhill start rolls (2.32 m/s at 5 s); on the flat, the
-same request creeps 0.016 m/s, which Autoware's controller corrects; a target of 0 (a stop,
-a parked car) still holds on the hold brake, so the camber creep 059 N8 fixed stays fixed;
-uphill is unchanged. 5 N m creeps 0.079 m/s on the flat. Proposed in aib's `Vehicle.apply`
-(sticky tyres are PhysX's), as a rig field.
+aib bd3aab4 (`release_torque`, a field of the rig's vehicle, default 1 N m): in drive or
+reverse, a target velocity over 0.01 m/s, no drive torque and every brake below
+`brake_floor`, `Vehicle.apply` gives each driven wheel 1 N m (about 0.003 m/s^2 on the Model
+3) and no brake, so PhysX leaves its sticky state when the brakes are released, as a real car
+is free to roll. A target of 0 (a stop, a parked car) stays on the hold brake, so the camber
+creep csb roadmap 059 N8 fixed stays fixed; sim_vehicle_ecu is unchanged. aib's steptest has
+the slope cases (gravity tilted 3.1 deg, downhill ahead):
+
+| Case | `release_torque` 1 N m | 0 (before) |
+|---|---|---|
+| `start_down`: -0.028 m/s^2 towards 0.25 m/s | 2.32 m/s at 5 s | 0.0008 m/s (held) |
+| `start_flat`: the same on the flat | 0.016 m/s at 20 s | 0 |
+| `start_up`: +0.6 m/s^2, 3.1 deg up | 0.37 m/s at 5 s | the same |
+| `hold_down`: -1.0 m/s^2, target 0 | held (0.008 m) | held |
+| `hold_flat`: 0, target 0 | held | held |
+
+The eight older steptest cases (launch, braking, regen, steps, coast, ...) give the same
+numbers with and without it.
+
+Live on 118 (haruna_down, scensim's profile): the ego started at once and drove about 230 m
+down the course (4.2 m/s a minute in), then stopped for an obstacle the map's static points
+make (issue 072), a separate defect.
 
 ## Evidence
 

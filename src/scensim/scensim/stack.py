@@ -721,9 +721,23 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     carla_run = None
     if sim == "carla":
         try:
-            carla_run = CARLA_DECIDE(carla, simulator_start or None, probe or simmod.probe)
+            # the testbench's carla: {quality, args}, a host's carla block over it (077 item 54)
+            launch = simmod.launch_settings(psettings.get("carla"), host.get("carla"))
+            carla_run = CARLA_DECIDE(carla, simulator_start or None, probe or simmod.probe,
+                                     launch=launch)
         except simmod.SimulatorRefused as e:
             raise StackRefused(str(e)) from None
+        if carla_run["owner"] == simmod.STARTED:
+            problem = simmod.quality_problem(launch, carla_run.get("version"), maps,
+                                             simmod.town_alias())
+            if problem:
+                raise StackRefused(problem)
+        elif not simmod.is_default_launch(launch):
+            print(f"scensim stack: warning: carla quality {launch['quality']} and args "
+                  f"{launch['args']} do not apply: the stack does not start this CARLA "
+                  f"({carla_run['host']}:{carla_run['port']}, simulator_start "
+                  f"{carla_run['mode']}); stack.json records them as not applied",
+                  file=sys.stderr)
     # the body every car drives (sim_vehicle_spec's bodies, roadmap 083): the CARLA server's
     # version's, where the stack knows it (a server already up answers it; one the stack
     # starts is its carla.root's); else each car's default body

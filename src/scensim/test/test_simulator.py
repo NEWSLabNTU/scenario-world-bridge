@@ -765,3 +765,122 @@ def test_python_client_takes_the_servers_own_or_names_the_fix(tmp_path):
     assert "carla.root is not set" in problem and "carla-1.0-cp310-*.whl" in problem
     d, problem = sim.python_client(rec, cache, installed="", py=(3, 12))
     assert d is None and "not installed" in problem and "for Python 3.12" in problem
+
+
+# --- the testbench's carla: {quality, args} (roadmap 077, item 54) ----------------------------
+def test_launch_settings_the_host_overrides_each_key_whole():
+    tb = {"quality": "low", "args": ["-benchmark", "-fps=20"]}
+    d = sim.launch_settings(tb, {"root": "/x", "port": 2000})
+    assert (d["quality"], d["args"]) == ("low", ["-benchmark", "-fps=20"])
+    assert d["from"] == {"quality": "testbench", "args": "testbench"}
+    d = sim.launch_settings(tb, {"args": ["-ResX=640"]})   # the host's list replaces the testbench's
+    assert (d["quality"], d["args"]) == ("low", ["-ResX=640"])
+    assert d["from"] == {"quality": "testbench", "args": "host"}
+    d = sim.launch_settings(None, {"quality": "Epic"})
+    assert (d["quality"], d["args"], d["from"]["args"]) == ("epic", [], "default")
+    assert sim.is_default_launch(sim.launch_settings(None, None))
+
+
+@pytest.mark.parametrize("arg, key", [
+    ("-carla-rpc-port=2400", "carla.port"), ("-carla-port=2400", "carla.port"),
+    ("-carla-streaming-port=0", "carla.port"), ("-RenderOffScreen", "offscreen"),
+    ("-renderoffscreen", "offscreen"), ("-quality-level=Low", "carla.quality"),
+    ("-nosound", "-nosound")])
+def test_scensim_s_own_flags_are_refused_by_name(arg, key):
+    with pytest.raises(sim.SimulatorRefused, match=f"{arg.split('=')[0]} is scensim's: set by .*{key}"):
+        sim.launch_settings({"args": [arg]}, None)
+
+
+def test_launch_problems_shape_and_environment():
+    assert sim.launch_problems({"quality": "medium"}) == ["carla.quality 'medium': one of epic, low"]
+    assert "a list of strings" in sim.launch_problems({"args": "-benchmark"})[0]
+    assert "a list of strings" in sim.launch_problems({"args": [20]})[0]
+    assert "an environment variable" in sim.launch_problems(
+        {"args": ["VK_ICD_FILENAMES=/x.json"]})[0]
+    # the device and the renderer stay the host's
+    assert sim.launch_problems({"args": ["-graphicsadapter=1", "-vulkan", "-benchmark"]}) == []
+    with pytest.raises(sim.SimulatorRefused, match="host settings carla.quality"):
+        sim.launch_settings(None, {"quality": "ultra"})
+
+
+def test_low_is_refused_across_towns_on_0_9_only():
+    low = sim.launch_settings({"quality": "low"}, None)
+    alias = {"Town10": "Town10HD"}
+    assert "segfaults on a town change" in sim.quality_problem(low, "0.9.16", ["Town01", "Town02"],
+                                                                 alias)
+    assert "version unknown" in sim.quality_problem(low, None, ["Town01", "Town02"], alias)
+    assert sim.quality_problem(low, "1.0", ["Town01", "Town02"], alias) is None
+    assert sim.quality_problem(low, "0.9.16", ["Town01"], alias) is None
+    assert sim.quality_problem(low, "0.9.16", ["Town01", "Town01_Opt"], alias) is None   # one town
+    epic = sim.launch_settings(None, None)
+    assert sim.quality_problem(epic, "0.9.16", ["Town01", "Town02"], alias) is None
+
+
+def test_decide_applies_the_launch_to_a_started_carla_only(tmp_path):
+    root = fake_root(tmp_path)
+    launch = sim.launch_settings({"quality": "low", "args": ["-benchmark", "-fps=20"]}, None)
+    port = free_port()
+    d = sim.decide({"root": str(root), "port": port}, "start", lambda *a: (sim.FREE, None),
+                   launch=launch)
+    assert d["argv"] == [str(root / "CarlaUE4.sh"), f"-carla-rpc-port={port}", "-nosound",
+                         "-RenderOffScreen", "-quality-level=Low", "-benchmark", "-fps=20"]
+    assert d["launch"]["applied"] is True and d["launch"]["why"] is None
+    assert d["launch"]["from"] == {"quality": "testbench", "args": "testbench"}
+    d = sim.decide({"root": str(root), "port": 1}, "external", lambda *a: (sim.FREE, None),
+                   launch=launch)
+    assert d["argv"] is None and d["launch"]["applied"] is False
+    assert "did not start CARLA" in d["launch"]["why"]
+    assert d["launch"]["args"] == ["-benchmark", "-fps=20"]   # recorded, as not applied
+    prov = sim.launch_provenance({"carla": d})
+    assert prov == {"owner": "external", "version": None, "argv": None, "quality": "low",
+                    "args": ["-benchmark", "-fps=20"], "applied": False}
+    assert sim.launch_provenance({"carla": None}) is None
+
+
+def test_the_plan_starts_carla_with_the_testbench_s_launch(where, maps_hub):
+    """077 item 54: the testbench's carla block, a host override, stack.json's record, and Low
+    across towns on 0.9.16 refused at the plan."""
+    root = fake_root(where["tmp"])
+    d = make(where, {"root": str(root), "port": free_port(), "ready_timeout": 60})
+    tb = yaml.safe_load((d / "testbench.yaml").read_text())
+    tb["carla"] = {"quality": "low", "args": ["-benchmark"]}
+    (d / "testbench.yaml").write_text(yaml.safe_dump(tb))
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    c = p.record["carla"]
+    assert c["argv"][-2:] == ["-quality-level=Low", "-benchmark"] and c["launch"]["applied"]
+    # the host's carla block overrides the testbench's args (.scensim/local.yaml)
+    local = yaml.safe_load((d / ".scensim" / "local.yaml").read_text())
+    local["carla"]["args"] = ["-fps=20"]
+    (d / ".scensim" / "local.yaml").write_text(yaml.safe_dump(local))
+    c = stack.plan(project_arg=str(d), map_name="Town01").record["carla"]
+    assert c["argv"][-2:] == ["-quality-level=Low", "-fps=20"]
+    assert c["launch"]["from"] == {"quality": "testbench", "args": "host"}
+    # a second town, on 0.9.16 at Low: refused before anything starts
+    (d / "assets" / "maps" / "Town02").mkdir(parents=True, exist_ok=True)
+    with pytest.raises(stack.StackRefused, match="quality low on CARLA 0.9.16 with maps of 2 towns"):
+        stack.plan(project_arg=str(d), map_name="Town02")
+    # an owned flag in the host's args: refused, naming the key
+    local["carla"]["args"] = ["-carla-rpc-port=3000"]
+    (d / ".scensim" / "local.yaml").write_text(yaml.safe_dump(local))
+    with pytest.raises(stack.StackRefused, match="-carla-rpc-port is scensim's: set by carla.port"):
+        stack.plan(project_arg=str(d), map_name="Town01")
+
+
+def test_an_external_carla_warns_that_the_launch_does_not_apply(where, maps_hub, capsys):
+    d = make(where, {"start": "external", "port": free_port()})
+    tb = yaml.safe_load((d / "testbench.yaml").read_text())
+    tb["carla"] = {"args": ["-benchmark"]}
+    (d / "testbench.yaml").write_text(yaml.safe_dump(tb))
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    assert p.record["carla"]["launch"]["applied"] is False
+    assert "do not apply: the stack does not start this CARLA" in capsys.readouterr().err
+
+
+def test_testbench_check_reads_the_carla_block(where, maps_hub):
+    d = make(where, {})
+    tb = yaml.safe_load((d / "testbench.yaml").read_text())
+    tb["carla"] = {"quality": "low", "args": ["-RenderOffScreen"], "port": 2001}
+    (d / "testbench.yaml").write_text(yaml.safe_dump(tb))
+    found = [str(f) for f in project.check_project(d)]
+    assert any("-RenderOffScreen is scensim's" in f for f in found)
+    assert any("carla.port: unknown key" in f and "host settings" in f for f in found)

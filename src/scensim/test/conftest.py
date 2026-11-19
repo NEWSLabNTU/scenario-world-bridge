@@ -155,11 +155,11 @@ def carla_serving(monkeypatch):
     sets either gets the real decision."""
     from scensim import simulator, stack
 
-    def decide(carla, mode=None, probe_fn=simulator.probe):
+    def decide(carla, mode=None, probe_fn=simulator.probe, launch=None):
         if mode is None and not (carla or {}).get("root") and \
                 (carla or {}).get("start", "auto") == "auto":
             mode = "external"
-        return simulator.decide(carla, mode, probe_fn)
+        return simulator.decide(carla, mode, probe_fn, launch=launch)
     monkeypatch.setattr(stack, "CARLA_DECIDE", decide)
 
 

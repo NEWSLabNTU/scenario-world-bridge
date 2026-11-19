@@ -33,7 +33,8 @@ carla: {root: ~/CARLA_0.9.16, host: localhost, port: 2000}
 With `carla.root` set, the stack starts CARLA itself when nothing answers on the port
 (`carla.start: auto`, the default), waits for it (up to `carla.ready_timeout`, 300 s) and
 stops it with the stack. It runs CARLA off-screen, on the NVIDIA card, at the default
-quality (Epic), and writes CARLA's output to
+quality (Epic). The testbench's `carla: {quality, args}` changes the quality and adds arguments
+([Project file](../reference/project-file.md#carla)). It writes CARLA's output to
 `<logs>/<testbench>/seat-<n>-current/proc/simulator/carla.log` (`logs:` of the host
 settings, `~/.local/state/scensim/logs` by default). This mode is recommended for a first
 drive: no separate process is started, and none remains afterwards. The BasicAgent pilot of [Tutorial 4](../tutorials/04-several-pilots.md)

@@ -57,7 +57,7 @@ from scensim import budget as budgetmod, config, judges as judgesmod, project as
 from scensim import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
-from scensim import testbenches
+from scensim import simulator as simmod, testbenches
 from scensim.findings import ros_args
 
 EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
@@ -1241,6 +1241,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 launcher=launchermod.of(rec),  # 079: which launcher ran the stack
                 spec_hash=rec.get("spec_hash") or {})
+    carla_launch = simmod.launch_provenance(rec)
+    if carla_launch:
+        prov["carla"] = carla_launch   # the CARLA and its command line (077 item 54)
     if load_start is not None:
         prov["load"] = {"start": load_start, "end": load_end or results.host_load()}
     overlays = {p["entity"]: p["overlays"] for p in pilots if p.get("overlays")}

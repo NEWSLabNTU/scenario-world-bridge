@@ -34,7 +34,7 @@ RENAMES = {"gitignore": ".gitignore"}
 NOT_COPIED = ("assets", "state", "runs", ".scensim", ".swb", "play_log")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
-            "world", "isaac", "ssv2", "default")
+            "world", "isaac", "carla", "ssv2", "default")
 REQUIRED = ("simulator", "pilots", "assets")
 SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
@@ -392,6 +392,21 @@ def check_schema(settings: dict) -> list:
                                  or not all(isinstance(v, str) for v in vehicles)):
         out.append(Finding(pf, "vehicles: is not a list of spec files",
                            "vehicles: [vehicles/my_car.yaml]"))
+    carla_block = settings.get("carla")
+    if carla_block is not None:
+        # how the stack starts CARLA: quality and args (077 item 54; scensim.simulator)
+        from scensim import simulator as simmod
+        if sim not in (None, "carla"):
+            out.append(Finding(pf, f"carla: is for simulator carla (this testbench's is {sim})",
+                               "take carla: out"))
+        for k in (carla_block if isinstance(carla_block, dict) else {}):
+            if k not in simmod.LAUNCH_KEYS:
+                out.append(Finding(pf, f"carla.{k}: unknown key (the testbench's carla block "
+                                   f"holds {', '.join(simmod.LAUNCH_KEYS)}; root, port, start "
+                                   "and ready_timeout are host settings)",
+                                   "move it to ~/.config/scensim/host.yaml or .scensim/local.yaml"))
+        for msg in simmod.launch_problems(carla_block):
+            out.append(Finding(pf, msg, "carla: {quality: epic|low, args: [<CARLA argument>]}"))
     maps = settings.get("maps")
     if maps is not None and (not isinstance(maps, list) or not maps
                              or not all(isinstance(m, str) and m for m in maps)):
@@ -924,6 +939,22 @@ def check_project(path, scenarios: bool = True) -> list:
             carla = config.host_settings(project).get("carla") or {}
         except config.ConfigError:
             carla = {}
+        try:
+            launch = simmod.launch_settings(settings.get("carla"), carla)
+        except simmod.SimulatorRefused as e:
+            launch = None
+            if any(carla.get(k) is not None for k in simmod.LAUNCH_KEYS):
+                out.append(Finding(".scensim/local.yaml", str(e), "the host's carla block: "
+                                   "quality: epic|low, args: [<CARLA argument>]", refused=True,
+                                   host=True))
+        # Low across towns, on the CARLA this host starts (its carla.root's version)
+        if launch and carla.get("root") and simmod.layout(carla["root"]) and \
+                carla.get("start", "auto") != "external":
+            problem = simmod.quality_problem(launch, simmod.root_version(carla["root"]), maps,
+                                             simmod.town_alias())
+            if problem:
+                out.append(Finding(config.PROJECT_FILE, problem, "carla: {quality: epic}",
+                                   refused=True, host=True))
         for m, town, dirs in simmod.town_problems(maps, carla):
             out.append(Finding(config.PROJECT_FILE, f"maps: {m}: this host's CARLA has no town "
                                f"{town} (no {town}.umap under {', '.join(map(str, dirs))})",

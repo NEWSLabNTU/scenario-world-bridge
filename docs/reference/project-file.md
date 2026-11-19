@@ -23,6 +23,7 @@ ground: {}                              # Isaac: per map, surface files
 logging: {capture: standard, keep: {passed: result, failed: full, error: full}}
 judges: []                              # programs over each finished run
 world: {}                               # weather, NPC motion, the bridge's config
+carla: {}                               # CARLA: the quality and arguments it is started with
 isaac: {}                               # Isaac: the world server's options
 ssv2: {}                                # SSv2's run settings for every run
 ```
@@ -40,6 +41,7 @@ ssv2: {}                                # SSv2's run settings for every run
 | `logging` | what runs record and keep ([Logging](#logging)) |
 | `judges` | programs run over each finished run ([Judges](#judges)) |
 | `world` | the simulation side's settings: weather, NPC motion, contact reports, config files ([World](#world)) |
+| `carla` | CARLA: the quality and arguments the stack starts it with ([CARLA](#carla)) |
 | `isaac` | Isaac: the world server's options ([Isaac](#isaac)) |
 | `ssv2` | SSv2's run settings, the default for every run ([Run settings](#run-settings)) |
 
@@ -204,6 +206,50 @@ world:
 These go to the bridge and the world server beside scensim's own settings, never in their
 place. What scensim sets itself is refused here by name, with what to give instead: the state
 directory, the gap trace directory (`logging.gap_trace`), the world server and its ports.
+
+## CARLA
+
+```yaml
+carla:
+  quality: epic                       # epic | low
+  args: [-benchmark, -fps=20]         # more CARLA arguments, after scensim's own
+```
+
+How the stack starts CARLA, when it starts it (`carla.root` set and nothing serving on the
+port, or `carla.start: start`; see [Host settings](host-settings.md)).
+
+| Key | |
+|---|---|
+| `quality` | CARLA's `-quality-level`: `epic` (default) or `low`. The quality changes what sensors see (level of detail, foliage), so `scripts/t3.py compare` refuses to compare results run at another quality or args than the reference's, and names both |
+| `args` | more command-line arguments for CARLA, after scensim's own: device or renderer choices (`-graphicsadapter=1`, `-vulkan`), `-benchmark`, `-fps=`, and so on |
+
+The same two keys in the host's `carla` block override the testbench's, each key whole: an
+`args` there replaces the testbench's list instead of adding to it. The host's block is in
+`.scensim/local.yaml` first, then `~/.config/scensim/host.yaml`. `root`, `host`, `port`,
+`start` and `ready_timeout` are host settings, not testbench keys.
+
+scensim sets some flags itself and refuses them in `args` by name, naming the key that sets each:
+- `-carla-rpc-port`, `-carla-port`, `-carla-streaming-port` and `-carla-secondary-port` follow
+  `carla.port`, the seat's port;
+- `-quality-level` is `quality`;
+- `-RenderOffScreen` and `-nosound` are always given.
+
+An entry of the form `NAME=value` is refused as an environment variable. scensim pins
+`VK_ICD_FILENAMES` to the NVIDIA card itself when it is unset.
+
+`quality: low` is refused with CARLA 0.9.x when the stack's maps span more than one town: at
+Low, 0.9.16 segfaults on any town change. It is allowed with CARLA 1.0, and on a single town. A
+CARLA whose version the stack cannot tell is read as 0.9.x.
+
+With a CARLA the stack does not start, quality and args do not apply. That is `carla.start:
+external`, an `auto` that finds one already serving, or a remote host. The stack then warns,
+and records them as not applied.
+
+`stack.json` records the effective settings in `carla.launch`: `quality`, `args`, `from` (each
+key's source: `testbench`, `host` or `default`), `applied`, and `why` when not applied. It
+records the command line in `carla.argv`, and `VK_ICD_FILENAMES` in `carla.env` when the stack
+pinned it. Every run's `result.json` records them as `provenance.carla` ([Results and
+logs](results-and-logs.md)). `carla:` is refused on an Isaac testbench.
 
 ## Isaac
 

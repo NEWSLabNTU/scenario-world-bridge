@@ -291,6 +291,9 @@ def test_run_one_end_to_end(live, where):
     assert stored.provenance["stack_id"] == p.stack_id
     assert stored.provenance["launcher"] in ("play_launch", "ros2")  # 079: from stack.json
     assert stored.provenance["simulator"] == "carla"
+    # 077 item 54: the CARLA the run ran on and how it was started (an external one here)
+    assert stored.provenance["carla"] == {"owner": "external", "version": None, "argv": None,
+                                          "quality": "epic", "args": [], "applied": False}
     load = stored.provenance["load"]   # issue 046: the host's load at the start and the end
     assert len(load["start"]["loadavg"]) == 3 and load["end"]["cores"] >= 1
     assert load["start"]["t_wall"] <= load["end"]["t_wall"]

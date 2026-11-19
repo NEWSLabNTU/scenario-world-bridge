@@ -21,7 +21,9 @@ get_server_version`` sends), over a plain socket: no carla module, nothing chang
 server, no tick.
 
 A started CARLA is the stack's: the keeper (scensim.stack) starts it in its own session
-(``CarlaUE4.sh -carla-rpc-port=<port> -nosound -RenderOffScreen -quality-level=Epic``; 1.0's
+(``CarlaUE4.sh -carla-rpc-port=<port> -nosound -RenderOffScreen -quality-level=<quality>
+<args>``, the testbench's ``carla: {quality, args}`` with a host's over it, Epic and none by
+default (roadmap 077, item 54: ``launch_settings``); 1.0's
 ``CarlaUnreal.sh``; the engine itself where the install has it,
 ``VK_ICD_FILENAMES`` pinned to the NVIDIA ICD when unset), logs it to
 ``<stack>/proc/simulator/carla.log``, waits for its RPC (``carla.ready_timeout``, 300 s)
@@ -62,6 +64,23 @@ VERSION_LINE = re.compile(r"^\d+\.\d+(\.\d+)*(-[\w.]+)?$")
 NVIDIA_ICD = "/usr/share/vulkan/icd.d/nvidia_icd.json"
 DEFAULT_READY_TIMEOUT = 300.0
 QUALITY = "Epic"   # Low segfaults on a town change (CLAUDE.md, carla-simulator/carla#4940)
+# the testbench's carla: {quality, args} (roadmap 077, item 54); a host's carla block overrides
+# each key whole (<project>/.scensim/local.yaml first)
+QUALITIES = {"epic": "Epic", "low": "Low"}
+LAUNCH_KEYS = ("quality", "args")
+LAUNCH_DEFAULTS = {"quality": "epic", "args": []}
+# the flags a started CARLA always gets from scensim, refused in carla.args by name (lowercase,
+# no dash): the key that sets each
+OWNED_FLAGS = {
+    "carla-rpc-port": "carla.port (the seat's CARLA port)",
+    "carla-port": "carla.port (the seat's CARLA port)",
+    "carla-streaming-port": "carla.port (CARLA streams on the RPC port + 1)",
+    "carla-secondary-port": "carla.port (the seat's CARLA port)",
+    "renderoffscreen": "scensim (a CARLA the stack starts always renders offscreen)",
+    "quality-level": "carla.quality (epic or low)",
+    "nosound": "scensim (a CARLA the stack starts is always given -nosound)",
+}
+ENV_ARG = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 RESPAWN_DELAY = 5.0
 PROBE_EVERY = 1.0
 LOG = Path("simulator") / "carla.log"
@@ -270,16 +289,98 @@ def launcher(root) -> Path:
 ENGINE = LAYOUTS[-1][1]
 
 
-def carla_argv(root, port, quality=QUALITY) -> list:
+def carla_argv(root, port, quality=QUALITY, args=()) -> list:
     """CARLA's engine itself where the install has it (what CarlaUE4.sh runs, but as the
-    keeper's own child, so the parent-death signal reaches it), else the launcher script."""
+    keeper's own child, so the parent-death signal reaches it), else the launcher script.
+    ``quality``: epic or low (or UE's Epic, Low); ``args``: the testbench's carla.args, after
+    scensim's own flags."""
     root = Path(str(root)).expanduser()
+    quality = QUALITIES.get(str(quality).lower(), quality)
     flags = [f"-carla-rpc-port={int(port)}", "-nosound", "-RenderOffScreen",
-             f"-quality-level={quality}"]
+             f"-quality-level={quality}", *[str(a) for a in args or ()]]
     script, engine, project, _v = layout(root) or LAYOUTS[-1]
     if (root / engine).is_file():
         return [str(root / engine), project, *flags]
     return [str(root / script), *flags]
+
+
+def launch_problems(block, where="carla") -> list:
+    """What is wrong with a carla block's quality and args (the testbench's or a host's): the
+    shape, and the flags scensim owns (each named with the key that sets it)."""
+    if block is None:
+        return []
+    if not isinstance(block, dict):
+        return [f"{where}: a mapping (quality: epic|low, args: [...])"]
+    out = []
+    q = block.get("quality")
+    if q is not None and str(q).lower() not in QUALITIES:
+        out.append(f"{where}.quality {q!r}: one of {', '.join(QUALITIES)}")
+    args = block.get("args")
+    if args is None:
+        return out
+    if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+        return out + [f"{where}.args: a list of strings (CARLA's command-line arguments)"]
+    for a in args:
+        if ENV_ARG.match(a):
+            out.append(f"{where}.args: {a!r} is an environment variable, not a CARLA argument "
+                       "(scensim pins VK_ICD_FILENAMES itself; set others in the shell)")
+            continue
+        flag = a.lstrip("-").split("=", 1)[0].lower()
+        if a.startswith("-") and flag in OWNED_FLAGS:
+            out.append(f"{where}.args: {a.split('=', 1)[0]} is scensim's: set by "
+                       f"{OWNED_FLAGS[flag]}")
+    return out
+
+
+def launch_settings(project_carla=None, host_carla=None) -> dict:
+    """The effective quality and args of a CARLA the stack starts, and where each came from
+    (``testbench``, ``host`` or ``default``); SimulatorRefused on a problem in either block.
+    A host's carla block (.scensim/local.yaml, host.yaml) overrides each key whole."""
+    problems = (launch_problems(project_carla, "testbench.yaml carla")
+                + launch_problems({k: v for k, v in (host_carla or {}).items()
+                                   if k in LAUNCH_KEYS}, "host settings carla"))
+    if problems:
+        raise SimulatorRefused("; ".join(problems))
+    out, src = dict(LAUNCH_DEFAULTS), {k: "default" for k in LAUNCH_KEYS}
+    for name, block in (("testbench", project_carla), ("host", host_carla)):
+        for k in LAUNCH_KEYS:
+            if isinstance(block, dict) and block.get(k) is not None:
+                out[k], src[k] = block[k], name
+    out["quality"] = str(out["quality"]).lower()
+    out["args"] = list(out["args"])
+    out["from"] = src
+    return out
+
+
+def is_default_launch(launch) -> bool:
+    return not launch or (launch.get("quality") == LAUNCH_DEFAULTS["quality"]
+                          and not launch.get("args"))
+
+
+def towns_of(maps, alias=None) -> list:
+    """The distinct CARLA towns a stack's maps load (map_alias, _Opt read as its town)."""
+    alias = TOWN_ALIAS if alias is None else alias
+    out = []
+    for m in maps or []:
+        t = str(alias.get(m, m))
+        t = t[:-4] if t.endswith("_Opt") else t
+        if t not in out:
+            out.append(t)
+    return out
+
+
+def quality_problem(launch, version, maps, alias=None):
+    """Low on a 0.9.x CARLA across more than one town, refused (CLAUDE.md: at Low, 0.9.16
+    segfaults on any town change, carla-simulator/carla#4940); an unknown version is read as
+    0.9.x. Allowed on 1.0 and on one town. None when fine."""
+    if not launch or launch.get("quality") != "low":
+        return None
+    towns = towns_of(maps, alias)
+    if len(towns) <= 1 or str(version or "").split(".")[0] not in ("", "0"):
+        return None
+    return (f"carla.quality low on CARLA {version or '(version unknown, read as 0.9.x)'} with "
+            f"maps of {len(towns)} towns ({', '.join(towns)}): CARLA 0.9.x at Low segfaults on "
+            "a town change; use quality epic, or one town, or CARLA 1.0")
 
 
 def _die_with_parent():
@@ -299,11 +400,14 @@ def carla_env(base=None) -> dict:
     return env
 
 
-def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
+def decide(carla: dict, mode=None, probe_fn=probe, launch=None) -> dict:
     """The stack's CARLA as stack.json records it (``carla``), or SimulatorRefused.
 
-    ``owner`` is ``started`` (the stack starts it) or ``external``."""
+    ``owner`` is ``started`` (the stack starts it) or ``external``. ``launch``: the effective
+    quality and args (launch_settings), applied only to a CARLA the stack starts; ``launch``
+    records them and whether they applied."""
     carla = dict(carla or {})
+    launch = dict(launch or {**LAUNCH_DEFAULTS, "from": {k: "default" for k in LAUNCH_KEYS}})
     mode = (mode or carla.get("start") or "auto")
     if mode not in MODES:
         raise SimulatorRefused(f"simulator_start {mode!r}: one of {', '.join(MODES)}")
@@ -319,7 +423,10 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
            "ready_timeout": ready_timeout, "version": None, "version_from": None,
            "state": None, "pid": None,
            "log": None, "argv": None, "started_at": None, "ready_at": None, "restarts": 0,
-           "error": None}
+           "error": None,
+           "launch": {**launch, "applied": False,
+                      "why": "the stack did not start CARLA (an external one)"},
+           "env": {}}
     where = f"{host}:{port}"
     if mode == "external" or (mode == "auto" and not is_local(host)):
         # whatever serves there (a remote CARLA: its business); its version, when it answers
@@ -357,9 +464,23 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
         raise SimulatorRefused(f"carla.root {root}: no {' or '.join(r[0] for r in LAYOUTS)} "
                                "there")
     version, source = root_version_from(root)
-    out.update(owner=STARTED, argv=carla_argv(root, port), version=version,
-               version_from=source)
+    pinned = carla_env({k: v for k, v in os.environ.items() if k == "VK_ICD_FILENAMES"})
+    out.update(owner=STARTED, version=version, version_from=source,
+               argv=carla_argv(root, port, launch["quality"], launch["args"]),
+               launch={**launch, "applied": True, "why": None},
+               env={k: v for k, v in pinned.items() if k == "VK_ICD_FILENAMES"})
     return out
+
+
+def launch_provenance(rec: dict):
+    """result.json's ``provenance.carla``: the CARLA a run ran on and how it was started, from
+    stack.json's ``carla`` block (None on Isaac)."""
+    c = (rec or {}).get("carla")
+    if not c:
+        return None
+    lc = c.get("launch") or {}
+    return {"owner": c.get("owner"), "version": c.get("version"), "argv": c.get("argv"),
+            "quality": lc.get("quality"), "args": lc.get("args"), "applied": lc.get("applied")}
 
 
 def root_version_from(root):

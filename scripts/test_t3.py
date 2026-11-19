@@ -526,3 +526,52 @@ def test_the_started_line_of_either_scensim_is_read():
         m = t3.STARTED.match(line)
         assert m and (m.group(1), m.group(2)) == want, line
     assert t3.STARTED.match("stack    basic on seat 0: started (CARLA, Town01); left up") is None
+
+
+def test_compare_flags_a_pair_with_another_carla_launch(tmp_path, monkeypatch, capsys):
+    """077 item 54: results at another effective quality or args than the reference's are not
+    compared as like for like; both are named. A reference from before is noted, not failed."""
+    import json
+    logs, m = _results(tmp_path, ["aaaaaaa", "aaaaaaa"])
+    runs = logs / "zz_t3test" / "runs"
+
+    def launch(quality, args, applied=True):
+        for r in runs.iterdir():
+            d = json.loads((r / "result.json").read_text())
+            d["provenance"]["carla"] = {"owner": "started", "version": "0.9.16", "argv": [],
+                                        "quality": quality, "args": args, "applied": applied}
+            (r / "result.json").write_text(json.dumps(d))
+    _quiet(monkeypatch)
+    w = ["--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]
+    # a reference from before launches were recorded: a note
+    assert t3.main(["record", *w]) == 0
+    meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
+    assert meta["carla_launch"] is None
+    capsys.readouterr()
+    launch("epic", [])
+    assert t3.main(["compare", *w]) == 0   # its results named none: noted
+    assert "the reference names no CARLA launch" in capsys.readouterr().out
+    meta.pop("carla_launch")   # recorded by an older t3: the same
+    (tmp_path / "refs" / "zz_t3test" / "s.json").write_text(json.dumps(meta))
+    assert t3.main(["compare", *w]) == 0
+    assert "the reference names no CARLA launch" in capsys.readouterr().out
+    # recorded at epic; results at low with an argument: a problem naming both
+    assert t3.main(["record", *w]) == 0
+    assert json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())["carla_launch"] == \
+        {"quality": "epic", "args": [], "applied": True}
+    launch("low", ["-benchmark"])
+    capsys.readouterr()
+    assert t3.main(["compare", *w]) == 1
+    out = capsys.readouterr().out
+    assert ("CARLA launch differs, not comparable: the results' quality low, args ['-benchmark'], "
+            "the reference's quality epic, args []") in out
+    launch("epic", [])
+    assert t3.main(["compare", *w]) == 0
+    # a mix in the results is refused at record
+    r0 = sorted(runs.iterdir())[0]
+    d = json.loads((r0 / "result.json").read_text())
+    d["provenance"]["carla"]["quality"] = "low"
+    (r0 / "result.json").write_text(json.dumps(d))
+    capsys.readouterr()
+    assert t3.main(["record", *w]) == 1
+    assert "results from more than one CARLA launch" in capsys.readouterr().out

@@ -68,7 +68,9 @@ Schema `swb.result/1`:
   "provenance": {"scensim": "<commit>", "submodules": {}, "simulator": "carla",
                  "swb_lock": "sha256:...", "spec_hash": {"ego": "..."},
                  "host": "...", "gpu": "...", "stack_id": "...",
-                 "launcher": "play_launch | ros2"}
+                 "launcher": "play_launch | ros2",
+                 "carla": {"owner": "started", "version": "0.9.16", "argv": ["..."],
+                           "quality": "epic", "args": [], "applied": true}}
 }
 ```
 
@@ -80,6 +82,13 @@ as `scensim`.
 
 `provenance.launcher` is the launcher the stack ran its launches with (the host setting
 `launcher`, resolved), so runs under play_launch and `ros2 launch` can be told apart.
+
+`provenance.carla` is the CARLA the run ran on (CARLA only). It holds:
+- `owner`: `started` by the stack, or `external`;
+- `version`;
+- `argv`: the command line it was started with;
+- `quality` and `args`: the effective [`carla:` settings](project-file.md#carla);
+- `applied`: false when the stack did not start that CARLA, so they did not apply.
 
 Event types: `collision.vehicle`, `collision.pedestrian`, `collision.static`, `red_light`,
 `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`.

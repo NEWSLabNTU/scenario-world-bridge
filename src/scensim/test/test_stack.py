@@ -1066,7 +1066,7 @@ def test_ros_env_puts_the_servers_carla_client_first(monkeypatch):
 def test_plan_refuses_carla_basic_on_another_carla_client(where, maps_hub, monkeypatch):
     """The 1.0 server, 0.9.16's client, no carla.root to take 1.0's from (T3 on 1.0)."""
     d = make(where, maps_hub=maps_hub)   # multi-pilot: lead is carla_basic
-    monkeypatch.setattr(stack, "CARLA_DECIDE", lambda c, m, p: simmod.decide(
+    monkeypatch.setattr(stack, "CARLA_DECIDE", lambda c, m, p, launch=None: simmod.decide(
         {**c, "start": "external"}, "external", lambda h, port: (simmod.CARLA, "1.0")))
     monkeypatch.setattr(simmod, "installed_client", lambda: "0.9.16")
     with pytest.raises(stack.StackRefused, match=r"pilots lead \(carla_basic\).*is 1\.0, "

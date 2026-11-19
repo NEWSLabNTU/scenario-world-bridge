@@ -30,7 +30,7 @@ from pathlib import Path
 
 import yaml
 
-from scensim import launcher as launchermod
+from scensim import launcher as launchermod, simulator as simmod
 from scensim import config, results, run as runmod, signals as signalsmod, stack as stackmod
 
 DEFAULT_TIMEOUT = 600.0
@@ -185,6 +185,9 @@ def drive(ctx, entity: str, spawn: tuple, goal: tuple = None, map_name: str = No
     prov.update(simulator=rec.get("simulator"), stack_id=rec.get("stack_id"),
                 launcher=launchermod.of(rec),  # 079: which launcher ran the stack
                 spec_hash=rec.get("spec_hash") or {})
+    carla_launch = simmod.launch_provenance(rec)
+    if carla_launch:
+        prov["carla"] = carla_launch   # the CARLA and its command line (077 item 54)
     if pilot.get("overlays"):
         prov["overlays"] = {entity: pilot["overlays"]}   # G60
     # the drive's steps go to its timeline; result.json keeps the schema's events

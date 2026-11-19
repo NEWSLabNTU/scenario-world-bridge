@@ -14,8 +14,11 @@ commit, its submodule pins; a dirty one is noted), t3.py's own commit (``recorde
 host, and the GPUs and load at record time (``gpu_gated``: the stack's card(s) the busy check
 judged, from host ``gpu``, the seat's ``seats.gpus``, CUDA_VISIBLE_DEVICES, else all).
 ``compare`` fails on a run whose verdict or a judge's verdict differs from the reference, or
-that is missing; a duration more than 1.5 times the reference's is reported, not failed (hosts
-differ). Record only on the release commit, so each reference names one commit. The busy check
+that is missing, and on results whose CARLA launch (the effective quality and args, scensim's
+``provenance.carla``; the reference's ``carla_launch``) is not the reference's, naming both: the
+quality changes what sensors see, so such a pair is not like for like (roadmap 077, item 54); a
+reference recorded before launches were is noted. A duration more than 1.5 times the
+reference's is reported, not failed (hosts differ). Record only on the release commit, so each reference names one commit. The busy check
 and ``gpu_at_record`` are the host's state when ``record`` runs, not while the suite ran.
 
 A project marked ``copy: true`` (an example under src/scensim_examples) runs from a copy made
@@ -306,7 +309,7 @@ def results_provenance(rows: list, runs: Path) -> dict:
     reference names one, so a mix is refused. ``swb`` is the commit the install was built at;
     when the checkout differed (``provenance.checkout``: under --symlink-install the Python ran
     from it, the compiled parts from the build), both are named: ``<built> (checkout <c>)``."""
-    commits, subs, missing = {}, {}, []
+    commits, subs, missing, launches = {}, {}, [], {}
     for r in rows:
         try:
             p = json.loads((runs / r["run_id"] / "result.json").read_text())["provenance"]
@@ -318,7 +321,47 @@ def results_provenance(rows: list, runs: Path) -> dict:
             c += f" (checkout {p['checkout']})"
         commits.setdefault(c, []).append(r["run_id"])
         subs[c] = p.get("submodules") or {}
-    return {"commits": commits, "submodules": subs, "missing": missing}
+        launches.setdefault(json.dumps(carla_launch(p), sort_keys=True), []).append(r["run_id"])
+    return {"commits": commits, "submodules": subs, "missing": missing, "launches": launches}
+
+
+def carla_launch(prov: dict):
+    """A run's effective CARLA quality and args (scensim's ``provenance.carla``, roadmap 077 item
+    54), and whether they applied (a CARLA the stack did not start ran as it was); None for a
+    run before that, or on Isaac. The effective quality changes what sensors see (LODs,
+    foliage), so results at different ones are not compared as like for like."""
+    c = prov.get("carla")
+    if not isinstance(c, dict):
+        return None
+    return {"quality": c.get("quality"), "args": list(c.get("args") or []),
+            "applied": bool(c.get("applied"))}
+
+
+def launch_text(launch) -> str:
+    if launch is None:
+        return "no CARLA launch recorded"
+    t = f"quality {launch['quality']}, args {launch['args'] or '[]'}"
+    return t if launch["applied"] else t + " (not applied: an external CARLA)"
+
+
+def launch_problem(ref_launch, prov: dict):
+    """``(problem, note)`` comparing the results' CARLA launch with the reference's: a mix in the
+    results, or a launch other than the reference's, is a problem naming both; a reference
+    recorded before launches were (``carla_launch`` absent) is a note."""
+    got = [json.loads(k) for k in prov.get("launches") or {}]
+    if len(got) > 1:
+        return ("results from more than one CARLA launch: " +
+                "; ".join(f"{launch_text(json.loads(k))} ({len(ids)} runs)"
+                          for k, ids in prov["launches"].items())), None
+    got = got[0] if got else None
+    if ref_launch in ("unrecorded", None):
+        # a reference recorded before launches were, or from results that named none
+        return None, (f"the reference names no CARLA launch (its results predate 077 item 54); "
+                      f"the results' is {launch_text(got)}")
+    if got != ref_launch:
+        return (f"CARLA launch differs, not comparable: the results' {launch_text(got)}, the "
+                f"reference's {launch_text(ref_launch)}"), None
+    return None, None
 
 
 def off_pin(submodules: dict) -> str:
@@ -793,7 +836,13 @@ def _main(argv=None) -> int:
                       f"from {source}: {cards}); record on a quiet host, or give --busy-ok")
                 failed += 1
                 continue
+            launches = [json.loads(k) for k in prov["launches"]]
+            if len(launches) > 1:
+                print(f"{e['key']}: not recorded, {launch_problem(None, prov)[0]}")
+                failed += 1
+                continue
             write_reference(rows, ref, {"commit": at, "submodules": prov["submodules"][at],
+                                        "carla_launch": launches[0] if launches else None,
                                         "recorded_with": commit(),
                                         "host": socket.gethostname(),
                                         "summary": host_relative(summ, logs), "runs": len(rows),
@@ -812,9 +861,13 @@ def _main(argv=None) -> int:
             ref_rows = list(csv.DictReader(f))
         problems, notes = compare_rows(ref_rows, rows)
         try:
-            ref_at = json.loads(ref.with_suffix(".json").read_text()).get("commit", "?")
+            ref_meta = json.loads(ref.with_suffix(".json").read_text())
         except (OSError, ValueError):
-            ref_at = "?"
+            ref_meta = {}
+        ref_at = ref_meta.get("commit", "?")
+        lp, ln = launch_problem(ref_meta.get("carla_launch", "unrecorded"), prov)
+        problems += [lp] if lp else []
+        notes += [ln] if ln else []
         print(f"{e['key']}: {'regressed' if problems else 'as the reference'} "
               f"({len(rows)} runs at {at or why}; the reference at {ref_at})")
         for p in problems:

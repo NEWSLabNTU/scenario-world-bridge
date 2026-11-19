@@ -82,7 +82,8 @@ use_sim_time:=true vehicle:=true rviz:=false"
 # what scensim_launch's pilots/autoware.launch.xml passes in stock mode (test_pilots checks
 # the two lists are the same)
 STOCK="launch_vehicle_interface:=false launch_sensing_driver:=false \
-system_run_mode:=logging_simulation traffic_light_recognition/use_high_accuracy_detection:=false"
+system_run_mode:=logging_simulation traffic_light_recognition/use_high_accuracy_detection:=false \
+scenario_simulation:=true"
 resolve() {   # <name> <package> <file> <args...>
     local name=$1 pkgname=$2 file=$3; shift 3
     for _ in $(seq 1 40); do
@@ -101,6 +102,10 @@ resolve() {   # <name> <package> <file> <args...>
         grep -q "$node" "$OUT/model-$name.yaml" \
             || { echo "$name: the sensor kit's $node is missing"; return 1; }
     done
+    # the agent's speed limit, /api/autoware/set/velocity_limit: the deprecated API's
+    # adaptor (1.5.0) or the evaluation adapter (2.x)
+    grep -qE 'autoware_iv_adaptor|evaluation_adapter' "$OUT/model-$name.yaml" \
+        || { echo "$name: nothing serves /api/autoware/set/velocity_limit"; return 1; }
     grep -oP 'SystemModel: \S+ \(\K[0-9]+ nodes' "$OUT/$name.log" | sed "s/^/  $name: /"
 }
 resolve stock autoware_launch autoware.launch.xml $CAR $STOCK data_path:=$DATA

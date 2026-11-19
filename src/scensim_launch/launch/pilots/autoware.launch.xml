@@ -85,9 +85,12 @@
        needs. The vehicle interface is the simulator's vehicle bridge (vehicle_side above), so
        Autoware launches none; there are no sensor drivers (the bridge publishes the sensors);
        sim time; the map and the car; logging_simulation, so that pose_initializer does not
-       wait for a stopped car's IMU check; and no high-accuracy traffic-light detector, whose
-       node does not stay up on a simulator's signal heads. Every other setting is the user's
-       Autoware's own. -->
+       wait for a stopped car's IMU check; no high-accuracy traffic-light detector, whose
+       node does not stay up on a simulator's signal heads; and scenario_simulation, Autoware's
+       own switch for a scenario simulator, which starts the API that serves
+       /api/autoware/set/velocity_limit (1.5.0: the deprecated API's internal adaptor; 2.x: the
+       evaluation adapter), the agent's speed limit for a scenario's SpeedAction. Every other
+       setting is the user's Autoware's own. -->
   <group if="$(eval &quot;'$(var autoware_profile)' == 'stock'&quot;)">
   <include file="$(var autoware_launch)">
     <arg name="map_path" value="$(var map_path)"/>
@@ -99,6 +102,7 @@
     <arg name="launch_sensing_driver" value="false"/>
     <arg name="system_run_mode" value="logging_simulation"/>
     <arg name="traffic_light_recognition/use_high_accuracy_detection" value="false"/>
+    <arg name="scenario_simulation" value="true"/>
     <arg name="rviz" value="$(var rviz)"/>
   </include>
   </group>

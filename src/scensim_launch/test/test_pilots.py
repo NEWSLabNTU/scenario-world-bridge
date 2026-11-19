@@ -88,7 +88,7 @@ def test_autoware_composes_vehicle_side_agent_and_stock_or_profile():
         "vehicle": "true", "launch_vehicle_interface": "false",
         "launch_sensing_driver": "false", "system_run_mode": "logging_simulation",
         "traffic_light_recognition/use_high_accuracy_detection": "false",
-        "rviz": "$(var rviz)"}
+        "scenario_simulation": "true", "rviz": "$(var rviz)"}
     assert args["rviz"].get("default") == "false"
     assert "acb_launch carla_simulator" not in ET.tostring(root, encoding="unicode")
 

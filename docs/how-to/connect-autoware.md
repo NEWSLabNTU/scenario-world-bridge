@@ -94,6 +94,7 @@ Autoware ships it. scensim passes only what a simulator needs:
 | `launch_sensing_driver` | `false` | the bridge publishes the sensors; there are no drivers |
 | `system_run_mode` | `logging_simulation` | the pose initializer does not wait for a stopped car's IMU check |
 | `traffic_light_recognition/use_high_accuracy_detection` | `false` | that detector's node does not stay up on a simulator's signal heads |
+| `scenario_simulation` | `true` | Autoware's own switch for a scenario simulator: it starts the API that serves `/api/autoware/set/velocity_limit`, which a scenario's speed limit needs (1.5.0: the deprecated API's adaptor; 2.x: the evaluation adapter) |
 | `rviz` | the pilot's `rviz:` | |
 
 Everything else is your Autoware's own: its planning, control and perception parameters,

@@ -7,6 +7,14 @@ you build against it, and an `autoware` pilot starts it stock by default. It add
 24.04 with ROS 2 Jazzy, Autoware 2.1.0, and the studies as testbench packages. The code of
 this release is the commit tagged `v0.2.0`.
 
+Install in three commands ([Install](getting-started/install.md#three-commands)):
+
+```bash
+python3 -m pip install --user scensim
+~/.local/bin/scensim setup      # one sudo prompt
+source ~/scensim.bash
+```
+
 ### Requirements
 
 Ubuntu 22.04 with ROS 2 Humble, as in 0.1.0, or Ubuntu 24.04 with ROS 2 Jazzy.
@@ -50,6 +58,15 @@ Live runs before the release (scensim built from source):
 
 ### What is new
 
+- **`scensim setup`.** One command after `pip install` sets up the host. It downloads the
+  release for your ROS, and behind one sudo prompt installs what is missing among the tools,
+  rosdep's packages and the kernel's DDS socket buffers. It builds the car's Autoware
+  packages and scensim's profile against your Autoware, writes `~/scensim.bash` and
+  `host.yaml` from what it finds (a file of yours that differs is kept), and ends with a
+  check naming each fix. A second run changes nothing. `scensim autoware-side build` builds
+  the Autoware packages alone, and `scensim carla fetch 0.9.16` downloads, checks and unpacks
+  CARLA. From a fresh Ubuntu 22.04 with ROS, CUDA and Autoware 1.5.0, the three commands and
+  Tutorial 1 gave a passing first run (roadmap 089).
 - **Your Autoware drives the car.** A release has no vehicle download. The car's Autoware
   packages (its vehicle and sensor kit launches, `individual_params`) are source:
   `autoware-side.repos`, attached to each release, imports them into your Autoware
@@ -92,7 +109,7 @@ Live runs before the release (scensim built from source):
   under one `SHA256SUMS`. An Autoware ego on Jazzy needs an Autoware built for Jazzy
   (Autoware 2.1.0 has one); the car's Autoware packages build and resolve against it, and
   scensim warns that no live run has tested them there yet.
-- **rosdep on Ubuntu 24.04.** The rosdep line that `scensim install` prints starts with
+- **rosdep on Ubuntu 24.04.** The rosdep line that `scensim install` prints carries
   `PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1` on Python 3.11 and newer: without
   them, Ubuntu 24.04 refuses rosdep's two pip packages (PEP 668), and huggingface_hub
   cannot replace Debian's older typing_extensions and idna. Keep the line as printed.
@@ -162,6 +179,9 @@ Live runs before the release (scensim built from source):
 
 ### Fixed since 0.1.0
 
+- **The rosdep line of the install, for a user.** 0.1.0's printed `sudo rosdep install`
+  failed on a host where root never ran `rosdep update`: sudo gives root its own home and
+  drops `ROS_DISTRO`. The line now names both (`ROS_HOME`, `--rosdistro`).
 - With an Autoware sourced, scensim 0.1.0's pip front end refused every command, looking for
   a vehicle download the release did not have. 0.2.0 runs as without one.
 - On Ubuntu 24.04, 0.1.0's `pip install scensim` installed `scensim-ros-jazzy` 0.1.0, a

@@ -132,7 +132,7 @@ names your ROS: sudo gives root its own home, where no index is (`your rosdep in
 has not been initialized yet`), and drops `ROS_DISTRO` (`Cannot locate rosdep definition for
 [rclcpp]`).
 
-On Ubuntu 24.04 the printed line starts with `PIP_BREAK_SYSTEM_PACKAGES=1
+On Ubuntu 24.04 the printed line also carries `PIP_BREAK_SYSTEM_PACKAGES=1
 PIP_IGNORE_INSTALLED=1`; keep it as printed (see [Ubuntu 24.04](#ubuntu-2404)).
 
 On Ubuntu 22.04 and 24.04 this installs a brotli older than 1.2, with which huggingface_hub

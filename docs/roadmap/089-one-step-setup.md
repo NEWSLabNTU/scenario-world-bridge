@@ -1,6 +1,6 @@
 # 089: One-Step Setup
 
-**Status**: opened 2026-11-19 (user). Target: 0.2.1.
+**Status**: done 2026-11-19, in 0.2.0 (the user's call, through 133; opened for 0.2.1).
 
 ## Goal
 
@@ -186,7 +186,31 @@ It runs in Docker on 118:
   13 tests in `pypi/scensim/tests/test_setup.py` (stubs, no network, sudo or ROS). The
   CARLA 0.9.16 size and sha256 were measured on 118's copy of CARLA's tarball
   (8346095504 bytes). The URL is the one CARLA's GitHub release page links,
-  `downloads.carlasim.com`; the older `carla-releases.b-cdn.net` answers 403 to 118.
+  `downloads.carlasim.com`; the older `carla-releases.b-cdn.net` answers 403 to 118. That
+  server ended two downloads after about 1.06 GB; `carla fetch` resumes (HTTP Range), and a
+  full download matched the pinned sha256.
+- Step 4: install.md and connect-autoware lead with the three commands.
+- Step 5, the clean-machine check on 118 (`~/nas/home/2026-11-19 089 clean machine (118)/`):
+  an image of `nvidia/cuda` 12.8 with ROS Humble from apt, TensorRT 10.8 and NEWSLab's
+  Autoware 1.5.0 (`autoware-full-1-5-0`, its ML models as `autoware-download-models` puts
+  them), nothing of scensim's. As a user with sudo: `pip install --user scensim` (the
+  branch's wheels, the release tarball built from the branch), `scensim setup` through a
+  terminal, then Tutorial 1 against the host's CARLA. Six runs; each of the first five found a
+  gap that a user on a fresh host would have met, and the manual steps had the first three:
+  1. sudo resets HOME, so root's `rosdep install` found no index: `ROS_HOME`;
+  2. sudo drops `ROS_DISTRO`, so rosdep resolved no ROS key: `--rosdistro`;
+  3. a host with ROS and Autoware from apt has no git, which the import needs: installed;
+  4. Ubuntu's brotli 1.0.9 with huggingface_hub 2 made `testbench check` refuse the host:
+     setup installs `brotli>=1.2` for the user;
+  5. Autoware without its ML models failed the first run at the pilot's start: the check
+     names them and the downloader.
+  Run 6 passed: one sudo prompt, a second setup with nothing to do, and Tutorial 1's
+  `drive_to_goal` passed in 68.5 s.
+- CI: release.yml's smoke runs `scensim setup` as a user with sudo and nothing sourced (243
+  reviewed it), which the root steps with ROS sourced could not catch. Run locally it passed
+  in ros:humble and ros:jazzy; it found that `sysctl -p` fails in a container, now not fatal.
+- Ubuntu 24.04: the CI step above, run locally in ros:jazzy (setup without Autoware), is the
+  simulation-side check; no Jazzy Autoware was run.
 
 ## Exit criteria
 

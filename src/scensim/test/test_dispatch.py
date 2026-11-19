@@ -317,3 +317,41 @@ def test_seats_refuses_the_flags_it_does_not_take(tmp_path, capsys):
     rc = run.main([str(tb / "x.xosc"), "--project", str(tb), "--keep-stacks"],
                   out=io.StringIO())
     assert rc == run.EXIT_REFUSED and "--keep-stacks is for --seats" in capsys.readouterr().err
+
+
+# ------------------------------------------------- against the real printers, not copies
+
+ACB_SOURCE = (Path(__file__).resolve().parents[2] / "autoware_carla_bridge" / "src" /
+              "acb_bridge" / "src" / "tick_follower.rs")
+
+
+def test_the_skip_counter_reads_acb_bridges_own_message(tmp_path):
+    """The overload signal is acb_bridge's warning as its source writes it (format string
+    taken from tick_follower.rs), not a copy kept here."""
+    import re
+    if not ACB_SOURCE.is_file():
+        pytest.skip("acb's source is not checked out (src/autoware_carla_bridge)")
+    m = re.search(r'"(Skipped \{\} CARLA frame[^"]*)"', ACB_SOURCE.read_text())
+    assert m, "acb_bridge's skipped-frames warning is no longer in tick_follower.rs"
+    fmt = m.group(1).replace("\\\n", "")
+    message = fmt.replace("{}", "17", 1).replace("{}", "4242")
+    node = tmp_path / "pilot-ego" / "x" / "node" / "acb_bridge"
+    node.mkdir(parents=True)
+    (node / "out").write_text(f"\x1b[33m WARN\x1b[0m acb_bridge::tick_follower: {message}\n")
+    (tmp_path / "pilot-ego" / "console.log").write_text(f"[acb_bridge-1] {message}\n")
+    assert dispatch.acb_skips(tmp_path, {}) == 34
+
+
+def test_the_worker_reports_with_the_runners_own_line_and_exit(tmp_path):
+    """No line of scensim run's output is parsed: the worker sends the run's verdict and
+    directory as data, and its printed line is run.line's (the real printer)."""
+    ctx = SimpleNamespace(stack={}, runs_root=tmp_path, pilots_broken=None)
+    spec = run.RunSpec(scenario=Path("/x/a.xosc"), expect="failed")
+    res = results.RunResult("2026-x_a_r0", results.FAILED)
+    inp = io.StringIO(json.dumps({"run": True, "spec": dispatch.spec_to_json(spec)}) + "\n")
+    out = io.StringIO()
+    dispatch.worker_loop(ctx, inp, out, run_one=lambda c, s, a: res)
+    done = [json.loads(x) for x in out.getvalue().splitlines()][1]
+    assert done["verdict"] == "failed" and done["run_dir"] == str(tmp_path / res.run_id)
+    assert done["line"] == run.line(res, tmp_path / res.run_id, "failed")
+    assert done["outcome"] == run.outcome(res, "failed") == run.EXIT_OK

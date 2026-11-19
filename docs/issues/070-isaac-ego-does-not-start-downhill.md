@@ -1,4 +1,4 @@
-# 069: The Isaac ego does not start from rest on a downhill under Autoware
+# 070: The Isaac ego does not start from rest on a downhill under Autoware
 
 **Severity**: high (the how-to's Haruna course cannot be driven on Isaac). **Status**: open.
 **Found**: 2026-11-20, swb 118, the 0.2.1 live check of the Isaac examples

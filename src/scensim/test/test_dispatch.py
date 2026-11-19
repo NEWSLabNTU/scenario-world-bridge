@@ -429,6 +429,19 @@ def test_seats_refuses_the_flags_it_does_not_take(tmp_path, capsys):
     assert rc == run.EXIT_REFUSED and "--keep-stacks is for --seats" in capsys.readouterr().err
 
 
+def test_seats_check_the_project_once_before_any_seat_starts(tmp_path):
+    """A map or dataset not fetched refuses the dispatch once, naming the fix, rather than
+    retiring every seat on it (133's live check, try 1)."""
+    from scensim.findings import Finding
+    found = [Finding("scensim.lock", "maps: Town01 is not fetched", "scensim assets fetch",
+                     refused=True, host=True)]
+    with pytest.raises(run.Refused) as e:
+        run.check_project_once(tmp_path, check=lambda p: found)
+    assert "no seat was started" in str(e.value)
+    assert "(fix: scensim assets fetch)" in str(e.value)
+    run.check_project_once(tmp_path, check=lambda p: [])   # nothing found: no refusal
+
+
 # ------------------------------------------------- against the real printers, not copies
 
 ACB_SOURCE = (Path(__file__).resolve().parents[2] / "autoware_carla_bridge" / "src" /

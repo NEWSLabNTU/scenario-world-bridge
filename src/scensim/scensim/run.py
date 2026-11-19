@@ -1575,6 +1575,18 @@ def check_scenarios(project: Path, specs, testbench: str = None) -> None:
             testbenches.shown_finding(str(f), testbench, project) for f in found))
 
 
+def check_project_once(project: Path, testbench: str = None, check=None) -> None:
+    """``--seats``: what each seat's stack would refuse to start on (a map or dataset not
+    fetched, ...), refused once here, before any seat starts, rather than by every seat."""
+    found = (check or projectmod.check_stack)(project)
+    if not found:
+        return
+    kind = "testbench" if testbench is not None else "project"
+    raise Refused(f"{kind} check found problems; no seat was started:\n" + "\n".join(
+        str(f) if testbench is None else testbenches.shown_finding(str(f), testbench, project)
+        for f in found))
+
+
 def open_testbench(target: str, logs=None):
     """``(testbench, its directory to run in, the rest of the target)`` when ``target`` names a
     testbench: ``<tb>[/<rest>]`` from the ament index (its work directory), or a directory
@@ -1713,6 +1725,9 @@ def _main(args, out, stack_command=None) -> int:
                                           _parse_params(args.param), args.seed)[0],
                             testbench=early.name if testbenches.is_work_dir(early) else None)
         if args.seats:
+            if early is not None:
+                check_project_once(early, testbench=early.name
+                                   if testbenches.is_work_dir(early) else None)
             return _dispatch(args, out, tbinfo)
         ctx = context(args.project, args.seat, args.logs, args.wait,
                       start=args.start_stack or args.stop_stack, stack_command=stack_command,

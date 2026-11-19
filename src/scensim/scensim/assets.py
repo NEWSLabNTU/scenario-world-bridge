@@ -201,6 +201,15 @@ def lock_text(lock: dict) -> str:
             + yaml.safe_dump(lock, sort_keys=False, default_flow_style=False))
 
 
+def _same_lock(path: Path, lock: dict) -> bool:
+    """``path`` holds ``lock`` already: its data, whatever its comments say (a lock an older
+    scensim wrote keeps its header, so a fetch that changes nothing leaves the file alone)."""
+    try:
+        return yaml.safe_load(path.read_text()) == yaml.safe_load(lock_text(lock))
+    except (OSError, yaml.YAMLError):
+        return False
+
+
 def _entry_matches(entry: dict, spec: DatasetSpec) -> bool:
     return (entry.get("repo") == spec.repo and entry.get("take") == spec.take
             and entry.get("revision") == spec.revision)
@@ -778,7 +787,7 @@ def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dic
         lp.unlink()
     path = project / config.LOCK_FILE
     text = lock_text(lock)
-    if not path.is_file() or path.read_text() != text:
+    if not path.is_file() or not _same_lock(path, lock):
         path.write_text(text)
         # a testbench's lock links to its source (081 step 3): say where it was written,
         # from the directory the command ran in when it is below it (issue 058)

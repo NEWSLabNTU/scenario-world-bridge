@@ -57,6 +57,21 @@ def test_fetch_takes_links_and_locks(host, maps_hub):
     assert any("scensim.lock written" in o for o in out)
 
 
+def test_a_fetch_that_changes_nothing_leaves_the_lock_alone(host, maps_hub):
+    """An older scensim's header (`ros2 run scensim assets fetch`) is kept when the data is
+    the same, so a checkout's committed lock stays clean (133's live check)."""
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda m: None)
+    path = p / "scensim.lock"
+    old = path.read_text().replace("# written by `scensim assets fetch`",
+                                   "# written by `ros2 run scensim assets fetch`")
+    path.write_text(old)
+    out = []
+    assets.fetch(p, out=out.append)
+    assert path.read_text() == old
+    assert not any("scensim.lock written" in o for o in out)
+
+
 def test_a_linked_lock_is_named_from_the_working_directory(host, maps_hub, monkeypatch):
     """issue 058: a testbench's lock links to its source; the line names it as Tutorial 1 shows,
     relative to where the command ran when below it, else absolute."""

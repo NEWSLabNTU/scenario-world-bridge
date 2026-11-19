@@ -1,6 +1,6 @@
 # 088: Parallel Testing
 
-**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Step 2 (the dispatcher) and step 3 (rollouts, admission by pilots) on branch `088-dispatcher-3` (2026-11-20), waiting for the live check. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
+**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Steps 2 (the dispatcher) and 3 (rollouts, admission by pilots) done 2026-11-20: live check on 133 passed, 22 of 22, on main. Step 4 (determinism) open. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
 
 ## Goal
 
@@ -213,6 +213,31 @@ Branch `088-dispatcher-3` (088-dispatcher-2 rebased onto main after 0.2.0, plus 
   there are (`vram_per_seat_mb`, `load_per_seat` and `overload_load` were only ever on the
   branch).
 
-The live check (133) covers both steps: basic's town01 on two seats as before, and a rollout
-(`--seeds 1-12` of one scenario) on two seats, its `rollouts.csv` against the same rollout on
-one seat.
+### Steps 2 and 3 live check (133, 2026-11-20)
+
+Branch `088-dispatcher-3` b9427899, Autoware 1.5.0 ego, seats 0 and 1 (CARLA 3000 and 3010).
+22 of 22 runs passed, no error, no overloaded run, no park, no retirement, nothing left
+running.
+
+| Part | What | Runs | Wall | Scenarios/h | VRAM peak |
+|---|---|---|---|---|---|
+| A | basic's `suites/town01.yaml`, seats 0,1 | 6 passed | 465 s | 46.5 | 6872 MiB |
+| B | `town01_pedestrian --seeds 1-8`, seats 0,1 | 8 passed | 743 s | 38.8 | 6881 MiB |
+| C | the same rollout, seat 0 | 8 passed | 1213 s | 23.7 | 3451 MiB |
+
+- **Rollouts.** B's and C's `rollouts.csv`: pass rate 1.0 both, seeds `1-8`; duration mean
+  130.27 s (sd 5.80) on two seats against 124.07 s (sd 1.36) on one.
+- **Admission.** B and C each started after the previous part's stacks: seat 0 waited while
+  the load fell from 71 (B) and 127 (C) to about 21 on 32 cores; the second seat started
+  about 35 s after the first (`start_gap`).
+- **Overload signals on a clean run.** acb skipped at most 5 frames (limit 12); at most
+  18 of 600 ticks were over budget (3 %, limit 5 %); the CPU full stall share was 0.0 % in
+  every run, with the 1-minute load at up to 160 during them. `psi_full_limit` stays at
+  10 %: no run here stalled, so there is nothing to tune it against yet.
+- **Fixed after it.** Try 1 retired every seat on "project check found problems" (a maps
+  revision not in the asset cache): `--seats` now runs the stack's project check once before
+  any seat starts and refuses there, naming `scensim assets fetch`. `scensim assets fetch`
+  no longer rewrites a lock whose data is unchanged (a lock an older scensim wrote kept its
+  header, and the rewrite left the checkout dirty).
+
+NAS: `logs/2026 SSv2 on CARLA/2026-11-20 088 dispatcher steps 2-3 live (133)/`.

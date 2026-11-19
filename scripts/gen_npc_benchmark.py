@@ -12,7 +12,7 @@ road carries them all, at least SPACING m apart within a lanelet. Positions are 
 (lanelet ID + s), which SSv2 resolves itself, so no pose has to be hand-matched to a lane.
 
 Geometry is read the way SSv2 reads it: from each node's lat/lon through the map's
-TransverseMercator projector (WGS84, k0 0.9996, origin 0/0), not from the `local_x`/`local_y`
+TransverseMercator projector (WGS84, origin 0/0, its `scale_factor` or 0.9996), not from the `local_x`/`local_y`
 tags, which sit 0.709 % further out in y (2.3 m at Town01's y -326). Checked against a
 trace: the old bench's npc_05 (lanelet 12083, s 10) spawned at y -324.33, the projected
 centre to the centimetre, while the tags put it at -326.65. With --carla-port each start is
@@ -28,6 +28,7 @@ Usage:
 
 import argparse
 import math
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -53,22 +54,31 @@ MIN_LENGTH = 2 * MARGIN + 5.0
 CLEARANCE = 2.5
 # With --carla-port: CARLA's lane at a start point is at least this wide (a car is 2.16 m).
 MIN_LANE_WIDTH = 2.5
-# The map's projector (map_projector_info.yaml), as SSv2 applies it to every node's lat/lon.
-PROJECTOR = "+proj=tmerc +lat_0=0 +lon_0=0 +k=0.9996 +ellps=WGS84 +units=m"
+# The map's projector (map_projector_info.yaml), as SSv2 applies it to every node's lat/lon: a
+# TransverseMercator at 0/0, scale its `scale_factor` or SSv2's default 0.9996 (roadmap 087:
+# download_maps.sh now declares CARLA's k, 1.0).
+DEFAULT_K0 = 0.9996
 
 
-def projector():
+def scale_of(map_path):
+    yaml = Path(map_path).parent / "map_projector_info.yaml"
+    m = re.search(r"^scale_factor:\s*([0-9.eE+-]+)", yaml.read_text(), re.M) if yaml.exists() else None
+    return float(m.group(1)) if m else DEFAULT_K0
+
+
+def projector(k0=DEFAULT_K0):
     """lat/lon -> SSv2's map frame (metres). pyproj is a dev dependency of this script only."""
     from pyproj import Transformer
 
-    t = Transformer.from_crs("EPSG:4326", PROJECTOR, always_xy=True)
+    t = Transformer.from_crs("EPSG:4326", f"+proj=tmerc +lat_0=0 +lon_0=0 +k={k0!r} +ellps=WGS84 +units=m",
+                             always_xy=True)
     return lambda lat, lon: t.transform(lon, lat)
 
 
 def load_lanelets(path):
     """Return [(lanelet_id, length_m, centerline)] for straight road lanelets, sorted by id."""
     root = ET.parse(path).getroot()
-    project = projector()
+    project = projector(scale_of(path))
     nodes = {n.get("id"): project(float(n.get("lat")), float(n.get("lon"))) for n in root.iter("node")}
     ways = {w.get("id"): [nd.get("ref") for nd in w.iter("nd")] for w in root.iter("way")}
 

@@ -83,6 +83,10 @@ PILOT_FILES = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.la
 NOT_ARGS = ("kind", "lifetime", "ready", "inputs", "args")
 EGO_READY = ["ros2", "run", "scensim_launch", "ego_ready", "--timeout", "10"]
 DEFAULT_VEHICLE = "tesla_model3"
+# kinds whose pilot drives through CARLA's Python API (scensim_agent's carla_basic adapter),
+# and those that may (a launch or command of the user's own)
+CLIENT_KINDS = ("carla_basic",)
+MAYBE_CLIENT_KINDS = ("launch", "command")
 SIDED_KINDS = ("autoware", "simple")  # kinds that always bring a vehicle side
 # kinds that drive on the car's true pose: on Isaac the world server's ego config turns aib's
 # ground truth on for them (on CARLA acb always publishes /carla/ground_truth/odom)
@@ -732,6 +736,22 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     except vehiclesmod.VehicleError as e:
         raise StackRefused(str(e)) from None
     merged_catalog = cars.pop("__catalog__", None)
+    # the pilots' CARLA Python client: the server's release (roadmap 083, T3 on 1.0)
+    client_dir = None
+    if carla_run:
+        client_dir, problem = simmod.python_client(carla_run, host.get("cache")
+                                                   or config.DEFAULTS["cache"])
+        if problem:
+            users = sorted(b.entity for b in bound if b.kind in CLIENT_KINDS)
+            if users:
+                raise StackRefused(f"pilots {', '.join(users)} ({'/'.join(CLIENT_KINDS)}): "
+                                   + problem)
+            if any(b.kind in MAYBE_CLIENT_KINDS for b in bound):
+                print(f"scensim stack: a pilot of your own that imports carla: {problem}",
+                      file=sys.stderr)
+        elif client_dir:
+            print(f"scensim stack: the pilots' CARLA Python client is the server's "
+                  f"{carla_run['version']} ({client_dir})")
     for b in bound:
         car = cars.get(b.spec.get("vehicle"))
         if car is not None:
@@ -771,6 +791,8 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         # the scenarios' vehicle catalog: the project's merged one, else the installed one
         vehiclesmod.ENV: str(vehiclesmod.catalog_dir(project, body)),
     }
+    if client_dir:
+        env[simmod.CLIENT_ENV] = str(client_dir)   # first on every process's PYTHONPATH
     # Isaac's world server finds every car's body (the ego's and the NPCs') under
     # SCENSIM_VEHICLE_USD, by default a host path: the project's fetched USD set has them
     # (roadmap 077, G36; without, every car is a box to the sensors)
@@ -1037,6 +1059,10 @@ def seat_of(record: dict) -> seatmod.Seat:
 def ros_env(record: dict, domain) -> dict:
     env = dict(os.environ)
     env.update(record.get("env") or {})
+    client = env.get(simmod.CLIENT_ENV)
+    if client:   # the server's CARLA client ahead of any other (simulator.python_client)
+        rest = [x for x in env.get("PYTHONPATH", "").split(os.pathsep) if x and x != client]
+        env["PYTHONPATH"] = os.pathsep.join([client, *rest])
     env["ROS_DOMAIN_ID"] = str(domain)
     return env
 

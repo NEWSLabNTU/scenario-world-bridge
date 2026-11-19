@@ -393,6 +393,85 @@ def same_version(a, b) -> bool:
     return pa[:n] == pb[:n]
 
 
+
+# --- the CARLA Python client of the pilots (roadmap 083) --------------------------------------
+# A pilot that drives through CARLA's Python API (carla_basic, an agent of your own) needs the
+# client of the server's release: 0.9.16's client fails on a 1.0 server (its actor attributes),
+# and the packages ship theirs as wheels, one per Python, under PythonAPI/carla/dist.
+CLIENT_ENV = "SCENSIM_CARLA_PYTHON"   # the unpacked client the stack puts first on PYTHONPATH
+WHEEL = re.compile(r"^carla-(?P<version>[^-]+)-cp(?P<py>\d+)-[^-]+-[^-]+\.whl$")
+
+
+def installed_client():
+    """The release of the ``carla`` Python package this interpreter imports, or None."""
+    try:
+        from importlib import metadata
+        return metadata.version("carla")
+    except Exception:  # noqa: BLE001 (not installed, or no metadata: nothing to compare)
+        return None
+
+
+def client_wheel(root, version, py=None):
+    """The wheel of ``version``'s client for Python ``py`` (``(major, minor)``, this one by
+    default) in the CARLA package at ``root``, or None."""
+    py = py or sys.version_info[:2]
+    dist = Path(str(root)).expanduser() / "PythonAPI" / "carla" / "dist"
+    try:
+        names = sorted(os.listdir(dist))
+    except OSError:
+        return None
+    for name in names:
+        m = WHEEL.match(name)
+        if m and m["py"] == f"{py[0]}{py[1]}" and same_version(m["version"], version):
+            return dist / name
+    return None
+
+
+def unpack_client(wheel: Path, cache) -> Path:
+    """``wheel`` unpacked once into ``<cache>/carla-python/<wheel name>/`` (a directory to put on
+    PYTHONPATH); a half-written one from an interrupted run is replaced."""
+    import shutil
+    import zipfile
+
+    dest = Path(str(cache)).expanduser() / "carla-python" / wheel.name[:-len(".whl")]
+    done = dest / ".unpacked"
+    if done.is_file():
+        return dest
+    tmp = dest.with_name(dest.name + f".tmp{os.getpid()}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    with zipfile.ZipFile(wheel) as z:
+        z.extractall(tmp)
+    (tmp / ".unpacked").write_text(f"{wheel}\n")
+    shutil.rmtree(dest, ignore_errors=True)
+    tmp.rename(dest)
+    return dest
+
+
+def python_client(rec: dict, cache, installed=None, py=None):
+    """``(directory, problem)`` for the pilots' CARLA client on the stack's CARLA (``rec``, as
+    ``decide`` returns it): ``(None, None)`` when this Python's client is that release (or the
+    release is not known yet); the server's own client unpacked from ``carla.root`` when it is
+    not; else ``(None, why)``, naming the fix."""
+    version = rec.get("version")
+    if not version:
+        return None, None
+    installed = installed_client() if installed is None else installed or None
+    if installed and same_version(installed, version):
+        return None, None
+    root = rec.get("root")
+    wheel = client_wheel(root, version, py) if root else None
+    if wheel is not None:
+        return unpack_client(wheel, cache), None
+    py = py or sys.version_info[:2]
+    where = (f"{root}/PythonAPI/carla/dist has no wheel of it for Python {py[0]}.{py[1]}"
+             if root else "carla.root is not set, so the stack cannot take the server's own")
+    return None, (f"the CARLA on {rec.get('host')}:{rec.get('port')} is {version}, and this "
+                  f"Python's carla client is {installed or 'not installed'}; {where}. A pilot "
+                  f"that drives through CARLA's Python API needs the server's release: set "
+                  f"carla.root to that CARLA's package, or install its client "
+                  f"(pip install --user <CARLA>/PythonAPI/carla/dist/carla-{version}-"
+                  f"cp{py[0]}{py[1]}-*.whl)")
+
 def version_problem(rec: dict, probed):
     """Why a started CARLA that answers ``probed`` is not the one the stack planned for, or
     None. The stack chose its cars' bodies from the version it knew before CARLA started."""

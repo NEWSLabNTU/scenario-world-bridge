@@ -63,7 +63,7 @@ def make_classes(e4dir):
             self.arena = arena
             self.a = actor
             pc = actor.get_physics_control()
-            xs = [(w.position.x / 100.0, w.position.y / 100.0) for w in pc.wheels]
+            xs = [AR.wheel_xy(w) for w in pc.wheels]   # metres, 0.9.16 and 1.0 alike
             fx = max(x for x, _ in xs)
             front = [p for p in xs if p[0] >= fx - 0.1]
             rear = [p for p in xs if p[0] < fx - 0.1]

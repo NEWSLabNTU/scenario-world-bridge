@@ -161,7 +161,9 @@ def physics_of(actor):
     for w in pc.wheels:
         ws.append({k: round(getattr(w, k), 3) for k in ("tire_friction", "damping_rate", "max_steer_angle", "radius",
                                                          "max_brake_torque", "max_handbrake_torque") if hasattr(w, k)})
-        ws[-1]["pos_cm"] = (round(w.position.x, 1), round(w.position.y, 1))
+        import arena as AR
+        x, y = AR.wheel_xy(w)   # metres, 0.9.16 and 1.0 alike
+        ws[-1]["pos_cm"] = (round(x * 100.0, 1), round(y * 100.0, 1))
     d["wheels"] = ws
     xs = [w["pos_cm"] for w in ws]
     # positions are world coordinates (cm) of a car at yaw 0: wheelbase along x, track along y

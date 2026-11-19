@@ -1,6 +1,6 @@
 # 088: Parallel Testing
 
-**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Steps 2 (the dispatcher) and 3 (rollouts, admission by pilots) done 2026-11-20: live check on 133 passed, 22 of 22, on main. Step 4 (determinism) open. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
+**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Steps 2 (the dispatcher) and 3 (rollouts, admission by pilots) done 2026-11-20: live check on 133 passed, 22 of 22, on main. Step 4 (determinism) done 2026-11-20 on 133: no verdict differs between one seat and two; durations repeat pass to pass. All four steps done. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
 
 ## Goal
 
@@ -164,6 +164,8 @@ run on 133)/`.
 - Is the per-seat CARLA started by the stack (`carla.root` already starts one) or by the
   dispatcher?
 - Do verdicts depend on host load through Autoware's wall-clock parts, and at what load?
+  Step 4: at two seats no verdict changed, but simulated durations grew, most during
+  stack start-up (1-minute load 80-137); step 1's three seats changed one.
 - Do T3's comparisons run unchanged on a parallel run's merged report?
 
 ## Not in scope: several hosts
@@ -241,3 +243,27 @@ running.
   header, and the rewrite left the checkout dirty).
 
 NAS: `logs/2026 SSv2 on CARLA/2026-11-20 088 dispatcher steps 2-3 live (133)/`.
+
+## Step 4: determinism (133, 2026-11-20)
+
+scensim main ef9f1803, seats 0 and 1, Autoware 1.5.0 ego, in the order A1 B1 A2 B2: basic's
+town01 suite twice (A) and `town01_pedestrian --seeds 1-8` twice (B), each run set against
+a one-seat reference (step 1's one-seat suite run; the steps 2-3 check's one-seat rollout,
+part C). 28 of 28 runs passed; no verdict differs from the reference (0 of 14 keys); no run
+overloaded, nothing left running. 47.2, 38.0, 39.3 and 37.9 scenarios/h (A2 waited for the
+earlier parts' load to fall), VRAM peak 6.7 GB, RAM peak 34 GB.
+
+- **Pass to pass** (same run, seat and seed): the simulated duration repeats within mean
+  1.7 s (max 5.1 s) on the suite and mean 0.9 s (max 3.0 s) on the rollout, 5 of 8 seeds
+  within 0.02 s.
+- **Two seats against one**: two seats' runs are longer, mean +5.9 s on both. Most of it is
+  each seat's first run, which runs while the stacks start (1-minute load 80-137, against
+  about 20 later): town01_ego_drive +13.2 s, town01_engage_state +7.1 s, the rollout's seeds
+  1 and 2 +14.7 s and +9.6 s; later runs +1.5 to +6.5 s. One seat shows the same start-up
+  effect, smaller (seed 1 at 127.2 s against 123.2-124.2 s).
+
+So contention, mostly at stack start-up, adds simulated time through Autoware's wall-clock
+parts (probably the engage timing), reproducibly per seat and seed, without changing a
+verdict at two seats. A metric that reads durations or timing should be compared at the same
+seat count. NAS: `logs/2026 SSv2 on CARLA/2026-11-20 088 step 4 determinism (133)/`
+(`compare-split.txt`).

@@ -111,6 +111,15 @@ Live runs before the release (scensim built from source):
   own physics on Chaos and its own Autoware vehicle model, `tesla_model3_carla_1_0`, in the
   same `autoware-side.repos`. CARLA 1.0 runs from a source build; this release's binaries and
   its tests are for CARLA 0.9.16.
+  On CARLA 1.0:
+  - a pilot that drives through CARLA's Python API gets the server's own client: the stack
+    unpacks this Python's wheel from `<carla.root>/PythonAPI/carla/dist` and puts it first on
+    the pilots' `PYTHONPATH`. Without `carla.root`, a `carla_basic` pilot is refused, naming
+    both releases and the wheel to install, as 0.9.16's client fails on a 1.0 server;
+  - the AWF use cases (`safety_suite`, `scensim_examples/scenarios/awf`, `isaac_demo`) take
+    the ego from the testbench's vehicle catalog, so they run on either body;
+  - the `coop_pilots` drive the server's body, with 1.0's physics and measured pedal maps,
+    and read its wheel positions.
 - **Isaac Sim's lidar intensity.** The Isaac lidar returns an intensity from the spec's
   table (reflectance by the surface's SimReady class, times the cosine of incidence), where
   it returned none.
@@ -128,6 +137,9 @@ Live runs before the release (scensim built from source):
 - **Autoware 1.5.0's planner can abort on a new route**, about once in 64 route changes, in
   either configuration (autoware_universe#12460); the run ends with an error and a retry
   passes.
+- **A pilot is counted ready while its composables still start** (issue 065), for example
+  while TensorRT builds an engine, so a run can start on a half-started Autoware. The
+  TensorRT 10.8.0 runtime of `autoware.tensorrt_lib` avoids the rebuild.
 
 ### Fixed since 0.1.0
 

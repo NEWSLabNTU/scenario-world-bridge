@@ -30,7 +30,56 @@ is planned here.
 - CARLA 1.0's content packs install maps without rebuilding the package, and its map generator writes lanelet2 with stop signs and light links: 072 and 064's CARLA side should target 1.0, not 0.9.16.
 - The published map dataset's token fix and cards wait for the refactor (user, 2026-11-17).
 
-## Next
+## Next: the CARLA 1.0 map generator study
 
-1. Decide 072's target (CARLA 1.0 content pack).
-2. Try CARLA 1.0's map generator on Town01_Opt against our map (083 decision 2).
+What it takes to produce a CARLA 1.0 map and its Autoware map (lanelet2, point cloud,
+`map_projector_info`) in one frame, from our pipeline. Planned 2026-11-19 (241; manager's calls the same day).
+
+**What exists.**
+- **OpenDRIVE to lanelet2:** acb's `carla_map_gen` (crdesigner 0.8.5 plus its postprocess) and the
+  `scripts/repair_lanelet_*` fixes (light links, right of way, speed limits, turn directions, and more),
+  with `lanelet_opendrive_registration.py` to measure the fit.
+- **The point cloud:** acb's `carla_pcd_gen` (lidars at the spawn points), `densify_pcd_along_lanes.py`
+  (lidars along every lane), and sampling from meshes (`open_maps/world.py`).
+- **CARLA 1.0's own Autoware map tools** (`PythonAPI/examples/av_stacks/autoware/map_tools`) do the
+  same: crdesigner 0.8.5, stop signs and lights from the live actors, and a noise-free 64-beam lidar
+  along the waypoints. They overlap ours; the stop signs are their one addition.
+
+**What CARLA 1.0 needs.**
+- **A road-only map:** OpenDRIVE standalone mode (`generate_opendrive_world`) builds one from an
+  `.xodr` on the packaged server, with no editor.
+- **A map with buildings:** `Util/Tools/Import.py`, `carla-pack` and the Digital Twin Tool all need a
+  CARLA UE 5.8 source build with the editor, which no host has (about 200 GB). The content pack it
+  makes installs into the packaged server of the same release.
+
+**Gaps.**
+- Our CARLA-client tools are on 0.9.16's API.
+- Only 072's `lanelet_to_xodr` writes an `.xodr` from our own data, and it carries no signals; open_maps
+  writes none.
+- The towns' frame (Local, or TM at 0,0) differs from the real places' (MGRS).
+- `autoware_lanelet2_map_validator` has not been run on our maps, nor point-cloud coverage against the
+  meshes.
+
+**Steps.**
+1. **S1, Town01_Opt, no editor** (host 241, or 139 after 084e).
+   - Port the CARLA-client point-cloud tools in acb under its CARLA version feature, so 0.9.16 keeps
+     working.
+   - Generate Town01_Opt's Autoware map with CARLA's map_tools and with ours.
+   - Compare both with `carla-town-autoware-maps`' Town01: registration offsets, the validator, and the
+     point cloud against the meshes.
+   - Drive Autoware on each. This decides 083's decision 2 (replace or feed), and whether the `_Opt`
+     towns need new maps.
+2. **S2, an OpenDRIVE of our own, no editor.**
+   - A private map's `.xodr` through `generate_opendrive_world` on packaged 1.0, then the same
+     generation, checks and drive. This proves the road-only path end to end.
+   - Private data: its results go to the NAS (and `2026-taiwan-testbenches` if needed), never into
+     this repository.
+3. **S3, the editor build** (UE 5.8 plus CARLA `ue58-dev`), only if S1 and S2 show the need, and the
+   user's call with their numbers.
+   - Import with `Import.py`, package with `carla-pack`, install into the packaged server, drive.
+   - Then 072's campus as a content pack.
+4. **S4, one tool:** 031's `map_build`, from an `.xodr` (and meshes) to a CARLA pack and the Autoware
+   map directory, with the gates (validator, registration, point-cloud coverage, a drive), per CARLA
+   version.
+
+Ahead of 059's Isaac twin (manager, 2026-11-19).

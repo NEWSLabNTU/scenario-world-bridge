@@ -5,7 +5,7 @@ verdicts.
 
 | File | Holds |
 |---|---|
-| `testbench.yaml` | CARLA, the Town01 map, and the pilot of the entity `ego` (Autoware on a Tesla Model 3) |
+| `testbench.yaml` | CARLA, the Town01 map, and the pilot of the entity `ego` (Autoware on a Tesla Model 3, with scensim's Autoware profile: stock Autoware 1.5.0 fails `pedestrian_crossing`) |
 | `scenarios/drive_to_goal.xosc` | the ego drives 70 m west to a goal: the smoke test |
 | `scenarios/red_light.xosc` | the scenario turns a light red ahead of the ego; it must stop at the line and go on green |
 | `scenarios/pedestrian_crossing.xosc` | the ego passes street barriers and stops for a pedestrian crossing its lane, then drives on; within 1 m of the pedestrian fails |

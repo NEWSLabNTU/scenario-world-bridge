@@ -26,6 +26,10 @@ RUN                                         VERDICT  SCENARIO                 DU
   the scenario written there. Every terminal: `source ~/scensim.bash` and
   `source ~/my_ws/install/setup.bash`.
 - About 40 minutes, most of it spent in the runs.
+- scensim's Autoware profile for the ego: in `testbench.yaml`, `ego: {kind: autoware,
+  autoware_profile: scensim, vehicle: tesla_model3}`. Stock Autoware 1.5.0 does not stop
+  clear of the crossing pedestrian of step 1 and fails it
+  ([Connect your Autoware](../how-to/connect-autoware.md)).
 
 The scenarios ship with scensim and are copied into the testbench. A copied file is a new
 file of the package, so the workspace is built once after each copy

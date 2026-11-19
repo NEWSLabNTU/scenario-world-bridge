@@ -166,7 +166,8 @@ Autoware 1.5.0 drove on into the space of the pedestrian crossing in front of it
 scenario's clearance check moved out of the way, it came within 0.02 m of the walker in one
 run and touched the walker's box in the scenario runner in the other. CARLA recorded no
 contact in any run, as CARLA's walker is narrower than its box. scensim's profile stops more
-than 1 m short and passes.
+than 1 m short and passes. So `first_drive` names `autoware_profile: scensim`, and Tutorial 3
+asks for it; why stock reacts late is not studied yet.
 
 **A rare planner abort, in either configuration.** Autoware 1.5.0's behavior_path_planner
 can abort when a new route arrives (`failed to add guard condition to wait set: guard

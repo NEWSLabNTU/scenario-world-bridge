@@ -4,5 +4,7 @@ assets:
   - dataset: carla-town-autoware-maps
     take: [Town01]
 pilots:
-  ego: {kind: autoware, vehicle: tesla_model3}
+  # scensim's Autoware profile: stock Autoware 1.5.0 fails pedestrian_crossing, as it drives
+  # into the space of the pedestrian crossing in front of it (docs/how-to/connect-autoware.md).
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
 default: all   # the suite `scensim run <testbench>` runs

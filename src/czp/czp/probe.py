@@ -5,7 +5,8 @@ Two probes:
   static and restarts into the round-2 go; so the car first creeps about ``probe_creep_dist`` (at
   ``creep_speed``), then holds and watches for ``probe_watch``; only if nobody moved off its line
   meanwhile does it go. A hard verdict during the probe (someone moved or entered) aborts it, and the
-  car yields from where it is (still before the zone).
+  car yields from where it is (still before the zone). Any other go while the probe runs stays in it
+  (078 P2g).
 - the claim probe, when a go needs the other to yield: creep and classify the other's filtered
   acceleration (``classify_response``): yield is <= -yield_decel held ``yield_hold`` within the window;
   a hold steps the car down to yield before its commit point; a creep that gains nothing within
@@ -27,7 +28,11 @@ def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=N
     The creep is measured from the car's rest at its line (rest_s), once per rest: a later round watches
     from where the car is."""
     row = row or {}
-    if decision.kind == GO and decision.reason in PROBED and row.get("probe_round2", False):
+    # (078 P2g) a probe under way is not bypassed: another go during the creep or the watch (the rest guard's
+    # "clear", read off the other's rest) stays in the probe; else it went at once from the line, with the other's
+    # start not yet visible, as the probe was there to prevent
+    probing = ps.phase in ("creep", "watch") and decision.reason != "inside"
+    if decision.kind == GO and (decision.reason in PROBED or probing) and row.get("probe_round2", False):
         if ps.phase == "done":
             return decision, ps
         if ps.phase not in ("creep", "watch"):

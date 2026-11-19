@@ -345,6 +345,28 @@ def test_probe_creep_watch_go():
     assert d.kind == YIELD and ps2.phase == "abort"
 
 
+def test_probe_is_not_bypassed_by_another_go():
+    """078 P2g: a go for another reason (the rest guard's clear) during the creep or the watch stays in the probe;
+    only a car already inside goes at once."""
+    row = CONV["all_way_stop"]
+    own = car("A", s_entry=1.0)
+    d, ps = probe(Decision(GO, "j", "last_resort"), own, ProbeState(), P, 10.0, row)
+    assert d.kind == CREEP and ps.phase == "creep"
+    d, ps = probe(Decision(GO, "j", "clear"), car("A", s_entry=0.8, v=0.5), ps, P, 10.3, row)
+    assert d.kind == CREEP and d.reason == "probe:creep"
+    own = car("A", s_entry=1.0 - P.probe_creep_dist, v=0.0)
+    d, ps = probe(Decision(GO, "j", "clear"), own, ps, P, 10.6, row)
+    assert d.kind == CREEP and d.reason == "probe:watch"
+    d, ps = probe(Decision(GO, "j", "clear"), own, ps, P, 10.6 + P.probe_watch, row)
+    assert d.kind == GO and ps.phase == "done"
+    d, _ = probe(Decision(GO, "j", "inside"), car("A", s_entry=0.0, v=1.0), ProbeState("watch", 10.6, 1.0, "round2"),
+                 P, 10.8, row)
+    assert d.kind == GO and d.reason == "inside"
+    # without a probe under way a go that is not probed passes as before
+    d, ps = probe(Decision(GO, "j", "clear"), own, ProbeState(), P, 12.0, row)
+    assert d.kind == GO and d.reason == "clear"
+
+
 def test_classify_response():
     s = [(t / 10, -1.0 if t >= 8 else 0.0) for t in range(30)]
     assert classify_response(s, P, 0.0) == "yield"

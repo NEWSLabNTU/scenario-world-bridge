@@ -30,6 +30,90 @@ is planned here.
 - CARLA 1.0's content packs install maps without rebuilding the package, and its map generator writes lanelet2 with stop signs and light links: 072 and 064's CARLA side should target 1.0, not 0.9.16.
 - The published map dataset's token fix and cards wait for the refactor (user, 2026-11-17).
 
+## Maps v2026.11b: the T3 re-reference
+
+Revision v2026.11b of `jerry73204/carla-town-autoware-maps` (dataset commit 6b1bd8b9) is
+1bbdd63's repair: each town's TransverseMercator projector at 0,0 declares CARLA's scale factor,
+1.0, where Autoware's default, 0.9996, applied before; the local coordinates were regenerated with
+acb 6c0325f (issue 067). Registration p95: Town01 0.159 to 0.007 m, Town02 0.012, Town05 0.005,
+Town10 0.007, the ring 0.005; Town03 stays at 1.365 m (issue 068). Every project lock moved to it
+in 2ce93408. The T3 suites ran again on the new maps (swb 243, host 243, 2026-11-19 and 20) to
+see which references move: CARLA 0.9.16 first, then CARLA 1.0 against the same references.
+
+### CARLA 0.9.16
+
+Build 410915c8, checkout 78d15cf7; each stack started its own CARLA 0.9.16 at Epic. Every
+suite started at a 1-minute load of 48 or less (1.5 times the 32 cores), with at least 10 GB
+of VRAM and 12 GB of memory free.
+
+| suite | runs | result |
+|---|---|---|
+| bench/bench | 3 | as the reference |
+| basic/town01, basic/towns | 6, 4 | as the reference |
+| safety_suite/nightly | 2 (UC-ACC's 27 variants, UC-AEB's 9) | as the reference |
+| set050/default, bench, two_av | 8, 1, 1 | as the reference |
+| c2b/c2b | 24 | as the reference |
+| demo/incidents | 5 | as the reference |
+| two_av/two_av | 1 | as the reference |
+
+No suite moved, so the references stay as they are. The one note,
+`town01_truck_pass` at 53 s against the reference's 32 s, is wall time. It ended on the same
+condition, the truck's collision with the ego (an expected failure).
+
+**Load.** This half sampled no load during runs. As a proxy, the runs' own tick overruns
+(ticks over the frame budget) were checked. Four runs had more than 5 % of their ticks over;
+all others had 4.2 % or less. Those four ran again one at a time. Each started after four
+samples 15 s apart at load 48 or less, and a sampler read the 1-minute load every 5 s:
+
+| run | verdict, both runs | load at start | peak load in the run | ticks over, rerun | ticks over, first run |
+|---|---|---|---|---|---|
+| two_av | passed | 5 | 616 | 0.4 % (4 of 1000) | 11.5 % |
+| c2b d2_v2, pair eq, r0 | passed | 17 | 9.5 | 0.0 % | 10.7 % |
+| demo i2_ped_dart | passed | 3 | 90 | 0.0 % | 8.8 % |
+| set050 truck_pass | failed (expected) | 17 | 100 | 0.0 % | 7.8 % |
+
+The load average is a poor gate during a run. In two_av it went from 78 to 616 in the 50 s after
+the run started and then decayed: its two Autoware stacks starting. Yet that run had 0.4 % of
+its ticks over budget. CPU pressure (`/proc/pressure/cpu`, full) stayed 0 and I/O pressure about
+1 %. The load average counts our own pilots' start-up, not contention the world server feels.
+What tells a disturbed run is its ticks over budget (and pressure). The first runs' overruns
+(7.8 to 11.5 %) most likely came from other work on the shared host at the time; no process
+list was recorded to show it. The reruns' verdicts are
+the first runs': the 0.9.16 half stands.
+
+### CARLA 1.0
+
+The same 10 suites on the CARLA 1.0 package (Epic, port 2400, the `carla-10` builds of acb_bridge
+and scensim_carla_world, checkout bfa4e806), compared with the same 0.9.16 references.
+
+All 10 suites compare as the reference: bench 3, basic/town01 6, basic/towns 4,
+safety_suite/nightly 2, set050 8, 1 and 1, c2b 24, demo/incidents 5, two_av 1.
+
+**Contention, and a gate per run.** The first 1.0 script gated each project only. bench,
+basic and safety ran that way, and basic's and safety's results stand. Three runs went over 5 % of
+their ticks. In them, CPU pressure (some, avg10) reached 68 to 82 % and the load 68 to 199:
+- bench town01_npc_10: 6.8 %, and its frame_budget failed (processing p95 12.5 ms against
+  10 ms; the reference passed);
+- basic town02_ego_drive: 7.7 %;
+- basic town01_ego_drive: 5.0 %.
+A top sampler (top's own %CPU every 30 s) named the source: Rust builds of another project on the
+shared host, about seven cores of rustc at 03:31 to 03:34. In set050's first run, Autoware stayed
+INITIALIZING for 120 s, every tick took 100 to 230 ms, and SSv2 timed out.
+
+The rest ran with a gate before every run (`--shard i/N`, one run per command, its link moved
+into the suite's directory and the summary rebuilt). Each run waited for load 48 or less and
+CPU pressure 25 % or less, four samples 15 s apart, with memory and VRAM as before. 25 % is the
+top of the uncontended 1.0 runs (5 to 23 %); under the builds it was 45 to 80 %.
+
+That pass ran set050, c2b, demo and two_av, and the three runs above again. The gate never held
+a run for long: the longest wait between runs was 347 s (with a stack stop between projects),
+the mean 103 s. Each run started at load 7 to 30 and CPU pressure 0 to 18 %. No run went over
+5 % (most 4.0 %, two_av), so none ran a third time. Quiet, bench town01_npc_10 passed its frame
+budget: 0 of 1200 ticks over, processing p95 3.4 ms. Its failure was the contention, not 1.0.
+
+**Result.** On the repaired maps, no suite moved on either version, and CARLA 1.0 gives the 0.9.16
+references' verdicts in all 10 suites (55 runs). The references stay as they are.
+
 ## Next: the CARLA 1.0 map generator study
 
 What it takes to produce a CARLA 1.0 map and its Autoware map (lanelet2, point cloud,

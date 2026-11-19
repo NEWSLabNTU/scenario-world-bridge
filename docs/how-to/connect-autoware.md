@@ -97,6 +97,20 @@ Autoware ships it. scensim passes only what a simulator needs:
 | `scenario_simulation` | `true` | Autoware's own switch for a scenario simulator: it starts the API that serves `/api/autoware/set/velocity_limit`, which a scenario's speed limit needs (1.5.0: the deprecated API's adaptor; 2.x: the evaluation adapter) |
 | `rviz` | the pilot's `rviz:` | |
 
+**Your Autoware must serve the speed limit.** A scenario that sets the ego's speed (an
+OpenSCENARIO `SpeedAction`) reaches Autoware as a call to `/api/autoware/set/velocity_limit`.
+Autoware serves that service only when it is launched with `scenario_simulation:=true`, which
+the stock pilot passes. If you point `autoware_launch:` at a launch of your own, keep that
+argument working; without it the call finds no service and the scenario errors after five
+tries ("Requested the service /api/autoware/set/velocity_limit 5 times, but was not
+successful"). What the switch adds, measured by resolving `autoware.launch.xml` with and
+without it (nothing is removed or reconfigured in either release):
+
+| Autoware | What `scenario_simulation:=true` adds |
+|---|---|
+| 1.5.0 | the deprecated tier4 API, 60 nodes: the internal and external API adaptors (`autoware_iv_internal_api_adaptor`, `autoware_iv_external_api_adaptor`, the velocity limit among them), the AWAPI adapter and its relays (`awapi_awiv_adapter`), `tier4_autoware_api_extension` and `tier4_deprecated_api_adapter`. They also give the agent the aggregated RTC and the emergency flag (`/api/external/get/emergency`), as with scensim's profile. Their relays forward `/api/autoware/set/traffic_signals`, `intersection_states` and `crosswalk_states` to Autoware only when something publishes them; scensim does not. |
+| 2.1.0 | the evaluation adapter, 3 nodes: its container, `VelocityLimit` (the velocity limit) and `AutowareEngage` (`/api/external/set/engage`, which an external engage turns into an operation-mode change) |
+
 Everything else is your Autoware's own: its planning, control and perception parameters,
 its lidar detector and its ML models (`data_path`, by default `~/autoware_data` up to
 Autoware 1.9.0 and `~/autoware_data/ml_models` from 2.0.0).

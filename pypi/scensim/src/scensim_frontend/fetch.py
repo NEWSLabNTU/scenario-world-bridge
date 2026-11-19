@@ -27,8 +27,11 @@ def human(n: int) -> str:
     return f"{n / 1e6:.1f} MB"
 
 
-def download(art: dict[str, Any], dest_dir: Path, quiet: bool = False) -> Path:
-    """Download ``art`` (url, size, sha256) to ``dest_dir``; a short or wrong file is removed."""
+def download(art: dict[str, Any], dest_dir: Path, quiet: bool = False,
+             resume: int = 0) -> Path:
+    """Download ``art`` (url, size, sha256) to ``dest_dir``; a short or wrong file is removed.
+    ``resume``: how many times a connection the server cuts is resumed where it ended (an HTTP
+    Range request; CARLA's server ends a long download after about 1 GB)."""
     url, size, sha = art["url"], int(art["size"]), art["sha256"]
     dest_dir.mkdir(parents=True, exist_ok=True)
     name = url.rsplit("/", 1)[-1]
@@ -36,18 +39,39 @@ def download(art: dict[str, Any], dest_dir: Path, quiet: bool = False) -> Path:
     digest = hashlib.sha256()
     got = 0
     next_report = size // 10
+    tries = 0
     try:
-        with urllib.request.urlopen(url, timeout=60) as resp, open(part, "wb") as out:
+        with open(part, "wb") as out:
             while True:
-                chunk = resp.read(CHUNK)
-                if not chunk:
+                req = urllib.request.Request(url)
+                if got:
+                    req.add_header("Range", f"bytes={got}-")
+                try:
+                    with urllib.request.urlopen(req, timeout=60) as resp:
+                        if got and resp.status != 206:
+                            raise DownloadError(f"{url} does not resume (HTTP {resp.status})")
+                        while True:
+                            chunk = resp.read(CHUNK)
+                            if not chunk:
+                                break
+                            out.write(chunk)
+                            digest.update(chunk)
+                            got += len(chunk)
+                            if not quiet and size and got >= next_report:
+                                print(f"  {human(got)} of {human(size)}", file=sys.stderr)
+                                next_report += size // 10
+                except (OSError, http.client.HTTPException):
+                    if not got or tries >= resume:
+                        raise
+                if got >= size or tries >= resume:
                     break
-                out.write(chunk)
-                digest.update(chunk)
-                got += len(chunk)
-                if not quiet and size and got >= next_report:
-                    print(f"  {human(got)} of {human(size)}", file=sys.stderr)
-                    next_report += size // 10
+                tries += 1
+                if not quiet:
+                    print(f"  cut at {human(got)}; resuming ({tries} of {resume})",
+                          file=sys.stderr)
+    except DownloadError:
+        part.unlink(missing_ok=True)
+        raise
     except (OSError, http.client.HTTPException) as e:
         part.unlink(missing_ok=True)
         raise DownloadError(

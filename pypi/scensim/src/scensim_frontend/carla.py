@@ -80,7 +80,7 @@ def fetch(args: list[str]) -> int:
             raise Refused(f"{dest} exists and holds no CarlaUE4.sh; move it away first")
         say(f"downloading CARLA {version}, {human(int(art['size']))}, to {parent}")
         try:
-            archive = download(art, parent / ".scensim-downloads")
+            archive = download(art, parent / ".scensim-downloads", resume=50)
         except DownloadError as e:
             raise DownloadError(
                 f"{e}\nor download it yourself from {art['url']} (CARLA's release page: "

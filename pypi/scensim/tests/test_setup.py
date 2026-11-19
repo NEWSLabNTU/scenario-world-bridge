@@ -251,29 +251,87 @@ def test_autoware_side_refuses_a_workspace_of_other_packages(host) -> None:
 # --- carla fetch ------------------------------------------------------------------------------
 
 
-def test_carla_fetch_checks_unpacks_and_writes_the_root(env, tmp_path: Path, monkeypatch) -> None:
+class RangeServer:
+    """Serves one blob with HTTP Range, ending every response after ``cut`` bytes, as CARLA's
+    server ends a long download after about 1 GB."""
+
+    def __init__(self, blob: bytes, cut: int) -> None:
+        import http.server
+        import threading
+        self.requests = 0
+        outer = self
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                outer.requests += 1
+                start = 0
+                rng = self.headers.get("Range")
+                if rng:
+                    start = int(rng.split("=")[1].rstrip("-"))
+                body = blob[start:]
+                self.send_response(206 if rng else 200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body[:cut])
+                self.close_connection = True
+
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+
+def carla_blob(size: int = 300_000) -> bytes:
+    import os as _os
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, data in (("./CarlaUE4.sh", b"#!/bin/sh\n"), ("./big.bin", _os.urandom(size))):
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(data), 0o755
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def test_carla_fetch_resumes_checks_unpacks_and_writes_the_root(tmp_path: Path, monkeypatch,
+                                                                 capsys) -> None:
     import sys
     sys.path.insert(0, str(SRC))
     from scensim_frontend import carla
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        data = b"#!/bin/sh\n"
-        info = tarfile.TarInfo("./CarlaUE4.sh")
-        info.size, info.mode = len(data), 0o755
-        tar.addfile(info, io.BytesIO(data))
-    blob = buf.getvalue()
-    (env.files / "CARLA_9.9.9.tar.gz").write_bytes(blob)
+    blob = carla_blob()
+    srv = RangeServer(blob, cut=(len(blob) + 2) // 3)  # three responses
     monkeypatch.setitem(carla.CARLA, "9.9.9", {
-        "url": f"{env.server.url}/CARLA_9.9.9.tar.gz", "size": len(blob),
+        "url": f"{srv.url}/CARLA_9.9.9.tar.gz", "size": len(blob),
         "sha256": hashlib.sha256(blob).hexdigest()})
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("SCENSIM_CONFIG_HOME", str(tmp_path / "config"))
     assert carla.fetch(["fetch", "9.9.9"]) == 0
+    assert srv.requests == 3 and "resuming (2 of 50)" in capsys.readouterr().err
     assert (tmp_path / "CARLA_9.9.9" / "CarlaUE4.sh").is_file()
     assert not (tmp_path / ".scensim-downloads").exists()
     assert f"root: {tmp_path}/CARLA_9.9.9" in (tmp_path / "config" / "host.yaml").read_text()
-    hits = env.server.hits
-    assert carla.fetch(["fetch", "9.9.9"]) == 0 and env.server.hits == hits  # in place
+    assert carla.fetch(["fetch", "9.9.9"]) == 0 and srv.requests == 3  # in place
+    srv.httpd.shutdown()
+
+
+def test_a_server_that_does_not_resume_fails_the_fetch(tmp_path: Path, monkeypatch) -> None:
+    import sys
+    sys.path.insert(0, str(SRC))
+    from scensim_frontend import carla
+    from scensim_frontend.fetch import DownloadError
+    blob = carla_blob()
+    srv = RangeServer(blob, cut=len(blob) // 3)
+    monkeypatch.setitem(carla.CARLA, "9.9.9", {
+        "url": f"{srv.url}/x.tar.gz", "size": len(blob) * 2,   # more than it will ever send
+        "sha256": "0" * 64})
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("SCENSIM_CONFIG_HOME", str(tmp_path / "config"))
+    with pytest.raises(DownloadError) as e:
+        carla.fetch(["fetch", "9.9.9"])
+    assert "download it yourself from" in str(e.value)
+    assert not list((tmp_path / ".scensim-downloads").glob("*.part"))
+    srv.httpd.shutdown()
 
 
 def test_carla_fetch_refuses_an_unknown_version(env) -> None:

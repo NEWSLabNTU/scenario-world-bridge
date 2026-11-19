@@ -693,8 +693,8 @@ def test_protocol_go_waits_for_the_later_rest():
         a = car("A", s_entry=1.0, stamp=t)
         b = car("B", s_entry=1.0 if t >= 1.5 else 1.0 + (1.5 - t) * 0.3, v=0.0 if t >= 1.5 else 0.3, stamp=t)
         d, _ = pr.step(t, b, [a], z, inputs=C.Inputs(obs_age=0.0), obs_age=0.0)
-        if d.kind == GO and first_go is None:
-            first_go = t
+        if (d.kind == GO or d.reason == "probe:creep") and first_go is None:
+            first_go = t  # the crossing probes a go from a mutual rest (078 P2g): its creep is the go
     assert first_go is not None and first_go >= 1.5 + guard - 1e-6, first_go
     # A restarts 1.2 s after the mutual rest (seen moving): B never goes before A
     pr = czp.Protocol(conv, P_EXACT)
@@ -705,7 +705,7 @@ def test_protocol_go_waits_for_the_later_rest():
         a = car("A", s_entry=s_a, v=3.0 * (t - 2.7) if moving else 0.0, stamp=t)
         b = car("B", s_entry=1.0 if t >= 1.5 else 1.0 + (1.5 - t) * 0.3, v=0.0 if t >= 1.5 else 0.3, stamp=t)
         d, _ = pr.step(t, b, [a], z, inputs=C.Inputs(obs_age=0.0), obs_age=0.0)
-        assert d.kind != GO, (t, d)
+        assert d.kind != GO and d.reason != "probe:creep", (t, d)
 
 
 def test_the_self_contract_reads_the_decision_cycles_median():

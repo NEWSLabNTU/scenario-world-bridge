@@ -50,7 +50,7 @@ source ~/scensim.bash           # in every terminal
 `scensim setup` says what it will do before it does it:
 
 - downloads the release for your ROS (as `scensim install`, below);
-- as root, behind one password prompt, installs what is missing among rosdep, vcstool,
+- as root, behind one password prompt, installs what is missing among git, rosdep, vcstool,
   colcon and pip, initialises and updates rosdep, installs the release's system packages, and
   enlarges the kernel's socket buffers. A step already done is skipped; with nothing left,
   there is no prompt. `--no-sudo` prints the script for an administrator instead;

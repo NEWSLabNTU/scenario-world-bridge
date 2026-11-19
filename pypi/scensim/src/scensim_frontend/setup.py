@@ -44,7 +44,7 @@ net.ipv4.ipfrag_high_thresh=134217728
 """
 # what rosdep, the Autoware side's import and its build need
 APT_TOOLS = ["python3-rosdep", "python3-vcstool", "python3-colcon-common-extensions",
-             "python3-pip"]
+             "python3-pip", "git"]
 # the car's Autoware packages, and the profile (built always: seconds, CMake only)
 AUTOWARE_SIDE_PACKAGES = ["tesla_model3_launch", "tesla_model3_sensor_kit_launch",
                           "individual_params", "autoware_sim_profile"]
@@ -463,10 +463,10 @@ def build_autoware_side(release: Release, ros: Path, autoware: Path, ws: Path,
         if others:
             raise Refused(f"{ws} holds other packages ({', '.join(others)}); name another "
                           f"workspace with --workspace")
-    for tool in ("vcs", "colcon"):
+    for tool in ("git", "vcs", "colcon"):
         if not shutil.which(tool):
             raise Refused(f"autoware side: {tool} is not installed (scensim setup installs "
-                          f"it, or: sudo apt install python3-vcstool "
+                          f"it, or: sudo apt install git python3-vcstool "
                           f"python3-colcon-common-extensions)")
     src.mkdir(parents=True, exist_ok=True)
     (ws / "autoware-side.repos").write_text(repos)

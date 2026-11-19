@@ -78,7 +78,7 @@ the front end's, so the two never collide.
 2. `scensim install` (a no-op when the release is in place).
 3. **The system step**, one `sudo bash -c <script>`, the script printed first. Each line is
    skipped when already done, and a step with nothing left asks for no password:
-   - `apt-get install` of what is missing among `python3-rosdep python3-vcstool
+   - `apt-get install` of what is missing among `git python3-rosdep python3-vcstool
      python3-colcon-common-extensions python3-pip`;
    - `rosdep init` when `/etc/ros/rosdep/sources.list.d/` has no list;
    - `rosdep update` as the user (`sudo -u $SUDO_USER -H`), so the cache stays the user's;

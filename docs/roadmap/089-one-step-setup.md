@@ -185,7 +185,8 @@ It runs in Docker on 118:
 - 2026-11-19, branch `089-setup`: steps 2 and 3 in the front end (`setup.py`, `carla.py`),
   13 tests in `pypi/scensim/tests/test_setup.py` (stubs, no network, sudo or ROS). The
   CARLA 0.9.16 size and sha256 were measured on 118's copy of CARLA's tarball
-  (8346095504 bytes). CARLA's CDN answered 403 to 118, so the download itself is untested.
+  (8346095504 bytes). The URL is the one CARLA's GitHub release page links,
+  `downloads.carlasim.com`; the older `carla-releases.b-cdn.net` answers 403 to 118.
 
 ## Exit criteria
 

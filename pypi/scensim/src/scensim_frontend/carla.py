@@ -17,7 +17,8 @@ from . import setup as setup_mod
 # version -> CARLA's tarball (no top directory: CarlaUE4.sh at its root)
 CARLA = {
     "0.9.16": {
-        "url": "https://carla-releases.b-cdn.net/Linux/CARLA_0.9.16.tar.gz",
+        # the link of CARLA's GitHub release page (github.com/carla-simulator/carla/releases)
+        "url": "https://downloads.carlasim.com/Linux/CARLA_0.9.16.tar.gz",
         "size": 8346095504,
         "sha256": "09e3ebb28df17962f0c997e66f4b914ad5ea6f1d6a6dbbf13c9f87eb38346d57",
     },
@@ -78,7 +79,14 @@ def fetch(args: list[str]) -> int:
         if dest.exists() and any(dest.iterdir()):
             raise Refused(f"{dest} exists and holds no CarlaUE4.sh; move it away first")
         say(f"downloading CARLA {version}, {human(int(art['size']))}, to {parent}")
-        archive = download(art, parent / ".scensim-downloads")
+        try:
+            archive = download(art, parent / ".scensim-downloads")
+        except DownloadError as e:
+            raise DownloadError(
+                f"{e}\nor download it yourself from {art['url']} (CARLA's release page: "
+                f"https://github.com/carla-simulator/carla/releases/tag/{version}), unpack it "
+                f"into {dest}, and run `scensim carla fetch {version}` again to set carla.root"
+            ) from None
         say(f"  sha256 ok; unpacking to {dest}")
         dest.mkdir(parents=True, exist_ok=True)
         r = subprocess.run(["tar", "-xzf", str(archive), "-C", str(dest)])

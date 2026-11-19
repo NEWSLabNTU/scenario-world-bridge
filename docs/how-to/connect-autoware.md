@@ -19,6 +19,12 @@ sources an Autoware: yours is the one in your terminal.
 
 ## Import and build
 
+`scensim setup` does this step for you ([Install](../getting-started/install.md#three-commands)), and
+`scensim autoware-side build` does it alone: with your Autoware sourced, it imports the
+packages at your release's commit into `~/autoware_side` (or `--workspace <dir>`) and builds
+them with the profile, skipping a workspace already built for the same release and
+Autoware. By hand:
+
 With your Autoware sourced, in a workspace of yours (here `~/autoware_side`). Every scensim
 release has its packages' list, `autoware-side.repos`, beside its other files on the
 release page (use your release's version):

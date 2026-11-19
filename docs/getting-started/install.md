@@ -37,6 +37,42 @@ On Ubuntu 24.04 with ROS 2 Jazzy, an Autoware ego needs an Autoware built for Ja
 has one); the car's packages are not tested there yet, and scensim says so. See
 [Ubuntu 24.04](#ubuntu-2404).
 
+## Three commands
+
+On Ubuntu with ROS 2 from apt and, for an Autoware ego, your Autoware installed:
+
+```bash
+python3 -m pip install --user scensim
+~/.local/bin/scensim setup      # one sudo prompt
+source ~/scensim.bash           # in every terminal
+```
+
+`scensim setup` says what it will do before it does it:
+
+- downloads the release for your ROS (as `scensim install`, below);
+- as root, behind one password prompt, installs what is missing among rosdep, vcstool,
+  colcon and pip, initialises and updates rosdep, installs the release's system packages, and
+  enlarges the kernel's socket buffers. A step already done is skipped; with nothing left,
+  there is no prompt. `--no-sudo` prints the script for an administrator instead;
+- with an Autoware (the one your terminal sourced, else the only one under `/opt/autoware`,
+  else `--autoware <setup.bash>`), imports and builds the car's Autoware packages and
+  scensim's profile in `~/autoware_side` ([Connect your
+  Autoware](../how-to/connect-autoware.md)), and gives Autoware its data directory;
+- writes [`~/scensim.bash`](#the-environment-file) and [`host.yaml`](#the-host-settings-file)
+  from what it found. A file of yours that differs is kept, and the difference is printed;
+  `--force` replaces it and keeps the old one as `.bak`;
+- ends with a check that names each fix. `scensim setup --check` runs the check alone.
+
+Run it again at any time: a second run changes nothing. Then fetch CARLA if you have none
+(about 8 GB, unpacked to `~/CARLA_0.9.16`), and go on with [Tutorial 1](../tutorials/01-first-drive.md):
+
+```bash
+scensim carla fetch 0.9.16
+```
+
+The sections below are the same steps by hand, for a host where you prefer to run them
+yourself.
+
 ## Install with pip
 
 scensim is installed for your user, into the Python that ROS runs on:

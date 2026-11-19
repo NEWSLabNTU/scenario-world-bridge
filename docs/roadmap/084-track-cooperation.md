@@ -22,7 +22,7 @@ is planned here.
 
 ## Folded in
 
-- The Isaac lidar intensity fix (the user's option 1: an intensity table in the car spec, times the cosine, by object id and normal): **landed 2026-11-19** (aib a37d23e, scensim_isaac_world c3d0e2f; report on the NAS, "2026-11-18 084 Isaac lidar intensity fix (139)"). Points of bodies spawned after the map is made take the class of the entity box they fall in. Car intensity now matches CARLA's (medians 69/29/28/41 against 77/27.5/17/38; before 15/5/3/9); TransFusion false positives 1.64 to 1.00 per output (CARLA 0.40). TransFusion's broadside-car recall falls to 0.74, as CARLA's does with the same table (0.36-0.40). Its 35 m recall (0.175 against CARLA's 0.47-0.51) is a point-density gap, not intensity: Isaac's cloud has ~30 % fewer points (88.7k against 112k). Next: the density against CARLA's semantic lidar, then the reflectance sweep.
+- **Isaac lidar against CARLA (139, 2026-11-19).** The intensity fix (the user's option 1: an intensity table in the car spec, times the cosine, by object id and normal; spawned bodies take their entity box's class) landed as aib a37d23e / scensim_isaac_world c3d0e2f; 084b, the lidar firing the spec's pattern instead of Ouster OS1's, as aib 68f350f. At a matched pose (`scripts/sim_compare/`; an earlier 1.39 m rear-axle offset in the comparison tooling gave a spurious 35 m gap, withdrawn) Isaac sits at CARLA's numbers on every detector within the intervals: TransFusion 35 m 0.48 vs 0.41, side car 0.41 vs 0.36, FP 0.27 vs 0.36; CenterPoint 20/35 m 0.86/0.13 vs 0.83/0.14, FP 0.94 vs 0.96; 110.4k vs 112.0k points a scan. Standing differences: CARLA's ray cast returns nothing from props without collision (a pergola: 0 points against Isaac's 116). Both simulators fire identical azimuths every scan, so a thin object's hits depend on a sub-column placement; 084e adds phase drift to both. Beam divergence (VLS-128 manual Table F-1: 2.09/1.05 mrad) cannot act on either: Isaac 6.1's IDEALIZED rays ignore it and GAUSSIAN_BEAM crashes the RTX sensor plugin (issue 063); CARLA has no such attribute. Reports on the NAS, "2026-11-18 084 ..." and "2026-11-19 084b/084c ... (139)".
 - CARLA 1.0's deterministic collisions ([083](083-carla-1-0.md)): contact verdicts that repeat between runs.
 - Deferred: Taiwan's scooters and the night market (reactive NPC populations); the heavy-vehicle spec (built when an Autoware test needs a truck).
 
@@ -30,4 +30,4 @@ is planned here.
 
 1. 078 Phase 2: the guard from Autoware's measured launch from rest; the failing cell again.
 2. 074 U3 (four-way stop) on Autoware.
-3. The Isaac lidar point density against CARLA's (139).
+3. 084e: lidar column-phase drift on both simulators, and the placement sensitivity it removes (139).

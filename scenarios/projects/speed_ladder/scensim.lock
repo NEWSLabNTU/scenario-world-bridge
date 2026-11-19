@@ -3,17 +3,17 @@ version: 1
 datasets:
   carla-town-autoware-maps:
     repo: jerry73204/carla-town-autoware-maps
-    commit: e94113508882f9dbd4e2e70b81d645d7f290bf1a
+    commit: 6b1bd8b9dd315ae36bb401fc137a09583e67d53d
     take:
     - town05_ring_110kmh
     files:
       town05_ring_110kmh/LICENSE.md: sha256:15b6eb7fe321599944ac6e278babdab10d30971f523b740517acf921bb9dcf1a
       town05_ring_110kmh/README.md: sha256:ffd75036fb4ab20b1fc0b975f5dba017b2df8b2c1e63d5e9a95cf4e1a093d5fc
-      town05_ring_110kmh/SHA256SUMS: sha256:74f117a877a07514408618f271e153edf41ef4ab5f368ef061ffbb3a5287a6f4
+      town05_ring_110kmh/SHA256SUMS: sha256:61390a7d6c5de66db8119e90f52efbe3adcfcf8e5ed3cb132cdb17dacdb8123e
       town05_ring_110kmh/isaac/world.yaml: sha256:8813b147e80b49a9b4d337cf5bc541affbab0c11556dec75d72131ca0f7e500e
-      town05_ring_110kmh/lanelet2_map.osm: sha256:0a6cd6a1c5d2e459751bb353b5c236961359eb7e9674f70d8044592da57561a2
+      town05_ring_110kmh/lanelet2_map.osm: sha256:a8c3d56703a8917be8fc40397f6c36cb3fa5e1aeb4d8ccc293db7821dcf5ab46
       town05_ring_110kmh/map_config.yaml: sha256:cad4fb298dd9f0f30dafc3fcbeb1b9cb36fd21d83aad396e5d6dd6f032a26169
-      town05_ring_110kmh/map_projector_info.yaml: sha256:8a0566df9dd25ed953402cf35ad640c2a50cfdd80acaeaedc4f52d8aed851dab
+      town05_ring_110kmh/map_projector_info.yaml: sha256:913ed177fb84fd4139b43017224a4a47148477e911049aa9beb377cb9911442a
       town05_ring_110kmh/pointcloud_map.pcd: sha256:bfbf13b92ccd29382a96d30c23f893d62048d9fb8ec229f1f1f85d9c521648d9
   carla-0.9.16-isaac-usd:
     repo: jerry73204/carla-0.9.16-isaac-usd

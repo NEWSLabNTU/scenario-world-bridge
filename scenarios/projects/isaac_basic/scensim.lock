@@ -3,7 +3,7 @@ version: 1
 datasets:
   carla-town-autoware-maps:
     repo: jerry73204/carla-town-autoware-maps
-    commit: e94113508882f9dbd4e2e70b81d645d7f290bf1a
+    commit: 6b1bd8b9dd315ae36bb401fc137a09583e67d53d
     take:
     - Town01
     - Town02
@@ -11,19 +11,19 @@ datasets:
       Town01/LICENSE.md: sha256:15b6eb7fe321599944ac6e278babdab10d30971f523b740517acf921bb9dcf1a
       Town01/carla/traffic_lights.yaml: sha256:975baa4fc6587778ca7821f4421012d00d990f74d1626fc96ced4a5fa9a3ef99
       Town01/isaac/world.yaml: sha256:59ddc34fde22d7f7bec363c5d78a74014cb9e25d62c4a45be5be574086b18ab2
-      Town01/lanelet2_map.osm: sha256:f7c034a4de946daa03c49708ac2602e7ce2e86e823b43fde466a7b3d4344d73a
+      Town01/lanelet2_map.osm: sha256:3806627a9c02c6444b37927c21dbc5fbc99a95e4ad534d1d12362faa7006d05a
       Town01/lanelet2_map.osm.orig: sha256:9b26e787d58bd6d63d9c9efbde77c5ecaba7f50777f7847a94493e24257682e0
       Town01/map_config.yaml: sha256:cad4fb298dd9f0f30dafc3fcbeb1b9cb36fd21d83aad396e5d6dd6f032a26169
-      Town01/map_projector_info.yaml: sha256:8a0566df9dd25ed953402cf35ad640c2a50cfdd80acaeaedc4f52d8aed851dab
+      Town01/map_projector_info.yaml: sha256:913ed177fb84fd4139b43017224a4a47148477e911049aa9beb377cb9911442a
       Town01/pointcloud_map.pcd: sha256:30211d2500c076b8ef176d510609c6be2e0df5342448dc8f2d285f9fa69fe305
       Town01/pointcloud_map_metadata.yaml: sha256:776dcc9add24494b1f5261063999252d811462bb2f0aeebd8be5a4ff89a2f527
       Town02/LICENSE.md: sha256:15b6eb7fe321599944ac6e278babdab10d30971f523b740517acf921bb9dcf1a
       Town02/carla/traffic_lights.yaml: sha256:6020956a8d5e454c88f29c85abc407aaab3d6af7a6faa972accda3ccf31408b0
       Town02/isaac/world.yaml: sha256:715a2eb692cd6db8a3c8dcef95ad9b1ac206887e0f2026f5f14c3b6ebecd574e
-      Town02/lanelet2_map.osm: sha256:fe058864bcff8bd35a9c2961affa80cb9a91b1b14b2ab60e833333e14b594bb9
+      Town02/lanelet2_map.osm: sha256:dd919960ca7b46b4fc38a7eb8f624d848e2d2b9444fbd29f138b372588c65531
       Town02/lanelet2_map.osm.orig: sha256:01efd7e61c3408ec97106095f2102201e3107e8480652196834db7ae585b0426
       Town02/map_config.yaml: sha256:cad4fb298dd9f0f30dafc3fcbeb1b9cb36fd21d83aad396e5d6dd6f032a26169
-      Town02/map_projector_info.yaml: sha256:8a0566df9dd25ed953402cf35ad640c2a50cfdd80acaeaedc4f52d8aed851dab
+      Town02/map_projector_info.yaml: sha256:913ed177fb84fd4139b43017224a4a47148477e911049aa9beb377cb9911442a
       Town02/pointcloud_map.pcd: sha256:4e894cda49c57dd9868734f2dc94645f01d1136c4a1d66153ec51babab8e36f9
   carla-0.9.16-isaac-usd:
     repo: jerry73204/carla-0.9.16-isaac-usd

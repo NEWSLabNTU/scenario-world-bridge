@@ -298,7 +298,9 @@ test:
     # The world server shell, on a fake world (roadmaps 037, 046; protobuf only), and the Isaac
     # world's pure modules
     python3 -m unittest discover -s src/scensim_world_protocol/scensim_world_server/test
-    python3 -m unittest discover -s src/scensim_isaac_world/test
+    # system and workspace packages only: a user-site numpy 2.x (pip --user) breaks the system
+    # scipy 1.8 these tests import (numpy.core.multiarray failed to import; swb 243)
+    PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test
     # The Autoware profile's settings (autoware_sim_vehicle)
     python3 -m pytest -q src/autoware_sim_vehicle/test
     # Scenario cars come from sim_vehicle_spec's catalog (roadmap 051); every other vehicle

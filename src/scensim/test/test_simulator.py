@@ -472,9 +472,11 @@ def test_an_external_carla_is_probed_for_its_version(carla_rpc):
     assert d["owner"] == sim.EXTERNAL and d["version"] is None
 
 
-def test_an_external_carla_of_another_version_than_planned_is_refused(where, maps_hub):
+def test_an_external_carla_of_another_version_than_planned_is_refused(where, maps_hub,
+                                                                     monkeypatch):
     """083: no pilot starts on an external CARLA before it answers, and one that answers
     another version than the plan's, or was not up at the plan, ends the start, named."""
+    monkeypatch.setattr(stack, "check_ready", lambda *a, **kw: False)  # no ROS graph here
     port = free_port()
     d = make(where, {"host": "127.0.0.1", "port": port, "start": "external"})
     p = stack.plan(project_arg=str(d), map_name="Town01")
@@ -486,7 +488,8 @@ def test_an_external_carla_of_another_version_than_planned_is_refused(where, map
         with_port = json.loads(p.stack_json.read_text())
         with_port["carla"]["port"] = srv.port
         p.stack_json.write_text(json.dumps(with_port))
-        assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot) == 2
+        assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                          once_timeout=30) == 2
         rec = json.loads(p.stack_json.read_text())
         assert "answers version 1.0" in rec["error"]
         assert "did not answer when the stack was planned" in rec["error"]
@@ -502,6 +505,49 @@ def test_an_external_carla_of_another_version_than_planned_is_refused(where, map
     finally:
         srv.close()
 
+
+
+def test_the_external_check_is_not_held_off_by_slow_readiness_checks(where, maps_hub,
+                                                                       monkeypatch):
+    """swb 118: the first probe missed, the pilots started, and one pass over their readiness
+    checks (up to 60 s each) held the next probe off until the test's timeout. The keeper probes
+    between the checks too, and keep(once=True) gives up after once_timeout."""
+    import scensim.stack as stackmod
+    srv = Server(REPLY_1_0)
+    real, calls = sim.probe, []
+
+    def first_misses(host, port, timeout=3.0):
+        calls.append(port)
+        return (sim.FREE, None) if len(calls) == 1 else real(host, port, timeout)
+
+    def slow_check(*a, **kw):
+        time.sleep(6.0)   # a pass over the three pilots: 18 s
+        return False
+
+    try:
+        d = make(where, {"host": "127.0.0.1", "port": free_port(), "start": "external"})
+        p = stack.plan(project_arg=str(d), map_name="Town01")
+        stack.write_plan(p)
+        rec = json.loads(p.stack_json.read_text())
+        rec["carla"]["port"] = srv.port
+        p.stack_json.write_text(json.dumps(rec))
+        monkeypatch.setattr(stackmod.simmod, "probe", first_misses)
+        monkeypatch.setattr(stack, "check_ready", slow_check)
+        t0 = time.time()
+        assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                          once_timeout=60) == 2
+        assert time.time() - t0 < 14     # one check, not a whole pass (or the deadline)
+        assert "answers version 1.0" in json.loads(p.stack_json.read_text())["error"]
+        # nothing answers at all: the deadline, named
+        monkeypatch.setattr(stackmod.simmod, "probe", lambda *a, **kw: (sim.FREE, None))
+        rec = json.loads(p.stack_json.read_text())
+        rec.update(error=None, state=stack.STARTING)
+        p.stack_json.write_text(json.dumps(rec))
+        assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot,
+                          once_timeout=3) == 3
+        assert "not ready within 3 s" in json.loads(p.stack_json.read_text())["error"]
+    finally:
+        srv.close()
 
 def test_a_started_carla_that_dies_is_started_again(tmp_path):
     root = fake_root(tmp_path)

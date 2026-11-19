@@ -1113,7 +1113,8 @@ def pilot_argv(rec: dict, p: dict, entry: dict, log_dir: Path) -> list:
 
 OVERLAY_ENV = Path(__file__).resolve().parent / "overlay_env.bash"
 AUTOWARE_ENV = Path(__file__).resolve().parent / "autoware_env.bash"
-CARLA_DECIDE = simmod.decide   # how plan() settles the stack's CARLA (tests wrap it)
+CARLA_DECIDE = simmod.decide
+ONCE_TIMEOUT = 120.0   # s: keep(once=True) gives up on a stack not ready by then (tests)   # how plan() settles the stack's CARLA (tests wrap it)
 
 
 def autoware_env(host: dict, workspace) -> dict:
@@ -1623,12 +1624,14 @@ def launcher_web_addr(ppid=None, proc=Path("/proc")):
 
 
 def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
-         respawn_delay=RESPAWN_DELAY, weather_call=None, world_probe=None) -> int:
+         respawn_delay=RESPAWN_DELAY, weather_call=None, world_probe=None,
+         once_timeout=ONCE_TIMEOUT) -> int:
     """Hold the seat for the stack in ``stack_dir``; run its pilots on the stack's map and
     move them to another on request; set the project's weather parameters; mark it ready,
     and stopped at the end.
 
-    ``once``: return right after the stack is ready (tests). ``pilot_command``:
+    ``once``: return right after the stack is ready (tests), or 3 when it is not ready within
+    ``once_timeout`` s. ``pilot_command``:
     ``(rec, pilot, entry, log_dir) -> argv`` in place of ``pilot_argv`` (tests).
     ``weather_call``: ``(rec) -> (ok, message)`` in place of ``set_weather`` (tests).
     ``world_probe``: ``(rec) -> bool`` in place of ``bridge_serving`` (tests): the stack is
@@ -1698,29 +1701,47 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
         # an external CARLA (roadmap 083): once it answers, its version must give the cars the
         # body the plan chose (never the default, silently); the stack does not wait for it
         c0 = rec.get("carla") or {}
-        ext_pending = rec.get("simulator_start") == simmod.EXTERNAL and bool(c0.get("port"))
-        next_ext, said_waiting = 0.0, False
+        ext = {"pending": rec.get("simulator_start") == simmod.EXTERNAL and bool(c0.get("port")),
+               "next": 0.0, "said": False, "refused": False}
+
+        def external_refused() -> bool:
+            """Probe the external CARLA (at most every PROBE_EVERY, each probe bounded):
+            True when it answers a version the plan's bodies are not for (rec['error'] says
+            why). Called between the pilots' readiness checks too, which may take a minute
+            each, so a long pass does not hold the check off."""
+            if not ext["pending"] or time.time() < ext["next"]:
+                return False
+            ext["next"] = time.time() + simmod.PROBE_EVERY
+            state, v = simmod.probe(c0.get("host") or "localhost", c0["port"])
+            if state == simmod.CARLA:
+                ext["pending"] = False
+                problem = external_version_problem(c0, v)
+                if problem:
+                    rec["error"] = problem
+                    event(stack_dir, "carla.version", error=problem)
+                    print(f"scensim stack: {problem}", file=sys.stderr, flush=True)
+                    ext["refused"] = True
+                    return True
+                if v:
+                    c0["version"] = v
+                write_json(path, rec)
+            elif not ext["said"]:
+                ext["said"] = True
+                print(f"scensim stack: CARLA on {c0.get('host') or 'localhost'}:{c0['port']} "
+                      "does not answer yet (simulator_start external); its version is checked "
+                      "when it does", flush=True)
+            return False
+
+        give_up = time.time() + once_timeout if once and once_timeout else None
         while not stop["now"]:
-            if ext_pending and time.time() >= next_ext:
-                next_ext = time.time() + simmod.PROBE_EVERY
-                state, v = simmod.probe(c0.get("host") or "localhost", c0["port"])
-                if state == simmod.CARLA:
-                    ext_pending = False
-                    problem = external_version_problem(c0, v)
-                    if problem:
-                        rec["error"] = problem
-                        event(stack_dir, "carla.version", error=problem)
-                        print(f"scensim stack: {problem}", file=sys.stderr, flush=True)
-                        code = 2
-                        break
-                    if v:
-                        c0["version"] = v
-                    write_json(path, rec)
-                elif not said_waiting:
-                    said_waiting = True
-                    print(f"scensim stack: CARLA on {c0.get('host') or 'localhost'}:{c0['port']} "
-                          "does not answer yet (simulator_start external); its version is checked "
-                          "when it does", flush=True)
+            if external_refused():
+                code = 2
+                break
+            if give_up is not None and time.time() >= give_up:
+                rec["error"] = f"not ready within {once_timeout:g} s"
+                print(f"scensim stack: {rec['error']}", file=sys.stderr, flush=True)
+                code = 3
+                break
             if carla is not None and carla.poll():
                 write_json(path, rec)
                 if carla.ready:
@@ -1757,7 +1778,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
             waiting = _waiting(rec)
             if waiting and pilots_on and time.time() >= next_check:
                 for p in waiting:
-                    if stop["now"]:
+                    if stop["now"] or external_refused():
                         break
                     missing = timelinemod.missing_composables(
                         Path(rec["proc"]) / f"pilot-{p['entity']}" / "console.log")
@@ -1776,6 +1797,9 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                         print(f"scensim stack: pilot {p['entity']} ready on {rec.get('map')}",
                               flush=True)
                 write_json(path, rec)
+                if ext["refused"]:
+                    code = 2
+                    break
                 next_check = time.time() + poll
                 waiting = _waiting(rec)
             if sim_ready and weather.step(rec):

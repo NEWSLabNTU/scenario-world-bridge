@@ -7,7 +7,7 @@ name (`scensim testbench check <testbench>`). Why a testbench owns what it does:
 ## `testbench.yaml`
 
 ```yaml
-simulator: carla                        # carla | isaac
+simulator: carla                        # carla | isaac | none (world.server)
 assets:                                 # what to fetch (below)
   - dataset: carla-town-autoware-maps
     take: [Town01, Town05]
@@ -32,7 +32,7 @@ ssv2: {}                                # SSv2's run settings for every run
 
 | Key | Holds |
 |---|---|
-| `simulator` | `carla` or `isaac`; `simulator:=` on the stack overrides it |
+| `simulator` | `carla`, `isaac`, or `none` with a world server of your own ([World](#world)); `simulator:=` on the stack overrides it |
 | `assets` | a list of datasets and paths ([Assets](#assets)) |
 | `maps` | map names under `assets/maps/`; default: every map the testbench's scenarios name. Give it when runs use maps the testbench's own scenarios do not, or to fix their order |
 | `pilots` | entity name or pattern to a pilot ([Pilots](#pilots)) |
@@ -193,6 +193,7 @@ world:
   contact_report_dir: off             # unset: each run's in its contacts/
   config_file: config/bridge.yaml     # the bridge's settings file
   world_config_file: config/carla.yaml   # CARLA: the world server's settings file
+  # server: [my_world, my_world_server]   # your world server, not the stock one
 ```
 
 | Key | |
@@ -201,11 +202,32 @@ world:
 | `npc_motion` | how SSv2-driven NPCs move: `tracked` (default) or `kinematic` |
 | `contact_report_dir` | unset: each run's contact reports in its `contacts/`; `off`: none; a directory: yours, not cut per run |
 | `config_file` | the bridge's settings file instead of the installed one, relative to the testbench |
-| `world_config_file` | CARLA: the world server's settings file instead of the installed one |
+| `world_config_file` | CARLA: the world server's settings file instead of the installed one; refused beside `server` |
+| `server` | a world server of your own, `[<package>, <executable>, <args>...]` as `ros2 run` takes them, started in place of the stock one ([Your world server](../how-to/your-world-server.md)) |
 
 These go to the bridge and the world server beside scensim's own settings, never in their
 place. What scensim sets itself is refused here by name, with what to give instead: the state
 directory, the gap trace directory (`logging.gap_trace`), the world server and its ports.
+
+### `simulator: none`
+
+For a simulator scensim does not ship, set `simulator: none` and give `world.server`. The
+stack then starts:
+- the bridge and the agent relay, as always;
+- your world server, on the seat's world port (`--port`);
+- the pilots.
+
+It starts no simulator; your server starts and owns its own. It also skips what belongs to a
+stock simulator:
+- no CARLA is decided or started, and `carla:` is refused;
+- no Isaac, world or Isaac ego is given, and `isaac:` is refused;
+- no stock vehicle side runs, so pilots of kind `autoware` and `carla_basic` are refused: use
+  `launch` or `command` with a vehicle side of your own;
+- no CARLA physics or other simulator arguments are passed.
+
+Maps are still needed: the scenarios' maps are fetched, and SSv2 and the bridge read their
+Lanelet2 map. `none` without `world.server` is refused. `stack.json` records
+`simulator: none`, with `simulator_start` set to `world_server` and `carla` set to null.
 
 ## CARLA
 

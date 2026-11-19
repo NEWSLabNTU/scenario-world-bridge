@@ -946,6 +946,23 @@ def test_simulator_none_starts_no_simulator(where, maps_hub):
         stack.plan(project_arg=str(d), check=None)
 
 
+def test_simulator_none_with_its_own_server_passes_check_and_plan(where, maps_hub):
+    """docs/how-to/your-world-server.md's simulator: none: `testbench check` finds nothing, the
+    plan starts no simulator, and the CARLA and Isaac blocks are refused beside it."""
+    d = make(where, template="carla-first-drive", testbench_yaml=NONE_SERVER)
+    assert [str(f) for f in project.check_project(d)] == []
+    assert [str(f) for f in project.check_stack(d)] == []
+    p = stack.plan(project_arg=str(d))
+    assert p.record["simulator"] == "none" and p.record["simulator_start"] == simmod.WORLD_SERVER
+    assert p.record["carla"] is None and p.launch_args["world_server"] == "my_world my_world_server"
+    for block, match in (({"carla": {"quality": "low"}}, "carla: is for simulator carla"),
+                         ({"isaac": {"render": "headless"}}, "isaac")):
+        tb = {**yaml.safe_load(NONE_SERVER), **block}
+        (d / "testbench.yaml").write_text(yaml.safe_dump(tb))
+        found = [str(f) for f in project.check_project(d)]
+        assert any(match in f for f in found), found
+
+
 def _autoware_setup(where, setup):
     sysf = where["tmp"] / "system" / "host.yaml"
     h = yaml.safe_load(sysf.read_text())

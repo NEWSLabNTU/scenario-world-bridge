@@ -135,3 +135,55 @@ def test_why_prefers_swbs_own_refusal_and_skips_capability_notes():
     # it, in the stack's log or the next run's slices
     assert timeline.why([cap, semantic, bridge, dog]) is bridge
     assert timeline.why([cap, semantic, dog]) is dog
+
+
+# issue 064: 088 on swb 133, a pilot counted ready with 126 of 127 composables loaded
+_PL = "2026-11-18T20:00:{s}Z  {level} {msg}"
+_FAILED = ("container:/pointcloud_container: control channel LOAD_FAILED for "
+           "'composable:/perception/occupancy_grid_map/occupancy_grid_map_node': component_node "
+           "failed: Exception loading 'autoware::occupancy_grid_map::PointcloudBasedOccupancy"
+           "GridMapNode': cudaErrorMemoryAllocation (2)")
+_SUMMARY = ('STARTUP_SUMMARY {"composable_loaded":126,"composable_shortfall":[{"container":'
+            '"pointcloud_container","declared":8,"loaded":7,"missing":["/perception/'
+            'occupancy_grid_map/occupancy_grid_map_node"]}],"composable_total":127,"ok":false}')
+_CLEAN = 'STARTUP_SUMMARY {"composable_loaded":127,"composable_shortfall":[],"ok":true}'
+
+
+def _console(tmp_path, *lines):
+    p = tmp_path / "console.log"
+    p.write_text("".join(line + "\n" for line in lines))
+    return p
+
+
+def test_a_composable_play_launch_did_not_load_is_named_with_why(tmp_path):
+    start = _PL.format(s="18", level="INFO", msg="Step 1/3: Parsing launch file...")
+    p = _console(tmp_path, start, _PL.format(s="25", level="WARN", msg=_FAILED))
+    got = timeline.missing_composables(p)          # before the summary: the LOAD_FAILED line
+    assert got.startswith("/perception/occupancy_grid_map/occupancy_grid_map_node (")
+    assert "cudaErrorMemoryAllocation" in got
+    p = _console(tmp_path, start, _PL.format(s="25", level="WARN", msg=_FAILED),
+                 _PL.format(s="27", level="INFO", msg=_SUMMARY))
+    assert "cudaErrorMemoryAllocation" in timeline.missing_composables(p)
+    # a retry that loaded it: the summary is the last word
+    p = _console(tmp_path, start, _PL.format(s="25", level="WARN", msg=_FAILED),
+                 _PL.format(s="27", level="INFO", msg=_CLEAN))
+    assert timeline.missing_composables(p) == ""
+
+
+def test_only_the_current_launch_of_a_respawned_pilot_counts(tmp_path):
+    start = _PL.format(s="18", level="INFO", msg="Step 1/3: Parsing launch file...")
+    p = _console(tmp_path, start, _PL.format(s="25", level="WARN", msg=_FAILED),
+                 _PL.format(s="27", level="INFO", msg=_SUMMARY), start,
+                 _PL.format(s="40", level="INFO", msg=_CLEAN))
+    assert timeline.missing_composables(p) == ""
+    assert timeline.missing_composables(tmp_path / "none.log") == ""
+
+
+def test_a_composable_ros2_launch_did_not_load_is_named(tmp_path):
+    p = _console(tmp_path, "[INFO] [launch]: All log files can be found below /x",
+                 "[ERROR] [launch_ros.actions.load_composable_nodes]: Failed to load node "
+                 "'occupancy_grid_map_node' of type 'autoware::occupancy_grid_map::Pointcloud"
+                 "BasedOccupancyGridMapNode' in container '/pointcloud_container': "
+                 "cudaErrorMemoryAllocation")
+    assert timeline.missing_composables(p) == (
+        "/pointcloud_container/occupancy_grid_map_node (cudaErrorMemoryAllocation)")

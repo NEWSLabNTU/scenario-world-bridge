@@ -1230,6 +1230,31 @@ def test_pilots_that_do_not_come_back_are_said_once(monkeypatch):
     assert msg.startswith("pilot ego never became ready")
 
 
+def test_a_pilot_missing_a_composable_is_not_ready(monkeypatch, tmp_path):
+    """Issue 064: topics up (ego_ready's ok) but a composable never loaded (088: a CUDA OOM in
+    occupancy_grid_map_node): not ready, at once, naming it, instead of every run waiting
+    for an engage that never comes."""
+    import types
+    monkeypatch.setattr(stack, "check_ready", lambda *a, **k: True)
+    console = tmp_path / "pilot-ego" / "console.log"
+    console.parent.mkdir()
+    console.write_text("INFO Step 1/3: Parsing launch file...\n"
+                       "WARN x: control channel LOAD_FAILED for 'composable:/perception/"
+                       "occupancy_grid_map/occupancy_grid_map_node': component_node failed: "
+                       "cudaErrorMemoryAllocation\n")
+    ctx = types.SimpleNamespace(
+        stack={"pilots": [{"entity": "ego", "domain": 2, "ready": ["true"]}],
+               "domains": {"scenario": 1}, "env": {}, "proc": str(tmp_path)},
+        ready_timeout=5)
+    msg = run.wait_pilots_ready(ctx)
+    assert msg.startswith("pilot ego is not ready: its launch did not load "
+                          "/perception/occupancy_grid_map/occupancy_grid_map_node")
+    assert "cudaErrorMemoryAllocation" in msg and str(console) in msg
+    console.write_text("INFO Step 1/3: Parsing launch file...\nINFO STARTUP_SUMMARY "
+                       '{"composable_shortfall":[],"ok":true}\n')
+    assert run.wait_pilots_ready(ctx) is None
+
+
 def test_each_run_ends_its_pilots_episodes_at_the_relay(live, where):
     """G57: the relay forgets a standing goal only at an episode boundary; run_suite sent
     episode_end, scensim run did not, and the next run's agent got the old goal."""

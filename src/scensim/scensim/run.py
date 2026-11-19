@@ -1113,6 +1113,14 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         why = {p["entity"]: [] for p in waiting}
         while waiting:
             for p in list(waiting):
+                # a composable that did not load is not ready, whatever its topics say
+                # (issue 064), and it will not load by waiting
+                missing = timeline.missing_composables(watches[p["entity"]].path)
+                if missing:
+                    waiting.remove(p)
+                    infra.append(f"pilot {p['entity']} is not ready: its launch did not load "
+                                 f"{missing} (see {watches[p['entity']].path})")
+                    continue
                 if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
                                         why=why[p["entity"]]):
                     waiting.remove(p)
@@ -1299,6 +1307,12 @@ def wait_pilots_ready(ctx: Context):
     deadline = time.time() + ctx.ready_timeout
     while waiting:
         for p in list(waiting):
+            # a composable that did not load is not ready, whatever its topics say (issue 064)
+            missing = (timeline.missing_composables(watches[p["entity"]].path)
+                       if p["entity"] in watches else "")
+            if missing:
+                return (f"pilot {p['entity']} is not ready: its launch did not load {missing} "
+                        f"(see {watches[p['entity']].path})")
             if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
                                     why=why[p["entity"]]):
                 waiting.remove(p)

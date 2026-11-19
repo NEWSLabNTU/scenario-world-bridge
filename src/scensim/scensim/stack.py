@@ -59,7 +59,7 @@ from scensim import config, ground as groundmod, project as projectmod, results,
 from scensim import episodes as episodesmod, judges as judgesmod, simulator as simmod
 from scensim import own_world
 from scensim import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
-from scensim import launcher as launchermod, tools as toolsmod
+from scensim import launcher as launchermod, timeline as timelinemod, tools as toolsmod
 from scensim import autoware as autowaremod
 from scensim.config import ConfigError
 
@@ -1759,6 +1759,17 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                 for p in waiting:
                     if stop["now"]:
                         break
+                    missing = timelinemod.missing_composables(
+                        Path(rec["proc"]) / f"pilot-{p['entity']}" / "console.log")
+                    if missing:
+                        # not ready while a composable is missing (issue 064); said once
+                        if p.get("missing") != missing:
+                            p["missing"] = missing
+                            event(stack_dir, "pilot.missing", entity=p["entity"],
+                                  composables=missing)
+                            print(f"scensim stack: pilot {p['entity']} is not ready: its "
+                                  f"launch did not load {missing}", file=sys.stderr, flush=True)
+                        continue
                     if check_ready(p.get("ready"), ros_env(rec, p["domain"])):
                         p["ready_at"] = iso_now()
                         event(stack_dir, "pilot.ready", entity=p["entity"], map=rec.get("map"))

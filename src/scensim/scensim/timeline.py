@@ -69,6 +69,62 @@ SHUTDOWN = re.compile(r"^\[(?:INFO|WARNING|ERROR)\] \[launch\]: (?:user interrup
 # another, each with its own stop and deaths
 LAUNCH_START = re.compile(r"^\[INFO\] \[launch\]: All log files can be found below ")
 
+# A composable that did not load (issue 064): its container runs and the pilot's other topics
+# come up, so a readiness check on topics passes while a node is missing (088 on swb 133: a
+# CUDA OOM in occupancy_grid_map_node; every run then waited for an engage that never came).
+# play_launch says so per composable (LOAD_FAILED) and at the end of its start
+# (STARTUP_SUMMARY, the authority once there); ros2 launch through launch_ros.
+PLAY_LAUNCH_START = re.compile(r"\bStep 1/\d+: Parsing launch file")
+_LOAD_FAILED = re.compile(r"LOAD_FAILED for 'composable:([^']+)': (.*)$")
+_STARTUP_SUMMARY = re.compile(r"\bSTARTUP_SUMMARY (\{.*\})\s*$")
+_ROS_LOAD_FAILED = re.compile(r"Failed to load node '([^']+)' of type '[^']+' in container "
+                              r"'([^']+)': (.*)$")
+
+
+def missing_composables(path) -> str:
+    """The composables a pilot's launch (its console at ``path``) declared and did not load,
+    in its current instance (after its last start: a respawned launch appends), each with why;
+    "" when none or when the console says nothing of it yet."""
+    try:
+        text = _ANSI.sub("", Path(path).read_text(errors="replace"))
+    except OSError:
+        return ""
+    lines = text.splitlines()
+    start = 0
+    for i, line in enumerate(lines):
+        if LAUNCH_START.match(line) or PLAY_LAUNCH_START.search(line):
+            start = i
+    failed, summary = {}, None
+    for line in lines[start:]:
+        m = _LOAD_FAILED.search(line)
+        if m:
+            failed[m.group(1)] = m.group(2).strip()
+            continue
+        m = _ROS_LOAD_FAILED.search(line)
+        if m:
+            name = m.group(1) if m.group(1).startswith("/") else f"{m.group(2)}/{m.group(1)}"
+            failed[name] = m.group(3).strip()
+            continue
+        m = _STARTUP_SUMMARY.search(line)
+        if m:
+            try:
+                summary = json.loads(m.group(1))
+            except ValueError:
+                pass
+    if summary is not None:
+        # the summary is play_launch's last word on this start: one LOAD_FAILED a retry then
+        # loaded is not missing, and one the summary names is, with the reason found above
+        missing = {}
+        for short in summary.get("composable_shortfall") or []:
+            for name in short.get("missing") or []:
+                missing[name] = failed.get(name) or (
+                    f"not loaded in {short.get('container')}, {short.get('loaded')} of "
+                    f"{short.get('declared')}")
+        failed = missing
+    if not failed:
+        return ""
+    return "; ".join(f"{name} ({why[:200]})" for name, why in failed.items())
+
 # SSv2 milestones: (logger suffix or None, pattern, event)
 _MILESTONES = [
     ("scenario_test_runner", re.compile(r"^Run (\S+) \((\d+) of (\d+)\)"), "ssv2.run"),

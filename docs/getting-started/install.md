@@ -54,6 +54,8 @@ source ~/scensim.bash           # in every terminal
   colcon and pip, initialises and updates rosdep, installs the release's system packages, and
   enlarges the kernel's socket buffers. A step already done is skipped; with nothing left,
   there is no prompt. `--no-sudo` prints the script for an administrator instead;
+- installs `brotli>=1.2` for you with pip when Ubuntu's is too old for the map downloads
+  (below);
 - with an Autoware (the one your terminal sourced, else the only one under `/opt/autoware`,
   else `--autoware <setup.bash>`), imports and builds the car's Autoware packages and
   scensim's profile in `~/autoware_side` ([Connect your
@@ -290,11 +292,11 @@ built over another version of scensim, naming the rebuild.
 
 ## From source
 
-A build from source needs Rust, colcon's Rust plugin, and two tools the steps use (`pip`
-for rosdep's Python keys, `vcs` for message packages):
+A build from source needs Rust, colcon's Rust plugin, and the tools the steps use (`git`,
+`pip` for rosdep's Python keys, `vcs` for message packages):
 
 ```bash
-sudo apt install python3-pip python3-vcstool python3-rosdep
+sudo apt install git python3-pip python3-vcstool python3-rosdep
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source ~/.cargo/env
 python3 -m pip install --user colcon-cargo-ros2

@@ -30,6 +30,7 @@ release has its packages' list, `autoware-side.repos`, beside its other files on
 release page (use your release's version):
 
 ```bash
+sudo apt install git python3-vcstool python3-colcon-common-extensions   # when missing
 source /opt/autoware/1.5.0/setup.bash        # your Autoware
 mkdir -p ~/autoware_side/src && cd ~/autoware_side
 wget https://github.com/NEWSLabNTU/scensim/releases/download/v0.2.0/autoware-side.repos

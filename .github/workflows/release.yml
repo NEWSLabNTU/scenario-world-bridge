@@ -418,6 +418,29 @@ jobs:
           scensim --help
           scensim seat show
           echo "first run: ok ($(du -sh ~/.local/share/scensim | cut -f1) installed)" >> "$GITHUB_STEP_SUMMARY"
+      - name: scensim setup as a user, ROS not sourced
+        # roadmap 089: as on a workstation, a user with sudo and nothing sourced. The root
+        # steps above, with ROS sourced, never saw sudo reset HOME and drop ROS_DISTRO, which
+        # broke rosdep install for users (089 step 5). No Autoware here (--autoware none); the
+        # container's kernel settings are read-only, so the DDS buffers line may stay FIX.
+        shell: bash
+        run: |
+          set -eu
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq sudo >/dev/null
+          useradd -m -s /bin/bash tester
+          echo 'tester ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/tester
+          (cd /srv/release && python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1 &) || true
+          sleep 1
+          pep668=$([ "$DISTRO" = humble ] || echo PIP_BREAK_SYSTEM_PACKAGES=1)
+          su - tester -c "env -i HOME=/home/tester USER=tester $pep668 \
+              PATH=/home/tester/.local/bin:/usr/local/bin:/usr/bin:/bin bash -c '
+            python3 -m pip install -q --user --no-index --find-links /tmp/wheels scensim
+            scensim setup --autoware none' " > /tmp/setup.txt 2>&1 || true
+          cat /tmp/setup.txt
+          grep -q "ok   system packages (rosdep)" /tmp/setup.txt
+          grep -q "ok   scensim answers" /tmp/setup.txt
+          if grep "FIX " /tmp/setup.txt | grep -v "DDS socket buffers"; then exit 1; fi
+          echo "scensim setup as a user: ok" >> "$GITHUB_STEP_SUMMARY"
       - name: A testbench
         if: inputs.journey
         shell: bash

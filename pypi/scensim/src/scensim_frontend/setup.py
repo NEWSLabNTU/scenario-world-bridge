@@ -311,6 +311,44 @@ def run_system_step(step: SystemStep, no_sudo: bool) -> bool:
     return True
 
 
+# --- brotli (issue 050) ----------------------------------------------------------------------
+
+
+def _version(name: str) -> tuple:
+    import importlib.metadata
+    try:
+        text = importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return ()
+    out = []
+    for part in text.split("."):
+        digits = "".join(c for c in part if c.isdigit()) if part[:1].isdigit() else ""
+        if not digits:
+            break
+        out.append(int(digits))
+    return tuple(out)
+
+
+def brotli_short() -> bool:
+    """huggingface_hub 2.x with a brotli older than 1.2 (Ubuntu's): the Hub's downloads fail
+    to decode, and `testbench check` names it as a problem of the host (scensim.assets)."""
+    hf = _version("huggingface_hub")
+    br = _version("brotli") or _version("Brotli")
+    return bool(hf) and hf[:1] >= (2,) and bool(br) and br < (1, 2)
+
+
+def fix_brotli() -> None:
+    """``pip install --user 'brotli>=1.2'`` for this Python: no root, ahead of apt's."""
+    if not brotli_short():
+        return
+    say("brotli: Ubuntu's is older than huggingface_hub 2 needs; pip install --user 'brotli>=1.2'")
+    pep668 = ["--break-system-packages"] if sys.version_info >= (3, 11) else []
+    r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--user", *pep668,
+                        "brotli>=1.2"])
+    if r.returncode != 0:
+        say("brotli: pip failed; `scensim assets fetch` falls back to plain HTTPS")
+
+
 # --- the user's files ------------------------------------------------------------------------
 
 
@@ -513,6 +551,8 @@ def check(host: Host, release: Release) -> bool:
     rows.append((ok, "system packages (rosdep)" + ("" if ok else
                  ": run `scensim setup`, or its system step as an administrator")))
     short = sysctl_short()
+    rows.append((not brotli_short(), "brotli for huggingface_hub" + ("" if not brotli_short()
+                 else ": pip install --user 'brotli>=1.2'")))
     rows.append((not short, "DDS socket buffers" + ("" if not short else
                  f": {', '.join(short)} below scensim's; run `scensim setup`")))
     if env.is_file():
@@ -571,6 +611,7 @@ def setup(release: Release, args: list[str], install) -> int:
         return 0 if check(host, release) else 3
     install(release, force=False, first_use=False, quiet_next_steps=True)
     done = run_system_step(system_step(release, o["force"]), o["no_sudo"])
+    fix_brotli()
     ws = None
     if host.autoware:
         ws = build_autoware_side(release, host.ros_setup, host.autoware, default_workspace(),

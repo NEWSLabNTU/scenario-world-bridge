@@ -339,3 +339,18 @@ def test_carla_fetch_refuses_an_unknown_version(env) -> None:
     r = env.run("carla", "fetch", "0.9.15")
     assert r.returncode == 3
     assert "no CARLA '0.9.15' to fetch" in r.stderr and "0.9.16" in r.stderr
+
+
+def test_brotli_short_needs_hub_2_and_brotli_below_1_2(monkeypatch) -> None:
+    import sys
+    sys.path.insert(0, str(SRC))
+    from scensim_frontend import setup as s
+    have = {}
+    monkeypatch.setattr(s, "_version", lambda name: have.get(name, ()))
+    assert not s.brotli_short()
+    have.update({"huggingface_hub": (2, 4, 0), "brotli": (1, 0, 9)})
+    assert s.brotli_short()
+    have["brotli"] = (1, 2, 0)
+    assert not s.brotli_short()
+    have.update({"huggingface_hub": (0, 36), "brotli": (1, 0, 9)})
+    assert not s.brotli_short()

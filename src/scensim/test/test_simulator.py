@@ -473,8 +473,23 @@ def test_an_external_carla_is_probed_for_its_version(carla_rpc):
     assert d["owner"] == sim.EXTERNAL and d["version"] is None
 
 
+
+SPEC_CATALOGS = Path(__file__).resolve().parents[2] / "sim_vehicle_spec" / "catalogs"
+
+
+@pytest.fixture
+def two_bodies(monkeypatch):
+    """The cars' catalogs from this checkout's sim_vehicle_spec, which has 1.0's body, not the
+    host's install (swb 118: an install without catalogs/carla-1.0 gives 0.9.16 and 1.0 one
+    catalog, and nothing is refused)."""
+    from scensim import vehicles
+    if not (SPEC_CATALOGS / "carla-1.0" / "vehicles.xosc").is_file():
+        pytest.skip("sim_vehicle_spec here has no carla-1.0 catalog")
+    monkeypatch.setattr(vehicles, "installed_catalog",
+                        lambda body=None: vehicles.body_file(SPEC_CATALOGS, body))
+
 def test_an_external_carla_of_another_version_than_planned_is_refused(where, maps_hub,
-                                                                     monkeypatch):
+                                                                     monkeypatch, two_bodies):
     """083: no pilot starts on an external CARLA before it answers, and one that answers
     another version than the plan's, or was not up at the plan, ends the start, named."""
     monkeypatch.setattr(stack, "check_ready", lambda *a, **kw: False)  # no ROS graph here
@@ -509,10 +524,10 @@ def test_an_external_carla_of_another_version_than_planned_is_refused(where, map
 
 
 def test_the_external_check_is_not_held_off_by_slow_readiness_checks(where, maps_hub,
-                                                                       monkeypatch):
-    """swb 118: the first probe missed, the pilots started, and one pass over their readiness
-    checks (up to 60 s each) held the next probe off until the test's timeout. The keeper probes
-    between the checks too, and keep(once=True) gives up after once_timeout."""
+                                                                       monkeypatch, two_bodies):
+    """When the first probe misses, the pilots start, and one pass over their readiness checks
+    (up to 60 s each) must not hold the next probe off: the keeper probes between the checks
+    too, and keep(once=True) gives up after once_timeout instead of waiting for ever."""
     import scensim.stack as stackmod
     srv = Server(REPLY_1_0)
     real, calls = sim.probe, []

@@ -270,7 +270,9 @@ def system_step(release: Release, force: bool) -> SystemStep:
         # Python 3.11 and later is externally managed (PEP 668): see `scensim install`
         pep668 = ("PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 "
                   if sys.version_info >= (3, 11) else "")
-        step.lines.append(f"{pep668}rosdep install --from-paths {shlex.quote(str(share))} "
+        # root's rosdep reads the cache the user's update wrote (sudo resets HOME)
+        step.lines.append(f'ROS_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)/.ros '
+                          f"{pep668}rosdep install --from-paths {shlex.quote(str(share))} "
                           f"--ignore-src -y")
     conf = etc() / "sysctl.d" / SYSCTL_NAME
     have = conf.read_text() if conf.is_file() else None

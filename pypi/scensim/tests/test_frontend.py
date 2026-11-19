@@ -227,7 +227,7 @@ def test_install_downloads_checks_unpacks_and_prints_next_steps(env) -> None:
     assert "sha256 ok" in r.stderr
     # Python 3.11+ (PEP 668, Jazzy's 3.12): rosdep's pip keys need pip allowed next to apt's
     pep668 = "PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 " if sys.version_info >= (3, 11) else ""
-    line = f"sudo {pep668}rosdep install --from-paths"
+    line = f"/.ros {pep668}rosdep install --from-paths"
     assert line in r.stderr and "/current/sim/share" in r.stderr
     assert r.stderr.index("  rosdep update\n") < r.stderr.index(line)
     assert f"source {env.home}/current/sim/setup.bash" in r.stderr

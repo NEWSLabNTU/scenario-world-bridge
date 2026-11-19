@@ -101,7 +101,8 @@ downloading scensim 0.0.0-dev for ROS 2 humble, 49.5 MB
 installed in <home>/0.0.0-dev-humble (current)
 missing system packages: run once, the second as an administrator:
   rosdep update
-  sudo rosdep install --from-paths <home>/current/sim/share --ignore-src -y
+  sudo ROS_HOME=<user home>/.ros rosdep install --from-paths <home>/current/sim/share \
+      --ignore-src -y
 then, in every terminal (after ROS, and your Autoware if you use one):
   source <home>/current/sim/setup.bash
 an Autoware pilot needs the car's Autoware packages in your Autoware workspace: <guide>
@@ -120,9 +121,12 @@ is needed only where rosdep was never initialised:
 ```bash
 sudo rosdep init          # skip if it says the sources list already exists
 rosdep update
-sudo rosdep install --from-paths ~/.local/share/scensim/current/sim/share \
-    --ignore-src -y
+sudo ROS_HOME=$HOME/.ros rosdep install \
+    --from-paths ~/.local/share/scensim/current/sim/share --ignore-src -y
 ```
+
+`ROS_HOME` points root's rosdep at the index your `rosdep update` wrote: sudo gives root its
+own home, where no index is (`your rosdep installation has not been initialized yet`).
 
 On Ubuntu 24.04 the printed line starts with `PIP_BREAK_SYSTEM_PACKAGES=1
 PIP_IGNORE_INSTALLED=1`; keep it as printed (see [Ubuntu 24.04](#ubuntu-2404)).
@@ -262,7 +266,8 @@ scensim 0.1.0 has no Jazzy build: on Ubuntu 24.04 its commands say so and point 
 The rosdep line `scensim install` prints on Ubuntu 24.04 is
 
 ```bash
-sudo PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 rosdep install \
+sudo ROS_HOME=$HOME/.ros PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 \
+    rosdep install \
     --from-paths ~/.local/share/scensim/current/sim/share --ignore-src -y
 ```
 
@@ -302,7 +307,7 @@ On Ubuntu 24.04 with Jazzy, build the simulation side only, and three things dif
 - pip needs `--break-system-packages`:
   `python3 -m pip install --user --break-system-packages colcon-cargo-ros2`;
 - rosdep needs the two settings of [Ubuntu 24.04](#ubuntu-2404):
-  `sudo PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 rosdep install ...`, and
+  `sudo ROS_HOME=$HOME/.ros PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 rosdep install ...`, and
   `/opt/ros/jazzy` takes the place of `/opt/ros/humble` below.
 
 scensim has two sides. The **simulation side** (the scenario runner, the bridge, the world

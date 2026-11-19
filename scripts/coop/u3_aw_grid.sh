@@ -10,6 +10,7 @@
 # all-way stop map") and optionally CUDA_MPS_PIPE_DIRECTORY. CARLA must already serve CARLA_PORT.
 #
 # Stages (each its own output directory under $WORK, resumable: crossing_aw.py skips finished runs):
+#   pace    stage 1's pacing check: arm off, A stop1y_c1.5 from the left, dt -1/0/1, seed 9 (rest_d against dt)
 #   smoke   stage 0: the stop-sign map's first runs on a stack; A stop1y_c1.5 from the left, dt 0, seed 0,
 #           arm off (stock) and on (czp)
 #   s1      stage 1: arms on/off x A stop1y_c1.5/fcfse_c0 x left/right x dt -1/-0.3/0/0.3/1 x seeds 0,1 (80)
@@ -33,9 +34,9 @@ export CYCLONEDDS_URI="file://$R/src/scensim_launch/config/cyclonedds-localhost.
 
 PLAIN=$R/data/carla-autoware-bridge/Town05
 case $STAGE in
-  smoke|s1) MAPDIR=$U3_MAP ;;
+  smoke|s1|pace) MAPDIR=$U3_MAP ;;
   ref) MAPDIR=$PLAIN ;;
-  *) echo "stage: smoke, s1 or ref" >&2; exit 2 ;;
+  *) echo "stage: pace, smoke, s1 or ref" >&2; exit 2 ;;
 esac
 OUT=$WORK/$STAGE; mkdir -p "$OUT"
 ZONES=$WORK/zones_$(basename "$(dirname "$MAPDIR")")_$(basename "$MAPDIR").yaml
@@ -62,6 +63,8 @@ echo "stack up $(date +%T)"
 P=(python3 scripts/coop/crossing_aw.py --out "$OUT" --carla-port "$CARLA_PORT" --zones "$ZONES" --map "$MAPDIR")
 DTS=-1,-0.3,0,0.3,1
 case $STAGE in
+  pace)
+    "${P[@]}" --arms off --rules stop1y_c1.5 --dts=-1,0,1 --seeds 9; echo "pace rc=$? $(date +%T)" ;;
   smoke)
     "${P[@]}" --arms off,on --rules stop1y_c1.5 --dts=0 --seeds 0; echo "smoke rc=$? $(date +%T)" ;;
   s1)

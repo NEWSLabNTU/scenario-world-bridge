@@ -61,7 +61,7 @@ ss -ltn | grep -q ":$SSV2_PORT " || { echo "stack not up" >&2; stop_stack; exit 
 echo "stack up $(date +%T)"
 
 P=(python3 scripts/coop/crossing_aw.py --out "$OUT" --carla-port "$CARLA_PORT" --zones "$ZONES" --map "$MAPDIR"
-   --max-load "${U3_MAX_LOAD:-40}")
+   --max-load "${U3_MAX_LOAD:-$(( $(nproc) * 3 / 2 ))}")   # 133: 1.5x the cores; above that 088's verdicts moved
 DTS=-1,-0.3,0,0.3,1
 case $STAGE in
   pace)

@@ -35,6 +35,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -339,9 +340,11 @@ def run_one(out, arm, dt, rule, seed, side, a):
     PROCS[:] = [ego, agent, bag]
     time.sleep(3)
     tw, tw_epoch = time.monotonic(), time.time()
+    sampler = LoadSampler()  # always (074 U3); --load-log's in-run load, when given, overrides its keys below
     r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT, start_new_session=True)
     wall = round(time.monotonic() - tw, 1)
+    base.update(sampler.stop())
     load = in_run_load(a.load_log, tw_epoch, time.time()) if a.load_log else {}
     killpg(agent)
     killpg(bag, signal.SIGINT)
@@ -356,6 +359,27 @@ def run_one(out, arm, dt, rule, seed, side, a):
         if load.get("load_max") is not None and load["load_max"] > a.load_max:
             res["valid"], res["invalid_load"] = 0, 1
     return res
+
+
+class LoadSampler(threading.Thread):
+    """The host's 1-min load over a run, every 2 s: load_start, load_mean, load_max (074 U3: 133's rule is a
+    gate at 1.5x the cores, the load logged per run, and a contact or deadlock rerun under a quieter load)."""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.v = [os.getloadavg()[0]]
+        self.ev = threading.Event()
+        self.start()
+
+    def run(self):
+        while not self.ev.wait(2.0):
+            self.v.append(os.getloadavg()[0])
+
+    def stop(self):
+        self.ev.set()
+        self.join()
+        return {"load_start": round(self.v[0], 1), "load_mean": round(sum(self.v) / len(self.v), 1),
+                "load_max": round(max(self.v), 1)}
 
 
 def wait_load(max_load, hold=60.0, poll=20.0, give_up=4 * 3600.0):
@@ -405,6 +429,9 @@ def main():
     ap.add_argument("--max-load", type=float, default=0.0, help="wait before each run until the 1-min load stays below this (0: no wait)")
     ap.add_argument("--rest-offset", type=float, default=1.4,
                     help="stop-sign rules: s added to A's pacing aim so rest_d lands on dt (074 U3 pace stage: 1.4)")
+    ap.add_argument("--quiet-load", type=float, default=float(os.cpu_count() or 32),
+                    help="a contact or deadlock run whose load_max reached this is rerun once, gated below it; "
+                         "only the rerun counts (counted 0 on the first)")
     ap.add_argument("--rescore", action="store_true")
     ap.add_argument("--start-gate", default="", help="a shell command run after the ego is ready, before the scenario")
     ap.add_argument("--load-log", default="", help="the host's load samples: <epoch s> <1-min load> <PSI cpu avg10>")
@@ -437,7 +464,7 @@ def main():
         for line in open(path):
             if line.strip():
                 r = json.loads(line)
-                if "error" not in r and (r.get("valid") or r.get("attempt", 0) >= a.redo_invalid):
+                if "error" not in r and r.get("counted", 1) and (r.get("valid") or r.get("attempt", 0) >= a.redo_invalid):
                     done.add(r["tag"])
     with open(path, "a") as f:
         for arm, dt, rule, s, side in runs:
@@ -447,6 +474,15 @@ def main():
                 wait_load(a.max_load)
                 res = run_one(a.out, arm, dt, rule, s, side, a)
                 res["attempt"] = attempt
+                if "error" not in res and (res.get("contact") or res.get("deadlock")) and \
+                        res.get("load_max", 0.0) >= a.quiet_load:
+                    res["counted"] = 0  # under load: its verdict waits for the quiet rerun
+                    print(json.dumps(res), flush=True)
+                    f.write(json.dumps(res) + "\n")
+                    f.flush()
+                    wait_load(a.quiet_load)
+                    res = run_one(a.out, arm, dt, rule, s, side, a)
+                    res["attempt"], res["quiet_rerun"] = attempt, 1
                 print(json.dumps(res), flush=True)
                 f.write(json.dumps(res) + "\n")
                 f.flush()

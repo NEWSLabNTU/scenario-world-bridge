@@ -258,6 +258,19 @@ def test_a_town_a_serving_carla_lacks_is_named():
     assert sim.served_town_problems(["Town01", "Town03", "NTU"], old, alias) == [("NTU", "NTU")]
 
 
+def test_the_town_check_says_a_pass_and_a_skip(capsys):
+    """083: a judged pass is said, as a skip is, so neither reads as the other."""
+    rec = {"simulator": "carla", "carla": {"host": "127.0.0.1", "port": 2400},
+           "maps": ["Town01", "Town10"]}
+    alias = {"Town10": "Town10HD"}
+    one = ["/Game/Carla/Maps/Town01_Opt", "/Game/Carla/Maps/Town10HD_Opt"]
+    assert stack.served_towns_problem(rec, lambda h, p: one, alias) is None
+    out = capsys.readouterr().out
+    assert "CARLA on 127.0.0.1:2400 lists each map's town (Town01, Town10; 2 maps)" in out
+    assert stack.served_towns_problem(rec, lambda h, p: None, alias) is None
+    assert "its towns are not checked" in capsys.readouterr().out
+
+
 def test_keeper_ends_the_start_when_carla_has_no_town_for_a_map(where, maps_hub):
     """083: once a started CARLA serves, a map whose town it cannot load ends the start,
     named, before any pilot; one it can is served as before."""

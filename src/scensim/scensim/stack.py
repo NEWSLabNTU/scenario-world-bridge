@@ -603,9 +603,13 @@ def served_towns_problem(rec, maps_fn=None, alias=None):
               "list its maps (get_available_maps); its towns are not checked", flush=True)
         return None
     missing = simmod.served_town_problems(rec.get("maps"), available, alias)
-    if not missing:
-        return None
     where = f"{c.get('host') or 'localhost'}:{c['port']}"
+    if not missing:
+        # said, so that a judged pass reads differently from a check that did not run
+        maps = [m for m in rec.get("maps") or [] if isinstance(m, str) and m]
+        print(f"scensim stack: CARLA on {where} lists each map's town ({', '.join(maps)}; "
+              f"{len(available)} maps)", flush=True)
+        return None
     return ("; ".join(f"maps: {m}: CARLA {c.get('version') or ''} on {where} has no town "
                       f"{town} (nor {town}_Opt) among its {len(available)} maps"
                       for m, town in missing).replace("  ", " ")

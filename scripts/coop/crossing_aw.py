@@ -188,6 +188,7 @@ def score(rd, dt):
     out_b = next((r["t"] - t_lock for r in run if r["ub"] >= exit_b), None)
     pet = meas._pet()
     dt_lock = lk.get("dt_lock")
+    off = ev["setup"].get("rest_offset", 0.0)  # A aimed at dt + off (stop-sign rules; crossing_agent.py)
     return {"first": who, "contact": int(contact), "clear": round(meas.clear, 3), "pet": round(pet, 3) if math.isfinite(pet) else None,
             "ttc2d": round(meas.ttc2d, 3) if math.isfinite(meas.ttc2d) else None,
             "tA_in": None if math.isinf(fa) else round(fa, 2), "tB_in": None if math.isinf(fb) else round(fb, 2),
@@ -196,7 +197,7 @@ def score(rd, dt):
             "vminA": round(vmin["A"], 2), "vminB": round(vmin["B"], 2), "both_stopped_s": round(both, 2),
             "dt_lock": dt_lock, "dt_const": lk.get("dt_const"), "vA_lock": lk.get("va"), "vB_lock": lk.get("vb"),
             "aB_lock": lk.get("ab"), "uB_lock": lk.get("ub"), "uA_lock": lk.get("ua"),
-            "valid": int(dt_lock is not None and abs(dt_lock - dt) <= DT_TOL),
+            "valid": int(dt_lock is not None and abs(dt_lock - dt - off) <= DT_TOL), "rest_offset": off,
             "both_cleared": int(out_a is not None and out_b is not None),
             "t_run": round(last["t"] - t_lock, 1) if last else None, "physics_off": ev["setup"].get("physics_off"),
             "deadlock": int(math.isinf(fa) and math.isinf(fb)), **rests(run, t_lock, ev["setup"].get("stops") or {})}

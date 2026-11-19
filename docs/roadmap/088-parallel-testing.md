@@ -1,12 +1,20 @@
 # 088: Parallel Testing
 
-**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats; the dispatcher (step 2) is next.
+**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Step 2 (the dispatcher) on branch `088-dispatcher-2`, waiting for its live check. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
 
 ## Goal
 
-Run one suite's scenarios on many headless simulators at once, without conflicts between them,
-so that a large suite finishes in a fraction of the time and gives the same verdicts as a run
-one scenario at a time.
+**The model (user, 2026-11-19).** A user works on one host with the testbench's complete
+source tree. A testbench run is one simulator world with any number of autopilots (pilots).
+Massive runs come from two needs:
+
+- **rollouts**: one scenario run many times (repetitions, seeds, parameter values), for
+  statistics, sweeps or training data;
+- **many scenarios**: a suite run as a whole.
+
+Both are served on that one host by several **seats** at once, each seat one simulator plus
+its pilots, without conflicts between them, with the same verdicts as one run at a time.
+Several hosts are not part of the model.
 
 ## What already exists
 
@@ -52,8 +60,11 @@ The isolation is in place; what is missing is the scheduling.
    each free seat the next scenario, starts and supervises the seat's own CARLA (restart on a
    crash, a world load per scenario), admits a seat only when its GPU memory and the host load
    allow, and merges the results into one suite report.
-3. **Across hosts.** Lab hosts each run their own seats from a shared queue, results on the
-   NAS.
+3. **Rollouts.** The dispatcher's queue takes a scenario's rollouts as well as a suite's
+   scenarios: `--repeat N`, a seed range, and parameter values (a list or a grid), each rollout
+   one queue item with its seed and parameters recorded, the merged report grouping them per
+   scenario (counts, rates, spreads). A seat's admission counts what the testbench runs in it:
+   each Autoware pilot adds its VRAM and load (a three-pilot testbench is not one ego's seat).
 4. **Determinism check.** The same suite twice at the chosen seat count; the verdicts and their
    spread against the single-seat runs (the arena is known not to repeat per seed; 078 P2e).
 
@@ -93,3 +104,9 @@ Findings for step 2:
   dispatcher?
 - Do verdicts depend on host load through Autoware's wall-clock parts, and at what load?
 - Do T3's comparisons run unchanged on a parallel run's merged report?
+
+## Not in scope: several hosts
+
+A coordinator over several lab hosts (ssh, a shared queue, results on the NAS; 241's design
+note, 2026-11-19) was dropped when the model was revised: a user works on one host. Kept here
+as the option if a farm or a CI cluster ever needs it.

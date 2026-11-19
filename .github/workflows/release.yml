@@ -437,9 +437,12 @@ jobs:
             python3 -m pip install -q --user --no-index --find-links /tmp/wheels scensim
             scensim setup --autoware none' " > /tmp/setup.txt 2>&1 || true
           cat /tmp/setup.txt
-          grep -q "ok   system packages (rosdep)" /tmp/setup.txt
-          grep -q "ok   scensim answers" /tmp/setup.txt
-          if grep "FIX " /tmp/setup.txt | grep -v "DDS socket buffers"; then exit 1; fi
+          for want in "ok   system packages (rosdep)" "ok   scensim answers"; do
+            grep -qF "$want" /tmp/setup.txt || { echo "::error::setup check: no '$want'"; exit 1; }
+          done
+          if grep "FIX " /tmp/setup.txt | grep -v "DDS socket buffers"; then
+            echo "::error::setup check: a FIX line (above)"; exit 1
+          fi
           echo "scensim setup as a user: ok" >> "$GITHUB_STEP_SUMMARY"
       - name: A testbench
         if: inputs.journey

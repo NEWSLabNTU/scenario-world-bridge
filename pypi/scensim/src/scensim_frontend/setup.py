@@ -545,6 +545,21 @@ def autoware_data(env: Path, autoware: Path) -> None:
 # --- the check -------------------------------------------------------------------------------
 
 
+def models_present() -> bool:
+    """Autoware's ML models in its data_path, ``~/autoware_data`` (``ml_models/`` from 2.0)."""
+    d = Path.home() / "autoware_data"
+    return any((d / sub / "lidar_centerpoint").is_dir() for sub in ("", "ml_models"))
+
+
+def models_fix(autoware: Path) -> str:
+    """How to get the models: NEWSLab's packages carry a downloader; else Autoware's guide."""
+    dl = f"autoware-download-models-{autoware.parent.name.replace('.', '-')}"
+    if shutil.which(dl):
+        return f"sudo {dl}, then scensim setup"
+    return ("install Autoware's ML models (its installation guide) into "
+            f"{autoware.parent / 'data'} or ~/autoware_data, then scensim setup")
+
+
 def check(host: Host, release: Release) -> bool:
     env = env_file()
     rows: list[tuple[bool, str]] = []
@@ -566,6 +581,9 @@ def check(host: Host, release: Release) -> bool:
         rows.append((ok, "scensim answers in ~/scensim.bash's environment"
                      + ("" if ok else ": `source ~/scensim.bash; scensim seat show` says why")))
         if host.autoware:
+            ok = models_present()
+            rows.append((ok, "Autoware's ML models in ~/autoware_data" + ("" if ok else
+                         f": {models_fix(host.autoware)}")))
             for pkg in AUTOWARE_SIDE_PACKAGES:
                 ok = bash_in([env], f"ros2 pkg prefix {pkg} >/dev/null 2>&1") == 0
                 rows.append((ok, f"the Autoware side's {pkg}" + ("" if ok else

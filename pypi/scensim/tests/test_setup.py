@@ -61,7 +61,12 @@ mkdir -p install; echo 'export FAKE_SIDE=1' > install/setup.bash
 ''',
     "ros2": r'''
 echo "ros2 $*" >> "$STUB_LOG"
-case "$1 $2" in "pkg prefix") [ -n "$FAKE_SIDE" ];; *) exit 0;; esac
+case "$1 $2" in
+  "pkg prefix") [ -n "$FAKE_SIDE" ];;
+  "run autoware_sim_profile") [ "$3" = setup_autoware_data ] && [ -d "$4" ] \
+      && mkdir -p "$HOME/autoware_data/lidar_centerpoint";;
+  *) exit 0;;
+esac
 ''',
 }
 
@@ -212,7 +217,7 @@ def test_a_different_sysctl_file_is_kept(host) -> None:
 
 
 def test_several_autowares_none_sourced_is_refused(host) -> None:
-    (host.aw / "2.1.0").mkdir()
+    (host.aw / "2.1.0" / "data").mkdir(parents=True)
     (host.aw / "2.1.0" / "setup.bash").write_text("")
     r = host.run("setup")
     assert r.returncode == 3
@@ -354,3 +359,15 @@ def test_brotli_short_needs_hub_2_and_brotli_below_1_2(monkeypatch) -> None:
     assert not s.brotli_short()
     have.update({"huggingface_hub": (0, 36), "brotli": (1, 0, 9)})
     assert not s.brotli_short()
+
+
+def test_missing_models_are_named_with_the_downloader(host) -> None:
+    import shutil
+    shutil.rmtree(host.aw / "1.5.0" / "data")
+    dl = host.tmp / "stubs" / "autoware-download-models-1-5-0"
+    dl.write_text("#!/bin/bash\n")
+    dl.chmod(0o755)
+    r = host.run("setup")
+    assert r.returncode == 3
+    assert "FIX  Autoware's ML models in ~/autoware_data: sudo autoware-download-models-1-5-0, " \
+        "then scensim setup" in r.stderr

@@ -299,6 +299,18 @@ ARENA_HOLD_STOP = False
 TIE_SHARE = 0
 TIE_BAND = 0.1  # s
 _NOISE = None  # (sigma_x, sigma_v, random.Random) while contact_share runs: every simulate perceives through it
+# 078 P2g, Autoware's launch and its tracker's rest, measured on swb's crossing (P2f's grid, scripts/coop/
+# p2g_launch.py). Off by default (every study before P2g ran without them).
+#   AUTOWARE_LAUNCH: (dead, accel, v_end) for the cars in AUTOWARE_CARS: a drive command at rest moves the car
+#     `dead` s later (czp's go to the ego's motion: median 0.62 s, p90 0.95), and from rest its drive is capped at
+#     `accel` until `v_end` (from its first motion Autoware's ego covers 1 m in 1.70 s and 3 m in 2.88 s: 0.09 s,
+#     then 0.77 m/s^2; the arena car's 3 m/s^2 takes 1.41 s to 3 m).
+#   REST_LAG: s a car that has come to rest is still seen rolling (at REST_HOLD_V, above czp's moved_speed): the
+#     tracked rest stamp's lag (P2f: 0.8 s at the contact; P2c: 0.45-3.55 s).
+AUTOWARE_LAUNCH = None
+AUTOWARE_CARS: frozenset = frozenset()
+REST_LAG = 0.0
+REST_HOLD_V = 0.6
 
 
 class Perception:
@@ -309,12 +321,19 @@ class Perception:
     def __init__(self, sigma_x, sigma_v, rng, u0, v0, delay=None):
         self.delay, self.sx, self.sv, self.rng = OBS if delay is None else delay, sigma_x, sigma_v, rng
         self.buf, self.hist, self.seen, self.last_sample, self.last_stamp = [], [], None, -1e9, None
+        self.rest_since = None  # REST_LAG: when the seen car came to rest (truth)
         t = -1.5
         while t < -1e-9:
             self._push(t, u0 + v0 * t, v0)
             t += DT
 
     def _push(self, t, x, v):
+        if v < 0.05:
+            self.rest_since = t if self.rest_since is None else self.rest_since
+        else:
+            self.rest_since = None
+        if REST_LAG > 0 and self.rest_since is not None and t - self.rest_since < REST_LAG - 1e-9:
+            v = max(v, REST_HOLD_V)  # the tracker still sees it rolling (078 P2g)
         if t - self.last_sample >= 0.1 - 1e-9:
             self.last_sample = t
             self.buf.append((t, x + self.rng.gauss(0, self.sx), v + self.rng.gauss(0, self.sv)))
@@ -434,6 +453,15 @@ def car_lags():
     return out
 
 
+def car_lags_for(name, lags):
+    """The lags of car `name` ("A", "B"): `lags`, with AUTOWARE_LAUNCH's dead time and launch cap when it is one of
+    AUTOWARE_CARS (078 P2g)."""
+    if lags is None or AUTOWARE_LAUNCH is None or name not in AUTOWARE_CARS:
+        return lags
+    dead, accel, v_end = AUTOWARE_LAUNCH
+    return dict(lags, launch_dead_time=dead, launch_accel=accel, launch_v_end=v_end)
+
+
 class Actuator:
     """The car's response to a commanded acceleration, as acb's pedal lag gives it (arena.PedalLag):
     braking after a dead time and a first-order lag, drive after a first-order lag. The pedal maps
@@ -442,6 +470,9 @@ class Actuator:
     def __init__(self, lags):
         self.dead, self.tb, self.tm = lags["brake_dead_time"], lags["brake_time_constant"], lags["motor_time_constant"]
         self.launch = lags.get("launch_dead_time", 0.0)
+        self.launch_accel = lags.get("launch_accel")  # 078 P2g: the drive cap from rest (None: none)
+        self.launch_v_end = lags.get("launch_v_end", 0.0)
+        self.launching = True
         self.at_rest_driving = 0.0  # s a drive command has been held at rest
         self.queue = []
         self.brake = self.drive = 0.0
@@ -457,6 +488,13 @@ class Actuator:
                 self.at_rest_driving = 0.0
             if self.at_rest_driving < self.launch - 1e-9:
                 a_cmd = min(a_cmd, 0.0)
+        if self.launch_accel is not None and v is not None:
+            if v < 0.05:
+                self.launching = True
+            elif v >= self.launch_v_end:
+                self.launching = False
+            if self.launching:
+                a_cmd = min(a_cmd, self.launch_accel)
         self.queue.append(max(0.0, -a_cmd))
         n = int(round(self.dead / DT))
         req = self.queue[-1 - n] if len(self.queue) > n else 0.0
@@ -482,7 +520,7 @@ def simulate(ra, rb, dt_ctx, va, vb, b_cont="hold", trace=None, lags=None):
     """One run: A's rule ra, B's rule rb; b_cont is B's continuation under react; lags: the car's
     command lags (car_lags()), None for an ideal car."""
     ta, tb = T_MEAN + dt_ctx / 2, T_MEAN - dt_ctx / 2
-    A, B = Car(-va * ta, va, lags), Car(-vb * tb, vb, lags)
+    A, B = Car(-va * ta, va, car_lags_for("A", lags)), Car(-vb * tb, vb, car_lags_for("B", lags))
     pa_, pb_ = Policy("A", ra, va), Policy("B", rb, vb, b_cont)
     obs = perception_pair(A, B)
     meas = M.Measures(b_max=(B_MAX, B_MAX), pet_sample=PET_SAMPLE)

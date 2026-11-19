@@ -23,6 +23,7 @@ moved_speed:              {value: 0.5,  unit: m/s, source: "074 C8 (moved off it
 moved_dist:               {value: 0.3,  unit: m, source: "074 C8", heldout: null}
 moved_dist_alone:         {value: 1.0,  unit: m, source: "074 C8 (distance alone)", heldout: null}
 see_delay:                {value: 1.5,  unit: s, source: "074 C8 (FM_SEE): a start is seen 0.7 s (visible motion) + 0.8 s (perception and decision) after it", heldout: null}
+guard_extra:              {value: 0.0,  unit: s, source: "078 P2g: added to every guard counted from a rest (rest_guard); 0 in use, the experiments' knob", heldout: null}
 probe_first_moving:       {value: true, unit: bool, source: "078 V2b: a first go from rest while another car is still coming is probed too (stock reads a car at rest as static)", heldout: null}
 fresh_rest_guard:         {value: true, unit: bool, source: "078 V2b: a first go waits until a car that only just stopped would be seen starting (against cars that ignore arrival order); 078 P2e: every go against a car at rest (rest_tie, clear, first, a tie) counts it from the later of the two rests, and a tie needs the own car at rest or past its commit point", heldout: null}
 guard_filter_n:           {value: 2,    unit: samples, source: "074 C8 V3: filter the guards over 2-3 samples (141 flips unfiltered at noise x2)", heldout: null}

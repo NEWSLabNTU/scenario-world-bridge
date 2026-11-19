@@ -98,6 +98,7 @@ class Car:
         self.u, self.v, self.v0, self.a = u0, v0, v0, 0.0
         self.act = X.Actuator(lags)
         self.hist = [(0.0, u0, v0, 0.0)]
+        self.rest_starts = []  # when the car came to rest (078 P2g: REST_LAG)
         self.wait = 0.0
         self.t_in = None
         p = CA.params_for(True, CA.BIAS["value"], None)
@@ -107,12 +108,17 @@ class Car:
         self.zone = zone
 
     def seen(self, t, delay, e):
-        for h in reversed(self.hist):
-            if h[0] <= t - delay + 1e-9:
-                break
-        else:
-            h = self.hist[0]
+        i = len(self.hist) - 1
+        while i > 0 and self.hist[i][0] > t - delay + 1e-9:
+            i -= 1
+        h = self.hist[i]
         stamp, u, v, a = h
+        if X.REST_LAG > 0 and v < 0.05:  # 078 P2g: the tracker still sees a car that has just come to rest rolling
+            # its rest began at the last rest start at or before the stamp (kept apart from hist, which is trimmed:
+            # read from hist, a long rest looked 0.76 s old after every trim, a phantom start every 0.5 s)
+            began = max((s for s in self.rest_starts if s <= stamp + 1e-9), default=-math.inf)
+            if stamp - began < X.REST_LAG - 1e-9:
+                v = max(v, X.REST_HOLD_V)
         u_now = u + v * (t - stamp) - e * v  # a later arrival by e: further back by e v
         return stamp, u_now, v, a
 
@@ -125,6 +131,7 @@ class Adversary:
         self.u, self.v, self.v0, self.a = u0, v0, v0, 0.0
         self.act = X.Actuator(lags)
         self.hist = [(0.0, u0, v0, 0.0)]
+        self.rest_starts = []  # when the car came to rest (078 P2g: REST_LAG)
         self.wait = 0.0
         self.t_in = None
         self.kind, self.patience = kind, patience
@@ -167,6 +174,15 @@ def zone_of(row, n):
                                              CM.Approach("B", heading=math.pi, order=1)))
 
 
+def czp_lags(lags):
+    """A czp car's lags: with Autoware's launch (--autoware-launch, crossing_game.AUTOWARE_LAUNCH; 078 P2g) when set.
+    The adversary keeps the arena car's."""
+    if X.AUTOWARE_LAUNCH is None:
+        return lags
+    dead, accel, v_end = X.AUTOWARE_LAUNCH
+    return dict(lags, launch_dead_time=dead, launch_accel=accel, launch_v_end=v_end)
+
+
 def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True, adversary=None):
     """One run of the crossing or the narrow passage. ctx: (v, wn, arrivals {name: (approach, t_arrive)},
     leaders {name: leader}); adv: {(i, j): (mode, delay)}; adversary: None or (name, kind, patience), that car not
@@ -181,7 +197,7 @@ def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True, adversary=N
         if adversary is not None and name == adversary[0]:
             cars[name] = Adversary(name, ap, -v * ta, v, exit_, lags, adversary[1], adversary[2])
         else:
-            cars[name] = Car(name, ap, -v * ta, v, exit_, lags, row, zone, leaders.get(name))
+            cars[name] = Car(name, ap, -v * ta, v, exit_, czp_lags(lags), row, zone, leaders.get(name))
     conflicts = {frozenset((i, j)) for i in cars for j in cars if i < j and conflict(row, cars[i].approach, cars[j].approach)}
     t = 0.0
     unsafe = None
@@ -231,6 +247,8 @@ def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True, adversary=N
                 c.t_in = t
         t += DT
         for c in cars.values():
+            if c.v < 0.05 and (not c.hist or c.hist[-1][2] >= 0.05):
+                c.rest_starts.append(t)
             c.hist.append((t, c.u, c.v, c.a))
             if len(c.hist) > 40:
                 del c.hist[:10]
@@ -400,8 +418,22 @@ def main():
     ap.add_argument("--adversary", choices=("none", "impatient", "never", "both"), default="none",
                     help="cross, 2 cars: one car not czp's, in either place (see above)")
     ap.add_argument("--adv-patience", type=float, default=0.5, help="the impatient car's patience after a mutual rest (s)")
+    ap.add_argument("--autoware-launch", default=None, metavar="DEAD,ACCEL,V_END",
+                    help="078 P2g: czp's cars launch from rest as Autoware's ego (measured 0.6,0.68,3.0)")
+    ap.add_argument("--rest-lag", type=float, default=0.0, help="078 P2g: a car's rest is seen this late (P2f: 0.8 s)")
+    ap.add_argument("--guard-extra", type=float, default=0.0, help="078 P2g: czp's guard_extra (added to every guard "
+                    "counted from a rest)")
+    ap.add_argument("--cross-probe", action="store_true", help="078 P2g: the crossing probes a go from a mutual rest "
+                    "(creep, watch, go), as the all-way stop does")
     CA.add_bias_args(ap)
     a = ap.parse_args()
+    X.REST_LAG = a.rest_lag
+    if a.guard_extra or a.cross_probe:
+        os.environ["P2G_GUARD_EXTRA"] = str(a.guard_extra)
+        os.environ["P2G_CROSS_PROBE"] = "1" if a.cross_probe else "0"
+        import p2g_guard_pre  # noqa: F401  (czp_adapter.params_for and conventions_for take it)
+    if a.autoware_launch:
+        X.AUTOWARE_LAUNCH = tuple(float(x) for x in a.autoware_launch.split(","))
     CA.set_bias(a)
     if a.row == "merge" and a.cars == 3:
         ap.error("the merge is a pair model (merge_game)")
@@ -424,13 +456,16 @@ def main():
         for k in ("runs", "unsafe", "not_live", "deadlock", "follow_contact", "stopped"):
             tot[k] += r.get(k, 0)
     summ = {"row": a.row, "cars": a.cars, "e": a.e, "adversary": a.adversary, "adv_patience": a.adv_patience, "rest_stamp_bias": a.rest_stamp_bias, "arrival_bias": a.arrival_bias,
+            "autoware_launch": a.autoware_launch, "rest_lag": a.rest_lag, "guard_extra": a.guard_extra, "cross_probe": a.cross_probe,
             "contexts": len(res), **tot,
             "contexts_unsafe": sum(1 for r in res if r.get("unsafe")),
             "contexts_not_live": sum(1 for r in res if r.get("not_live")),
             "worst_wait": max(r["worst_wait"] for r in res),
             "safe": tot["unsafe"] == 0, "live": tot["not_live"] == 0}
     tag = f"{a.row}{a.cars}_e{a.e:g}" + ("_nobystanders" if a.no_bystanders else "") + (
-        "" if a.adversary == "none" else f"_adv-{a.adversary}-p{a.adv_patience:g}")
+        "" if a.adversary == "none" else f"_adv-{a.adversary}-p{a.adv_patience:g}") + (
+        f"_aw{a.autoware_launch.replace(',', '-')}" if a.autoware_launch else "") + (f"_lag{a.rest_lag:g}" if a.rest_lag else "") + (
+        f"_g{a.guard_extra:g}" if a.guard_extra else "") + ("_probe" if a.cross_probe else "")
     json.dump({"summary": summ, "contexts": res}, open(os.path.join(a.out, f"{tag}.json"), "w"), indent=1)
     lines = [f"# czp_rows_check {a.row}, {a.cars} cars, e {a.e:g}"
              + ("" if a.adversary == "none" else f", adversary {a.adversary} (patience {a.adv_patience:g} s)")

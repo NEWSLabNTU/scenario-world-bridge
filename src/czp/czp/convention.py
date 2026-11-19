@@ -77,8 +77,9 @@ def rest_since(stamp, params):
 
 def rest_guard(other: Agent, params):
     """The fresh-rest guard's length: the other's start after a full stop would be seen by then (dwell + its launch dead
-    time + see_delay; 3.0 s for a car)."""
-    return params.stop_dwell + other.cap.launch_dead + params.see_delay
+    time + see_delay; 3.0 s for a car), plus ``guard_extra`` (0; 078 P2g's experiments). Every guard counted from a
+    rest is this one."""
+    return params.stop_dwell + other.cap.launch_dead + params.see_delay + params.guard_extra
 
 
 def other_rest_stamp(other: Agent, am: AgentMemory, params, t):
@@ -192,7 +193,7 @@ def pair_verdict_role(row, zone, own, own_iv, pv, mem, params, t, obs_age, b, fi
         # in the long passage, and its safety layer's braking, read through noise, had passed for a yield
         ib = band_of(own_iv, pv.iv, o, params, am.stopping.state, False, False, mode="interval")
         if not (ib.kind == CLEAR and ib.who == own.id):
-            guard = params.stop_dwell + o.cap.launch_dead + params.see_delay
+            guard = rest_guard(o, params)
             since = am.rest_t if am.rest_t is not None else am.still_since  # at its line, or at rest in a queue
             since = rest_since(since, params)
             if since is None or t - since < guard:
@@ -231,7 +232,7 @@ def _role_verdict(row, zone, own, own_iv, pv, mem, params, t, obs_age, b):
         # 078 V2b: a car that has only just come to rest may be one that ignores arrival order (it starts after
         # its own stop); wait until its start would have been seen (dwell + its launch dead time + see_delay)
         if first == STOPPED_FIRST and params.fresh_rest_guard and am.rest_t is not None and \
-                t - rest_since(am.rest_t, params) < params.stop_dwell + o.cap.launch_dead + params.see_delay:
+                t - rest_since(am.rest_t, params) < rest_guard(o, params):
             return Verdict(o.id, WAIT, False, "fresh", b, r)
         if first == STOPPED_FIRST and am.rest_t is None and o.v > params.moved_speed and params.probe_first_moving:
             # first, but a car is still coming that has not stopped: stock reads this car at rest as static, so

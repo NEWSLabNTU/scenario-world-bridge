@@ -41,6 +41,24 @@ repair_maps() {
             cp "$src" "$town/lanelet2_map.osm"
         fi
     done
+    # CARLA's towns are georeferenced as +proj=tmerc +lat_0=0 +lon_0=0 +k=1, but a projector
+    # yaml without scale_factor makes Autoware and SSv2 take 0.9996: the map 0.04 % small
+    # against CARLA, 0.13 m at 330 m (Town01's lanelets 0.159 m p95 off their OpenDRIVE lanes;
+    # with 1.0, 0.007 m; roadmap 087). Declare k 1 on every town at 0,0 that names none; the
+    # local_coords repair below then rewrites local_x/local_y in that frame.
+    for town in "$1"/*/; do
+        y="$town/map_projector_info.yaml"
+        [ -f "$y" ] || continue
+        grep -q '^projector_type:[[:space:]]*TransverseMercator' "$y" || continue
+        grep -q '^scale_factor:' "$y" && continue
+        grep -qE '^[[:space:]]+latitude:[[:space:]]*0(\.0*)?[[:space:]]*$' "$y" || continue
+        grep -qE '^[[:space:]]+longitude:[[:space:]]*0(\.0*)?[[:space:]]*$' "$y" || continue
+        if [ -L "$y" ]; then
+            src="$(readlink -f "$y")"; rm -f "$y"; cp "$src" "$y"
+        fi
+        echo "scale_factor: 1.0" >> "$y"
+        echo "  $(basename "$town"): projector scale_factor 1.0 (CARLA's k)"
+    done
     [ -d "$ACB_MAP_TOOLS/carla_map_gen" ] || {
         echo "ERROR: $ACB_MAP_TOOLS missing: git submodule update --init src/autoware_carla_bridge" >&2
         exit 1
@@ -136,6 +154,7 @@ map_origin:
   latitude: 0.0
   longitude: 0.0
   altitude: 0.0
+scale_factor: 1.0
 YAML
             echo "  $name (projector '$declared' rewritten to TransverseMercator)"
             found=$((found + 1))

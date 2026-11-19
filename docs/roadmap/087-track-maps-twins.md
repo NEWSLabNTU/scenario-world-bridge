@@ -108,3 +108,12 @@ Town01_Opt (241)/`; S2's report is private).
   - In acb: the lanelet repairs move into its map tools, and `carla_map_gen` carries the georeference (MGRS, or an
     origin shift) and runs the repairs by default. The target is 0 validator errors on Town01_Opt.
   - Then an Autoware drive on Town01_Opt with each map, on a host with a scensim stack on 1.0.
+
+**Town projectors at CARLA's scale** (241, 2026-11-19, as its own commit, landed after 243's T3 CARLA 1.0
+comparison). CARLA georeferences its towns as `+proj=tmerc +lat_0=0 +lon_0=0 +k=1`. Our towns'
+`map_projector_info.yaml` named no `scale_factor`, so Autoware and SSv2 took 0.9996, and the map was 0.04 % small
+against CARLA: 0.13 m at 330 m, Town01's lanelets 0.159 m (p95) off their OpenDRIVE lanes. `download_maps.sh` now
+declares `scale_factor: 1.0` on every TransverseMercator town at 0,0 that names none (p95 0.007 m on Town01, 0.005 m on
+Town05), and `gen_npc_benchmark.py` reads the map's scale. **Every T3 reference recorded before this commit was on the
+0.9996 maps**: positions near a town's far edge move by up to 0.13 m.
+

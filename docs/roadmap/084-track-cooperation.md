@@ -2,7 +2,8 @@
 
 How automated vehicles share conflict zones: the cases as games whose payoffs scensim measures (074), the strategy turned into a node beside Autoware and tested (078), several Autoware egos on one world for the multi-car runs (039).
 
-**Status**: consolidated 2026-11-18 from 074, 078, 039.
+**Status**: consolidated 2026-11-18 from 074, 078, 039. 2026-11-19: 078 P2g is done on its
+branch; its rerun on a quiet host is the open item (Next 1).
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that
@@ -17,7 +18,7 @@ is planned here.
 | phase | what | status | left |
 |---|---|---|---|
 | [074](074-cooperation-study.md) | the cooperation study: games, arena, strategy atlas | started 2026-11-13; most site types done in the kinematic model and the arena (S1-S6, U1-U3, Y merge); stock-Autoware runs for the Y merge and the left turn; atlas v11 | Autoware on the four-way stop (U3); the reflectance sweep (user's call) |
-| [078](078-conflict-zone-protocol.md) | the conflict-zone protocol: library, node, evaluation | phases 0-1 done; phase 2 on the crossing: G0 passes in the arena (P2e); the scensim grid fails on Autoware (P2f, 2026-11-19: 5 contacts in 20 against stock's 0, the mutual-rest case) | the guard from Autoware's measured launch, then the cell again; phases 3-4 |
+| [078](078-conflict-zone-protocol.md) | the conflict-zone protocol: library, node, evaluation | phases 0-1 done; phase 2 on the crossing. P2e: G0 passes in the arena. P2f (2026-11-19): the scensim grid fails on Autoware, 5 contacts in 20 against stock's 0, the mutual-rest case. P2g (2026-11-19, branch `p2g-launch`, not on main): Autoware's launch measured; no fixed guard is enough, so the crossing probes every go from a mutual rest; the arena's G0 passes on 4 sets; the grid had 2 contacts in 32 against stock's 0. One was the `self` contract handing a committed go to stock (issue 066, fixed at 1c84d14), the other late perception. `role_time_error_e` stays 0.55: the formal check covers the measured 0.65 | the grid's left t1.5p5 cells again at `p2g-launch` 3505a08 on a quiet host (the bundle is ready; it waits for 133's renice), then land `p2g-launch`; phases 3-4 |
 | [039](039-isaac-multi-autoware.md) | several Autoware instances on Isaac Sim, V2X | planned | one ROS domain per ego on the world server; V2X |
 
 ## Folded in
@@ -28,7 +29,11 @@ is planned here.
 
 ## Next
 
-1. 078 Phase 2: the guard from Autoware's measured launch from rest; the failing cell again.
+1. 078 Phase 2 (P2g): the grid's left t1.5p5 cells, czp and stock, on fresh seeds 8-11 at
+   `p2g-launch` 3505a08, on a quiet host. Bundle: NAS `home/2026-11-19 078 P2g rerun left t1.5p5
+   for 133 (241)`. Its `f4_summary.md` reads the decision's CPU time against wall time and the
+   `self` contract's failing ticks per run. If G0 holds there (czp no worse than stock: no
+   contact where stock has none), `p2g-launch` lands, rebased, with issue 066. Then phase 3.
 2. 074 U3 (four-way stop) on Autoware.
 3. Candidate for the next deliberate spec change, batched with other spec edits so `spec_hash` churns once: drift by default (`carla.attributes.rotation_frequency` 20.00268 and an Isaac `phase_jitter` flag in the spec's lidar). Until then drift is opt-in, for comparison work.
 4. Low priority, not started: a run seed handed to the world server and on to the lidar's `phase_jitter`, so "seeded per run" holds literally (today the seed is the profile's).

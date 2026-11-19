@@ -83,3 +83,28 @@ What it takes to produce a CARLA 1.0 map and its Autoware map (lanelet2, point c
    version.
 
 Ahead of 059's Isaac twin (manager, 2026-11-19).
+
+**S1 and S2 results** (241, 2026-11-19; NAS `logs/2026 SSv2 on CARLA/2026-11-19 087 S1 CARLA 1.0 map generator
+Town01_Opt (241)/`; S2's report is private).
+
+- **S3, the editor build, is not needed so far.** OpenDRIVE standalone mode on the packaged server builds a
+  road-only map from an `.xodr` in about 2 s, with its traffic lights and stop signs as actors.
+- **Town01_Opt:**
+  - its `.xodr` is byte-identical to 0.9.16's `Town01`;
+  - acb's `carla_map_gen` puts lanelets on the OpenDRIVE lanes within 0.7 cm (p95), against 16 cm for our current
+    Town01 map;
+  - acb's `carla_pcd_gen` runs on 1.0 as built with `--features carla-10`.
+- **The validator** (`autoware_lanelet2_map_validator`, from autoware_tools 0.2.0; 0.3.0 no longer has it): no
+  generator passes it as generated.
+  - Our current map has 36 errors (a light's ref_line is not a stop_line).
+  - `carla_map_gen`, raw, has 126; CARLA's map_tools have 108 (local coordinates, light facing).
+- **CARLA's map_tools have two defects.**
+  - On an asynchronous server the point-cloud tool's `--tick` does nothing, so each lidar measurement is one server
+    frame: 170k points for Town01_Opt instead of 3.9 M with the world set synchronous at 0.1 s.
+  - The tools write `projector_type: Local`, which SSv2 rejects.
+- **`carla_map_gen` is town-only.** It writes TransverseMercator at 0,0 and ignores the `.xodr`'s georeference, and
+  a real place's georeference can carry a false origin that Autoware's TransverseMercator cannot hold.
+- **Next (manager, 2026-11-19).**
+  - In acb: the lanelet repairs move into its map tools, and `carla_map_gen` carries the georeference (MGRS, or an
+    origin shift) and runs the repairs by default. The target is 0 validator errors on Town01_Opt.
+  - Then an Autoware drive on Town01_Opt with each map, on a host with a scensim stack on 1.0.

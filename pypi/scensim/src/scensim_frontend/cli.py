@@ -79,7 +79,8 @@ def install(release: Release, force: bool, first_use: bool,
     pep668 = "PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 " if sys.version_info >= (3, 11) else ""
     # sudo resets HOME: root's rosdep reads the cache the user's update just wrote
     ros_home = shlex.quote(str(Path.home() / ".ros"))
-    print(f"  sudo ROS_HOME={ros_home} {pep668}rosdep install --from-paths {cur}/sim/share "
+    print(f"  sudo ROS_HOME={ros_home} {pep668}rosdep install --rosdistro {d} "
+          f"--from-paths {cur}/sim/share "
           f"--ignore-src -y",
           file=sys.stderr)
     print("then, in every terminal (after ROS, and your Autoware if you use one):", file=sys.stderr)

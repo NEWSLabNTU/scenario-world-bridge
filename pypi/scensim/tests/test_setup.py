@@ -128,7 +128,8 @@ def test_setup_on_a_fresh_host_one_sudo_then_ready(host) -> None:
     calls = calls[calls.index("ROOT") + 1:]  # what ran as root, and after
     order = [c.split()[0] + " " + c.split()[1] for c in calls if c.startswith(("apt-get", "rosdep"))]
     assert order[:4] == ["apt-get update", "apt-get install", "rosdep init", "rosdep update"]
-    assert any(c.startswith("rosdep install --from-paths") and "/current/sim/share" in c
+    assert any(c.startswith("rosdep install --rosdistro humble --from-paths") and
+               "/current/sim/share" in c
                for c in calls)
     assert any(c.startswith("sudo -u tester -H rosdep update") for c in calls)
     assert (host.tmp / "etc" / "sysctl.d" / "99-cyclonedds-max.conf").is_file()

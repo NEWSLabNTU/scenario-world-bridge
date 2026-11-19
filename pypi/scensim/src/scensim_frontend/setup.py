@@ -211,7 +211,7 @@ def rosdep_initialised() -> bool:
     return d.is_dir() and any(d.iterdir())
 
 
-def rosdep_satisfied(share: Path) -> bool:
+def rosdep_satisfied(share: Path, distro: str) -> bool:
     """Every rosdep key of the release is installed (``rosdep check``, after an update as the
     user). False when rosdep cannot say (not installed, not initialised)."""
     if not shutil.which("rosdep") or not rosdep_initialised():
@@ -219,7 +219,9 @@ def rosdep_satisfied(share: Path) -> bool:
     say("rosdep update (as you)")
     if subprocess.run(["rosdep", "update"], stdout=subprocess.DEVNULL).returncode != 0:
         return False
-    r = subprocess.run(["rosdep", "check", "--from-paths", str(share), "--ignore-src"],
+    # --rosdistro: setup runs before any ROS is sourced, and sudo drops ROS_DISTRO
+    r = subprocess.run(["rosdep", "check", "--rosdistro", distro, "--from-paths", str(share),
+                        "--ignore-src"],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return r.returncode == 0
 
@@ -265,14 +267,15 @@ def system_step(release: Release, force: bool) -> SystemStep:
     initialised = rosdep_initialised()
     if not initialised:
         step.lines.append("rosdep init")
-    if missing or not initialised or not rosdep_satisfied(share):
+    if missing or not initialised or not rosdep_satisfied(share, release.distro):
         step.lines.append('sudo -u "$SUDO_USER" -H rosdep update')
         # Python 3.11 and later is externally managed (PEP 668): see `scensim install`
         pep668 = ("PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 "
                   if sys.version_info >= (3, 11) else "")
         # root's rosdep reads the cache the user's update wrote (sudo resets HOME)
         step.lines.append(f'ROS_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)/.ros '
-                          f"{pep668}rosdep install --from-paths {shlex.quote(str(share))} "
+                          f"{pep668}rosdep install --rosdistro {release.distro} "
+                          f"--from-paths {shlex.quote(str(share))} "
                           f"--ignore-src -y")
     conf = etc() / "sysctl.d" / SYSCTL_NAME
     have = conf.read_text() if conf.is_file() else None
@@ -506,7 +509,7 @@ def check(host: Host, release: Release) -> bool:
                  + ("" if exe.is_file() else ": run `scensim install`")))
     rows.append((env.is_file(), f"{env}" + ("" if env.is_file() else ": run `scensim setup`")))
     share = home() / "current" / "sim" / "share"
-    ok = rosdep_satisfied(share)
+    ok = rosdep_satisfied(share, release.distro)
     rows.append((ok, "system packages (rosdep)" + ("" if ok else
                  ": run `scensim setup`, or its system step as an administrator")))
     short = sysctl_short()

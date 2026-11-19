@@ -31,15 +31,26 @@ filter then removes nothing, the static points reach detection as obstacles, and
 stop module stops the car at the first that falls in its path. The course's map has no
 `pointcloud_map_metadata.yaml`; the towns' maps have one (a single cell).
 
-## What it needs
+## What it needs (a candidate tried, 2026-11-20)
 
-A divided map: the course's point cloud split into tiles (Autoware's `pointcloud_divider`, for
-example 100 m cells) with their `pointcloud_map_metadata.yaml`, so the filter loads the cells
-near the car (dynamic map loading). That is a new revision of `haruna-tsukuba-courses` (its
-maintainer's, the user's to publish). Whether the stack's map loader and profile take a divided
-map as they are is to be checked with it.
+Two things together, tried on 118 with a local copy of the dataset (the course's point cloud
+divided into 140 tiles of 100 m with a `pointcloud_map_metadata.yaml`, every point kept):
+
+| Map | Compare-map filter | Objects on the empty course | Result |
+|---|---|---|---|
+| one PCD (the dataset) | static (the profile) | 38 | stops at (82.0, 428.5); failed at 600 s |
+| divided | static (the profile) | 33-35 | the same stop |
+| divided | dynamic (`use_dynamic_map_loading: true`) | 2-8 | **passed**: the whole course in 384.5 s, 0 contacts |
+
+With static loading the filter merges the tiles into one grid again and it still overflows;
+with dynamic loading it loads the tiles within 150 m of the car. So the fix is a divided map
+(a new revision of `haruna-tsukuba-courses`, the user's to publish) and dynamic loading for
+it. scensim's profile turned dynamic loading off for acb issue 029 (a street lamp held the
+ego at Town01's spawn point 0), so it cannot simply be turned on again: that needs Town01
+checked with it, or a per-map choice. Open.
 
 ## Evidence
 
 NAS `logs/2026 SSv2 on CARLA/2026-11-20 0.2.1 Isaac examples live (118)/` (run 5, with the
-ego's pose every 20 s).
+ego's pose every 20 s). The candidate: NAS `home/2026-11-20 issue 072 haruna divided map
+candidate (118)/` (the divided map, its PROVENANCE, both runs' samples, the passing run).

@@ -568,11 +568,19 @@ The crossing now probes every go from a mutual rest.**
   it is in the zone, and the cars touched. P2g's grid has the same overrun once, without a contact.
   133's decisions (2026-11-20):
   - the probe asks the car to stop while it still can: a stop margin of 0.1 m + 1.0 s x speed, the
-    envelope of the 15 creeps stopped in both grids. A car resting within the margin at
-    `creep_speed` watches at rest, and an overrun is recorded as `probe_overrun`;
+    envelope of the 15 creeps stopped in both grids. A car within 0.35 m at rest watches where it
+    is; elsewhere the creep is kept, however short. An overrun is recorded as `probe_overrun`;
   - the tie's timing: (a) a watch until a 5 s patience restart would be seen, and (b) no probe on
     the rest tie, screened before any code;
   - the arena's A stays as it is, G0's reference adversary.
+- **The tie's timing, screened** (issue 069's table):
+  - (b), no probe on the rest tie, is unsafe at patience 2-4 s and fails G0 with Autoware in B
+    (165 and 176 contacts against stock's 51 and 53);
+  - (a), a longer watch, is a no-op at 6.5 s, within the noise at 7.5 s, and worse at 8.5 s
+    (the arena model's 26 and 22).
+
+  Part 1 alone is safe at every patience, and passes the screen with 2-3 contacts per patience-5
+  cell (stock 51-208).
 - **The Autoware overlay was not built in the P2 grids.** Every ego log of P2g's grid (64 runs)
   and the rerun's (40) says "Autoware overlay not built", in both arms, so the comparisons are
   stock Autoware against stock Autoware. P2f's grid ran on the same host settings, and its logs

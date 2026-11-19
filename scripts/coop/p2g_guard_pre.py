@@ -32,3 +32,7 @@ def conventions_for(*args, **kw):
 
 CA.params_for = params_for
 CA.conventions_for = conventions_for
+
+# issue 069, part 2: the tie-break's timing variants (p2g_069_pre.py), when the environment names one
+if os.environ.get("P069_WATCH_FROM_REST") or os.environ.get("P069_NO_PROBE_REST_TIE"):
+    import p2g_069_pre  # noqa: F401,E402

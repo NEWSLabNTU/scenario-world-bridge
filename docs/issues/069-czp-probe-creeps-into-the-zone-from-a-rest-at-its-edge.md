@@ -85,7 +85,11 @@ stays as it is.
      envelope of the 15 creeps stopped in both grids: requested at 0.06-0.20 m/s, they travelled
      0.04-0.25 m (Autoware accelerates about 0.4 s more, then brakes). Above 0.2 m/s it is
      extrapolated.
-   - A car resting within the margin at `creep_speed` (1.1 m) does not creep: it watches at rest.
+   - A car resting within the margin at rest (0.35 m) does not creep: it watches where it is.
+     Otherwise the creep is kept, however short. A first version skipped the creep for any rest
+     within the margin at `creep_speed` (1.1 m). The models' cars rest 1.0 m out, so none crept,
+     and the formal check failed at patience 8 and 9 s (150 and 50 unsafe runs of 3780; 0 before):
+     moving is what ends an impatient car's mutual rest.
    - An `inside` reached while the probe is in its creep or watch is recorded as `probe_overrun`, so
      that it is counted, not hidden as a plain go.
 2. **czp, the tie's timing.** The tie-break's go should not fall on the other car's patience restart,
@@ -94,6 +98,7 @@ stays as it is.
    - (a) the watch lasts until a restart from the other's rest + 5 s would have been seen;
    - (b) the priority car goes as soon as the guard ends, with no probe, so that it is in the zone
      well before a 5 s restart.
+   Screened (below): (b) fails; (a) does not lower the contacts at any length.
 3. **The arena, not czp.** A's safety layer stops acting once A is in the zone (and
    `ARENA_HOLD_STOP` is False, as documented in 074). So any car of B's that is in the zone when A's
    patience restarts gets hit at low speed. It is the reference adversary for G0, so it stays as it
@@ -110,3 +115,31 @@ stays as it is.
   stock nodes (pose_instability_detector, awapi_awiv_adapter, manual_lane_change_handler). The two
   arms are alike in this, so it does not bias G0. The bundle's `HOST_FROM` was meant to supply the
   overlay, but no step of `setup.sh` links it.
+
+## Screen of the tie's timing (241, 2026-11-20)
+
+`czp_rows_check.py` (formal check: cross, 2 cars, e 0.55, Autoware's launch, rest lag 0.8 s,
+impatient adversary at patience 2-9 s, and 2-car self-play) and `p2g_screen.py` (G0 screen, 20
+seeds: Autoware in B, and the arena model). The variants are experiment patches
+(`scripts/coop/p2g_069_pre.py`); czp is not changed for them. Contacts are czp in B against the
+two patience-5 rules (tinfp5 / t1.5p5), of 360 runs each:
+
+| variant | formal check, patience 2-9 | self-play worst wait | Autoware in B | arena model |
+|---|---|---|---|---|
+| before part 1 (2ca86ab) | safe | 19.1 s | 0 / 1 | 1 / 0 |
+| part 1 | safe | 18.7 s | 3 / 2 | 3 / 3 |
+| part 1 + (a) watch to 6.5 s | safe | 18.7 s | 3 / 2 | 3 / 3 |
+| part 1 + (a) watch to 7.5 s | safe | 18.7 s | 1 / 2 | 3 / 6 |
+| part 1 + (a) watch to 8.5 s | safe | 18.7 s | 2 / 1 | 26 / 22 |
+| part 1 + (b) no probe | unsafe at 2/3/4 s: 80/207/60 runs | 18.7 s | 165 / 176: G0 fails | 5 / 4 |
+| stock (yb2p5 in B) | | | 51 / 53 | 208 / 208 |
+
+- **(b) is out.** It is unsafe in the formal check at patience 2-4 s, and with Autoware in B it is
+  worse than stock in both patience-5 cells.
+- **(a) changes nothing at 6.5 s:** the watch already ends more than 6.5 s after the later rest as
+  czp stamps it (the rest guard, the creep and the watch, with the rest lag). At 7.5 s the counts
+  stay within the noise; at 8.5 s the arena model's contacts rise to 26 and 22. A longer watch
+  meets later restarts instead.
+- **Part 1 alone** passes every check, but in the screens it has 4-5 more contacts in 720 than
+  before. The models do not reproduce the overrun itself. Its earlier stop request starts the
+  watch, and so the go, a little earlier.

@@ -26,6 +26,11 @@ Rules (crossing_game.A_RULES): "t1.5p5" (the arena's stock-like A: gap 1.5 s, pa
 (aggressive: always go, its safety layer only), "tinfp5" (yielding: goes only once B has cleared Z,
 or after 5 s at rest). And "hold" (078 P2b, EV5's non-yielding A): from the lock A holds its speed at the
 lock and never brakes for B, no safety layer at all (a car that cannot or will not yield).
+And four_way_game's stop-sign rules (074 U3, C8; on the j979 stop-sign map), e.g. "stop1y_c1.5"
+(Autoware with a stop sign: stop 1 s at the line, then its mutual-yield test) or "fcfse_c0" (the
+fail-safe FCFS, (e)): four_way_game.FWPolicy, its stop line at A's map stop line (`stop_line_m`
+before the lanelet's end at the junction) and its role by side (config "b_right": B on A's right,
+the ego's "left" site; else A plays four_way_game's B, the car on the right).
 
 The driving is the arena's: acb's pedal maps and lags (arena.Longitudinal, PedalLag), pure pursuit on
 A's lane line. Logs every world tick (20 Hz) both cars' truth in CARLA's frame, u and v of each, B's
@@ -53,6 +58,7 @@ import scensim_agent  # noqa: E402
 from scensim_agent import protocol as P  # noqa: E402
 import arena as AR  # noqa: E402
 import crossing_game as G  # noqa: E402
+import four_way_game as FW  # noqa: E402
 import cutin_agent as CA  # noqa: E402
 
 A_ACC = 3.0  # m/s^2, A's launch from rest
@@ -91,7 +97,10 @@ class CrossingAgent(CA.CutInAgent):
         c = self.config
         self.rule_name = rule_name
         self.hold = rule_name == "hold"  # held speed, never brakes (EV5)
-        self.rule = next(r for r in G.A_RULES if r[0] == ("go" if self.hold else rule_name))
+        self.fw_rule = next((r for r in FW.RULES if r[0] == rule_name), None)  # a stop-sign rule (U3)
+        self.rule = None if self.fw_rule else next(r for r in G.A_RULES if r[0] == ("go" if self.hold else rule_name))
+        self.b_right = bool(c.get("b_right", True))
+        self.stop_line_m = float(c.get("stop_line_m", 0.5))
         self.dt = float(c["dt"])
         self.v_ref = float(c.get("v", 8.0))
         self.b_vmax = float(c.get("b_vmax", 8.0))
@@ -138,7 +147,24 @@ class CrossingAgent(CA.CutInAgent):
             s = ((pb[0] - pa[0]) * db[1] - (pb[1] - pa[1]) * db[0]) / den
             self.centre = (pa[0] + da[0] * s, pa[1] + da[1] * s)
             self.exit = G.W_BOX + self.ext["A"][0]
-            self.pol = G.Policy("A", self.rule, self.v_ref, hold_stop=G.ARENA_HOLD_STOP, exit_=self.exit)
+            self.stops = {}
+            if self.fw_rule:
+                # each car's stop line, as u: the junction's entry on its lane less stop_line_m (the U3 map's
+                # stop lines are 0.5 m before the approach lanelet's end); FWPolicy reads one STOP for both
+                for k, w in (("A", wa), ("B", wbp)):
+                    e = w
+                    for _ in range(400):
+                        nx = e.next(0.5)
+                        if not nx or nx[0].is_junction:
+                            break
+                        e = nx[0]
+                    self.stops[k] = self._u(k, e.transform.location) - self.stop_line_m
+                FW.STOP = self.stops["A"]
+                self.pol = FW.make_policy("A" if self.b_right else "B", self.fw_rule, self.v_ref,
+                                          hold_stop=G.ARENA_HOLD_STOP, exit_=self.exit,
+                                          other_exit=G.W_BOX + self.ext["B"][0])
+            else:
+                self.pol = G.Policy("A", self.rule, self.v_ref, hold_stop=G.ARENA_HOLD_STOP, exit_=self.exit)
             self.vb_hist = deque()
             self.t0 = self.world.world.get_snapshot().timestamp.elapsed_seconds
             self.stage = "wait"
@@ -152,7 +178,8 @@ class CrossingAgent(CA.CutInAgent):
         self.log.info(f"A: rule {self.rule_name}, dt {self.dt}, v {self.v_ref}; Z at {self.centre[0]:.2f}, {self.centre[1]:.2f}; "
                       f"physics {'OFF ' + str(off) if off else 'as the spec'}")
         self.log_event("setup", rule=self.rule_name, dt=self.dt, v=self.v_ref, ext=self.ext, centre=list(self.centre),
-                       lane_a=la(wa), lane_b=la(wbp), exit=self.exit, t0=self.t0, physics_off=bool(off),
+                       lane_a=la(wa), lane_b=la(wbp), exit=self.exit, t0=self.t0, physics_off=bool(off), stops=self.stops,
+                       fw_role=(None if not self.fw_rule else ("A" if self.b_right else "B")),
                        u0={"A": self._u("A", me.get_location()), "B": self._u("B", self.other.get_location())})
 
     def log_event(self, what, **kw):
@@ -267,7 +294,7 @@ class CrossingAgent(CA.CutInAgent):
                 "B": [round(bloc.x, 3), round(bloc.y, 3), round(byaw, 4), round(bv.x, 3), round(bv.y, 3)],
                 "ua": round(ua, 3), "ub": round(ub, 3), "va": round(v, 3), "vb": round(vb, 3), "ab": round(ab, 3),
                 "eta_b": round(min(eta_b, 999.0), 3), "accel": round(accel, 3),
-                "committed": bool(self.pol.committed), "th": round(th, 3), "br": round(br, 3)}) + "\n")
+                "committed": bool(getattr(self.pol, "committed", getattr(self.pol, "go", False))), "th": round(th, 3), "br": round(br, 3)}) + "\n")
 
     last_stamp = None
 

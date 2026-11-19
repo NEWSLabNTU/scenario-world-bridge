@@ -21,6 +21,11 @@ bag and the scenario start; it should return when the host is quiet enough, and 
 as the run's "gate". --load-log FILE (lines "<epoch s> <1-min load> <PSI cpu some avg10>", written by the caller
 every few seconds) gives each run its in-run load (from the scenario's start to its end); a run whose 1-min load
 exceeded --load-max is invalid ("invalid_load": 1) and rerun as an invalid run is (--redo-invalid).
+
+074 U3 on Autoware (the all-way stop): --map <dir> runs the ego, the scenario's LogicFile and czp's zones
+(--zones, built from that map) on another Town05 map, the j979 stop-sign variant; A then takes one of
+four_way_game's stop-sign rules (--rules stop1y_c1.5,fcfse_c0; crossing_agent.py). Each run also scores
+both cars' rest at their stop lines (their order, tie distance) and a deadlock (neither car in Z by the end).
 """
 
 import argparse
@@ -72,7 +77,7 @@ def tag_of(arm, dt, rule, seed, side="left"):
     return f"{arm}_dt{dt:g}_{rule}_s{seed}" + ("" if side == "left" else f"_{side}")
 
 
-def scenario(path, site, tag):
+def scenario(path, site, tag, logic=None):
     car = '''<CatalogReference catalogName="vehicles" entryName="tesla_model3">
 				<ParameterAssignments>
 					<ParameterAssignment parameterRef="maxSpeed" value="50" />
@@ -102,7 +107,7 @@ def scenario(path, site, tag):
 	<FileHeader author="scenario-world-bridge" date="2026-11-15T00:00:00+00:00" description="078 P2 crossing {tag}" revMajor="1" revMinor="2" />
 	<ParameterDeclarations />
 	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
-	<RoadNetwork><LogicFile filepath="$(env CARLA_MAPS)/Town05" /></RoadNetwork>
+	<RoadNetwork><LogicFile filepath="{logic or '$(env CARLA_MAPS)/Town05'}" /></RoadNetwork>
 	<Entities>
 {nl.join(ents)}
 	</Entities>
@@ -192,12 +197,29 @@ def score(rd, dt):
             "aB_lock": lk.get("ab"), "uB_lock": lk.get("ub"), "uA_lock": lk.get("ua"),
             "valid": int(dt_lock is not None and abs(dt_lock - dt) <= DT_TOL),
             "both_cleared": int(out_a is not None and out_b is not None),
-            "t_run": round(last["t"] - t_lock, 1) if last else None, "physics_off": ev["setup"].get("physics_off")}
+            "t_run": round(last["t"] - t_lock, 1) if last else None, "physics_off": ev["setup"].get("physics_off"),
+            "deadlock": int(math.isinf(fa) and math.isinf(fb)), **rests(run, t_lock, ev["setup"].get("stops") or {})}
+
+
+def rests(run, t_lock, stops):
+    """074 U3: each car's first rest (v < 0.1) within 3 m before its stop line, relative to the lock, and
+    their order: rest_d = tA_rest - tB_rest (> 0: B, the ego, stopped first). Empty off the stop-sign map."""
+    if not stops:
+        return {}
+    t = {}
+    for r in run:
+        for k, u, v in (("A", r["ua"], r["va"]), ("B", r["ub"], r["vb"])):
+            if k not in t and v < 0.1 and stops[k] - 3.0 <= u < 0:
+                t[k] = r["t"] - t_lock
+    ta, tb = t.get("A"), t.get("B")
+    return {"tA_rest": None if ta is None else round(ta, 2), "tB_rest": None if tb is None else round(tb, 2),
+            "rest_d": None if ta is None or tb is None else round(ta - tb, 2),
+            "stopA_u": round(stops["A"], 2), "stopB_u": round(stops["B"], 2)}
 
 
 # --- runs ---------------------------------------------------------------------------------------
-def ego_args(arm, rd, zones, extra):
-    a = [f"map_path:={MAP}", "lidar_detection_model:=centerpoint", f"max_velocity:={B_VMAX:g}",
+def ego_args(arm, rd, zones, extra, map_dir=MAP):
+    a = [f"map_path:={map_dir}", "lidar_detection_model:=centerpoint", f"max_velocity:={B_VMAX:g}",
          f"carla_physics:={PHYSICS}"] + extra
     if arm in ("on", "commit"):
         a += ["interaction_strategy:=true", f"interaction_strategy_zones:={zones}",
@@ -279,13 +301,13 @@ def run_one(out, arm, dt, rule, seed, side, a):
             (rd / old).rename(rd / f"{old}.failed{n}")
     site = SITES[side]
     xosc = rd / "p2x.xosc"
-    scenario(xosc, site, tag)
+    scenario(xosc, site, tag, logic=a.map if a.map != str(MAP) else None)
     base = {"arm": arm, "dt": dt, "rule": rule, "seed": seed, "side": side, "tag": tag}
     t0 = time.monotonic()
     env = dict(os.environ)
     if arm == "commit":  # the node on a czp config of its own (czp.config's CZP_CONFIG): --commit-config
         env["CZP_CONFIG"] = a.commit_config
-    ego = subprocess.Popen(["just", "ego-av", *ego_args(arm, rd, a.zones, a.ego_extra.split() if a.ego_extra else [])],
+    ego = subprocess.Popen(["just", "ego-av", *ego_args(arm, rd, a.zones, a.ego_extra.split() if a.ego_extra else [], a.map)],
                            cwd=ROOT, env=env, stdout=open(rd / "ego.log", "w"), stderr=subprocess.STDOUT, start_new_session=True)
     PROCS[:] = [ego]
     ok = False
@@ -304,7 +326,7 @@ def run_one(out, arm, dt, rule, seed, side, a):
     gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
            "a_ref": list(site["a_ref"]), "b_ref": list(site["b_ref"]), "log": str(rd / "coop_a.jsonl"),
-           "carla_port": a.carla_port}
+           "carla_port": a.carla_port, "b_right": side == "left"}
     (rd / "coop_a.json").write_text(json.dumps(cfg))
     agent = subprocess.Popen([sys.executable, str(ROOT / "scripts/coop/crossing_agent.py"), "--relay", a.relay,
                               "--entity", "coop_a", "--config", str(rd / "coop_a.json")],
@@ -345,6 +367,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True)
     ap.add_argument("--zones", default="/mnt/p5plus/aeon/coop/p1/zones/Town05/zones.yaml")
+    ap.add_argument("--map", default=str(MAP), help="the ego's map_path and the scenario's LogicFile (074 U3: the stop-sign map)")
     ap.add_argument("--carla-port", type=int, default=int(os.environ.get("CARLA_PORT", 2000)))
     ap.add_argument("--relay", default=f"tcp://127.0.0.1:{os.environ.get('AGENT_PORT', '5560')}")
     ap.add_argument("--ego-web-port", type=int, default=int(os.environ.get("SCENSIM_WEB_PORT", 8080)) + 2)

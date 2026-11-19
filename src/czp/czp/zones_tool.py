@@ -292,6 +292,11 @@ class MapZones:
         stop_all = all("stop_sign" in regs[i] for i in lls)
         zones = []
         for ia, ib, hull in zs:
+            # an all-way stop is decided per zone, over the zone's own two approaches (074 U3, 241): Town05
+            # j979's cluster also holds 110124, a 40 m lane with no predecessor (so no stop sign) that
+            # overlaps one of its zones; that zone stays cross_unsignalled, the junction's others need no
+            # junction-wide rule
+            zstop = "stop_sign" in regs[ia] and "stop_sign" in regs[ib]
             aps = []
             for i in (ia, ib):
                 path, off, nxt = paths[i]
@@ -302,12 +307,15 @@ class MapZones:
                 pr = "equal"
                 if "right_of_way" in regs[i]:
                     pr = self.row_priority(self.by_id[i])
-                if stop_all:
+                if zstop:
                     pr = "all_way_stop"
                 aps.append(Approach(id=str(i), lanelet=i, heading=h, order=order[i], priority=pr,
                                     stop_line=self.stop_line(self.by_id[i]), entry_s=e_s, exit_s=x_s,
                                     width=width_of(self.by_id[i]), centerline=tuple(path[::2]), exit_lanelet=nxt))
-            kind = self.kind_of(ia, ib, regs, stop_all)
+            kind = self.kind_of(ia, ib, regs, zstop)
+            if kind == "cross_unsignalled" and any("stop_sign" in regs[i] for i in lls):
+                print(f"czp-zones: {jid}_{ia}_{ib} is cross_unsignalled in a junction with stop signs "
+                      f"(stop sign on {ia}: {'stop_sign' in regs[ia]}, on {ib}: {'stop_sign' in regs[ib]})")
             exit_box = []
             for ap in aps:
                 path = paths[ap.lanelet][0]

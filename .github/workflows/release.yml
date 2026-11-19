@@ -663,6 +663,12 @@ jobs:
           docker run --rm ros:$DISTRO bash -c "
             set -e
             apt-get update -qq && apt-get install -y -qq python3-pip >/dev/null
-            python3 -m pip install -q --user $flag scensim==$VERSION colcon-scensim==$VERSION
+            # PyPI's index can lag a publish by seconds to minutes (0.2.0's after (jazzy) did not
+            # see colcon-scensim 0.2.0 yet): retry 5 x 30 s before calling it a failure
+            for i in 1 2 3 4 5; do
+              python3 -m pip install -q --user --no-cache-dir $flag scensim==$VERSION colcon-scensim==$VERSION && break
+              [ \$i = 5 ] && exit 1
+              echo \"pip install failed (try \$i of 5), retrying in 30 s for PyPI's index\"; sleep 30
+            done
             ~/.local/bin/scensim install && ~/.local/bin/scensim --version" 2>&1 | tee out.txt
           { echo "### After ($DISTRO)"; echo '```'; tail -20 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

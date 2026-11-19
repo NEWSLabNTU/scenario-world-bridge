@@ -41,14 +41,17 @@ submodule moved since `v0.2.0`), the requirements or the install.
   and an Isaac world cannot change its map once loaded, so a run of another map (the Haruna
   course of [Drive a course on Isaac Sim](how-to/drive-a-course-on-isaac.md)) ran against
   the wrong world.
+- **An Isaac car asked to move with its brakes released can roll** (issue 070, aib
+  `release_torque`): PhysX's sticky tyres held a standing car whose brakes were released, so
+  Autoware's downhill start (a slight brake, gravity expected to start the car) never moved.
 - The Haruna how-to fixes the course scenario's old names (`SWB_MAPS`, the installed
   catalog), which `testbench check` refuses.
 
 ### Known issues
 
-- **The Isaac ego does not start from rest on a downhill under Autoware** (issue 070): on
-  the Haruna course's start Autoware asks for a slight brake, expecting gravity to start the
-  car, and the Isaac car stands still. The course is not completed yet.
+- **Haruna's course is not completed on Isaac** (issue 072): its point cloud map is too large
+  for Autoware's compare-map filter, so static map points stop the ego about 230 m in. A
+  divided map is needed.
 
 ### Before the release
 

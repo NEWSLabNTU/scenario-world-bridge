@@ -13,8 +13,20 @@ Frame. SVL wrote its OpenDRIVE turned 90 degrees against its own map frame: map 
 north) = (y, -x) of the file's. The roads are turned back (each geometry's x, y and heading;
 everything else in OpenDRIVE is relative to the reference line), so the OpenDRIVE, the FBX
 and the Lanelet2 map share the map's local ENU frame (svl_to_usd.py). CARLA's world is that
-frame with y negated, as for any OpenDRIVE map. The geoReference keeps SVL's: a transverse
-Mercator at the map origin, which is what CARLA's GNSS reads (lat_0, lon_0).
+frame with y negated, as for any OpenDRIVE map.
+
+Georeference (roadmap 087). The map frame is metres from the origin on the UTM grid (SVL's
+OriginEasting/OriginNorthing), but SVL wrote it as a transverse Mercator about the origin with
+the origin's UTM position as a false easting and northing, which read as OpenDRIVE says puts the
+map 215 km away, and which no Autoware projector can hold. It is rewritten as UTM with an
+<offset> to the origin (`+proj=utm +zone=Z`, keeping lat_0 and lon_0 for CARLA's GNSS), from
+which acb's carla_map_gen writes an MGRS map in the frame SVL's own Lanelet2 map uses.
+
+Two more repairs make the file convertible to Lanelet2 (crdesigner, under both acb's
+carla_map_gen and CARLA's map tools): signal ids become integers (crdesigner parses them as
+int; SVL wrote `stop_sign_9`), with their references; and lane width and mark records past the
+end of their lane section are dropped (SVL sampled lane widths along each lane's own, longer
+boundary: 106 records on 57 roads of one map, the reference line evaluated past its end).
 
 The FBX is built in Blender in that frame (metres, z up) and exported with Blender's
 defaults, which UE imports in centimetres with its y mirrored: CARLA's convention. Meshes
@@ -94,10 +106,76 @@ def fix_controllers(root):
     return added
 
 
-def rotate_xodr(src, dst):
-    """map (x, y) = (y, -x) of SVL's file; headings less 90 degrees."""
+def int_signal_ids(root):
+    """Give every signal a numeric id; <signalReference id>, <control signalId> and <dependency
+    id> follow. Returns the number of signals renumbered."""
+    sigs = list(root.iter("signal"))
+    used = {int(g.get("id")) for g in sigs if re.fullmatch(r"-?\d+", g.get("id", ""))}
+    nxt = max(used | {0}) + 1
+    ids = {}
+    for g in sigs:
+        sid = g.get("id", "")
+        if not re.fullmatch(r"-?\d+", sid) and sid not in ids:
+            ids[sid] = str(nxt)
+            nxt += 1
+    for tag, attr in (("signal", "id"), ("signalReference", "id"), ("control", "signalId"),
+                      ("dependency", "id")):
+        for e in root.iter(tag):
+            if e.get(attr) in ids:
+                e.set(attr, ids[e.get(attr)])
+    return len(ids)
+
+
+def clip_lane_records(root):
+    """Drop lane <width>, <border> and <roadMark> records whose sOffset lies past the end of their
+    lane section. Returns the number dropped."""
+    n = 0
+    for rd in root.iter("road"):
+        length = float(rd.get("length"))
+        lanes = rd.find("lanes")
+        secs = lanes.findall("laneSection") if lanes is not None else []
+        for i, sec in enumerate(secs):
+            end = (float(secs[i + 1].get("s")) if i + 1 < len(secs) else length) - float(sec.get("s"))
+            for lane in sec.iter("lane"):
+                for tag in ("width", "border", "roadMark"):
+                    for e in lane.findall(tag):
+                        off = float(e.get("sOffset"))
+                        if off > 0 and off > end - 1e-3:
+                            lane.remove(e)
+                            n += 1
+    return n
+
+
+def utm_georeference(root, zone, easting, northing):
+    """The header's georeference as UTM with an <offset> to the map origin (map frame = UTM less
+    the origin), keeping SVL's lat_0/lon_0 in the string for CARLA's GNSS."""
+    header = root.find("header")
+    if header is None:
+        header = ET.Element("header")
+        root.insert(0, header)
+    g = header.find("geoReference")
+    old = (g.text or "") if g is not None else ""
+    keep = " ".join(t for t in old.split() if t.split("=")[0] in ("+lat_0", "+lon_0"))
+    if g is None:
+        g = ET.SubElement(header, "geoReference")
+    g.text = f"+proj=utm +zone={int(zone)} {keep + ' ' if keep else ''}+datum=WGS84 +units=m +no_defs"
+    for o in header.findall("offset"):
+        header.remove(o)
+    off = ET.Element("offset", {"x": repr(float(easting)), "y": repr(float(northing)), "z": "0", "hdg": "0"})
+    header.insert(list(header).index(g) + 1, off)
+
+
+def rotate_xodr(src, dst, origin=None):
+    """map (x, y) = (y, -x) of SVL's file; headings less 90 degrees; signal ids, lane records and,
+    given origin (UTM zone, easting, northing of the map origin), the georeference repaired."""
     tree = ET.parse(src)
     root = tree.getroot()
+    renumbered = int_signal_ids(root)
+    clipped = clip_lane_records(root)
+    if renumbered or clipped:
+        print(f"xodr: {renumbered} signal ids made numeric, {clipped} lane records past their section dropped")
+    if origin is not None:
+        utm_georeference(root, *origin)
     n = 0
     for g in root.iter("geometry"):
         x, y, hdg = float(g.get("x")), float(g.get("y")), float(g.get("hdg"))
@@ -202,7 +280,12 @@ def main():
     a = ap.parse_args()
     d = os.path.join(a.out, a.name)
     os.makedirs(d, exist_ok=True)
-    n = rotate_xodr(a.xodr, os.path.join(d, f"{a.name}.xodr"))
+    org = json.load(open(os.path.join(a.dump, "scene.json"))).get("map_origin") or {}
+    origin = ((org["UTMZoneId"], org["OriginEasting"], org["OriginNorthing"])
+              if {"UTMZoneId", "OriginEasting", "OriginNorthing"} <= set(org) else None)
+    if origin is None:
+        print("xodr: no UTM map origin in scene.json; georeference left as SVL wrote it")
+    n = rotate_xodr(a.xodr, os.path.join(d, f"{a.name}.xodr"), origin)
     print(f"xodr: {n} geometries turned into the map frame")
     build_fbx(a.dump, os.path.join(d, f"{a.name}.fbx"), d, a.name)
     with open(os.path.join(a.out, f"{a.name}.json"), "w") as f:

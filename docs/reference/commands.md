@@ -165,6 +165,8 @@ started when none is up.
 | `--wait S` | wait up to S for the stack to become ready (default: refuse at once) |
 | `--start-stack` | start the project's stack when none is up (and leave it up); implied for a testbench |
 | `--stop-stack` | as `--start-stack`, then stop the stack after the runs; it stops only a stack this command started, and one already up stays up |
+| `--seats <list>` or `auto` | a suite on several seats at once, each with its own stack and CARLA (the seat table needs `seats.carla`): a free seat takes the next run, and every run goes into the suite's one report. A seat starts only with room on its GPU and in the host load (`dispatch` in the host settings); when a run's vehicle bridge skips more CARLA frames than `dispatch.skip_limit`, one seat fewer takes work; a seat whose stack does not become ready is retired and its run goes to another. The seats' stacks are stopped at the end. Not with `--seat`, `--shard`, `--wait` or `--stop-stack`; CARLA testbenches only |
+| `--keep-stacks` | with `--seats`: leave the seats' stacks up |
 | `--stack-timeout S` | how long a started stack may take to become ready (default `--wait`, else 1800) |
 | `--ready-timeout S` | how long a run waits for its pilots' readiness (600 s) |
 | `--seat N`, `--project DIR`, `--logs DIR` | instead of the host settings' and the working directory's |

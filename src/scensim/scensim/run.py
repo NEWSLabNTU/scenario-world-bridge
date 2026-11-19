@@ -1493,6 +1493,11 @@ def main(argv=None, out=None, stack_command=None) -> int:
                          "already up stays up")
     ap.add_argument("--stack-timeout", type=float,
                     help=f"seconds a started stack has to become ready ({STACK_START_TIMEOUT:.0f})")
+    ap.add_argument("--seats", metavar="LIST|auto",
+                    help="run the suite on these seats at once (0,1 or auto), each with its own "
+                         "stack and CARLA (seats.carla), into one report (roadmap 088)")
+    ap.add_argument("--keep-stacks", action="store_true",
+                    help="with --seats: leave the seats' stacks up afterwards (default: stopped)")
     try:
         args = ap.parse_args(ros_args(sys.argv[1:] if argv is None else argv))
     except SystemExit as e:
@@ -1557,9 +1562,86 @@ def resolve_target(args) -> dict:
     return {"name": tb.name, "workspace": str(tb.workspace())}
 
 
+def _dispatch(args, out, tbinfo) -> int:
+    """``--seats``: the suite on several seats at once (scensim.dispatch)."""
+    from scensim import dispatch, seat as seatmod
+    try:
+        project = config.writable_project(config.find_project(args.project or None))
+        host = config.host_settings(project, {"logs": args.logs} if args.logs else {})
+        if config.project_settings(project).get("simulator") != "carla":
+            raise Refused(f"--seats runs a CARLA testbench; {project.name} is on "
+                          f"{_simulator(project) or 'no simulator'}")
+        seats = dispatch.parse_seats(args.seats, host, seatmod.seats_source(project))
+        cfg = dispatch.settings(host)
+    except (config.ConfigError, dispatch.DispatchRefused) as e:
+        raise Refused(str(e)) from None
+    specs, suite = expand(Path(args.target), project, args.repeat, _parse_params(args.param))
+    if args.timeout:
+        for s in specs:
+            s.timeout = args.timeout
+    if args.capture:
+        for s in specs:
+            s.logging = {**(s.logging or {}), "capture": args.capture, "keep": {}}
+    suite_dir = None
+    if suite is not None:
+        suite_dir = stackmod.project_root(host["logs"], project.resolve().name) / "suites" \
+            / _token(Path(args.target).stem)
+        suite_dir.mkdir(parents=True, exist_ok=True)
+    elif args.resume:
+        raise Refused("--resume is for suites (their runs are linked by name)")
+    worst = EXIT_OK
+    done = set()
+    if suite_dir is not None:
+        for link in suite_dir.iterdir():
+            if not link.is_symlink():
+                continue
+            if args.resume and (link / "result.json").is_file():
+                r = runsmod.load(link) or {}
+                out.write(f"skipped  {link.name}  (resume: {r.get('verdict')} in "
+                          f"{os.path.realpath(link)})\n")
+                done.add(link.name)
+                spec = next((s for s in specs if s.key == link.name), None)
+                if spec is not None and r.get("verdict") in results.VERDICTS:
+                    worst = max(worst, outcome(results.RunResult(spec.key, r["verdict"]),
+                                               spec.expect))
+            else:
+                link.unlink()
+    todo = [s for s in specs if s.key not in done]
+    if todo:
+        lg = logging_for(config.project_settings(project).get("logging"), todo[0].logging)
+        try:
+            problem = budgetmod.check(lg.get("budget"), len(todo), runs_dir(project, host))
+        except ValueError as e:
+            problem = f"logging.budget: {e}"
+        if problem:
+            raise Refused(problem)
+    out.write(f"dispatch {len(todo)} run(s) on seat(s) {', '.join(str(s.index) for s in seats)}"
+              f"\n")
+    out.flush()
+    d = dispatch.Dispatcher(
+        todo, seats, cfg, suite_dir, (suite or {}).get("retry"), out=out,
+        worker_argv=dispatch.worker_argv_for(project, args.logs, args.ready_timeout,
+                                             args.stack_timeout, args.keep_stacks, tbinfo))
+    return max(worst, d.run())
+
+
+def _seats_flags(args):
+    """The flags --seats does not take, refused before anything else is looked at."""
+    if not args.seats:
+        if args.keep_stacks:
+            raise Refused("--keep-stacks is for --seats")
+        return
+    for flag, given in (("--seat", args.seat), ("--shard", args.shard), ("--wait", args.wait),
+                        ("--stop-stack", args.stop_stack)):
+        if given:
+            raise Refused(f"--seats takes no {flag}: each seat's stack is started for the suite "
+                          "and stopped after it (--keep-stacks leaves them up)")
+
+
 def _main(args, out, stack_command=None) -> int:
     ctx = None
     try:
+        _seats_flags(args)
         tbinfo = resolve_target(args)
         if tbinfo is not None:
             # a testbench's stack is started when none serves it, and left up (081 step 3)
@@ -1573,6 +1655,8 @@ def _main(args, out, stack_command=None) -> int:
             check_scenarios(early, expand(Path(args.target), early, args.repeat,
                                           _parse_params(args.param))[0],
                             testbench=early.name if testbenches.is_work_dir(early) else None)
+        if args.seats:
+            return _dispatch(args, out, tbinfo)
         ctx = context(args.project, args.seat, args.logs, args.wait,
                       start=args.start_stack or args.stop_stack, stack_command=stack_command,
                       stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,

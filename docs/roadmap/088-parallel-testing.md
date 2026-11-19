@@ -98,6 +98,48 @@ Findings for step 2:
 - With `seats.carla`, each seat needs an explicit `--seat n` (`seat: auto` is refused) and its
   own `--logs`.
 
+## Step 2 design: the dispatcher (118, 2026-11-19)
+
+`scensim run <suite> --seats <list|auto>`, a CARLA testbench only.
+
+- **One worker process per seat.** The dispatcher (the `scensim run` process) expands the
+  suite as today, then starts a worker per seat (`python -m scensim.dispatch worker`), each in
+  its own session. A worker is the existing runner with one seat: `context(seat=n,
+  start=True)` starts the seat's stack (its CARLA from `seats.carla`, started by the stack as
+  `carla.root` does; the open question answered: the stack, not the dispatcher), then asks
+  for one run at a time on a pipe (JSON lines), runs it with `run_spec`, and answers with the
+  run's directory and verdict. A process, not a thread: each worker's SSv2, pilots and stack
+  are stopped by its own SIGTERM path (`run.cli`), which only a process main thread has.
+- **The queue** is the suite's specs in order (map order per seat is the stack's concern).
+  A free worker gets the next spec; a run that ends `error` is retried as the suite's
+  `retry:` says, on whichever seat is free next.
+- **Admission.** A seat starts its stack only when the host has room for it: free VRAM on its
+  GPU (`nvidia-smi`) at least `dispatch.vram_per_seat_mb` (3000, step 1's ~3 GB per ego seat)
+  and the 1-minute load plus `dispatch.load_per_seat` (12) at most the core count; seats
+  start `dispatch.start_gap` s apart (30), so one seat's start load is seen before the next.
+  A seat that cannot be admitted waits, and the suite runs on the seats that were.
+- **Overload.** After each run the dispatcher reads the seat's acb_bridge `Skipped N CARLA
+  frame(s)` lines from the stack's logs since the run started. A run with more than
+  `dispatch.skip_limit` (20; step 1: 7-12 per suite at <= 2 seats, 34+ per seat at 3) lowers
+  the number of seats handed work by one (never below one): the seat that saw it finishes
+  its run and is parked, its stack left up and idle. The limit is not raised again within a
+  suite; the next suite starts from all admitted seats.
+- **Retirement.** A seat whose stack does not become ready (issue 064's readiness, its
+  `StackFailed`), or whose pilots do not come back after a crash (`pilots_broken`), is
+  retired: its worker stops its stack and ends, its run goes back to the queue once, and the
+  report names the seat and why. No seat is restarted within a suite.
+- **One report.** Runs go under the host's one log root (`new_run_dir` is safe across
+  processes), so `runs list` sees them all; the suite's directory is the usual
+  `<logs>/<testbench>/suites/<suite>/`, one link per run, and its `summary.csv` and
+  `junit.xml` come from `runs.summarize` as for one seat. `scripts/t3.py compare` reads that
+  file, so it runs unchanged. `--resume` skips linked runs as today.
+- **Ending.** The dispatcher stops the stacks its workers started when the suite ends (they
+  are the seats' own CARLAs; `--keep-stacks` leaves them up). SIGINT or SIGTERM stops every
+  worker's group, each through its own stop path, then exits 130 or 143.
+- **Refused:** `--seats` with `--seat`, `--shard`, a project not on CARLA, a seat table
+  without `seats.carla` (two seats would share one CARLA), a seat named twice or outside the
+  table, and `auto` when no seat is free.
+
 ## Open questions
 
 - Is the per-seat CARLA started by the stack (`carla.root` already starts one) or by the

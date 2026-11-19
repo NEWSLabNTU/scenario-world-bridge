@@ -548,6 +548,36 @@ The crossing now probes every go from a mutual rest.**
   **Revisit that case if e is ever raised.** (NAS `... P2g launch guard probe (241)/issue066/`.)
 - **Next:** rerun the grid's left t1.5p5 cells, czp and stock, on fresh seeds (4 each), at 1c84d14,
   on a quieter host. Read the node's CPU against wall summary per run.
+- **The rerun on 133** (3505a08; seeds 8-11, 40 runs; load mean 65, max 162; NAS `2026-11-19 078 P2g
+  rerun left t1.5p5 (133)`):
+
+  | arm | runs | contacts | ego first | last out (s, mean) |
+  |---|---|---|---|---|
+  | stock | 20 | 0 | 18 | 14.19 |
+  | czp | 20 | 1 | 5 | 16.81 |
+
+  - Issue 066 is fixed. The self contract failed on 0 ticks (P2g: 56), and no committed go was
+    handed over (P2g: 6). Decision CPU p99 median 18.45 ms, wall 18.8 ms (P2g wall 24.99 ms).
+  - **The landing criterion is not met: G0 fails in dt0.3_t1.5p5**, as on P2g's grid. The
+    contact is issue 069, not 066.
+  - EV4 held out (fit on P2f's seeds 0-1, e 0.55): pooled coverage 0.957, e99 1.49; 0-10 m 0.979,
+    10-20 m 0.972, 20-30 m 0.694 (n 72).
+- **Issue 069: the probe crept into the zone.** B rested 0.56 m from the zone. The rest tie's
+  probe crept, and the watch began with the car at 0.81 m/s 0.14 m out, where Autoware cannot stop
+  it. The go then met t1.5p5's patience restart, 5.0 s after A's rest. The arena's A drives on once
+  it is in the zone, and the cars touched. P2g's grid has the same overrun once, without a contact.
+  133's decisions (2026-11-20):
+  - the probe asks the car to stop while it still can: a stop margin of 0.1 m + 1.0 s x speed, the
+    envelope of the 15 creeps stopped in both grids. A car resting within the margin at
+    `creep_speed` watches at rest, and an overrun is recorded as `probe_overrun`;
+  - the tie's timing: (a) a watch until a 5 s patience restart would be seen, and (b) no probe on
+    the rest tie, screened before any code;
+  - the arena's A stays as it is, G0's reference adversary.
+- **The Autoware overlay was not built in the P2 grids.** Every ego log of P2g's grid (64 runs)
+  and the rerun's (40) says "Autoware overlay not built", in both arms, so the comparisons are
+  stock Autoware against stock Autoware. P2f's grid ran on the same host settings, and its logs
+  were not checked. The overlay stays unbuilt for the rest of the P2 series (133, 2026-11-20), so
+  that it stays comparable with P2f and P2g. It comes on at the next series' new baseline.
 
 ### Phase 3: test runs
 

@@ -281,6 +281,25 @@ def test_every_example_scenario_parses():
     assert [e.name for e in project.read_scenario(awf).entities if e.external] == ["ego"]
 
 
+
+REPO = Path(__file__).resolve().parents[3]
+
+
+@pytest.mark.skipif(not EXAMPLES.is_dir(), reason="scensim_examples not here")
+def test_every_shipped_ego_is_the_catalogs_car():
+    """An ego declared inline carries one simulator's body, which the bridge refuses on
+    another (CARLA 1.0's Model 3 is 10 cm shorter than 0.9.16's; T3 on 1.0, 083 step 6):
+    every shipped scenario's ego is a CatalogReference into $(env SCENSIM_VEHICLES)."""
+    dirs = [EXAMPLES, EXAMPLES.parent / "projects", REPO / "scenarios" / "projects"]
+    files = [f for d in dirs if d.is_dir() for f in project._scenarios_in(d)]
+    assert any(f.suffix == ".yaml" for f in files)
+    for f in files:
+        sc = project.read_scenario(f)
+        for e in sc.entities:
+            if e.name == "ego" and e.external:
+                assert e.catalog_entry and not e.geometry, f
+                assert project.VEHICLES_CATALOG in sc.vehicle_catalogs, f
+
 # --- the example projects (src/scensim_examples/projects) and `new --from` -----------------------
 
 PROJECTS = EXAMPLES.parent / "projects"

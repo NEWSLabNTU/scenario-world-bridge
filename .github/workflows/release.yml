@@ -670,5 +670,8 @@ jobs:
               [ \$i = 5 ] && exit 1
               echo \"pip install failed (try \$i of 5), retrying in 30 s for PyPI's index\"; sleep 30
             done
-            ~/.local/bin/scensim install && ~/.local/bin/scensim --version" 2>&1 | tee out.txt
+            ~/.local/bin/scensim install && ~/.local/bin/scensim --version" 2>&1 | tee out.txt \
+            || status=$?
+          # the summary is written for a failed install too, then the step fails with it
           { echo "### After ($DISTRO)"; echo '```'; tail -20 out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "${status:-0}"

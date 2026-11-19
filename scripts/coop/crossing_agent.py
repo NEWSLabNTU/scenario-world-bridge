@@ -223,8 +223,11 @@ class CrossingAgent(CA.CutInAgent):
         loc, yaw, v = self._truth(me)
         bloc, byaw, vb = self._truth(self.other)
         ua, ub = self._u("A", loc), self._u("B", bloc)
+        # what the pacing aims at: Z's near edge, or under a stop-sign rule each car's stop line (074 U3 defines
+        # dt between the two cars' arrivals at their lines; j979's lines are 17.5 and 5.2 m from Z)
+        pa, pb = (ua - self.stops["A"], ub - self.stops["B"]) if self.fw_rule else (ua, ub)
         ab = self._b_accel(el, vb)
-        eta_b = self._eta_b(ub, vb, ab)
+        eta_b = self._eta_b(pb, vb, ab)
         for k, u in (("A", ua), ("B", ub)):
             if u >= 0 and f"{k}_in" not in self.seen:
                 self.seen[f"{k}_in"] = t
@@ -239,25 +242,25 @@ class CrossingAgent(CA.CutInAgent):
         seen = self.obs.push(t, ub, 0.0, vb)
         if self.stage == "wait":
             accel = -3.0
-            if t > 0.5 and eta_b + self.dt <= t_cover(-ua, v, self.v_ref, A_ACC) + G.LAUNCH_DEAD:
+            if t > 0.5 and eta_b + self.dt <= t_cover(-pa, v, self.v_ref, A_ACC) + G.LAUNCH_DEAD:
                 self.stage = "approach"
                 self.log_event("launch", t=t, ua=ua, ub=ub, vb=vb, ab=ab, eta_b=eta_b)
         if self.stage == "approach":
             want = eta_b + self.dt
             dv = DV  # the whole band to the lock: at dt -1 A needs ~12 m/s against an ego still accelerating
-            self.v_cmd = max(self.v_ref - dv, min(self.v_ref + dv, -ua / max(want, 0.1))) if ua < 0 else self.v_ref
-            if v < self.v_cmd - 0.5 and t_cover(-ua, v, self.v_cmd, A_ACC) > want:
+            self.v_cmd = max(self.v_ref - dv, min(self.v_ref + dv, -pa / max(want, 0.1))) if pa < 0 else self.v_ref
+            if v < self.v_cmd - 0.5 and t_cover(-pa, v, self.v_cmd, A_ACC) > want:
                 self.v_cmd = self.v_ref + dv  # behind the aim: catch up
             accel = max(-3.0, min(A_ACC, 1.5 * (self.v_cmd - v)))
-            if eta_b <= T_LOCK or ub >= -1.0:
+            if eta_b <= T_LOCK or pb >= -1.0:
                 self.stage = "run"
                 self.el_lock = el
                 self.t_lock = t
                 tr = 0.0
-                t_a = -ua / max(v, 0.1)
+                t_a = -pa / max(v, 0.1)
                 self.pol.v0 = max(v, 1.0)
                 self.log_event("lock", t=t, ua=ua, va=v, ub=ub, vb=vb, ab=ab, eta_b=eta_b, t_a=t_a,
-                               dt_lock=t_a - eta_b, dt_const=t_a - (-ub / max(vb, 0.1)))
+                               dt_lock=t_a - eta_b, dt_const=t_a - (-pb / max(vb, 0.1)))
         if self.stage == "run":
             if seen is not None and seen[0] >= self.t_lock - 1e-9 and self.last_stamp != seen[0]:
                 self.last_stamp = seen[0]

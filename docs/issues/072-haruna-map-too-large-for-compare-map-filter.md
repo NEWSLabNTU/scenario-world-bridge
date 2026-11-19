@@ -1,6 +1,6 @@
 # 072: Haruna's point cloud map is too large for Autoware's compare-map filter: static points stop the ego
 
-**Severity**: high (the how-to's Haruna course cannot be completed). **Status**: open.
+**Severity**: high (the how-to's Haruna course cannot be completed). **Status**: open: the profile part is landed (autoware_sim_vehicle 1e0bc40, scensim pins c0254a9e); the divided map waits for a dataset revision.
 **Found**: 2026-11-20, swb 118, haruna_down on `isaac_first_drive` with scensim's profile, once
 issue 070 was fixed.
 
@@ -46,8 +46,26 @@ With static loading the filter merges the tiles into one grid again and it still
 with dynamic loading it loads the tiles within 150 m of the car. So the fix is a divided map
 (a new revision of `haruna-tsukuba-courses`, the user's to publish) and dynamic loading for
 it. scensim's profile turned dynamic loading off for acb issue 029 (a street lamp held the
-ego at Town01's spawn point 0), so it cannot simply be turned on again: that needs Town01
-checked with it, or a per-map choice. Open.
+ego at Town01's spawn point 0), so it is not turned on again everywhere.
+
+## The profile's part (landed 2026-11-20)
+
+autoware_sim_vehicle 1e0bc40: the profile picks the filter's loading by the map, derived and
+not configured. A divided map (`pointcloud_map.pcd` a directory of tiles, with
+`pointcloud_map_metadata.yaml`) gets dynamic loading, upstream's own parameter file; anything
+else (one PCD file, as every CARLA town, whose metadata names that one file) keeps the
+profile's static file. The launch logs the choice:
+
+```
+compare-map filter: dynamic map loading, a divided map, 140 tiles in .../haruna/pointcloud_map.pcd
+compare-map filter: static map loading, one point cloud file (.../Town01/pointcloud_map.pcd)
+```
+
+Checked on 118 with it as landed: haruna_down on the divided candidate map passed (382.4 s
+simulated, 0 contacts, no overflow warning); Town01 on CARLA with the published map
+(first_drive's pedestrian_crossing) loaded statically and passed. What remains is the dataset
+revision with the divided map (the user's to publish); until then the published Haruna map is
+one PCD and loads statically, as before.
 
 ## Evidence
 

@@ -1,6 +1,6 @@
 # 090: A Third-Party Simulator and Autopilot (AWSIM, Apollo)
 
-**Status**: study opened 2026-11-19 (user).
+**Status**: step 1 done 2026-11-19; decided **not now** for both (user): findings recorded below, revisit when a user or study needs one.
 
 ## Question
 
@@ -58,3 +58,35 @@ my_ws/src/
 
 A decision per case (support, support with named limits, or not now), each with its effort,
 and the scensim changes either needs.
+
+## Step 1 result (241, 2026-11-19)
+
+Report with a source for every claim: NAS `logs/2026 SSv2 on CARLA/2026-11-19 090 step 1 paper
+study AWSIM and Apollo (241)/`. **Neither can run in scensim's lockstep time as it is.**
+
+**AWSIM** (autowarefoundation/AWSIM main 7b803d8, v2.0.1; AWSIM-Labs is archived). It serves
+SSv2's ZMQ interface itself (SSv2 PR #1099); by default Unity runs freely and `update_frame`
+only copies SSv2's time; its "step execution" raises `timeScale` for a wall-time sleep, so
+physics steps per frame depend on timing; there is no `Physics.Simulate` or step API.
+Lockstep needs a fork of AWSIM's C# (script-driven physics, sensors on sim time), about 2-4
+weeks; then either AWSIM speaks `swb_world.proto` (+2 weeks) or the bridge gets an SSv2
+pass-through (~1 week). AWSIM is the ego's vehicle side itself (a Lexus RX450h; its own
+scenes, no CARLA towns, ~1-2 weeks for a first map); its connector settings live in the scene
+(an editor build of our own). About 1-2 months to parity.
+
+**Apollo**. Cyber RT's mock clock has no clock channel, its timers sleep in wall time, and
+Control is a timer component; prior art (carla_apollo_bridge) runs on wall time; the official
+ROS 2 bridge existed only in v10. What works: a `cyber_py3` adapter in Apollo's container
+talking to scensim's agent protocol over TCP (1-2 weeks), headless engage, Apollo maps of
+several CARLA towns from carla_apollo_bridge, the Docker build (8.7 GB, CUDA 11.8). Lockstep
+needs a Cyber fork (mock clock from `/clock`, timers on it, a per-step barrier), 4-8 weeks; a
+pilot paced at 1x wall time with named limits (not stepped, not reproducible step for step)
+is about 3-4 weeks.
+
+**What scensim would need for either**: an SSv2 pass-through (or world-server mode) for a
+simulator that speaks SSv2; a simulator-native ego (the simulator is the vehicle side, the
+Autoware pilot's vehicle interface off, the car's spec for the body check); a host key for a
+binary simulator; a paced wall-clock run mode with stamp mapping (scensim is lockstep
+throughout); a container pilot speaking the agent protocol over TCP; per-autopilot map assets.
+
+Gap 3 (`simulator: none` in the reference) is closed (a6f14eb).

@@ -34,7 +34,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
 from . import zones as ZN
-from .config import load_params
+from .config import load_contracts, load_params
 from .contracts import SelfWindow
 from .record import to_json
 from .strategy import Obj, Status, Strategy
@@ -78,8 +78,14 @@ class InteractionStrategy(Node):
         self.statuses = {m: [] for m in self.modules}
         self.cycle_time = 0.0
         self.cycle_times = []  # the whole ticks (decision, RTC calls, records), for the shutdown summary
-        self.decision_times = []  # Strategy.cycle's own time per tick, for the summary
-        self.self_window = SelfWindow(SELF_WINDOW)  # the self contract's reading: the decision cycles only
+        self.decision_times = []  # Strategy.cycle's own wall time per tick, for the summary
+        self.decision_cpu = []  # and its CPU time
+        # the self contract's state over the decision cycles only: CPU time against R10's bound, wall time against
+        # the tick period (liveness), a full window, hysteresis (issue 066)
+        self_c = load_contracts().get("self") or {}
+        self.self_window = SelfWindow(SELF_WINDOW, bound=float(self_c.get("bound", 0.020)),
+                                      hold=float(load_params().mode_hold),
+                                      period=1.0 / float(self.get_parameter("rate_hz").value))
         rel = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(PredictedObjects, "/perception/object_recognition/objects", self.on_objects, rel)
         self.create_subscription(Odometry, "/localization/kinematic_state", self.on_odom, rel)
@@ -185,12 +191,15 @@ class InteractionStrategy(Node):
         t = self.now_s()
         age = 0.0 if self.obj_stamp is None else max(0.0, t - (self.obj_stamp.sec + self.obj_stamp.nanosec * 1e-9))
         sts = [s for m in self.modules for s in self.statuses[m]]
-        # the self contract on the median of the last SELF_WINDOW *decision* cycles (R10's budget): a reading per
-        # cycle flapped stock <-> decision every 0.1-0.5 s (078 P2), and the whole tick (RTC calls, records, the log
-        # file) still straddled the bound and flipped single ticks (078 P2f; P2g)
-        acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, self.self_window.median())
-        self.self_window.add(self.strategy.last_cycle)
+        # the self contract over the last SELF_WINDOW *decision* cycles (R10's budget), kept by SelfWindow: a reading
+        # per cycle flapped stock <-> decision every 0.1-0.5 s (078 P2), the whole tick straddled the bound (078 P2f),
+        # and a wall-time median at the bound still flipped single ticks under load (078 P2g, issue 066)
+        sw = self.self_window
+        acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, sw.reading(), self_ok=sw.ok,
+                                   alive=sw.alive)
+        sw.add(t, self.strategy.last_cycle_cpu, self.strategy.last_cycle)
         self.decision_times.append(self.strategy.last_cycle)
+        self.decision_cpu.append(self.strategy.last_cycle_cpu)
         self.heartbeat()  # names the modules this cycle switches to manual before the switch is sent
         if acts.held_dropped != getattr(self, "_held_dropped", ()):
             self._held_dropped = acts.held_dropped
@@ -247,10 +256,13 @@ class InteractionStrategy(Node):
         if self.cycle_times:
             xs = sorted(self.cycle_times)
             ds = sorted(self.decision_times) or [0.0]
+            dc = sorted(self.decision_cpu) or [0.0]
             self.get_logger().info(json.dumps({"cycles": len(xs), "p50_ms": round(1e3 * xs[len(xs) // 2], 3),
                                                "p99_ms": round(1e3 * xs[int(0.99 * (len(xs) - 1))], 3),
                                                "decision_p50_ms": round(1e3 * ds[len(ds) // 2], 3),
                                                "decision_p99_ms": round(1e3 * ds[int(0.99 * (len(ds) - 1))], 3),
+                                               "decision_cpu_p50_ms": round(1e3 * dc[len(dc) // 2], 3),
+                                               "decision_cpu_p99_ms": round(1e3 * dc[int(0.99 * (len(dc) - 1))], 3),
                                                "commands": self.strategy.counts}))
 
 

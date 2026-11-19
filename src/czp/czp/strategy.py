@@ -146,9 +146,11 @@ class Strategy:
         self.dropped = dropped
         return dec, z, s_entry_by_zone[z.id]
 
-    def cycle(self, t, ego, objects, traj=None, statuses=(), obs_age=0.0, cycle_time=0.0, max_zones=3):
-        """ego: (x, y, yaw, v, a). objects: [Obj]. statuses: [Status] of the driven modules. Returns Actions."""
-        t0 = time.perf_counter()
+    def cycle(self, t, ego, objects, traj=None, statuses=(), obs_age=0.0, cycle_time=0.0, max_zones=3, self_ok=None,
+              alive=True):
+        """ego: (x, y, yaw, v, a). objects: [Obj]. statuses: [Status] of the driven modules. Returns Actions.
+        cycle_time, self_ok, alive: the self contract's reading and state (contracts.SelfWindow; issue 066)."""
+        t0, c0 = time.perf_counter(), time.thread_time()
         x, y, yaw, v, a = ego
         acts = Actions()
         agents = []
@@ -171,7 +173,7 @@ class Strategy:
             rel = conflict_set(relate(near_agents, own, [z], cache=cache).get(z.id, []))
             confl = [ag for _, ag in rel]
             confl_by_zone[z.id], s_entry_by_zone[z.id] = confl, s_entry
-            inp = C.Inputs(obs_age=obs_age, cycle_time=cycle_time,
+            inp = C.Inputs(obs_age=obs_age, cycle_time=cycle_time, self_ok=self_ok, alive=alive,
                            track_age={ag.id: ag.track_age for ag in confl},
                            accel={ag.id: (ag.a, ag.cap.a_max, ag.cap.b_max) for ag in confl})
             dec, rec = self.proto.step(t, own, confl, z, inp, obs_age=obs_age)
@@ -241,6 +243,7 @@ class Strategy:
         self.counts["auto_mode"] += len(acts.auto_mode)
         self.counts["velocity_limit"] += acts.velocity_limit is not None
         self.last_cycle = time.perf_counter() - t0
+        self.last_cycle_cpu = time.thread_time() - c0
         return acts
 
 

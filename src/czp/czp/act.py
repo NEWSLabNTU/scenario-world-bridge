@@ -12,7 +12,9 @@ the velocity limit, the arena car's command -- is the adapter's.)
   gap-test and patience restarts in 1-3 of 90 runs per cell, where stock met none). The commit is the
   protocol's: it no longer retracts its own go, but Autoware's safety layer (obstacle stop, the AEB) still acts, and once that
   brings the car to rest the commit is released (it is no longer moving); a failed contract (stock) is
-  never latched or committed over;
+  never latched or committed over, except the self contract's on a live node: a committed go does not change
+  hands for a slow decision (issue 066, 078 P2g: a go from rest, moving under ``commit: on_move``, went to stock
+  for one tick at a 20 ms median and the other car went first);
 - the go latch (074 C8 fix (a)): a go is held for the car's launch dead time, unless an agent is in
   the zone or seen moving off its line (the "turn" guard). A go begun from rest is held further, until the
   car first moves under it (above ``moved_speed``) or ``go_latch_motion_timeout`` has passed, against a wait only (a
@@ -39,12 +41,17 @@ def commit_point_passed(own, cap=None):
 
 
 def latch(new: Decision, prev: Decision, prev_since, go_since, own, own_moving, params, t, row=None,
-          go_from_rest=False):
+          go_from_rest=False, slow=False):
     """The decision to act on, and whether it is a new one (for the record and the latch's clock).
     own_moving: the car is moving under a go that began from rest (what ``commit: on_move`` commits).
-    go_from_rest: the current go began with the car below ``moved_speed`` (the latch until motion)."""
+    go_from_rest: the current go began with the car below ``moved_speed`` (the latch until motion).
+    slow: the only failing contract is the self contract, on a live node (contracts.slow_only)."""
     row = row or {}
     if new.kind == STOCK and new.reason == "contract":
+        if slow and prev is not None and prev.kind == GO and \
+                ((row.get("commit") == "on_move" and own_moving) or commit_point_passed(own)):
+            return replace(prev, committed=True, reason=prev.reason if prev.committed else prev.reason + "+committed",
+                           latched_until=t), False
         return new, prev is None or prev.kind != STOCK or prev.reason != new.reason  # a failed contract hands the car
         #                                                   to stock at once: no latch or commit holds over it
     if prev is not None and prev.kind == GO:

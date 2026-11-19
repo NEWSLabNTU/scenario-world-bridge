@@ -51,6 +51,7 @@ class Protocol:
         # 9. contracts (before the decision: a failure hands the car to stock, or marks an agent)
         states = C.check(self.contracts, inputs)
         stock, phantom, forced, _refuse = C.fallback(states)
+        slow = stock and C.slow_only(states, inputs)  # only the self contract, on a live node (issue 066)
         confl = [replace(a, phantom=True) if a.id in phantom else a for a in confl]
         # memory
         mem = update_memory(self.memory(zone.id), t, own, confl, p, exit_clear, bystanders)
@@ -76,7 +77,7 @@ class Protocol:
         if mem.go_since is not None and own.v > p.moved_speed:
             mem.go_moved = True
         dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, moving_from_rest, p, t, row,
-                             go_from_rest=mem.go_from_rest and not mem.go_moved)
+                             go_from_rest=mem.go_from_rest and not mem.go_moved, slow=slow)
         if changed:
             mem.decision_since = t
             mem.flips += 1

@@ -709,30 +709,113 @@ def test_protocol_go_waits_for_the_later_rest():
 
 
 def test_the_self_contract_reads_the_decision_cycles_median():
-    """078 P2g: the self contract's reading is the median of the last decision cycles, so one slow cycle (or the
-    node's own I/O, which is not fed to it) does not flip the car to stock."""
-    from czp import contracts as C
+    """078 P2g: the self contract's reading is the median of the last decision cycles' CPU time, so one slow cycle
+    (or the node's own I/O, which is not fed to it) does not flip the car to stock; a sustained overrun does."""
     from czp.config import load_contracts
     w = C.SelfWindow(10)
-    assert w.median() == 0.0
-    for x in [0.004] * 9 + [0.030]:  # one slow decision among ten
-        w.add(x)
-    assert w.median() == 0.004
-    ok = {s.name: s.ok for s in C.check(load_contracts(), C.Inputs(cycle_time=w.median()))}
+    for k, x in enumerate([0.004] * 9 + [0.030]):  # one slow decision among ten
+        w.add(0.1 * k, x, x)
+    assert w.reading() == 0.004 and w.ok
+    ok = {s.name: s.ok for s in C.check(load_contracts(), C.Inputs(cycle_time=w.reading(), self_ok=w.ok))}
     assert ok["self"]
-    for x in [0.030] * 6:  # a sustained overrun still fails the contract
-        w.add(x)
-    assert w.median() == 0.030 and len(w.times) == 10
-    assert not {s.name: s.ok for s in C.check(load_contracts(), C.Inputs(cycle_time=w.median()))}["self"]
+    for k in range(6):  # a sustained overrun still fails the contract
+        w.add(1.0 + 0.1 * k, 0.030, 0.030)
+    assert w.reading() == 0.030 and len(w.cpu) == 10 and not w.ok
+    assert not {s.name: s.ok for s in C.check(load_contracts(), C.Inputs(cycle_time=w.reading(), self_ok=w.ok))}["self"]
+
+
+def test_the_self_window_judges_a_full_window_only():
+    """Issue 066 F1: the first cycle is cold (20-26 ms); a window of one read it and 25 of 32 P2g runs failed the
+    self contract at their second tick."""
+    w = C.SelfWindow(10)
+    w.add(0.0, 0.026, 0.026)
+    assert w.reading() == 0.0 and w.ok and w.alive
+    for k in range(1, 9):
+        w.add(0.1 * k, 0.026 if k < 6 else 0.001, 0.03)
+    assert not w.full and w.ok
+    w.add(0.9, 0.001, 0.03)
+    assert w.full and not w.ok  # a full window of slow decisions fails
+
+
+def test_the_self_window_has_hysteresis():
+    """Issue 066 F2: a median at the bound fails once and recovers only below 0.75 x bound after mode_hold."""
+    w = C.SelfWindow(10, bound=0.020, recover=0.75, hold=1.5)
+    t = 0.0
+    for _ in range(10):
+        w.add(t, 0.021, 0.021)
+        t += 0.1
+    assert not w.ok
+    for _ in range(10):  # back to 0.019: under the bound, not under 0.015: still failed
+        w.add(t, 0.019, 0.019)
+        t += 0.1
+    assert not w.ok
+    for _ in range(10):  # under 0.015, and failed for over 1.5 s: recovered
+        w.add(t, 0.010, 0.010)
+        t += 0.1
+    assert w.ok
+    w2 = C.SelfWindow(10, hold=1.5)
+    for k in range(10):
+        w2.add(0.1 * k, 0.03, 0.03)
+    assert not w2.ok and w2.fail_since == 0.9
+    for k in range(6):  # fast again at once, but only 0.6 s after the failure: held
+        w2.add(1.0 + 0.1 * k, 0.001, 0.001)
+    assert not w2.ok
+
+
+def test_the_self_contract_reads_cpu_time_and_wall_time_is_liveness():
+    """Issue 066 F4: R10's bound judges CPU time; wall time (preemption on a loaded host) only against the tick
+    period, as liveness."""
+    w = C.SelfWindow(10, period=0.1)
+    for k in range(10):
+        w.add(0.1 * k, 0.005, 0.040)  # 5 ms of work, 40 ms on the wall
+    assert w.ok and w.alive
+    for k in range(10):
+        w.add(1.0 + 0.1 * k, 0.005, 0.150)  # the tick period exceeded on the wall: not alive
+    assert w.ok and not w.alive
+    from czp.config import load_contracts
+    st = {s.name: s for s in C.check(load_contracts(), C.Inputs(cycle_time=w.reading(), self_ok=w.ok, alive=w.alive))}
+    assert not st["self"].ok
+
+
+def test_a_slow_decision_does_not_take_a_committed_go():
+    """Issue 066 F3: a self-contract failure on a live node leaves a committed go as it is (078 P2g's contact: a go
+    from rest, moving under commit on_move, went to stock at a 20 ms median and the other car went first); a node
+    that is not alive, or any other failed contract, still hands the car to stock at once."""
+    own = car("A", s_entry=0.8, v=0.5)
+    row = CONV["cross_unsignalled"]
+    stock = Decision(STOCK, "j", "contract")
+    go = Decision(GO, "j", "rest_tie+probe")
+    d, changed = latch(stock, go, 0, 0, own, True, P, 5.0, row, slow=True)
+    assert d.kind == GO and d.committed and not changed
+    d, _ = latch(stock, go, 0, 0, own, True, P, 5.0, row, slow=False)
+    assert d.kind == STOCK  # not the self contract alone, or the node not alive
+    far = car("A", s_entry=30.0, v=0.0)
+    d, _ = latch(stock, go, 0, 0, far, False, P, 5.0, row, slow=True)
+    assert d.kind == STOCK  # a go not yet committed (still at rest): slowness hands it over
+    # through Protocol.step: the self contract fails on a live node while the car moves under a go from rest
+    z = Zone("j", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+    for alive, want in ((True, GO), (False, STOCK)):
+        pr = czp.Protocol()
+        pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "rest_tie"), decision_since=0.0, go_since=0.0,
+                              go_from_rest=True, own_moving_since=0.5, own_rest_t=-3.0)
+        dec, _ = pr.step(1.0, car("A", s_entry=1.5, v=1.2), [], z,
+                         C.Inputs(obs_age=0.2, cycle_time=0.021, self_ok=False, alive=alive))
+        assert dec.kind == want, (alive, dec)
+    pr = czp.Protocol()  # the latency contract failing too: stock at once
+    pr.mem[z.id] = Memory(decision=Decision(GO, z.id, "rest_tie"), decision_since=0.0, go_since=0.0,
+                          go_from_rest=True, own_moving_since=0.5, own_rest_t=-3.0)
+    dec, _ = pr.step(1.0, car("A", s_entry=1.5, v=1.2), [], z, C.Inputs(obs_age=5.0, cycle_time=0.021, self_ok=False))
+    assert dec.kind == STOCK
 
 
 def test_the_node_feeds_the_self_contract_the_decision_time_only():
-    """078 P2g: node.tick passes the window's median (Strategy.last_cycle, the decision) and never its whole tick
-    (RTC calls, records, the log file: 078 P2f's 162 flips at a 0.018-0.026 s median)."""
+    """078 P2g, issue 066: node.tick passes SelfWindow's state over the decision's own times (CPU and wall), never
+    its whole tick (RTC calls, records, the log file: 078 P2f's 162 flips at a 0.018-0.026 s median)."""
     import inspect
     import pytest
     pytest.importorskip("rclpy")
     from czp import node
     src = inspect.getsource(node.InteractionStrategy.tick)
-    assert "self.self_window.median()" in src and "self.self_window.add(self.strategy.last_cycle)" in src
+    assert "sw.reading(), self_ok=sw.ok" in src and "alive=sw.alive" in src
+    assert "sw.add(t, self.strategy.last_cycle_cpu, self.strategy.last_cycle)" in src
     assert "self.cycle_times[-SELF_WINDOW:]" not in src

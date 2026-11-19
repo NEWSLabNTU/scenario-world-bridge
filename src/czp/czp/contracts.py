@@ -22,8 +22,9 @@ class ContractState:
 @dataclass(frozen=True)
 class Inputs:
     obs_age: float = 0.0  # s, the age of the newest objects message
-    cycle_time: float = 0.0  # s, the node's last cycle
+    cycle_time: float = 0.0  # s, the self contract's reading (SelfWindow.reading: the decisions' CPU-time median)
     alive: bool = True
+    self_ok: object = None  # the self contract's state when the adapter keeps one (SelfWindow.ok), else cycle_time <= bound
     map_ok: bool = True
     track_age: dict = field(default_factory=dict)  # agent id -> s tracked (conflicting agents)
     accel: dict = field(default_factory=dict)  # agent id -> (observed a, class a_max, class b_max)
@@ -32,22 +33,60 @@ class Inputs:
 
 
 class SelfWindow:
-    """The self contract's reading: the median of the last ``n`` *decision* cycles (Strategy.cycle's own time,
-    ``Strategy.last_cycle``). R10's 20 ms is the decision's budget; the node's whole tick also holds the RTC
-    service calls, the record publishing and the log file's writes, whose time made the median straddle the
-    bound and flip the car to stock and back for single ticks (078 P2f: 162 of 805 logged decisions; 078 P2g)."""
+    """The self contract's state, kept by the adapter over the last ``n`` decision cycles (Strategy.cycle's own
+    time, ``Strategy.last_cycle_cpu`` and ``last_cycle``; issue 066, 078 P2g):
 
-    def __init__(self, n=10):
-        self.n = n
-        self.times = []
+    - R10's ``bound`` (20 ms) judges the median of the decisions' *CPU* time (``time.thread_time``): wall time on
+      a loaded host counts preemption, which is not the decision's cost (P2g's grid ran at load 52-113 and nice 19);
+    - wall time is judged only against the tick ``period`` (100 ms at 10 Hz), as liveness: a window whose wall
+      median exceeds the period is a node that is not alive;
+    - judged on a full window only: the first cycle is cold (20-26 ms, then under 1 ms), and a window of one read
+      it (25 of 32 P2g runs failed at t0 + 0.1 s);
+    - hysteresis: it fails when the median exceeds the bound and recovers only once the median is below
+      ``recover`` x bound and it has failed for ``hold`` s; a median at the bound flipped the car to stock and back
+      every few ticks (P2g: 219 of 891 logged decision lines)."""
 
-    def add(self, decision_time):
-        self.times.append(float(decision_time))
-        del self.times[:-self.n]
+    def __init__(self, n=10, bound=0.020, recover=0.75, hold=1.5, period=0.1):
+        self.n, self.bound, self.recover, self.hold, self.period = n, bound, recover, hold, period
+        self.cpu, self.wall = [], []
+        self.ok, self.alive = True, True
+        self.fail_since = None
 
-    def median(self):
-        xs = sorted(self.times) or [0.0]
+    @staticmethod
+    def _median(xs):
+        xs = sorted(xs) or [0.0]
         return xs[len(xs) // 2]
+
+    @property
+    def full(self):
+        return len(self.cpu) >= self.n
+
+    def reading(self):
+        """The CPU-time median the contract reports (0.0 until the window is full)."""
+        return self._median(self.cpu) if self.full else 0.0
+
+    def wall_median(self):
+        return self._median(self.wall) if self.full else 0.0
+
+    def add(self, t, cpu, wall):
+        self.cpu.append(float(cpu))
+        self.wall.append(float(wall))
+        del self.cpu[:-self.n], self.wall[:-self.n]
+        if not self.full:
+            return
+        self.alive = self.wall_median() <= self.period
+        med = self.reading()
+        if self.ok and med > self.bound:
+            self.ok, self.fail_since = False, t
+        elif not self.ok and med < self.recover * self.bound and t - self.fail_since >= self.hold - 1e-9:
+            self.ok, self.fail_since = True, None
+
+
+def slow_only(states, inp):
+    """The only stock fallback is the self contract's, on a live node: the decision is slow, not broken (issue 066:
+    a committed go does not change hands for that)."""
+    failing = {s.name for s in states if not s.ok and s.fallback == "stock"}
+    return bool(inp.alive) and failing == {"self"}
 
 
 def check(contracts, inp: Inputs):
@@ -58,7 +97,8 @@ def check(contracts, inp: Inputs):
         out.append(ContractState("latency", inp.obs_age <= c["bound"], round(inp.obs_age, 3), c["fallback"]))
     c = contracts.get("self")
     if c:
-        out.append(ContractState("self", inp.alive and inp.cycle_time <= c["bound"], round(inp.cycle_time, 4), c["fallback"]))
+        ok = inp.self_ok if inp.self_ok is not None else inp.cycle_time <= c["bound"]
+        out.append(ContractState("self", bool(inp.alive and ok), round(inp.cycle_time, 4), c["fallback"]))
     c = contracts.get("map")
     if c:
         out.append(ContractState("map", bool(inp.map_ok), bool(inp.map_ok), c["fallback"]))

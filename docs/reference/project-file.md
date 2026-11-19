@@ -23,7 +23,7 @@ ground: {}                              # Isaac: per map, surface files
 logging: {capture: standard, keep: {passed: result, failed: full, error: full}}
 judges: []                              # programs over each finished run
 world: {}                               # weather, NPC motion, the bridge's config
-carla: {}                               # CARLA: the quality and arguments it is started with
+carla: {}                               # CARLA: its quality and arguments
 isaac: {}                               # Isaac: the world server's options
 ssv2: {}                                # SSv2's run settings for every run
 ```

@@ -37,11 +37,25 @@ submodule moved since `v0.2.0`), the requirements or the install.
   dirty).
 - The release workflow retries the published packages' install while PyPI's index catches up,
   and writes its summary when that install fails.
+- **A stack `scensim run` starts is on the run's map.** It was on the testbench's first map,
+  and an Isaac world cannot change its map once loaded, so a run of another map (the Haruna
+  course of [Drive a course on Isaac Sim](how-to/drive-a-course-on-isaac.md)) ran against
+  the wrong world.
+- The Haruna how-to fixes the course scenario's old names (`SWB_MAPS`, the installed
+  catalog), which `testbench check` refuses.
+
+### Known issues
+
+- **The Isaac ego does not start from rest on a downhill under Autoware** (issue 069): on
+  the Haruna course's start Autoware asks for a slight brake, expecting gravity to start the
+  car, and the Isaac car stands still. The course is not completed yet.
 
 ### Before the release
 
 - The Isaac examples' live check (`isaac_first_drive`, `road_physics`), promised for 0.2.1
-  in 0.2.0's notes.
+  in 0.2.0's notes: run on 118 (2026-11-20), where every Isaac render of Town01 loses the GPU
+  on its driver (issue 005), so all four scenarios ended without a verdict; they need a host
+  with a working driver (139).
 - Branch `088-startup-hold` (no run starts beside another seat's stack start-up), after 133's
   check.
 - The version, the tag and the publish are the user's.

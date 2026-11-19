@@ -43,6 +43,10 @@ Live runs before the release (scensim built from source):
   run on 2.1.0.
 - **CARLA 1.0**, Tutorial 1 from a source build (2026-11-18, Autoware 1.5.0): passed. This
   release's binaries are for CARLA 0.9.16 only (below).
+- **The shipped examples**, both ways on Autoware 1.5.0 (2026-11-19): `safety_suite`,
+  `multi_pilot` and the `multi-pilot` template passed stock and with the profile.
+  `first_drive`'s `pedestrian_crossing` passed with the profile and failed stock 3 of 3, so
+  `first_drive` names the profile (below). The Isaac examples were not run live.
 
 ### What is new
 
@@ -60,6 +64,13 @@ Live runs before the release (scensim built from source):
   scenarios are tested with: traffic signals from the simulator, the `clustering` lidar
   detector, parameters for a simulated car. The profile is an optional package in the same
   `autoware-side.repos`.
+- **A speed limit reaches stock Autoware.** Stock Autoware serves
+  `/api/autoware/set/velocity_limit` only under its `scenario_simulation` switch, so the
+  stock pilot passes `scenario_simulation:=true`: on 1.5.0 it adds the deprecated API, on
+  2.1.0 the evaluation adapter, and removes nothing. A launch of your own needs it too, or a
+  scenario's speed limit is never applied ([Connect your
+  Autoware](how-to/connect-autoware.md)). scensim's profile on Autoware 2.0.0 and 2.1.0
+  passes it as well.
 - **The car's Autoware packages are checked against your Autoware.** Each declares the
   Autoware releases it supports and those it was tested on. `testbench check` and every run
   refuse a missing package or an Autoware outside the supported releases, naming both, and
@@ -107,6 +118,16 @@ Live runs before the release (scensim built from source):
   Ubuntu 24.04's default 18; `scripts/release/build_sim.sh` uses `/usr/lib/llvm-14/lib` when
   it is installed. [Install](getting-started/install.md) lists the three differences from a
   Humble build.
+
+### Known issues
+
+- **Stock Autoware 1.5.0 and a crossing pedestrian.** In `first_drive`'s
+  `pedestrian_crossing`, stock Autoware drove into the space of the pedestrian in front of
+  it; scensim's profile stops more than 1 m short. `first_drive` and Tutorial 3 use the
+  profile.
+- **Autoware 1.5.0's planner can abort on a new route**, about once in 64 route changes, in
+  either configuration (autoware_universe#12460); the run ends with an error and a retry
+  passes.
 
 ### Fixed since 0.1.0
 

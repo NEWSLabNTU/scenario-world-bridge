@@ -6,7 +6,9 @@ Two probes:
   ``creep_speed``), then holds and watches for ``probe_watch``; only if nobody moved off its line
   meanwhile does it go. A hard verdict during the probe (someone moved or entered) aborts it, and the
   car yields from where it is (still before the zone). Any other go while the probe runs, or after it was aborted, is
-  probed too (078 P2g).
+  probed too (078 P2g). The creep ends while the car can still stop before the zone (``stop_margin``, issue
+  069): a car resting within the margin at ``creep_speed`` watches at rest, and a car that enters the zone
+  during the creep or the watch goes on as ``probe_overrun``.
 - the claim probe, when a go needs the other to yield: creep and classify the other's filtered
   acceleration (``classify_response``): yield is <= -yield_decel held ``yield_hold`` within the window;
   a hold steps the car down to yield before its commit point; a creep that gains nothing within
@@ -23,6 +25,14 @@ from .model import CREEP, GO, YIELD, Decision
 PROBED = ("round2", "cycle", "last_resort", "first_probe", "rest_tie")
 
 
+def stop_margin(v, params):
+    """Issue 069: how far before the zone the car must be asked to stop, at speed v, to stop before it. Autoware
+    keeps accelerating for about 0.4 s after a stop request, then brakes. The envelope of the creeps stopped in
+    078 P2g's grid and its rerun (15 stops requested at 0.06-0.20 m/s, travel 0.04-0.25 m) is
+    ``probe_stop_margin + probe_stop_time * v``; above 0.2 m/s it is extrapolated."""
+    return params.probe_stop_margin + params.probe_stop_time * max(v, 0.0)
+
+
 def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=None):
     """(decision, new probe state). A probed go becomes CREEP (reason probe:creep / probe:watch) until done.
     The creep is measured from the car's rest at its line (rest_s), once per rest: a later round watches
@@ -31,14 +41,22 @@ def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=N
     # (078 P2g) a probe under way or aborted is not bypassed: another go during the creep or the watch, or after an
     # abort (the rest guard's "clear", read off the other's rest) is probed; else it went at once from the line,
     # with the other's start not yet visible, as the probe was there to prevent
+    if decision.kind == GO and decision.reason == "inside" and ps.phase in ("creep", "watch"):
+        # issue 069: the car entered the zone during the probe (it could not stop before it): it goes on, committed,
+        # and the record says so
+        return replace(decision, reason="probe_overrun"), ProbeState("done", t, ps.start_s, ps.reason)
     probing = ps.phase in ("creep", "watch", "abort") and decision.reason != "inside"
     if decision.kind == GO and (decision.reason in PROBED or probing) and row.get("probe_round2", False):
         if ps.phase == "done":
             return decision, ps
         if ps.phase not in ("creep", "watch"):
-            ps = ProbeState("creep", t, own.s_entry if rest_s is None else max(rest_s, own.s_entry), decision.reason)
+            start_s = own.s_entry if rest_s is None else max(rest_s, own.s_entry)
+            # issue 069: a car within the margin of a creep at creep_speed watches where it is
+            room = own.s_entry > stop_margin(params.creep_speed, params)
+            ps = ProbeState("creep" if room else "watch", t, start_s, decision.reason)
         if ps.phase == "creep":
-            if ps.start_s - own.s_entry >= params.probe_creep_dist - 0.05 or own.s_entry <= 0.35:
+            if (ps.start_s - own.s_entry >= params.probe_creep_dist - 0.05
+                    or own.s_entry <= max(0.35, stop_margin(own.v, params))):
                 ps = ProbeState("watch", t, ps.start_s, ps.reason)
             else:
                 return replace(decision, kind=CREEP, reason="probe:creep"), ps

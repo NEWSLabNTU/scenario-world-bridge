@@ -35,6 +35,8 @@ go_latch_motion_timeout:  {value: 3.0,  unit: s, source: "078 P2c: a go from res
 probe_creep_dist:         {value: 0.5,  unit: m, source: "074 C8: the legible probe, creep about 0.5 m", heldout: null}
 probe_watch:              {value: 1.5,  unit: s, source: "078 P2g: = see_delay; the other's start was seen up to 1.1 s after its first motion on the crossing (median 0.8); 0.8 s (C8's assumption) left 20-27 contacts per 360 in the screen", heldout: null}
 probe_watch_speed:        {value: 0.4,  unit: m/s, source: "assumed (078 V2b): the car keeps rolling while it watches; at rest stock reads it as static again", heldout: null}
+probe_stop_margin:        {value: 0.1,  unit: m, source: "issue 069: a creep is asked to stop this far + probe_stop_time x speed before the zone; the envelope of 15 creeps stopped in 078 P2g's grid and its rerun (requested at 0.06-0.20 m/s, travel 0.04-0.25 m)", heldout: null}
+probe_stop_time:          {value: 1.0,  unit: s, source: "issue 069: with probe_stop_margin; Autoware accelerates about 0.4 s after the request, then brakes; above 0.2 m/s extrapolated", heldout: null}
 creep_speed:              {value: 1.0,  unit: m/s, source: "assumed (design: creep 1 m/s)", heldout: null}
 creep_timeout:            {value: 3.0,  unit: s, source: "assumed (design: a creep that gains nothing in 3 s steps down)", heldout: null}
 yield_decel:              {value: 0.5,  unit: m/s^2, source: "assumed (C3's onset + 1.0 s): a yield is <= -0.5 held 0.5 s", heldout: null}

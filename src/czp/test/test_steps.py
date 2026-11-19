@@ -332,10 +332,10 @@ def test_rest_stamp_is_the_observation_time():
 def test_probe_creep_watch_go():
     row = CONV["all_way_stop"]
     dec = Decision(GO, "j", "round2")
-    own = car("A", s_entry=1.0)
+    own = car("A", s_entry=2.0)
     d, ps = probe(dec, own, ProbeState(), P, 10.0, row)
     assert d.kind == CREEP and d.reason == "probe:creep"
-    own = car("A", s_entry=1.0 - P.probe_creep_dist, v=0.0)
+    own = car("A", s_entry=2.0 - P.probe_creep_dist, v=0.0)
     d, ps = probe(dec, own, ps, P, 11.0, row)
     assert d.kind == CREEP and d.reason == "probe:watch"
     d, ps = probe(dec, own, ps, P, 11.0 + P.probe_watch, row)
@@ -345,23 +345,51 @@ def test_probe_creep_watch_go():
     assert d.kind == YIELD and ps2.phase == "abort"
 
 
+def test_probe_stops_before_the_zone():
+    """Issue 069: the creep ends while the car can still stop before the zone; a car resting within the margin of a
+    creep at creep_speed watches at rest; a car that enters the zone during the probe goes on as probe_overrun."""
+    from czp.probe import stop_margin
+    row = CONV["all_way_stop"]
+    dec = Decision(GO, "j", "rest_tie")
+    # the P2g rerun's contact: at rest 0.56 m from the zone, it watches where it is
+    d, ps = probe(dec, car("A", s_entry=0.56, v=0.0), ProbeState(), P, 10.0, row)
+    assert d.kind == CREEP and d.reason == "probe:watch" and ps.phase == "watch"
+    d, ps = probe(dec, car("A", s_entry=0.56, v=0.0), ps, P, 10.0 + P.probe_watch, row)
+    assert d.kind == GO and ps.phase == "done"
+    # from 1.5 m it creeps, and is asked to stop once the margin at its speed reaches the zone
+    d, ps = probe(dec, car("A", s_entry=1.5, v=0.0), ProbeState(), P, 20.0, row)
+    assert d.reason == "probe:creep"
+    d, ps = probe(dec, car("A", s_entry=1.4, v=0.3), ps, P, 20.5, row)
+    assert d.reason == "probe:creep"  # 1.4 > margin 0.4
+    d, ps = probe(dec, car("A", s_entry=1.2, v=1.2), ps, P, 20.8, row)
+    assert d.reason == "probe:watch"  # moved 0.3 m only, but 1.2 <= margin 1.3
+    assert stop_margin(1.2, P) > 1.2
+    # entered the zone during the creep: committed, recorded as an overrun
+    d, ps = probe(Decision(GO, "j", "inside"), car("A", s_entry=-0.1, v=1.0), ProbeState("creep", 20.0, 1.5, "rest_tie"),
+                  P, 21.0, row)
+    assert d.kind == GO and d.reason == "probe_overrun" and ps.phase == "done"
+    # an inside go with no probe under way stays a plain inside
+    d, _ = probe(Decision(GO, "j", "inside"), car("A", s_entry=-0.1, v=1.0), ProbeState(), P, 21.0, row)
+    assert d.reason == "inside"
+
+
 def test_probe_is_not_bypassed_by_another_go():
     """078 P2g: a go for another reason (the rest guard's clear) during the creep or the watch stays in the probe;
     only a car already inside goes at once."""
     row = CONV["all_way_stop"]
-    own = car("A", s_entry=1.0)
+    own = car("A", s_entry=2.0)
     d, ps = probe(Decision(GO, "j", "last_resort"), own, ProbeState(), P, 10.0, row)
     assert d.kind == CREEP and ps.phase == "creep"
-    d, ps = probe(Decision(GO, "j", "clear"), car("A", s_entry=0.8, v=0.5), ps, P, 10.3, row)
+    d, ps = probe(Decision(GO, "j", "clear"), car("A", s_entry=1.8, v=0.5), ps, P, 10.3, row)
     assert d.kind == CREEP and d.reason == "probe:creep"
-    own = car("A", s_entry=1.0 - P.probe_creep_dist, v=0.0)
+    own = car("A", s_entry=2.0 - P.probe_creep_dist, v=0.0)
     d, ps = probe(Decision(GO, "j", "clear"), own, ps, P, 10.6, row)
     assert d.kind == CREEP and d.reason == "probe:watch"
     d, ps = probe(Decision(GO, "j", "clear"), own, ps, P, 10.6 + P.probe_watch, row)
     assert d.kind == GO and ps.phase == "done"
     d, _ = probe(Decision(GO, "j", "inside"), car("A", s_entry=0.0, v=1.0), ProbeState("watch", 10.6, 1.0, "round2"),
                  P, 10.8, row)
-    assert d.kind == GO and d.reason == "inside"
+    assert d.kind == GO and d.reason == "probe_overrun"  # issue 069: counted, not a plain go
     # after an abort the next go, whatever its reason, probes again from where the car is
     d, ps = probe(Decision(GO, "j", "clear"), own, ProbeState("abort", 11.0, 1.0, "turn"), P, 11.1, row)
     assert d.kind == CREEP and ps.phase in ("creep", "watch")

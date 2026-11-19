@@ -3,8 +3,8 @@
 **Severity**: high. After a mutual rest at an unsignalled crossing, czp's tie-break go is meant to
 creep about 0.5 m, then hold and watch for 1.5 s so that the other car's start is seen first. When the
 car rests about half a metre from the zone, the creep carries it into the zone. The watch never holds
-the car, and the go lands at the moment a 5 s-patience car restarts. **Status**: open; fix proposed
-below. **Found**: 2026-11-20, swb 133's P2g rerun (NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g
+the car, and the go lands at the moment a 5 s-patience car restarts. **Status**: open. Part 1 (the probe's
+stop margin) is fixed on p2g-launch; part 2 (the tie's timing) is being screened. **Found**: 2026-11-20, swb 133's P2g rerun (NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g
 rerun left t1.5p5 (133)`), analysed by 241.
 
 ## What happens
@@ -73,13 +73,19 @@ Two things add up.
 
 Stock Autoware rarely meets this here: it went first in 18 of its 20 runs, and had no contact.
 
-## Proposed fix (for 133's decision)
+## Fix
+
+133's decisions (2026-11-20): part 1 yes; part 2 screened first, both options with numbers; the arena
+stays as it is.
 
 1. **czp, the probe.** The creep may only move the car while it can still stop before the zone.
-   - The creep's end is `min(rest_s - probe_creep_dist, zone edge - stop margin)`.
-   - The stop margin is the distance Autoware needs to stop from `creep_speed`, measured from these
-     grids' creeps (about 0.5 m + 0.7 s x `creep_speed` before measuring).
-   - A car resting inside the margin does not creep: it watches at rest.
+   - The creep is asked to stop after `probe_creep_dist`, or as soon as the zone is within the stop
+     margin at the car's speed, whichever comes first.
+   - The stop margin is `probe_stop_margin + probe_stop_time x v` = 0.1 m + 1.0 s x v. It is the
+     envelope of the 15 creeps stopped in both grids: requested at 0.06-0.20 m/s, they travelled
+     0.04-0.25 m (Autoware accelerates about 0.4 s more, then brakes). Above 0.2 m/s it is
+     extrapolated.
+   - A car resting within the margin at `creep_speed` (1.1 m) does not creep: it watches at rest.
    - An `inside` reached while the probe is in its creep or watch is recorded as `probe_overrun`, so
      that it is counted, not hidden as a plain go.
 2. **czp, the tie's timing.** The tie-break's go should not fall on the other car's patience restart,

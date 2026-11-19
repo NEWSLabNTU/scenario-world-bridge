@@ -30,7 +30,7 @@ import statistics as stt
 from collections import defaultdict
 from pathlib import Path
 
-STOCK_EQ = ("clear", "cleared", "contested", "inside", "no conflict", "contract")
+STOCK_EQ = ("clear", "cleared", "contested", "inside", "probe_overrun", "no conflict", "contract")
 BINS = [(0, 10), (10, 20), (20, 30), (30, 40), (40, 50), (50, 60)]
 FIT, HELD = (0, 1), (2, 3)
 YIELD_A, YIELD_HOLD, SLOPE_W = -0.5, 0.5, 1.0

@@ -97,7 +97,7 @@ def go_launches(ticks, dec, zone):
     out = []
     zd = [d for d in dec if d["zone"] == zone]
     for i, d in enumerate(zd):
-        if d["decision"] != "go" or d["reason"] == "inside":
+        if d["decision"] != "go" or d["reason"] in ("inside", "probe_overrun"):
             continue
         c = at(ticks, d["tr"])
         if c is None or abs(c["vb"]) >= REST_V or c["ub"] >= 0:

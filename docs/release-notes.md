@@ -54,7 +54,8 @@ Live runs before the release (scensim built from source):
 - **The shipped examples**, both ways on Autoware 1.5.0 (2026-11-19): `safety_suite`,
   `multi_pilot` and the `multi-pilot` template passed stock and with the profile.
   `first_drive`'s `pedestrian_crossing` passed with the profile and failed stock 3 of 3, so
-  `first_drive` names the profile (below). The Isaac examples were not run live.
+  `first_drive` names the profile (below). The Isaac examples (`isaac_first_drive`,
+  `road_physics`) were not run live for 0.2.0; their live check follows in 0.2.1.
 
 ### What is new
 

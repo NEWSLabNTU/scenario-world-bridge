@@ -303,7 +303,9 @@ def _auto_seat(host: dict):
 def results_provenance(rows: list, runs: Path) -> dict:
     """What the results were run on, from each run's result.json (``runs/<run_id>``): its
     ``provenance.swb`` commit and ``submodules``. ``commits``: every distinct one; a part's
-    reference names one, so a mix is refused."""
+    reference names one, so a mix is refused. ``swb`` is the commit the install was built at;
+    when the checkout differed (``provenance.checkout``: under --symlink-install the Python ran
+    from it, the compiled parts from the build), both are named: ``<built> (checkout <c>)``."""
     commits, subs, missing = {}, {}, []
     for r in rows:
         try:
@@ -312,6 +314,8 @@ def results_provenance(rows: list, runs: Path) -> dict:
             missing.append(r["run_id"] or r["scenario"])
             continue
         c = str(p.get("swb") or "")
+        if p.get("checkout"):
+            c += f" (checkout {p['checkout']})"
         commits.setdefault(c, []).append(r["run_id"])
         subs[c] = p.get("submodules") or {}
     return {"commits": commits, "submodules": subs, "missing": missing}
@@ -767,7 +771,7 @@ def _main(argv=None) -> int:
                 failed += 1
                 continue
             notes = []
-            if at.endswith("+dirty"):
+            if "+dirty" in at:
                 # provenance holds only the flag, not the files: `just build` dirties the
                 # tracked Cargo.lock ([[patch.unused]]) on every fresh checkout (G79), so for
                 # this RC a dirty commit is recorded with a note, not refused

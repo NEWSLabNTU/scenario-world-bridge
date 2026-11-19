@@ -114,7 +114,7 @@ def test_the_stacks_gpu_sources_in_swbs_order():
     assert t3.stack_gpus({}, environ={})[0] is None
 
 
-def _results(tmp_path, commits, dirty=False, subs=None):
+def _results(tmp_path, commits, dirty=False, subs=None, checkout=None):
     """A project's suite results on a host: summary.csv and each run's result.json."""
     import json
     logs = tmp_path / "logs"
@@ -127,6 +127,7 @@ def _results(tmp_path, commits, dirty=False, subs=None):
         run.mkdir(parents=True)
         run.joinpath("result.json").write_text(json.dumps({"provenance": {
             "swb": c + ("+dirty" if dirty else ""),
+            **({"checkout": checkout} if checkout else {}),
             "submodules": subs or {"src/scensim_isaac_world": "f00"}}}))
         lines.append(f"{rid},/a/a{i}.xosc,,0,,passed,,100,,/p\n")
     (suite / "summary.csv").write_text("".join(lines))
@@ -162,6 +163,25 @@ def test_record_names_the_results_commit_not_the_scripts(tmp_path, monkeypatch, 
     assert t3.main(["compare", "--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]) == 0
     assert "runs at aaaaaaa; the reference at aaaaaaa" in capsys.readouterr().out
 
+
+
+def test_a_build_older_than_the_checkout_names_both(tmp_path, monkeypatch, capsys):
+    """083 T3 on 243: runs from an install built at one commit, Python from a checkout at
+    another (symlink-install), were all named by the build's commit alone."""
+    import json
+    logs, m = _results(tmp_path, ["aaaaaaa", "aaaaaaa"], dirty=True, checkout="ddddddd")
+    _quiet(monkeypatch)
+    w = ["--manifest", str(m), "--logs", str(logs), "--work", str(logs.parent / "work")]
+    assert t3.main(["record", *w]) == 0
+    meta = json.loads((tmp_path / "refs" / "zz_t3test" / "s.json").read_text())
+    assert meta["commit"] == "aaaaaaa+dirty (checkout ddddddd)"
+    assert "G79" in meta["notes"][0]          # still noted dirty
+    assert t3.main(["compare", *w]) == 0
+    assert "runs at aaaaaaa+dirty (checkout ddddddd)" in capsys.readouterr().out
+    prov = t3.results_provenance([{"run_id": r.name, "scenario": ""} for r in
+                                  (logs / "zz_t3test" / "runs").iterdir()],
+                                 logs / "zz_t3test" / "runs")
+    assert list(prov["commits"]) == ["aaaaaaa+dirty (checkout ddddddd)"]
 
 def test_record_refuses_a_mix_of_commits_and_the_stacks_busy_gpu(tmp_path, monkeypatch, capsys):
     logs, m = _results(tmp_path, ["aaaaaaa", "ccccccc"])

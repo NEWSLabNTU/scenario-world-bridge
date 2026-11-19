@@ -520,6 +520,34 @@ The crossing now probes every go from a mutual rest.**
   26.1 s for 3, against 16.3 and 18.5 s without it, and P2e's 12.35 and 15.8 s.
 - **Next, on 133:** the CARLA arena's G0 on fresh seeds, plus the pinned and patient cells, and
   P2f's grid on the branch with its stock arm (bundles on the NAS).
+- **On 133** (NAS `2026-11-19 078 P2g arena (133)` and `... P2g scensim grid (133)`):
+  - Arena: G0 passes on all 4 sets (s22, s23, s24, s3r07), 0 cells worse. Pinned czp 0/400; patient
+    czp 0/400 (base 1/400, stock 10/400).
+  - Grid (Autoware): czp 2 contacts in 32, stock 0 in 32. Ego first 10 of 20 (P2f: 3); last out 15.2 s
+    against stock's 14.0.
+- **Contact 1 was the `self` contract** (issue 066). Its 10-cycle wall-time median touched 20 ms while
+  the car moved under a committed go from rest; stock took the tick, and the other car went first.
+  - 25 of 32 runs failed at their second tick, on the cold first cycle.
+  - After that, failures came only in the left t1.5p5 interactions: decision p99 20-65 ms on wall
+    time, at load 52-113 and nice 19.
+  - Fixed on the branch (1c84d14): a full window; hysteresis; a committed go does not change hands for
+    slowness on a live node. R10's 20 ms judges the decision's CPU time; wall time only against the
+    tick period, as liveness.
+- **Contact 2 was late perception.** The other car was first tracked 10.5 m from the zone (stock's twin
+  run: 15.8 m), with the ego at 8 m/s and 9.6 m out.
+- **EV4 held out: e99 0.623-0.678 > 0.55** (P2f 0.528). It does not follow load: Pearson 0.17 per run;
+  0.643 at load < 60, 0.678 at >= 60. The tail is the dt=1 and right-side runs.
+- **`role_time_error_e` stays 0.55. The formal check covers the measured 0.65 at that setting.**
+  Crossing, branch defaults, Autoware's launch and the lag, perception error 0.65 against the
+  adversary family:
+  - safe and live in every case: 2- and 3-car self-play, impatient patience 0.5-12 s;
+  - the worst waits unchanged (19.1 and 26.15 s self-play), the mean +0.1-0.5 s.
+
+  Raising czp's e to 0.65 stays safe but adds 0.5-2.5 s to the mean waits. It also leaves 12 of 81
+  three-car self-play runs not through by 40 s in one context, key [0.25, 1.5], with 0 deadlocks.
+  **Revisit that case if e is ever raised.** (NAS `... P2g launch guard probe (241)/issue066/`.)
+- **Next:** rerun the grid's left t1.5p5 cells, czp and stock, on fresh seeds (4 each), at 1c84d14,
+  on a quieter host. Read the node's CPU against wall summary per run.
 
 ### Phase 3: test runs
 

@@ -94,3 +94,25 @@ def test_wheel_xy_reads_both_carlas():
     for ws in (old, new):
         assert AR.wheel_xy(ws[0]) == pytest.approx((1.4, -0.8))
         assert AR.wheel_geometry(ws) == pytest.approx((2.9, 1.6))
+
+
+def test_the_coop_car_is_the_servers_body():
+    """083 step 6: on CARLA 1.0 the coop agents drive 1.0's car (physics and pedal maps)."""
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts" / "coop"))
+    try:
+        AR = pytest.importorskip("arena")
+    finally:
+        sys.path.pop(0)
+    old = AR.body_files("0.9.16")
+    assert old == AR.body_files(None)
+    assert old[0].name == "carla_physics.yaml" and old[1].parent.name == "tesla_model3_description"
+    new = AR.body_files("1.0")
+    assert new == AR.body_files("1.0.0") == AR.body_files("1.0-82c52a7c2")
+    assert new[0].name == "carla_physics_1.0.yaml"
+    assert new[1].parent.name == "tesla_model3_carla_1_0_description"
+    for f in (*old, *new):
+        assert f.exists(), f
+    # the maps differ where it matters: 1.0 needs far more throttle for the same acceleration
+    a_old, a_new = AR.PedalMap(old[1] / "accel_map.csv"), AR.PedalMap(new[1] / "accel_map.csv")
+    assert a_new.pedal_for(1.0, 5.0, True) > 1.5 * a_old.pedal_for(1.0, 5.0, True)

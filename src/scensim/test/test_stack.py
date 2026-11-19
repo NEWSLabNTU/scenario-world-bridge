@@ -11,6 +11,7 @@ import yaml
 from conftest import fake_isaac
 from scensim import assets, config, project, seat, stack
 from scensim import vehicles as vehiclesmod
+from scensim import simulator as simmod
 
 LAUNCH = Path(__file__).resolve().parents[2] / "scensim_launch" / "launch"
 
@@ -1051,3 +1052,23 @@ def test_a_workspace_built_against_another_autoware_is_refused(where, maps_hub, 
     with pytest.raises(stack.StackRefused, match="^mixed$"):
         stack.plan(project_arg=str(d), map_name="Town01")
     assert seen == ["/opt/autoware/2.1.0/setup.bash"]
+
+
+def test_ros_env_puts_the_servers_carla_client_first(monkeypatch):
+    monkeypatch.setenv("PYTHONPATH", "/opt/ros/lib:/client")
+    env = stack.ros_env({"env": {simmod.CLIENT_ENV: "/client"}}, 3)
+    assert env["PYTHONPATH"] == "/client:/opt/ros/lib" and env["ROS_DOMAIN_ID"] == "3"
+    monkeypatch.delenv("PYTHONPATH")
+    assert stack.ros_env({"env": {simmod.CLIENT_ENV: "/client"}}, 3)["PYTHONPATH"] == "/client"
+    assert "PYTHONPATH" not in stack.ros_env({"env": {}}, 3)
+
+
+def test_plan_refuses_carla_basic_on_another_carla_client(where, maps_hub, monkeypatch):
+    """The 1.0 server, 0.9.16's client, no carla.root to take 1.0's from (T3 on 1.0)."""
+    d = make(where, maps_hub=maps_hub)   # multi-pilot: lead is carla_basic
+    monkeypatch.setattr(stack, "CARLA_DECIDE", lambda c, m, p: simmod.decide(
+        {**c, "start": "external"}, "external", lambda h, port: (simmod.CARLA, "1.0")))
+    monkeypatch.setattr(simmod, "installed_client", lambda: "0.9.16")
+    with pytest.raises(stack.StackRefused, match=r"pilots lead \(carla_basic\).*is 1\.0, "
+                       r"and this Python's carla client is 0\.9\.16"):
+        stack.plan(project_arg=str(d), map_name="Town01")

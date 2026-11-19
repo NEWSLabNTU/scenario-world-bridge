@@ -7,8 +7,11 @@ Two probes:
   meanwhile does it go. A hard verdict during the probe (someone moved or entered) aborts it, and the
   car yields from where it is (still before the zone). Any other go while the probe runs, or after it was aborted, is
   probed too (078 P2g). The creep ends while the car can still stop before the zone (``stop_margin``, issue
-  069): a car resting within the margin at ``creep_speed`` watches at rest, and a car that enters the zone
-  during the creep or the watch goes on as ``probe_overrun``.
+  069): the creep is asked to stop as soon as the zone is within the margin at the car's speed, a car resting
+  within the margin at rest watches where it is, and a car that enters the zone during the creep or the watch goes
+  on as ``probe_overrun``. The creep is kept wherever there is room for one: moving is what shows the go (a car
+  that restarts on a mutual rest's patience sees the rest end), and dropping it from a rest within the margin at
+  creep_speed (1.1 m) failed the formal check at patience 8-9 s (150 and 50 unsafe runs of 3780).
 - the claim probe, when a go needs the other to yield: creep and classify the other's filtered
   acceleration (``classify_response``): yield is <= -yield_decel held ``yield_hold`` within the window;
   a hold steps the car down to yield before its commit point; a creep that gains nothing within
@@ -51,8 +54,8 @@ def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=N
             return decision, ps
         if ps.phase not in ("creep", "watch"):
             start_s = own.s_entry if rest_s is None else max(rest_s, own.s_entry)
-            # issue 069: a car within the margin of a creep at creep_speed watches where it is
-            room = own.s_entry > stop_margin(params.creep_speed, params)
+            # issue 069: a car within the margin at rest watches where it is
+            room = own.s_entry > max(0.35, stop_margin(0.0, params))
             ps = ProbeState("creep" if room else "watch", t, start_s, decision.reason)
         if ps.phase == "creep":
             if (ps.start_s - own.s_entry >= params.probe_creep_dist - 0.05

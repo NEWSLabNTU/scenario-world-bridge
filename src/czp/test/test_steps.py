@@ -346,15 +346,22 @@ def test_probe_creep_watch_go():
 
 
 def test_probe_stops_before_the_zone():
-    """Issue 069: the creep ends while the car can still stop before the zone; a car resting within the margin of a
-    creep at creep_speed watches at rest; a car that enters the zone during the probe goes on as probe_overrun."""
+    """Issue 069: the creep is asked to stop while the car can still stop before the zone; a car resting within the
+    margin watches at rest; a car that enters the zone during the probe goes on as probe_overrun."""
     from czp.probe import stop_margin
     row = CONV["all_way_stop"]
     dec = Decision(GO, "j", "rest_tie")
-    # the P2g rerun's contact: at rest 0.56 m from the zone, it watches where it is
+    # the P2g rerun's contact: at rest 0.56 m from the zone it creeps, and is asked to stop at 0.4 m/s, 0.47 m out
     d, ps = probe(dec, car("A", s_entry=0.56, v=0.0), ProbeState(), P, 10.0, row)
+    assert d.reason == "probe:creep"
+    d, ps = probe(dec, car("A", s_entry=0.52, v=0.25), ps, P, 10.9, row)
+    assert d.reason == "probe:creep"  # 0.52 > margin 0.35
+    d, ps = probe(dec, car("A", s_entry=0.47, v=0.4), ps, P, 11.1, row)
+    assert d.reason == "probe:watch"  # 0.47 <= margin 0.5
+    # within the margin at rest it watches where it is
+    d, ps = probe(dec, car("A", s_entry=0.3, v=0.0), ProbeState(), P, 12.0, row)
     assert d.kind == CREEP and d.reason == "probe:watch" and ps.phase == "watch"
-    d, ps = probe(dec, car("A", s_entry=0.56, v=0.0), ps, P, 10.0 + P.probe_watch, row)
+    d, ps = probe(dec, car("A", s_entry=0.3, v=0.0), ps, P, 12.0 + P.probe_watch, row)
     assert d.kind == GO and ps.phase == "done"
     # from 1.5 m it creeps, and is asked to stop once the margin at its speed reaches the zone
     d, ps = probe(dec, car("A", s_entry=1.5, v=0.0), ProbeState(), P, 20.0, row)

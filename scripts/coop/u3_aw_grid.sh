@@ -24,8 +24,10 @@ set -a; source "$R/.env"; source "$HOSTENV"; set +a
 export SCENSIM_LOG_ROOT=$WORK/play_log SCENSIM_CONFIG_HOME=$WORK/scensim-config
 mkdir -p "$SCENSIM_CONFIG_HOME"
 unset CARLA_DIR
+set +u   # the ROS setup scripts read unset variables
 source /opt/autoware/1.5.0/setup.bash
 source "$R/install/setup.bash"
+set -u
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp ROS_DOMAIN_ID=$EGO_ROS_DOMAIN_ID
 export CYCLONEDDS_URI="file://$R/src/scensim_launch/config/cyclonedds-localhost.xml"
 

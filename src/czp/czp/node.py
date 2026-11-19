@@ -35,6 +35,7 @@ from std_msgs.msg import String
 
 from . import zones as ZN
 from .config import load_params
+from .contracts import SelfWindow
 from .record import to_json
 from .strategy import Obj, Status, Strategy
 
@@ -76,7 +77,9 @@ class InteractionStrategy(Node):
         self.objects, self.ego, self.traj, self.obj_stamp = [], None, None, None
         self.statuses = {m: [] for m in self.modules}
         self.cycle_time = 0.0
-        self.cycle_times = []
+        self.cycle_times = []  # the whole ticks (decision, RTC calls, records), for the shutdown summary
+        self.decision_times = []  # Strategy.cycle's own time per tick, for the summary
+        self.self_window = SelfWindow(SELF_WINDOW)  # the self contract's reading: the decision cycles only
         rel = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(PredictedObjects, "/perception/object_recognition/objects", self.on_objects, rel)
         self.create_subscription(Odometry, "/localization/kinematic_state", self.on_odom, rel)
@@ -182,11 +185,12 @@ class InteractionStrategy(Node):
         t = self.now_s()
         age = 0.0 if self.obj_stamp is None else max(0.0, t - (self.obj_stamp.sec + self.obj_stamp.nanosec * 1e-9))
         sts = [s for m in self.modules for s in self.statuses[m]]
-        # the self contract on the median of the last SELF_WINDOW cycles: on a loaded host single cycles straddle the
-        # 20 ms budget, and a contract read per cycle flapped stock <-> decision every 0.1-0.5 s (078 P2), each flap a
-        # mode switch of the module
-        recent = sorted(self.cycle_times[-SELF_WINDOW:]) or [0.0]
-        acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, recent[len(recent) // 2])
+        # the self contract on the median of the last SELF_WINDOW *decision* cycles (R10's budget): a reading per
+        # cycle flapped stock <-> decision every 0.1-0.5 s (078 P2), and the whole tick (RTC calls, records, the log
+        # file) still straddled the bound and flipped single ticks (078 P2f; P2g)
+        acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, self.self_window.median())
+        self.self_window.add(self.strategy.last_cycle)
+        self.decision_times.append(self.strategy.last_cycle)
         self.heartbeat()  # names the modules this cycle switches to manual before the switch is sent
         if acts.held_dropped != getattr(self, "_held_dropped", ()):
             self._held_dropped = acts.held_dropped
@@ -242,8 +246,11 @@ class InteractionStrategy(Node):
             self.pub_clear.publish(self.VelocityLimitClearCommand(command=True, sender="interaction_strategy"))
         if self.cycle_times:
             xs = sorted(self.cycle_times)
+            ds = sorted(self.decision_times) or [0.0]
             self.get_logger().info(json.dumps({"cycles": len(xs), "p50_ms": round(1e3 * xs[len(xs) // 2], 3),
                                                "p99_ms": round(1e3 * xs[int(0.99 * (len(xs) - 1))], 3),
+                                               "decision_p50_ms": round(1e3 * ds[len(ds) // 2], 3),
+                                               "decision_p99_ms": round(1e3 * ds[int(0.99 * (len(ds) - 1))], 3),
                                                "commands": self.strategy.counts}))
 
 

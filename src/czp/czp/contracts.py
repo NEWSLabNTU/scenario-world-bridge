@@ -31,6 +31,25 @@ class Inputs:
     v_max: float = 0.0  # m/s on the conflicting approach (for the reach contract)
 
 
+class SelfWindow:
+    """The self contract's reading: the median of the last ``n`` *decision* cycles (Strategy.cycle's own time,
+    ``Strategy.last_cycle``). R10's 20 ms is the decision's budget; the node's whole tick also holds the RTC
+    service calls, the record publishing and the log file's writes, whose time made the median straddle the
+    bound and flip the car to stock and back for single ticks (078 P2f: 162 of 805 logged decisions; 078 P2g)."""
+
+    def __init__(self, n=10):
+        self.n = n
+        self.times = []
+
+    def add(self, decision_time):
+        self.times.append(float(decision_time))
+        del self.times[:-self.n]
+
+    def median(self):
+        xs = sorted(self.times) or [0.0]
+        return xs[len(xs) // 2]
+
+
 def check(contracts, inp: Inputs):
     """All contract states, failing ones included (a list of ContractState)."""
     out = []

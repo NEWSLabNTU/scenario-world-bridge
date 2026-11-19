@@ -681,3 +681,33 @@ def test_protocol_go_waits_for_the_later_rest():
         b = car("B", s_entry=1.0 if t >= 1.5 else 1.0 + (1.5 - t) * 0.3, v=0.0 if t >= 1.5 else 0.3, stamp=t)
         d, _ = pr.step(t, b, [a], z, inputs=C.Inputs(obs_age=0.0), obs_age=0.0)
         assert d.kind != GO, (t, d)
+
+
+def test_the_self_contract_reads_the_decision_cycles_median():
+    """078 P2g: the self contract's reading is the median of the last decision cycles, so one slow cycle (or the
+    node's own I/O, which is not fed to it) does not flip the car to stock."""
+    from czp import contracts as C
+    from czp.config import load_contracts
+    w = C.SelfWindow(10)
+    assert w.median() == 0.0
+    for x in [0.004] * 9 + [0.030]:  # one slow decision among ten
+        w.add(x)
+    assert w.median() == 0.004
+    ok = {s.name: s.ok for s in C.check(load_contracts(), C.Inputs(cycle_time=w.median()))}
+    assert ok["self"]
+    for x in [0.030] * 6:  # a sustained overrun still fails the contract
+        w.add(x)
+    assert w.median() == 0.030 and len(w.times) == 10
+    assert not {s.name: s.ok for s in C.check(load_contracts(), C.Inputs(cycle_time=w.median()))}["self"]
+
+
+def test_the_node_feeds_the_self_contract_the_decision_time_only():
+    """078 P2g: node.tick passes the window's median (Strategy.last_cycle, the decision) and never its whole tick
+    (RTC calls, records, the log file: 078 P2f's 162 flips at a 0.018-0.026 s median)."""
+    import inspect
+    import pytest
+    pytest.importorskip("rclpy")
+    from czp import node
+    src = inspect.getsource(node.InteractionStrategy.tick)
+    assert "self.self_window.median()" in src and "self.self_window.add(self.strategy.last_cycle)" in src
+    assert "self.cycle_times[-SELF_WINDOW:]" not in src

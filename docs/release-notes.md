@@ -46,7 +46,7 @@ submodule moved since `v0.2.0`), the requirements or the install.
 
 ### Known issues
 
-- **The Isaac ego does not start from rest on a downhill under Autoware** (issue 069): on
+- **The Isaac ego does not start from rest on a downhill under Autoware** (issue 070): on
   the Haruna course's start Autoware asks for a slight brake, expecting gravity to start the
   car, and the Isaac car stands still. The course is not completed yet.
 

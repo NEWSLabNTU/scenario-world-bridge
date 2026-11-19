@@ -65,5 +65,7 @@ scensim run isaac_first_drive/scenarios/haruna_down.xosc
 refused, naming the `map:=` to restart with.
 
 The course is long (its scenario allows 600 s of simulation time), and it was made for a
-drift controller. Whether the Model 3 under Autoware completes the course has not been
-measured.
+drift controller. The Model 3 under Autoware does not complete it yet: on 2026-11-20 it
+stood at the start, a 3 deg downhill, until the time limit, because the Isaac car does not
+roll off from rest when Autoware expects gravity to start it ([issue
+069](../issues/069-isaac-ego-does-not-start-downhill.md)).

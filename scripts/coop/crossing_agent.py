@@ -120,8 +120,8 @@ class CrossingAgent(CA.CutInAgent):
                 raise scensim_agent.Failed(f"no vehicle with role_name {self.other_role!r}")
             me = self.world.vehicle
             pc = me.get_physics_control()
-            wb = abs(pc.wheels[0].position.x - pc.wheels[2].position.x) / 100.0
-            tr = abs(pc.wheels[0].position.y - pc.wheels[1].position.y) / 100.0
+            (fx, fy), (rx, ry), (lx, ly) = (AR.wheel_xy(w) for w in pc.wheels[:3])
+            wb, tr = abs(fx - lx), abs(fy - ry)
             self.wb = wb if wb > 1.0 else 3.0
             self.steer = AR.Steering(math.radians(pc.wheels[0].max_steer_angle), tr / self.wb if self.wb else 0.5)
             doc = AR.carla_physics.load(str(AR.PHYSICS))

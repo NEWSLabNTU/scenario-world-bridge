@@ -25,13 +25,13 @@ written because a map lacked it.
 
 | Need | What Autoware does with it | Repaired in the CARLA maps by |
 |---|---|---|
-| `turn_direction` (`straight`/`left`/`right`) on every junction lanelet | Without it, the `intersection` and `blind_spot` modules don't launch, and the turn signal never blinks. | `repair_lanelet_turn_direction.py` |
-| Junction connectivity: one lanelet per entry-to-exit path, chained to its predecessor and successor lanelets | Routing and the intersection module's attention lanes depend on it. | `repair_lanelet_joins.py` |
-| `speed_limit` on every road lanelet | Without it, Autoware falls back to its default and drives a highway at 50 km/h (057, laps 10-13). | `repair_lanelet_speed_limits.py` |
-| Traffic-light regulatory elements, each with its stop line and the lanelets it controls | Without the right links, the planner treats a signalised junction as unsignalised. | `repair_lanelet_traffic_lights.py`, `_signal_links.py`, `_far_traffic_lights.py` |
-| `right_of_way` elements that name a lanelet with right of way | If any element lacks one, SSv2's loader refuses the whole map. | `repair_lanelet_right_of_way.py` |
-| Crosswalks and walkways on their real level | The car stops for footpaths under a bridge (057, lap 12). | `repair_lanelet_walkways_under_roads.py`, `_subtypes.py` |
-| `local_x`/`local_y` on every point, and `map_projector_info.yaml` | Autoware needs one map frame shared with the simulator. | `repair_lanelet_local_coords.py` |
+| `turn_direction` (`straight`/`left`/`right`) on every junction lanelet | Without it, the `intersection` and `blind_spot` modules don't launch, and the turn signal never blinks. | `carla_map_gen.repairs.turn_direction` (acb) |
+| Junction connectivity: one lanelet per entry-to-exit path, chained to its predecessor and successor lanelets | Routing and the intersection module's attention lanes depend on it. | `carla_map_gen.repairs.joins` (acb) |
+| `speed_limit` on every road lanelet | Without it, Autoware falls back to its default and drives a highway at 50 km/h (057, laps 10-13). | `carla_map_gen.repairs.speed_limits` (acb) |
+| Traffic-light regulatory elements, each with its stop line and the lanelets it controls | Without the right links, the planner treats a signalised junction as unsignalised. | `carla_map_gen.repairs.traffic_lights` (acb), `signal_links`, `far_traffic_lights` |
+| `right_of_way` elements that name a lanelet with right of way | If any element lacks one, SSv2's loader refuses the whole map. | `carla_map_gen.repairs.right_of_way` (acb) |
+| Crosswalks and walkways on their real level | The car stops for footpaths under a bridge (057, lap 12). | `carla_map_gen.repairs.walkways_under_roads` (acb), `subtypes` |
+| `local_x`/`local_y` on every point, and `map_projector_info.yaml` | Autoware needs one map frame shared with the simulator. | `carla_map_gen.repairs.local_coords` (acb) |
 
 A generator should produce all of these directly. The repair scripts then act as its checks
 and should find nothing to fix.
@@ -92,7 +92,7 @@ edits, but not for a derived product of our own.
     `prohibited_transitions`. Where none exist, the default is: rightmost lane turns right,
     leftmost lane turns left, all lanes may go straight.
 - **`turn_direction`:** set from the heading change across each connecting lanelet (as
-  `repair_lanelet_turn_direction.py` does).
+  `carla_map_gen.repairs.turn_direction` (acb) does).
 - **`speed_limit`:** taken in this order:
   1. OSM `maxspeed`;
   2. Overture `speed_limits`;

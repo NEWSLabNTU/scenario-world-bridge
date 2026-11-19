@@ -27,9 +27,9 @@ sidesteps having to pin down CARLA's own actor-yaw convention.
 
 Positions are written as lat/lon *and* local_x/local_y/ele. lat/lon is what Autoware's
 loader and SSv2's project, with the TransverseMercator map_projector_info.yaml declares
-(WGS84, k0 0.9996: `autoware_projection.py`), so it is written with `Projector.unproject`;
+(WGS84, k0 0.9996: acb's `carla_map_gen.projection`), so it is written with `Projector.unproject`;
 local_x/local_y is what scensim's own parser reads, the same point in the same frame (see
-`repair_lanelet_local_coords.py`). Writing one and not the other leaves the two halves of
+acb's `carla_map_gen.repairs.local_coords`). Writing one and not the other leaves the two halves of
 the stack disagreeing about where the light is. Until 2026-10-25 this wrote lat = y / R,
 which the TransverseMercator reads 0.7 % short in y (2.3 m at y = -330): rerun it on a map
 it edited before then.
@@ -45,8 +45,8 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from autoware_projection import Projector  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "autoware_carla_bridge" / "src" / "carla_map_gen"))
+from carla_map_gen.projection import Projector  # noqa: E402
 
 try:
     import carla

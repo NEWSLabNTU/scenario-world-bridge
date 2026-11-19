@@ -16,10 +16,10 @@ every matching lane (a lanelet drawn longer than its lane) is unmatched.
         $CARLA_DIR/CarlaUE4/Content/Carla/Maps/OpenDrive/Town01.xodr [--step 1.0] [--worst 10]
 
 Lanelet2 positions are its lat/lon, projected as Autoware projects them
-(`autoware_projection.py`: the map's TransverseMercator, WGS84, k0 0.9996). Not the pack's
+(acb's `carla_map_gen.projection`: the map's TransverseMercator, WGS84, k0 0.9996). Not the pack's
 local_x/local_y: those were a spherical Mercator on R = 6 378 137 m, 0.7 % long in y against
 CARLA (2.2 m on Town01's y = -330 road), while the point cloud map's kerbs and the driven ego
-agree with the projected lat/lon; repair_lanelet_local_coords.py now rewrites them.
+agree with the projected lat/lon; acb's `carla_map_gen.repairs.local_coords` now rewrites them.
 CARLA's frame is (x, -y).
 """
 
@@ -31,8 +31,8 @@ from collections import Counter
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from autoware_projection import Projector  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "autoware_carla_bridge" / "src" / "carla_map_gen"))
+from carla_map_gen.projection import Projector  # noqa: E402
 
 
 def parse_lanelets(path, subtypes=("road",)):

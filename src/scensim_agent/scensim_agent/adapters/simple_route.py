@@ -57,7 +57,7 @@ def _meridian_arc(lat):
 @dataclass(frozen=True)
 class TransverseMercator:
     """Autoware's and SSv2's TransverseMercatorProjector (Snyder's series; within a millimetre
-    of pyproj's tmerc over a town). The same as scensim's scripts/autoware_projection.py."""
+    of pyproj's tmerc over a town). The same as acb's carla_map_gen.projection (roadmap 087)."""
 
     lat0: float = 0.0
     lon0: float = 0.0

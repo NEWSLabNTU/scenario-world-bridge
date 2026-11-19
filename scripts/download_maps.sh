@@ -24,13 +24,15 @@ ZIP="$DIR/carla-autoware-bridge.zip"
 PACK="$DIR/tum-carla-autoware-maps"
 OUT="$DIR/carla-autoware-bridge"
 
-# The map repairs, in order. Each is idempotent, so they also run on maps already present:
-# a repair added after a host fetched its maps reaches that host the next time this runs.
+# The map repairs live in acb's map tools (carla_map_gen.repairs, roadmap 087), run here in their
+# order by carla_map_gen.repair. Each is idempotent, so they also run on maps already present: a
+# repair added after a host fetched its maps reaches that host the next time this runs.
+# SCENSIM_XODR_DIR: <Town>.xodr or <Town>/main.xodr for the OpenDRIVE repairs (default CARLA_SRC's
+# OpenDrive).
+ACB_MAP_TOOLS="$(cd "$(dirname "$0")/.." && pwd)/src/autoware_carla_bridge/src/carla_map_gen"
 repair_maps() {
-    # Four of the five towns ship their traffic lights with the two tags lanelet2 keys
-    # on left empty, which makes every signal invisible to Autoware and unaddressable
-    # from SSv2. Repair in place -- the map file is a per-file symlink into the source
-    # pack, so replace it with a real file first, exactly as the projector yaml below.
+    # The map file is a per-file symlink into the source pack: replace it with a real file
+    # first, exactly as the projector yaml below.
     for town in "$1"/*/; do
         [ -f "$town/lanelet2_map.osm" ] || continue
         if [ -L "$town/lanelet2_map.osm" ]; then
@@ -39,49 +41,11 @@ repair_maps() {
             cp "$src" "$town/lanelet2_map.osm"
         fi
     done
-    python3 "$(dirname "$0")/repair_lanelet_traffic_lights.py" "$1"
-    # Some lanelets ship with no subtype at all (kerb strips, mostly), which makes
-    # Autoware's map_based_prediction abort as soon as a pedestrian is near one.
-    python3 "$(dirname "$0")/repair_lanelet_subtypes.py" "$1"
-    # Lane lines between two lanes of one direction come as `dashed_dashed`, which lanelet2
-    # does not know and so lets no car cross: Town05's cars never reach their inner lanes,
-    # and its left turns are never routed. Make them `dashed`.
-    python3 "$(dirname "$0")/repair_lanelet_line_types.py" "$1"
-    # Those inner lanes take the opposite lane's left bound as their own, reversed, and
-    # Autoware's behavior_path_planner dies on a route through one. Give each its own way.
-    python3 "$(dirname "$0")/repair_lanelet_bound_directions.py" "$1"
-    # The pack's local_x/local_y (what scensim reads) are a spherical Mercator, 0.7 % long in
-    # y against the TransverseMercator Autoware and SSv2 project lat/lon with: 2.2 m on
-    # Town01's southern road. Rewrite every node's from its lat/lon.
-    python3 "$(dirname "$0")/repair_lanelet_local_coords.py" "$1"
-    # Some bounds repeat a point as a second node at the same place; Autoware's fine centre
-    # line then has NaN points and length, and behavior_path_planner's walk back over the
-    # preceding lanelets never ends. Drop the repeats (after the local coordinates).
-    python3 "$(dirname "$0")/repair_lanelet_duplicate_points.py" "$1"
-    # No lanelet carries turn_direction, so Autoware's intersection and blind_spot
-    # modules never launch. Tag the junction lanelets from their heading change.
-    python3 "$(dirname "$0")/repair_lanelet_turn_direction.py" "$1"
-    # Some road lanelets start at fresh nodes where their predecessor ends, so Lanelet2
-    # finds no successor and routing stops there (Town03's roundabout to its south exit).
-    python3 "$(dirname "$0")/repair_lanelet_joins.py" "$1"
-    # Town05 and Town10 each carry a right_of_way element with no right-of-way lanelet,
-    # which scenario_simulator_v2 refuses to load the map over.
-    python3 "$(dirname "$0")/repair_lanelet_right_of_way.py" "$1"
-    # No lanelet carries a speed_limit, so Autoware drives every road at lanelet2's urban
-    # default, 50 km/h (Town05's 65 mph ring too). Tag each road lanelet from its OpenDRIVE
-    # road's speed record (after the local coordinates: it matches in OpenDRIVE's frame).
-    # SCENSIM_XODR_DIR: <Town>.xodr or <Town>/main.xodr (default CARLA_SRC's OpenDrive).
-    python3 "$(dirname "$0")/repair_lanelet_speed_limits.py" "$1" \
-        ${SCENSIM_XODR_DIR:+--xodr-dir "$SCENSIM_XODR_DIR"}
-    # The maps are flat, so a walkway under a bridge crosses the bridge's lanes: Autoware's
-    # walkway module stops on Town05's raised ring highway for footpaths 10 m below.
-    python3 "$(dirname "$0")/repair_lanelet_walkways_under_roads.py" "$1" \
-        ${SCENSIM_XODR_DIR:+--xodr-dir "$SCENSIM_XODR_DIR"}
-    # Some road lanelets lie on OpenDRIVE lanes no car may drive: Town03's twelve
-    # `bidirectional` lanes, one of them the east tunnel's divider with walls in it, which
-    # Autoware changed lanes into until its AEB stopped it (roadmap 074 E2). Close them to
-    # vehicles (participant:vehicle=no), so routing and lane changes leave them out.
-    python3 "$(dirname "$0")/repair_lanelet_non_driving_lanes.py" "$1" \
+    [ -d "$ACB_MAP_TOOLS/carla_map_gen" ] || {
+        echo "ERROR: $ACB_MAP_TOOLS missing: git submodule update --init src/autoware_carla_bridge" >&2
+        exit 1
+    }
+    PYTHONPATH="$ACB_MAP_TOOLS${PYTHONPATH:+:$PYTHONPATH}" python3 -m carla_map_gen.repair "$1" \
         ${SCENSIM_XODR_DIR:+--xodr-dir "$SCENSIM_XODR_DIR"}
 }
 

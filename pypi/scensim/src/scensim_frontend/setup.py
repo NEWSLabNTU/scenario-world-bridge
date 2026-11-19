@@ -246,6 +246,12 @@ def sysctl_short() -> list[str]:
     return out
 
 
+def sysctl_apply(conf: Path) -> str:
+    """``sysctl -p`` that does not end the script where the kernel's settings are read-only
+    (a container): the check then names the buffers."""
+    return f'sysctl -q -p {conf} || echo "sysctl: not applied here (a container?)"'
+
+
 @dataclass
 class SystemStep:
     lines: list[str] = field(default_factory=list)
@@ -284,9 +290,9 @@ def system_step(release: Release, force: bool) -> SystemStep:
     elif have != SYSCTL_TEXT:
         step.lines.append(f"mkdir -p {conf.parent}")
         step.lines.append(f"cat > {conf} <<'SCENSIM_SYSCTL'\n{SYSCTL_TEXT}SCENSIM_SYSCTL")
-        step.lines.append(f"sysctl -q -p {conf}")
+        step.lines.append(sysctl_apply(conf))
     elif sysctl_short():
-        step.lines.append(f"sysctl -q -p {conf}")
+        step.lines.append(sysctl_apply(conf))
     return step
 
 

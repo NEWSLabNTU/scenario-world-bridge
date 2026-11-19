@@ -140,9 +140,10 @@ def test_probe(carla_rpc):
 
 def test_decide(tmp_path, carla_rpc):
     root = fake_root(tmp_path)
-    never = lambda *a: pytest.fail("probed")  # noqa: E731
-    # external: nothing probed, nothing started
-    assert sim.decide({"root": str(root), "port": 1}, "external", never)["owner"] == sim.EXTERNAL
+    # external: nothing started; probed only for its version (roadmap 083), never refused
+    free = lambda *a: (sim.FREE, None)  # noqa: E731
+    d = sim.decide({"root": str(root), "port": 1}, "external", free)
+    assert d["owner"] == sim.EXTERNAL and d["argv"] is None and d["version"] is None
     # auto without a root: a CARLA serving is used; nothing serving is refused at once (G39)
     d = sim.decide({"root": "", "host": "127.0.0.1", "port": carla_rpc.port}, "auto")
     assert d["owner"] == sim.EXTERNAL and d["version"] == "0.9.16"
@@ -150,7 +151,7 @@ def test_decide(tmp_path, carla_rpc):
         sim.decide({"root": "", "port": free_port()}, "auto")
     # auto with a remote CARLA: its business
     assert sim.decide({"root": str(root), "host": "carla.example.invalid", "port": 1},
-                      None, never)["owner"] == sim.EXTERNAL
+                      None, free)["owner"] == sim.EXTERNAL
     # auto, nothing on the port: started, with the launcher's arguments
     port = free_port()
     d = sim.decide({"root": str(root), "host": "localhost", "port": port, "ready_timeout": 42})
@@ -456,6 +457,50 @@ def test_external_carla_is_used_and_never_stopped(where, maps_hub, carla_rpc):
         stack.plan(project_arg=str(d), map_name="Town01", simulator_start="start")
     with pytest.raises(stack.StackRefused, match="simulator_start 'always'"):
         stack.plan(project_arg=str(d), simulator_start="always")
+
+
+REPLY_1_0 = b"\x94\x01\x01\xc0\x91\x92\x01\xa31.0"
+
+
+def test_an_external_carla_is_probed_for_its_version(carla_rpc):
+    """083 (found by T3 on 1.0): simulator_start external took no version, so every car fell
+    back to its default body (0.9.16's) on a CARLA 1.0, and the bridge refused the ego."""
+    d = sim.decide({"host": "127.0.0.1", "port": carla_rpc.port, "start": "external"})
+    assert d["owner"] == sim.EXTERNAL and d["version"] == "0.9.16"
+    assert d["version_from"] == f"the server on 127.0.0.1:{carla_rpc.port}"
+    d = sim.decide({"host": "127.0.0.1", "port": free_port()}, "external")
+    assert d["owner"] == sim.EXTERNAL and d["version"] is None
+
+
+def test_an_external_carla_of_another_version_than_planned_is_refused(where, maps_hub):
+    """083: no pilot starts on an external CARLA before it answers, and one that answers
+    another version than the plan's, or was not up at the plan, ends the start, named."""
+    port = free_port()
+    d = make(where, {"host": "127.0.0.1", "port": port, "start": "external"})
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    assert p.record["carla"]["version"] is None          # nothing answered at the plan
+    stack.write_plan(p)
+    srv = Server(REPLY_1_0)
+    try:
+        # the server came up on that port only now: its body was not known at the plan
+        with_port = json.loads(p.stack_json.read_text())
+        with_port["carla"]["port"] = srv.port
+        p.stack_json.write_text(json.dumps(with_port))
+        assert stack.keep(p.stack_dir, poll=0.01, once=True, pilot_command=fake_pilot) == 2
+        rec = json.loads(p.stack_json.read_text())
+        assert "answers version 1.0" in rec["error"]
+        assert "did not answer when the stack was planned" in rec["error"]
+        assert "pilot.start" not in [e["event"] for e in events(p)]
+        # not known at the plan, answered by 0.9.16: the default body is that one's, fine
+        unplanned = {**rec["carla"], "version": None}
+        assert stack.external_version_problem(unplanned, "0.9.16") is None
+        assert "did not answer" in stack.external_version_problem(unplanned, "1.0")
+        # planned on 0.9.16, answered by 1.0: another CARLA took the port
+        rec["carla"].update(version="0.9.16", version_from="the server on x")
+        assert "another CARLA took the port" in sim.version_problem(rec["carla"], "1.0")
+        assert sim.version_problem(rec["carla"], "0.9.16") is None
+    finally:
+        srv.close()
 
 
 def test_a_started_carla_that_dies_is_started_again(tmp_path):

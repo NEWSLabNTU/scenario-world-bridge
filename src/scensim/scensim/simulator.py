@@ -4,9 +4,11 @@ docs/design/projects-and-pilots.md, "The stack". On CARLA ``simulator_start`` (t
 ``simulator_start:=``, else the host settings' ``carla.start``, else ``auto``) decides:
 
 - ``external``: never start CARLA, never stop it; the stack uses whatever serves
-  ``carla.host:carla.port`` (the world server waits for it, as before).
+  ``carla.host:carla.port`` (the world server waits for it, as before). Its version, which
+  picks the cars' body, is probed at the plan and again once it answers; one whose version
+  would give the cars another body than the plan chose ends the stack (roadmap 083).
 - ``start``: start CARLA from ``carla.root``; refused when something already holds the port
-  (a second CARLA on a held port crashes), when ``carla.root`` has no ``CarlaUE4.sh``, or
+  (a second CARLA on a held port crashes), when ``carla.root`` has no launcher, or
   when ``carla.host`` is not this host.
 - ``auto``: ``start`` when ``carla.root`` is set, ``carla.host`` is this host and nothing
   answers on the port; else ``external``. A port that answers, but not as CARLA's RPC
@@ -318,12 +320,15 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
            "state": None, "pid": None,
            "log": None, "argv": None, "started_at": None, "ready_at": None, "restarts": 0,
            "error": None}
-    if mode == "external":
-        return out
-    if mode == "auto" and not is_local(host):
-        return out       # a remote CARLA: whatever serves there
-    state, version = probe_fn(host, port)
     where = f"{host}:{port}"
+    if mode == "external" or (mode == "auto" and not is_local(host)):
+        # whatever serves there (a remote CARLA: its business); its version, when it answers
+        # now, picks the cars' body (roadmap 083); the keeper checks it once it serves
+        state, version = probe_fn(host, port)
+        if state == CARLA and version:
+            out.update(version=version, version_from=f"the server on {where}")
+        return out
+    state, version = probe_fn(host, port)
     if mode == "auto" and not root and state == FREE:
         raise SimulatorRefused(
             f"nothing serves CARLA on {where} and carla.root is not set, so the stack cannot "
@@ -335,6 +340,7 @@ def decide(carla: dict, mode=None, probe_fn=probe) -> dict:
             f"{where} is taken by something that is not CARLA's RPC server; free it, or set "
             "carla.port (host settings) to CARLA's")
     if state == CARLA:
+        out["version_from"] = f"the server on {where}"
         if mode == "start":
             raise SimulatorRefused(
                 f"CARLA {version or ''} already serves {where}; simulator_start:=external (or "
@@ -392,6 +398,17 @@ def version_problem(rec: dict, probed):
     None. The stack chose its cars' bodies from the version it knew before CARLA started."""
     planned = rec.get("version")
     if not probed:
+        return None
+    if rec.get("owner") == EXTERNAL:
+        where = f"{rec.get('host') or 'localhost'}:{rec.get('port')}"
+        if not planned:
+            return (f"CARLA on {where} answers version {probed}, but it did not answer when the "
+                    "stack was planned, so the stack chose its cars without knowing their body: "
+                    "restart the stack now that CARLA serves (or start CARLA before the stack)")
+        if not same_version(planned, probed):
+            return (f"CARLA on {where} answers version {probed}, but the stack planned for "
+                    f"{planned} (from {rec.get('version_from')}): another CARLA took the port; "
+                    "restart the stack")
         return None
     if planned and not same_version(planned, probed):
         return (f"CARLA at {rec.get('root')} answers version {probed}, but the stack planned "

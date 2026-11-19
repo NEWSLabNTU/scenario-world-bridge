@@ -589,6 +589,22 @@ def isaac_kit_args(given: str, gpu) -> str:
     pin = f"--/renderer/multiGpu/enabled=false --/renderer/activeGpu={gpu}"
     return f"{given} {pin}".strip()
 
+def external_version_problem(c: dict, probed):
+    """Why an external CARLA that answers ``probed`` is not the one the plan chose the cars'
+    body by, or None (roadmap 083). A plan that knew a version needs the same one; a plan made
+    before CARLA answered gave each car its default body, which is wrong only when ``probed``
+    would give the cars another catalog."""
+    if not probed:
+        return None
+    if c.get("version"):
+        return simmod.version_problem(c, probed)
+    used = vehiclesmod.installed_catalog(None)
+    wanted = vehiclesmod.installed_catalog(vehiclesmod.carla_body(probed))
+    if wanted == used:
+        return None
+    return simmod.version_problem(c, probed)
+
+
 def served_towns_problem(rec, maps_fn=None, alias=None):
     """Why the CARLA this stack drives cannot serve its maps, or None: once it serves, its
     ``get_available_maps`` must hold each map's town, by name or ``_Opt`` name (CARLA 1.0's
@@ -1679,7 +1695,32 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
         # starts, and a run started before that fails at SSv2's SIMULATOR_INITIALIZE_TIMEOUT
         serving = world_probe or bridge_serving
         world_up, next_world = False, 0.0
+        # an external CARLA (roadmap 083): once it answers, its version must give the cars the
+        # body the plan chose (never the default, silently); the stack does not wait for it
+        c0 = rec.get("carla") or {}
+        ext_pending = rec.get("simulator_start") == simmod.EXTERNAL and bool(c0.get("port"))
+        next_ext, said_waiting = 0.0, False
         while not stop["now"]:
+            if ext_pending and time.time() >= next_ext:
+                next_ext = time.time() + simmod.PROBE_EVERY
+                state, v = simmod.probe(c0.get("host") or "localhost", c0["port"])
+                if state == simmod.CARLA:
+                    ext_pending = False
+                    problem = external_version_problem(c0, v)
+                    if problem:
+                        rec["error"] = problem
+                        event(stack_dir, "carla.version", error=problem)
+                        print(f"scensim stack: {problem}", file=sys.stderr, flush=True)
+                        code = 2
+                        break
+                    if v:
+                        c0["version"] = v
+                    write_json(path, rec)
+                elif not said_waiting:
+                    said_waiting = True
+                    print(f"scensim stack: CARLA on {c0.get('host') or 'localhost'}:{c0['port']} "
+                          "does not answer yet (simulator_start external); its version is checked "
+                          "when it does", flush=True)
             if carla is not None and carla.poll():
                 write_json(path, rec)
                 if carla.ready:

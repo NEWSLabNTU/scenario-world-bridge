@@ -60,7 +60,8 @@ for _ in $(seq 120); do ss -ltn | grep -q ":$SSV2_PORT " && break; sleep 5; done
 ss -ltn | grep -q ":$SSV2_PORT " || { echo "stack not up" >&2; stop_stack; exit 1; }
 echo "stack up $(date +%T)"
 
-P=(python3 scripts/coop/crossing_aw.py --out "$OUT" --carla-port "$CARLA_PORT" --zones "$ZONES" --map "$MAPDIR")
+P=(python3 scripts/coop/crossing_aw.py --out "$OUT" --carla-port "$CARLA_PORT" --zones "$ZONES" --map "$MAPDIR"
+   --max-load "${U3_MAX_LOAD:-40}")
 DTS=-1,-0.3,0,0.3,1
 case $STAGE in
   pace)

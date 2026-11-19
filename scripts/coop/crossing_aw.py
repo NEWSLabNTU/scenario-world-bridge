@@ -355,6 +355,24 @@ def run_one(out, arm, dt, rule, seed, side, a):
     return res
 
 
+def wait_load(max_load, hold=60.0, poll=20.0, give_up=4 * 3600.0):
+    """Before a run: wait until the host's 1-min load has stayed below max_load for `hold` s (0: no wait).
+    A shared host's build burst left the ego unready for 900 s (074 U3 on server139); a run started then
+    is lost, so it waits instead (up to give_up, then runs anyway)."""
+    if not max_load:
+        return
+    t0 = time.monotonic()
+    calm = 0.0
+    while time.monotonic() - t0 < give_up:
+        if os.getloadavg()[0] < max_load:
+            calm += poll
+            if calm >= hold:
+                return
+        else:
+            calm = 0.0
+        time.sleep(poll)
+
+
 def finish(rd, res):
     try:
         res.update(score(rd, res["dt"]))
@@ -381,6 +399,7 @@ def main():
     ap.add_argument("--side", default="left")
     ap.add_argument("--only", help="arm:dt:rule:seed[:side],... instead of the grid")
     ap.add_argument("--redo-invalid", type=int, default=1)
+    ap.add_argument("--max-load", type=float, default=0.0, help="wait before each run until the 1-min load stays below this (0: no wait)")
     ap.add_argument("--rescore", action="store_true")
     ap.add_argument("--start-gate", default="", help="a shell command run after the ego is ready, before the scenario")
     ap.add_argument("--load-log", default="", help="the host's load samples: <epoch s> <1-min load> <PSI cpu avg10>")
@@ -420,6 +439,7 @@ def main():
             if tag_of(arm, dt, rule, s, side) in done:
                 continue
             for attempt in range(3):
+                wait_load(a.max_load)
                 res = run_one(a.out, arm, dt, rule, s, side, a)
                 res["attempt"] = attempt
                 print(json.dumps(res), flush=True)

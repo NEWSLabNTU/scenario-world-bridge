@@ -112,8 +112,7 @@ class RoundaboutAgent(CarlaBasicAgent):
             v = self.world.vehicle
             pc = v.get_physics_control()
             w = pc.wheels
-            self.wb = math.hypot(w[0].position.x - w[2].position.x, w[0].position.y - w[2].position.y) / 100.0
-            track = math.hypot(w[0].position.x - w[1].position.x, w[0].position.y - w[1].position.y) / 100.0
+            self.wb, track = AR.wheel_geometry(w)   # 0.9.16 and 1.0 alike
             self.steer = AR.Steering(math.radians(w[0].max_steer_angle), track / self.wb)
             doc = AR.carla_physics.load(str(AR.PHYSICS))
             self.lag = AR.PedalLag(doc.get("command_lags", {}))

@@ -80,9 +80,13 @@ def report(tag, actor, x_ros, y_ros, h):
     try:
         pc = actor.get_physics_control()
         ws = pc.wheels
-        # wheel positions are world coords in cm
-        rear = [(w.position.x / 100.0, w.position.y / 100.0, w.position.z / 100.0) for w in ws[2:4]]
-        front = [(w.position.x / 100.0, w.position.y / 100.0, w.position.z / 100.0) for w in ws[0:2]]
+        # wheel positions in world coords, m: 0.9.x's `position` is in cm, 1.0's `location` in m
+        def wm(w):
+            p = getattr(w, "position", None)
+            return (p.x / 100.0, p.y / 100.0, p.z / 100.0) if p is not None else \
+                (w.location.x, w.location.y, w.location.z)
+        rear = [wm(w) for w in ws[2:4]]
+        front = [wm(w) for w in ws[0:2]]
         rx = sum(p[0] for p in rear) / 2; ry = sum(p[1] for p in rear) / 2
         ffx = sum(p[0] for p in front) / 2; ffy = sum(p[1] for p in front) / 2
         rear_along = (rx - cx) * fx + (ry - cy) * fy

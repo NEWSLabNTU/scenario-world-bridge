@@ -57,3 +57,40 @@ def test_no_study_reaches_into_the_checkout():
             text = f.read_text()
             assert '"scripts" / "coop"' not in text and "parents[" not in text, f
     assert os.path.isfile(ROOT / "src" / "coop_pilots" / "package.xml")
+
+
+# --- CARLA 1.0's wheels (083 step 6) ---------------------------------------------------------
+# CARLA 1.0 (Chaos) has no WheelPhysicsControl.position (world cm); its `location` is in m. T3 on
+# 1.0 failed every coop agent's set_goal on it, twice (s5's agents, then c2b's cutin_agent the
+# first fix missed). Wheel positions go through arena.wheel_xy, or a script's own getattr guard.
+import re  # noqa: E402
+
+WHEEL_POSITION = re.compile(r"(?:wheels?\[\d+\]|\bw\[\d+\]|\bwh?|\bwheel)\.position\b")
+
+
+def test_no_script_reads_a_wheels_position_unguarded():
+    bad = []
+    for f in sorted((ROOT / "scripts").rglob("*.py")):
+        if f.name == "test_coop_pilots_dir.py":
+            continue
+        for n, line in enumerate(f.read_text(errors="replace").splitlines(), 1):
+            if WHEEL_POSITION.search(line) and "getattr" not in line:
+                bad.append(f"{f.relative_to(ROOT)}:{n}: {line.strip()}")
+    assert not bad, "a wheel's position read directly (fails on CARLA 1.0):\n" + "\n".join(bad)
+
+
+def test_wheel_xy_reads_both_carlas():
+    import sys
+    import types
+    sys.path.insert(0, str(ROOT / "scripts" / "coop"))
+    try:
+        AR = pytest.importorskip("arena")
+    finally:
+        sys.path.pop(0)
+    V = lambda x, y: types.SimpleNamespace(x=x, y=y)  # noqa: E731
+    at = [(1.4, -0.8), (1.4, 0.8), (-1.5, -0.8), (-1.5, 0.8)]
+    old = [types.SimpleNamespace(position=V(x * 100, y * 100)) for x, y in at]   # 0.9.16, cm
+    new = [types.SimpleNamespace(location=V(x, y)) for x, y in at]               # 1.0, m
+    for ws in (old, new):
+        assert AR.wheel_xy(ws[0]) == pytest.approx((1.4, -0.8))
+        assert AR.wheel_geometry(ws) == pytest.approx((2.9, 1.6))

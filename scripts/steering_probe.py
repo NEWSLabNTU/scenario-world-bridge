@@ -10,6 +10,13 @@ FL, FR = carla.VehicleWheelLocation.FL_Wheel, carla.VehicleWheelLocation.FR_Whee
 DT = 0.05
 v = None
 rows = []
+def wpos(wh):
+    """A wheel's world position, cm: 0.9.x's `position`, else 1.0's `location` (m)."""
+    p = getattr(wh, "position", None)
+    if p is not None:
+        return p
+    l = wh.location
+    return carla.Location(x=l.x * 100.0, y=l.y * 100.0, z=l.z * 100.0)
 def spd(): 
     vv = v.get_velocity(); return math.sqrt(vv.x**2+vv.y**2+vv.z**2)
 def tick(n=1):
@@ -26,9 +33,9 @@ try:
     print("mass", pc.mass, "autobox", pc.use_gear_autobox)
     print("steering_curve", [(p.x, p.y) for p in pc.steering_curve])
     for i, wh in enumerate(pc.wheels):
-        print("wheel", i, "max_steer", wh.max_steer_angle, "pos", wh.position)
+        print("wheel", i, "max_steer", wh.max_steer_angle, "pos", wpos(wh))
     # wheelbase/track
-    p = [wh.position for wh in pc.wheels]
+    p = [wpos(wh) for wh in pc.wheels]
     track = p[0].distance(p[1])/100; wb = ((p[0].x+p[1].x)/2 - (p[2].x+p[3].x)/2)
     wb = math.hypot((p[0].x+p[1].x-p[2].x-p[3].x)/2, (p[0].y+p[1].y-p[2].y-p[3].y)/2)/100
     print("track", track, "wheelbase", wb)

@@ -37,7 +37,7 @@ case $STAGE in
 esac
 OUT=$WORK/$STAGE; mkdir -p "$OUT"
 ZONES=$WORK/zones_$(basename "$(dirname "$MAPDIR")")_$(basename "$MAPDIR").yaml
-[ -s "$ZONES" ] || czp-zones --map "$MAPDIR/lanelet2_map.osm" --out "$ZONES" > "$OUT/zones.log" 2>&1 ||
+[ -s "$ZONES" ] || ros2 run czp czp-zones --map "$MAPDIR/lanelet2_map.osm" --out "$ZONES" > "$OUT/zones.log" 2>&1 ||
     { echo "czp-zones failed: $OUT/zones.log" >&2; exit 1; }
 echo "zones $ZONES: $(grep -c "kind: all_way_stop" "$ZONES") all_way_stop"
 

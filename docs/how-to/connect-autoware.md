@@ -151,6 +151,28 @@ CARLA is up. Passing `args: {lidar_detection_model: clustering}` to a stock pilo
 Autoware 1.5.0's perception and moves the detector to the CPU, but the point cloud's CUDA
 preprocessing still needs the GPU.
 
+The shipped examples, both ways, one scenario each, on CARLA 0.9.16 with Autoware 1.5.0
+(2026-11-19):
+
+| Project, scenario | `stock` | `scensim` |
+|---|---|---|
+| `safety_suite`, UC-AEB-001-0001 (9 variants) | passed 9 of 9 (a first try ended at the 6th variant on the planner abort below) | passed |
+| `multi_pilot`, `two_av` (two Autowares) | passed | passed |
+| template `multi-pilot`, `three_pilots` | passed | passed |
+| `first_drive`, `pedestrian_crossing` | failed 3 of 3: stopped 0.88 to 0.97 m from the pedestrian, no contact; the scenario fails a stop closer than 1 m | passed |
+
+**Stock stops closer to a pedestrian.** Stock Autoware 1.5.0 stopped 0.88 to 0.97 m short of
+a pedestrian crossing in front of it, without touching it; scensim's profile stops farther
+back. A scenario whose pass criterion is a stop distance has to allow for the configuration
+it tests.
+
+**A rare planner abort, in either configuration.** Autoware 1.5.0's behavior_path_planner
+can abort when a new route arrives (`failed to add guard condition to wait set: guard
+condition implementation is invalid`): resetting its modules recreates the goal and start
+planners' callback groups while the executor still waits on the old ones
+(autoware_universe#12460, rclcpp#2163). scensim measured it once in about 64 route changes.
+The run then ends with an error naming the pilot's container, and a retry passes.
+
 Its arguments are in [Your Autoware](your-autoware.md). The profile runs Autoware 1.5.0,
 2.0.0 and 2.1.0 and refuses another release by name. With `stock`, any Autoware the car's
 packages support runs.

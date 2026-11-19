@@ -57,3 +57,12 @@ python3 carla_record.py PORT out_dir 7 --mount-bag MOUNT_BAG
 
 Neither is the default yet: the spec's lidar is phase-locked, and changing that changes
 `spec_hash` (roadmap 084, a candidate for the next spec change).
+
+## Replays: three or more per condition
+
+The detectors are not deterministic. In 084f, 140 byte-identical CARLA clouds replayed four times
+through TransFusion found a car at its threshold in 0.29, 0.34, 0.39 and 0.41 of the outputs,
+with a different hit sequence each time. Fixed input stamps did not change that, so it is the
+detector's GPU/TensorRT execution, not input timing. One replay of ~140 outputs resolves recall
+differences above ~0.1. Below that, replay each condition three or more times and compare the
+spread across replays, not one number.

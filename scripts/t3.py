@@ -55,7 +55,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "scenarios" / "t3.yaml"
 SLOW = 1.5
 STOP_GRACE = 180.0   # s for an interrupted scensim run to stop its stack (CARLA, Isaac) before SIGTERM
-STARTED = re.compile(r"^stack\s+starting on seat (\d+) \(pid (\d+)")
+# scensim run's line for a stack it starts: "stack    <name> on seat 0: starting (pid 1, ...",
+# and before 081 "stack    starting on seat 0 (pid 1, ..." (seat, pid); a line t3 does not
+# match leaves the project's stack up after its last suite, holding CARLA's world-server lock
+STARTED = re.compile(r"^stack\s+(?:\S+\s+)?on seat (\d+):? (?:starting )?\(pid (\d+)")
 
 
 def load(path=MANIFEST) -> dict:

@@ -228,7 +228,7 @@ if log:   # was the previous suite's stack gone when this one started? (G82)
 stack = subprocess.Popen(["sleep", "300"], start_new_session=True)
 open(os.environ["T3_FAKE_STACK"], "w").write(str(stack.pid))
 open(os.environ["T3_FAKE_STACK"] + ".all", "a").write(f"{stack.pid}\n")
-print(f"stack    starting on seat 0 (pid {stack.pid}, console x)", flush=True)
+print(f"stack    proj on seat 0: starting (pid {stack.pid}, console x)", flush=True)
 def on_int(*a):
     time.sleep(float(os.environ.get("T3_FAKE_STOP_S", "0")))   # a stack slow to stop
     sys.exit(130)
@@ -494,3 +494,15 @@ def test_the_summary_path_is_relative_to_the_log_root_through_a_link(tmp_path):
     assert t3.host_relative(tmp_path / "logs" / "proj" / "suites" / "s" / "summary.csv",
                             real) == want
     assert t3.host_relative(summ, tmp_path / "elsewhere") == want   # outside: the last 4 parts
+
+
+def test_the_started_line_of_either_scensim_is_read():
+    """T3 on CARLA 1.0: scensim run's "stack <name> on seat N: starting (pid P" was not read, so
+    a project's stack stayed up after its last suite and held CARLA's world-server lock, and the
+    next project's world server was refused. The older form still reads."""
+    import t3
+    for line, want in (("stack    basic on seat 0: starting (pid 808387, console /x)", ("0", "808387")),
+                       ("stack    starting on seat 2 (pid 55, console x)", ("2", "55"))):
+        m = t3.STARTED.match(line)
+        assert m and (m.group(1), m.group(2)) == want, line
+    assert t3.STARTED.match("stack    basic on seat 0: started (CARLA, Town01); left up") is None

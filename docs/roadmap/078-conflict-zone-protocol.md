@@ -478,6 +478,49 @@ at the G0 fresh-seed check, as the brief said.**
   set the guard from them, fix the `self` contract's flicker, then the arena's launch model
   to match, and rerun this cell (seeds not used here) before the full grid.
 
+**Phase 2g: Autoware's launch, the guard and the probe (241, 2026-11-19; branch `p2g-launch`;
+NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g launch guard probe (241)/`). No guard is enough.
+The crossing now probes every go from a mutual rest.**
+- **Measured on P2f's grid** (`scripts/coop/p2g_launch.py`, 32 czp and 32 stock runs).
+  - czp's go from rest to the ego's first motion: median 0.62 s, p90 0.95, max 1.0.
+  - The same go to `moved_speed`: median 1.35 s; to the zone: median 3.23 s.
+  - Stock's `safe` to motion: 0.8-1.2 s.
+  - The other car's first motion to czp's `turn`: median 0.8 s, max 1.1.
+  - From its first motion Autoware covers 1 m in 1.70 s and 3 m in 2.88 s; the arena car covers
+    3 m in 1.41 s.
+  - In the models, `AUTOWARE_LAUNCH` (0.6 s dead, then 0.68 m/s^2 to 3 m/s) reproduces these to
+    0.1 s, and `REST_LAG` 0.8 s is P2f's tracked-rest lag.
+- **The `self` contract** now times the decision only (`SelfWindow` over `Strategy.last_cycle`):
+  p50 3.9 ms, p99 17.4 ms.
+- **No fixed guard is enough.** Formal check, impatient adversary, Autoware's launch and the lag;
+  unsafe runs of 3780 at patience 2/3/4/5/6/7/8/9 s:
+  - the guard as it is: 80/207/60/0/0/34/206/58;
+  - +2.5 s: 0/0/68/207/60/34/206/58;
+  - -0.4 s: 345/153/28/0/0/34/206/58.
+
+  The first band moves with the guard. The 7-9 s band is the last resort, about 8.5 s into the
+  mutual rest, which went without a probe on the crossing. In the screen (G0), +2.5 s passes with
+  Autoware in B but fails the arena model: 214 contacts against tinfp5, against stock's 208.
+- **The probe is the commit check.** It creeps about 0.5 m, watches, then goes.
+  - Two probe defects were fixed. A go for another reason during the creep or the watch (the
+    rest guard's `clear`) replaced the probe, and a go after an aborted probe went unprobed.
+  - With the probe and `probe_watch` 1.5 s (= see_delay; 0.8 s left 20-27 contacts per 360 in the
+    screen), the formal check is safe at every patience from 0.5 to 12 s.
+  - Self-play is safe and live.
+  - The screen passes G0 in both models. Autoware in B: 0 and 1 contacts against the patient-5
+    rules (stock 51 and 53). Arena model: 4 and 8 (P2e 0, stock 208).
+- **Branch defaults:** `cross_unsignalled.probe_round2: true`, `probe_watch` 1.5 s, `guard_extra`
+  0 (a knob in `rest_guard`, kept for the experiments).
+- **Side effect on the all-way stop**, which has probed since C8; `czp_parity u3`, main vs the
+  branch:
+  - czp's contacts 34 to 21 (fcfse 28); deadlocks 0; classes 44/44;
+  - outcome agreement with fcfse 557 to 521 of 572 (-36);
+  - czp's payoff per pair: median unchanged, mean -0.023, worst -0.38.
+- **A liveness cost to watch:** the worst czp-czp wait with the probe is 19.1 s for 2 cars and
+  26.1 s for 3, against 16.3 and 18.5 s without it, and P2e's 12.35 and 15.8 s.
+- **Next, on 133:** the CARLA arena's G0 on fresh seeds, plus the pinned and patient cells, and
+  P2f's grid on the branch with its stock arm (bundles on the NAS).
+
 ### Phase 3: test runs
 
 | step | what | measures |
@@ -562,3 +605,7 @@ and G2.
 - 2026-11-16: Phase 2d: the 2c rulings merged; G0 fails at `--seed 5` and at bias 0.7 (a go against a
   freshly stopped car). Fix specified; G0's single-cell rerun now pinned at ≥ 200 seeds. 078 parked
   behind the UX release (user, 2026-11-17).
+- 2026-11-19: Phase 2g: Autoware's launch and the seen start measured; no fixed guard closes the
+  crossing against an impatient car, so the crossing probes every go from a mutual rest
+  (`probe_watch` 1.5 s), on branch `p2g-launch`. Ruled (manager): the probe as the commit check,
+  as branch defaults; the arena's G0 and P2f's grid on the branch run next on 133.

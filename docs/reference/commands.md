@@ -164,7 +164,7 @@ started when none is up.
 | `--timeout S` | SSv2's `global_timeout` (400 s) |
 | `--wait S` | wait up to S for the stack to become ready (default: refuse at once) |
 | `--start-stack` | start the project's stack when none is up (and leave it up); implied for a testbench |
-| `--stop-stack` | as `--start-stack`, then stop the stack it started after the runs |
+| `--stop-stack` | as `--start-stack`, then stop the stack after the runs; it stops only a stack this command started, and one already up stays up |
 | `--stack-timeout S` | how long a started stack may take to become ready (default `--wait`, else 1800) |
 | `--ready-timeout S` | how long a run waits for its pilots' readiness (600 s) |
 | `--seat N`, `--project DIR`, `--logs DIR` | instead of the host settings' and the working directory's |

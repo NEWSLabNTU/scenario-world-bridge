@@ -267,8 +267,11 @@ def main(argv=None, out=None) -> int:
     ap.add_argument("--realtime", default="true", choices=("true", "false"))
     ap.add_argument("--project")
     ap.add_argument("--seat")
-    ap.add_argument("--start-stack", action="store_true")
-    ap.add_argument("--stop-stack", action="store_true")
+    ap.add_argument("--start-stack", action="store_true",
+                    help="start the project's stack when none is up, and leave it up")
+    ap.add_argument("--stop-stack", action="store_true",
+                    help="as --start-stack, and stop the stack after the drive; it stops only "
+                         "a stack this command started, and one already up stays up")
     ap.add_argument("--wait", type=float, default=0.0)
     args = ap.parse_args(argv)
     out = out or sys.stdout

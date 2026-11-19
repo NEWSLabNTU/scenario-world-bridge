@@ -1488,8 +1488,9 @@ def main(argv=None, out=None, stack_command=None) -> int:
     ap.add_argument("--start-stack", action="store_true",
                     help="start the project's stack when none is up, and leave it up")
     ap.add_argument("--stop-stack", action="store_true",
-                    help="as --start-stack, and stop the stack it started after the runs "
-                         "(one-shot: scripts, CI); a stack that was already up stays")
+                    help="as --start-stack, and stop the stack after the runs (one-shot: "
+                         "scripts, CI); it stops only a stack this command started, and one "
+                         "already up stays up")
     ap.add_argument("--stack-timeout", type=float,
                     help=f"seconds a started stack has to become ready ({STACK_START_TIMEOUT:.0f})")
     try:

@@ -413,9 +413,10 @@ def test_keeper_fails_when_carla_never_serves(where, maps_hub):
     assert gone(json.loads((root / "started.json").read_text())["pid"])
 
 
-def test_keeper_ends_the_start_when_carla_answers_another_version(where, maps_hub):
+def test_keeper_ends_the_start_when_carla_answers_another_version(where, maps_hub, monkeypatch):
     """083: a root that says 1.0 serving 0.9.16 is refused once it serves, naming both, and
     no pilot starts on the wrong body."""
+    monkeypatch.setattr(sim, "installed_client", lambda: "1.0")  # the client is not the point
     root = fake_root(where["tmp"])
     (root / "VERSION").write_text("1.0\n")
     d = make(where, {"root": str(root), "port": free_port(), "ready_timeout": 60})
@@ -649,3 +650,57 @@ def test_a_map_this_hosts_carla_has_no_town_for_is_named(tmp_path):
     assert sim.town_problems(["NTU"], {"map_packages": [str(pkgs)]}, alias) == []
     # a CARLA elsewhere (no root, no packages): not checked
     assert sim.town_problems(["NTU"], {}, alias) == []
+
+
+# --- the pilots' CARLA Python client (roadmap 083) ---------------------------------------------
+
+def _wheels(root: Path, *names):
+    import zipfile
+    dist = root / "PythonAPI" / "carla" / "dist"
+    dist.mkdir(parents=True)
+    for n in names:
+        with zipfile.ZipFile(dist / n, "w") as z:
+            z.writestr("carla/__init__.py", f"WHEEL = {n!r}\n")
+    return dist
+
+
+def test_client_wheel_is_the_servers_release_for_this_python(tmp_path):
+    root = tmp_path / "Carla-1.0"
+    _wheels(root, "carla-1.0-cp310-cp310-linux_x86_64.whl", "carla-1.0-cp311-cp311-linux_x86_64.whl")
+    assert sim.client_wheel(root, "1.0", (3, 10)).name.startswith("carla-1.0-cp310")
+    assert sim.client_wheel(root, "1.0.0", (3, 11)).name.startswith("carla-1.0-cp311")
+    assert sim.client_wheel(root, "1.0", (3, 12)) is None
+    assert sim.client_wheel(root, "0.9.16", (3, 10)) is None
+    assert sim.client_wheel(tmp_path / "nowhere", "1.0", (3, 10)) is None
+
+
+def test_unpack_client_once(tmp_path):
+    dist = _wheels(tmp_path / "root", "carla-1.0-cp310-cp310-linux_x86_64.whl")
+    wheel = next(dist.iterdir())
+    d = sim.unpack_client(wheel, tmp_path / "cache")
+    assert d == tmp_path / "cache" / "carla-python" / "carla-1.0-cp310-cp310-linux_x86_64"
+    assert "cp310" in (d / "carla" / "__init__.py").read_text()
+    (d / "carla" / "__init__.py").write_text("kept\n")
+    assert sim.unpack_client(wheel, tmp_path / "cache") == d     # not unpacked again
+    assert (d / "carla" / "__init__.py").read_text() == "kept\n"
+
+
+def test_python_client_takes_the_servers_own_or_names_the_fix(tmp_path):
+    root = tmp_path / "Carla-1.0"
+    _wheels(root, "carla-1.0-cp310-cp310-linux_x86_64.whl")
+    rec = {"host": "localhost", "port": 2400, "version": "1.0", "root": str(root)}
+    cache = tmp_path / "cache"
+    # this Python's client is the server's release: nothing to do
+    assert sim.python_client(rec, cache, installed="1.0.0", py=(3, 10)) == (None, None)
+    # not known yet (an external CARLA that did not answer): nothing to decide
+    assert sim.python_client({**rec, "version": None}, cache, installed="0.9.16") == (None, None)
+    # another release: the server's own, from its package
+    d, problem = sim.python_client(rec, cache, installed="0.9.16", py=(3, 10))
+    assert problem is None and (d / "carla" / "__init__.py").is_file()
+    # none to take: the fix, by name
+    d, problem = sim.python_client({**rec, "root": None}, cache, installed="0.9.16", py=(3, 10))
+    assert d is None
+    assert "localhost:2400 is 1.0" in problem and "client is 0.9.16" in problem
+    assert "carla.root is not set" in problem and "carla-1.0-cp310-*.whl" in problem
+    d, problem = sim.python_client(rec, cache, installed="", py=(3, 12))
+    assert d is None and "not installed" in problem and "for Python 3.12" in problem

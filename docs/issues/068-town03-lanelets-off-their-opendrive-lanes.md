@@ -69,8 +69,22 @@ Town03 scenarios (s5, c2b, `town03_ego_drive`) place entities by WorldPosition o
 scenario names an id.
 
 Before it replaces the pack's Town03:
-1. `autoware_lanelet2_map_validator` on it; the pack's Town03 had 117 errors. That is not installed
-   on 243; 241 ran it for 087 S1.
+1. `autoware_lanelet2_map_validator` (241, 2026-11-20; `-p transverse_mercator --lat 0 --lon 0`):
+
+   | check | v2026.11b Town03 | candidate |
+   |---|---|---|
+   | crosswalk.missing_regulatory_elements | 72 | 73 |
+   | stop_line.missing_regulatory_elements | 7 | 0 |
+   | traffic_light.missing_referrers | 38 | 0 |
+   | total errors | 117 | 73 |
+
+   The one check left is known and dataset-wide: Town03, Town05 and Town10 have crosswalk lanelets
+   (72, 66, 16) and no town has a crosswalk regulatory element (Town01 and Town02 have no
+   crosswalks). Autoware 1.5's crosswalk module finds crosswalks through the routing graph and
+   stops 3.5 m before one without an element, so driving does not need them. The repair is
+   [071](071-crosswalks-have-no-regulatory-elements.md), for the next dataset revision. The
+   validator reads a file by its extension: a `.osm.orig` loads as an empty map and reports
+   clean, so validate a `.osm` copy.
 2. A drive check with the candidate as a local map (`{path: /var/tmp/aeon/i068-town03, as:
    Town03}` in a copy of the projects): `town03_ego_drive`, then s5 and c2b against their
    references, on 0.9.16.

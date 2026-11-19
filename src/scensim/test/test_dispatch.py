@@ -1,5 +1,6 @@
-"""scensim run --seats (roadmap 088 step 2): the dispatcher, its admission, its overload signal,
-its retirement of a seat, and the one report, with fake workers (no stack, no GPU)."""
+"""scensim run --seats (roadmap 088 steps 2 and 3): the dispatcher, its admission (counting the
+testbench's Autoware pilots), its overload signals, its retirement of a seat, rollouts and the
+one report, with fake workers (no stack, no GPU)."""
 import io
 import json
 import sys
@@ -13,8 +14,7 @@ from scensim import config, dispatch, results, run, runs as runsmod
 
 SEATS = {"domains": {"base": 1, "stride": 3}, "ports": {"base": 5555, "stride": 100},
          "web": {"base": 8080, "stride": 10}, "count": 4, "carla": {"base": 3000, "stride": 10}}
-CFG = {"vram_per_seat_mb": 3000, "load_per_seat": 12, "skip_limit": 12, "start_gap": 0,
-       "overload_load": 32}
+CFG = {**config.DEFAULTS["dispatch"], "start_gap": 0}
 
 
 def host(**over):
@@ -58,8 +58,12 @@ def test_auto_with_every_seat_held_is_refused():
 
 def test_dispatch_settings_are_checked():
     assert dispatch.settings({"dispatch": {"skip_limit": 5}})["skip_limit"] == 5
-    with pytest.raises(dispatch.DispatchRefused, match="dispatch.load_per_seat"):
-        dispatch.settings({"dispatch": {"load_per_seat": "high"}})
+    with pytest.raises(dispatch.DispatchRefused, match="dispatch.load_base"):
+        dispatch.settings({"dispatch": {"load_base": "high"}})
+    # a name that is not a setting is refused, naming the ones there are
+    with pytest.raises(dispatch.DispatchRefused, match="dispatch.vram_per_seat_mb is not a "
+                                                       "setting.*vram_base_mb"):
+        dispatch.settings({"dispatch": {"vram_per_seat_mb": 3000}})
 
 
 # ------------------------------------------------------------------------------ admission
@@ -67,13 +71,43 @@ def test_dispatch_settings_are_checked():
 def test_admission_takes_free_vram_and_the_load():
     seat = SimpleNamespace(gpu=1)
     ok = dict(free_mb=lambda g: 8000, load=lambda: (4.0, 0, 0), cores=lambda: 32)
-    assert dispatch.admission(seat, CFG, **ok) == ""
-    why = dispatch.admission(seat, CFG, **{**ok, "free_mb": lambda g: 2048})
-    assert "GPU 1 has 2048 MiB free" in why
-    why = dispatch.admission(seat, CFG, **{**ok, "load": lambda: (25.0, 0, 0)})
-    assert "load is 25.0 on 32 cores" in why
+    assert dispatch.admission(seat, CFG, 1, **ok) == ""
+    why = dispatch.admission(seat, CFG, 1, **{**ok, "free_mb": lambda g: 2048})
+    assert "GPU 1 has 2048 MiB free, a seat (CARLA and 1 Autoware pilot) needs 3000" in why
+    why = dispatch.admission(seat, CFG, 1, **{**ok, "load": lambda: (25.0, 0, 0)})
+    assert "load is 25.0 on 32 cores, a seat (CARLA and 1 Autoware pilot) adds about 12" in why
     # nvidia-smi absent: the load alone decides
-    assert dispatch.admission(seat, CFG, **{**ok, "free_mb": lambda g: None}) == ""
+    assert dispatch.admission(seat, CFG, 1, **{**ok, "free_mb": lambda g: None}) == ""
+
+
+def test_admission_counts_the_autoware_pilots():
+    """A three-pilot testbench is not one ego's seat: each Autoware pilot adds its VRAM and
+    load; a seat with none needs its CARLA's only."""
+    seat = SimpleNamespace(gpu=0)
+    ok = dict(free_mb=lambda g: 4500, load=lambda: (4.0, 0, 0), cores=lambda: 32)
+    assert dispatch.seat_needs(CFG, 0) == (2000, 2)
+    assert dispatch.seat_needs(CFG, 3) == (5000, 32)
+    assert dispatch.admission(seat, CFG, 0, **ok) == ""
+    assert dispatch.admission(seat, CFG, 2, **ok) == ""
+    why = dispatch.admission(seat, CFG, 3, **ok)
+    assert "has 4500 MiB free, a seat (CARLA and 3 Autoware pilots) needs 5000" in why
+    why = dispatch.admission(seat, CFG, 3, **{**ok, "free_mb": lambda g: 9000})
+    assert "the load is 4.0 on 32 cores, a seat (CARLA and 3 Autoware pilots) adds about 32" \
+        in why
+    assert "no Autoware pilot" in dispatch.admission(seat, CFG, 0, **{**ok, "free_mb":
+                                                                       lambda g: 100})
+
+
+def test_autoware_pilots_are_counted_from_the_testbench(tmp_path):
+    (tmp_path / config.PROJECT_FILE).write_text(textwrap.dedent("""\
+        simulator: carla
+        pilots:
+          ego: {kind: autoware}
+          av2: {kind: autoware, lifetime: run}
+          npc: {kind: carla_basic}
+        """))
+    assert dispatch.autoware_pilots(tmp_path) == 2
+    assert dispatch.autoware_pilots(tmp_path / "none") == 0
 
 
 # ---------------------------------------------------------------------- the overload signal
@@ -158,7 +192,8 @@ FAKE_WORKER = textwrap.dedent('''\
         if o.get("stop"):
             break
         n += 1
-        key = o["spec"]["scenario"].rsplit("/", 1)[-1].removesuffix(".xosc") + "_r0"
+        key = (o["spec"]["scenario"].rsplit("/", 1)[-1].removesuffix(".xosc")
+               + f"_r{o['spec'].get('repetition') or 0}")
         if plan.get("die_on") == n:
             os._exit(9)
         broken = plan.get("broken_on") == n
@@ -170,8 +205,11 @@ FAKE_WORKER = textwrap.dedent('''\
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "result.json"), "w") as f:
             json.dump({"run_id": os.path.basename(d), "verdict": verdict,
-                       "scenario": {"file": key + ".xosc", "repetition": 0},
-                       "seat": seat}, f)
+                       "scenario": {"file": o["spec"]["scenario"].rsplit("/", 1)[-1],
+                                    "repetition": o["spec"].get("repetition") or 0,
+                                    "seed": o["spec"].get("seed"),
+                                    "parameters": o["spec"].get("parameters") or {}},
+                       "metrics": plan.get("metrics", {}), "seat": seat}, f)
         if broken:
             verdict = "error"
         why = "its pilot ego's launch did not load /perception/occupancy_grid_map" if broken else ""
@@ -295,14 +333,52 @@ def test_an_overloaded_run_is_run_again_on_one_seat_fewer(tmp_path, fake):
 
 
 def test_a_run_overloaded_twice_keeps_its_verdict_flagged(tmp_path, fake):
-    """The host's mean load past overload_load in every run: each run is tried twice, and the
+    """Every run's world ticks over budget past the limit: each run is tried twice, and the
     second try's verdict stands, flagged in summary.csv."""
-    d, suite, out = dispatcher(tmp_path, fake, n=2, seat_idx=(0,), load=lambda: 78.4,
-                               plan={"0": {"run_time": 1.5}})
+    d, suite, out = dispatcher(tmp_path, fake, n=2, seat_idx=(0,),
+                               plan={"0": {"metrics": {"ticks_over_budget": 23,
+                                                       "frame_count": 200}}})
     assert d.run() == 0
     got = rows(suite)
-    assert len(got) == 2 and all("mean load 78.4 (limit 32)" in r["overload"] for r in got)
+    assert len(got) == 2 and all("11.5 % of ticks over budget (23 of 200; limit 5 %)"
+                                 in r["overload"] for r in got)
     assert out.getvalue().count("run again (overloaded)") == 2
+
+
+def test_the_load_during_a_run_is_recorded_not_judged(tmp_path, fake):
+    """Autoware's start-up lifts the 1-minute load to hundreds with no harm to the run (243's
+    reruns: two_av peak 616, 0.4 % ticks over budget): no rerun for it."""
+    d, suite, out = dispatcher(tmp_path, fake, n=2, seat_idx=(0,), load=lambda: 616.0,
+                               plan={"0": {"run_time": 1.2, "metrics": {
+                                   "ticks_over_budget": 1, "frame_count": 250}}})
+    assert d.run() == 0
+    assert "overloaded" not in out.getvalue()
+    rec = json.loads((suite / "s0_r0" / "dispatch.json").read_text())
+    assert rec["load_max"] == 616.0 and rec["overloaded"] == ""
+    assert rec["ticks_over_budget"] == 1 and rec["frame_count"] == 250
+
+
+def test_cpu_pressure_during_a_run_is_overload(tmp_path, fake):
+    """/proc/pressure/cpu's full stall share of the run past psi_full_limit."""
+    clock = {"t": 0.0}
+    psi = {"us": 0}
+
+    def tick():
+        clock["t"] += 0.5
+        psi["us"] += 100_000   # 0.1 s stalled in every 0.5 s: 20 %
+        return clock["t"]
+    d, suite, out = dispatcher(tmp_path, fake, n=1, seat_idx=(0,), clock=tick,
+                               psi=lambda: psi["us"])
+    assert d.run() == 0
+    assert "the CPU fully stalled 20.0 % of the run (limit 10 %)" in out.getvalue()
+
+
+def test_psi_is_read_from_the_kernel_file(tmp_path):
+    f = tmp_path / "cpu"
+    f.write_text("some avg10=1.00 avg60=0.50 avg300=0.10 total=900\n"
+                 "full avg10=0.00 avg60=0.00 avg300=0.00 total=1234\n")
+    assert dispatch.psi_cpu_full_us(f) == 1234
+    assert dispatch.psi_cpu_full_us(tmp_path / "none") is None
 
 
 def test_admission_waits_for_room_then_starts_the_seat(tmp_path, fake):
@@ -432,3 +508,39 @@ def test_a_broken_seats_run_goes_to_another_seat(tmp_path, fake):
     assert "back in the queue (seat 0 is broken)" in text
     assert "seat 0: retired: its pilot ego's launch did not load" in text
     assert sorted(r["verdict"] for r in rows(suite)) == ["passed"] * 4
+
+
+# ------------------------------------------------------------------------------ rollouts
+
+def test_rollouts_on_two_seats_are_grouped_per_scenario(tmp_path, fake):
+    """088 step 3: a scenario's rollouts (seeds 100-105, two parameter values) are queue items
+    like a suite's runs; rollouts.csv groups them: counts, the pass rate, the seeds, spreads."""
+    roll = [run.RunSpec(scenario=Path("/x/cut.xosc"), parameters={"gap": g}, repetition=k,
+                        seed=100 + k) for g in (6, 10) for k in range(3)]
+    plan = {s: {"verdicts": {"cut_r1": "failed"}, "metrics": {"duration_s": 30.0 + int(s),
+                                                              "ticks_over_budget": 0,
+                                                              "frame_count": 600}}
+            for s in ("0", "1")}
+    suite = tmp_path / "suite"
+    suite.mkdir()
+    out = io.StringIO()
+    d = dispatch.Dispatcher(roll, seats(0, 1), CFG, suite, None, out=out,
+                            worker_argv=fake(plan), admit=lambda s: "", skips=lambda w: 0,
+                            load=lambda: 4.0, autoware=1)
+    assert d.run() == 1
+    assert sorted(p.name for p in suite.iterdir() if p.is_symlink()) == sorted(
+        s.key for s in roll)
+    import csv
+    with open(suite / "rollouts.csv") as f:
+        got = {r["params"]: r for r in csv.DictReader(f)}
+    assert set(got) == {"gap=6", "gap=10"}
+    g6 = got["gap=6"]
+    assert (g6["runs"], g6["passed"], g6["failed"], g6["error"]) == ("3", "2", "1", "0")
+    assert g6["pass_rate"] == "0.6667" and g6["seeds"] == "100-102"
+    assert 30.0 <= float(g6["duration_min"]) <= float(g6["duration_max"]) <= 31.0
+    with open(suite / "rollout_metrics.csv") as f:
+        m = [r for r in csv.DictReader(f) if r["params"] == "gap=10"]
+    assert {r["metric"] for r in m} == {"duration_s", "ticks_over_budget", "frame_count"}
+    assert all(r["n"] == "3" for r in m)
+    rec = json.loads((suite / roll[0].key / "dispatch.json").read_text())
+    assert rec["autoware_pilots"] == 1

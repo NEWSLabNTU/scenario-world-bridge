@@ -11,7 +11,8 @@ list|show|why|summary|prune` ([Commands](commands.md#scensim-runs)).
   stacks/<stack id>/   stack.json  events.jsonl  proc/<group>/...   one per stack
   seat-<n>-current  -> stacks/<stack id>          the live stack on seat n
   runs/<run id>/       one per run (below)
-  suites/<suite>[_shard-i-of-n]/   links to its runs, summary.csv, junit.xml
+  suites/<suite>[_shard-i-of-n]/   links to its runs, summary.csv, rollouts.csv, ...
+  suites/rollouts-<scenario>/      the same, for a scenario run more than once
 <project>/runs  -> <logs>/<project name>/runs
 ```
 
@@ -134,3 +135,10 @@ name, as play_launch names its process.
 which the host was overloaded, and why; empty otherwise). The merged `junit.xml` holds one test
 suite per run with SSv2's testcases, plus a testcase standing for an `error` (or a
 failure) SSv2 did not report.
+
+`rollouts.csv` groups the runs per scenario and parameter set: `scenario`, `params`, `runs`,
+`passed`, `failed`, `error`, `pass_rate`, `seeds` (as ranges), `duration_mean`,
+`duration_sd`, `duration_min`, `duration_max`, `overloaded` (how many). `rollout_metrics.csv`
+has one row per group and numeric metric of `result.json`: `metric`, `n`, `mean`, `sd`,
+`min`, `max`. A scenario run more than once (`--repeat`, `--seeds`, a `--param` list) gets
+the same files under `suites/rollouts-<scenario>/`.

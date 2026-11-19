@@ -1,6 +1,6 @@
 # 088: Parallel Testing
 
-**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Step 2 (the dispatcher) on branch `088-dispatcher-2`, waiting for its live check. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
+**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Step 2 (the dispatcher) and step 3 (rollouts, admission by pilots) on branch `088-dispatcher-3` (2026-11-20), waiting for the live check. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
 
 ## Goal
 
@@ -114,15 +114,15 @@ Findings for step 2:
   A free worker gets the next spec; a run that ends `error` is retried as the suite's
   `retry:` says, on whichever seat is free next.
 - **Admission.** A seat starts its stack only when the host has room for it: free VRAM on its
-  GPU (`nvidia-smi`) at least `dispatch.vram_per_seat_mb` (3000, step 1's ~3 GB per ego seat)
-  and the 1-minute load plus `dispatch.load_per_seat` (12) at most the core count; seats
+  GPU (`nvidia-smi`) and the 1-minute load plus the seat's own at most the core count (step 3
+  sizes both by the testbench's pilots; step 1 measured ~3 GB and ~12 per ego seat); seats
   start one at a time, the next only once the last is ready and `dispatch.start_gap` s
   (30) after it, so one seat's start load is seen before the next. A seat that cannot be
   admitted waits, and the suite runs on the seats that were.
 - **Overload, per run.** While a run goes, the dispatcher samples the host's 1-minute load;
   when it ends, it reads the seat's acb_bridge `Skipped N CARLA frame(s)` lines written since
   the run started. A run is overloaded when it skipped more than `dispatch.skip_limit` (12)
-  frames or the mean load during it passed `dispatch.overload_load` (the core count). An
+  frames (step 3 adds ticks over budget and CPU pressure, and drops the load during a run). An
   overloaded run's verdict is the host's as much as the scenario's: the try stays on disk
   unlinked, the run goes back to the queue once, and one seat fewer takes work from then on
   (never below one; that seat is parked, its stack up and idle). A second overloaded try keeps
@@ -171,3 +171,48 @@ run on 133)/`.
 A coordinator over several lab hosts (ssh, a shared queue, results on the NAS; 241's design
 note, 2026-11-19) was dropped when the model was revised: a user works on one host. Kept here
 as the option if a farm or a CI cluster ever needs it.
+
+## Step 3: rollouts and admission by pilots (118, 2026-11-20)
+
+Branch `088-dispatcher-3` (088-dispatcher-2 rebased onto main after 0.2.0, plus this step).
+
+- **Rollouts are queue items.** A suite already expanded to one spec per scenario, grid
+  combination and repetition, each with its seed; step 3 adds what a rollout needs and lets
+  `--seats` take it:
+  - `--seeds A-B`: one run per seed from A to B (repetition k gets seed A + k), over a
+    suite's own `seed:`; not with `--repeat`.
+  - `--param NAME=[a,b,c]` on a scenario: one run per value (a grid axis, as in a suite;
+    before, a scenario took the list as one value).
+  - `cases:` in a suite: a list of parameter sets, each run as it is (a list, where
+    `parameters:` is a grid); each case times the grid. A name may not be in both, and two
+    cases may not be the same; `project check` names either.
+  - A scenario (or a directory) run more than once gets a report directory like a suite's,
+    `suites/rollouts-<scenario>/`, so `--seats` and `--resume` work for it too.
+- **The report groups per scenario.** `runs.summarize` writes, beside `summary.csv`,
+  `rollouts.csv` (per scenario and parameter set: runs, passed, failed, error, pass rate, the
+  seeds as ranges, the duration's mean, sd, min and max, how many were overloaded) and
+  `rollout_metrics.csv` (per group and numeric metric of `result.json`: n, mean, sd, min,
+  max). One seat or many, the files are the same.
+- **Admission counts the pilots.** A seat's need is its CARLA and SSv2
+  (`dispatch.vram_base_mb` 2000, `load_base` 2) plus, for each `kind: autoware` pilot of the
+  testbench (of the stack or of a run), `vram_per_autoware_mb` 1000 and `load_per_autoware`
+  10. One ego is step 1's 3000 MiB and 12; a three-pilot testbench needs 5000 MiB and 32.
+  The `dispatch ...` line names the need. Other pilot kinds count nothing.
+- **Overload is judged on the run, not on the load during it** (133, from 243's reruns,
+  2026-11-20: the 1-minute load peaked at 90-616 during runs from our own Autoware start-up
+  with no harm, two_av at 616 with 0.4 % ticks over budget and no CPU stall; the overruns of
+  7.8-11.5 % came from other work on the host). The load is looked at only before a seat
+  starts. A run is overloaded when acb_bridge skipped more than `skip_limit` frames, more than
+  `tick_overrun_limit` (5) % of its world ticks were over budget (`ticks_over_budget` of
+  `frame_count` in its `result.json`), or the host's CPU was fully stalled
+  (`/proc/pressure/cpu`, `full`) more than `psi_full_limit` (10) % of its wall time. The 10 %
+  is a first value: the live check should look at the stall shares a clean run and a loaded
+  one have. `overload_load` is gone; `dispatch.json` records the load (mean, max), the ticks,
+  the stall share and the pilot count.
+- **Settings by name.** A `dispatch:` key that is not a setting is refused, naming those
+  there are (`vram_per_seat_mb`, `load_per_seat` and `overload_load` were only ever on the
+  branch).
+
+The live check (133) covers both steps: basic's town01 on two seats as before, and a rollout
+(`--seeds 1-12` of one scenario) on two seats, its `rollouts.csv` against the same rollout on
+one seat.

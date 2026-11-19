@@ -63,8 +63,8 @@ LOGGING_NOT_YET = {"levels": "per-process ROS log levels are not built yet; give
                              " own (e.g. args: {log_level: warn}) where its launch takes one",
                    "debug": "DEBUG on named groups is not built yet; capture: debug records"
                             " every topic"}
-SUITE_KEYS = ("scenarios", "parameters", "distribution", "repetitions", "seed", "expect",
-              "retry", "pilot_args", "logging", "ssv2")
+SUITE_KEYS = ("scenarios", "parameters", "cases", "distribution", "repetitions", "seed",
+              "expect", "retry", "pilot_args", "logging", "ssv2")
 SUITE_ITEM_KEYS = ("path", "ssv2")  # a scenarios: item as a mapping
 EXTERNAL_CONTROLLERS = ("agent", "autoware")
 MAPS_PREFIX = "$(env SCENSIM_MAPS)/"
@@ -614,6 +614,34 @@ def profile_problems(project: Path, settings: dict) -> list:
     return out
 
 
+def cases_problems(cases, parameters=None) -> list:
+    """Every way a suite's ``cases:`` is wrong, as messages. ``cases`` is a list of parameter
+    sets, each one mapping name -> value and each run as it is (a list, where ``parameters:``
+    is a grid); a name may not be in both, and two cases may not be the same (roadmap 088
+    step 3)."""
+    if cases is None:
+        return []
+    if not isinstance(cases, list) or not cases:
+        return ["cases: a list of parameter sets, each a mapping name -> value"]
+    out, seen = [], []
+    grid_names = set(parameters) if isinstance(parameters, dict) else set()
+    for i, c in enumerate(cases):
+        if not isinstance(c, dict) or not c:
+            out.append(f"cases[{i}]: a mapping name -> value, not {c!r}")
+            continue
+        bad = [k for k, v in c.items() if isinstance(v, (list, dict))]
+        if bad:
+            out.append(f"cases[{i}]: {bad[0]}: one value per case (a list of values is "
+                       "parameters:, the grid)")
+        both = sorted(grid_names & set(c))
+        if both:
+            out.append(f"cases[{i}]: {both[0]} is in parameters: too; give it in one of them")
+        if c in seen:
+            out.append(f"cases[{i}]: the same as cases[{seen.index(c)}]")
+        seen.append(c)
+    return out
+
+
 def collect_scenarios(project: Path):
     """``(scenario files, findings)``: scenarios/ and every suite's scenarios."""
     files, findings = [], []
@@ -633,6 +661,8 @@ def collect_scenarios(project: Path):
                 findings.append(Finding(rel, f"unknown key {k}",
                                         f"use only {', '.join(SUITE_KEYS)}"))
         findings += _check_logging(rel, "logging", data.get("logging"))
+        for msg in cases_problems(data.get("cases"), data.get("parameters")):
+            findings.append(Finding(rel, msg, "cases: [{speed: 10, gap: 5}, {speed: 20, gap: 8}]"))
         for where, msg in ssv2mod.problems(data.get("ssv2")):
             findings.append(Finding(rel, f"{where}: {msg}"))
         items, bad = suite_items(data.get("scenarios"))

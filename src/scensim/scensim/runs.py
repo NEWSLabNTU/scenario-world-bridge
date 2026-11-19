@@ -346,8 +346,77 @@ SUMMARY_FIELDS = ("run_id", "scenario", "params", "repetition", "seed", "verdict
                   "duration", "judges", "path", "overload")
 
 
+ROLLOUT_FIELDS = ("scenario", "params", "runs", "passed", "failed", "error", "pass_rate",
+                  "seeds", "duration_mean", "duration_sd", "duration_min", "duration_max",
+                  "overloaded")
+ROLLOUT_METRIC_FIELDS = ("scenario", "params", "metric", "n", "mean", "sd", "min", "max")
+
+
+def _spread(values: list) -> tuple:
+    """``(mean, sample sd, min, max)`` of numbers, rounded; sd empty for one value."""
+    n = len(values)
+    mean = sum(values) / n
+    sd = (sum((v - mean) ** 2 for v in values) / (n - 1)) ** 0.5 if n > 1 else None
+    r = lambda v: "" if v is None else round(v, 4)   # noqa: E731
+    return r(mean), r(sd), r(min(values)), r(max(values))
+
+
+def _seeds(seeds: list) -> str:
+    """Seeds as ranges: ``100-104 110``."""
+    out, s = [], sorted(set(seeds))
+    i = 0
+    while i < len(s):
+        j = i
+        while j + 1 < len(s) and s[j + 1] == s[j] + 1:
+            j += 1
+        out.append(str(s[i]) if i == j else f"{s[i]}-{s[j]}")
+        i = j + 1
+    return " ".join(out)
+
+
+def rollouts(run_root: Path, dirs: list) -> tuple:
+    """``rollouts.csv`` and ``rollout_metrics.csv`` in ``run_root``: the runs grouped per
+    scenario and parameter set (roadmap 088 step 3). The first: runs, verdict counts, the
+    pass rate, the seeds, the duration's spread and how many were overloaded; the second, one
+    row per numeric metric of result.json: n, mean, sd, min, max."""
+    groups = {}
+    for d in dirs:
+        r = load(d) or {}
+        key = ((r.get("scenario") or {}).get("file", ""), _params(r))
+        groups.setdefault(key, []).append((d, r))
+    path, mpath = run_root / "rollouts.csv", run_root / "rollout_metrics.csv"
+    with open(path, "w", newline="") as f, open(mpath, "w", newline="") as mf:
+        w, mw = csv.writer(f), csv.writer(mf)
+        w.writerow(ROLLOUT_FIELDS)
+        mw.writerow(ROLLOUT_METRIC_FIELDS)
+        for (file, params), members in groups.items():
+            n = len(members)
+            count = {v: sum(1 for _, r in members if r.get("verdict") == v)
+                     for v in results.VERDICTS}
+            seeds = [(r.get("scenario") or {}).get("seed") for _, r in members]
+            durs = [m["duration_s"] for _, r in members
+                    if isinstance((m := r.get("metrics") or {}).get("duration_s"), (int, float))]
+            spread = _spread(durs) if durs else ("", "", "", "")
+            w.writerow([file, params, n, count[results.PASSED], count[results.FAILED],
+                        count[results.ERROR], round(count[results.PASSED] / n, 4),
+                        _seeds([x for x in seeds if isinstance(x, int)]), *spread,
+                        sum(1 for d, _ in members if _overload(d))])
+            names = []
+            for _, r in members:
+                for k, v in (r.get("metrics") or {}).items():
+                    if k not in names and isinstance(v, (int, float)) and not isinstance(v, bool):
+                        names.append(k)
+            for k in names:
+                vals = [v for _, r in members
+                        if isinstance((v := (r.get("metrics") or {}).get(k)), (int, float))
+                        and not isinstance(v, bool)]
+                mw.writerow([file, params, k, len(vals), *_spread(vals)])
+    return path, mpath
+
+
 def summarize(run_root: Path) -> tuple:
-    """Write ``summary.csv`` and a merged ``junit.xml`` in ``run_root``; returns both paths."""
+    """Write ``summary.csv``, ``rollouts.csv`` (with ``rollout_metrics.csv``) and a merged
+    ``junit.xml`` in ``run_root``; returns the summary's and the JUnit's paths."""
     dirs = [d for d in run_dirs(run_root) if (d / "result.json").is_file()]
     csv_path = run_root / "summary.csv"
     suites = ET.Element("testsuites", name=str(run_root))
@@ -369,6 +438,7 @@ def summarize(run_root: Path) -> tuple:
             for k in totals:
                 totals[k] += int(suite.get(k, 0))
             suites.append(suite)
+    rollouts(run_root, dirs)
     for k, v in totals.items():
         suites.set(k, str(v))
     junit_path = run_root / "junit.xml"

@@ -9,12 +9,19 @@ at a time and runs it with ``run.run_spec``. The protocol is JSON lines: the wor
 on stdin; whatever else it prints (the run's own lines) goes to stderr, which the
 dispatcher shows prefixed with the seat.
 
-The dispatcher admits a seat's start only when the host has room (free VRAM on its GPU,
-the 1-minute load), starts seats ``dispatch.start_gap`` s apart, lowers the number of seats
-handed work when a run's acb_bridge skipped more than ``dispatch.skip_limit`` CARLA frames
-(overload), retires a seat whose stack does not become ready or whose pilots are broken, and
-merges every run into the suite's one directory (``<logs>/<testbench>/suites/<suite>/``), so
-``summary.csv`` and ``junit.xml`` are written as for one seat and T3's compare reads them
+The queue holds a suite's runs or a scenario's rollouts (``--repeat``, ``--seeds``,
+``--param`` lists, a suite's ``cases:`` and grid), each one item with its seed and parameters
+(step 3).
+
+The dispatcher admits a seat's start only when the host has room for what the testbench runs
+in a seat (its CARLA plus each Autoware pilot: free VRAM on its GPU, the 1-minute load before
+the start), starts seats ``dispatch.start_gap`` s apart, judges each run for overload (its
+acb_bridge's skipped CARLA frames, its world ticks over budget, the host's CPU pressure while
+it ran; not the load average, which Autoware's start-up lifts harmlessly), runs an
+overloaded run again on one seat fewer, retires a seat whose stack does not become ready or
+whose pilots are broken, and merges every run into one directory
+(``<logs>/<testbench>/suites/<suite or rollouts-scenario>/``), so ``summary.csv``,
+``rollouts.csv`` and ``junit.xml`` are written as for one seat and T3's compare reads them
 unchanged.
 """
 from __future__ import annotations
@@ -51,10 +58,15 @@ class DispatchRefused(Exception):
 
 def settings(host: dict) -> dict:
     d = dict(config.DEFAULTS["dispatch"])
-    d.update(host.get("dispatch") or {})
-    if d.get("overload_load") is None:
-        d["overload_load"] = float(os.cpu_count() or 1)
-    for k in ("vram_per_seat_mb", "load_per_seat", "skip_limit", "start_gap", "overload_load"):
+    given = host.get("dispatch") or {}
+    if not isinstance(given, dict):
+        raise DispatchRefused(f"host settings: dispatch: a mapping, not {given!r}")
+    for k in given:
+        if k not in d:
+            raise DispatchRefused(f"host settings: dispatch.{k} is not a setting (use only "
+                                  f"{', '.join(d)})")
+    d.update(given)
+    for k in d:
         v = d.get(k)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0:
             raise DispatchRefused(f"host settings: dispatch.{k} must be a number >= 0, not {v!r}")
@@ -106,18 +118,67 @@ def gpu_free_mb(gpu) -> int:
         return None
 
 
-def admission(seat, cfg: dict, free_mb=gpu_free_mb, load=os.getloadavg,
+def autoware_pilots(project) -> int:
+    """How many Autoware pilots the testbench at ``project`` runs in a seat (every
+    ``kind: autoware`` pilot, of the stack or of a run): each adds its VRAM and load."""
+    try:
+        pilots = config.project_settings(Path(project)).get("pilots")
+    except config.ConfigError:
+        return 0
+    if not isinstance(pilots, dict):
+        return 0
+    return sum(1 for p in pilots.values() if isinstance(p, dict) and p.get("kind") == "autoware")
+
+
+def seat_needs(cfg: dict, autoware: int) -> tuple:
+    """``(VRAM MiB, load)`` one seat of a testbench with ``autoware`` Autoware pilots needs."""
+    return (cfg["vram_base_mb"] + autoware * cfg["vram_per_autoware_mb"],
+            cfg["load_base"] + autoware * cfg["load_per_autoware"])
+
+
+def _what(autoware: int) -> str:
+    return (f"CARLA and {autoware} Autoware pilot{'s' if autoware != 1 else ''}"
+            if autoware else "CARLA, no Autoware pilot")
+
+
+def admission(seat, cfg: dict, autoware: int = 0, free_mb=gpu_free_mb, load=os.getloadavg,
               cores=os.cpu_count) -> str:
-    """Why seat ``seat`` may not start its stack now, or "" when the host has room."""
+    """Why seat ``seat`` may not start its stack now, or "" when the host has room for a
+    seat of ``autoware`` Autoware pilots. The load is looked at only here, before a start."""
+    vram, adds = seat_needs(cfg, autoware)
     free = free_mb(seat.gpu)
-    if free is not None and free < cfg["vram_per_seat_mb"]:
+    if free is not None and free < vram:
         return (f"GPU {seat.gpu if seat.gpu is not None else 0} has {free} MiB free, a seat "
-                f"needs {cfg['vram_per_seat_mb']:.0f}")
+                f"({_what(autoware)}) needs {vram:.0f}")
     l1 = load()[0]
     n = cores() or 1
-    if l1 + cfg["load_per_seat"] > n:
-        return f"the load is {l1:.1f} on {n} cores, a seat adds about {cfg['load_per_seat']:.0f}"
+    if l1 + adds > n:
+        return (f"the load is {l1:.1f} on {n} cores, a seat ({_what(autoware)}) adds about "
+                f"{adds:.0f}")
     return ""
+
+
+def psi_cpu_full_us(path="/proc/pressure/cpu"):
+    """The host's total time (us) with every non-idle task stalled on the CPU, or None
+    (no PSI on this kernel)."""
+    try:
+        for ln in Path(path).read_text().splitlines():
+            if ln.startswith("full "):
+                return int(re.search(r"total=(\d+)", ln).group(1))
+    except (OSError, AttributeError, ValueError):
+        pass
+    return None
+
+
+def tick_overrun(run_dir) -> tuple:
+    """``(ticks over budget, frames)`` of a run, from its result.json's frame metrics
+    (scensim.frames), or ``(None, None)``."""
+    try:
+        m = (json.loads((Path(run_dir) / "result.json").read_text()) or {}).get("metrics") or {}
+        t, f = m.get("ticks_over_budget"), m.get("frame_count")
+        return (int(t), int(f)) if t is not None and f else (None, None)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None, None
 
 
 def acb_skips(proc_dir, offsets: dict) -> int:
@@ -276,12 +337,14 @@ class Worker:
     why: str = ""
     buf: str = ""
     loads: list = dataclasses.field(default_factory=list)   # 1-min load, sampled in the run
+    psi0: int = None           # /proc/pressure/cpu full total at the run's start (us)
+    t0: float = None           # the run's start (the dispatcher's clock)
 
 
 class Dispatcher:
     def __init__(self, specs, seats, cfg: dict, suite_dir: Path, retry: dict, out=None,
                  worker_argv=None, admit=None, skips=None, clock=time.monotonic,
-                 load=lambda: os.getloadavg()[0]):
+                 load=lambda: os.getloadavg()[0], autoware: int = 0, psi=psi_cpu_full_us):
         self.queue = deque((s, 0) for s in specs)
         self.workers = [Worker(seat=s) for s in seats]
         self.cfg = cfg
@@ -290,7 +353,9 @@ class Dispatcher:
         self.retries = int(r.get("times") or 0) if (r.get("on") or "error") == "error" else 0
         self.out = out or sys.stdout
         self.worker_argv = worker_argv
-        self.admit = admit or (lambda seat: admission(seat, cfg))
+        self.autoware = autoware
+        self.admit = admit or (lambda seat: admission(seat, cfg, autoware))
+        self.psi = psi
         self.skips = skips or (lambda w: acb_skips(w.proc_dir, w.offsets))
         self.clock = clock
         self.load = load
@@ -337,6 +402,7 @@ class Dispatcher:
         w.job = (spec, attempt)
         w.state = "busy"
         w.loads = []
+        w.psi0, w.t0 = self.psi(), self.clock()
         self.skips(w)   # the run's skips are counted from here
         self._send(w, run=True, spec=spec_to_json(spec), attempt=attempt)
 
@@ -354,17 +420,30 @@ class Dispatcher:
         w.state = "retired"
         self._send(w, stop=True)
 
-    def overload(self, skipped: int, loads: list) -> str:
-        """Why a run was overloaded (its acb_bridge skipped frames, or the host's mean load
-        while it ran), or ""."""
+    def overload(self, skipped: int, ticks: tuple = (None, None), psi_pct=None) -> str:
+        """Why a run was overloaded, or "": its acb_bridge skipped frames, its world ticks
+        over budget (``(over, frames)``), the share of it the host's CPU was fully stalled
+        (``psi_pct``). The load average is not a sign: Autoware's own start-up lifts it to
+        hundreds with no harm to the run (243's reruns, 2026-11-20)."""
         why = []
         if skipped > self.cfg["skip_limit"]:
             why.append(f"acb_bridge skipped {skipped} CARLA frames (limit "
                        f"{self.cfg['skip_limit']:.0f})")
-        mean = sum(loads) / len(loads) if loads else 0.0
-        if mean > self.cfg["overload_load"]:
-            why.append(f"mean load {mean:.1f} (limit {self.cfg['overload_load']:.0f})")
+        over, frames = ticks
+        if over is not None and frames and 100.0 * over / frames > self.cfg["tick_overrun_limit"]:
+            why.append(f"{100.0 * over / frames:.1f} % of ticks over budget ({over} of {frames};"
+                       f" limit {self.cfg['tick_overrun_limit']:g} %)")
+        if psi_pct is not None and psi_pct > self.cfg["psi_full_limit"]:
+            why.append(f"the CPU fully stalled {psi_pct:.1f} % of the run (limit "
+                       f"{self.cfg['psi_full_limit']:g} %)")
         return "; ".join(why)
+
+    def _psi_pct(self, w: Worker):
+        now = self.psi()
+        if now is None or w.psi0 is None or w.t0 is None:
+            return None
+        wall = self.clock() - w.t0
+        return 100.0 * (now - w.psi0) / (wall * 1e6) if wall > 0 else None
 
     def _done(self, w: Worker, ev: dict):
         spec, attempt = w.job
@@ -372,8 +451,10 @@ class Dispatcher:
         run_dir = Path(ev["run_dir"])
         skipped = self.skips(w)
         loads = w.loads
-        why = self.overload(skipped, loads)
-        self._record(run_dir, w, skipped, loads, why)
+        ticks = tick_overrun(run_dir)
+        psi_pct = self._psi_pct(w)
+        why = self.overload(skipped, ticks, psi_pct)
+        self._record(run_dir, w, skipped, loads, why, ticks, psi_pct)
         self.say((ev.get("line") or f"{ev.get('verdict')}  {spec.key}")
                  + (f"  overloaded: {why}" if why else ""))
         parked = False
@@ -402,12 +483,17 @@ class Dispatcher:
             self.worst = max(self.worst, int(ev.get("outcome") or 0))
         w.state = "parked" if parked else "ready"
 
-    def _record(self, run_dir: Path, w: Worker, skipped: int, loads: list, why: str):
-        """dispatch.json in the run's directory: the seat, its acb_bridge skips and the
-        host's load while it ran, and whether it was overloaded (runs.summarize reads it)."""
+    def _record(self, run_dir: Path, w: Worker, skipped: int, loads: list, why: str,
+                ticks: tuple = (None, None), psi_pct=None):
+        """dispatch.json in the run's directory: the seat, its acb_bridge skips, its ticks
+        over budget, the host's CPU pressure and load while it ran (the load recorded, not
+        judged), and whether it was overloaded (runs.summarize reads it)."""
         try:
             (run_dir / "dispatch.json").write_text(json.dumps({
-                "seat": w.seat.index, "acb_skipped_frames": skipped,
+                "seat": w.seat.index, "autoware_pilots": self.autoware,
+                "acb_skipped_frames": skipped,
+                "ticks_over_budget": ticks[0], "frame_count": ticks[1],
+                "psi_cpu_full_pct": None if psi_pct is None else round(psi_pct, 2),
                 "load_mean": round(sum(loads) / len(loads), 1) if loads else None,
                 "load_max": round(max(loads), 1) if loads else None,
                 "overloaded": why}, indent=2) + "\n")

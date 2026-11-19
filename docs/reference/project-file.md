@@ -324,6 +324,9 @@ scenarios: [scenarios/cut_in.xosc, scenarios/awf/]   # files and directories
 parameters:                                          # a grid over ParameterDeclarations
   gap_m: [6, 10, 14]
   policy: [yield, push]
+cases:                                               # parameter sets, each run as it is
+  - {speed: 10, lead_gap: 5}
+  - {speed: 20, lead_gap: 8}
 distribution: scenarios/cut_in_dist.xosc             # or a ParameterValueDistribution
 repetitions: 5
 seed: 1000                                           # run k gets seed 1000 + k
@@ -338,9 +341,10 @@ ssv2: {global_timeout: 600}
 |---|---|
 | `scenarios` | files and directories (every scenario in them, sorted); an item may be a mapping `{path: <file or directory>, ssv2: {...}}`, run settings for its runs |
 | `parameters` | name to a list of values; the runs are the grid's every combination |
+| `cases` | a list of parameter sets, each a mapping name to one value, run as it is; with `parameters`, each case times the grid. A name is in one of them, not both |
 | `distribution` | an OpenSCENARIO `ParameterValueDistribution` file, passed to SSv2 as it is, one run per repetition (this SSv2 does not expand it yet) |
 | `repetitions` | runs per combination (default 1); run ids end `_r0`, `_r1`, ... |
-| `seed` | run k gets `seed + k` |
+| `seed` | run k gets `seed + k` (`run --seeds A-B` overrides it: seeds A to B, one run each) |
 | `expect` | scenario (relative to the testbench or `scenarios/`) to the verdict expected; the suite exits 0 when runs end as expected |
 | `retry` | `{on: error, times: N}`: run again a run the stack could not judge |
 | `pilot_args` | per entity, `args` for `lifetime: run` pilots, substitutions applied |

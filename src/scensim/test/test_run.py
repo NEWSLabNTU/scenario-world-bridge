@@ -173,6 +173,64 @@ def test_suite_grid_seeds_expect_distribution(tmp_path):
     assert len({s.key for s in specs}) == len(specs)
 
 
+def test_rollouts_of_one_scenario_seeds_and_a_param_list(tmp_path):
+    """088 step 3: --seeds A-B is one run per seed; --param NAME=[a,b] one run per value."""
+    (tmp_path / "s.xosc").write_text("<OpenSCENARIO/>")
+    first, n = run.seeds("100-104")
+    assert (first, n) == (100, 5) and run.seeds("7") == (7, 1)
+    specs, suite = run.expand(tmp_path / "s.xosc", tmp_path, repeat=n,
+                              params={"gap": [6, 10]}, seed=first)
+    assert suite is None and len(specs) == 10
+    assert [s.seed for s in specs[:5]] == [100, 101, 102, 103, 104]
+    assert specs[0].key == "s_gap-6_r0" and specs[5].key == "s_gap-10_r0"
+    assert len({s.key for s in specs}) == 10
+    assert run.report_name(tmp_path / "s.xosc", None, specs) == "rollouts-s"
+    assert run.report_name(tmp_path / "s.xosc", None, specs[:1]) is None
+    assert run.report_name(tmp_path / "c3.yaml", {}, specs[:1]) == "c3"
+
+
+@pytest.mark.parametrize("text, words", [("9-3", "ends before"), ("a-b", "give a range"),
+                                         ("", "give a range")])
+def test_bad_seed_ranges_are_refused(text, words):
+    with pytest.raises(run.Refused, match=words):
+        run.seeds(text)
+
+
+def test_seeds_with_repeat_is_refused(capsys):
+    assert run.main(["x.xosc", "--seeds", "1-3", "--repeat", "2"]) == run.EXIT_REFUSED
+    assert "--seeds gives the number of runs itself" in capsys.readouterr().err
+
+
+def test_suite_cases_are_a_list_times_the_grid(tmp_path):
+    (tmp_path / "a.xosc").write_text("<OpenSCENARIO/>")
+    (tmp_path / "s.yaml").write_text(yaml.safe_dump({
+        "scenarios": ["a.xosc"], "cases": [{"v": 10, "gap": 5}, {"v": 20, "gap": 8}],
+        "parameters": {"policy": ["yield", "push"]}, "repetitions": 2, "seed": 50}))
+    specs, _ = run.expand(tmp_path / "s.yaml", tmp_path)
+    assert len(specs) == 2 * 2 * 2
+    assert specs[0].parameters == {"v": 10, "gap": 5, "policy": "yield"}
+    assert specs[4].parameters == {"v": 20, "gap": 8, "policy": "yield"}
+    assert [s.seed for s in specs[:2]] == [50, 51]
+    # --seeds over the suite's own seed
+    specs, _ = run.expand(tmp_path / "s.yaml", tmp_path, repeat=3, seed=900)
+    assert [s.seed for s in specs[:3]] == [900, 901, 902]
+    assert len({s.key for s in specs}) == len(specs)
+
+
+@pytest.mark.parametrize("cases, words", [
+    ({"v": 1}, "a list of parameter sets"), ([], "a list of parameter sets"),
+    ([{"v": [1, 2]}], "one value per case"), (["v"], "a mapping name -> value"),
+    ([{"policy": "x"}], "policy is in parameters: too"), ([{"v": 1}, {"v": 1}], "the same as")])
+def test_bad_cases_are_refused(tmp_path, cases, words):
+    (tmp_path / "a.xosc").write_text("<OpenSCENARIO/>")
+    (tmp_path / "s.yaml").write_text(yaml.safe_dump({
+        "scenarios": ["a.xosc"], "cases": cases, "parameters": {"policy": ["yield"]}}))
+    with pytest.raises(run.Refused, match=words):
+        run.expand(tmp_path / "s.yaml", tmp_path)
+    assert any(words.split(":")[0] in m for m in project.cases_problems(cases,
+                                                                         {"policy": ["yield"]}))
+
+
 def test_suite_refusals(tmp_path):
     (tmp_path / "s.yaml").write_text("scenarios: [nope.xosc]\n")
     with pytest.raises(run.Refused, match="nope.xosc: no such file"):

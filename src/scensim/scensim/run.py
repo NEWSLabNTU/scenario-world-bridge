@@ -19,8 +19,10 @@ domain) and every pilot's readiness waited for; the stack's log sizes noted; SSv
 built, ``result.json`` written, ``logging.keep`` applied, one line printed.
 
 A suite file: ``scenarios`` (files, directories), ``parameters`` (a grid: every combination),
-``distribution`` (OpenSCENARIO ParameterValueDistribution files, handed to SSv2 as they are,
-one run each), ``repetitions``, ``seed`` (run k gets seed + k), ``expect`` (scenario ->
+``cases`` (a list of parameter sets, each run as it is, times the grid), ``distribution``
+(OpenSCENARIO ParameterValueDistribution files, handed to SSv2 as they are, one run each),
+``repetitions``, ``seed`` (run k gets seed + k; ``--seeds A-B`` gives seeds A to B, one run
+each), ``expect`` (scenario ->
 verdict), ``retry`` (``{on: error, times: n}``), ``pilot_args`` (entity -> launch arguments
 for its ``lifetime: run`` pilot), ``logging``. A suite's runs are linked from
 ``<logs>/<project>/suites/<suite>[_shard-i-of-n]/``, which gets ``summary.csv`` and a merged
@@ -158,8 +160,10 @@ def _expect_for(expect: dict, project: Path, scenario: Path):
     return None
 
 
-def expand(target: Path, project: Path, repeat: int = None, params: dict = None) -> tuple:
-    """``(specs, suite settings or None)`` for a scenario file or a suite file."""
+def expand(target: Path, project: Path, repeat: int = None, params: dict = None,
+           seed: int = None) -> tuple:
+    """``(specs, suite settings or None)`` for a scenario file or a suite file. ``seed``
+    (``--seeds``): repetition k's seed is ``seed + k``, over a suite's own ``seed``."""
     target = Path(target)
     if not target.is_absolute():
         target = _resolve(target, project, Path.cwd())
@@ -170,9 +174,12 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
         if not files:
             raise Refused(f"{target}: no scenario in it")
         reps = repeat or 1
-        return [RunSpec(f, dict(params or {}), k) for f in files for k in range(reps)], None
+        return [RunSpec(f, combo, k, _seed(seed, k))
+                for f in files for combo in grid(params) for k in range(reps)], None
     if not is_suite(target):
-        return [RunSpec(target, dict(params or {}), k) for k in range(repeat or 1)], None
+        # --param name=[a,b]: one more axis, as in a suite's grid
+        return [RunSpec(target, combo, k, _seed(seed, k))
+                for combo in grid(params) for k in range(repeat or 1)], None
 
     try:
         suite = config.read_yaml(target)
@@ -206,13 +213,19 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
     reps = repeat or suite.get("repetitions") or 1
     if not isinstance(reps, int) or reps < 1:
         raise Refused(f"{target}: repetitions must be a positive integer, not {reps!r}")
-    seed = suite.get("seed")
-    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
-        raise Refused(f"{target}: seed must be an integer, not {seed!r}")
+    own_seed = suite.get("seed")
+    if own_seed is not None and (not isinstance(own_seed, int) or isinstance(own_seed, bool)):
+        raise Refused(f"{target}: seed must be an integer, not {own_seed!r}")
+    seed = own_seed if seed is None else seed
     parameters = suite.get("parameters") or {}
     if not isinstance(parameters, dict):
         raise Refused(f"{target}: parameters: a mapping name -> [values]")
-    combos = grid({**parameters, **(params or {})})
+    bad = projectmod.cases_problems(suite.get("cases"), parameters)
+    if bad:
+        raise Refused(f"{target}: {bad[0]}")
+    # a case is one parameter set, run as it is; the grid (and --param) varies around it
+    combos = [{**case, **g} for case in (suite.get("cases") or [{}])
+              for g in grid({**parameters, **(params or {})})]
     expect = suite.get("expect") or {}
     for v in expect.values():
         if v not in results.VERDICTS:
@@ -223,7 +236,7 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
     for f in files:
         for combo in combos:
             for k in range(reps):
-                specs.append(RunSpec(f, combo, k, None if seed is None else seed + k,
+                specs.append(RunSpec(f, combo, k, _seed(seed, k),
                                      _expect_for(expect, project, f), pilot_args, logging,
                                      ssv2=dict(own_ssv2.get(str(f), {}))))
     for d in dists:
@@ -231,10 +244,37 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None)
         if not p.is_file():
             raise Refused(f"{target}: distribution {d}: no such file")
         for k in range(reps):
-            specs.append(RunSpec(p, {}, k, None if seed is None else seed + k,
+            specs.append(RunSpec(p, {}, k, _seed(seed, k),
                                  _expect_for(expect, project, p), pilot_args, logging,
                                  distribution=True, ssv2=ssv2mod.merge(suite.get("ssv2"))))
     return specs, suite
+
+
+def _seed(seed, k):
+    return None if seed is None else seed + k
+
+
+def seeds(text: str) -> tuple:
+    """``--seeds A-B`` (or one seed ``A``): ``(first seed, number of runs)``."""
+    m = re.fullmatch(r"\s*(\d+)\s*(?:-\s*(\d+)\s*)?", text or "")
+    if not m:
+        raise Refused(f"--seeds {text!r}: give a range A-B (e.g. 100-149) or one seed")
+    a = int(m.group(1))
+    b = int(m.group(2)) if m.group(2) is not None else a
+    if b < a:
+        raise Refused(f"--seeds {text!r}: the range ends before it starts")
+    return a, b - a + 1
+
+
+def report_name(target: Path, suite, specs) -> str:
+    """The name of the directory a run's report goes to under ``suites/``: a suite's stem;
+    for a scenario or a directory run more than once (rollouts: --repeat, --seeds, --param
+    lists), ``rollouts-<stem>``; None for one run."""
+    if suite is not None:
+        return _token(Path(target).stem)
+    if len(specs) > 1:
+        return "rollouts-" + _token(Path(target).stem)
+    return None
 
 
 def shard(specs: list, text: str) -> list:
@@ -1467,6 +1507,9 @@ def main(argv=None, out=None, stack_command=None) -> int:
     ap.add_argument("target", help="<testbench> (its default suite), <testbench>/<suite>, "
                                    "<testbench>/<path>, or a scenario, suite or directory path")
     ap.add_argument("--repeat", type=int, help="repetitions (a suite's repetitions: otherwise)")
+    ap.add_argument("--seeds", metavar="A-B",
+                    help="one run per seed from A to B (rollouts; a suite's seed: otherwise); "
+                         "not with --repeat")
     ap.add_argument("--shard", help="i/n: every n-th run from the i-th (1-based)")
     ap.add_argument("--resume", action="store_true", help="skip a suite's runs with a result")
     ap.add_argument("--logs", help="the log root (default: the host settings' logs:)")
@@ -1477,7 +1520,8 @@ def main(argv=None, out=None, stack_command=None) -> int:
                                       "(default: found from the working directory)")
     ap.add_argument("--seat", help="the stack's seat (default: the host settings' seat:)")
     ap.add_argument("--param", action="append", metavar="NAME=VALUE",
-                    help="a scenario parameter (repeatable; with a suite, one more grid axis)")
+                    help="a scenario parameter (repeatable); NAME=[a,b,c] runs each value, one "
+                         "more grid axis")
     ap.add_argument("--timeout", type=float,
                     help=f"SSv2's global_timeout, s (default {DEFAULT_TIMEOUT}, or a scenario's own"
                          " time limit plus a margin when longer; this value is not raised)")
@@ -1505,6 +1549,15 @@ def main(argv=None, out=None, stack_command=None) -> int:
     if args.repeat is not None and args.repeat < 1:
         sys.stderr.write("scensim run: --repeat must be at least 1\n")
         return EXIT_REFUSED
+    args.seed = None
+    if args.seeds is not None:
+        try:
+            if args.repeat is not None:
+                raise Refused("--seeds gives the number of runs itself; drop --repeat")
+            args.seed, args.repeat = seeds(args.seeds)
+        except Refused as e:
+            sys.stderr.write(f"scensim run: refused: {e}\n")
+            return EXIT_REFUSED
     return _main(args, out, stack_command)
 
 
@@ -1575,7 +1628,8 @@ def _dispatch(args, out, tbinfo) -> int:
         cfg = dispatch.settings(host)
     except (config.ConfigError, dispatch.DispatchRefused) as e:
         raise Refused(str(e)) from None
-    specs, suite = expand(Path(args.target), project, args.repeat, _parse_params(args.param))
+    specs, suite = expand(Path(args.target), project, args.repeat, _parse_params(args.param),
+                         args.seed)
     if args.timeout:
         for s in specs:
             s.timeout = args.timeout
@@ -1583,12 +1637,12 @@ def _dispatch(args, out, tbinfo) -> int:
         for s in specs:
             s.logging = {**(s.logging or {}), "capture": args.capture, "keep": {}}
     suite_dir = None
-    if suite is not None:
-        suite_dir = stackmod.project_root(host["logs"], project.resolve().name) / "suites" \
-            / _token(Path(args.target).stem)
+    name = report_name(Path(args.target), suite, specs)
+    if name is not None:
+        suite_dir = stackmod.project_root(host["logs"], project.resolve().name) / "suites" / name
         suite_dir.mkdir(parents=True, exist_ok=True)
     elif args.resume:
-        raise Refused("--resume is for suites (their runs are linked by name)")
+        raise Refused("--resume is for suites and rollouts (their runs are linked by name)")
     worst = EXIT_OK
     done = set()
     if suite_dir is not None:
@@ -1615,11 +1669,14 @@ def _dispatch(args, out, tbinfo) -> int:
             problem = f"logging.budget: {e}"
         if problem:
             raise Refused(problem)
+    autoware = dispatch.autoware_pilots(project)
+    vram, load = dispatch.seat_needs(cfg, autoware)
     out.write(f"dispatch {len(todo)} run(s) on seat(s) {', '.join(str(s.index) for s in seats)}"
-              f"\n")
+              f"; a seat ({dispatch._what(autoware)}) needs {vram:.0f} MiB free and adds "
+              f"about {load:.0f} to the load\n")
     out.flush()
     d = dispatch.Dispatcher(
-        todo, seats, cfg, suite_dir, (suite or {}).get("retry"), out=out,
+        todo, seats, cfg, suite_dir, (suite or {}).get("retry"), out=out, autoware=autoware,
         worker_argv=dispatch.worker_argv_for(project, args.logs, args.ready_timeout,
                                              args.stack_timeout, args.keep_stacks, tbinfo))
     return max(worst, d.run())
@@ -1653,7 +1710,7 @@ def _main(args, out, stack_command=None) -> int:
             early = None   # context() refuses it, in its own words
         if early is not None:
             check_scenarios(early, expand(Path(args.target), early, args.repeat,
-                                          _parse_params(args.param))[0],
+                                          _parse_params(args.param), args.seed)[0],
                             testbench=early.name if testbenches.is_work_dir(early) else None)
         if args.seats:
             return _dispatch(args, out, tbinfo)
@@ -1663,7 +1720,8 @@ def _main(args, out, stack_command=None) -> int:
                       out=out)
         ctx.testbench = tbinfo
         target = Path(args.target)
-        specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param))
+        specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param),
+                              args.seed)
         if args.timeout:
             for s in specs:
                 s.timeout = args.timeout
@@ -1674,14 +1732,14 @@ def _main(args, out, stack_command=None) -> int:
             specs = shard(specs, args.shard)
         specs = order_by_map(specs, ctx.stack.get("map"))
         suite_dir = None
-        if suite is not None:
-            name = _token(Path(args.target).stem)
+        name = report_name(target, suite, specs)
+        if name is not None:
             if args.shard:
                 name += "_shard-" + args.shard.replace("/", "-of-").replace(" ", "")
             suite_dir = stackmod.project_root(ctx.host["logs"], ctx.project.resolve().name) \
                 / "suites" / name
         elif args.resume:
-            raise Refused("--resume is for suites (their runs are linked by name)")
+            raise Refused("--resume is for suites and rollouts (their runs are linked by name)")
         return run_suite(ctx, specs, suite_dir, args.resume, (suite or {}).get("retry"))
     except Refused as e:
         sys.stderr.write(f"scensim run: refused: {e}\n")

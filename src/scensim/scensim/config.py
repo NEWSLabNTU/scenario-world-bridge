@@ -69,14 +69,19 @@ DEFAULTS = {
         "gpus": None,  # list, seat -> GPU index; None: GPU 0 for every seat
     },
     "seat_locks": "/tmp/scensim-seats",
-    # scensim run --seats (roadmap 088): a seat starts its stack only with this much free VRAM
-    # on its GPU (MiB) and while the 1-minute load plus load_per_seat stays within the cores,
-    # one seat at a time, start_gap s apart; a run whose acb_bridge skipped more than
-    # skip_limit CARLA frames, or during which the mean load passed overload_load (None: the
-    # core count), is overloaded: run again once, on one seat fewer (step 1's measurements and
-    # step 2's check, 133: passes at 7-12 skips, failures at 19 and 34)
-    "dispatch": {"vram_per_seat_mb": 3000, "load_per_seat": 12, "skip_limit": 12,
-                 "start_gap": 30, "overload_load": None},
+    # scensim run --seats (roadmap 088). Admission: a seat starts its stack only with
+    # vram_base_mb (its CARLA and SSv2) plus vram_per_autoware_mb for each Autoware pilot of
+    # the testbench free on its GPU (MiB), and while the 1-minute load plus load_base plus
+    # load_per_autoware per Autoware pilot stays within the cores; one seat at a time,
+    # start_gap s apart (step 1: ~3 GB and ~12 load for a seat with one Autoware ego).
+    # Overload, judged on the run, never on the load during it (Autoware's start-up peaks are
+    # harmless, 243's reruns): its acb_bridge skipped more than skip_limit CARLA frames, more
+    # than tick_overrun_limit % of its world ticks were over budget, or the host's CPU was
+    # fully stalled (/proc/pressure/cpu "full") more than psi_full_limit % of the run. An
+    # overloaded run runs again once, on one seat fewer.
+    "dispatch": {"vram_base_mb": 2000, "vram_per_autoware_mb": 1000, "load_base": 2,
+                 "load_per_autoware": 10, "skip_limit": 12, "start_gap": 30,
+                 "tick_overrun_limit": 5, "psi_full_limit": 10},
 }
 
 

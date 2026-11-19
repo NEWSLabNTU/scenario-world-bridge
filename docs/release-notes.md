@@ -71,6 +71,15 @@ Live runs before the release (scensim built from source):
   scenario's speed limit is never applied ([Connect your
   Autoware](how-to/connect-autoware.md)). scensim's profile on Autoware 2.0.0 and 2.1.0
   passes it as well.
+- **CARLA's launch arguments in the testbench.** `carla: {quality: epic|low, args: [...]}`
+  in `testbench.yaml` sets how the stack starts CARLA; a host's `carla` block overrides it,
+  key by key ([The testbench](reference/project-file.md#carla)). scensim's own flags (the
+  ports, `-quality-level`, `-RenderOffScreen`, `-nosound`) and environment entries in
+  `args` are refused by name, and `quality: low` is refused on CARLA 0.9.x when the stack's
+  maps span more than one town, where Low crashes on the town change. An external CARLA is
+  started by someone else: the stack warns, and records them as not applied. Each run's
+  `stack.json` and `result.json` record what CARLA ran with, and `scripts/t3.py compare`
+  names a pair run with different quality or arguments.
 - **The car's Autoware packages are checked against your Autoware.** Each declares the
   Autoware releases it supports and those it was tested on. `testbench check` and every run
   refuse a missing package or an Autoware outside the supported releases, naming both, and
@@ -141,6 +150,10 @@ Live runs before the release (scensim built from source):
 - **A pilot is counted ready while its composables still start** (issue 065), for example
   while TensorRT builds an engine, so a run can start on a half-started Autoware. The
   TensorRT 10.8.0 runtime of `autoware.tensorrt_lib` avoids the rebuild.
+
+- **Town03's lanelets** (issue 068): a share of them sit about 1.3 m off CARLA's OpenDRIVE
+  lanes, so the ego's path, a scenario's lanelet poses and CARLA's road disagree there by
+  more than a metre.
 
 ### Fixed since 0.1.0
 

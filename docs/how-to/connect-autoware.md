@@ -159,12 +159,14 @@ The shipped examples, both ways, one scenario each, on CARLA 0.9.16 with Autowar
 | `safety_suite`, UC-AEB-001-0001 (9 variants) | passed 9 of 9 (a first try ended at the 6th variant on the planner abort below) | passed |
 | `multi_pilot`, `two_av` (two Autowares) | passed | passed |
 | template `multi-pilot`, `three_pilots` | passed | passed |
-| `first_drive`, `pedestrian_crossing` | failed 3 of 3: stopped 0.88 to 0.97 m from the pedestrian, no contact; the scenario fails a stop closer than 1 m | passed |
+| `first_drive`, `pedestrian_crossing` | failed 3 of 3: the ego came within 1 m of the pedestrian in its path | passed |
 
-**Stock stops closer to a pedestrian.** Stock Autoware 1.5.0 stopped 0.88 to 0.97 m short of
-a pedestrian crossing in front of it, without touching it; scensim's profile stops farther
-back. A scenario whose pass criterion is a stop distance has to allow for the configuration
-it tests.
+**Stock does not stop clear of a crossing pedestrian.** In `pedestrian_crossing`, stock
+Autoware 1.5.0 drove on into the space of the pedestrian crossing in front of it: with the
+scenario's clearance check moved out of the way, it came within 0.02 m of the walker in one
+run and touched the walker's box in the scenario runner in the other. CARLA recorded no
+contact in any run, as CARLA's walker is narrower than its box. scensim's profile stops more
+than 1 m short and passes.
 
 **A rare planner abort, in either configuration.** Autoware 1.5.0's behavior_path_planner
 can abort when a new route arrives (`failed to add guard condition to wait set: guard

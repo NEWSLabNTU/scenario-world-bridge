@@ -32,8 +32,13 @@ is planned here.
 1. 078 Phase 2 (P2g): the grid's left t1.5p5 cells, czp and stock, on fresh seeds 8-11 at
    `p2g-launch` 3505a08, on a quiet host. Bundle: NAS `home/2026-11-19 078 P2g rerun left t1.5p5
    for 133 (241)`. Its `f4_summary.md` reads the decision's CPU time against wall time and the
-   `self` contract's failing ticks per run. If G0 holds there (czp no worse than stock: no
-   contact where stock has none), `p2g-launch` lands, rebased, with issue 066. Then phase 3.
+   `self` contract's failing ticks per run. `p2g-launch` lands, rebased, with issue 066, when:
+   - G0 holds there: czp is no worse than stock, with no contact where stock has none;
+   - on czp's runs, no decision is handed to stock by a contract after the warm-up
+     (`f4_summary.md`'s stock-by-contract count is 0);
+   - no committed go changes hands (its committed-go-handed-over count is 0).
+
+   Then phase 3.
 2. 074 U3 (four-way stop) on Autoware.
 3. Candidate for the next deliberate spec change, batched with other spec edits so `spec_hash` churns once: drift by default (`carla.attributes.rotation_frequency` 20.00268 and an Isaac `phase_jitter` flag in the spec's lidar). Until then drift is opt-in, for comparison work.
 4. Low priority, not started: a run seed handed to the world server and on to the lidar's `phase_jitter`, so "seeded per run" holds literally (today the seed is the profile's).

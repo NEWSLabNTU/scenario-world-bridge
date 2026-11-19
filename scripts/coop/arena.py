@@ -60,8 +60,32 @@ import cutin_game as C1  # noqa: E402
 import measures  # noqa: E402
 
 CAR = "tesla_model3"
-PHYSICS = ROOT / f"src/sim_vehicle_spec/generated/{CAR}/carla_physics.yaml"
-MAPS = ROOT / f"src/autoware_sim_vehicle/cars/{CAR}/{CAR}_description/config"
+
+
+def carla_release():
+    """The release of the carla Python client this interpreter imports (scensim's stack puts the
+    server's own first, 24e94626), or None."""
+    try:
+        from importlib import metadata
+        return metadata.version("carla")
+    except Exception:  # noqa: BLE001 (not installed: the default body)
+        return None
+
+
+def body_files(release=None, car=CAR):
+    """``(physics yaml, pedal map dir)`` of ``car`` on a CARLA of ``release``: CARLA 1.0 (Chaos) is
+    another body, with its own physics (sim_vehicle_spec's carla_physics_1.0.yaml) and measured
+    pedal maps (autoware_sim_vehicle's <car>_carla_1_0_description); 0.9.x and unknown, the
+    default. 0.9.16's maps on 1.0 ask for about a third of the throttle (pedal 0.3: 1.48 m/s^2
+    there, 0.46 on 1.0), and T3's s5 oncoming car came 3.5 to 7 s late (083 step 6)."""
+    gen = ROOT / f"src/sim_vehicle_spec/generated/{car}"
+    cars = ROOT / f"src/autoware_sim_vehicle/cars/{car}"
+    if str(release or "").split("-")[0].split(".")[0] == "1":
+        return gen / "carla_physics_1.0.yaml", cars / f"{car}_carla_1_0_description" / "config"
+    return gen / "carla_physics.yaml", cars / f"{car}_description" / "config"
+
+
+PHYSICS, MAPS = body_files(carla_release())
 DT = 0.05
 ROAD_LEN = 1100.0  # warm-up and a run of up to T_MAX at up to 16 m/s
 ROAD_GAP = 60.0

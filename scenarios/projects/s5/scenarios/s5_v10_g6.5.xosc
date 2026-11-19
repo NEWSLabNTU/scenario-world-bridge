@@ -40,6 +40,7 @@
 				<PrivateAction><TeleportAction><Position><WorldPosition x="-77.6" y="-98.5" z="0.0" h="1.5743" p="0" r="0" /></Position></TeleportAction></PrivateAction>
 				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="-122.7" y="3.25" z="0.0" h="3.1364" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
 			</Private>
+			<!-- coop_a spawns at x -85.32, about 1.27 m off its lane's centre (CARLA: x -84.06), its footprint 0.16 m out of the lane; kept for the T3 references (testbench.yaml, issue 068) -->
 			<Private entityRef="coop_a">
 				<PrivateAction><TeleportAction><Position><WorldPosition x="-85.32" y="165.0" z="0.3" h="-1.5673" p="0" r="0" /></Position></TeleportAction></PrivateAction>
 				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="-84.62" y="-88.6" z="0.0" h="-1.5673" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>

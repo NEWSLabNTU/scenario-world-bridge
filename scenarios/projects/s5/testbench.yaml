@@ -4,6 +4,13 @@
 # light agent oncoming at 10 m/s (pilots/oncoming_pilot.py over scripts/coop/oncoming_agent.py),
 # timed to the run's gap. The judge scores each run as s5_aw.py did and compares B's decision
 # with the reference batch's at that gap.
+#
+# coop_a's spawn is off its lane's centre, on purpose: every file spawns it near x -85.3, and CARLA
+# puts the lane's centre at x -84.06 (243's Town03 pose sweep, issue 068, 2026-11-20). In g6.5-g9
+# its footprint is out of the lane: 0.16 m at g6.5 (x -85.32), 0.46 m at g7, g8 and g9 (x -85.33).
+# It is the same on every map revision and CARLA version, and the T3 references were recorded with
+# it, so it stays (133, 2026-11-20). A lane-centred s5 would be a new variant with references of
+# its own.
 simulator: carla
 assets:
   - dataset: carla-town-autoware-maps

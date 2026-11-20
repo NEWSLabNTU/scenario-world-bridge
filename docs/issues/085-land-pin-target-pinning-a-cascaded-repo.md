@@ -62,3 +62,11 @@ the dependencies, before anything is made.
   on top of the given one, pinning C's new commit, and E follows. `check_pins` is green.
 - The same, with D's main moved past the given commit. The landing is refused, exit 2, naming C, and
   nothing is pushed.
+
+## A related guard
+
+The pins are committed onto this repository's origin/main, never onto the checkout's HEAD. A local commit
+in the checkout was therefore left out of a landing, silently: 118's W6 commit was dropped that way and
+cherry-picked back afterwards. land_pin now refuses to run, a dry run included, when the checkout has
+commits that are not on origin/main. It names them and says to push or land them first, or to run from a
+checkout at origin/main. A detached HEAD at origin/main passes. `scripts/test_land_pin.py` covers it.

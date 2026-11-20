@@ -17,7 +17,9 @@ keeps scripts/check_pins.py green on main (scripts/land_pin.sh runs this):
    moves (aib pinning autoware_sim_vehicle while sim_vehicle_spec lands), it gets a new commit on top
    bumping it. That commit goes on the target's main, so the given commit must be its main's tip; one
    behind it is refused by name rather than landing the commits after it (issue 085).
-3. Every commit is made locally first: the components' (from their origin/main), then this repository's
+3. This repository's checkout must hold nothing that is not on its origin/main: the pins are committed onto
+   origin/main, so a local commit would be left out. It is refused, in a dry run too, naming the commits.
+4. Every commit is made locally first: the components' (from their origin/main), then this repository's
    pins, one commit for the whole cascade. check_pins runs on that. Only then is anything pushed: the
    components in dependency order, then this repository. A failed check pushes nothing; a component
    whose main moved meanwhile stops the push before this repository's pins, so main never names a
@@ -92,6 +94,14 @@ def main(argv):
         print(f"{ROOT} has local changes", file=sys.stderr)
         return 2
     base = "origin/main"  # this repository's pins are read from, and committed onto, its origin/main
+    # A commit here that is not on origin/main would be left out of the landing, silently (the pins go on
+    # origin/main): refuse it, in a dry run too, naming it
+    ahead = git("log", "--format=%h %s", f"{base}..HEAD")
+    if ahead:
+        print(f"{ROOT}'s checkout has commits that are not on {base}, which this landing would leave out:\n"
+              + "\n".join(f"  {line}" for line in ahead.splitlines())
+              + f"\npush or land these first, or run from a checkout at {base}", file=sys.stderr)
+        return 2
 
     targets = {}
     for repo, sha in pairs:

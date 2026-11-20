@@ -230,3 +230,20 @@ def test_a_target_behind_its_main_that_would_need_a_bump_is_refused(world):
     r = world.land("A", a2, "D", d2)
     assert r.returncode == 2 and "not its main's tip" in r.stderr and "C" in r.stderr, r.stdout + r.stderr
     assert world.remote_pin("A") == world.sha["A"]        # nothing pushed
+
+
+def test_a_local_commit_here_is_refused_by_name_in_a_dry_run_too(world):
+    """A commit in this repository's checkout that is not on origin/main would be left out of the landing
+    (the pins go on origin/main): refused, naming it, dry run or not; a detached HEAD at origin/main passes."""
+    a2 = world.advance("A")
+    (world.super / "notes.txt").write_text("local\n")
+    git(world.super, "add", "notes.txt")
+    git(world.super, "commit", "-q", "-m", "a local note")
+    for args in (("--dry-run", "A", a2), ("A", a2)):
+        r = world.land(*args)
+        assert r.returncode == 2 and "a local note" in r.stderr and "push or land these first" in r.stderr, \
+            r.stdout + r.stderr
+    assert world.remote_pin("A") == world.sha["A"]        # nothing pushed
+    git(world.super, "checkout", "-q", "--detach", "origin/main")
+    r = world.land("--dry-run", "A", a2)
+    assert r.returncode == 0, r.stdout + r.stderr

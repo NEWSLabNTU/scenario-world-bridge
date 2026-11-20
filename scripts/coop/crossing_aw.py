@@ -329,7 +329,7 @@ def run_one(out, arm, dt, rule, seed, side, a):
     # 074 U3 (133): the gate before the ego's start passed at < max_load, but the ego's own bring-up then took
     # the 1-min load to 117-132 by the scenario's start; so wait again here, ego up and idle, for its burst to decay
     t_gate = time.monotonic()
-    wait_load(a.max_load, hold=30.0, poll=5.0, give_up=600.0)
+    base["load_gate_ok"] = int(wait_load(a.max_load, hold=30.0, poll=5.0, give_up=600.0))
     base["load_gate_s"] = round(time.monotonic() - t_gate, 1)
     gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
@@ -390,19 +390,20 @@ class LoadSampler(threading.Thread):
 def wait_load(max_load, hold=60.0, poll=20.0, give_up=4 * 3600.0):
     """Before a run: wait until the host's 1-min load has stayed below max_load for `hold` s (0: no wait).
     A shared host's build burst left the ego unready for 900 s (074 U3 on server139); a run started then
-    is lost, so it waits instead (up to give_up, then runs anyway)."""
+    is lost, so it waits instead (up to give_up, then runs anyway). Returns False when it gave up."""
     if not max_load:
-        return
+        return True
     t0 = time.monotonic()
     calm = 0.0
     while time.monotonic() - t0 < give_up:
         if os.getloadavg()[0] < max_load:
             calm += poll
             if calm >= hold:
-                return
+                return True
         else:
             calm = 0.0
         time.sleep(poll)
+    return False
 
 
 def finish(rd, res):
@@ -476,18 +477,18 @@ def main():
             if tag_of(arm, dt, rule, s, side) in done:
                 continue
             for attempt in range(3):
-                wait_load(a.max_load)
+                pre_ok = wait_load(a.max_load)
                 res = run_one(a.out, arm, dt, rule, s, side, a)
-                res["attempt"] = attempt
+                res["attempt"], res["load_pre_ok"] = attempt, int(pre_ok)
                 if "error" not in res and (res.get("contact") or res.get("deadlock")) and \
                         res.get("load_max", 0.0) >= a.quiet_load:
                     res["counted"] = 0  # under load: its verdict waits for the quiet rerun
                     print(json.dumps(res), flush=True)
                     f.write(json.dumps(res) + "\n")
                     f.flush()
-                    wait_load(a.quiet_load)
+                    pre_ok = wait_load(a.quiet_load)
                     res = run_one(a.out, arm, dt, rule, s, side, a)
-                    res["attempt"], res["quiet_rerun"] = attempt, 1
+                    res["attempt"], res["quiet_rerun"], res["load_pre_ok"] = attempt, 1, int(pre_ok)
                 print(json.dumps(res), flush=True)
                 f.write(json.dumps(res) + "\n")
                 f.flush()

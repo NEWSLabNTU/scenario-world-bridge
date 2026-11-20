@@ -9,6 +9,10 @@ approved by 133 the same day with its three decisions. C1 done 2026-11-20 (scens
 51a95b4, pins 7aad5216). C3 done 2026-11-20 (scensim_isaac_world 98a5d8c, pins 4c67e51d); the
 courses' dataset revision prepared, not published. C4 landed 2026-11-20 (scensim_isaac_world
 6177ced, scensim 82787b91); its Town01 suite waits for 139. C5 next.
+Issue 077's cause is confirmed (2026-11-20, 118): PhysX's raycast wheel query takes Town01's
+sharp curb face as the ground, and Town01 has no road layer. Its fix comes first, ahead of C5:
+recheck the sweep (066 R1's check, from C6). If the sweep no longer throws the car, aib switches
+to it. Otherwise the curb becomes C5's lip on a Town01 road record.
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that

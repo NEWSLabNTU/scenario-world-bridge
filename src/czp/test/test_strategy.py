@@ -398,3 +398,32 @@ def test_the_reverse_match_takes_no_head_on_car():
     assert place(z, ag).approach is None
     rel = relate([ag], own, [z])["x"]
     assert [r.kind for r, _ in rel] == ["cross"] and conflict_set(rel)
+
+
+def test_a_clear_is_sent_only_with_a_limit_in_force():
+    """Issue 082 (139's U3 stage 1): the watchdog published VelocityLimitClearCommand on every lost heartbeat, with no
+    limit of czp's in force, and Autoware 1.5's external_velocity_limit_selector answered it with a 0 m/s limit (sender
+    ''): 7 czp runs whose ego never moved. A clear goes out only after a limit czp set: the watchdog's only when the
+    last heartbeat says the node held one; the strategy's only from `limited`."""
+    import pytest
+    pytest.importorskip("rclpy")
+    from czp.watchdog import trip
+    assert trip({"manual": ["intersection"], "limited": False}, ["intersection"]) == (["intersection"], False)
+    assert trip({"manual": [], "limited": True}, ["intersection"]) == (["intersection"], True)
+    assert trip({}, ["intersection", "blind_spot"]) == (["blind_spot", "intersection"], False)
+    # the strategy: a whole crossing and its release, every clear preceded by a limit not yet cleared
+    zones, z = setup()
+    a0, a1 = z.approaches
+    stat = [Status("intersection", "ab" * 16)]
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    st = Strategy(zones)
+    in_force = False
+    for k in range(80):
+        objs = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)] if k < 30 else []
+        acts = st.cycle(0.1 * k, (x, y, h, 3.0 if k % 7 else 0.0, 0.0), objs, None, stat, 0.1)
+        if acts.velocity_limit == "clear":
+            assert in_force, k
+            in_force = False
+        elif acts.velocity_limit is not None:
+            in_force = True

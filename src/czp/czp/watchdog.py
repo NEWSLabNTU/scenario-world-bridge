@@ -9,8 +9,10 @@ count, the modules it holds in manual mode, whether it holds a velocity limit), 
 before its commands, so the heartbeat names a module before the module is switched. This companion, a separate
 process with no state of the protocol, watches it: when no heartbeat has arrived for ``timeout_s`` (wall time),
 it puts every module the last heartbeat held in manual mode (and every module in ``modules``) back in auto mode
-through Autoware's own service (``/planning/enable_auto_mode/<module>``) and clears the node's velocity limit
-(sender interaction_strategy), retrying each call every ``retry_s`` until Autoware answers success. A heartbeat
+through Autoware's own service (``/planning/enable_auto_mode/<module>``) and, when the last heartbeat says the node
+held a velocity limit, clears it (sender interaction_strategy), retrying each call every ``retry_s`` until Autoware
+answers success. A clear with no limit in force is never sent (issue 082: Autoware 1.5's
+external_velocity_limit_selector answered it with a 0 m/s limit, and the ego never moved). A heartbeat
 that arrives again (the node respawned) re-arms it. Nothing in Autoware changes: auto mode is the module's own
 default, and the service is the one the node itself uses.
 """
@@ -27,6 +29,13 @@ from std_msgs.msg import String
 
 
 HEARTBEAT = "/interaction_strategy/heartbeat"
+
+
+def trip(last, modules):
+    """What the watchdog does when the heartbeat stops: (the modules to put back in auto mode, whether to clear the
+    velocity limit). The limit is cleared only when the last heartbeat says the node held one (issue 082). Pure."""
+    held = list((last or {}).get("manual") or [])
+    return sorted(set(held) | set(modules)), bool((last or {}).get("limited"))
 
 
 class Watchdog(Node):
@@ -76,11 +85,13 @@ class Watchdog(Node):
         if not self.tripped and now - self.last_rx > self.timeout:
             self.tripped = True
             held = list(self.last.get("manual") or [])
-            self.targets = sorted(set(held) | set(self.modules))
+            self.targets, clear = trip(self.last, self.modules)
             self.get_logger().warn(f"no heartbeat for {now - self.last_rx:.2f} s (it held {held or 'none'} in manual mode): "
-                                   f"modules {self.targets} back to auto mode, velocity limit cleared")
-            self.pub_clear.publish(self.VelocityLimitClearCommand(stamp=self.get_clock().now().to_msg(), command=True,
-                                                                  sender="interaction_strategy"))
+                                   f"modules {self.targets} back to auto mode, "
+                                   + ("velocity limit cleared" if clear else "no velocity limit held, none cleared"))
+            if clear:
+                self.pub_clear.publish(self.VelocityLimitClearCommand(stamp=self.get_clock().now().to_msg(),
+                                                                      command=True, sender="interaction_strategy"))
         if not self.tripped:
             return
         for m in self.targets:

@@ -519,6 +519,47 @@ The end-to-end steps a user follows to build the two twins and join them (133's 
 user's request, 2026-11-20). "Who" says who does the step: the user, a scensim tool, or both.
 "Provided by" names the 091 step that provides the tool or the interface the step needs.
 
+```mermaid
+flowchart TB
+    subgraph MAP["Map twin"]
+        direction TB
+        F1["F1 Survey<br/>scan the field, control points, floor flatness"]
+        F2["F2 Stage layers<br/>visual (splats or mesh), evidence (raw scan),<br/>physics colliders authored in Isaac"]
+        F3["F3 Materials<br/>tilt-test friction per zone,<br/>wall and cone drop and push tests, masses"]
+        F4["F4 Maps for the stacks<br/>occupancy map (user), lanelet loop (scensim)"]
+        F5{"F5 Check<br/>map check, simulated lidar<br/>against real scans"}
+        F1 --> F2 --> F3 --> F4 --> F5
+    end
+    subgraph CAR["Vehicle twin"]
+        direction TB
+        V1["V1 Spec<br/>measured geometry, mass, inertia,<br/>wheels, tyres, steering"]
+        V2["V2 Log the real car<br/>M1 to M6, 5 times each,<br/>session conditions, reference poses"]
+        V3{"V3 The user's component<br/>VESC, motor, servo, fitted from logs<br/>check (a): component replay"}
+        V4{"V4 Car physics<br/>fit tyre and suspension by<br/>long-horizon error, choose the rate<br/>check (b): M1 to M6 bands"}
+        V1 --> V2 --> V3 --> V4
+    end
+    F3 -. "tilt-test friction<br/>must agree with M6" .- V4
+    F5 --> J1
+    V4 --> J1
+    J1{"J1 The user's stack<br/>f1tenth_system at the vesc level<br/>check (c): M7 laps"}
+    J2["J2 Freeze a twin release<br/>spec hash, component version,<br/>stage hash, session conditions"]
+    J3["J3 Upkeep<br/>floor, tyres or battery changed:<br/>rerun the measurements, refit"]
+    J1 --> J2 --> J3
+    J3 -. "floor" .-> F3
+    J3 -. "tyres, battery" .-> V2
+
+    classDef user fill:#e8f1fb,stroke:#3b6ea5,color:#0b2540
+    classDef check fill:#fdf3e1,stroke:#b07d1a,color:#3d2a05
+    classDef release fill:#e9f6ec,stroke:#3a8a4f,color:#0d3318
+    class F1,F2,F3,F4,V1,V2 user
+    class F5,V3,V4,J1 check
+    class J2,J3 release
+```
+
+Blue: steps the user does with their own equipment and Isaac's editor. Amber: checks, run with
+scensim's tools (map check, fitting tool, harnesses (a) to (c)). Green: the twin release and its
+upkeep. Dotted lines: the friction cross-check and the upkeep loops.
+
 ### 7.1 The map twin
 
 | # | step | who | provided by |

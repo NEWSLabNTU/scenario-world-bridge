@@ -3,7 +3,7 @@
 **Severity**: high. After a mutual rest at an unsignalled crossing, czp's tie-break go is meant to
 creep about 0.5 m, then hold and watch for 1.5 s so that the other car's start is seen first. When the
 car rests about half a metre from the zone, the creep carries it into the zone. The watch never holds
-the car, and the go lands at the moment a 5 s-patience car restarts. **Status**: fixed, landed on main (70316c66; the 076 grid had no contact and no probe overrun). Part 1 (the probe's
+the car, and the go lands at the moment a 5 s-patience car restarts. **Status**: fixed, landed on main (e5b5bc93; the 076 grid had no contact and no probe overrun). Part 1 (the probe's
 stop margin) is fixed and refitted (0.5 m + 1.2 s x v, roadmap 078's creep-stop set); part 2 (the tie's timing) was screened and dropped. Part 3, found in
 the 069 grid, is the actual cause of every overrun: the watch's stop was never sent, and the creep was
 never capped (issue 074). Both are fixed on p2g-launch. **Found**: 2026-11-20, swb 133's P2g rerun (NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g

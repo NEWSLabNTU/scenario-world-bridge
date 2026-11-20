@@ -2,7 +2,7 @@
 
 **Severity**: high. czp's velocity limits never reached Autoware. That covers the probe's creep speed (1.0 m/s) and the stop
 before a zone that no RTC module covers. So every creep czp asked for ran as a plain ACTIVATE, at Autoware's own
-speed. The watchdog's clear never arrived either. **Status**: fixed, landed on main (70316c66). **Found**: 2026-11-20, by 241,
+speed. The watchdog's clear never arrived either. **Status**: fixed, landed on main (e5b5bc93). **Found**: 2026-11-20, by 241,
 in swb 133's issue 069 grid (NAS `logs/2026 SSv2 on CARLA/2026-11-20 078 issue 069 grid left t1.5p5 (133)`).
 
 ## What happens

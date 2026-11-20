@@ -2,7 +2,7 @@
 
 **Severity**: medium. While the partner stood at its line, czp's decision flickered to `stock: no conflict` for single
 ticks (2 flips per run in U3). Each flip restarted the protocol's decision and its latch timers, and a one-tick
-handover at an all-way stop could let the ego go. **Status**: fixed, landed on main (70316c66; the 076 grid had no contact).
+handover at an all-way stop could let the ego go. **Status**: fixed, landed on main (e5b5bc93; the 076 grid had no contact).
 **Found**: 2026-11-20, by 133, from 139's U3 stage 1 rerun (`u3_flicker.py`, u3-autoware e1c1be6f; the counter's
 cs_gaps and track_gaps at 90b121c4).
 

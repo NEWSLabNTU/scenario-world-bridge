@@ -737,7 +737,7 @@ and G2.
   `runs/creepstop.md`, `runs/fit.json`; the probe patch that forced the creeps,
   `czp_probe_creepstop.patch`, stays out of the product: it is the experiment's lever, not a fix).
   Next: grid076 (grid075's cells and seeds 20-23) on the branch.
-- 2026-11-20: **landed on main** (the czp work through `70316c66`, fast-forward from branch
+- 2026-11-20: **landed on main** (the czp work through `e5b5bc93`, fast-forward from branch
   `p2g-launch-margin-4`; issues 066, 069, 074, 075, 079 and 082 fixed by it).
   - **grid076** (grid075's cells, left t1.5p5 at dt -1/-0.3/0/0.3/1, seeds 20-23, on the margin
     branch, CARLA, 133): stock 20 runs, czp 20 runs, **0 contacts** in either arm; czp: 0 probe
@@ -746,7 +746,7 @@ and G2.
     this cell set.
   - **the creep-stop fit** (above): travel after DEACTIVATE 0.119 + 0.954 v; so the probe's stop
     margin is 0.5 m + 1.2 s x v and the creep cap 0.5 m/s.
-  - **the checker fix** (`czp_rows_check`, `70316c66`): at the new margin the impatient row at
+  - **the checker fix** (`czp_rows_check`, `e5b5bc93`): at the new margin the impatient row at
     patience 8 s found 4 unsafe runs of 3780. The cause was the checker's car: its watch rolled on at
     0.4 m/s to 0.3 m before the zone (V2b's assumption), while the node DEACTIVATEs for the watch and
     Autoware stops. The watch now brakes to rest at the fit's travel (`--watch-model stop`, the

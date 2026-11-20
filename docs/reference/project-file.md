@@ -77,6 +77,7 @@ match one.
 | `ready` | all | a command that exits 0 when the pilot is ready; default `autoware`: `ego_ready`, the others: started is ready |
 | `inputs` | all | what the pilot uses, recorded in results: `sensors`, `map`, `ground_truth` |
 | `rviz` | all | `true`: open RViz for this pilot |
+| `component` | the ego, on Isaac | the car's own control component in place of its onboard computers: `{entry_point, params, truth, workspace}` ([Your car's control component](#your-cars-control-component)) |
 | `autoware_launch` | `autoware` | another `autoware.launch.xml` for the profile to include |
 | `overlays` | `autoware`, `launch` | ROS workspaces of your own the pilot sources, in order, after this workspace's installs and before the TensorRT runtime: a list of `setup.bash` files, each relative to the testbench or `{workspace:<name>}/<path>` under a directory the host settings name (`workspaces:`, [Host settings](host-settings.md)) |
 | `launch` | `launch` | the driver: `"<package> <file>"` or a path |
@@ -89,6 +90,48 @@ starts: a renamed argument (`carla_control`, now `sim_control`), a value outside
 choices (`ndt:` is `autoware`, `cuda` or `none`) and a pair that cannot work together
 (`ndt: none` with a diagnostic graph that judges NDT) are refused with the profile's message.
 A value holding a substitution is known per run only and is not checked.
+
+### Your car's control component
+
+On Isaac, the ego's car may run your own model of its control component (its speed controller,
+motor and steering servo) in place of the onboard computers scensim ships. It is a Python class in
+a package of yours, declared as an entry point in the group `scensim.vehicle_components`, and
+the Isaac world server steps it at every physics step.
+
+```yaml
+pilots:
+  ego:
+    kind: launch
+    vehicle: tesla_model3
+    overlays: ["{workspace:racer}/install/setup.bash"]
+    component:
+      entry_point: my_racer.vesc_servo
+      params: {erpm_gain: 4614.0}
+      truth: {speed: {latency_s: 0.02, noise_std: 0.01}}
+```
+
+| Key | |
+|---|---|
+| `entry_point` | its name in the entry point group `scensim.vehicle_components`; `ideal` and `ev` are the shipped onboard computers |
+| `params` | a mapping handed to it as is |
+| `truth` | for each ground-truth input it declares, how it is delivered: `latency_s` (the value that many seconds ago) and `noise_std` (Gaussian noise, seeded by the run); default none and none |
+| `workspace` | the `setup.bash` of the workspace that holds its package, as an `overlays` entry; default the pilot's `overlays` |
+
+The world server runs Isaac's own Python, so the component must be pure Python, using the
+standard library and numpy. A compiled model goes through an FMU instead. scensim hands Isaac only
+the workspace's Python package directories, never the rest of its environment.
+
+`testbench check`:
+- refuses an entry point that no package in the workspace declares;
+- loads and times the component in Isaac's Python;
+- refuses it when it does not load, or when it takes commands the vehicle interface does not
+  give;
+- refuses a `truth` setting for an input it does not declare;
+- warns when its mean time per step is over 60 / `isaac.physics_hz` ms (0.1 ms at 600 Hz). The
+  run then goes ahead, only slower.
+
+Each run's `provenance.components` records the entry point, `params`, `truth`, and the package
+found: its name, version, module file and that file's sha256.
 
 `overlays` is how a driver uses packages built in a workspace of its own, as
 autoware-drift's `drift.launch.xml` includes its `drift_controller`:

@@ -1293,6 +1293,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     overlays = {p["entity"]: p["overlays"] for p in pilots if p.get("overlays")}
     if overlays:
         prov["overlays"] = overlays   # each pilot's own workspaces, path and commit (G60)
+    components = {p["entity"]: p["component"] for p in pilots if p.get("component")}
+    if components:
+        # each pilot's control component: entry point, params, truth settings, and the package found
+        # (dist, version, module file and sha256) -- the twin release's component (roadmap 091 W3, J2)
+        prov["components"] = components
     world_server = worldmod.carla_world_settings(rec)
     if world_server:
         prov["world_server"] = world_server

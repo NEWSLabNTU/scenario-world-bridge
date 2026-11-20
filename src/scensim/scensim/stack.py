@@ -61,6 +61,7 @@ from scensim import own_world
 from scensim import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
 from scensim import launcher as launchermod, timeline as timelinemod, tools as toolsmod
 from scensim import autoware as autowaremod
+from scensim import component as componentmod
 from scensim.config import ConfigError
 
 SCHEMA = "scensim.stack/1"
@@ -474,6 +475,14 @@ def aib_ego_config() -> Path:
     return ws / "src" / "autoware_isaac_bridge" / "src" / "aib" / "config" / "ego.yaml"
 
 
+def yaml_load(path: Path):
+    import yaml
+    try:
+        return yaml.safe_load(Path(path).read_text())
+    except (OSError, yaml.YAMLError):
+        return None
+
+
 def isaac_ego_with_ground_truth(base: Path = None) -> dict:
     """aib's ego config ``base`` (default: aib_ego_config()) with its paths made absolute and
     the ground truth on (Odometry of base_link in the map on ISAAC_GROUND_TRUTH_TOPIC): the
@@ -883,6 +892,33 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             sim_side.update(worldmod.sim_args(project, sim, world, isaac, ego_dir=stack_dir))
         except config.ConfigError as e:
             raise StackRefused(f"isaac.ego: {e}") from None
+    with_component = [b for b in bound if componentmod.spec_of(b.spec) is not None]
+    if with_component and (server or sim != "isaac"):
+        raise StackRefused(f"pilots.{with_component[0].key}.component: a control component runs in the "
+                           "stock Isaac world server only")
+    if with_component:
+        # the pilot's own control component (roadmap 091 W3): into the Isaac ego config's `component`,
+        # with the Python package directories of its workspace, never the workspace's environment
+        b = with_component[0]
+        if not b.sided() or len(with_component) > 1:
+            raise StackRefused(f"pilots.{b.key}.component: one pilot with the vehicle side (the ego) may "
+                               "name a control component")
+        rec = componentmod.resolved(project, b.spec, host)
+        if isaac_ego is not None:
+            doc = dict(isaac_ego["config"])
+        elif sim_side.get("ego") in (None, "default"):
+            doc = isaac_ego_with_ground_truth()
+            doc.pop("ground_truth", None)
+        else:
+            doc = isaac_ego_with_ground_truth(Path(sim_side["ego"]))
+            gt = (yaml_load(Path(sim_side["ego"])) or {}).get("ground_truth")
+            if gt:
+                doc["ground_truth"] = gt
+            else:
+                doc.pop("ground_truth", None)
+        doc["component"] = componentmod.ego_entry(rec)
+        isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
+        sim_side["ego"] = isaac_ego["path"]
     ego_car = cars.get(vehicle) if vehicle else None
     if server:
         pass
@@ -954,6 +990,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                                               f"tcp://localhost:{s.relay_port}"),
                        "spec": b.spec,
                        "overlays": overlaysmod.resolved(project, b.spec, host),
+                       "component": componentmod.resolved(project, b.spec, host),
                        "ready_at": None})
     numbers = s.numbers()
     record = {

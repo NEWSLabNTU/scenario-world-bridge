@@ -24,6 +24,7 @@ from scensim import isaac as isaacmod
 from scensim import judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
 from scensim import overlays as overlaysmod, profile as profilemod, record as recordmod
 from scensim import ssv2 as ssv2mod, world as worldmod
+from scensim import component as componentmod
 from scensim.findings import REFUSED, Finding, add_project_option, exit_code, on_host, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -40,7 +41,7 @@ SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
 LATER_KINDS = ("container",)
 CARLA_ONLY = ("carla_basic",)
-COMMON_PILOT_KEYS = ("kind", "vehicle", "args", "lifetime", "ready", "inputs", "rviz")
+COMMON_PILOT_KEYS = ("kind", "vehicle", "args", "lifetime", "ready", "inputs", "rviz", "component")
 KIND_KEYS = {
     "autoware": ("autoware_launch", "autoware_profile", "overlays"),
     "launch": ("launch", "agent", "overlays"),
@@ -473,6 +474,7 @@ def _check_pilot(name, p, sim) -> list:
         out.append(Finding(pf, f"{where}: vehicle: is not a catalog name"))
     if kind in overlaysmod.KINDS:
         out += overlaysmod.schema_problems(name, p)
+    out += componentmod.schema_problems(name, p, sim if isinstance(sim, str) else "")
     return out
 
 
@@ -856,7 +858,8 @@ def project_notes(path) -> list:
         settings = config.project_settings(config.find_project(path))
     except config.ConfigError:
         return []
-    return overlaysmod.notes(settings) + autoware_side_notes(settings)
+    return (overlaysmod.notes(settings) + autoware_side_notes(settings)
+            + componentmod.notes(config.find_project(path), settings))
 
 
 def autoware_side_problems(settings: dict, env=None, share=None) -> list:
@@ -1004,6 +1007,10 @@ def check_project(path, scenarios: bool = True) -> list:
     out += on_host(overlaysmod.problems(project, settings, host))
     if sim == "isaac":
         out += on_host(isaacmod.findings(config.host_settings(project)))
+        comp = componentmod.problems(project, settings, host)
+        out += on_host(comp)
+        if not any(f.refused for f in comp):
+            out += on_host(componentmod.isaac_findings(project, settings, host))
     files, found = collect_scenarios(project)
     out += found
     # a scenario still to be fetched is one (issue 056): its finding is the host's

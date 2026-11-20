@@ -65,9 +65,9 @@ scensim run isaac_first_drive/scenarios/haruna_down.xosc
 refused, naming the `map:=` to restart with.
 
 The course is long (its scenario allows 600 s of simulation time), and it was made for a
-drift controller. The Model 3 under Autoware does not complete it yet: on 2026-11-20, with
-scensim's profile, it drove about 230 m and then stopped for static map points that Autoware
-took for obstacles, as the course's point cloud map is too large for its compare-map filter
-([issue 072](../issues/072-haruna-map-too-large-for-compare-map-filter.md)). (Before aib
-bd3aab4 it did not start at all, [issue
-070](../issues/070-isaac-ego-does-not-start-downhill.md).)
+drift controller. The Model 3 under Autoware completes it at low speed: on 2026-11-20 it
+passed in 383 s of simulation time, with no contact. That needs the dataset at v2026.11.1 or
+later, whose Haruna point cloud map is divided into tiles that Autoware loads as the car
+moves ([issue 072](../issues/072-haruna-map-too-large-for-compare-map-filter.md)); with an
+older lock, run `scensim assets fetch --update` first. (Before aib bd3aab4 it did not start
+at all, [issue 070](../issues/070-isaac-ego-does-not-start-downhill.md).)

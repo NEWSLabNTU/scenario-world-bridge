@@ -1,6 +1,6 @@
 # 072: Haruna's point cloud map is too large for Autoware's compare-map filter: static points stop the ego
 
-**Severity**: high (the how-to's Haruna course cannot be completed). **Status**: open: the profile part is landed (autoware_sim_vehicle 1e0bc40, scensim pins c0254a9e); the divided map waits for a dataset revision.
+**Severity**: high (the how-to's Haruna course cannot be completed). **Status**: fixed 2026-11-20: the profile picks dynamic loading for a divided map (autoware_sim_vehicle 1e0bc40, scensim pins c0254a9e), and `haruna-tsukuba-courses` fff4cb0b (tag v2026.11.1) has Haruna's map divided.
 **Found**: 2026-11-20, swb 118, haruna_down on `isaac_first_drive` with scensim's profile, once
 issue 070 was fixed.
 
@@ -64,10 +64,26 @@ compare-map filter: static map loading, one point cloud file (.../Town01/pointcl
 Checked on 118 with it as landed: haruna_down on the divided candidate map passed (382.4 s
 simulated, 0 contacts, no overflow warning); Town01 on CARLA with the published map
 (first_drive's pedestrian_crossing) loaded statically and passed. What remains is the dataset
-revision with the divided map (the user's to publish); until then the published Haruna map is
-one PCD and loads statically, as before.
+revision with the divided map.
+
+## The dataset revision (published 2026-11-20)
+
+`jerry73204/haruna-tsukuba-courses` commit fff4cb0b, tag v2026.11.1 (the user's approval):
+`haruna/pointcloud_map.pcd` is the candidate's 140 tiles, with `pointcloud_map_metadata.yaml`;
+the other files of `haruna/` and all of `tsukuba/` are unchanged. All 161 files of `haruna/` on
+the Hub were checked against the candidate after the upload: none differs. The tag matters:
+`scensim assets fetch` resolves a dataset to its newest tag, and v2026.11 stays at the old
+revision (61e29c5d). The `courses` project's lock names fff4cb0b; another project gets it with
+`scensim assets fetch --update`.
+
+haruna_down on `isaac_first_drive`, the map fetched from the Hub at fff4cb0b, one stack on 118:
+**passed**, 383.4 s simulated, 0 contacts, 1 tick over budget of 7400; the launch logged
+dynamic loading of 140 tiles, and the filter did not warn.
 
 ## Evidence
+
+NAS `logs/2026 SSv2 on CARLA/2026-11-20 072 haruna divided map published (118)/` (the run on the
+published revision, the Hub's file list with hashes, the card).
 
 NAS `logs/2026 SSv2 on CARLA/2026-11-20 0.2.1 Isaac examples live (118)/` (run 5, with the
 ego's pose every 20 s). The candidate: NAS `home/2026-11-20 issue 072 haruna divided map

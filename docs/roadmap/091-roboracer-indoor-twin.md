@@ -1,6 +1,6 @@
 # 091: A RoboRacer Indoor Twin on Isaac Sim
 
-**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1 not started.
+**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, drafted for review: [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md).
 
 ## Goal
 

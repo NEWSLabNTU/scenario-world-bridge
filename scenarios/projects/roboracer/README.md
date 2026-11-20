@@ -9,7 +9,10 @@ stack (W18 to W20) join it as their work items land.
   lidar comes with W19.
 - `tools/smallcar.py`: open-loop tests of the car on Isaac at a chosen physics rate, no ROS:
   rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and 4 m/s, and in their
-  own lanes 10 mm cleats, a push on a wall and a cone hit.
+  own lanes 10 mm cleats, a push on a wall and a cone hit; the design note's M5 and M6, and
+  steering ramps that trace the tyre's lateral curve.
+- `tools/tyre_compare.py`, `tools/single_track.py`: PhysX's tyre against identified F1TENTH
+  tyres, by a steady-state single-track model (W8).
 
 ## The refit of the full-size settings (W6)
 
@@ -92,3 +95,55 @@ default solver) at 60 to 600 Hz and PGS at 120 and 600 Hz:
   more. Isaac's TGS is kept.
 - **The cost** is about 1.4 ms per physics step for one car, headless, the ECU and the vehicle
   in Python included: linear in the rate.
+
+## The tyre model (W8): keep PhysX's, with front and rear tyres apart
+
+No real RoboRacer has been measured yet (W22). The tyres compared here are the Pacejka tyres
+ForzaETH identified on their F1TENTH cars: NUC6 and NUC7, 3.75 kg like this one, from
+On-Track-SysID's `models/<car>/<car>_pacejka.txt`, read as F_y = mu F_z D sin(C atan(B a -
+E (B a - atan(B a)))) with mu 0.9514. The repository does not label the order or the
+convention. [B, C, D, E] follows the paper's formula and their race stack's labelled files.
+
+**PhysX's tyre on this spec.** From the steering ramps and M6 at 240 Hz, F_y / F_z rises at
+4.4 per rad and flattens to about 1.1 by 0.28 rad, the same on both axles.
+
+**The identified tyres** are stiffer, and stiffer at the rear than at the front:
+
+| | front, per rad | rear, per rad | peak, front and rear |
+|---|---|---|---|
+| this spec in PhysX | 4.4 | 4.4 | 1.1 and 1.1 |
+| NUC6 | 7.7 | 17.0 | 0.83 and 0.92 |
+| NUC7 | 11.5 | 22.7 | 0.82 and 0.71 |
+
+So those cars understeer, with gradients of 0.016 and 0.014 rad per m/s^2. This car is almost
+neutral, at 0.0015. The single-track model (`tools/single_track.py`, no load transfer, as
+ForzaETH's) reproduces Isaac's M5 radii within 0.5 to 4 %. `tools/tyre_compare.py` fits
+PhysX's curve, its slope and peak scaled, to each reference's M5 and M6:
+
+| fit | NUC6: M5 radius, worst | NUC7: M5 radius, worst |
+|---|---|---|
+| this spec as it is | 19 % | 13 % |
+| one stiffness and friction for all four tyres (what spec v2 holds) | 27 % | 23 % |
+| a stiffness and friction per axle | 7 % (rms 3 %) | 5 % (rms 2 %) |
+
+Run in Isaac, the per-axle fits confirm it. aib's per-wheel stiffness and friction were set
+after the car was made (`smallcar.py --axle`). Isaac's M5 radii then come within 4.5 % of
+NUC6's and 1.8 % of NUC7's, against 18.5 % and 14 % with the spec's tyres. M6 at 0.2 rad comes
+within 4 to 5 %. At 0.1 rad Isaac's grip limit is 14 % below the reference's. That compares
+Isaac's transient speed ramp, with load transfer, to a steady model without it.
+
+The decision, for the three options roadmap 091 names:
+- **Keep PhysX's tyre model.** Its curve's shape fits these tyres' M5 and M6 once each axle has
+  its own stiffness and friction.
+- **Tune it per axle.** Spec v2's single `tires:` section cannot hold these cars. A front and
+  rear section (or an axle override) in the spec, applied by aib's rig, is what the fit needs.
+  aib already sets them per wheel at run time (Track C).
+- **No tyre forces from the component.** Nothing in M5 and M6 calls for them.
+
+The limits:
+- **Past the peak.** These Pacejka tyres fall off steeply past their peak (the rear's C is 2.6
+  and 4.3), and PhysX's curve stays flat. A car driven beyond the grip limit (a slide, a drift)
+  is where the two will part. M6 only finds the limit.
+- **Other cars' tyres.** The references are tyres identified on other cars and floors, read from
+  a third party's repository and not checked against its paper, which prints none. Real logs of this car (W22, or W23's stand-in) are
+  what the per-axle values are finally fitted to (W10).

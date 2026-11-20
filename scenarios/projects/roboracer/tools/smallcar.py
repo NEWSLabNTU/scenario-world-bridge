@@ -1,18 +1,27 @@
-"""Roadmap 091 W6/W7: open-loop tests of a small car (the RoboRacer example) in Isaac, at a
+"""Roadmap 091 W6 to W8: open-loop tests of a small car (the RoboRacer example) in Isaac, at a
 chosen physics rate. aib.steptest's harness, with tests sized for a 1/10 car.
 
     python smallcar.py --ego EGO.yaml --out DIR --frame 0.05 --sub 3 [--set k=v ...]
-        [--only test,...] [--solver TGS|PGS]
+        [--only test,...] [--solver TGS|PGS] [--axle lat_f,mu_f,lat_r,mu_r]
 
 In Isaac's environment with aib on the path (aib's scripts/isaac_env.sh, then
 PYTHONPATH=<aib>/src/aib). EGO.yaml is an aib ego config, `rig: roboracer.rig.yaml` beside it;
 make the rig with `python3 -m aib.gen --spec ../vehicles/roboracer.yaml -o roboracer.rig.yaml`.
 `--set` takes a field of aib's VehicleParams or of sim_vehicle_ecu's Calibration by name.
-Physics rate = sub / frame. Per test a CSV of every physics step, and summary.json.
+`--axle` sets the front and rear tyres apart: each axle's share of the rig's lateral stiffness,
+and its friction (aib's set_wheel_stiffness and set_wheel_friction, after the car is made).
+Physics rate = sub / frame. Per test a CSV of every physics step (with each wheel's slip angle,
+tyre force and load), and summary.json.
 
-The tests: rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and 4 m/s on
-the open plane; in their own lanes, four 10 mm cleats at 3 m/s (`bumps`), creeping into a wall
-and pushing on it (`wall`), and a 0.1 kg cone hit at 2 m/s (`cone`).
+The tests:
+- on the open plane: rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and
+  4 m/s;
+- in their own lanes: four 10 mm cleats at 3 m/s (`bumps`), creeping into a wall and pushing on
+  it (`wall`), and a 0.1 kg cone hit at 2 m/s (`cone`);
+- design note 5.2's M5 (`m5_<angle>_<speed>`: steady circles at tire angles 0.1, 0.2, 0.3 and
+  0.36 rad and 1, 2 and 3 m/s) and M6 (`m6_01`, `m6_02`: the speed raised from 1 to 7 m/s at a
+  fixed angle), and the steering ramps (`ramp2`, `ramp3`, `ramp4`: 0 to 0.36 rad over 10 s at
+  2, 3 and 4 m/s) that give the tyre's lateral curve.
 """
 import argparse
 import csv
@@ -69,6 +78,21 @@ def cone(t, v, m):
     return (hold(2.0, v), 2.0, 0.0)
 
 
+def ramp(speed, top=0.36, length=12.0):
+    # the paper's steady-state test: the tire angle ramped slowly at a constant speed
+    def cmd(t, v, m):
+        return (hold(speed, v), speed, top * max(0.0, min(1.0, (t - 2.0) / (length - 2.0))))
+    return cmd
+
+
+def m6(angle, v0=1.0, v1=7.0, length=20.0):
+    # M6: on a circle at a fixed tire angle, the speed raised slowly until the car slides
+    def cmd(t, v, m):
+        target = v0 + (v1 - v0) * max(0.0, min(1.0, (t - 2.0) / (length - 2.0)))
+        return (hold(target, v), target, angle)
+    return cmd
+
+
 TESTS = {
     "rest": (3.0, rest),
     "launch": (3.0, launch),
@@ -79,9 +103,19 @@ TESTS = {
     "bumps": (3.0, bumps),
     "wall": (6.0, wall),
     "cone": (3.0, cone),
+    "ramp2": (12.0, ramp(2.0)),
+    "ramp3": (12.0, ramp(3.0)),
+    "ramp4": (12.0, ramp(4.0)),
+    "m6_02": (20.0, m6(0.2)),
+    "m6_01": (20.0, m6(0.1)),
 }
+for _a in (0.1, 0.2, 0.3, 0.36):
+    for _v in (1.0, 2.0, 3.0):
+        TESTS[f"m5_{_a:g}_{_v:g}"] = (8.0, lock(_v, _a))
 # each test's lane: the start's y, m (the obstacles of one lane stay out of the others)
 LANES = {"bumps": 5.0, "wall": 10.0, "cone": 15.0}
+for _t in ("ramp2", "ramp3", "ramp4", "m6_02", "m6_01"):
+    LANES[_t] = -30.0
 CLEATS = (1.5, 2.5, 3.5, 4.5)  # x of each cleat's centre, m
 CLEAT = (0.03, 1.0, 0.010)  # its size along x, y and its height, m
 WALL_X = 1.0  # the wall's face, m ahead of the start
@@ -161,6 +195,10 @@ def measure(test, rows, p):
             out["v_loss"] = hit["v"] - min(r["v"] for r in after[: max(1, len(after) // 3)])
             out["yaw_rate_max"] = max(abs(r["yaw_rate"]) for r in after)
         out["cone_rest_jitter_mm"] = 1000 * max(r["cone_d"] for r in rows[: max(1, len(rows) // 10)])
+    elif test.startswith("ramp") or test.startswith("m6"):
+        out["ay_max"] = max(r["ay"] for r in rows)
+        out["lat_v_r_max"] = max(r["v"] * r["yaw_rate"] for r in rows)
+        out["beta_max"] = max(abs(math.atan2(r["vy"], max(r["v"], 0.1))) for r in rows)
     else:
         s = [r for r in rows if r["t"] > rows[-1]["t"] - 2.0]
         v = st.mean(r["v"] for r in s)
@@ -188,6 +226,8 @@ def main():
     ap.add_argument("--label", default="")
     ap.add_argument("--only", default="")
     ap.add_argument("--solver", default="", help="TGS or PGS (default: Isaac's)")
+    ap.add_argument("--axle", default="", help="front and rear tyres as lat_share,friction,"
+                    "lat_share,friction: shares of the rig's lateral stiffness, and frictions")
     args = ap.parse_args()
     from dataclasses import fields
 
@@ -261,7 +301,13 @@ def main():
                   rig.box_dims, pose, truth_settings=rig.component.get("truth"))
     solver = sapi.GetSolverTypeAttr().Get()
     print("solver", solver, flush=True)
-    summary = {"rate_hz": rate, "solver": solver, "frame": args.frame, "sub": args.sub,
+    if args.axle:
+        from aib.isaac.vehicle import WHEELS
+        lf_, mf_, lr_, mr_ = (float(x) for x in args.axle.split(","))
+        for i, (_n, is_front, _side) in enumerate(WHEELS):
+            veh.set_wheel_stiffness(i, lf_ if is_front else lr_, 1.0)
+            veh.set_wheel_friction(i, mf_ if is_front else mr_)
+    summary = {"rate_hz": rate, "solver": solver, "axle": args.axle, "frame": args.frame, "sub": args.sub,
                "set": args.set, "ecu_slip_offset": rig.ecu.est_slip_offset, "tests": {}}
     only = [t for t in args.only.split(",") if t]
     try:
@@ -300,9 +346,14 @@ def main():
                            "ax": state.acceleration[0], "ay": state.acceleration[1],
                            "cmd_a": cmd.acceleration, "tire_angle": state.tire_angle,
                            "drive_sum": sum(veh.torques.drive), "brake_sum": sum(veh.torques.brake)}
-                    for name, wst in zip(("fl", "fr", "rl", "rr"), ws):
+                    cs = veh.contacts or [None] * 4
+                    for name, wst, ct in zip(("fl", "fr", "rl", "rr"), ws, cs):
                         row[f"slip_{name}"] = wst.slip if wst else 0.0
                         row[f"omega_{name}"] = wst.rotation_speed if wst else 0.0
+                        row[f"alpha_{name}"] = wst.slip_angle if wst else 0.0
+                        row[f"fx_{name}"] = wst.force[0] if wst else 0.0
+                        row[f"fy_{name}"] = wst.force[1] if wst else 0.0
+                        row[f"load_{name}"] = ct.load if ct else 0.0
                     row["pitch_rate"] = state.angular_velocity[1]
                     row["roll_rate"] = state.angular_velocity[0]
                     row["airborne"] = sum(1 for wst in ws if wst and not wst.on_ground)

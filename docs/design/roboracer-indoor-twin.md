@@ -8,8 +8,7 @@ This note fixes four interfaces before any code is written (091 step 2 onward):
 - the measurement protocol and its acceptance bands.
 
 Read against `sim_vehicle_ecu` b4dda7d (`signals`, `calibration`, `powertrain.make`, `ecu`) and
-aib b05142f (`rig`, `gen`, `isaac/vehicle.py`, `isaac/ego.py`, `runner`). Status: draft for
-review (133).
+aib b05142f (`rig`, `gen`, `isaac/vehicle.py`, `isaac/ego.py`, `runner`). Status: approved by 133 on 2026-11-20, with its four notes folded in.
 
 ## 1. Where the component sits today
 
@@ -49,6 +48,15 @@ import, no I/O in `step`, no threads, no wall clock, and no unseeded randomness.
 standard library and `numpy`, which Isaac Sim's Python provides. It is imported by the world
 server's interpreter: Isaac's Python 3.12, not the system's 3.10.
 
+This is a real constraint on a user's model, and it is stated as such:
+- **A compiled model** (C, C++, Simulink, Modelica, a vendor's binary) goes through the `fmu`
+  component (2.5): exported as an FMI 2.0 co-simulation unit, it is stepped by a shipped
+  component.
+- **A model that needs ROS** (a node, a topic, a service) goes through neither. It cannot be
+  stepped inside the physics loop, and a ROS node acting a step late is what 091 rules out.
+  Such a model has to be reduced to its input-output behaviour first: the measurements of 5
+  and a component fitted to them.
+
 ```python
 class MyCar:
     commands = "ackermann"           # or "vesc", or "autoware": what it takes (2.3)
@@ -87,9 +95,14 @@ The rules for `step`:
   answers 091's third open question: no.
 - **Determinism.** The same `(command, sensors, dt)` sequence after `reset()` gives the same
   outputs. Noise is drawn from a generator seeded by `seed`.
-- **Cost.** At most 0.1 ms per call, mean, per car, measured on the world server. At 600 steps a
-  second that is 6 % of one core, and `sim_vehicle_ecu`'s `ev` is about 0.05 ms. `testbench
-  check --deep` times 1000 calls on a canned input and warns past the budget.
+- **Cost.** At most 0.1 ms per call, mean, per car, measured on the world server. The budget
+  assumes a physics rate of 600 Hz, the upper end expected for a 1/10 car (2.2): 600 x 0.1 ms
+  is 6 % of one core per car. `sim_vehicle_ecu`'s `ev` is about 0.05 ms. The budget scales
+  with the rate: at `physics_hz` f, it is 60 / f ms. Above it, the run goes ahead. `testbench
+  check --deep` times 1000 calls on a canned input and warns with the measured mean and the
+  budget, and each run's record carries the component's measured mean and maximum per call.
+  A slow component is never refused: it costs wall time, not correctness, since the simulation
+  is lockstep.
 - **Failure.** If `step` raises or returns a non-finite or ill-shaped value, the run errors,
   with the component's name and traceback in the world server's log. There is no fallback to
   another component, because it would drive a different car.
@@ -257,9 +270,12 @@ This is what makes "set the floor's friction in the editor" work. Highest first:
    it covers the point. These are optional overrides, and a run records which applied;
 2. **the authored `scensim:surface` class** on the collider or an ancestor;
 3. **the authored physics material's `dynamicFriction`**, taken as the peak friction of the
-   car's tire on that ground. That is the quantity the user measures (5, the circle test). It
-   is not scaled by any reference: the issue 013 reference (1.12, the Model 3's tire on
-   asphalt) belongs to the class table, not to a measured floor;
+   car's tire on that ground. That is the quantity the user measures (5, M6). It is not scaled
+   by any reference: the issue 013 reference (1.12, the Model 3's tire on asphalt) belongs to
+   the class table, not to a measured floor. This is not PhysX's own meaning. For PhysX it is
+   the coefficient between two colliders, and the vehicle's tires ignore it. So step 6's guide
+   says so where the user sets it in Isaac's editor (the material's Physics properties), with
+   M6's value to enter;
 4. **the reference class** (`surfaces.NO_MAP`) when nothing is authored.
 
 Two more rules apply:
@@ -406,5 +422,6 @@ reported per quantity and condition, never averaged away, by the harness of step
   - the `ackermann` and `vesc` vehicle-interface profiles;
   - a planar lidar profile (Hokuyo UST-10LX class: 270 deg, 1081 beams, 40 Hz, 0.06 to 10 m),
     checked against a real scan of the field.
-- **Open.** The reference stack for step 5 (f1tenth_system with its VESC driver is assumed
-  here) is still the user's choice.
+- **Assumed.** The reference stack for step 5 is f1tenth_system with its VESC driver (133,
+  2026-11-20). The topic names of 4 and the `vesc` profile follow it. Another stack is a remap
+  (`remap:`), or a profile of its own if its commands differ.

@@ -1,6 +1,6 @@
-# Building blocks for learned policies: run, sample, batch, evaluate (draft)
+# Scenario to world, and sampling: components for training and evaluating learned policies (draft)
 
-Status: draft for review, revision 3, 2026-11-20. Not a roadmap phase yet.
+Status: draft for review, revision 4, 2026-11-20. Not a roadmap phase yet.
 
 Source: a RoboRacer team (TUM) gave feedback after a scensim presentation on 2026-11-20. They
 train and deploy RL and ML policies and know simulation well. Their pain points:
@@ -24,11 +24,53 @@ runs, the efficiency of data and computation, and the declarative workspace. Use
 interfaces and build their own ML training and evaluation patterns on them; scensim does not
 abstract those patterns.
 
+Revision 4 (user): Isaac Lab is strong at training throughput, so the project focuses on
+turning a scenario into a world, and on sampling. Isaac Lab keeps batched stepping, sensors,
+resets and GPU tensors; scensim adds a thin adapter in front of it. And the shape is
+adaptable components and specifications, not a big framework: each piece is usable on its own
+and replaceable.
+
+## 0. What we contribute
+
+### Components and specifications, not a framework
+
+A framework owns the loop and asks users to fit in. We publish:
+
+- **Specifications**, which are documents with a schema and a checker, written so that other
+  tools can implement them.
+- **Components**, which are small packages that each do one job and work without the others.
+
+A user takes one component, or all of them. Nothing requires the scensim stack around it.
+
+### The contributions
+
+| # | Contribution | Kind | What exists | What is new |
+|---|---|---|---|---|
+| C1 | **Scenario to world**: an OpenSCENARIO sample, a car spec and a field (USD stage or town) become a world on a chosen target: an Isaac Lab batch for training, or Isaac Sim, CARLA 1.0 or 0.9.16 for evaluation | component (adapters) + spec (the compilable subset) | Isaac Lab builds environments from Python configuration written per task; SSv2 runs OpenSCENARIO one scenario at a time; CARLA's ScenarioRunner runs it on CARLA; SceneFactory ([NeurIPS 2026](https://neurips.cc/virtual/2026/poster/139016)) builds driving scenes procedurally on Isaac Lab | one declared scenario compiled to a batched training world *and* run in full for evaluation, from the same files. We found no OpenSCENARIO-to-Isaac Lab compiler (to verify before claiming) |
+| C2 | **Sampling with identity**: a sample record (scenario hash, parameter values, seeds for scenario, world and pilot, car spec hash, stage hash, component hash) and a sampler over OpenSCENARIO distributions that emits them | spec (the sample record) + component (the sampler, pure Python) | OpenSCENARIO's `ParameterValueDistribution`; Scenic's probabilistic scenarios ([arXiv 2010.06580](https://arxiv.org/abs/2010.06580)) and VerifAI's samplers; Isaac Lab's event manager randomises inside one task | a sample that carries its own identity across executors: a training slot replays on seats, at full fidelity, from its record alone |
+| C3 | **Cross-fidelity replay**: any sample record runs on any target that accepts it, and the result records which target ran it | component | none that we know of joins a batched GPU training slot to a full scenario engine run | the surprising training episode becomes a regression test without rewriting it |
+| C4 | **One car, one field, measured**: the car spec with simulator bodies (roadmap 083), the control component in single and batched form (roadmap 091), the authored USD stage with its hashed record (091 W15) | specs | per-task robot configuration in Isaac Lab; per-simulator blueprints in CARLA | the same measured car and field in training, evaluation and deployment, each run naming the hashes it used |
+| C5 | **Small interfaces**: the pilot interface, the truth stream, the judge and attachment hooks, the paced clock | specs + reference implementations | CARLA's Leaderboard agent API; Autoware's evaluator topics; ad hoc per project | stack-neutral (Autoware, an end-to-end model, a policy, a board, a V2X stack attach the same way) |
+
+What we deliberately do not build: batched physics, rendering, the vector environment,
+learners, rewards, scorers, model runtimes, and our own GPU transport for training. Isaac Lab,
+the learners and NITROS do these.
+
+How the contribution is measured:
+
+1. **Time to a batch.** Minutes from a scenario file to a running training batch, with no
+   hand-written environment.
+2. **Replay fidelity.** The share of training slots whose replay on seats reaches the same
+   outcome (end condition, contact or not), and where they differ, why.
+3. **Overhead.** The adapter's cost against a hand-written Isaac Lab environment (section 5a).
+4. **Adoption cost.** Lines a user writes to use one component alone, e.g. the sampler with
+   their own simulator.
+
 ## 1. Decisions
 
 | # | Decision | From |
 |---|---|---|
-| D1 | scensim's scope is four things: interfaces, efficient run management, efficient data and computation, and the declarative workspace. Training and evaluation patterns (learners, rewards, scorers, model runtimes, board integration, datasets, V2X stacks) are the users', built on the interfaces; scensim ships examples of them, not abstractions | user |
+| D1 | scensim's scope: scenario to world, sampling with identity, run management, small interfaces and the declarative workspace (section 0). Training and evaluation patterns (learners, rewards, scorers, model runtimes, board integration, datasets, V2X stacks) are the users', built on the interfaces; scensim ships examples of them, not abstractions | user |
 | D2 | Adopt existing technology where it fits: Isaac Lab's batched simulation, NITROS, NCCL, TensorRT, perception_eval, CARLA 1.0's V2X sensors | user |
 | D3 | No patches to official ROS; Humble and Jazzy | user |
 | D4 | No training-specific specification. A scenario file carries its own sampling (OpenSCENARIO `ParameterValueDistribution`, which SSv2 already interprets); the autopilot carries its own randomness, seeded per run | user |
@@ -38,6 +80,8 @@ abstract those patterns.
 | D8 | Deployment and evaluation on the real target: the user compiles the model; scensim runs it through the pilot interface, on the host or on a board | user |
 | D9 | Gradients stay in the learner; NCCL between GPUs is the user's. The reward is the learner's: scensim streams observations and events, not rewards | finding, and D1 |
 | D10 | V2X is optional and attaches as a block; nothing requires it | user (2026-11-15 rule) |
+| D11 | Isaac Lab owns training throughput (batched physics, sensors, resets, tensors). scensim's batch path is a thin adapter that compiles samples into Isaac Lab, pinned to one Isaac Lab release | user (revision 4) |
+| D12 | Adaptable components and specifications, not a framework: each component works alone, each specification has a schema and a checker that other tools can implement | user (revision 4) |
 
 ## 1a. Scope: what scensim owns, what users build
 
@@ -45,7 +89,7 @@ abstract those patterns.
 |---|---|
 | **Interfaces**: the world protocol, the pilot interface (agent protocol, relay), the sensor and truth streams, the clock (lockstep, paced), the judge interface, the attachment hook, the batched vector interface | learners and rewards; model runtimes (TensorRT, ONNX Runtime, a board's own); perception and driving scorers (perception_eval, a driving score); V2X stacks and network simulators; dashboards |
 | **Run management**: sampling plans and seeds end to end, executors (seats, batch), retries, provenance, replay of any sample | which samples to run next (an adaptive sampler is a user plug-in on the plan) |
-| **Efficiency**: batched simulation, GPU-resident data in process, GPU transport between processes (NITROS, a CUDA IPC side channel), seat isolation and placement | the user's own multi-GPU training (NCCL) |
+| **Efficiency**: delegated to Isaac Lab in training, where our share is the adapter's overhead only; seat isolation and placement for evaluation; GPU transport between processes for evaluation only (NITROS first) | the user's own multi-GPU training (NCCL) |
 | **Declarative workspace**: the testbench, the car spec, the field (USD stage or town), scenario files with their distributions, suites | the contents: their cars, fields, scenarios, pilots |
 
 The test for a new feature: if a user could build it on the interfaces without changing
@@ -239,10 +283,14 @@ The examples were read for the blocks they need. The gaps they expose are work i
 | **Wheeled Lab** ([CoRL 2025](https://arxiv.org/abs/2502.07380)) and **RoboRacer Arena** ([arXiv 2608.23040](https://arxiv.org/pdf/2608.23040)) | small cars trained on Isaac Lab or Isaac Sim with heavy randomisation; residual RL over Pure Pursuit; deployed zero-shot | batch executor, scenario sampling, model pilot | residual actions over a named base controller; observation history recorded with the model |
 | **GPUDrive** ([ICLR 2025](https://arxiv.org/html/2408.01584v3)) | multi-agent driving on recorded scenes, about a million steps per second | batch executor | several learning actors per environment (later) |
 
-## 5. The batch executor (option b)
+## 5. The batch adapter (option b, on Isaac Lab)
 
-The executor compiles a scenario sample into a slot of a batched simulation: N clones of the
-field in one Isaac process, stepped together on the GPU (Isaac Lab's model).
+The adapter compiles sample records into an Isaac Lab environment and then gets out of the
+way: Isaac Lab clones the field, steps the slots, renders, resets and hands out tensors. The
+adapter writes the scene configuration (field, car rig from the spec, sensors from the spec),
+the reset events (each slot's sample), and the vectorised conditions (the compiled
+storyboard subset); it reads back each slot's end and events into sample records. It is a
+separate package pinned to one Isaac Lab release, small enough to follow the next one.
 
 - **The subset that compiles.** Start poses, routes, speeds, NPC routes with constant or
   profiled speed, simple distance and time triggers, weather and scene parameters (section
@@ -331,7 +379,7 @@ on seats without being rewritten. What it must not do is cost speed.
   splits each step by stage (physics, sensors, component, scenario conditions, resets,
   transfer) per GPU, and records the hardware, the driver and the Isaac Lab release.
 - **The baseline.** A hand-written Isaac Lab environment with the same car, field and sensors,
-  built as part of B6.
+  built as part of K2.
 - **The working target.** The batch executor stays within 20 % of that baseline at every slot
   count. The figure is to be confirmed after the first measurement. Absolute targets come from
   the first RoboRacer measurement, not before.
@@ -413,7 +461,7 @@ space leases over a simulated 5G network, which ns-3 5G-LENA and a ray tracer mo
   It needs no channel model from us. CARLA 1.0's V2X sensor would serve only as a quick
   baseline.
 
-So the attachment hook (B4) and the truth stream (B3) cover V2X. A channel model is not a
+So the attachment hook and the truth stream (K4) cover V2X. A channel model is not a
 scensim block.
 
 ## 6a. Usage by user
@@ -586,14 +634,19 @@ Notes:
 
 ## 10. Work items (sketch, for a roadmap phase once approved)
 
-| Item | What | Layer | Depends on |
+Specifications first, then the components that implement them. Each component's exit includes
+a use on its own, outside the scensim stack.
+
+| Item | What | Kind | Depends on |
 |---|---|---|---|
-| B1 | Seeds end to end: run seed to sample, world and pilots; provenance names the sample; replay a sample | L2 | none |
-| B2 | Scene parameters as scenario parameters (weather, light, surfaces, stage variants) | L2 | B1 |
-| B3 | The truth stream | L1 | none |
-| B4 | The judge and attachment plug-in points: declaration, lifetime, clock, seed, entity-to-role map, record | L2 | B1 |
-| B5 | The paced clock, with the lag and a latency stamp per command recorded | L1 | none |
-| B6 | The batch executor on Isaac Lab: compiled subset, slots, rollouts, the vector interface, the batched component, replay on seats; exit: `scensim bench` against a hand-written Isaac Lab baseline (section 5a) | L3 | B1, 091 W5 |
-| B7 | GPU transport between processes: NITROS profile, CUDA IPC side channel | L3 | none |
-| B8 | Jazzy for the whole set (with 082 step 7) | all | 082 |
-| B9 | Examples, each a pattern to copy: a RoboRacer policy trained in a batch and evaluated on seats; an exported model as a pilot; a board pilot; a vision stack swept over weather and scored with perception_eval; two stacks in one scenario; V2X attached | all | the above |
+| S1 | The sample record: schema, hashing, checker | spec | none |
+| S2 | The compilable subset of OpenSCENARIO: which constructs compile to a batch, and the refusal for the rest | spec | none |
+| S3 | The batched control component: `step_batch` on tensors, beside 091's single `step` | spec | 091 |
+| S4 | The stage record (091 W15) and the truth stream's content | spec | 091 W15 |
+| K1 | The sampler: OpenSCENARIO distributions to sample records, seeds to scenario, world and pilot; pure Python, no stack needed | component | S1 |
+| K2 | The Isaac Lab adapter: sample records, car spec and stage to an Isaac Lab environment; vector interface; per-slot records; exit: `scensim bench` against a hand-written Isaac Lab baseline (section 5a) | component | S1, S2, S3, 091 W5 |
+| K3 | Replay: a sample record runs on seats (SSv2, Isaac or CARLA), recording the target; exit: replay fidelity measured on a training batch | component | S1, K1 |
+| K4 | The truth stream, the judge and attachment hooks, the paced clock | components | S4 |
+| K5 | GPU transport between processes for evaluation: a NITROS profile, a CUDA IPC side channel only where NITROS does not fit | component | none |
+| K6 | Jazzy for the whole set (with 082 step 7) | all | 082 |
+| E1 | Examples, each a pattern to copy: a RoboRacer policy trained through K2 and replayed through K3; the sampler alone with another simulator; an exported model as a pilot; a board pilot; a vision stack swept over weather; two stacks in one scenario; V2X attached | examples | the above |

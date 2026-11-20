@@ -85,9 +85,10 @@ Town01 with Autoware's overlay built.
   four scenarios passed (drive_to_goal, follow_to_goal, mud_and_gravel, after_rain). Without
   it, follow_to_goal ended once in issue 027's error and the other three passed. On 118 every
   Isaac render of Town01 lost the GPU on its driver (issue 005).
-- `isaac_soil`'s suite `soil` on Town01, its first run as a testbench.
-- Branch `088-startup-hold` (no run starts beside another seat's stack start-up), after 133's
-  check.
+- `isaac_soil`'s suite `soil` on Town01, its first run as a testbench: done on 241
+  (2026-11-20, with the overlay). All four scenarios passed (town01_soil, town01_mud,
+  town01_snow, town01_zones) on one Isaac world, each with the surface map it names, and the
+  car drove through every zone.
 - The version, the tag and the publish are the user's.
 
 ## v0.2.0

@@ -195,6 +195,9 @@ The rules for declared inputs:
   measurement was taken.
 - **Provenance.** The run records the declared inputs with their latency and noise in
   `provenance.pilots.<entity>.component`.
+- **Session inputs.** Besides ground truth, a component may declare `battery_voltage` (V), a
+  session condition the run records rather than a measurement of the world (6). It is
+  delivered the same way, from the run's session conditions.
 - **The check.** `testbench check` refuses a component that reads an undeclared input (it gets
   only what it declared, and a name outside `TRUTH_INPUTS` is refused when it loads). It also
   refuses a latency or noise setting for an input the component did not declare.
@@ -448,11 +451,48 @@ reported per quantity and condition, never averaged away, by the harness of step
   a small one, and the physics rate chosen:
   - PhysX's slip denominators (4 m/s), `est_slip_offset`;
   - the sticky-tyre thresholds, the suspension frequency, the wheel inertia.
+
+  Its open risks (133's study, approved by the user, 2026-11-20):
+  - PhysX's tyre model against foam and soft RC tyres;
+  - a light car's jitter (forums suggest steps of 5-10 ms or smaller);
+  - wall and cone collisions, with restitution and friction measured, not assumed.
+- **Step 3b, fitting.** A tool that fits the spec and the component from logged manoeuvres:
+  - **Score.** The long-horizon trajectory error from matched starts, not the one-step error.
+  - **Method.** First on-track identification (arXiv 2411.17508: a Pacejka tyre from on-track
+    F1TENTH data in under a minute). Fitting through a differentiable simulator is an option
+    later.
+  - **Order.** Identification runs first (arXiv 2606.22062: a few identification rollouts close
+    most of the gap).
+  - **Randomisation.** Only around the fit, in a band no wider than the real runs' own spread
+    (5.3).
 - **Step 4.** `authored: true` maps:
   - the material and `scensim:surface` readers in the surface layer;
   - the session-layer rule;
   - `provenance.stage`;
   - the minimal lanelet2 loop.
+
+  The field stage is layered (3.1, 3.4):
+  - **Visual.** A visual layer from a scan (Isaac's NuRec Gaussian splats, or a mesh), with
+    the raw scan kept beside it as evidence.
+  - **Physics.** A physics layer of colliders authored in Isaac, required because splats have
+    no collision.
+  - **Measured attributes.** Tilt-test friction and object masses go on the prims with their
+    source (`scensim:source`, a note or a file of the measurement).
+  - **Hashes.** `provenance.stage` hashes every layer, the scan's included.
+- **Validation (step 6's harness).** Three levels:
+  - (a) **the component alone**: logged commands replayed into it against the logged VESC
+    telemetry (`/sensors/core`), with no physics;
+  - (b) **the car**: M1 to M6's bands (5.3);
+  - (c) **laps with the user's stack**: M7.
+- **Session conditions.** Battery voltage, floor state (clean, dusty, waxed: the user's words)
+  and tyre age (km or laps since new), recorded with every run and every real log, and
+  compared before two are matched.
+  - The component may declare `battery_voltage` as an input (2.4). It is a session value, not
+    ground truth: constant per run, or a discharge profile the run gives.
+  - A learned VESC model in the style of ANYmal's actuator net (arXiv 1901.08652) needs it.
+- **Friction two ways.** An inclined-plane tilt test of the tyre on the floor (ASTM G219 style)
+  and M6's grip limit must agree, within their measurement resolutions, before the value goes
+  into the stage (3.3).
 - **Step 5.** The two new profiles:
   - the `ackermann` and `vesc` vehicle-interface profiles;
   - a planar lidar profile (Hokuyo UST-10LX class: 270 deg, 1081 beams, 40 Hz, 0.06 to 10 m),

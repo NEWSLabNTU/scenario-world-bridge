@@ -78,15 +78,47 @@ properties; that convenience is why they work there. So for an indoor field:
 3. **Own small cars on Isaac**: lift `testbench check`'s refusal; a RoboRacer spec as the worked
    example (geometry, mass, tyres from measurements); the physics timestep and solver settings
    a 1/10 car needs. Exit: the example car holds a straight line, turns at full lock and
-   stops, steady at the chosen timestep.
+   stops, steady at the chosen timestep. Open risks this step must answer (133's study, the
+   user's approval, 2026-11-20):
+   - PhysX's tyre model against foam and soft RC tyres;
+   - jitter of a light car (forums suggest steps of 5-10 ms or smaller);
+   - collisions with walls and cones: restitution and friction measured, not assumed.
+3b. **Fitting**: a tool that fits the car's spec and the user's component from logged
+   manoeuvres. It is scored by the long-horizon trajectory error from matched starts, not by
+   one-step error. It starts with on-track identification (arXiv 2411.17508 fits a Pacejka tyre
+   from on-track F1TENTH data in under a minute); fitting through a differentiable simulator is
+   an option later. Identification runs come first (arXiv 2606.22062: a few identification
+   rollouts close most of the gap). Randomisation, where wanted, only around the fit, in a band
+   no wider than the real runs' own spread. Exit: the example car fitted from its logs passes
+   M1 to M6's bands (validation level b, below).
 4. **An authored indoor stage as a map**: a map directory whose world is the user's USD;
    authored attributes kept; Track C overrides applied only where given; the hash in the run's
-   results. Exit: an attribute changed in Isaac's editor shows in the next run's behaviour and
-   its recorded hash, with nothing else edited.
+   results. The stage is layered:
+   - a visual layer from a scan (Isaac's NuRec Gaussian splats, or a mesh), with the raw scan
+     kept beside it as evidence;
+   - a physics layer of colliders authored in Isaac. It is required, since splats have no
+     collision;
+   - measured attributes (tilt-test friction, object masses) stored on the prims with their
+     source;
+   - `provenance.stage` hashes every layer.
+
+   Exit: an attribute changed in Isaac's editor shows in the next run's behaviour and its
+   recorded hash, with nothing else edited.
 5. **The `ackermann_msgs` vehicle interface**: the topics a RoboRacer stack expects, offered by
    the vehicle side. Exit: an unmodified open RoboRacer stack drives the example car.
 6. **The guide**: "A RoboRacer indoor twin", from the measurements to a run, with the
-   fitting harness (measured responses against the simulated component's).
+   fitting harness (measured responses against the simulated component's). It validates at
+   three levels:
+   - (a) the component alone: logged commands replayed against the logged VESC telemetry;
+   - (b) the car: M1 to M6's bands;
+   - (c) laps with the user's stack: M7.
+
+   Two rules apply throughout:
+   - **Session conditions**: battery voltage, floor state and tyre age, recorded with every run
+     and every real log. The component may declare battery voltage as an input; a learned VESC
+     model in the style of ANYmal's actuator net (arXiv 1901.08652) needs it.
+   - **Friction measured two ways that must agree**: an inclined-plane tilt test of the tyre on
+     the floor (ASTM G219 style) and M6's grip limit.
 
 ## Not in scope
 

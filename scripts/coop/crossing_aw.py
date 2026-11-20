@@ -334,6 +334,7 @@ def run_one(out, arm, dt, rule, seed, side, a, gate_load=None):
     if gate_load:
         base["load_gate_ok"] = int(wait_load(gate_load, hold=30.0, poll=5.0, give_up=600.0))
     base["load_gate_s"] = round(time.monotonic() - t_gate, 1)
+    base["mem_avail_gb"], base["swap_gb"] = meminfo()  # at the scenario's start, ego up
     gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
            "a_ref": list(site["a_ref"]), "b_ref": list(site["b_ref"]), "log": str(rd / "coop_a.jsonl"),
@@ -390,16 +391,34 @@ class LoadSampler(threading.Thread):
                 "load_max": round(max(self.v), 1)}
 
 
-def wait_load(max_load, hold=60.0, poll=20.0, give_up=4 * 3600.0):
+def meminfo():
+    """(available, swap used) in GiB, from /proc/meminfo."""
+    m = {}
+    for line in open("/proc/meminfo"):
+        k, v = line.split(":", 1)
+        m[k] = int(v.split()[0]) / 2**20
+    return round(m["MemAvailable"], 2), round(m["SwapTotal"] - m["SwapFree"], 2)
+
+
+def wait_load(max_load, hold=60.0, poll=20.0, give_up=4 * 3600.0, min_mem=0.0, swap_rise=0.25):
     """Before a run: wait until the host's 1-min load has stayed below max_load for `hold` s (0: no wait).
     A shared host's build burst left the ego unready for 900 s (074 U3 on server139); a run started then
-    is lost, so it waits instead (up to give_up, then runs anyway). Returns False when it gave up."""
-    if not max_load:
+    is lost, so it waits instead (up to give_up, then runs anyway). Returns False when it gave up.
+    With min_mem (GiB), the same `hold` also needs MemAvailable >= min_mem and swap use not climbing (up by
+    no more than swap_rise GiB over the hold): 074 U3's czp heartbeat gaps came with 3-5 GiB available and
+    swap at 42-48 of 48 GiB (133)."""
+    if not max_load and not min_mem:
         return True
     t0 = time.monotonic()
     calm = 0.0
+    swap0 = None
     while time.monotonic() - t0 < give_up:
-        if os.getloadavg()[0] < max_load:
+        avail, swap = meminfo()
+        ok = not max_load or os.getloadavg()[0] < max_load
+        if min_mem:
+            swap0 = swap if swap0 is None or calm == 0.0 else swap0
+            ok = ok and avail >= min_mem and swap - swap0 <= swap_rise
+        if ok:
             calm += poll
             if calm >= hold:
                 return True
@@ -435,6 +454,8 @@ def main():
     ap.add_argument("--side", default="left")
     ap.add_argument("--only", help="arm:dt:rule:seed[:side],... instead of the grid")
     ap.add_argument("--redo-invalid", type=int, default=1)
+    ap.add_argument("--min-mem", type=float, default=0.0,
+                    help="with --max-load's wait, also wait for this much MemAvailable (GiB) and swap not climbing (0: no memory gate)")
     ap.add_argument("--max-load", type=float, default=0.0, help="wait before each run until the 1-min load stays below this (0: no wait)")
     ap.add_argument("--rest-offset", type=float, default=1.4,
                     help="stop-sign rules: s added to A's pacing aim so rest_d lands on dt (074 U3 pace stage: 1.4)")
@@ -480,10 +501,10 @@ def main():
             if tag_of(arm, dt, rule, s, side) in done:
                 continue
             for attempt in range(3):
-                pre_ok = wait_load(a.max_load)
+                pre_ok = wait_load(a.max_load, min_mem=a.min_mem)
                 res = run_one(a.out, arm, dt, rule, s, side, a)
                 res["attempt"] = attempt
-                if a.max_load:
+                if a.max_load or a.min_mem:
                     res["load_pre_ok"] = int(pre_ok)
                 if "error" not in res and (res.get("contact") or res.get("deadlock")) and \
                         res.get("load_max", 0.0) >= a.quiet_load:
@@ -491,10 +512,10 @@ def main():
                     print(json.dumps(res), flush=True)
                     f.write(json.dumps(res) + "\n")
                     f.flush()
-                    pre_ok = wait_load(a.quiet_load)
+                    pre_ok = wait_load(a.quiet_load, min_mem=a.min_mem)
                     res = run_one(a.out, arm, dt, rule, s, side, a, gate_load=a.quiet_load)
                     res["attempt"], res["quiet_rerun"] = attempt, 1
-                    if a.quiet_load:
+                    if a.quiet_load or a.min_mem:
                         res["load_pre_ok"] = int(pre_ok)
                 print(json.dumps(res), flush=True)
                 f.write(json.dumps(res) + "\n")

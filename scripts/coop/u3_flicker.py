@@ -10,7 +10,9 @@
 
     scripts/coop/u3_flicker.py <stage dir> [--out flicker.jsonl]
 
-One JSON line per czp run (tag, drops_seen, drops_lost, drops_far, flips, decisions) and a total. Needs Autoware's
+One JSON line per czp run (tag, drops_seen, drops_lost, drops_far, drops_back, cs_gaps, track_gaps, flips,
+decisions) and a total (with every gap). cs_gaps: how long each flickering partner was out of the conflict set;
+track_gaps: the partners' perception dropouts within DROP_M (spans with no sighting between two sightings). Needs Autoware's
 setup sourced (rosbag2_py and the message types).
 """
 
@@ -66,11 +68,27 @@ def at(series, t):
     return series[max(i, 0)] if series else None
 
 
+def track_gaps(objs, ego, decs, gap=0.25):
+    """Perception dropouts of the partners: for each object id that was ever in a conflict set, the spans (s)
+    with no sighting of it between two sightings, longer than `gap` (the objects topic runs at ~10 Hz), while
+    its last sighting was within DROP_M of the ego."""
+    partners = {pid for _, d in decs for pid in (d.get("conflict_set") or [])}
+    out = []
+    for pid in partners:
+        seen = [(t, x[1], x[2]) for t, xs in objs for x in xs if x[0] == pid]
+        for (t0, x0, y0), (t1, _, _) in zip(seen, seen[1:]):
+            e = at(ego, t0)
+            if t1 - t0 > gap and e is not None and math.hypot(x0 - e[1], y0 - e[2]) <= DROP_M:
+                out.append(round(t1 - t0, 3))
+    return sorted(out)
+
+
 def count(rd):
     objs, ego, decs = read(rd / "bag")
     drops = {"seen": 0, "lost": 0, "far": 0, "back": 0}
     flips = 0
     by_zone = {}
+    cs_gaps = []  # how long a partner was out of the conflict set before it came back (s)
     for k, (t, d) in enumerate(decs):
         prev = by_zone.get(d["zone"])
         by_zone[d["zone"]] = d
@@ -79,9 +97,11 @@ def count(rd):
             e = at(ego, t)
             o = at(objs, t)
             for pid in gone:
-                if any(d2["zone"] == d["zone"] and pid in (d2.get("conflict_set") or [])
-                       for t2, d2 in decs[k + 1:] if t2 - t <= BACK_S):
+                back = next((t2 for t2, d2 in decs[k + 1:] if t2 - t <= BACK_S and d2["zone"] == d["zone"]
+                             and pid in (d2.get("conflict_set") or [])), None)
+                if back is not None:
                     drops["back"] += 1
+                    cs_gaps.append(round(back - t, 3))
                 if e is None or o is None:
                     continue
                 mine = [x for x in o[1] if x[0] == pid]
@@ -97,7 +117,7 @@ def count(rd):
             if nxt is not None and nxt[0] - t <= FLIP_S and nxt[1]["decision"] != "stock":
                 flips += 1
     return {"tag": rd.name, "drops_seen": drops["seen"], "drops_lost": drops["lost"], "drops_far": drops["far"],
-            "drops_back": drops["back"], "flips": flips, "decisions": len(decs)}
+            "drops_back": drops["back"], "cs_gaps": cs_gaps, "track_gaps": track_gaps(objs, ego, decs), "flips": flips, "decisions": len(decs)}
 
 
 def main():
@@ -113,6 +133,8 @@ def main():
             except Exception as e:  # noqa: BLE001 -- a broken bag is reported, not fatal
                 rows.append({"tag": rd.name, "error": repr(e)[:200]})
     tot: dict = {k: sum(r.get(k, 0) for r in rows) for k in ("drops_seen", "drops_lost", "drops_far", "drops_back", "flips", "decisions")}
+    tot["cs_gaps"] = sorted(g for r in rows for g in r.get("cs_gaps", []))
+    tot["track_gaps"] = sorted(g for r in rows for g in r.get("track_gaps", []))
     tot.update(tag="TOTAL", runs=len(rows), runs_with_flicker=sum(1 for r in rows if r.get("flips") or r.get("drops_back")))
     out = open(a.out, "w") if a.out else sys.stdout
     for r in rows + [tot]:

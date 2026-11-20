@@ -25,6 +25,7 @@ from scensim import judges as judgesmod, tools as toolsmod, vehicles as vehicles
 from scensim import overlays as overlaysmod, profile as profilemod, record as recordmod
 from scensim import ssv2 as ssv2mod, world as worldmod
 from scensim import component as componentmod
+from scensim import stage as stagemod
 from scensim.findings import REFUSED, Finding, add_project_option, exit_code, on_host, ros_args
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -856,7 +857,8 @@ def project_notes(path) -> list:
     except config.ConfigError:
         return []
     return (overlaysmod.notes(settings) + autoware_side_notes(settings)
-            + componentmod.notes(config.find_project(path), settings))
+            + componentmod.notes(config.find_project(path), settings)
+            + stagemod.notes(config.find_project(path)))
 
 
 def autoware_side_problems(settings: dict, env=None, share=None) -> list:
@@ -1026,6 +1028,8 @@ def check_project(path, scenarios: bool = True) -> list:
         out += on_host(comp)
         if not any(f.refused for f in comp):
             out += on_host(componentmod.isaac_findings(project, settings, host))
+        # 091 W16: each authored map's stage (units, axes, no vehicle prim, resolved)
+        out += stagemod.map_findings(project, settings, host)
     files, found = collect_scenarios(project)
     out += found
     # a scenario still to be fetched is one (issue 056): its finding is the host's

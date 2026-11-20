@@ -59,6 +59,7 @@ from scensim import budget as budgetmod, config, judges as judgesmod, project as
 from scensim import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
+from scensim import stage as stagemod
 from scensim import simulator as simmod, testbenches
 from scensim.findings import ros_args
 
@@ -1317,6 +1318,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     if rec.get("not_applied"):
         # what each car's spec says that the simulator did not apply (roadmap 091 W24)
         prov["not_applied"] = rec["not_applied"]
+    stage = stagemod.provenance(project, rec)
+    if stage is not None:
+        prov["stage"] = stage   # the authored map's stage, as the world server loaded it (091 W15)
     world_server = worldmod.carla_world_settings(rec)
     if world_server:
         prov["world_server"] = world_server

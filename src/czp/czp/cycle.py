@@ -11,7 +11,7 @@ import time
 from dataclasses import replace
 
 from . import contracts as C
-from .act import latch
+from .act import HOLD, latch
 from .config import load_contracts, load_conventions, load_params
 from .convention import PairView, decide
 from .intervals import other_interval, own_interval
@@ -76,8 +76,15 @@ class Protocol:
         moving_from_rest = mem.own_moving_since is not None and mem.go_from_rest
         if mem.go_since is not None and own.v > p.moved_speed:
             mem.go_moved = True
+        # issue 075: a stopping decision is held over a slow cycle while the conflict set (read this cycle) is not
+        # empty, for at most hold_by_contract_s
+        hold = slow and bool(confl) and (mem.hold_since is None or t - mem.hold_since < p.hold_by_contract_s - 1e-9)
         dec, changed = latch(dec, prev, mem.decision_since, mem.go_since, own, moving_from_rest, p, t, row,
-                             go_from_rest=mem.go_from_rest and not mem.go_moved, slow=slow)
+                             go_from_rest=mem.go_from_rest and not mem.go_moved, slow=slow, hold=hold)
+        if dec.reason == HOLD:
+            mem.hold_since = t if mem.hold_since is None else mem.hold_since
+        else:
+            mem.hold_since = None
         if changed:
             mem.decision_since = t
             mem.flips += 1

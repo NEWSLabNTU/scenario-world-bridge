@@ -36,7 +36,7 @@ from std_msgs.msg import String
 from . import zones as ZN
 from .config import load_contracts, load_params
 from .contracts import SelfWindow
-from .record import to_json
+from .record import flip_to_json, to_json
 from .strategy import Obj, Status, Strategy
 
 SELF_WINDOW = 10  # cycles: the self contract reads their median
@@ -84,7 +84,7 @@ class InteractionStrategy(Node):
         # the tick period (liveness), a full window, hysteresis (issue 066)
         self_c = load_contracts().get("self") or {}
         self.self_window = SelfWindow(SELF_WINDOW, bound=float(self_c.get("bound", 0.020)),
-                                      hold=float(load_params().mode_hold),
+                                      recover=float(self_c.get("recover", 0.9)), hold=float(load_params().mode_hold),
                                       period=1.0 / float(self.get_parameter("rate_hz").value))
         rel = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
         self.create_subscription(PredictedObjects, "/perception/object_recognition/objects", self.on_objects, rel)
@@ -197,7 +197,7 @@ class InteractionStrategy(Node):
         sw = self.self_window
         acts = self.strategy.cycle(t, self.ego, self.objects, self.traj, sts, age, sw.reading(), self_ok=sw.ok,
                                    alive=sw.alive)
-        sw.add(t, self.strategy.last_cycle_cpu, self.strategy.last_cycle)
+        flip = sw.add(t, self.strategy.last_cycle_cpu, self.strategy.last_cycle)
         self.decision_times.append(self.strategy.last_cycle)
         self.decision_cpu.append(self.strategy.last_cycle_cpu)
         self.heartbeat()  # names the modules this cycle switches to manual before the switch is sent
@@ -206,12 +206,16 @@ class InteractionStrategy(Node):
             if acts.held_dropped:  # 078 P2c: a partner dropped out of the conflict set unseen holds the decision
                 self.get_logger().info(f"dropped partner {','.join(acts.held_dropped)}: holding {acts.decision.kind}")
         self.apply(acts)
-        for rec in acts.records:
-            line = to_json(rec)
+        lines = [to_json(rec) for rec in acts.records]
+        if flip is not None:  # issue 075: every self-window flip is its own line, a decision change or not
+            lines.append(flip_to_json(flip))
+            self.get_logger().info(f"self window: ok {flip['ok']}, alive {flip['alive']} at {flip['t']} "
+                                   f"(CPU median {flip['cpu_median_ms']} ms, wall {flip['wall_median_ms']} ms)")
+        for line in lines:
             self.pub_rec.publish(String(data=line))
-            if self.log_path:
-                with open(self.log_path, "a") as f:
-                    f.write(line + "\n")
+        if self.log_path and lines:
+            with open(self.log_path, "a") as f:
+                f.write("".join(line + "\n" for line in lines))
         self.cycle_time = time.perf_counter() - t0
         self.cycle_times.append(self.cycle_time)
 

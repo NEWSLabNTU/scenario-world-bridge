@@ -43,3 +43,13 @@ def record(t, zone, decision, verdicts, ivs, contracts_summary, probe_state=None
 
 def to_json(rec: Record):
     return json.dumps(_num(rec.as_dict()), sort_keys=True, separators=(",", ":"))
+
+
+def flip_to_json(flip):
+    """Issue 075: a self-window flip (contracts.SelfWindow.add's return) as its own decisions.jsonl line, written
+    whether or not a decision changes. It carries ``zone``, ``decision`` (null) and ``contracts.self`` so that the
+    readers of decision lines skip or count it; ``event`` marks it."""
+    d = dict(flip, zone=None, conflict_set=[], decision=None,
+             reason="self_window: " + ("ok" if flip["ok"] else "failed") + ("" if flip["alive"] else ", not alive"),
+             contracts={"self": {"ok": bool(flip["ok"] and flip["alive"]), "value": round(flip["cpu_median_ms"] / 1e3, 4)}})
+    return json.dumps(_num(d), sort_keys=True, separators=(",", ":"))

@@ -5,4 +5,4 @@ reach:   {turn_time: 7.3, extra: 1.0, predicate: "detection reach >= v_max * (tu
 track:   {bound: 0.5, unit: s, predicate: "the conflicting object tracked >= bound", fallback: phantom, source: "design"}
 map:     {predicate: "the zone's lanes match perception's lane evidence", fallback: stock, source: "design"}
 others:  {slack: 1.0, unit: m/s^2, predicate: "observed acceleration within the class bounds (+ slack)", fallback: contested, source: "design"}
-self:    {bound: 0.020, unit: s, predicate: "cycle time <= bound; node alive", fallback: stock, source: "design R10"}
+self:    {bound: 0.020, recover: 0.9, unit: s, predicate: "cycle time <= bound; node alive", fallback: stock, source: "design R10; recover (x bound, the hysteresis's way back): issue 075, above the conflict cycle's CPU cost (17.7 ms median before 075's trajectory prefilter, 0.7-2.3 ms after; 15 ms stuck a failure for a whole conflict)"}

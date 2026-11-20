@@ -224,3 +224,69 @@ def test_velocity_limit_types_are_autoware_s():
         text = open(hdr).read()
         assert "using autoware_internal_planning_msgs::msg::VelocityLimit;" in text
         assert "using autoware_internal_planning_msgs::msg::VelocityLimitClearCommand;" in text
+
+
+def test_a_slow_cycle_holds_the_stop_in_manual_mode():
+    """Issue 075 (grid074 s17): the self contract failing on a live node under a stopping decision no longer switches
+    the module to auto mode (where Autoware ignores RTC commands and stock, reading the other car at rest as static,
+    launched): the module stays manual on DEACTIVATE, with a velocity limit that stops before the zone, and the record
+    says "hold: contract". Past hold_by_contract_s the car goes to stock (auto mode). Fails on the code before 075."""
+    zones, z = setup()
+    st = Strategy(zones)
+    a0, a1 = z.approaches
+    stat = [Status("intersection", "ab" * 16, safe=True)]
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    obj = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)]
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1)
+    assert acts.decision.kind in ("wait", "yield") and ("intersection", "ab" * 16, False) in acts.rtc
+    kind = acts.decision.kind
+    acts = st.cycle(0.1, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1, cycle_time=0.021, self_ok=False, alive=True)
+    assert not acts.auto_mode, acts.auto_mode
+    assert acts.decision is not None and acts.decision.kind == kind and acts.decision.reason == "hold: contract"
+    assert any(r.reason == "hold: contract" for r in acts.records)
+    assert st.manual == {"intersection"} and st.sent["ab" * 16] is False  # DEACTIVATE stands
+    assert isinstance(acts.velocity_limit, float) and acts.velocity_limit <= math.sqrt(2 * 3.5 * 18.0) + 1e-6
+    t = 0.1
+    while t < 0.1 + st.p.hold_by_contract_s - 0.1 - 1e-9:
+        t = round(t + 0.1, 3)
+        acts = st.cycle(t, (x, y, h, 0.0, 0.0), obj, None, stat, 0.1, cycle_time=0.021, self_ok=False, alive=True)
+        assert not acts.auto_mode and acts.decision.reason == "hold: contract", t
+    acts = st.cycle(0.1 + st.p.hold_by_contract_s, (x, y, h, 0.0, 0.0), obj, None, stat, 0.1, cycle_time=0.021,
+                    self_ok=False, alive=True)
+    assert ("intersection", True) in acts.auto_mode and acts.velocity_limit == "clear"
+
+
+def test_a_slow_cycle_on_a_dead_node_goes_to_stock_at_once():
+    """R9 unchanged by issue 075: the node not alive (wall time past the period) hands the stop to stock at once."""
+    zones, z = setup()
+    st = Strategy(zones)
+    a0, a1 = z.approaches
+    stat = [Status("intersection", "ab" * 16)]
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 20.0)
+    obj = [Obj("o1", 1, ox, oy, oh, 6.0, 0.0)]
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1)
+    assert acts.decision.kind in ("wait", "yield")
+    acts = st.cycle(0.1, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1, cycle_time=0.021, self_ok=False, alive=False)
+    assert ("intersection", True) in acts.auto_mode and acts.decision is None
+
+
+def test_the_trajectory_prefilter_keeps_the_candidates():
+    """Issue 075: the trajectory test's bounding-box prefilter and its nearest-first limit return what the full test
+    returned (the first max_zones of every zone on the approach that the trajectory crosses, nearest first)."""
+    from czp.geom import segment_hits_poly
+    zones, z = setup()
+    st = Strategy(zones)
+    for ap in z.approaches:
+        for d in (40.0, 20.0, 5.0, 1.0):
+            x, y, h = pose_on(ap, d)
+            (ex, ey), _ = point_at(list(ap.centerline), ap.exit_s + 15.0)
+            for traj in ([(x, y), (ex, ey)], [(x, y), (x + 0.5 * math.cos(h), y + 0.5 * math.sin(h))], None):
+                full = [r for r in st.candidates(x, y, h)
+                        if not traj or not r[1].polygon or
+                        any(segment_hits_poly(traj[i], traj[i + 1], r[1].polygon) for i in range(len(traj) - 1))]
+                for lim in (None, 1, 3):
+                    got = st.candidates(x, y, h, traj, None, lim)
+                    want = full if lim is None else full[:lim]
+                    assert [(r[0], r[1].id) for r in got] == [(r[0], r[1].id) for r in want], (d, lim)

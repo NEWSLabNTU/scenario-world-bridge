@@ -688,3 +688,21 @@ and G2.
   while moving was not sent. The overruns those runs counted (one each in P2g, the 066 rerun and the
   069 grid) are this pair of bugs, not the stop margin. Results that do not involve a creep or a
   limit (contract counts, stock's arm, EV4) are not affected.
+- 2026-11-20: the 074 grid (seeds 16-19) failed G0 by one contact, `on_dt0.3_t1.5p5_s17`
+  (issue 075). The self contract failed mid-probe, at a CPU median of 0.021 s, and the latch
+  handed the stopped car to stock. Stock read the other car at rest as static and launched, 0.6 s
+  before that car's patience fired. Ruled (manager) and fixed on `p2g-launch`:
+  - **hold by contract**: a slow but live node no longer hands czp's stopping decision (yield,
+    wait, wait_second_round, the probe's creep or watch) to stock. It holds it as a stop
+    (`hold: contract`: manual mode, DEACTIVATE, a stop limit before the zone). It releases on
+    recovery, on an empty conflict set, or after `hold_by_contract_s` (5 s). A dead node or any
+    other failed contract still goes to stock at once (R9). The committed-go exemption (066)
+    stays;
+  - **margin**: the conflict cycle's CPU cost was 17.7-20.7 ms (median) on s17's scene. 95 % of
+    it was the trajectory test in `Strategy.candidates`. With a bounding-box prefilter and a
+    nearest-first stop at `max_zones` it is 0.7-2.3 ms, with the same candidates;
+  - the self contract recovers below 0.9 x bound (18 ms, was 15 ms, under the old cost: grid074
+    `on_dt-0.3_t1.5p5_s18` stayed failed for 12.9 s);
+  - every self-window flip is a line of `decisions.jsonl` of its own.
+  Next: the 075 grid (seeds 20-23) on 133, with a load gate on each run's start. The landing line
+  is unchanged; the summary counts `hold: contract` beside it.

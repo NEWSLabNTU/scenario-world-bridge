@@ -44,9 +44,11 @@ class SelfWindow:
       it (25 of 32 P2g runs failed at t0 + 0.1 s);
     - hysteresis: it fails when the median exceeds the bound and recovers only once the median is below
       ``recover`` x bound and it has failed for ``hold`` s; a median at the bound flipped the car to stock and back
-      every few ticks (P2g: 219 of 891 logged decision lines)."""
+      every few ticks (P2g: 219 of 891 logged decision lines). ``recover`` was 0.75 (15 ms), under the conflict
+      cycle's own cost then (15-19 ms), so a failure stuck for a whole conflict (issue 075, grid074 s18: 12.9 s);
+      contracts.yaml's 0.9 (18 ms) is above it, and 075's trajectory prefilter cut that cost to 0.7-2.3 ms."""
 
-    def __init__(self, n=10, bound=0.020, recover=0.75, hold=1.5, period=0.1):
+    def __init__(self, n=10, bound=0.020, recover=0.9, hold=1.5, period=0.1):
         self.n, self.bound, self.recover, self.hold, self.period = n, bound, recover, hold, period
         self.cpu, self.wall = [], []
         self.ok, self.alive = True, True
@@ -69,17 +71,25 @@ class SelfWindow:
         return self._median(self.wall) if self.full else 0.0
 
     def add(self, t, cpu, wall):
+        """Add one decision cycle's times. Returns the flip when ``ok`` or ``alive`` changed (issue 075: every flip is
+        recorded, whether or not a decision record follows), else None."""
         self.cpu.append(float(cpu))
         self.wall.append(float(wall))
         del self.cpu[:-self.n], self.wall[:-self.n]
         if not self.full:
-            return
+            return None
+        was = (self.ok, self.alive)
         self.alive = self.wall_median() <= self.period
         med = self.reading()
         if self.ok and med > self.bound:
             self.ok, self.fail_since = False, t
         elif not self.ok and med < self.recover * self.bound and t - self.fail_since >= self.hold - 1e-9:
             self.ok, self.fail_since = True, None
+        if (self.ok, self.alive) == was:
+            return None
+        return {"t": round(float(t), 3), "event": "self_window", "ok": self.ok, "alive": self.alive,
+                "cpu_median_ms": round(1e3 * med, 3), "wall_median_ms": round(1e3 * self.wall_median(), 3),
+                "bound_ms": round(1e3 * self.bound, 3), "recover_ms": round(1e3 * self.recover * self.bound, 3)}
 
 
 def slow_only(states, inp):

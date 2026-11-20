@@ -77,6 +77,7 @@ class Memory:
     probe: ProbeState = ProbeState()
     record_key: tuple = ()
     flips: int = 0
+    hold_since: Optional[float] = None  # since when a stopping decision has been held over a slow cycle (issue 075)
 
 
 def at_rest_at_line(ag: Agent, params):

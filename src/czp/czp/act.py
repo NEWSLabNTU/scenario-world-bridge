@@ -24,7 +24,16 @@ the velocity limit, the arena car's command -- is the adapter's.)
   the own ``launch_dead`` at 1.4 s, which would also move the own interval 0.9 s later in every band reading,
   in the arena too, where the car launches in 0.5 s; the latch ends at motion, whatever the delay;
 - the decision latch (R10): a decision is held ``latch_s`` unless the reason changes (a band, role or
-  guard change beyond its hysteresis, which the margins and the filters provide).
+  guard change beyond its hysteresis, which the margins and the filters provide);
+- the hold by contract (issue 075): a self-contract failure on a live node (slow, not broken) does not hand a
+  stopping decision -- yield, wait, wait_second_round, or the probe's creep or watch -- to stock. Stock reads the
+  other car at rest as static and goes (075: the car was handed over mid-probe and launched 0.6 s before the other
+  car's patience fired, a contact). The car stops instead: the decision becomes ``HOLD`` (a wait, or the yield or
+  wait_second_round it was; a creep is aborted to a wait), which the adapter acts as a stop (manual mode,
+  DEACTIVATE, a velocity limit that stops before the zone). It holds while the caller allows (``hold``: the conflict
+  set, read this cycle, is not empty and ``hold_by_contract_s`` has not passed since the hold began); then the
+  failure hands the car to stock as before. A node that is not alive, or any other failed contract, still hands the
+  car to stock at once (R9).
 """
 
 from __future__ import annotations
@@ -32,7 +41,9 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .intervals import stop_need
-from .model import CREEP, GO, STOCK, WAIT, WAIT_SECOND_ROUND, Decision
+from .model import CREEP, GO, STOCK, STOPPING, WAIT, WAIT_SECOND_ROUND, YIELD, Decision
+
+HOLD = "hold: contract"  # the reason of a stopping decision held over a slow decision cycle (issue 075)
 
 
 def commit_point_passed(own, cap=None):
@@ -40,18 +51,30 @@ def commit_point_passed(own, cap=None):
     return own.in_zone or own.cleared or (own.v > 0.5 and stop_need(own.s_entry, own.v) > cap.b_comfort)
 
 
+def holds_a_stop(prev: Decision):
+    """Issue 075: a decision of czp's that stops the car (not stock's own reading): what a slow cycle holds."""
+    if prev is None or prev.stock_equivalent:
+        return False
+    return prev.kind in STOPPING or (prev.kind == CREEP and prev.reason.startswith("probe:"))
+
+
 def latch(new: Decision, prev: Decision, prev_since, go_since, own, own_moving, params, t, row=None,
-          go_from_rest=False, slow=False):
+          go_from_rest=False, slow=False, hold=False):
     """The decision to act on, and whether it is a new one (for the record and the latch's clock).
     own_moving: the car is moving under a go that began from rest (what ``commit: on_move`` commits).
     go_from_rest: the current go began with the car below ``moved_speed`` (the latch until motion).
-    slow: the only failing contract is the self contract, on a live node (contracts.slow_only)."""
+    slow: the only failing contract is the self contract, on a live node (contracts.slow_only).
+    hold: a stopping decision may be held over that (issue 075: the conflict set is not empty and the hold has not
+    timed out; the caller's to judge)."""
     row = row or {}
     if new.kind == STOCK and new.reason == "contract":
         if slow and prev is not None and prev.kind == GO and \
                 ((row.get("commit") == "on_move" and own_moving) or commit_point_passed(own)):
             return replace(prev, committed=True, reason=prev.reason if prev.committed else prev.reason + "+committed",
                            latched_until=t), False
+        if slow and hold and holds_a_stop(prev):
+            kind = prev.kind if prev.kind in (YIELD, WAIT_SECOND_ROUND) else WAIT  # a creep or watch: aborted to a wait
+            return Decision(kind, prev.zone, HOLD, prev.row, prev.against), prev.reason != HOLD
         return new, prev is None or prev.kind != STOCK or prev.reason != new.reason  # a failed contract hands the car
         #                                                   to stock at once: no latch or commit holds over it
     if prev is not None and prev.kind == GO:

@@ -869,3 +869,135 @@ def test_the_node_feeds_the_self_contract_the_decision_time_only():
     assert "sw.reading(), self_ok=sw.ok" in src and "alive=sw.alive" in src
     assert "sw.add(t, self.strategy.last_cycle_cpu, self.strategy.last_cycle)" in src
     assert "self.cycle_times[-SELF_WINDOW:]" not in src
+
+
+# --- issue 075: the hold by contract, the self window's flips --------------------------------------------
+def _crossing():
+    return Zone("j", "cross_unsignalled", (Approach("A", heading=0.0, order=0), Approach("B", heading=math.pi / 2, order=1)))
+
+
+def _slow(alive=True, obs_age=0.05):
+    return C.Inputs(obs_age=obs_age, cycle_time=0.021, self_ok=False, alive=alive)
+
+
+def test_a_slow_decision_holds_a_stopping_decision():
+    """Issue 075 (grid074 s17): the self contract failed on a live node mid-probe (creep probe:creep) and the latch
+    handed the car to stock, which launched against the other car at rest. A stopping decision -- yield, wait,
+    wait_second_round, the probe's creep or watch -- is held as a stop instead ("hold: contract"); a creep is aborted
+    to a wait. Fails on the code before 075 (a stock decision)."""
+    from czp.act import HOLD
+    from czp.model import WAIT_SECOND_ROUND
+    z = _crossing()
+    other = [car("B", s_entry=1.0, v=0.0, stamp=1.0)]
+    for prev, want in ((Decision(CREEP, z.id, "probe:creep"), WAIT), (Decision(CREEP, z.id, "probe:watch"), WAIT),
+                       (Decision(WAIT, z.id, "rest_tie_wait"), WAIT), (Decision(YIELD, z.id, "contested"), YIELD),
+                       (Decision(WAIT_SECOND_ROUND, z.id, "round2"), WAIT_SECOND_ROUND)):
+        pr = czp.Protocol()
+        pr.mem[z.id] = Memory(decision=prev, decision_since=0.0, own_rest_t=-3.0, own_rest_s=0.6,
+                              probe=ProbeState("creep", 0.5, 0.6, "rest_tie") if prev.kind == CREEP else ProbeState())
+        dec, rec = pr.step(1.0, car("A", s_entry=0.5, v=0.3, stamp=1.0), other, z, _slow())
+        assert dec.kind == want and dec.reason == HOLD and not dec.stock_equivalent, (prev, dec)
+        assert rec is not None and rec.reason == HOLD and rec.decision == want
+        assert pr.mem[z.id].hold_since == 1.0
+        if prev.kind == CREEP:
+            assert pr.mem[z.id].probe.phase == "abort"  # the probe is aborted: a later go is probed again
+
+
+def test_the_hold_by_contract_releases():
+    """Issue 075: the hold ends (a) when the contract recovers (the protocol decides again), (b) when the conflict set
+    is empty (the partner has left the zone), (c) after hold_by_contract_s; (b) and (c) hand the car to stock."""
+    from czp.act import HOLD
+    z = _crossing()
+    own = car("A", s_entry=0.5, v=0.0, stamp=1.0)
+    other = [car("B", s_entry=1.0, v=0.0, stamp=1.0)]
+
+    def held():
+        pr = czp.Protocol()
+        pr.mem[z.id] = Memory(decision=Decision(WAIT, z.id, "rest_tie_wait"), decision_since=0.0, own_rest_t=-3.0,
+                              own_rest_s=0.6)
+        dec, _ = pr.step(1.0, own, other, z, _slow())
+        assert dec.reason == HOLD
+        return pr
+    pr = held()  # (a) recovered: no longer the hold, not stock
+    dec, rec = pr.step(1.1, own, other, z, C.Inputs(obs_age=0.05, cycle_time=0.004, self_ok=True))
+    assert dec.kind != STOCK and dec.reason != HOLD and rec is not None and pr.mem[z.id].hold_since is None
+    pr = held()  # (b) the conflict set is empty
+    dec, _ = pr.step(1.1, own, [], z, _slow())
+    assert dec.kind == STOCK and dec.reason == "contract"
+    pr = held()  # (c) held up to hold_by_contract_s, then stock, and not held again on the next slow cycle
+    t = 1.0
+    while t < 1.0 + P.hold_by_contract_s - 0.1 - 1e-9:
+        t = round(t + 0.1, 3)
+        dec, rec = pr.step(t, own, other, z, _slow())
+        assert dec.reason == HOLD and rec is None, t
+    dec, rec = pr.step(1.0 + P.hold_by_contract_s, own, other, z, _slow())
+    assert dec.kind == STOCK and rec is not None and rec.reason == "contract"
+    dec, _ = pr.step(1.1 + P.hold_by_contract_s, own, other, z, _slow())
+    assert dec.kind == STOCK
+
+
+def test_a_dead_node_or_another_contract_still_hands_a_stop_to_stock():
+    """Issue 075 keeps R9: a node that is not alive, or another failed contract (latency here), hands even a
+    stopping decision to stock at once; so does a slow cycle under a decision that was stock's own reading."""
+    z = _crossing()
+    own = car("A", s_entry=0.5, v=0.0, stamp=1.0)
+    other = [car("B", s_entry=1.0, v=0.0, stamp=1.0)]
+    for inp, prev in ((_slow(alive=False), Decision(WAIT, z.id, "rest_tie_wait")),
+                      (_slow(obs_age=5.0), Decision(CREEP, z.id, "probe:creep")),
+                      (_slow(), Decision(YIELD, z.id, "contested", stock_equivalent=True))):
+        pr = czp.Protocol()
+        pr.mem[z.id] = Memory(decision=prev, decision_since=0.0, own_rest_t=-3.0, own_rest_s=0.6)
+        dec, _ = pr.step(1.0, own, other, z, inp)
+        assert dec.kind == STOCK and dec.reason == "contract", (inp, prev, dec)
+
+
+def test_the_committed_go_exemption_is_unchanged_by_the_hold():
+    """Issue 066's exemption stays: a committed go is kept over a slow cycle (not turned into a hold); an uncommitted
+    go from rest still goes to stock (a go is not a stopping decision)."""
+    from czp.act import HOLD
+    row = CONV["cross_unsignalled"]
+    go = Decision(GO, "j", "rest_tie+probe")
+    stock = Decision(STOCK, "j", "contract")
+    d, changed = latch(stock, go, 0, 0, car("A", s_entry=0.8, v=0.5), True, P, 5.0, row, slow=True, hold=True)
+    assert d.kind == GO and d.committed and not changed
+    d, _ = latch(stock, go, 0, 0, car("A", s_entry=30.0, v=0.0), False, P, 5.0, row, slow=True, hold=True)
+    assert d.kind == STOCK and d.reason != HOLD
+
+
+def test_the_self_window_reports_every_flip():
+    """Issue 075: SelfWindow.add returns each ok or alive flip (time, CPU and wall medians), for its own record line,
+    and None otherwise; the line keeps the keys the decision readers use."""
+    from czp.record import flip_to_json
+    w = C.SelfWindow(10, bound=0.020, recover=0.9, hold=1.5, period=0.1)
+    flips = []
+    t = 0.0
+    for x in [0.010] * 10 + [0.025] * 10 + [0.019] * 20 + [0.010] * 20:
+        f = w.add(t, x, x)
+        if f:
+            flips.append(f)
+        t = round(t + 0.1, 3)
+    assert [f["ok"] for f in flips] == [False, True]
+    assert flips[0]["t"] == 1.4 and flips[0]["cpu_median_ms"] == 25.0 and flips[0]["wall_median_ms"] == 25.0
+    assert flips[1]["cpu_median_ms"] < 18.0 and flips[1]["recover_ms"] == 18.0
+    for k in range(10):  # wall time past the period: not alive, a flip too
+        f = w.add(t + 0.1 * k, 0.005, 0.150)
+        if f:
+            flips.append(f)
+    assert flips[-1]["alive"] is False and flips[-1]["ok"] is True
+    d = json.loads(flip_to_json(flips[0]))
+    assert d["event"] == "self_window" and d["zone"] is None and d["decision"] is None
+    assert d["contracts"]["self"] == {"ok": False, "value": 0.025} and d["conflict_set"] == []
+
+
+def test_the_self_window_recovers_above_the_conflict_cost():
+    """Issue 075 (grid074 on_dt-0.3 s18): with recover at 0.75 (15 ms) a conflict cycle's own 15-19 ms kept a failure
+    for 12.9 s. contracts.yaml's recover is above that cost: a window back at 17 ms recovers after hold."""
+    from czp.config import load_contracts
+    c = load_contracts()["self"]
+    assert c["recover"] * c["bound"] > 0.0177  # the conflict cycle's CPU median before 075's prefilter (17.7 ms)
+    w = C.SelfWindow(10, bound=c["bound"], recover=c["recover"], hold=1.5)
+    t = 0.0
+    for x in [0.021] * 10 + [0.017] * 20:
+        w.add(t, x, x)
+        t += 0.1
+    assert w.ok

@@ -10,6 +10,8 @@ trajectory is given), nearest first; per zone the objects placed by ``relate`` a
   near (the module does not cover the zone), a velocity limit that still stops before the zone;
 - creep (the probe): ACTIVATE with the creep speed as the velocity limit (probe:creep), DEACTIVATE
   (probe:watch);
+- a stop held over a slow cycle (``hold: contract``, issue 075): as a wait -- manual mode, DEACTIVATE -- with the
+  velocity limit that stops before the zone whether a module covers it or not; never auto mode;
 - stock, or every zone clear: the modules back to auto mode and the velocity limit cleared -- and when
   nothing was ever changed, nothing is sent (EV2: no RTC command on a clear route);
 - the mode hysteresis (078 P2b): a module this node holds goes back to auto mode only once the decision
@@ -32,6 +34,7 @@ import time
 from dataclasses import dataclass, field, replace
 
 from . import contracts as C
+from .act import HOLD
 from .cycle import Protocol
 from .geom import segment_hits_poly
 from .model import CREEP, GO, STOCK, STOPPING, Agent
@@ -85,9 +88,13 @@ class Strategy:
         self.horizon = horizon_m
         self.own_cap = own_cap or self.p.capability(own_class)
         self.centroid = {}
+        self.poly_bbox = {}  # zone id -> the polygon's (min x, min y, max x, max y): the trajectory test's prefilter
         for z in self.zones:
             pts = list(z.polygon) or [p for a in z.approaches for p in a.centerline[:1]]
             self.centroid[z.id] = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+            if z.polygon:
+                xs, ys = [p[0] for p in z.polygon], [p[1] for p in z.polygon]
+                self.poly_bbox[z.id] = (min(xs), min(ys), max(xs), max(ys))
         self.first_seen = {}
         self.manual = set()  # modules this node put in manual mode
         self.sent = {}  # uuid -> last command sent
@@ -99,7 +106,12 @@ class Strategy:
         self.dropped = ()  # the partners holding it (for the record)
         self.counts = {"rtc": 0, "auto_mode": 0, "velocity_limit": 0}
 
-    def candidates(self, x, y, yaw, traj=None, cache=None):
+    def candidates(self, x, y, yaw, traj=None, cache=None, limit=None):
+        """The zones ahead whose approach the car is on (and its trajectory crosses, when given), nearest first;
+        the first ``limit`` only when given. Issue 075: the trajectory test was 95 % of a conflict cycle's cost
+        (every zone on the approach against every segment, 30 zones x 59 segments at a Town05 junction); it now
+        runs nearest first until ``limit`` zones pass, and only on the segments whose bounding box meets the
+        zone polygon's (a segment that meets a polygon meets its bounding box: the result is the same)."""
         out = []
         for z in self.zones:
             cx, cy = self.centroid[z.id]
@@ -112,12 +124,24 @@ class Strategy:
             s_exit = ap.exit_s - (s - self.own_cap.length / 2)
             if s_exit <= 0:
                 continue
-            if traj and len(traj) >= 2 and z.polygon:
-                if not any(segment_hits_poly(traj[i], traj[i + 1], z.polygon) for i in range(len(traj) - 1)):
-                    continue
             out.append((s_entry, z, ap, s_exit))
         out.sort(key=lambda r: r[0])
-        return out
+        if not (traj and len(traj) >= 2):
+            return out if limit is None else out[:limit]
+        segs = [(traj[i], traj[i + 1], min(traj[i][0], traj[i + 1][0]), min(traj[i][1], traj[i + 1][1]),
+                 max(traj[i][0], traj[i + 1][0]), max(traj[i][1], traj[i + 1][1])) for i in range(len(traj) - 1)]
+        kept = []
+        for r in out:
+            z = r[1]
+            if z.polygon:
+                x0, y0, x1, y1 = self.poly_bbox[z.id]
+                if not any(sx1 >= x0 and sx0 <= x1 and sy1 >= y0 and sy0 <= y1 and segment_hits_poly(p, q, z.polygon)
+                           for p, q, sx0, sy0, sx1, sy1 in segs):
+                    continue
+            kept.append(r)
+            if limit is not None and len(kept) >= limit:
+                break
+        return kept
 
     def _dropped_hold(self, t, agents, confl_by_zone, s_entry_by_zone, contract):
         """The last decision, held while a partner of its zone that dropped out of the conflict set unseen is
@@ -165,7 +189,7 @@ class Strategy:
         cache = {}
         confl_by_zone = {}
         s_entry_by_zone = {}
-        for s_entry, z, ap, s_exit in self.candidates(x, y, yaw, traj, cache)[:max_zones]:
+        for s_entry, z, ap, s_exit in self.candidates(x, y, yaw, traj, cache, max_zones):
             own = Agent("ego", approach=ap.id, s_entry=s_entry, s_exit=s_exit, v=v, a=a, stamp=t, cap=self.own_cap,
                         pose=(x, y, yaw))
             cx, cy = self.centroid[z.id]
@@ -233,7 +257,9 @@ class Strategy:
             if dec.kind == CREEP and dec.reason.endswith("creep"):
                 limit = self.p.creep_speed
             elif dec.kind in STOPPING or dec.kind == CREEP:
-                if not near:  # no driven module covers the zone: stop before it by the velocity limit
+                if not near or dec.reason == HOLD:
+                    # no driven module covers the zone, or a stop held over a slow cycle (issue 075: a creep aborted
+                    # to a wait, the creep's 1 m/s limit gone): stop before it by the velocity limit
                     limit = math.sqrt(2 * self.own_cap.b_comfort * max(s_entry - 2.0, 0.0))
             if limit is not None:
                 acts.velocity_limit, self.limited = round(limit, 2), True

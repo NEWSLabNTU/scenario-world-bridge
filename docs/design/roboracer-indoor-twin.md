@@ -512,3 +512,41 @@ reported per quantity and condition, never averaged away, by the harness of step
     - The gains (`speed_to_erpm_gain` and `_offset`, `steering_angle_to_servo_gain` and
       `_offset`) are the user's, in their own launch configuration.
   - Another stack is a remap (`remap:`), or a profile of its own if its commands differ.
+
+## 7. Procedure
+
+The end-to-end steps a user follows to build the two twins and join them (133's draft, the
+user's request, 2026-11-20). "Who" says who does the step: the user, a scensim tool, or both.
+"Provided by" names the 091 step that provides the tool or the interface the step needs.
+
+### 7.1 The map twin
+
+| # | step | who | provided by |
+|---|---|---|---|
+| F1 | **Survey.** Scan the field (handheld or terrestrial lidar, or a photo scan), with taped or total-station control points for scale and level, and a floor flatness map. | user | (the user's equipment) |
+| F2 | **Stage layers**, in metres, Z up (3.1): the visual layer (splats or a mesh); the evidence layer (the raw scan); and the physics colliders (floor, walls, cones) authored in Isaac. | user, in Isaac's editor | step 4 (the layered stage, the session-layer rule) |
+| F3 | **Materials.** Measure, then store on the prims with their source (`scensim:source`): the tyre-on-floor friction per floor zone by the tilt test, agreeing with M6 (6, "friction two ways"; entered as `dynamicFriction`, 3.3); wall and cone friction and restitution (drop and push tests); object masses. | user (measures), Isaac's editor (stores) | step 4 (the readers), step 6 (the guide's tests) |
+| F4 | **Maps for the stacks**, from the same scan: the 2D occupancy map the user's stack localises on, which is the user's (3.1); and the minimal lanelet2 loop SSv2 needs. | user (occupancy map), scensim tool (lanelet loop) | step 4 (the loop's generator) |
+| F5 | **Check.** The map check: units and axes, no PhysX vehicle prim, every layer and asset resolved and hashed. Then the simulated lidar against real scans at known poses. | scensim tools | step 4 (map check, `provenance.stage`), step 5 (the planar lidar profile) |
+
+### 7.2 The vehicle twin
+
+| # | step | who | provided by |
+|---|---|---|---|
+| V1 | **Spec.** Measured geometry, mass, inertia, wheels, tyres, steering limits, in a spec of the user's (v2, `powertrain.model: component`). | user | step 2 (the `component` model), step 3 (own small cars on Isaac) |
+| V2 | **Log the real car.** M1 to M6, each at least 5 times, with the session conditions (battery voltage, floor state, tyre age), and motion capture or scan matching as the reference (5.1). | user | step 6 (the protocol in the guide) |
+| V3 | **The user's component** (the VESC, motor and servo). The user writes it (2). Its parameters are fitted from the logs, by the user or by the fitting tool when the component exposes them as `params`. Check level (a), component replay. | user, fitting tool | step 2 (the interface), step 3b (the fitting tool), step 6 (the level (a) harness) |
+| V4 | **Car physics.** The fitting tool fits the tyre and suspension parameters by long-horizon trajectory error from matched starts, and the physics rate is chosen. Check level (b): M1 to M6 in the twin, against 5.3's bands. | fitting tool, user (chooses) | step 3 (the rate, the small-car settings), step 3b (fitting), step 6 (the level (b) harness) |
+
+### 7.3 Joining them
+
+| # | step | who | provided by |
+|---|---|---|---|
+| J1 | **The user's stack** (f1tenth_system at the `vesc` level, 4) drives the twin. Its laps (M7) are checked against the real laps: check level (c). | user (the stack), scensim (the run) | step 5 (the vehicle interface), step 6 (the level (c) harness) |
+| J2 | **Freeze a twin release.** A testbench commit that names the spec (its `spec_hash`), the component (entry point, package version, file hash), the stage (`provenance.stage`'s hash) and the session conditions the fit was made in. Randomisation, if any, stays within the real runs' spread. | user (commits), scensim (records each run's provenance) | step 2 (its testbench side: the component's provenance), step 4 (the stage's) |
+| J3 | **Upkeep.** When the floor, the tyres or the battery change, rerun the affected measurements (the tilt test and M6 for a floor, M5 and M6 for tyres, M1 to M3 for a battery), then refit (V3, V4) and freeze a new release (J2). | user, fitting tool | step 3b, step 6 |
+
+What is not scensim's in this procedure: the survey equipment and its processing (F1), the
+occupancy map (F4), the real car's logging (V2), the component's code (V3), and the user's
+stack (J1). scensim provides the interfaces, the checks and the fitting tool, and records what
+each run used.

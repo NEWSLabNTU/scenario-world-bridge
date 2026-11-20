@@ -106,7 +106,7 @@ properties; that convenience is why they work there. So for an indoor field:
    recorded hash, with nothing else edited.
 5. **The `ackermann_msgs` vehicle interface**: the topics a RoboRacer stack expects, offered by
    the vehicle side. Exit: an unmodified open RoboRacer stack drives the example car.
-6. **The guide**: "A RoboRacer indoor twin", from the measurements to a run, with the
+6. **The guide**: "A RoboRacer indoor twin", the design note's procedure (section 7: the map twin F1-F5, the vehicle twin V1-V4, joining them J1-J3), from the measurements to a run, with the
    fitting harness (measured responses against the simulated component's). It validates at
    three levels:
    - (a) the component alone: logged commands replayed against the logged VESC telemetry;

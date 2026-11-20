@@ -5,7 +5,7 @@ it. At 60 Hz, today's rate for the full-size cars, the noise is 0.003 m/s^2 and 
 240 Hz, the rate roadmap 091 W7 chose for a 1/10 car, it is 0.021 m/s^2, about a real IMU's own.
 At 600 Hz it is 0.16 m/s^2. The noise is about the square of the rate, and it grows with the
 car's distance from the world's origin.
-**Status**: open; diagnosis only. The fix is 241's, who owns the IMU outputs (roadmap 091 W19).
+**Status**: fixed (aib 00b5db6), by 241.
 **Found**: 2026-11-20, swb 118, roadmap 091 W7 (the physics rate for the RoboRacer).
 
 ## What happens
@@ -78,8 +78,84 @@ Either way, a check belongs with the fix. Re-run `smallcar.py --only cruise` at 
 600 Hz, at the origin and a few hundred metres out. The noise at 240 Hz should be no more than
 60 Hz's is today.
 
+## Fix
+
+Option 2, with option 1 as the fallback (aib 00b5db6). `Vehicle.sample` reads the body's linear and
+angular velocities from PhysX through a tensor view (`omni.physics.tensors`, one rigid-body view
+per vehicle, made on the first sample after the stage plays). PhysX reports them at the centre of
+mass, so the linear one is moved to base_link (v - w x r). The acceleration is their one-step
+difference. A host without a tensor view differences the poses as before, but over a fixed 1/60 s
+window for both the velocity and the acceleration. `Vehicle.velocity_source` names which path ran.
+
+### The noise, before and after
+
+`accel_noise.py` (NAS, below) builds the Model 3 as `aib.steptest` does, on a flat box, and
+takes each physics step's acceleration and velocity. The noise is the standard deviation about a
+0.5 s centred mean. Phases: standing on the hold brake, cruising at 10 m/s, and a gentle ramp
+(0.3 m/s^2 asked). The table gives the ramp's longitudinal acceleration in m/s^2, and the
+speed's noise in m/s in brackets.
+
+| rate | at | before | after | fallback (no view) |
+|---|---|---|---|---|
+| 60 Hz | origin | 0.031 (0.0003) | 0.0000 (0.00000) | 0.031 (0.0003) |
+| 240 Hz | origin | 0.45 (0.0011) | 0.0001 (0.00001) | 0.034 (0.0004) |
+| 600 Hz | origin | 1.63 (0.0028) | 0.0002 (0.00002) | 0.14 (0.0012) |
+| 60 Hz | x = 1 km | 0.21 (0.0022) | 0.0000 (0.00000) | 0.21 (0.0022) |
+| 240 Hz | x = 1 km | 1.42 (0.0085) | 0.0001 (0.00001) | 0.53 (0.0072) |
+| 600 Hz | x = 1 km | 3.56 (0.0206) | 0.0002 (0.00002) | not run |
+
+The steady cruise hides the problem. At 1 km a float32 cannot resolve the step's displacement at
+all, so the differenced acceleration there is exactly 0 until the speed changes.
+
+The RoboRacer cruise (`smallcar.py --only cruise`, the table under What happens) has a
+longitudinal acceleration deviation of 0.0027, 0.0211 and 0.169 m/s^2 at 60, 240 and 600 Hz
+before. After, it is 0.0025 at all three, which is the car's own motion.
+
+### PhysX's own solver at 1 km
+
+The velocities PhysX reports at x = 1 km match those at the origin to the table's last digit at
+every rate. The speed's mean and the acceleration's mean are the same too. So the solver itself
+loses no velocity accuracy at 1 km. Only aib's differencing of float32 positions did.
+
+### The references this can move
+
+Each was rerun with the fix (the same change as aib 00b5db6, on aib e5e3fba, before W24) and compared
+with a run without it, on the same host (241).
+
+- **`aib.steptest`**: 48 metrics are unchanged. The slope matrix is identical. Two moved by more than
+  rounding: the +1.5 m/s^2 step's t90 went from 0.114 to 0.112 s, and the mean absolute acceleration
+  error from 0.042 to 0.040 m/s^2. Both are read from the now quieter acceleration.
+- **The 055 suite (`vehicle_check`)**: 17 metrics moved by more than 2 %. The dry cases are unchanged.
+  - `wet_brake_turn` peak lateral acceleration: 1.104 to 1.066 m/s^2.
+  - `split_brake` peak lateral acceleration: -3.74 to -1.21 m/s^2. The old value came from the last
+    frame's differenced acceleration, a spike. The trajectory is the same within 1 mm.
+  - `mud_brake_turn`: peak sideslip -0.72 to -0.52 deg, mean deceleration 3.82 to 4.01 m/s^2.
+  - `mud_circle` is chaotic: the path differs by up to 8.6 m, the mean sideways acceleration goes
+    from -1.14 to +1.46 m/s^2, and the understeer gradient from 12.02 to 10.8. The ESC and the brake
+    module act on the acceleration they read, so a quieter reading changes their interventions, and
+    on mud a small change grows.
+- **The T3 Isaac suites**: `isaac_t2` (autoware, simple, none, launch_own, command), `isaac_basic`
+  (towns, rear_contact), `isaac_road_physics` road and `isaac_rough_road` rough all pass, as their
+  references do (`t3.py compare`: as the reference). The rough suite's first start never became
+  ready. Its behavior_path_planner did not load, after a lost `load_node` response in its container.
+  That is an Autoware start failure outside this change, and the rerun passed.
+- **isaac_soil** (soil, mud, snow, zones) and **isaac_verge** pass, as they did before the fix the same
+  day. Their results hold only timing metrics, which follow the host's load. Each scenario's frame
+  count is the same.
+- **haruna_down**: passes with and without the fix, run from a copy of the `courses` project (issue 087). Both runs drove 1473.1 m in 5200 frames, and the NVTL judge's p05 is 3.119 in both.
+
+None of the T3 references needs re-recording: no verdict moved.
+
 ## Evidence
 
 NAS logs `2026 SSv2 on CARLA/2026-11-20 091 W7 RoboRacer physics rate (118)/`: `out/tgs<rate>/
 cruise.csv`, which holds every physics step's speed and acceleration at each rate. The table
 above was computed from those files.
+
+The fix's measurements are under NAS logs `2026 SSv2 on CARLA/2026-11-21 086 aib tensor velocities
+(241)/`:
+- `accel_noise.py`, with `out/{before,after,fallback}/` and `table.py`;
+- the steptest and 055 runs, in `steptest/` and `man/`;
+- the RoboRacer cruise, in `smallcar/`;
+- the reference reruns' logs: `run.log` for T3, `rest.log` for rough, soil and verge, and
+  `haruna.log`.

@@ -28,6 +28,11 @@ with a scenario's cars and props rendered in CARLA's models.
   stack beside it.
 - About 19 GB in scensim's cache on a fast disk, and several hours for the first download and
   the first load of a town (the download took 2 h 28 min on one host on 2026-11-16).
+- Autoware's overlay, built once per host: `scensim autoware overlay`. It builds the fixes
+  scensim carries for Autoware 1.5.0, and every Autoware pilot sources them. Without it the
+  stack runs stock Autoware, and its log says so. `follow_to_goal` can then end in an error
+  when stock Autoware's pose_instability_detector dies
+  ([issue 027](../issues/027-pose-instability-detector-negative-time.md)).
 
 ## 1. Copy the Isaac example
 
@@ -243,6 +248,7 @@ testbench.
 | `assets fetch` stops with `HTTP Error 429`, then waits and retries | Hugging Face limits anonymous downloads; `hf auth login` with a free account's token raises the limit |
 | The world server never says ready | the first load compiles materials: wait, and watch its log (the stack's `proc/simulator/` directory, or play_launch's web interface); `hello --wait` shows whether it answers |
 | The world server dies or hangs out of memory | it needs the GPU and about 17.5 GB of RAM to itself: close other GPU work; on two GPUs pick one with the host setting `gpu:` |
+| A run ends in an error naming `pose_instability_detector` (exit code -6) | stock Autoware's [issue 027](../issues/027-pose-instability-detector-negative-time.md): build the overlay (`scensim autoware overlay`), stop the stack and start it again |
 | `refused: the scenario is on map ..., the stack's Isaac world on ...` | the Isaac stack serves one world: stop it (`scensim stack <testbench> --stop`) and run the scenario again |
 
 More: [Troubleshooting, Isaac Sim](../reference/troubleshooting.md#isaac-sim).

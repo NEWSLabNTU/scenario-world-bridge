@@ -20,7 +20,9 @@ surface, slip and sinkage are observed as it crosses.
 - [Tutorial 6](06-carla-assets-on-isaac.md): Isaac Sim and an Isaac stack that became
   ready on Town01. Stop that stack (`scensim stack isaac_first_drive --stop`), since this
   tutorial uses a testbench of its own.
-- The same hardware as Tutorial 6.
+- The same hardware as Tutorial 6, and Autoware's overlay built (`scensim autoware overlay`,
+  as in Tutorial 6). Without it a run can end in an error when stock Autoware's
+  pose_instability_detector dies ([issue 027](../issues/027-pose-instability-detector-negative-time.md)).
 - About 45 minutes.
 
 ## 1. Copy the example
@@ -206,6 +208,7 @@ key, road-detail key and `RoadCondition` property.
 | Every wheel's class is `asphalt` | the world server found no surface map: check `ground:` in `testbench.yaml` (`scensim testbench check road_physics`), then restart the stack |
 | The stack is refused, naming `surfaces.yaml` | the file failed its check: run `surfaces check` on it, which lists every problem |
 | `/scensim/wheels` shows nothing | the terminal is not on the ego's domain (`eval "$(scensim seat env 0)"`), or the stack is not up |
+| A run ends in an error naming `pose_instability_detector` (exit code -6) | stock Autoware's [issue 027](../issues/027-pose-instability-detector-negative-time.md): build the overlay (`scensim autoware overlay`), stop the stack and start it again |
 | `mud_and_gravel.xosc` fails, the car stopped in the mud | the car stalled in the mud: a car that stops in fresh wet mud rarely regains traction, and Autoware does not add torque at low speed; the shipped scenarios do not stop there |
 
 ## Next

@@ -1,6 +1,6 @@
 # 091: A RoboRacer Indoor Twin on Isaac Sim
 
-**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, done 2026-11-20 (approved by 133): [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md); the reference stack for step 5 is f1tenth_system's `humble-devel` (133); a component sees the car's own sensors and, when it declares them, ground truth the user also measured on the real car (the user). Step 2 in progress (241); work items W1 to W22 below, registered 2026-11-20 (user).
+**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, done 2026-11-20 (approved by 133): [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md); the reference stack for step 5 is f1tenth_system's `humble-devel` (133); a component sees the car's own sensors and, when it declares them, ground truth the user also measured on the real car (the user). Step 2 in progress (241); work items W1 to W23 below, registered 2026-11-20 (user).
 
 ## Goal
 
@@ -150,11 +150,12 @@ means not yet assigned; 133 assigns.
 | W19 | the RoboRacer sensors: a planar lidar profile (UST-10LX class) checked against real scans at known poses; the IMU; wheel odometry by `vesc_to_odom`'s kinematics | F5, J1 | 5 | open | |
 | W20 | the end-to-end exit: an unmodified f1tenth_system drives the example car in an example field | J1 | 5 | open | |
 | W21 | the guide, "A RoboRacer indoor twin": the procedure, the measurement protocol (tilt test, drop and push tests, M1 to M7), friction two ways, where Isaac's editor shows `dynamicFriction` and what it means here | all | 6 | open | |
-| W22 | real data for the worked example: a RoboRacer and an indoor field to log M1 to M7 and scan F1, or a partner's logs; without them steps 3b to 6 can only be checked on synthetic data | V2, F1 | 3b to 6 | the user | to decide |
+| W22 | real data for the worked example: a RoboRacer and an indoor field to log M1 to M7 and scan F1. A lab team runs RoboRacers, but we have no access for now (the user, 2026-11-20): features first, real data later | V2, F1 | 3b to 6 | the user | deferred |
+| W23 | the synthetic stand-in while W22 waits: "real" logs made by a deliberately perturbed copy of the twin (tyre, mass, component parameters, latency, noise); the fitting tool must recover the perturbation, and the harnesses must pass and fail where they should. Kept afterwards as a regression test | V2, V3, V4 | 3b, 6 | open | |
 
 Order: W3, then W5 to W8 (the car on Isaac) beside W13 to W17 (the field), then W10 to W12
 (fitting and validation), then W18 to W20 (the stack), then W21. W22 gates the real-data checks
-of 3b to 6.
+of 3b to 6; until then W23 stands in for them.
 
 ## Not in scope
 

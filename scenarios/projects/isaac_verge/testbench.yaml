@@ -1,0 +1,19 @@
+# isaac_verge: roadmap 056 step 5's label class beside a road the car leaves (086 C4). The car
+# is driven by scensim_agent's simple_pilot straight through the scenario's waypoints
+# (route: direct), because Autoware never leaves its lane; the scenario sets the verge's
+# ground labels' classes (scensim.default.<Label>). Isaac only.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego:
+    kind: simple
+    vehicle: tesla_model3
+    inputs: [map, ground_truth]
+    args: {route: direct, max_speed_kmh: 15}
+logging:
+  keep: {passed: full, failed: full, error: full}
+default: verge   # the suite `scensim run isaac_verge` runs

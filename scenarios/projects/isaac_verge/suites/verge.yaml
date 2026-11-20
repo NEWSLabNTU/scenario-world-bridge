@@ -1,0 +1,5 @@
+# 056 step 5: one scenario setting label classes beside a road the car leaves.
+scenarios:
+  - scenarios/town01_verge.xosc
+retry: {on: error, times: 1}
+expect: {}

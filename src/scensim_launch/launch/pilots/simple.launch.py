@@ -62,6 +62,8 @@ EXTRA = {
     "odom_topic": ("", "the car's pose (nav_msgs/Odometry, map frame); empty: "
                        "/carla/ground_truth/odom on CARLA, /ground_truth/odom on Isaac"),
     "max_speed_kmh": ("", "never faster than this; empty: the config's (50)"),
+    "route": ("", "lanelet (along the lanes) | direct (straight through the waypoints, off the "
+                  "road too) | auto; empty: the config's (auto)"),
     "publish_description": ("true", "start robot_state_publisher with the car's description"),
     "spec": ("", "the car's spec file (its wheelbase and steering); empty: sim_vehicle_spec's "
                  "vehicles/<vehicle>.yaml"),
@@ -88,6 +90,11 @@ def agent_config(values):
         config["odom_topic"] = values["odom_topic"]
     if values.get("max_speed_kmh"):
         config["max_speed_kmh"] = float(values["max_speed_kmh"])
+    if values.get("route"):
+        if values["route"] not in ("lanelet", "direct", "auto"):
+            raise RuntimeError(f"pilot simple: route:={values['route']}: one of lanelet, direct, "
+                               "auto")
+        config["route"] = values["route"]
     if values.get("spec"):
         config["spec"] = values["spec"]
     return config

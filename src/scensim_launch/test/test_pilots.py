@@ -233,6 +233,12 @@ def test_simple_config(tmp_path):
         "vehicle": "tesla_model3", "use_sim_time": True}
     config = simple.agent_config({**values, "odom_topic": "/gt", "max_speed_kmh": "12"})
     assert config["odom_topic"] == "/gt" and config["max_speed_kmh"] == 12.0
+    # route:= direct: straight through the waypoints, off the road too (086 C4's verge run)
+    assert simple.agent_config({**values, "route": "direct"})["route"] == "direct"
+    assert "route" not in simple.agent_config({**values, "route": ""})
+    import pytest
+    with pytest.raises(RuntimeError, match="one of lanelet, direct, auto"):
+        simple.agent_config({**values, "route": "offroad"})
 
 
 def test_simple_evaluates(tmp_path):

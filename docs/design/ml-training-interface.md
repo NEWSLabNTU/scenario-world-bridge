@@ -115,6 +115,98 @@ uses it as a single environment.
 Rollouts: when a run inside a batch ends, the executor draws the next sample from the same
 plan and resets that slot. The scenario file needs no new syntax for it.
 
+## 2a. Architecture
+
+```mermaid
+flowchart LR
+  classDef ours fill:#EAF1FE,stroke:#2F6FC9,color:#222
+  classDef user fill:#FFF3E0,stroke:#A85F00,color:#222
+  classDef ext fill:#F1F1F1,stroke:#6B6B6B,color:#222
+
+  subgraph WS["Declarative workspace (testbench)"]
+    TB["testbench.yaml<br/>simulator, pilots, attachments,<br/>judges, clock"]:::user
+    VEH["vehicles/*.yaml<br/>car spec, control component"]:::user
+    FLD["field<br/>USD stage or town"]:::user
+    SCN["scenarios/*.xosc<br/>actors + distribution"]:::user
+    SUI["suites/*.yaml<br/>plan: N, seed, executor"]:::user
+  end
+
+  subgraph MGMT["Run management (scensim)"]
+    CHK["testbench check"]:::ours
+    PLAN["sampling plan<br/>sample + seed per run"]:::ours
+    SEATS["executor: seats<br/>one run per stack"]:::ours
+    BATCH["executor: batch<br/>compiled samples in slots"]:::ours
+    PROV["records<br/>provenance, traces, replay"]:::ours
+  end
+
+  subgraph RT["Runtime"]
+    SSV2["SSv2<br/>scenario engine"]:::ext
+    WSRV["world server<br/>Isaac or CARLA"]:::ours
+    BSIM["batched simulation<br/>Isaac Lab style, N slots"]:::ours
+    CLK["clock<br/>lockstep, paced; tick-gate followers"]:::ours
+  end
+
+  subgraph IF["Interfaces (scensim)"]
+    PIF["pilot interface<br/>agent protocol, relay"]:::ours
+    SEN["sensor stream<br/>ROS, GPU tensors, NITROS, side channel"]:::ours
+    TRU["truth stream<br/>objects, contacts, progress"]:::ours
+    VEC["vector interface<br/>Gymnasium, DLPack tensors"]:::ours
+    JIF["judge plug-in"]:::ours
+    AIF["attachment hook<br/>lifetime, seed, role map"]:::ours
+  end
+
+  subgraph USR["Users' code"]
+    PIL["pilots<br/>Autoware, E2E model, policy, board"]:::user
+    LRN["learner and reward"]:::user
+    SCO["scorers<br/>perception_eval, driving score"]:::user
+    ATT["attachments<br/>V2X nodes, ns-3, recorders"]:::user
+  end
+
+  WS --> CHK --> PLAN
+  PLAN --> SEATS --> SSV2 --> WSRV
+  PLAN --> BATCH --> BSIM
+  WSRV --- CLK
+  SEATS --> PROV
+  BATCH --> PROV
+  WSRV --> SEN
+  WSRV --> TRU
+  BSIM --> VEC
+  SEN --> PIF --> PIL
+  VEC --> LRN
+  TRU --> JIF --> SCO
+  TRU --> AIF --> ATT
+  CLK --> AIF
+```
+
+Key: amber is the user's, blue is scensim's, grey is third-party used as is. The users' code
+touches scensim only through the interfaces in the middle column.
+
+## 2b. Workflow
+
+```mermaid
+flowchart TB
+  classDef user fill:#FFF3E0,stroke:#A85F00,color:#222
+  classDef ours fill:#EAF1FE,stroke:#2F6FC9,color:#222
+  classDef gate fill:#FFF8D6,stroke:#B08800,color:#222
+
+  A["1 Declare<br/>car, field, scenarios with distributions,<br/>pilots, attachments, judges"]:::user
+  B["2 Check<br/>scensim testbench check"]:::gate
+  C["3 Try one sample (L2)<br/>scensim run testbench/scenario"]:::ours
+  D{"4 Many samples (L3)<br/>which executor?"}:::gate
+  E["seats<br/>full SSv2, per-process stacks,<br/>boards, V2X"]:::ours
+  F["batch<br/>compiled subset, batched pilots,<br/>vector interface"]:::ours
+  G["5 Consume<br/>reports, datasets, learner updates"]:::user
+  H["6 Replay any sample<br/>from its record, on seats"]:::ours
+  I["7 Promote<br/>a trained or fixed stack becomes a pilot;<br/>a surprising sample becomes a scenario"]:::user
+
+  A --> B --> C --> D
+  D -- "Autoware, board, V2X, full storyboard" --> E
+  D -- "batched pilot, compilable scenario" --> F
+  E --> G
+  F --> G
+  G --> H --> I --> A
+```
+
 ## 3. The blocks
 
 Each block has one job and a stable interface. Users compose them in a testbench.
@@ -243,6 +335,134 @@ space leases over a simulated 5G network, which ns-3 5G-LENA and a ray tracer mo
 
 So the attachment hook (B4) and the truth stream (B3) cover V2X. A channel model is not a
 scensim block.
+
+## 6a. Usage by user
+
+Each example shows what the user writes and what they run. Keys marked *proposed* are new in
+this design; the rest exist today.
+
+### An RL researcher (a RoboRacer team): train in a batch, evaluate on seats
+
+```xml
+<!-- scenarios/lap.xosc: the start and the surface are sampled -->
+<ParameterDeclarations>
+  <ParameterDeclaration name="start_s" parameterType="double" value="0"/>
+  <ParameterDeclaration name="floor_mu" parameterType="double" value="0.8"/>
+</ParameterDeclarations>
+<!-- scenarios/lap_dist.xosc -->
+<ParameterValueDistribution>
+  <ScenarioFile filepath="lap.xosc"/>
+  <Stochastic numberOfTestRuns="100000" randomSeed="7">
+    <StochasticDistribution parameterName="start_s">
+      <UniformDistribution><Range lowerLimit="0" upperLimit="42"/></UniformDistribution>
+    </StochasticDistribution>
+    <StochasticDistribution parameterName="floor_mu">
+      <NormalDistribution expectedValue="0.8" variance="0.004">
+        <Range lowerLimit="0.6" upperLimit="1.0"/>
+      </NormalDistribution>
+    </StochasticDistribution>
+  </Stochastic>
+</ParameterValueDistribution>
+```
+
+```yaml
+# suites/train.yaml
+distribution: scenarios/lap_dist.xosc
+executor: {kind: batch, slots: 2048, device: cuda:0}   # proposed
+```
+
+```python
+# their training script: scensim gives the vector interface, they own the rest
+import scensim.batch                                    # proposed
+env = scensim.batch.open("suites/train.yaml")           # gymnasium.vector.VectorEnv
+obs, info = env.reset()
+for it in range(iterations):
+    act = policy(obs["scan"], obs["state"])             # torch tensors on cuda:0
+    obs, _, term, trunc, info = env.step(act)
+    reward = my_reward(info["events"])                  # progress, contacts: theirs to weigh
+    learner.update(obs, act, reward, term | trunc)
+```
+
+Evaluation runs the exported policy as an ordinary pilot on seats, against the full
+scenarios:
+
+```yaml
+# testbench.yaml (excerpt)
+pilots:
+  ego: {kind: command, vehicle: my_racer,
+        run: [python3, -m, my_team.onnx_pilot, --model, models/race.onnx]}
+```
+
+```bash
+scensim run my_twin/suites/eval.yaml
+```
+
+### A perception engineer: one vision stack, swept over weather
+
+```yaml
+# suites/weather.yaml
+distribution: scenarios/crossing_weather.xosc  # sun altitude, rain, fog, wet road as parameters
+seed: 100
+judges: [my_eval.perception:score]             # their judge: perception_eval against truth
+```
+
+```yaml
+# testbench.yaml (excerpt)
+pilots:
+  ego: {kind: launch, launch: my_vision_stack stack.launch.xml, inputs: [sensors]}
+```
+
+Each run's record holds the sample (the weather), the truth stream and the judge's scores, so
+a table of recall against fog density is a query over the results.
+
+### An integrator: several stacks in one scenario
+
+```yaml
+# testbench.yaml (excerpt)
+pilots:
+  ego:     {kind: autoware, vehicle: tesla_model3}
+  bg_av_1: {kind: launch, launch: my_e2e vad.launch.xml}    # an end-to-end vision model
+  bg_av_2: {kind: command, run: [python3, -m, my_rl.pilot]}  # an RL policy
+```
+
+Each pilot gets its own seat (ROS domain), its own car's sensors and its own judges. The run
+records which pilot drove which entity.
+
+### A platform engineer: the stack on the target board
+
+```yaml
+# testbench.yaml (excerpt)
+pilots:
+  ego: {kind: none, vehicle: my_racer}  # the board connects to the relay itself
+clock: {mode: paced, max_lag_s: 0.05}   # proposed: simulated time held to wall time
+```
+
+On the board, their stack talks to the relay over the network with the agent protocol. Each
+run records the clock's lag and a latency per command, so the board's timing is part of the
+verdict.
+
+### A V2X researcher: their network and nodes, attached
+
+```yaml
+# testbench.yaml (excerpt)
+attachments:                                 # proposed
+  ns3:  {run: [netlab/start_ns3.sh], lifetime: lab, follows_clock: true}
+  node: {run: [seps_node, --role, "{role}", --seed, "{seed}"],
+         per: entity, lifetime: run}         # one per entity, from the role map
+```
+
+Their nodes read each car's own stack and their network simulator reads the truth stream; the
+run directory gets the per-run truth they score against. Without `attachments:`, the same
+scenarios run with no V2X.
+
+### A test engineer: suites and replay
+
+```bash
+scensim run my_project/suites/c3.yaml           # the plan's samples on seats
+scensim run --replay runs/2026-11-20T19-05-02   # proposed: the same sample, same seed
+```
+
+A failing sample from a training batch replays the same way, on seats, with full SSv2.
 
 ## 7. Transport
 

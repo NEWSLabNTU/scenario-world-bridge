@@ -374,6 +374,7 @@ The last message on any of the motor topics wins, as on the VESC driver.
 | `/odom`, tf `odom` to `base_link` | `nav_msgs/Odometry` | wheel speeds and the tire angle, by the same kinematics as `vesc_to_odom` | yes | no: the user's `vesc_to_odom` makes it from `/sensors/core` |
 | `/sensors/core` | `vesc_msgs/VescStateStamped` | the component's `telemetry` | no | yes |
 | `/sensors/servo_position_command` | `std_msgs/Float64` | the command echoed, as the driver does | no | yes |
+| `/sensors/imu` | `vesc_msgs/VescImuStamped` | the spec's IMU, in the driver's own message | no | yes |
 | `/clock` | | the bridge | yes | yes |
 | ground truth (`/scensim/<entity>/ground_truth`) | `nav_msgs/Odometry` | the world | for scoring only; the stack must not need it | |
 
@@ -512,6 +513,30 @@ reported per quantity and condition, never averaged away, by the harness of step
     - The gains (`speed_to_erpm_gain` and `_offset`, `steering_angle_to_servo_gain` and
       `_offset`) are the user's, in their own launch configuration.
   - Another stack is a remap (`remap:`), or a profile of its own if its commands differ.
+- **The names, checked** (241, 2026-11-20, roadmap 091 W18):
+  - The two branches agree. Between `humble-devel` and `jazzy-devel`, `f1tenth_stack`'s
+    `vesc.yaml`, `sensors.yaml`, `mux.yaml` and `bringup_launch.py` are identical. Their `vesc`
+    submodules (`ros2` at 153998d, `jazzy` at 1bc8251) have the same `vesc_driver.cpp`.
+  - The driver's topics are relative names, so a namespace moves them all:
+    - it takes `commands/motor/{duty_cycle,current,brake,speed,position}` and
+      `commands/servo/position`;
+    - it publishes `sensors/core`, `sensors/imu` (`vesc_msgs/VescImuStamped`),
+      `sensors/imu/raw` and `sensors/servo_position_command`.
+    - The `vesc` profile publishes all four, `sensors/imu` included (4.2).
+  - `vesc_to_odom` takes `sensors/core` and, with `use_servo_cmd_to_calc_angular_velocity: true`
+    (the shipped `vesc.yaml`), `sensors/servo_position_command`. It publishes `odom`, with
+    `wheelbase: 0.25`. The servo echo is therefore required, not optional.
+  - The bringup as published does not connect `ackermann_mux` to `ackermann_to_vesc` by name.
+    The mux's output is remapped to `ackermann_drive`, while `ackermann_to_vesc` takes
+    `ackermann_cmd`. The connection between them is the user's launch's business. The twin
+    does not depend on it:
+    - the `ackermann` profile takes `/drive`, the mux's navigation input (`mux.yaml`);
+    - the `vesc` profile takes the driver's own inputs.
+  - Two more details from the bringup:
+    - `throttle_interpolator` is in the launch but not added, so `commands/motor/speed` comes
+      straight from `ackermann_to_vesc`;
+    - the lidar frame is a static transform, `base_link` to `laser` at (0.27, 0, 0.11) m, and
+      the spec's lidar mount should match the user's car, not this default.
 
 ## 7. Procedure
 

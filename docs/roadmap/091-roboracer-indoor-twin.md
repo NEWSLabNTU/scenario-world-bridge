@@ -146,7 +146,7 @@ means not yet assigned; 133 assigns.
 | W15 | `provenance.stage`: the sha256 of every composed layer and resolved asset, the overrides, the records; an unresolved dependency refuses the run | F5, J2 | 4 | open | |
 | W16 | the map check: units and axes, no PhysX vehicle prim, every layer resolved and hashed | F5 | 4 | open | |
 | W17 | the minimal lanelet2 loop generator, from the field's centreline or the occupancy map | F4 | 4 | open | |
-| W18 | the `ackermann` and `vesc` vehicle-interface profiles, mirroring f1tenth_system `humble-devel` (`vesc_driver_node` topics, `/sensors/core` from the component's telemetry, the servo echo); `jazzy-devel`'s names checked | J1 | 5 | open | |
+| W18 | the `ackermann` and `vesc` vehicle-interface profiles, mirroring f1tenth_system `humble-devel` (`vesc_driver_node` topics, `/sensors/core` from the component's telemetry, the servo echo); `jazzy-devel`'s names checked | J1 | 5 | 241 | in progress: the names checked 2026-11-20, both branches agree ([design 6](../design/roboracer-indoor-twin.md)) |
 | W19 | the RoboRacer sensors: a planar lidar profile (UST-10LX class) checked against real scans at known poses; the IMU; wheel odometry by `vesc_to_odom`'s kinematics | F5, J1 | 5 | open | |
 | W20 | the end-to-end exit: an unmodified f1tenth_system drives the example car in an example field | J1 | 5 | open | |
 | W21 | the guide, "A RoboRacer indoor twin": the procedure, the measurement protocol (tilt test, drop and push tests, M1 to M7), friction two ways, where Isaac's editor shows `dynamicFriction` and what it means here | all | 6 | open | |

@@ -6,7 +6,8 @@ One tyre-and-ground model: surfaces and soil (wet, gravel, mud, sand, snow), cal
 2026-11-20 (user, through 133). 2026-11-20: re-planned as one model ("The plan" below),
 approved by 133 the same day with its three decisions. C1 done 2026-11-20 (scensim_isaac_world
 87e0ea1, pins f00f02a2). C2 done 2026-11-20 (scensim_world_protocol 2519aca, scensim_isaac_world
-51a95b4, pins 7aad5216); C3 next.
+51a95b4, pins 7aad5216). C3 done 2026-11-20 (scensim_isaac_world 98a5d8c, pins 4c67e51d); the
+courses' dataset revision prepared, not published.
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that
@@ -131,7 +132,7 @@ Each step on current scensim main; the exit check is what lets the next step sta
 |---|---|---|---|
 | **C1. The road record and its reader** (done 2026-11-20) | `road_detail.yaml` schema 1; a pure reader and checker in `scensim_isaac_world` (`road_record`, every problem named, `road_detail check <map>`); constant sections and per-station `.npz` both become stations | 1 week (took 1 day) | every converted example builds the same detail tiles, byte for byte (tile hashes before and after); `test_road_detail`, `test_road_layer` pass; a malformed record lists every problem |
 | **C2. The class table moves to the protocol package** (done 2026-11-20) | `surface_classes.yaml` into `scensim_world_protocol`'s share; both world servers find it there; the road record's surface names checked against it | 3 days (took half a day) | Isaac: the Town01 soil, mud and snow scenarios pass as on 053 step 5; an unknown class in a section or zone is refused at load |
-| **C3. The course builder writes the record** (069 E0, swb half) | `road_detail.yaml` + `<corridor>.npz` from the builder: bank 0, today's section, `kappa_v` from z, the hazard classifier from today's rail rule; `props.py` places rails from `barrier_offset` | 1 week | Haruna and Tsukuba rebuilt: the same rails at the same positions, the world USD unchanged except the new files, `haruna_down` still passes; the course's dataset revision prepared, published only on the user's go |
+| **C3. The course builder writes the record** (069 E0, swb half; done 2026-11-20) | `road_detail.yaml` + `<corridor>.npz` from the builder: bank 0, today's section, `kappa_v` from z, the hazard classifier from today's rail rule; `props.py` places rails from `barrier_offset` | 1 week | Haruna and Tsukuba rebuilt: the same rails at the same positions, the world USD unchanged except the new files, `haruna_down` still passes; the course's dataset revision prepared, published only on the user's go |
 | **C4. Named surface maps** (056) | as 056's steps 1-5 | 1-1.5 weeks | 056's acceptance: Town01's soil scenarios one after another on one world server, no file copied |
 | **C5. Isaac's geometry from the record** (066 R8) | the ribbon tilted by bank and crown; `road_detail` per station; the lip; the shoulder and run-off strips as surface zones; Autoware's point cloud and lanelet heights regenerated from the same meshes, divided when large | 1.5-2 weeks | Isaac's road height and cross slope within 5 mm and 0.1 deg of the record at every station; lip re-entry fixtures (5, 10, 15 cm at 90, 45, 30 deg); aib's slope matrix unchanged; `haruna_down` passes on a course with a nonzero crown |
 | **C6. The rest of 066** | R1's checks, R4 rocks finished, R6 wheel hop, R7 sensors and Autoware, all reading the road record | 5-7 weeks, in 066's order | 066's acceptance; aib's slope matrix and 055's manoeuvre suite unchanged on smooth road |
@@ -180,6 +181,36 @@ scensim_isaac_world e746674, pins 3f0f24fa), scensim_isaac_world 51a95b4 (pins 7
   `haruna_down` on Isaac, the world server loading the course's `surfaces.yaml` with the
   shared table, passed (381.4 s simulated, 0 contacts, 118). An unknown class in a zone or
   a section is refused (tests). Tests: 3 new, the world server's 290 pass, the shell's 36.
+
+#### C3: the course builder writes the record (done 2026-11-20)
+
+scensim_isaac_world 98a5d8c (`course/record.py`, the builder's `record` step), pins 4c67e51d.
+
+- The step runs after `geometry`, or alone from `course/centreline.npz` and
+  `course/meshes.npz` with no fetch. It writes `course/road_detail.yaml` and
+  `course/section.npz`: the builder's own section (level, the lanes and the shoulder, no lip
+  or ditch), `kappa_v` from the smoothed profile, the centreline in the `.npz` (a record may
+  now carry `x`, `y`, `z` in place of the YAML's `centreline`), and per side what lies past
+  the edge from one classifier: `barrier` where props' rail rule puts a rail (at
+  `barrier_offset`), else `runoff` at 1V:4H or flatter and `ditch` steeper, down or up (a cut
+  face; 069 has no class of its own for it). A closed course repeats its first station.
+- It is the course's record, in `course/`: the world server reads a map's road detail from
+  `<map dir>/road_detail.yaml` only, so nothing changes in Isaac. Putting a course's record
+  under the road layer (its contact, the ribbon from the record) is C5's.
+- `props.guardrails` places the rails from the record; `usd` reads it and names the step
+  when it is missing.
+- Exit check: on the published Haruna and Tsukuba data (fff4cb0b) the rails from the record
+  are identical to the old rule's, every segment exactly, at segment lengths of 1 to 6 m
+  (Haruna 92 segments at 4 m, Tsukuba 46), so the published worlds need no rebuild and
+  `haruna_down` drives the same world (it passed twice today on it). Haruna: 3055 stations,
+  1527 m; left runoff 2285, ditch 414, barrier 356; right 2555, 122, 378. Tsukuba: 4285
+  stations, 2142 m, left runoff 4056, barrier 229; right 4137, 148. `road_detail check`
+  passes on both. Tests: 8 new (`test_course_record`, with the old rule frozen in it), the
+  world server's 298; the full `just test` from `env -i` passed (with main's one-line
+  justfile fix for C2's table path applied locally until 241's lands).
+- The dataset revision is prepared on NAS home, `2026-11-20 086 C3 course road records
+  (118)/`: the two courses' `road_detail.yaml` and `section.npz`, README, SHA256SUMS.
+  Publishing it (with a new tag) is the user's.
 
 Order: C1, C2 and C3 make the shared data; C4 and C5 are its first consumers, C5 after C3.
 C6 follows C5 (rocks and wheel hop on the record's road). C7 can start after C2 on 0.9.16,

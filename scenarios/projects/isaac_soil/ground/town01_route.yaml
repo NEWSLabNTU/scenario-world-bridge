@@ -1,7 +1,7 @@
 # Roadmap 047 S1 town runs, set C: town01_ego_drive's route (x 190.8 -> 120 along y -130,
 # heading -x, so the left wheels are at y < -130) crosses a wet stretch, a puddle under the
 # left wheels, gravel, and stops on ice at its goal (x 120).
-# Copy to data/carla-autoware-bridge/Town01/surfaces.yaml.
+# A scenario names it: scensim.surface_map=town01_route (roadmap 056, 086 C4).
 defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
 zones:
   - id: wet_stretch

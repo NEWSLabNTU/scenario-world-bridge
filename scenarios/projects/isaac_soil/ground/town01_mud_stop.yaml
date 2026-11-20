@@ -1,6 +1,6 @@
 # Roadmap 054 step 8: town01_mud_stop.xosc's ground. Town01's west road, the southbound lane (x -4..0) in wet mud over y -232..-184, 48 m, where a pedestrian darts out. Mud's soil parameters are a stand-in (a wet
-# clay row, 047 D6), so the map opts in by name. Copy to
-# data/carla-autoware-bridge/Town01/surfaces.yaml for a run.
+# clay row, 047 D6), so the map opts in by name. A scenario names it: scensim.surface_map=town01_mud_stop
+# (roadmap 056, 086 C4).
 allow_unvalidated: [mud_wet]
 defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
 zones:

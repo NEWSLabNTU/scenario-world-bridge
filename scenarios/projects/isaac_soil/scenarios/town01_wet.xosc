@@ -1,9 +1,10 @@
 <?xml version="1.0"?>
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-10-24T00:00:00+00:00" description="Roadmap 052 step 3: town01_ego_drive over town01_snow.yaml (12.8 m of loose snow, a soil zone on Wong's US snow, unvalidated until 053; Isaac only)" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-10-23T00:00:00+00:00" description="Roadmap 047 S2: town01_ego_drive with a world-wide road condition, moist from the start and wet with puddles after 20 s (any simulator with ROAD_CONDITION)" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
+		<ParameterDeclaration name="friction_scale" parameterType="double" value="0.9" />
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>
@@ -32,9 +33,8 @@
 			<Actions>
 				<GlobalAction>
 					<EnvironmentAction>
-						<Environment name="snow">
-							<RoadCondition frictionScaleFactor="1.0" wetness="dry">
-							</RoadCondition>
+						<Environment name="moist">
+							<RoadCondition frictionScaleFactor="$friction_scale" wetness="moist" />
 						</Environment>
 					</EnvironmentAction>
 				</GlobalAction>
@@ -58,7 +58,7 @@
 				</Private>
 			</Actions>
 		</Init>
-		<Story name="town01_mud">
+		<Story name="town01_drive">
 			<Act name="drive_act">
 				<ManeuverGroup maximumExecutionCount="1" name="ego_maneuvers">
 					<Actors selectTriggeringEntities="false">
@@ -86,6 +86,26 @@
 												</ReachPositionCondition>
 											</EntityCondition>
 										</ByEntityCondition>
+									</Condition>
+								</ConditionGroup>
+							</StartTrigger>
+						</Event>
+						<Event name="road_changes" priority="parallel">
+							<Action name="road_changes">
+								<GlobalAction>
+									<EnvironmentAction>
+										<Environment name="puddles">
+											<RoadCondition frictionScaleFactor="$friction_scale" wetness="wetWithPuddles" />
+										</Environment>
+									</EnvironmentAction>
+								</GlobalAction>
+							</Action>
+							<StartTrigger>
+								<ConditionGroup>
+									<Condition name="road_change_time" delay="0" conditionEdge="none">
+										<ByValueCondition>
+											<SimulationTimeCondition value="20" rule="greaterThan" />
+										</ByValueCondition>
 									</Condition>
 								</ConditionGroup>
 							</StartTrigger>

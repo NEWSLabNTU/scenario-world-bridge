@@ -1,0 +1,29 @@
+# isaac_soil: the soil and surface scenarios of roadmaps 047, 052, 054 and 056 (077's inventory
+# item 19) under an Autoware ego on Isaac Sim, one after another on one world server. Each
+# scenario names its own surface map in its Init (RoadCondition scensim.surface_map, roadmap
+# 056, 086 C4), so nothing is copied into the map directory between runs.
+simulator: isaac
+assets:
+  - dataset: carla-town-autoware-maps
+    take: [Town01]
+  - dataset: carla-0.9.16-isaac-usd
+    take: [Town01, vehicles]
+pilots:
+  ego: {kind: autoware, autoware_profile: scensim, vehicle: tesla_model3}
+ground:
+  Town01:
+    surface_maps:
+      town01_mud: ground/town01_mud.yaml
+      town01_snow: ground/town01_snow.yaml
+      town01_soil: ground/town01_soil.yaml
+      town01_route: ground/town01_route.yaml          # town01_zones' zones
+      town01_mixed_ground: ground/town01_mixed_ground.yaml
+      town01_mud_curve: ground/town01_mud_curve.yaml
+      town01_mud_right: ground/town01_mud_right.yaml
+      town01_mud_stop: ground/town01_mud_stop.yaml
+      town01_dry: ground/town01_dry.yaml               # 047 S1's set B (no scenario names it)
+      town01_soil_off: ground/town01_soil_off.yaml     # 047 S3's set B
+      town01_soil_route: ground/town01_soil_route.yaml # 047 S3's set C
+logging:
+  keep: {passed: result, failed: full, error: full}
+default: soil   # the suite `scensim run isaac_soil` runs

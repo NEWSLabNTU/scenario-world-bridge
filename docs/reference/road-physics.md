@@ -26,11 +26,14 @@ ground:
   Town01:
     surfaces: ground/town01.yaml
     road_detail: ground/town01_road.yaml     # optional
+    surface_maps:                            # optional: maps a scenario names
+      mud: ground/town01_mud.yaml
 ```
 
 The world server reads a map's `surfaces.yaml` and `road_detail.yaml` from the testbench's
 `state/<map>/` first, then from the map directory. When the stack starts it links the files
-`ground:` names there (`state/<map>/surfaces.yaml`, `state/<map>/road_detail.yaml`); a file
+`ground:` names there (`state/<map>/surfaces.yaml`, `state/<map>/road_detail.yaml`,
+`state/<map>/surfaces/<name>.yaml` for each of `surface_maps`); a file
 you put there by hand under a name `ground:` also gives is refused, never replaced, so keep
 your files in the testbench and name them. Without a surface map every
 wheel runs on asphalt. The server checks each file before Isaac starts, refusing it with
@@ -42,6 +45,8 @@ Check a file without Isaac:
 ros2 run scensim_isaac_world surfaces check ground/town01.yaml
 ros2 run scensim_isaac_world road_detail check ground/town01_road.yaml
 ```
+
+Given a map directory, `surfaces check` also checks every named map in its `surfaces/`.
 
 `surfaces plot` and `road_detail preview` draw them (matplotlib).
 
@@ -123,6 +128,8 @@ the Story (`EnvironmentAction`). The surface map says where; the scenario says w
 ```xml
 <RoadCondition frictionScaleFactor="1.0" wetness="moist">
   <Properties>
+    <Property name="scensim.surface_map" value="mud"/>
+    <Property name="scensim.default.Terrain" value="mud_wet"/>
     <Property name="scensim.zone.puddle_left.water_depth" value="0.003"/>
     <Property name="scensim.zone.gravel_patch.class" value="dirt"/>
     <Property name="scensim.ruts" value="worn"/>
@@ -138,10 +145,17 @@ the Story (`EnvironmentAction`). The surface map says where; the scenario says w
 | `scensim.zone.<id>.wetness` | a zone's wetness |
 | `scensim.zone.<id>.water_depth` | a zone's water depth, m |
 | `scensim.ruts` | `fresh` or a saved set; in the Init: swapping ruts once a wheel has driven on the soil is refused |
+| `scensim.surface_map` | the scenario's surface map, by name: `surfaces/<name>.yaml` of the map (the testbench's `surface_maps`, `state/<map>/surfaces/` first); in the Init: naming another once a wheel has driven on soil is refused |
+| `scensim.default.<Label>` | one ground label's class for this scenario (`Road`, `RoadLine`, `SideWalk`, `Terrain`, `Ground`, `unlabelled`); a soil class gives its friction only, as soil goes under zones; zones stay on top |
 
 Each `RoadCondition` is the whole road state: zones it does not name go back to the map's
-values. A wrong property (an unknown zone, class or field) fails the scenario with every
-problem listed. A scenario cannot choose the surface map, nor change the label defaults.
+values, and labels it does not name to the map's defaults. A named map stays until the next
+scenario (its initialization, a new owner or a release go back to the map's own
+`surfaces.yaml`), so a later `RoadCondition` in the Story need not name it again; its zone
+properties and rut sets (`state/<map>/surfaces/<name>/ruts/`) are the named map's. A wrong
+property (an unknown map, zone, label, class or field) fails the scenario with every problem
+listed. Several scenarios with different ground run one after another on one world server,
+each naming its map; nothing is copied between runs.
 
 **Ruts.** The world server saves the ruts a run made to
 `state/<map>/ruts/runs/<time>.npz` when the next run begins (each run's initialization

@@ -402,7 +402,7 @@ was not in the physics scene and the server respawned 33 times.
 With Autoware (`just acceptance town01_ego_drive.xosc 2 sim:=isaac worlds:=Town01`,
 2026-10-23, host load 30-130 on 24 cores from other users' jobs; three sets on one world
 server: A no surface map, B the zone off the route on the east road, C the zone across the
-route, `scenarios/surfaces/town01_soil_{off,route}.yaml`):
+route, `scenarios/surfaces/town01_soil_{off,route}.yaml`, now in `scenarios/projects/isaac_soil/ground/`):
 
 | set | SSv2 verdicts | MRM entries | longitudinal | step p50 / p95 |
 |---|---|---|---|---|
@@ -436,7 +436,9 @@ then the NPCs in path order, so a rerun cuts the same ruts. Tests: `KinematicTes
 ### Scenarios and exit runs on Town01 (047 S6, 2026-10-23)
 
 Two scenarios on town01_ego_drive's route (x 190.8 to 120 along y -130), each with its
-surface map in `scenarios/surfaces/` (copied to the map directory for a run):
+surface map in `scenarios/surfaces/` (copied to the map directory for a run; since 086 C4
+the testbench `scenarios/projects/isaac_soil/`, each scenario naming its map with
+`scensim.surface_map`):
 
 - `town01_soil.xosc` over `town01_soil.yaml`: dry sand (x 171.2-180.8), then dirt (sandy
   loam, x 145.6-169.6), both soil zones with their own ground; a lead car SSv2 moves at
@@ -603,7 +605,10 @@ it optional.
 
 ### The map says where, the scenario says what state (D3, decided 2026-10-23)
 
-- **Where** (static, per map): `<map>/surfaces.yaml` (D1, above).
+- **Where** (static, per map): `<map>/surfaces.yaml` (D1, above), or one of the map's named
+  maps, `<map>/surfaces/<name>.yaml`, that the scenario picks with `scensim.surface_map`
+  (roadmap 056, built in 086 C4); `scensim.default.<Label>` sets a label's class for one
+  scenario.
 - **What state** (per scenario, can change mid-run): the standard `RoadCondition`.
   `frictionScaleFactor` and `wetness` apply world-wide; per-zone state rides in its
   `Properties`, named by the map's zone ids, so the file stays schema-valid and any other

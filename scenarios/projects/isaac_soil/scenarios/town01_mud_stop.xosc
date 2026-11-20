@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <OpenSCENARIO>
-	<FileHeader author="scenario-world-bridge" date="2026-10-26T00:00:00+00:00" description="Roadmap 054 step 8: braking with mud on the right half of the lane. As town01_mud_stop, but only the lane's right half (x -4..-2, the right wheels) is mud: the stop is split-mu. Isaac only" revMajor="1" revMinor="2" />
+	<FileHeader author="scenario-world-bridge" date="2026-10-26T00:00:00+00:00" description="Roadmap 054 step 8: an emergency stop on mud. Town01's west road, heading south at up to 50 km/h; its lane is wet mud over y -232..-184 (a soil zone on unvalidated parameters); a pedestrian darts into the lane at y -214.4 when the ego is 20 m short of it, waits 4 s, crosses. No contact, then the goal. Isaac only" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town01" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">
@@ -30,14 +30,18 @@
 	<Storyboard>
 		<Init><Actions>
 			<GlobalAction><EnvironmentAction><Environment name="mud">
-				<RoadCondition frictionScaleFactor="1.0" wetness="dry"></RoadCondition>
+				<RoadCondition frictionScaleFactor="1.0" wetness="dry">
+					<Properties>
+						<Property name="scensim.surface_map" value="town01_mud_stop" />
+					</Properties>
+				</RoadCondition>
 			</Environment></EnvironmentAction></GlobalAction>
 			<Private entityRef="ego">
 				<PrivateAction><TeleportAction><Position><WorldPosition x="-2.03" y="-100.0" z="0.00" h="-1.5712" p="0" r="0" /></Position></TeleportAction></PrivateAction>
 				<PrivateAction><RoutingAction><AcquirePositionAction><Position><WorldPosition x="-1.99" y="-284.96" z="0.00" h="-1.5712" p="0" r="0" /></Position></AcquirePositionAction></RoutingAction></PrivateAction>
 			</Private>
 		</Actions></Init>
-		<Story name="town01_mud_right">
+		<Story name="town01_mud_stop">
 			<Act name="act">
 				<ManeuverGroup maximumExecutionCount="1" name="ego_group">
 					<Actors selectTriggeringEntities="false"><EntityRef entityRef="ego" /></Actors>

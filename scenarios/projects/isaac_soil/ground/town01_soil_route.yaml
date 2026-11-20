@@ -2,7 +2,7 @@
 # town01_ego_drive's route (x 190.8 -> 120 along y -130, heading -x). The zone is whole 1.6 m
 # soil tiles; the world server cuts Town01's road, markings, crosswalk and landscape out from
 # under it at load and drives the soil layer's ruts into its tiles.
-# Copy to data/carla-autoware-bridge/Town01/surfaces.yaml.
+# A scenario names it: scensim.surface_map=town01_soil_route (roadmap 056, 086 C4).
 defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
 zones:
   - id: dirt_road

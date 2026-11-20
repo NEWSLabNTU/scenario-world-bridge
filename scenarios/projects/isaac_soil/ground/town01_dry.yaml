@@ -1,6 +1,7 @@
 # Roadmap 047 S1 town runs, set B: Town01's label defaults and one zone off the
-# town01_ego_drive route. Copy to data/carla-autoware-bridge/Town01/surfaces.yaml.
+# town01_ego_drive route. A scenario names it: scensim.surface_map=town01_dry (roadmap 056, 086 C4).
 # The route's asphalt keeps the rig's tire friction, so the run must match set A (no map).
+allow_unvalidated: [mud_wet]   # its mud_pit (off the route): Wong's clay row, 053
 defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
 zones:
   - id: mud_pit

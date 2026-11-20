@@ -3,7 +3,7 @@
 	<FileHeader author="scenario-world-bridge" date="2026-10-26T00:00:00+00:00" description="Roadmap 054 step 8: a curve in mud. Town01's west road south into its south-west corner, a 90 deg left bend of about 12 m radius, the bend in wet mud (a soil zone on unvalidated parameters), at the speed Autoware plans; then east; it passes once at x 60 on the south road, before the next junction's traffic light (the route runs on to the demo tour's waypoint, 213.62, -330.6). Isaac only" revMajor="1" revMinor="2" />
 	<ParameterDeclarations>
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork><LogicFile filepath="$(env SCENSIM_MAPS)/Town01" /></RoadNetwork>
 	<Entities>
 		<ScenarioObject name="ego">
@@ -23,7 +23,11 @@
 	<Storyboard>
 		<Init><Actions>
 			<GlobalAction><EnvironmentAction><Environment name="mud">
-				<RoadCondition frictionScaleFactor="1.0" wetness="dry"></RoadCondition>
+				<RoadCondition frictionScaleFactor="1.0" wetness="dry">
+					<Properties>
+						<Property name="scensim.surface_map" value="town01_mud_curve" />
+					</Properties>
+				</RoadCondition>
 			</Environment></EnvironmentAction></GlobalAction>
 			<Private entityRef="ego">
 				<PrivateAction><TeleportAction><Position><WorldPosition x="-2.03" y="-100.0" z="0.00" h="-1.5712" p="0" r="0" /></Position></TeleportAction></PrivateAction>

@@ -1,7 +1,7 @@
 # Roadmap 047 S6: town01_soil.xosc's ground. town01_ego_drive's route (x 190.8 -> 120 along
 # y -130, heading -x) crosses dry sand, then dirt (sandy loam), each a soil zone on the grid
 # with its own ground: whole 1.6 m tiles, the town cut out from under them at load, the ruts
-# in the collision and the lidar. Copy to data/carla-autoware-bridge/Town01/surfaces.yaml.
+# in the collision and the lidar. A scenario names it: scensim.surface_map=town01_soil (roadmap 056, 086 C4).
 defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
 zones:
   - id: sand_road

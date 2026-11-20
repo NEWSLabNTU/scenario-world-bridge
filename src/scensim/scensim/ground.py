@@ -6,20 +6,27 @@
       Town01:
         surfaces: ground/town01.yaml        # Isaac's surface map for Town01
         road_detail: ground/rough.yaml      # optional: the road's rocks and ruts
+        surface_maps:                       # optional: maps a scenario names
+          mud: ground/town01_mud.yaml       #   (RoadCondition scensim.surface_map=mud)
 
 A file is the project's (a path in it) or another package's, ``pkg://<package>/<path>`` (081;
 issue 054).
 
 The Isaac world server takes ``<state dir>/<map>/surfaces.yaml`` and ``road_detail.yaml`` over
-the (read-only, fetched) map directory's. ``apply`` links each named file there when a stack
+the (read-only, fetched) map directory's, and a scenario's named surface maps from
+``<state dir>/<map>/surfaces/<name>.yaml`` before the map directory's (roadmap 056, 086 C4). ``apply`` links each named file there when a stack
 starts, so the project's file is the one the world loads; a link it made before and the
 project no longer names is removed. A file there that is not such a link (one a user put by
 hand) is refused rather than replaced.
 """
 import os
+import re
 from pathlib import Path
 
 KINDS = {"surfaces": "surfaces.yaml", "road_detail": "road_detail.yaml"}
+NAMED = "surface_maps"  # {<name>: <file>}: <state>/<map>/surfaces/<name>.yaml
+NAMED_DIR = "surfaces"
+NAME = re.compile(r"^[a-z0-9_-]+$")
 
 
 class GroundError(RuntimeError):
@@ -49,21 +56,33 @@ def problems(project, ground) -> list:
     for m, files in ground.items():
         w = f"ground.{m}"
         if not isinstance(files, dict) or not files:
-            out.append((w, "is not a mapping: {surfaces: <file>, road_detail: <file>}"))
+            out.append((w, "is not a mapping: {surfaces: <file>, road_detail: <file>, "
+                           "surface_maps: {<name>: <file>}}"))
             continue
-        for k, f in files.items():
-            if k not in KINDS:
-                out.append((w, f"unknown key {k} (use only {', '.join(KINDS)})"))
+        named = files.get(NAMED)
+        if NAMED in files and (not isinstance(named, dict) or not named):
+            out.append((f"{w}.{NAMED}", "is not a mapping: {<name>: <file>}"))
+            named = {}
+        pairs = [(f"{w}.{k}", k, f) for k, f in files.items() if k != NAMED]
+        for n, f in (named or {}).items():
+            if not isinstance(n, str) or not NAME.match(n):
+                out.append((f"{w}.{NAMED}.{n}", "a map's name is [a-z0-9_-]+ (the scenario's "
+                                                 "scensim.surface_map)"))
+                continue
+            pairs.append((f"{w}.{NAMED}.{n}", NAMED, f))
+        for at, k, f in pairs:
+            if k not in KINDS and k != NAMED:
+                out.append((w, f"unknown key {k} (use only {', '.join([*KINDS, NAMED])})"))
             elif not isinstance(f, str) or not f:
-                out.append((f"{w}.{k}", "a file in the project is required"))
+                out.append((at, "a file in the project is required"))
             elif project is not None:
                 try:
                     there = source(project, f).is_file()
                 except GroundError as e:
-                    out.append((f"{w}.{k}", str(e)))
+                    out.append((at, str(e)))
                     continue
                 if not there:
-                    out.append((f"{w}.{k}", f"{f} is not a file in the project"
+                    out.append((at, f"{f} is not a file in the project"
                                 if not f.startswith("pkg://") else f"{f} is not a file"))
     return out
 
@@ -86,24 +105,25 @@ def apply(project: Path, ground, state_dir: Path = None) -> list:
     state = Path(state_dir) if state_dir else project / "state"
     made, want = [], set()
     for m, files in (ground or {}).items():
-        for k, f in (files or {}).items():
-            if k not in KINDS:
-                continue
-            dst = state / m / KINDS[k]
+        pairs = [(f"ground.{m}.{k}", state / m / KINDS[k], f)
+                 for k, f in (files or {}).items() if k in KINDS]
+        pairs += [(f"ground.{m}.{NAMED}.{n}", state / m / NAMED_DIR / f"{n}.yaml", f)
+                  for n, f in ((files or {}).get(NAMED) or {}).items()]
+        for at, dst, f in pairs:
             want.add(dst)
             # the link names the file's path in the project, not its resolved one: a file under
             # assets/ resolves into the shared dataset cache, outside the project, and the
             # next start would not know the link for its own (issue 043)
             src = source(project, f)
             if not src.is_file():
-                raise GroundError(f"ground.{m}.{k}: {f} is not a file"
+                raise GroundError(f"{at}: {f} is not a file"
                                   + ("" if f.startswith("pkg://") else " in the project"))
             if dst.exists() or dst.is_symlink():
                 # also ours: a link an older scensim made to the resolved file (issue 043)
                 if not (_ours(dst, project) or
                         (dst.is_symlink() and Path(os.path.realpath(dst)) == src.resolve())):
                     raise GroundError(f"{dst} is not a link scensim made: move it into the project "
-                                      f"and name it under ground.{m}.{k}")
+                                      f"and name it under {at}")
                 dst.unlink()
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.symlink_to(src)
@@ -111,8 +131,8 @@ def apply(project: Path, ground, state_dir: Path = None) -> list:
     # links of files the project no longer names
     if state.is_dir():
         for m_dir in state.iterdir():
-            for name in KINDS.values():
-                p = m_dir / name
+            for p in [m_dir / name for name in KINDS.values()] + sorted(
+                    (m_dir / NAMED_DIR).glob("*.yaml") if (m_dir / NAMED_DIR).is_dir() else []):
                 if p not in want and _ours(p, project):
                     p.unlink()
     return made

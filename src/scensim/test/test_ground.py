@@ -91,3 +91,25 @@ def test_a_ground_file_from_another_package(tmp_path, monkeypatch):
     assert any("package nope is not installed" in m for m in msgs)
     with pytest.raises(ground.GroundError, match="package nope is not installed"):
         ground.apply(p, {"Town01": {"surfaces": "pkg://nope/g.yaml"}})
+
+
+def test_named_surface_maps_link_into_the_maps_surfaces_dir(tmp_path):
+    """056, 086 C4: ground.<map>.surface_maps.<name> is <state>/<map>/surfaces/<name>.yaml."""
+    (tmp_path / "ground").mkdir()
+    (tmp_path / "ground" / "mud.yaml").write_text("zones: []\n")
+    g = {"Town01": {"surface_maps": {"mud": "ground/mud.yaml"}}}
+    assert ground.problems(tmp_path, g) == []
+    made = ground.apply(tmp_path, g)
+    dst = tmp_path / "state" / "Town01" / "surfaces" / "mud.yaml"
+    assert made == [dst] and dst.resolve() == (tmp_path / "ground" / "mud.yaml").resolve()
+    ground.apply(tmp_path, {"Town01": {"surfaces": "ground/mud.yaml"}})  # no longer named
+    assert not dst.exists() and not dst.is_symlink()
+
+
+def test_named_surface_maps_are_checked(tmp_path):
+    got = dict(ground.problems(tmp_path, {
+        "Town01": {"surface_maps": {"Bad Name": "ground/a.yaml", "ok": "ground/gone.yaml"}},
+        "Town02": {"surface_maps": []}}))
+    assert "[a-z0-9_-]+" in got["ground.Town01.surface_maps.Bad Name"]
+    assert "not a file in the project" in got["ground.Town01.surface_maps.ok"]
+    assert "is not a mapping" in got["ground.Town02.surface_maps"]

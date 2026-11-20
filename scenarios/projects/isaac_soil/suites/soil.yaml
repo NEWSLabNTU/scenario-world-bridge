@@ -1,0 +1,9 @@
+# 053 step 5's set (soil, mud, snow) and the zones set from the scenario, one after another on
+# one world server, each naming its own surface map (056 step 5, 086 C4).
+scenarios:
+  - scenarios/town01_soil.xosc
+  - scenarios/town01_mud.xosc
+  - scenarios/town01_snow.xosc
+  - scenarios/town01_zones.xosc
+retry: {on: error, times: 1}
+expect: {}

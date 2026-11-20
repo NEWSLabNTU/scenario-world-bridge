@@ -2,7 +2,8 @@
 # (x -4..0) wet asphalt with puddles over y -121.6..-89.6, then three soil zones on the grid
 # with their own ground (tiles on whole 1.6 m), dry asphalt between: sand, dirt (sandy loam)
 # and wet mud. Mud's soil parameters are a stand-in (a wet clay row, 047 D6), so the map opts
-# in by name. Copy to data/carla-autoware-bridge/Town01/surfaces.yaml for a run.
+# in by name. A scenario names it: scensim.surface_map=town01_mixed_ground
+# (roadmap 056, 086 C4).
 allow_unvalidated: [mud_wet]
 defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
 zones:

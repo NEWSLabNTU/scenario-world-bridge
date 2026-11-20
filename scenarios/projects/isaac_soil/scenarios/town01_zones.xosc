@@ -4,7 +4,7 @@
 	<ParameterDeclarations>
 		<ParameterDeclaration name="puddle_depth" parameterType="string" value="0.003" />
 	</ParameterDeclarations>
-	<CatalogLocations><VehicleCatalog><Directory path="$(find-pkg-share sim_vehicle_spec)/catalogs" /></VehicleCatalog></CatalogLocations>
+	<CatalogLocations><VehicleCatalog><Directory path="$(env SCENSIM_VEHICLES)" /></VehicleCatalog></CatalogLocations>
 	<RoadNetwork>
 		<LogicFile filepath="$(env SCENSIM_MAPS)/Town01" />
 	</RoadNetwork>
@@ -36,6 +36,7 @@
 						<Environment name="puddle">
 							<RoadCondition frictionScaleFactor="1.0" wetness="dry">
 								<Properties>
+									<Property name="scensim.surface_map" value="town01_route" />
 									<Property name="scensim.zone.puddle_left.water_depth" value="$puddle_depth" />
 								</Properties>
 							</RoadCondition>

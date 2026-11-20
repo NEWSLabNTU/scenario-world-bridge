@@ -15,6 +15,8 @@
 #           arm off (stock) and on (czp)
 #   s1      stage 1: arms on/off x A stop1y_c1.5/fcfse_c0 x left/right x dt -1/-0.3/0/0.3/1 x seeds 0,1 (80)
 #   ref     stage 1's reference: stock on the plain Town05 map, A t1.5p5, left/right, the same dts, seed 0 (10)
+#   rerun   stage 1's runs named in $U3_RERUN (arm:dt:rule:seed:side,...; e.g. its errored czp tags), on the
+#           stop-sign map, into rerun/
 #
 # One simulation side (just run ego_launch:=none, the stage's map, the spec's physics) per stage, in its
 # own process group, stopped at the end. czp's zones come from the stage's map (czp-zones), once.
@@ -34,9 +36,9 @@ export CYCLONEDDS_URI="file://$R/src/scensim_launch/config/cyclonedds-localhost.
 
 PLAIN=$R/data/carla-autoware-bridge/Town05
 case $STAGE in
-  smoke|s1|pace) MAPDIR=$U3_MAP ;;
+  smoke|s1|pace|rerun) MAPDIR=$U3_MAP ;;
   ref) MAPDIR=$PLAIN ;;
-  *) echo "stage: pace, smoke, s1 or ref" >&2; exit 2 ;;
+  *) echo "stage: pace, smoke, s1, ref or rerun" >&2; exit 2 ;;
 esac
 OUT=$WORK/$STAGE; mkdir -p "$OUT"
 ZONES=$WORK/zones_$(basename "$(dirname "$MAPDIR")")_$(basename "$MAPDIR").yaml
@@ -61,7 +63,7 @@ ss -ltn | grep -q ":$SSV2_PORT " || { echo "stack not up" >&2; stop_stack; exit 
 echo "stack up $(date +%T)"
 
 P=(python3 scripts/coop/crossing_aw.py --out "$OUT" --carla-port "$CARLA_PORT" --zones "$ZONES" --map "$MAPDIR"
-   --max-load "${U3_MAX_LOAD:-$(( $(nproc) * 3 / 2 ))}")   # 133: 1.5x the cores; above that 088's verdicts moved
+   --max-load "${U3_MAX_LOAD:-$(( $(nproc) * 3 / 2 ))}" --min-mem "${U3_MIN_MEM:-12}")   # 133: 1.5x the cores; above that 088's verdicts moved
 DTS=-1,-0.3,0,0.3,1
 case $STAGE in
   pace)
@@ -73,6 +75,8 @@ case $STAGE in
       "${P[@]}" --arms on,off --rules stop1y_c1.5,fcfse_c0 --side $side --dts=$DTS --seeds 0,1
       echo "s1 $side rc=$? $(date +%T)"
     done ;;
+  rerun)
+    "${P[@]}" --only "${U3_RERUN:?U3_RERUN: arm:dt:rule:seed:side,...}"; echo "rerun rc=$? $(date +%T)" ;;
   ref)
     for side in left right; do
       "${P[@]}" --arms off --rules t1.5p5 --side $side --dts=$DTS --seeds 0

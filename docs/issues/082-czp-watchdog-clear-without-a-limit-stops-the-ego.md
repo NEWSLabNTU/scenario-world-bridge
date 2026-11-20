@@ -1,6 +1,6 @@
 # 082: czp's watchdog clears a velocity limit czp never set, and Autoware answers with 0 m/s
 
-**Severity**: high. The ego never moves: 7 czp runs in U3 stage 1. **Status**: fixed on `p2g-launch`; U3's reruns and
+**Severity**: high. The ego never moves: 7 czp runs in U3 stage 1. **Status**: fixed on `p2g-launch` (czp's side); the selector's behaviour is an Autoware defect, for the user to report upstream; U3's reruns and
 the next 078 grid check it. **Found**: 2026-11-20, by 139, in U3 stage 1 (u3-autoware; the runs on 139, copied to the
 NAS by 139).
 
@@ -21,10 +21,20 @@ The clear never appeared in good runs or in the stock arm. czp had set no limit 
 The watchdog published the clear on every lost heartbeat, unconditionally. czp's strategy and node already clear only
 a limit they set (`Strategy.limited`, and the node's shutdown checks it).
 
-On the selector's side, a clear for a sender that holds no limit leaves the selector with nothing, and it publishes what
-looks like its default-constructed hardest limit: 0.0 m/s with sender `''`. 139 is confirming this from the selector's
-source, and this doc will name the lines once that is done. Whatever the selector's reason, the clear without a limit
-is czp's to avoid.
+On the selector's side, 139 confirmed the mechanism from source (autoware_universe 0.48.0,
+`external_velocity_limit_selector_node.cpp`):
+- `onVelocityLimitClearCommand` (l.169-179) calls `clearVelocityLimit`;
+- `clearVelocityLimit` returns early when `velocity_limit_table_` is empty (l.229-231, WARN "no velocity limit has been
+  set from internal."). It does so whenever no other node holds a limit;
+- the callback then publishes `hardest_limit_` unconditionally. That member is value-initialised, so it is
+  `max_velocity` 0.0 with sender `''`;
+- the 0 holds until the next API or internal limit arrives.
+
+With a non-empty table, a clear from a sender that holds no limit is harmless.
+
+**This is an Autoware-side defect, worth reporting upstream.** A clear with nothing to clear should not publish a 0
+m/s limit. Whether to post it is the user's decision. Whatever the selector does, a clear without a limit is czp's to
+avoid.
 
 ## Fix (p2g-launch)
 

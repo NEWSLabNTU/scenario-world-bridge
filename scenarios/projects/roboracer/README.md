@@ -13,6 +13,8 @@ stack (W18 to W20) join it as their work items land.
   steering ramps that trace the tyre's lateral curve.
 - `tools/tyre_compare.py`, `tools/single_track.py`: PhysX's tyre against identified F1TENTH
   tyres, by a steady-state single-track model (W8).
+- `tools/contact_check.py`: authored physics materials on rigid bodies against what PhysX does
+  with them: drop, slide, tilt and combine-mode tests, no car (W9).
 
 ## The refit of the full-size settings (W6)
 
@@ -147,3 +149,60 @@ The limits:
 - **Other cars' tyres.** The references are tyres identified on other cars and floors, read from
   a third party's repository and not checked against its paper, which prints none. Real logs of this car (W22, or W23's stand-in) are
   what the per-axle values are finally fitted to (W10).
+
+## Walls and cones (W9)
+
+Design note 3.3 leaves objects to PhysX: their mass, friction and restitution as authored, with
+no layer of scensim's between. Checked on Isaac (118, 2026-11-20) at 60 and 240 Hz:
+
+**Authored materials are honoured.** `tools/contact_check.py` puts a UsdShade material, bound
+with the physics purpose, on a cube and its floor:
+
+| test | authored | 240 Hz | 60 Hz |
+|---|---|---|---|
+| drop: restitution from the rebound | 0.3, 0.6, 0.9 | 0.29, 0.59, 0.89 | 0.27, 0.59, 0.89 |
+| slide: dynamic friction from the deceleration | 0.2, 0.5, 0.8 | 0.20, 0.50, 0.80 | 0.20, 0.50, 0.80 |
+| tilt: static friction from the angle it slides at | 0.3, 0.6, 0.9 | 0.32, 0.62, 0.92 | 0.32, 0.61, 0.91 |
+
+**A pair's friction is combined.** A cube at 0.4 on a floor at 0.8 slides at:
+- 0.6 with `average`, which is PhysX's default and what an unset mode gives;
+- 0.4 with `min`, 0.8 with `max`, and 0.32 with `multiply`.
+
+So a friction measured between two real objects, such as a cone on the floor or a wall against
+a bumper, is the pair's, not either material's. Authoring it on one material leaves PhysX to
+average it with the other. The guide (W21) should have the user either author the measured
+pair value on both materials, or set a combine mode and author each side accordingly.
+
+**The car's body has no material.** aib authors none on the chassis, so PhysX's default stands
+in for the car, and a user cannot author one: the car is not in the stage.
+`smallcar.py --only impact` drives at 1.84 m/s into a wall and goes to neutral at the first
+contact:
+
+| wall's restitution | body's | the car's rebound over its impact speed |
+|---|---|---|
+| none authored | none | 0.008 |
+| 0.5 | none | 0.17 |
+| 1.0 | none | 0.41 |
+| 0.5 | 0.5 | 0.41 |
+| 1.0 | 1.0 | 0.86 |
+
+The wall's restitution is averaged with the body's, and the suspension and wheels take some
+more. A body's contact material (its bumper's restitution and friction) belongs in the spec,
+applied by aib's rig, so that measured wall and cone pushes can be matched (proposed to 133).
+
+**The cone tips or rides by its friction on the floor, not by the rate.** The 0.1 kg cone (a
+cylinder, r 0.05 m, h 0.15 m) hit at 2 m/s, with floor and cone both at friction mu:
+
+| mu | 0.2 | 0.3 | 0.4 | 0.6 | 0.8 |
+|---|---|---|---|---|---|
+| 240 Hz: carried, m | 4.00 upright | 3.97 upright | 3.96 upright | 0.39 tipped | 0.24 tipped |
+
+At 0.2 and 0.8 the result is the same at 60, 240 and 300 Hz. The cone tips when its base's
+friction holds it long enough for the bumper's push, above its base, to turn it over. That is
+about mu > r / h_push, about 0.5 here. PhysX's default materials put the pair at 0.5, on the
+threshold, and that is why W7 saw the cone flip between rates. With the body at restitution
+0.5 the cone tips at the default friction too, so the car's material is part of the threshold.
+A cone's measured push-over behaviour therefore needs the measured floor friction and the car's
+body material, both authored.
+
+The runs are on the NAS under `2026 SSv2 on CARLA/2026-11-20 091 W9 RoboRacer walls and cones (118)`.

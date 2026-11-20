@@ -1,4 +1,4 @@
-"""Roadmap 091 W6 to W8: open-loop tests of a small car (the RoboRacer example) in Isaac, at a
+"""Roadmap 091 W6 to W9: open-loop tests of a small car (the RoboRacer example) in Isaac, at a
 chosen physics rate. aib.steptest's harness, with tests sized for a 1/10 car.
 
     python smallcar.py --ego EGO.yaml --out DIR --frame 0.05 --sub 3 [--set k=v ...]
@@ -8,6 +8,9 @@ In Isaac's environment with aib on the path (aib's scripts/isaac_env.sh, then
 PYTHONPATH=<aib>/src/aib). EGO.yaml is an aib ego config, `rig: roboracer.rig.yaml` beside it;
 make the rig with `python3 -m aib.gen --spec ../vehicles/roboracer.yaml -o roboracer.rig.yaml`.
 `--set` takes a field of aib's VehicleParams or of sim_vehicle_ecu's Calibration by name.
+`--floor-mu`, `--cone-mu`, `--wall-e` and `--body-mat` author physics materials: the ground
+plane's friction, the cone's, the impact wall's restitution, and the car body's (bound on the
+car's prim after it is made; aib authors none).
 `--axle` sets the front and rear tyres apart: each axle's share of the rig's lateral stiffness,
 and its friction (aib's set_wheel_stiffness and set_wheel_friction, after the car is made).
 Physics rate = sub / frame. Per test a CSV of every physics step (with each wheel's slip angle,
@@ -17,7 +20,8 @@ The tests:
 - on the open plane: rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and
   4 m/s;
 - in their own lanes: four 10 mm cleats at 3 m/s (`bumps`), creeping into a wall and pushing on
-  it (`wall`), and a 0.1 kg cone hit at 2 m/s (`cone`);
+  it (`wall`), a 0.1 kg cone hit at 2 m/s (`cone`), and 2 m/s into a wall, in neutral from the
+  first contact (`impact`: the restitution the car sees);
 - design note 5.2's M5 (`m5_<angle>_<speed>`: steady circles at tire angles 0.1, 0.2, 0.3 and
   0.36 rad and 1, 2 and 3 m/s) and M6 (`m6_01`, `m6_02`: the speed raised from 1 to 7 m/s at a
   fixed angle), and the steering ramps (`ramp2`, `ramp3`, `ramp4`: 0 to 0.36 rad over 10 s at
@@ -74,6 +78,17 @@ def wall(t, v, m):
     return (hold(0.5, v), 0.5, 0.0) if t < 3.0 else (hold(1.0, v), 1.0, 0.0)
 
 
+def impact(t, v, m):
+    # 2 m/s into a wall, then neutral from the first contact (the speed falls by 0.3 m/s in a
+    # step): the rebound is the wall's and the body's restitution, not the drive's
+    m["vmax"] = max(m.get("vmax", 0.0), v)
+    if not m.get("hit") and m["vmax"] > 1.0 and v < m["vmax"] - 0.3:
+        m["hit"] = True
+    if m.get("hit"):
+        return (0.0, 0.0, 0.0, True)
+    return (hold(2.0, v, limit=8.0), 2.0, 0.0)
+
+
 def cone(t, v, m):
     return (hold(2.0, v), 2.0, 0.0)
 
@@ -103,6 +118,7 @@ TESTS = {
     "bumps": (3.0, bumps),
     "wall": (6.0, wall),
     "cone": (3.0, cone),
+    "impact": (4.0, impact),
     "ramp2": (12.0, ramp(2.0)),
     "ramp3": (12.0, ramp(3.0)),
     "ramp4": (12.0, ramp(4.0)),
@@ -113,7 +129,8 @@ for _a in (0.1, 0.2, 0.3, 0.36):
     for _v in (1.0, 2.0, 3.0):
         TESTS[f"m5_{_a:g}_{_v:g}"] = (8.0, lock(_v, _a))
 # each test's lane: the start's y, m (the obstacles of one lane stay out of the others)
-LANES = {"bumps": 5.0, "wall": 10.0, "cone": 15.0}
+LANES = {"bumps": 5.0, "wall": 10.0, "cone": 15.0, "impact": 20.0}
+IMPACT_WALL_X = 2.0  # the impact lane's wall face, m ahead of the start
 for _t in ("ramp2", "ramp3", "ramp4", "m6_02", "m6_01"):
     LANES[_t] = -30.0
 CLEATS = (1.5, 2.5, 3.5, 4.5)  # x of each cleat's centre, m
@@ -185,6 +202,15 @@ def measure(test, rows, p):
         out["ax_sd"] = sd([r["ax"] for r in s])
         out["slip_rl_mean"] = st.mean(r["slip_rl"] for r in s)
         out["y_end_mm"] = 1000 * rows[-1]["y"]
+    elif test == "impact":
+        hit = next((i for i, r in enumerate(rows) if r["neutral"]), None)
+        if hit is not None:
+            vi = max(r["v"] for r in rows[:hit + 1])
+            vr = min(r["v"] for r in rows[hit:])
+            out["v_impact"] = vi
+            out["v_rebound"] = vr
+            out["e_car"] = -vr / vi if vi > 0 else None
+            out["x_max"] = max(r["x"] for r in rows)
     elif test == "cone":
         out["cone_moved_m"] = rows[-1]["cone_d"]
         out["cone_z_end"] = rows[-1]["cone_z"]
@@ -226,12 +252,19 @@ def main():
     ap.add_argument("--label", default="")
     ap.add_argument("--only", default="")
     ap.add_argument("--solver", default="", help="TGS or PGS (default: Isaac's)")
+    ap.add_argument("--floor-mu", type=float, default=None,
+                    help="the ground plane's static and dynamic friction (restitution 0)")
+    ap.add_argument("--cone-mu", type=float, default=None, help="the cone's friction")
+    ap.add_argument("--wall-e", type=float, default=None,
+                    help="the impact wall's restitution (friction 0.5)")
+    ap.add_argument("--body-mat", default="",
+                    help="the car body's material as static,dynamic,restitution (none: PhysX's)")
     ap.add_argument("--axle", default="", help="front and rear tyres as lat_share,friction,"
                     "lat_share,friction: shares of the rig's lateral stiffness, and frictions")
     args = ap.parse_args()
     from dataclasses import fields
 
-    from aib.control import GEAR_DRIVE, Command, State
+    from aib.control import GEAR_DRIVE, GEAR_NEUTRAL, Command, State
     from aib.params import VehicleParams
     from aib.rig import EgoConfig
 
@@ -263,9 +296,25 @@ def main():
     dt = args.frame / args.sub
     world = World(stage_units_in_meters=1.0, physics_dt=dt, rendering_dt=dt)
     stage = omni.usd.get_context().get_stage()
-    world.scene.add_default_ground_plane()
+    if args.floor_mu is not None:
+        world.scene.add_default_ground_plane(static_friction=args.floor_mu,
+                                             dynamic_friction=args.floor_mu, restitution=0.0)
+    else:
+        world.scene.add_default_ground_plane()
     ensure_vehicle_scene(stage)
-    from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
+    from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics, UsdShade
+
+    def material(path, static, dynamic, restitution):
+        m = UsdShade.Material.Define(stage, path)
+        api = UsdPhysics.MaterialAPI.Apply(m.GetPrim())
+        api.CreateStaticFrictionAttr(static)
+        api.CreateDynamicFrictionAttr(dynamic)
+        api.CreateRestitutionAttr(restitution)
+        return m
+
+    def bind(prim, m):
+        UsdShade.MaterialBindingAPI.Apply(prim).Bind(m, UsdShade.Tokens.weakerThanDescendants,
+                                                     "physics")
 
     def box(path, center, size, dynamic_mass=None):
         cube = UsdGeom.Cube.Define(stage, path)
@@ -280,6 +329,10 @@ def main():
         box(f"/World/obstacles/cleat{i}", (x, LANES["bumps"], CLEAT[2] / 2),
             (CLEAT[0], CLEAT[1], CLEAT[2]))
     box("/World/obstacles/wall", (WALL_X + 0.1, LANES["wall"], 0.25), (0.2, 2.0, 0.5))
+    iw = box("/World/obstacles/impact_wall", (IMPACT_WALL_X + 0.1, LANES["impact"], 0.25),
+             (0.2, 2.0, 0.5))
+    if args.wall_e is not None:
+        bind(iw.GetPrim(), material("/World/materials/wall", 0.5, 0.5, args.wall_e))
     cyl = UsdGeom.Cylinder.Define(stage, "/World/obstacles/cone")
     cyl.CreateRadiusAttr(CONE[0])
     cyl.CreateHeightAttr(CONE[1])
@@ -289,6 +342,8 @@ def main():
     UsdPhysics.CollisionAPI.Apply(cyl.GetPrim())
     UsdPhysics.RigidBodyAPI.Apply(cyl.GetPrim())
     UsdPhysics.MassAPI.Apply(cyl.GetPrim()).CreateMassAttr(CONE[2])
+    if args.cone_mu is not None:
+        bind(cyl.GetPrim(), material("/World/materials/cone", args.cone_mu, args.cone_mu, 0.0))
     scene_prim = next(p for p in stage.Traverse() if p.IsA(UsdPhysics.Scene))
     sapi = PhysxSchema.PhysxSceneAPI.Apply(scene_prim)
     if args.solver:
@@ -301,13 +356,17 @@ def main():
                   rig.box_dims, pose, truth_settings=rig.component.get("truth"))
     solver = sapi.GetSolverTypeAttr().Get()
     print("solver", solver, flush=True)
+    if args.body_mat:
+        st_, dy_, re_ = (float(x) for x in args.body_mat.split(","))
+        bind(stage.GetPrimAtPath("/World/ego"), material("/World/materials/body", st_, dy_, re_))
     if args.axle:
         from aib.isaac.vehicle import WHEELS
         lf_, mf_, lr_, mr_ = (float(x) for x in args.axle.split(","))
         for i, (_n, is_front, _side) in enumerate(WHEELS):
             veh.set_wheel_stiffness(i, lf_ if is_front else lr_, 1.0)
             veh.set_wheel_friction(i, mf_ if is_front else mr_)
-    summary = {"rate_hz": rate, "solver": solver, "axle": args.axle, "frame": args.frame, "sub": args.sub,
+    summary = {"rate_hz": rate, "solver": solver, "axle": args.axle, "floor_mu": args.floor_mu, "cone_mu": args.cone_mu,
+               "wall_e": args.wall_e, "body_mat": args.body_mat, "frame": args.frame, "sub": args.sub,
                "set": args.set, "ecu_slip_offset": rig.ecu.est_slip_offset, "tests": {}}
     only = [t for t in args.only.split(",") if t]
     try:
@@ -330,7 +389,8 @@ def main():
             wall = time.monotonic()
             while t < length - 1e-9:
                 c = command(t, state.velocity[0], memo)
-                cmd.acceleration, cmd.velocity, cmd.tire_angle = c
+                cmd.acceleration, cmd.velocity, cmd.tire_angle = c[:3]
+                cmd.gear = GEAR_NEUTRAL if len(c) > 3 and c[3] else GEAR_DRIVE
                 for _ in range(args.sub):
                     veh.apply(cmd, dt, state)
                     world.step(render=False)
@@ -362,6 +422,7 @@ def main():
                         cp = tf["position"]
                         row["cone_d"] = math.hypot(cp[0] - CONE_X, cp[1] - LANES["cone"])
                         row["cone_z"] = cp[2]
+                    row["neutral"] = int(cmd.gear == GEAR_NEUTRAL)
                     rows.append(row)
             with open(out / f"{test}.csv", "w", newline="") as f:
                 wr = csv.DictWriter(f, fieldnames=list(rows[0]))

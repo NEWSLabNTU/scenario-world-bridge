@@ -22,8 +22,8 @@ LATERAL_MATCH = 2.0  # m from an approach's centreline
 HEADING_MATCH = math.radians(45)
 # issue 079: below this speed an agent's yaw is no evidence of its direction. Autoware's tracker flips a stopped
 # car's yaw by 180 deg from one message to the next (U3 on_dt-1_stop1y_c1.5_s0: A at rest at its line read
-# -179 deg, then +0.5 deg with vx +0.11..0.13 m/s, four times in 0.6 s), so a stopped agent matches an approach
-# within HEADING_MATCH of its heading or of its reverse. The value is params.yaml's moved_speed.
+# -179 deg, then +0.5 deg with vx +0.11..0.13 m/s, four times in 0.6 s), so a stopped agent before the zone
+# matches an approach within HEADING_MATCH of its heading or of its reverse. The value is params.yaml's moved_speed.
 STOPPED_SPEED = 0.5  # m/s
 
 
@@ -63,7 +63,9 @@ def match_approach(zone: Zone, x, y, yaw, cache=None, key=None, stopped=False):
             if ck is not None:
                 cache[ck] = (s, lat, h)
         dh = abs(math.atan2(math.sin(yaw - h), math.cos(yaw - h)))
-        if stopped:
+        if stopped and s <= ap.entry_s:
+            # only before the zone, where a car waits at its line: inside it the approaches' paths cross, and a
+            # car stopped head-on on the own path would be matched to the own approach in reverse, a lead
             dh = min(dh, math.pi - dh)
         if abs(lat) <= LATERAL_MATCH and dh <= HEADING_MATCH and abs(lat) < best[2]:
             best = (ap, s, abs(lat))

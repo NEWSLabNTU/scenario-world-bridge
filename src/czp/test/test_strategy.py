@@ -366,3 +366,32 @@ def test_a_partner_dropped_unseen_is_kept_in_the_conflict_set_for_cs_hold_s():
         (0.1, ["o1"], "cs_hold: o1 kept in the conflict set"), (0.3, [], "cs_hold: released"),
         (0.4, ["o1"], "cs_hold: o1 kept in the conflict set"), (1.3, [], "cs_hold: released")]
     assert all(e["event"] == "cs_hold" and e["decision"] is None for e in events)
+
+
+def test_the_reverse_match_takes_no_head_on_car():
+    """Issue 079, the reverse match's limits, on a straight crossing of two-lane roads (lanes 3.5 m apart): a car
+    waiting head-on at the opposite line, its yaw flipped, is placed on its own approach (not the own car's, whose
+    path through the zone runs 3.5 m beside it); a car stopped inside the zone on the own car's path, facing it,
+    is not matched to the own approach in reverse (it would be a lead, out of the conflict set): it stays a
+    crossing agent, as before the fix."""
+    from czp.model import Agent, Approach, Zone
+    from czp.relation import conflict_set, place, relate
+    from czp.strategy import Strategy as S
+    line = lambda x0, y0, x1, y1, n=101: tuple((x0 + (x1 - x0) * i / (n - 1), y0 + (y1 - y0) * i / (n - 1))
+                                               for i in range(n))
+    a = Approach("A", heading=0.0, order=0, entry_s=45.0, exit_s=55.0, centerline=line(-50, -1.75, 50, -1.75))
+    c = Approach("C", heading=math.pi, order=2, entry_s=45.0, exit_s=55.0, centerline=line(50, 1.75, -50, 1.75))
+    n = Approach("N", heading=-math.pi / 2, order=1, entry_s=45.0, exit_s=55.0,
+                 centerline=line(1.75, 50, 1.75, -50))
+    poly = ((-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0))
+    z = Zone("x", "all_way_stop", (a, c, n), polygon=poly)
+    cap = S([z]).p.capability("car")
+    own = Agent("ego", approach="A", s_entry=10.0, s_exit=20.0, v=0.0, cap=cap, pose=(-17.4, -1.75, 0.0))
+    for yaw in (math.pi, 0.0):  # waiting at the opposite line, its yaw as it is and flipped
+        ag = Agent("o", pose=(7.4, 1.75, yaw), v=0.1, cap=cap)
+        assert place(z, ag).approach == "C", yaw
+    # inside the zone on the own path, stopped head-on: before the fix the off-lane path test (CROSS)
+    ag = Agent("o", pose=(1.0, -1.75, math.pi), v=0.0, cap=cap)
+    assert place(z, ag).approach is None
+    rel = relate([ag], own, [z])["x"]
+    assert [r.kind for r, _ in rel] == ["cross"] and conflict_set(rel)

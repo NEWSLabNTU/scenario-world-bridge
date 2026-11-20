@@ -58,10 +58,52 @@ layer's tyre contact (066 R5) is not there, and the curb meets PhysX's query alo
 
 Until then `isaac_verge` fails on Isaac and the release notes keep 077 as a known issue.
 
+### Step 1 result (118, 2026-11-20)
+
+029's fixtures with the sweep, at four PhysX travels:
+
+| PhysX travel | passes | cases thrown (rise above 0.3 m or pitch above 10 deg) |
+|---|---|---|
+| 0.20 m (the rig's) | 1 | 6, up to 4.5 m |
+| 0.30 m | 1 | 2 |
+| 0.40 m | 2 | 1 in both (4.6 m) |
+| 0.50 m | 5 | none, the same numbers every pass |
+
+The kicker is left out: the car leaves that ramp under every variant, raycast included.
+
+At 0.50 m the peak loads are near the reference on the cleats and the boulder (26.8, 27.1 and
+30.5 kN against 20.2, 26.6 and 29.9). The pothole is too high: 26.4 kN against 10.1.
+
+But 0.50 m works only because the wheel compresses past the real car's travel. The Model 3 has
+about 0.11 m past rest, and with no stop the wheel went up to 0.24 m past rest. So the sweep
+alone is not the fix: it needs a progressive bump stop at the real travel, with PhysX's own
+limit well past it. That is R2's corner force, which today runs only on the road layer's
+corridors.
+
+Step 1 continues in aib:
+- R2's bump stop as a force on the body from PhysX's jounce, every PhysX step;
+- the sweep, with PhysX's travel at 0.50 m and the droop kept;
+- the gates: no throw on the fixtures, compression within the real travel plus the stop's
+  engagement, the curb matrix climbed.
+
+Then come the references 133 named for a change to every Isaac car. These are compared with
+today's results:
+- haruna_down;
+- the isaac_first_drive and road_physics examples;
+- isaac_soil;
+- aib's slope matrix;
+- 055's manoeuvre suite.
+
+**For roadmap 091's small car.** A RoboRacer (a 1/10-scale car) has wheels of about 0.05 m radius, so door sills,
+floor seams and cable covers are steps of a third of the wheel or more. A raycast takes each of
+these as a wall, as it takes Town01's curb. That is one more reason to have the sweep and the
+bump stop in aib, for every car, and not only on the road layer's corridors.
+
 ## Evidence
 
 NAS logs `2026 SSv2 on CARLA/2026-11-20 077 curb climb, raycast and sweep (118)/` (the test,
-per-step traces, Town01's mesh section).
+per-step traces, Town01's mesh section) and `2026-11-20 077 sweep recheck, 029 fixtures (118)/`
+(step 1).
 
 
 NAS logs `2026 SSv2 on CARLA/2026-11-20 086 C4 isaac_verge on Isaac Town01 (241)/`.

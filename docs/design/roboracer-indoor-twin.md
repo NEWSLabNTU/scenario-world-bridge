@@ -526,10 +526,11 @@ reported per quantity and condition, never averaged away, by the harness of step
   - `vesc_to_odom` takes `sensors/core` and, with `use_servo_cmd_to_calc_angular_velocity: true`
     (the shipped `vesc.yaml`), `sensors/servo_position_command`. It publishes `odom`, with
     `wheelbase: 0.25`. The servo echo is therefore required, not optional.
-  - The bringup as published does not connect `ackermann_mux` to `ackermann_to_vesc` by name.
-    The mux's output is remapped to `ackermann_drive`, while `ackermann_to_vesc` takes
-    `ackermann_cmd`. The connection between them is the user's launch's business. The twin
-    does not depend on it:
+  - The bringup connects `ackermann_mux` to `ackermann_to_vesc`: the mux publishes
+    `ackermann_cmd` (`ackermann_mux.cpp`), which `ackermann_to_vesc` takes. The launch's remap of
+    `ackermann_cmd_out` to `ackermann_drive` names a topic the mux does not have, so it changes
+    nothing. (The first reading of this check, from the launch alone, said they were not
+    connected; the mux's source corrects it, 2026-11-20.) The twin's two profiles:
     - the `ackermann` profile takes `/drive`, the mux's navigation input (`mux.yaml`);
     - the `vesc` profile takes the driver's own inputs.
   - Two more details from the bringup:

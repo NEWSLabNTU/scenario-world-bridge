@@ -241,7 +241,7 @@ space leases over a simulated 5G network, which ns-3 5G-LENA and a ray tracer mo
   It needs no channel model from us. CARLA 1.0's V2X sensor would serve only as a quick
   baseline.
 
-So the attachment block (B6) and the truth stream (B3) cover V2X. A channel model is not a
+So the attachment hook (B4) and the truth stream (B3) cover V2X. A channel model is not a
 scensim block.
 
 ## 7. Transport

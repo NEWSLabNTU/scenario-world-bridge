@@ -17,6 +17,12 @@ rounds of review with the user the same day.
 the contributions C1 to C5, decisions D1 to D12, the layers, the architecture and workflow,
 throughput against Isaac Lab, usage by user.
 
+**Studies**: [survey-risk-categories.md](../design/survey-risk-categories.md): known risk
+categorisations (NHTSA pre-crash typology, PBCAT, Euro NCAP, UN R157, JAMA and ISO 34502,
+SOTIF, Waymo's collision avoidance testing, accelerated evaluation) and a coverage model for
+the two purposes the user chose (2026-11-20): a realistic risk rate, and failure-mode search.
+Scenario and world stay separate concepts, joined by the compiler (user: option A).
+
 ## Work items
 
 From the design's section 10; none started.

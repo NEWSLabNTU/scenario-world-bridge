@@ -3,8 +3,8 @@
 One tyre-and-ground model: surfaces and soil (wet, gravel, mud, sand, snow), calibration against measurements, the scenario choosing its ground, small obstacles and roughness, and the road section itself (bank, crown, edges).
 
 **Status**: consolidated 2026-11-18 from 047, 052, 053, 056, 066, 069. Owner swb 118 from
-2026-11-20 (user, through 133). 2026-11-20: re-planned as one model ("The plan" below):
-design only, waiting for 133's review.
+2026-11-20 (user, through 133). 2026-11-20: re-planned as one model ("The plan" below),
+approved by 133 the same day with its three decisions; C1 next.
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that
@@ -23,7 +23,7 @@ is planned here.
 | [053](053-terramechanics-calibration.md) | soil calibration against published measurements | in progress: sand, mud and snow fitted | dirt (no data); dropping the flags; the field (040) |
 | [056](056-scenario-surface-maps.md) | the scenario chooses its ground | planned | named surface maps, label classes |
 | [066](066-small-scale-road-physics.md) | small-scale road physics: rocks, roughness | in progress: R0, R2, R3, R5 done; R4 three slices | R1 checks, R4, R6 wheel hop, R7 sensors, R8 the section |
-| [069](069-road-tilt-load-and-edges.md) | road tilt, tyre load and the road's edge | planned, design only | the road-section record (E0); E1, E2 are the planner's |
+| [069](069-road-tilt-load-and-edges.md) | road tilt, tyre load and the road's edge | planned, design only | the road-section record (E0, this track's C3); E1, E2, E4: Track B, unassigned |
 
 ## Folded in
 
@@ -110,13 +110,13 @@ throws it away.
 | Isaac course geometry: ribbon, rails, Autoware maps | road record (bank, crown, lip, barrier) | 066 R8 |
 | the scenario | names a surface map, sets label classes (`swb.surface_map`, `swb.default.<Label>`) over the surface record | 056 |
 | CARLA world server (0.9.16 and 1.0 Chaos) | surface record: zones as friction trigger boxes, `mu` and `wet` | new, step C7 |
-| autoware-drift's planner and plant (Track B, 085) | road record (`Track.from_swb_course`) | 069 E1, E2 (Track B's) |
+| autoware-drift's planner and plant (Track B, 085) | road record (`Track.from_swb_course`) | 069 E1, E2, E4 (Track B, unassigned) |
 | aib, sim_vehicle_ecu | nothing directly; they feel the ground through PhysX and the contact forces | 070's slope matrix as a check |
 
 So of 047/056/069: **047's `surfaces.yaml` and class table, and 069's section, are the shared
 data**; 056, 066's layers, CARLA and the planner are consumers. 069 splits: E0's record is
 this track's, E1, E2 and E4 (the planner's equations and edge pricing) are Track B's work in
-autoware-drift, reading the record.
+autoware-drift, reading the record: Track B, unassigned (085 has no active owner).
 
 ### Steps
 
@@ -135,14 +135,14 @@ Each step on current scensim main; the exit check is what lets the next step sta
 
 Order: C1, C2 and C3 make the shared data; C4 and C5 are its first consumers, C5 after C3.
 C6 follows C5 (rocks and wheel hop on the record's road). C7 can start after C2 on 0.9.16,
-and on 1.0 after 083 step 5. C8 runs beside the others. Track B's E1 and E2 can start once
+and on 1.0 after 083 step 5. C8 runs beside the others. 069 E1 and E2 (Track B, unassigned) can start once
 C3 has written Haruna's record. About 4-5 weeks of work to C5, which gives one road from the
 record to Isaac, Autoware's maps and the planner.
 
-### Decisions for 133 and the user
+### Decisions (accepted by 133, 2026-11-20)
 
 - **The class table in `scensim_world_protocol`** (C2): the alternative is to keep it in the
-  Isaac world server and have the CARLA one read a copy. Proposed: move it, one table.
-- **Track B owns 069 E1, E2, E4** (the planner's side): proposed, as the record is the only
-  thing they share.
+  Isaac world server and have the CARLA one read a copy. Decided: move it, one table.
+- **069 E1, E2, E4 are Track B's** (the planner's side), as the record is the only thing they
+  share: Track B, unassigned (085 has no active owner).
 - **Dataset revisions** for Haruna and Tsukuba after C3 and C5: the user's to publish.

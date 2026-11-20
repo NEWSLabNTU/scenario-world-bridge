@@ -17,7 +17,9 @@ builder, Isaac, the planner and the plant; puts tilt and load in the planner's e
 makes the planner price an edge by what is past it. The Isaac geometry (banked ribbon, the
 section per station, the edge lip) is 066's stage R8, built on this phase's record.
 
-**Status**: planned, 2026-11-02. Design only; nothing built.
+**Status**: planned, 2026-11-02. Design only; nothing built. 2026-11-20 (086's re-plan): E0's
+record is Track C's (086 C3, as `road.yaml`'s per-station section); E1, E2 and E4 are Track B,
+unassigned.
 
 **Source**: user, 2026-11-01: "Does the road physics model take the slope into account? That
 is, running on a flat road and on a cliff would lead to different consequences"; 2026-11-02:
@@ -119,14 +121,14 @@ wheel's own surface, so it stays the stricter of the two.
 
 ## Stages
 
-- [ ] **E0. The record and the scoring** (swb_isaac_world course builder, autoware-drift
+- [ ] **E0. The record and the scoring** (the record: Track C, 086 C3; swb_isaac_world course builder, autoware-drift
   `track.py`, `sim.py`, `live.py`; about 1 week). `section.npz` written with bank 0, today's
   constant section, `kappa_v` from z, and the classifier from today's rail rule; `props.py`
   reads it (the same rails as today, checked); `Track` reads it with zero defaults (every
   digest unchanged: Haruna 76.28 s, Tsukuba 74.33 s); the plant's `off_road` splits into
   `runoff`, `lip`/`upset`, `ditched`, `barrier`, `crash`. Buys issue 014's scoring item:
   experiments tell a crash from a recoverable stop. Nothing in planning changes.
-- [ ] **E1. Load and tilt in the planner** (autoware-drift; 1.5-2 weeks). g~ and bank in L1,
+- [ ] **E1. Load and tilt in the planner** (Track B, unassigned; autoware-drift; 1.5-2 weeks). g~ and bank in L1,
   L2 and the plant; crown as bank in n; the g_min row. Experiments:
   - crest and sag fixture (straight road, vertical radius 50, 100, 200 m): each wheel's load
     in the plant against g~, take-off speed against sqrt(g R_v);
@@ -136,12 +138,12 @@ wheel's own surface, so it stays the stricter of the two.
     over-use the plant measures;
   - crown crossing: L2's lateral error through hairpins whose line crosses the crown;
   - L1 p95 within 0.9 s (060's budget) with the new parameters.
-- [ ] **E2. The edge's consequence in the planner** (autoware-drift; about 1.5 weeks).
+- [ ] **E2. The edge's consequence in the planner** (Track B, unassigned; autoware-drift; about 1.5 weeks).
   Per-side margins and weights by class, the style gates, the shoulder's friction per axle;
   margin calibration from E1's logs (L2's lateral error by style). Experiments: forced
   excursions per class in the plant (run-off deceleration within 0.3-0.9 g, ditch entries
   ending stuck); every 061 and 065 result on courses without hazards unchanged.
-- [ ] **E4. Deliberate use and recovery** (after E2 and 066 R8). Run-off as a planned
+- [ ] **E4. Deliberate use and recovery** (Track B, unassigned; after E2 and 066 R8). Run-off as a planned
   resource in S3; a recovery mode triggered by an off-road score summed over a few seconds
   (GameAIPro ch. 38), driving back at a speed and heading the lip allows; pace-note export
   (crest, over crest, adverse camber, don't cut, caution) for Autoware and for human checks.

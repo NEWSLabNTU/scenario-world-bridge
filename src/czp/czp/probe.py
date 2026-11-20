@@ -62,11 +62,11 @@ def probe(decision: Decision, own, ps: ProbeState, params, t, row=None, rest_s=N
                     or own.s_entry <= max(0.35, stop_margin(own.v, params))):
                 ps = ProbeState("watch", t, ps.start_s, ps.reason)
             else:
-                return replace(decision, kind=CREEP, reason="probe:creep"), ps
+                return replace(decision, kind=CREEP, reason="probe:creep", stock_equivalent=False), ps
         if ps.phase == "watch":
             if t - ps.since >= params.probe_watch - 1e-9:
                 return replace(decision, reason=decision.reason + "+probe"), ProbeState("done", t, ps.start_s, ps.reason)
-            return replace(decision, kind=CREEP, reason="probe:watch"), ps
+            return replace(decision, kind=CREEP, reason="probe:watch", stock_equivalent=False), ps
     if decision.kind != GO and ps.phase in ("creep", "watch"):
         return decision, ProbeState("abort", t, ps.start_s, decision.reason)
     if decision.kind != GO and ps.phase == "done" and own.v < params.rest_speed:
@@ -101,5 +101,5 @@ def claim(decision: Decision, response, own, params, t, t_probe, commit_point_pa
     if response == "yield" or commit_point_passed:
         return replace(decision, reason=decision.reason + "+claim")
     if response == "hold" or t - t_probe >= params.creep_timeout:
-        return replace(decision, kind=YIELD, reason="claim:hold")
-    return replace(decision, kind=CREEP, reason="claim:creep")
+        return replace(decision, kind=YIELD, reason="claim:hold", stock_equivalent=False)
+    return replace(decision, kind=CREEP, reason="claim:creep", stock_equivalent=False)

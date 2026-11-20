@@ -4,7 +4,9 @@
 creep about 0.5 m, then hold and watch for 1.5 s so that the other car's start is seen first. When the
 car rests about half a metre from the zone, the creep carries it into the zone. The watch never holds
 the car, and the go lands at the moment a 5 s-patience car restarts. **Status**: open. Part 1 (the probe's
-stop margin) is fixed on p2g-launch; part 2 (the tie's timing) is being screened. **Found**: 2026-11-20, swb 133's P2g rerun (NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g
+stop margin) is fixed on p2g-launch; part 2 (the tie's timing) was screened and dropped. Part 3, found in
+the 069 grid, is the actual cause of every overrun: the watch's stop was never sent, and the creep was
+never capped (issue 074). Both are fixed on p2g-launch. **Found**: 2026-11-20, swb 133's P2g rerun (NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g
 rerun left t1.5p5 (133)`), analysed by 241.
 
 ## What happens
@@ -143,3 +145,44 @@ two patience-5 rules (tinfp5 / t1.5p5), of 360 runs each:
 - **Part 1 alone** passes every check, but in the screens it has 4-5 more contacts in 720 than
   before. The models do not reproduce the overrun itself. Its earlier stop request starts the
   watch, and so the go, a little earlier.
+
+## The 069 grid: the watch was never sent (241, 2026-11-20)
+
+133's grid at `d9861bd` (left t1.5p5, seeds 12-15) did not meet the landing criterion. czp had 1 contact
+and stock 0 (dt1); the contract counts were 0 and 0, but there was 1 probe overrun, and that overrun was
+the contact (`on_dt1_t1.5p5_s13`). The truth, from `coop_a.jsonl`:
+
+- B rested 0.709 m from Z. Its creep's ACTIVATE came at 1969.4, and it started 0.7 s later.
+- It accelerated at up to 0.9 m/s^2, because the 1.0 m/s cap never reached Autoware (issue 074).
+- The watch began at 1971.1, at 0.595 m/s and 0.441 m from Z, against a margin of 0.695 m. By the
+  truth, the margin was crossed at about 1971.0, so the switch came about 0.1 s late. That fits the
+  localization lag of 0.31 s.
+- B never braked. It entered Z at 1.095 m/s (tr 14.0) and came to rest 1.47 m inside.
+
+So the margin did not fail: the watch's stop was never carried out. 133 dumped the intersection
+module's cooperate status from the three overrun runs' bags (NAS `home/2026-11-20 069 cooperate_status
+dumps (133)/`): P2g's `on_dt0.3_t1.5p5_s7`, the 066 rerun's `on_dt0.3_t1.5p5_s8`, and this s13.
+
+- In all three, the state is RUNNING throughout.
+- The command goes to ACTIVATE at the creep and never returns to DEACTIVATE.
+
+Autoware's rtc_interface (0.48.0, `rtc_interface.cpp`) sets `command_status` on any command for a status
+that is WAITING_FOR_EXECUTION or RUNNING. So a DEACTIVATE that had arrived would have shown. czp never
+sent it.
+
+**Cause.** `probe()` turns the underlying go into the watch by `replace(decision, kind=CREEP,
+reason="probe:watch")`. That keeps the go's `stock_equivalent`. In the three overruns the car was
+already moving, which made the underlying go a `clear`, and so stock-equivalent: the records show the
+agent's reason `rest_tie` at the creep and `clear` at the watch. `Strategy.cycle` skips a
+stock-equivalent decision. With nothing chosen, the mode hysteresis kept the module manual and followed
+its own `safe` (true), so ACTIVATE stood. Every watch that did land, at rest, stood on a `rest_tie` go,
+which is not stock-equivalent. The same inheritance affects the claim probe's `claim:creep` and its
+`claim:hold` yield.
+
+**Fix** (p2g-launch). The probe's and the claim's CREEP and YIELD carry `stock_equivalent=False`.
+`test_steps.py::test_probe_watch_is_never_stock_equivalent` checks this, and
+`test_strategy.py::test_watch_from_a_clear_go_deactivates` checks that the strategy sends the
+DEACTIVATE.
+
+Part 1's margin was read as the cause of P2g's and the 066 rerun's overruns. They were this bug. The
+margin is kept, and refitted with the cap in force (issue 074).

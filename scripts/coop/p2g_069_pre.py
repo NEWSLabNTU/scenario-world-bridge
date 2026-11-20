@@ -34,7 +34,7 @@ def probe(decision, own, ps, params, t, row=None, rest_s=None):
     later = _state["later"]
     if (WATCH_FROM_REST and later is not None and d.kind == GO and d.reason.endswith("+probe")
             and ps.phase == "watch" and t < later + WATCH_FROM_REST - 1e-9):
-        return replace(decision, kind=CREEP, reason="probe:watch"), ps
+        return replace(decision, kind=CREEP, reason="probe:watch", stock_equivalent=False), ps
     return d, ns
 
 

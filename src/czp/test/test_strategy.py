@@ -179,3 +179,48 @@ def test_held_module_seen_in_auto_gets_the_command_again():
     assert not acts.rtc  # held and manual: nothing new
     acts = st.cycle(0.2, (x, y, h, 6.0, 0.0), obj, None, [Status("intersection", "ab" * 16, auto_mode=True)], 0.1)
     assert ("intersection", "ab" * 16, False) in acts.rtc
+
+
+def test_watch_from_a_clear_go_deactivates():
+    """Issue 069 part 3: the probe's watch, standing on a go that reads clear (stock-equivalent) once the car moves,
+    is still czp's decision: the strategy sends DEACTIVATE (the 069 grid's s13 kept ACTIVATE and overran)."""
+    from czp.model import CREEP, Decision
+    zones, z = setup()
+    st = Strategy(zones)
+    a0, a1 = z.approaches
+    stat = [Status("intersection", "ab" * 16)]
+    x, y, h = pose_on(a0, 1.0)
+    ox, oy, oh = pose_on(a1, 1.2)
+    obj = [Obj("o1", 1, ox, oy, oh, 0.0, 0.0)]
+    from czp.model import STOCK
+    now = {"d": Decision(CREEP, z.id, "probe:creep", stock_equivalent=False)}
+    st.proto.step = lambda t, own, confl, zone, *a, **k: (now["d"] if zone.id == z.id else
+                                                          Decision(STOCK, zone.id, "no conflict"), None)
+    acts = st.cycle(0.0, (x, y, h, 0.0, 0.0), obj, None, stat, 0.1)
+    assert ("intersection", "ab" * 16, True) in acts.rtc and acts.velocity_limit == st.p.creep_speed
+    now["d"] = Decision(CREEP, z.id, "probe:watch", stock_equivalent=False)
+    acts = st.cycle(0.1, (x, y, h, 0.6, 0.5), obj, None, stat, 0.1)
+    assert ("intersection", "ab" * 16, False) in acts.rtc and acts.velocity_limit == "clear"
+
+
+def test_velocity_limit_types_are_autoware_s():
+    """Issue 074: czp's velocity limit and its clear are published in Autoware 1.5.0's types
+    (autoware_internal_planning_msgs), which its external_velocity_limit_selector subscribes to; the
+    tier4_planning_msgs ones of the same name reach no node."""
+    import ast
+    pkg = os.path.join(os.path.dirname(__file__), "..", "czp")
+    for name, wanted in (("node.py", {"VelocityLimit", "VelocityLimitClearCommand"}),
+                         ("watchdog.py", {"VelocityLimitClearCommand"})):
+        found = {}
+        for n in ast.walk(ast.parse(open(os.path.join(pkg, name)).read())):
+            if isinstance(n, ast.ImportFrom):
+                for a in n.names:
+                    if a.name in wanted:
+                        found[a.name] = n.module
+        assert found == {k: "autoware_internal_planning_msgs.msg" for k in wanted}, (name, found)
+    hdr = ("/opt/autoware/1.5.0/include/autoware/external_velocity_limit_selector/"
+           "external_velocity_limit_selector_node.hpp")
+    if os.path.exists(hdr):
+        text = open(hdr).read()
+        assert "using autoware_internal_planning_msgs::msg::VelocityLimit;" in text
+        assert "using autoware_internal_planning_msgs::msg::VelocityLimitClearCommand;" in text

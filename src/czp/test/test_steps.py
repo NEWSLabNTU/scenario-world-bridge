@@ -380,6 +380,21 @@ def test_probe_stops_before_the_zone():
     assert d.reason == "inside"
 
 
+def test_probe_watch_is_never_stock_equivalent():
+    """Issue 069 part 3: once the car moves, the go under the probe reads clear, which is stock-equivalent. The
+    probe's creep and watch, and the claim's creep and hold, are czp's own and must not inherit that, or the
+    strategy skips them and the module's own ACTIVATE stands."""
+    from czp.probe import claim
+    row = CONV["all_way_stop"]
+    clear = Decision(GO, "j", "clear", stock_equivalent=True)
+    d, ps = probe(clear, car("A", s_entry=1.5, v=0.0), ProbeState("creep", 10.0, 1.5, "rest_tie"), P, 10.5, row)
+    assert d.kind == CREEP and d.reason == "probe:creep" and not d.stock_equivalent
+    d, ps = probe(clear, car("A", s_entry=0.44, v=0.6), ps, P, 11.1, row)
+    assert d.kind == CREEP and d.reason == "probe:watch" and not d.stock_equivalent
+    assert not claim(clear, "unknown", car("A"), P, 1.0, 0.0, False).stock_equivalent
+    assert not claim(clear, "hold", car("A"), P, 1.0, 0.0, False).stock_equivalent
+
+
 def test_probe_is_not_bypassed_by_another_go():
     """078 P2g: a go for another reason (the rest guard's clear) during the creep or the watch stays in the probe;
     only a car already inside goes at once."""

@@ -32,7 +32,7 @@ HEARTBEAT = "/interaction_strategy/heartbeat"
 class Watchdog(Node):
     def __init__(self):
         super().__init__("interaction_strategy_watchdog")
-        from tier4_planning_msgs.msg import VelocityLimitClearCommand
+        from autoware_internal_planning_msgs.msg import VelocityLimitClearCommand
         from tier4_rtc_msgs.srv import AutoMode
         self.AutoMode, self.VelocityLimitClearCommand = AutoMode, VelocityLimitClearCommand
         self.declare_parameter("modules", ["intersection"])

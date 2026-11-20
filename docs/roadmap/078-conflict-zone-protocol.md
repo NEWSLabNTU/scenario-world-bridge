@@ -675,3 +675,16 @@ and G2.
   crossing against an impatient car, so the crossing probes every go from a mutual rest
   (`probe_watch` 1.5 s), on branch `p2g-launch`. Ruled (manager): the probe as the commit check,
   as branch defaults; the arena's G0 and P2f's grid on the branch run next on 133.
+- 2026-11-20: the 069 grid (seeds 12-15) failed G0 by one probe overrun. Two bugs found, both
+  fixed on `p2g-launch`:
+  - the probe's watch inherited a clear go's stock equivalence once the car moved, so its
+    DEACTIVATE was never sent (issue 069, part 3);
+  - czp's velocity limits were published in a type Autoware 1.5.0 does not subscribe to
+    (issue 074).
+  Next: the creep rows rescreened and the stop margin refitted with the cap in force, then a new
+  grid. **Caveat on every czp number on Autoware up to this date** (P2 to P2g, the 066 rerun, the
+  069 grid, and 139's 074 U3 stage 1): czp's velocity limits never reached Autoware. Each creep was
+  an uncapped ACTIVATE, and the no-module stop limit did nothing. Moreover, any probe watch issued
+  while moving was not sent. The overruns those runs counted (one each in P2g, the 066 rerun and the
+  069 grid) are this pair of bugs, not the stop margin. Results that do not involve a creep or a
+  limit (contract counts, stock's arm, EV4) are not affected.

@@ -58,7 +58,7 @@ class InteractionStrategy(Node):
         from autoware_perception_msgs.msg import PredictedObjects
         from autoware_planning_msgs.msg import Trajectory
         from nav_msgs.msg import Odometry
-        from tier4_planning_msgs.msg import VelocityLimit, VelocityLimitClearCommand
+        from autoware_internal_planning_msgs.msg import VelocityLimit, VelocityLimitClearCommand
         from tier4_rtc_msgs.msg import CooperateStatusArray
         from tier4_rtc_msgs.srv import AutoMode, CooperateCommands
         self.VelocityLimit, self.VelocityLimitClearCommand = VelocityLimit, VelocityLimitClearCommand

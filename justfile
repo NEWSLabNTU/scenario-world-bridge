@@ -272,8 +272,8 @@ test:
     (cd src/scensim_world_protocol && SCENSIM_GAP_TRACE_READER_DIR="$OLDPWD/src/scensim_launch/scripts" \
         cargo nextest run --no-tests pass --no-fail-fast)
     # The CARLA world server's crate, in its workspace; its wet-road test compares with Isaac's
-    # surface classes
-    (cd src/scensim_carla_world && SCENSIM_ISAAC_SURFACE_CLASSES="$OLDPWD/src/scensim_isaac_world/config/surface_classes.yaml" \
+    # surface classes (one table since 086 C2: scensim_world_server's)
+    (cd src/scensim_carla_world && SCENSIM_ISAAC_SURFACE_CLASSES="$OLDPWD/src/scensim_world_protocol/scensim_world_server/scensim_world_server/surface_classes.yaml" \
         cargo nextest run --no-tests pass --no-fail-fast)
     # Every component's deps/ pins are this workspace's pins (roadmap 051)
     python3 scripts/check_pins.py

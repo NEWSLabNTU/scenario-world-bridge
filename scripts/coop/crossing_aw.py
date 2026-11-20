@@ -15,6 +15,12 @@ stopped. The bag is read by crossing_aw_bag.py (RTC, the node, planning factors,
   scripts/coop/crossing_aw.py --out <dir> [--arms on,off] [--dts -1,-0.3,0,0.3,1] [--seeds 0,1]
                               [--rules t1.5p5] [--side left] [--only arm:dt:rule:seed,...]
   scripts/coop/crossing_aw.py --out <dir> --rescore
+
+Host load (issue 075's grid): --start-gate CMD runs CMD (a shell command) once the ego is ready and before A, the
+bag and the scenario start; it should return when the host is quiet enough, and its last stdout line (JSON) is kept
+as the run's "gate". --load-log FILE (lines "<epoch s> <1-min load> <PSI cpu some avg10>", written by the caller
+every few seconds) gives each run its in-run load (from the scenario's start to its end); a run whose 1-min load
+exceeded --load-max is invalid ("invalid_load": 1) and rerun as an invalid run is (--redo-invalid).
 """
 
 import argparse
@@ -227,6 +233,40 @@ BAG_TOPICS = ("^/localization/kinematic_state$|^/control/command/control_cmd$|^/
               "|^/autoware/state$|^/api/operation_mode/state$")
 
 
+def run_gate(cmd, rd):
+    """--start-gate: (rc, its last stdout line as JSON or text, seconds waited)."""
+    t = time.monotonic()
+    r = subprocess.run(cmd, shell=True, cwd=ROOT, stdout=subprocess.PIPE, stderr=open(rd / "gate.log", "w"), text=True)
+    lines = [x for x in r.stdout.splitlines() if x.strip()]
+    (rd / "gate.out").write_text(r.stdout)
+    try:
+        last = json.loads(lines[-1]) if lines else None
+    except ValueError:
+        last = lines[-1]
+    return {"rc": r.returncode, "out": last, "waited_s": round(time.monotonic() - t, 1)}
+
+
+def in_run_load(path, t0, t1):
+    """--load-log: the samples between t0 and t1 (epoch s): max and mean 1-min load, max PSI cpu some avg10."""
+    xs = []
+    try:
+        for line in open(path):
+            f = line.split()
+            if len(f) >= 3:
+                try:
+                    t, ld, psi = float(f[0]), float(f[1]), float(f[2])
+                except ValueError:
+                    continue
+                if t0 <= t <= t1:
+                    xs.append((ld, psi))
+    except OSError:
+        return {}
+    if not xs:
+        return {"load_samples": 0}
+    return {"load_samples": len(xs), "load_max": max(x[0] for x in xs),
+            "load_mean": round(sum(x[0] for x in xs) / len(xs), 1), "psi_max": max(x[1] for x in xs)}
+
+
 def run_one(out, arm, dt, rule, seed, side, a):
     tag = tag_of(arm, dt, rule, seed, side)
     rd = Path(out) / tag
@@ -261,6 +301,7 @@ def run_one(out, arm, dt, rule, seed, side, a):
         killpg(ego)
         return {**base, "error": "ego not ready", "t_ready": t_ready}
     time.sleep(5)
+    gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
            "a_ref": list(site["a_ref"]), "b_ref": list(site["b_ref"]), "log": str(rd / "coop_a.jsonl"),
            "carla_port": a.carla_port}
@@ -272,16 +313,24 @@ def run_one(out, arm, dt, rule, seed, side, a):
                            stdout=open(rd / "bag.log", "w"), stderr=subprocess.STDOUT, start_new_session=True)
     PROCS[:] = [ego, agent, bag]
     time.sleep(3)
-    tw = time.monotonic()
+    tw, tw_epoch = time.monotonic(), time.time()
     r = subprocess.run(["just", "scenario-direct", str(xosc), f"output_directory:={rd}"], cwd=ROOT,
                        stdout=open(rd / "scenario.log", "w"), stderr=subprocess.STDOUT, start_new_session=True)
     wall = round(time.monotonic() - tw, 1)
+    load = in_run_load(a.load_log, tw_epoch, time.time()) if a.load_log else {}
     killpg(agent)
     killpg(bag, signal.SIGINT)
     killpg(ego, signal.SIGTERM, wait=60)
     PROCS[:] = []
     time.sleep(10)
-    return finish(rd, {**base, "scenario_rc": r.returncode, "wall_s": wall, "t_ready": t_ready})
+    res = finish(rd, {**base, "scenario_rc": r.returncode, "wall_s": wall, "t_ready": t_ready})
+    if gate is not None:
+        res["gate"] = gate
+    if load:
+        res.update(load)
+        if load.get("load_max") is not None and load["load_max"] > a.load_max:
+            res["valid"], res["invalid_load"] = 0, 1
+    return res
 
 
 def finish(rd, res):
@@ -310,14 +359,21 @@ def main():
     ap.add_argument("--only", help="arm:dt:rule:seed[:side],... instead of the grid")
     ap.add_argument("--redo-invalid", type=int, default=1)
     ap.add_argument("--rescore", action="store_true")
+    ap.add_argument("--start-gate", default="", help="a shell command run after the ego is ready, before the scenario")
+    ap.add_argument("--load-log", default="", help="the host's load samples: <epoch s> <1-min load> <PSI cpu avg10>")
+    ap.add_argument("--load-max", type=float, default=64.0, help="a run whose in-run 1-min load exceeds this is invalid")
     a = ap.parse_args()
     signal.signal(signal.SIGTERM, _stop)
     os.makedirs(a.out, exist_ok=True)
     path = Path(a.out) / "runs.jsonl"
     if a.rescore:
         rows = [json.loads(line) for line in open(path) if line.strip()]
-        keep = ("arm", "dt", "rule", "seed", "side", "tag", "scenario_rc", "wall_s", "t_ready", "attempt")
+        keep = ("arm", "dt", "rule", "seed", "side", "tag", "scenario_rc", "wall_s", "t_ready", "attempt", "gate",
+                "load_samples", "load_max", "load_mean", "psi_max", "invalid_load")
         rows = [finish(Path(a.out) / r["tag"], {k: r[k] for k in keep if k in r}) for r in rows]
+        for r in rows:
+            if r.get("invalid_load"):
+                r["valid"] = 0
         path.write_text("".join(json.dumps(r) + "\n" for r in rows))
         return 0
     if a.only:

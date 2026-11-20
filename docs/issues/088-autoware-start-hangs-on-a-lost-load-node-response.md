@@ -84,7 +84,7 @@ names each container with more loads taken than answered, in two cases:
 - or a load stays unanswered for `LOAD_STALL` (600 s), timed from the container's last load, while
   the container's process is idle. A constructor still building answers only when it ends, and a
   CenterPoint TensorRT build took 3-11 minutes on a loaded host before 10.8's cache (065 measured
-  up to 240 s). Such a build burns a core, so the container's CPU time over 0.5 s (from `/proc`, its
+  up to 240 s). Such a build burns a core, so the container's CPU time over 2 s (from `/proc`, its
   pid from the launch's `process started with pid` line) tells a busy container from a blocked one.
 
 Which load is unanswered is not known. A container's lines reach the console late, after the

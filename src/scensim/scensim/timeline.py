@@ -160,8 +160,9 @@ _LOST_REPLY = re.compile(r"^\[[^\]]+\]\s+\[WARN\]\s+\[(\d+(?:\.\d+)?)\]\s+\[[^\]
 LOST_GRACE = 30.0   # s after a lost reply: the launch will not get it; a little slack for ordering
 PL_LOST_GRACE = 120.0  # s under play_launch: beyond its own retry (60 s), which may still recover
 _PID = re.compile(r"^\[INFO\] \[([^\]]+)\]: process started with pid \[(\d+)\]")
-BUSY_CPU = 0.1      # s of CPU in BUSY_SAMPLE s: a container still constructing (a TensorRT build, 3-11
-BUSY_SAMPLE = 0.5   # minutes on a loaded host before 10.8's cache) is busy; a blocked one is idle (243)
+BUSY_CPU = 0.2      # s of CPU in BUSY_SAMPLE s: a container still constructing (a TensorRT build, 3-11
+BUSY_SAMPLE = 2.0   # minutes on a loaded host before 10.8's cache) is busy; a blocked one is idle (243;
+                    # 2 s, not one quiet half-second of a build that waits on the GPU)
 LOAD_STALL = 600.0  # s a load may stay unanswered without a lost reply logged (065: a TensorRT build
                     # takes up to 240 s inside a constructor, a first CenterPoint start 189 s)
 

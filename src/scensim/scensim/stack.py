@@ -927,6 +927,19 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         doc["component"] = componentmod.ego_entry(rec)
         isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
         sim_side["ego"] = isaac_ego["path"]
+    with_interface = [b for b in bound if componentmod.interface_of(b.spec) is not None]
+    if with_interface:
+        # the pilot's vehicle interface (roadmap 091 W18): the Isaac ego's ROS face for its stack
+        b = with_interface[0]
+        if server or sim != "isaac":
+            raise StackRefused(f"pilots.{b.key}.vehicle_interface: runs in the stock Isaac world server only")
+        if not b.sided() or len(with_interface) > 1:
+            raise StackRefused(f"pilots.{b.key}.vehicle_interface: one pilot with the vehicle side (the ego) "
+                               "may name a vehicle interface")
+        doc = _ego_doc(isaac_ego, sim_side.get("ego"))
+        doc["vehicle_interface"] = componentmod.interface_of(b.spec)
+        isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
+        sim_side["ego"] = isaac_ego["path"]
     wheel_query = (isaac or {}).get("wheel_query")
     if wheel_query and not server and sim == "isaac":
         # the ego's PhysX wheel query (issue 077): the sweep climbs a sharp curb the raycast
@@ -1021,6 +1034,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                        "spec": b.spec,
                        "overlays": overlaysmod.resolved(project, b.spec, host),
                        "component": componentmod.resolved(project, b.spec, host),
+                       "vehicle_interface": componentmod.profile_of(b.spec),
                        "ready_at": None})
     numbers = s.numbers()
     record = {

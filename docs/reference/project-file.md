@@ -78,6 +78,7 @@ match one.
 | `inputs` | all | what the pilot uses, recorded in results: `sensors`, `map`, `ground_truth` |
 | `rviz` | all | `true`: open RViz for this pilot |
 | `component` | the ego, on Isaac | the car's own control component in place of its onboard computers: `{entry_point, params, truth, workspace}` ([Your car's control component](#your-cars-control-component)) |
+| `vehicle_interface` | the ego, on Isaac | the topics its stack speaks to the car: `autoware` (default), `ackermann` or `vesc`, or a mapping with `profile` ([The vehicle interface](#the-vehicle-interface)) |
 | `autoware_launch` | `autoware` | another `autoware.launch.xml` for the profile to include |
 | `overlays` | `autoware`, `launch` | ROS workspaces of your own the pilot sources, in order, after this workspace's installs and before the TensorRT runtime: a list of `setup.bash` files, each relative to the testbench or `{workspace:<name>}/<path>` under a directory the host settings name (`workspaces:`, [Host settings](host-settings.md)) |
 | `launch` | `launch` | the driver: `"<package> <file>"` or a path |
@@ -132,6 +133,50 @@ the workspace's Python package directories, never the rest of its environment.
 
 Each run's `provenance.components` records the entry point, `params`, `truth`, and the package
 found: its name, version, module file and that file's sha256.
+
+### The vehicle interface
+
+The ego's vehicle interface is the set of topics its stack uses to drive the car and read it
+back. Autoware's is the default. A stack written for `ackermann_msgs`, such as
+f1tenth_system's, picks one of the other two:
+
+| `vehicle_interface` | the car takes | the car publishes |
+|---|---|---|
+| `autoware` | Autoware's `/control/command/*` | Autoware's `/vehicle/status/*` |
+| `ackermann` | `/drive` (`ackermann_msgs/AckermannDriveStamped`) | `/odom`, and tf `odom` to `base_link`, from the driven wheels and the steering angle |
+| `vesc` | the VESC driver's `commands/motor/{speed,duty_cycle,current,brake,position}` and `commands/servo/position` | `sensors/core` (from your component's telemetry) and `sensors/servo_position_command` (the servo command, clipped) |
+
+`vesc` behaves as f1tenth's `vesc_driver_node`, so your stack's own `ackermann_to_vesc` and
+`vesc_to_odom` run unchanged: each command is clipped to the driver's limits, the last message
+on any motor topic wins, and the clipped servo command is echoed at once.
+
+```yaml
+pilots:
+  ego:
+    kind: launch
+    launch: launch/racer.launch.py
+    vehicle: my_racer
+    vehicle_interface:
+      profile: vesc
+      limits: {speed: [-23250, 23250], servo: [0.15, 0.85]}
+    component:
+      entry_point: my_racer.vesc_servo
+      workspace: "{workspace:racer}/install/setup.bash"
+```
+
+| Key | |
+|---|---|
+| `profile` | `autoware`, `ackermann` or `vesc` |
+| `limits` | `vesc` only: the driver's `<name>: [min, max]` for `duty_cycle`, `current`, `brake`, `speed`, `position` and `servo`, as your `vesc.yaml` sets `<name>_min` and `<name>_max`; the ones left out are f1tenth_system's |
+| `namespace` | a prefix for the `vesc` driver's topics, which are relative names |
+| `remap` | `{topic: topic}`, to rename any of the topics |
+| `wheelbase`, `frames`, `publish_tf` | `ackermann` only: the odometry's wheelbase (default the car's), its frames (`{odom: odom, base: base_link}`), and whether it publishes the tf |
+
+Anything but `autoware` needs a pilot running your own stack (`launch` or `command`, not
+`autoware`) and a component of yours that takes the same commands; `testbench check` refuses
+it otherwise, naming both. The `vesc` profile needs your workspace's `vesc_msgs` built for
+Isaac's Python, once per host: autoware_isaac_bridge's `src/aib/scripts/build_msgs.sh vesc_msgs`,
+with `AUTOWARE_PREFIX` set to your workspace's `install/vesc_msgs`. Each run's `provenance.vehicle_interfaces` records the profile each ego used.
 
 `overlays` is how a driver uses packages built in a workspace of its own, as
 autoware-drift's `drift.launch.xml` includes its `drift_controller`:

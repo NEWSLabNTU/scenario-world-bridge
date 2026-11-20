@@ -1298,6 +1298,10 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         # each pilot's control component: entry point, params, truth settings, and the package found
         # (dist, version, module file and sha256) -- the twin release's component (roadmap 091 W3, J2)
         prov["components"] = components
+    interfaces = {p["entity"]: p["vehicle_interface"] for p in pilots
+                  if p.get("vehicle_interface") not in (None, "autoware")}
+    if interfaces:
+        prov["vehicle_interfaces"] = interfaces   # the profile each ego's stack drove (roadmap 091 W18)
     world_server = worldmod.carla_world_settings(rec)
     if world_server:
         prov["world_server"] = world_server

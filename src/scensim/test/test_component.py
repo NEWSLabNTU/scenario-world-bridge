@@ -125,3 +125,62 @@ def test_the_stack_hands_the_world_server_its_component(where, maps_hub, tmp_pat
         (d / "testbench.yaml").write_text(yaml.safe_dump(doc, sort_keys=False))
         stack.plan(project_arg=str(d), map_name="Town01")
     assert config.PROJECT_FILE == "testbench.yaml"
+
+
+def test_the_vehicle_interface_key():
+    """091 W18: a pilot names its stack's vehicle interface; anything but Autoware's needs a component of
+    its own, a stack of the user's, and Isaac."""
+    vesc = {**PILOT, "vehicle_interface": "vesc"}
+    assert comp.interface_of(vesc) == {"profile": "vesc"} and comp.profile_of(vesc) == "vesc"
+    assert comp.profile_of(PILOT) == "autoware" and comp.interface_of(PILOT) is None
+    assert comp.schema_problems("ego", vesc, "isaac") == []
+    full = {**PILOT, "vehicle_interface": {"profile": "vesc", "limits": {"speed": [-1, 1]}, "namespace": "a"}}
+    assert comp.schema_problems("ego", full, "isaac") == []
+
+    def msgs(pilot, sim="isaac"):
+        return [f.what for f in comp.schema_problems("ego", pilot, sim)]
+
+    assert any("profile 'roboracer' is not one of" in m for m in msgs({**PILOT, "vehicle_interface": "roboracer"}))
+    assert any("unknown key topic" in m for m in msgs({**PILOT, "vehicle_interface": {"profile": "vesc",
+                                                                                      "topic": "/x"}}))
+    assert any("for the vesc profile only" in m for m in msgs(
+        {**PILOT, "vehicle_interface": {"profile": "ackermann", "limits": {"speed": [0, 1]}}}))
+    assert any("runs on Isaac only" in m for m in msgs(vesc, "carla"))
+    assert any("an autoware pilot speaks Autoware's" in m
+               for m in msgs({"kind": "autoware", "vehicle_interface": "ackermann", "component": PILOT["component"]}))
+    no_component = {k: v for k, v in vesc.items() if k != "component"}
+    assert any("onboard computers take Autoware's commands" in m for m in msgs(no_component))
+    assert comp.schema_problems("ego", {**PILOT, "vehicle_interface": "autoware"}, "isaac") == []
+
+
+def test_the_stack_hands_the_world_server_its_interface(where, maps_hub, tmp_path):  # noqa: F811
+    base = tmp_path / "aib" / "ego.yaml"
+    base.parent.mkdir()
+    base.write_text("rig: tesla_model3.rig.yaml\ndomain: 1\nnode_name: isaac_vehicle\n")
+    ws = tmp_path / "racer"
+    workspace(ws)
+    hy = where["tmp"] / "user" / "host.yaml"
+    h = yaml.safe_load(hy.read_text())
+    h["workspaces"] = {"racer": str(ws)}
+    hy.write_text(yaml.safe_dump(h))
+    d = make(where, template="isaac")
+    doc = yaml.safe_load((d / "testbench.yaml").read_text())
+    doc["pilots"]["ego"]["component"] = {"entry_point": "my_racer.sample", "workspace":
+                                         "{workspace:racer}/install/setup.bash"}
+    ego_pilot = doc["pilots"]["ego"]
+    doc["pilots"]["ego"] = {"kind": "launch", "launch": str(tmp_path / "racer.launch.py"),
+                            "vehicle": ego_pilot["vehicle"], "component": ego_pilot["component"],
+                            "vehicle_interface": {"profile": "vesc", "limits": {"speed": [-9000, 9000]}}}
+    (tmp_path / "racer.launch.py").write_text("# the user's stack\n")
+    (d / "testbench.yaml").write_text(yaml.safe_dump(doc, sort_keys=False))
+    real = stack.aib_ego_config
+    stack.aib_ego_config = lambda: base
+    try:
+        p = stack.plan(project_arg=str(d))
+    finally:
+        stack.aib_ego_config = real
+    cfg = p.record["isaac_ego"]["config"]
+    assert cfg["vehicle_interface"] == {"profile": "vesc", "limits": {"speed": [-9000, 9000]}}
+    assert cfg["component"]["entry_point"] == "my_racer.sample"
+    [ego] = p.record["pilots"]
+    assert ego["vehicle_interface"] == "vesc"

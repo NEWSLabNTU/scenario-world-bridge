@@ -41,7 +41,8 @@ SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
 LATER_KINDS = ("container",)
 CARLA_ONLY = ("carla_basic",)
-COMMON_PILOT_KEYS = ("kind", "vehicle", "args", "lifetime", "ready", "inputs", "rviz", "component")
+COMMON_PILOT_KEYS = ("kind", "vehicle", "args", "lifetime", "ready", "inputs", "rviz", "component",
+                     "vehicle_interface")
 KIND_KEYS = {
     "autoware": ("autoware_launch", "autoware_profile", "overlays"),
     "launch": ("launch", "agent", "overlays"),

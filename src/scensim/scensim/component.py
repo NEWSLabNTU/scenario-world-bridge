@@ -17,6 +17,19 @@ hands it only the workspace's Python package directories (``paths``), never the 
 the stack writes them, with the rest, into the ego config's ``component`` (aib's Rig.make_component puts
 them on sys.path).
 
+A pilot with the vehicle side may also name the vehicle interface its stack speaks (roadmap 091 W18), and
+the component must take that interface's commands:
+
+    pilots:
+      ego:
+        kind: launch
+        vehicle_interface: vesc                # autoware (the default) | ackermann | vesc
+        # or {profile: vesc, limits: {speed: [-23250, 23250]}, namespace: car1, remap: {...}}
+
+``ackermann`` takes ``/drive``; ``vesc`` is the VESC driver's topics (aib.interfaces). The mapping's keys
+are aib's ``vehicle_interface``; aib checks them when the world server, or ``testbench check``, loads the
+ego config.
+
 Pure but for reading files: the entry point is found from the packages' metadata without importing them
 (``lookup``); importing and timing it is ``isaac_check``'s, in Isaac's interpreter.
 """
@@ -52,10 +65,72 @@ def spec_of(pilot: dict):
     return c if isinstance(c, dict) else None
 
 
-def schema_problems(name: str, pilot: dict, simulator: str) -> list:
-    """The shape of ``pilots.<name>.component`` (no host settings needed)."""
-    if (pilot or {}).get("component") is None:
+PROFILES = ("autoware", "ackermann", "vesc")
+# aib's EgoConfig.vehicle_interface keys (aib.interfaces.INTERFACE_DEFAULTS)
+INTERFACE_KEYS = ("profile", "namespace", "remap", "limits", "wheelbase", "frames", "publish_tf")
+
+
+def interface_of(pilot: dict):
+    """``pilots.<name>.vehicle_interface`` as aib's mapping (a bare profile name becomes ``{profile}``),
+    or None when the pilot names none."""
+    vi = (pilot or {}).get("vehicle_interface")
+    if vi is None:
+        return None
+    return {"profile": vi} if isinstance(vi, str) else dict(vi) if isinstance(vi, dict) else vi
+
+
+def profile_of(pilot: dict) -> str:
+    """The commands the pilot's stack gives the car: its vehicle interface's profile, else Autoware's."""
+    vi = interface_of(pilot)
+    return vi.get("profile", "autoware") if isinstance(vi, dict) else "autoware"
+
+
+def interface_problems(name: str, pilot: dict, simulator: str) -> list:
+    """The shape of ``pilots.<name>.vehicle_interface``, and what it needs of the pilot."""
+    vi = interface_of(pilot)
+    if vi is None:
         return []
+    where = f"pilots.{name}.vehicle_interface"
+    if not isinstance(vi, dict):
+        return [Finding(config.PROJECT_FILE, f"{where}: is not a profile or a mapping",
+                        f"one of {', '.join(PROFILES)}, or {{profile: vesc, limits: {{...}}}}")]
+    out = []
+    unknown = [k for k in vi if k not in INTERFACE_KEYS]
+    if unknown:
+        out.append(Finding(config.PROJECT_FILE, f"{where}: unknown key {', '.join(map(str, unknown))}",
+                           f"use only {', '.join(INTERFACE_KEYS)}"))
+    profile = vi.get("profile")
+    if profile not in PROFILES:
+        out.append(Finding(config.PROJECT_FILE, f"{where}: profile {profile!r} is not one of "
+                           f"{', '.join(PROFILES)}"))
+        return out
+    if vi.get("limits") and profile != "vesc":
+        out.append(Finding(config.PROJECT_FILE, f"{where}.limits: the VESC driver's limits, for the vesc "
+                           "profile only"))
+    if simulator and simulator != "isaac":
+        out.append(Finding(config.PROJECT_FILE, f"{where}: runs on Isaac only, the simulator is {simulator}",
+                           "drop vehicle_interface:, or simulator: isaac"))
+    if profile != "autoware":
+        if pilot.get("kind") == "autoware":
+            out.append(Finding(config.PROJECT_FILE, f"{where}: an autoware pilot speaks Autoware's vehicle "
+                               f"interface, not {profile}", "kind: launch (or command) for your own stack"))
+        c = spec_of(pilot)
+        if c is None or c.get("entry_point") in SHIPPED:
+            out.append(Finding(config.PROJECT_FILE, f"{where}: {profile}: the car's own onboard computers "
+                               "take Autoware's commands", f"name a component that takes {profile} commands "
+                               "(component: {entry_point: ...})"))
+    return out
+
+
+def schema_problems(name: str, pilot: dict, simulator: str) -> list:
+    """The shape of ``pilots.<name>.component`` and ``.vehicle_interface`` (no host settings needed)."""
+    out = interface_problems(name, pilot, simulator)
+    if (pilot or {}).get("component") is None:
+        return out
+    return out + _component_problems(name, pilot, simulator)
+
+
+def _component_problems(name: str, pilot: dict, simulator: str) -> list:
     where = f"pilots.{name}.component"
     c = pilot["component"]
     if not isinstance(c, dict):
@@ -200,10 +275,20 @@ cfg = json.loads(sys.argv[1])
 from aib.rig import EgoConfig
 from sim_vehicle_ecu import Request
 from sim_vehicle_ecu import component as components
-ego = EgoConfig.load(cfg["ego"])
+try:
+    ego = EgoConfig.load(cfg["ego"])
+except ValueError as e:
+    print(json.dumps({"config_error": str(e).split(": ", 1)[-1]}))
+    sys.exit(0)
 rig = ego.load_rig()
 c = rig.make_component()
-mean, worst = components.timing(c, Request(1.0, 5.0), None, cfg["dt"], cfg["steps"])
+from sim_vehicle_ecu.signals import AckermannCommand, VescCommand
+canned = {"autoware": Request(1.0, 5.0), "ackermann": AckermannCommand(5.0, age=0.0),
+          "vesc": VescCommand("speed", 20000.0, 0.5, 0.0)}[c.commands]
+if c.commands != cfg["profile"]:
+    print(json.dumps({"commands": c.commands, "truth": list(getattr(c, "truth", ()))}))
+    sys.exit(0)
+mean, worst = components.timing(c, canned, None, cfg["dt"], cfg["steps"])
 print(json.dumps({"commands": c.commands, "truth": list(getattr(c, "truth", ())), "mean_s": mean,
                   "worst_s": worst, "budget_s": components.budget(cfg["hz"])}))
 """
@@ -220,7 +305,9 @@ def isaac_check(isaac_python: str, aib_src: Path, ego_doc: dict, physics_hz: flo
     work.mkdir(parents=True, exist_ok=True)
     ego = work / "component_check_ego.yaml"
     ego.write_text(yaml.safe_dump(ego_doc, sort_keys=False))
-    arg = json.dumps({"ego": str(ego), "dt": 1.0 / physics_hz, "hz": physics_hz, "steps": steps})
+    profile = ((ego_doc.get("vehicle_interface") or {}).get("profile")) or "autoware"
+    arg = json.dumps({"ego": str(ego), "dt": 1.0 / physics_hz, "hz": physics_hz, "steps": steps,
+                      "profile": profile})
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PYTHONHOME")}
     env["PYTHONPATH"] = str(aib_src)
     try:
@@ -232,6 +319,8 @@ def isaac_check(isaac_python: str, aib_src: Path, ego_doc: dict, physics_hz: flo
         tail = (r.stderr or r.stdout).strip().splitlines()[-1:] or [""]
         return {"ok": False, "message": tail[0][:300]}
     out = json.loads(r.stdout.strip().splitlines()[-1])
+    if "config_error" in out:
+        return {"ok": False, "config_error": out["config_error"], "message": out["config_error"]}
     out.update(ok=True, message="")
     return out
 
@@ -251,7 +340,7 @@ _RESULTS = {}  # (project, pilot) -> isaac_check's result, for the notes after t
 def isaac_findings(project, settings: dict, host: dict) -> list:
     """Each pilot's component loaded and timed in Isaac's interpreter on the testbench's stock car (when the
     host has Isaac): refused when it does not load or takes commands its vehicle interface does not give
-    (Autoware's, today); its timing kept for ``notes``. Nothing when this host has no Isaac or no component
+    (``vehicle_interface``, Autoware's by default); its timing kept for ``notes``. Nothing when this host has no Isaac or no component
     is found (``problems`` says so)."""
     from scensim import isaac as isaacmod
     from scensim import stack as stackmod
@@ -275,18 +364,24 @@ def isaac_findings(project, settings: dict, host: dict) -> list:
             continue
         doc.pop("ground_truth", None)
         doc["component"] = ego_entry(rec)
+        if interface_of(pilot) is not None:
+            doc["vehicle_interface"] = interface_of(pilot)
         hz = float(((settings.get("isaac") or {}).get("physics_hz")) or 60.0)
         res = isaac_check(str(python), aib_src, doc, hz, Path(project) / "state")
         _RESULTS[(str(project), name)] = res
-        if not res["ok"]:
+        if res.get("config_error"):
+            out.append(Finding(config.PROJECT_FILE, f"pilots.{name}: the Isaac ego config refuses it: "
+                               f"{res['config_error']}", refused=True))
+        elif not res["ok"]:
             out.append(Finding(config.PROJECT_FILE, f"pilots.{name}.component: {c['entry_point']} does not "
                                f"load in Isaac's Python: {res['message']}", "it must be pure Python (the "
                                "standard library and numpy); a compiled model goes through the fmu component",
                                refused=True))
-        elif res["commands"] != "autoware":
+        elif res["commands"] != profile_of(pilot):
             out.append(Finding(config.PROJECT_FILE, f"pilots.{name}.component: it takes {res['commands']!r} "
-                               "commands; the vehicle interface gives Autoware's (ackermann and vesc come with "
-                               "roadmap 091 W18)", refused=True))
+                               f"commands; the pilot's vehicle interface gives {profile_of(pilot)!r} ones",
+                               f"vehicle_interface: {res['commands']}, if its stack speaks that",
+                               refused=True))
         else:
             undeclared = sorted(set(c.get("truth") or {}) - set(res["truth"]))
             if undeclared:

@@ -154,9 +154,16 @@ subtypes share one category id, so coverage aggregates them.
 
 ## 7. Open questions
 
-1. **Which data fits the base for a study?** Public highD- and inD-type data, or the lab's own
-   logs (the NTU campus twin)? Each region's behaviour differs (walking speeds and gap
-   acceptance differ by country), and private data stays out of public scensim.
+1. **Which data fits the base?** Decided (user, 2026-11-20): **public highway and intersection
+   datasets**, not the lab's own logs. Candidates: highD (highway), inD and rounD
+   (intersections, roundabouts, with pedestrians and cyclists), exiD (ramps), NGSIM, and the
+   INTERACTION dataset. Licences differ and must be checked per dataset before use. Several
+   are free for non-commercial research on request and may not be redistributed. So the
+   default is: scensim ships the **fitting scripts and the model format**, and a user fits
+   from data they obtained themselves. A fitted model is shipped only where the dataset's
+   licence allows it. Each fitted model records its dataset, version and licence in its
+   header, and the sample record names it. Regional difference stays a caveat: a model
+   fitted on German intersections describes German walkers.
 2. **Which reference driver?** R157's models are disputed against real near-crashes; a
    NIEON-like model is stricter. Possibly both, reported side by side.
 3. **Severity.** Delta-v is a proxy for injury. Is it enough for the studies, or is an injury

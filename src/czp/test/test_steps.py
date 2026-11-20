@@ -351,26 +351,33 @@ def test_probe_stops_before_the_zone():
     from czp.probe import stop_margin
     row = CONV["all_way_stop"]
     dec = Decision(GO, "j", "rest_tie")
-    # the P2g rerun's contact: at rest 0.56 m from the zone it creeps, and is asked to stop at 0.4 m/s, 0.47 m out
+    # the P2g rerun's contact: at rest 0.56 m from the zone it creeps (margin at rest 0.5 m), and is asked to stop as
+    # soon as it moves: 0.53 m out at 0.05 m/s is within the margin 0.56
     d, ps = probe(dec, car("A", s_entry=0.56, v=0.0), ProbeState(), P, 10.0, row)
     assert d.reason == "probe:creep"
-    d, ps = probe(dec, car("A", s_entry=0.52, v=0.25), ps, P, 10.9, row)
-    assert d.reason == "probe:creep"  # 0.52 > margin 0.35
-    d, ps = probe(dec, car("A", s_entry=0.47, v=0.4), ps, P, 11.1, row)
-    assert d.reason == "probe:watch"  # 0.47 <= margin 0.5
+    d, ps = probe(dec, car("A", s_entry=0.53, v=0.05), ps, P, 10.9, row)
+    assert d.reason == "probe:watch"  # 0.53 <= margin 0.56
+    # from 0.9 m: creeps at 0.2 m/s (0.85 > margin 0.74), asked to stop at 0.3 m/s 0.75 m out (margin 0.86)
+    d, ps = probe(dec, car("A", s_entry=0.9, v=0.0), ProbeState(), P, 11.0, row)
+    assert d.reason == "probe:creep"
+    d, ps = probe(dec, car("A", s_entry=0.85, v=0.2), ps, P, 11.5, row)
+    assert d.reason == "probe:creep"
+    d, ps = probe(dec, car("A", s_entry=0.75, v=0.3), ps, P, 11.8, row)
+    assert d.reason == "probe:watch"
     # within the margin at rest it watches where it is
-    d, ps = probe(dec, car("A", s_entry=0.3, v=0.0), ProbeState(), P, 12.0, row)
-    assert d.kind == CREEP and d.reason == "probe:watch" and ps.phase == "watch"
-    d, ps = probe(dec, car("A", s_entry=0.3, v=0.0), ps, P, 12.0 + P.probe_watch, row)
-    assert d.kind == GO and ps.phase == "done"
+    for s0 in (0.3, 0.45):
+        d, ps = probe(dec, car("A", s_entry=s0, v=0.0), ProbeState(), P, 12.0, row)
+        assert d.kind == CREEP and d.reason == "probe:watch" and ps.phase == "watch"
+        d, ps = probe(dec, car("A", s_entry=s0, v=0.0), ps, P, 12.0 + P.probe_watch, row)
+        assert d.kind == GO and ps.phase == "done"
     # from 1.5 m it creeps, and is asked to stop once the margin at its speed reaches the zone
     d, ps = probe(dec, car("A", s_entry=1.5, v=0.0), ProbeState(), P, 20.0, row)
     assert d.reason == "probe:creep"
     d, ps = probe(dec, car("A", s_entry=1.4, v=0.3), ps, P, 20.5, row)
-    assert d.reason == "probe:creep"  # 1.4 > margin 0.4
-    d, ps = probe(dec, car("A", s_entry=1.2, v=1.2), ps, P, 20.8, row)
-    assert d.reason == "probe:watch"  # moved 0.3 m only, but 1.2 <= margin 1.3
-    assert stop_margin(1.2, P) > 1.2
+    assert d.reason == "probe:creep"  # 1.4 > margin 0.86
+    d, ps = probe(dec, car("A", s_entry=1.2, v=0.6), ps, P, 20.8, row)
+    assert d.reason == "probe:watch"  # moved 0.3 m only, but 1.2 <= margin 1.22
+    assert stop_margin(0.6, P) > 1.2
     # entered the zone during the creep: committed, recorded as an overrun
     d, ps = probe(Decision(GO, "j", "inside"), car("A", s_entry=-0.1, v=1.0), ProbeState("creep", 20.0, 1.5, "rest_tie"),
                   P, 21.0, row)

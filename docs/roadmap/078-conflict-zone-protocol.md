@@ -718,3 +718,22 @@ and G2.
     U3 stage 1 (21 gaps, 0.097-1.156 s, all czp's, none perception's; 1.0 s covered 20);
   - each change of the kept partners is a `cs_hold` line of `decisions.jsonl`.
   Next: folded into the next grid on 133.
+- 2026-11-20: the stop margin refitted with the cap in force (the creep-stop set, 133). 20 creeps
+  at left t1.5p5 dt 0 were forced to stop after 0.2-0.8 m, at 0.1-1.0 m/s, with no margin:
+  - the travel after DEACTIVATE is 0.119 + 0.954 v (RMSE 0.086 m, max residual 0.22 m);
+  - czp's localisation lags the truth by 0.15 s (median; max 0.3 s);
+  - in czp's own view (travel + position lag + one 0.1 s tick, against its own speed) the need
+    is 0.24 + 1.06 v. The old margin (0.1 + 1.0 v) was fitted on stops at 0.06-0.20 m/s only;
+  - at the old cap (1.0 m/s) a creep reached 0.8-1.0 m/s before its stop.
+  So, on branch `p2g-launch-margin`: `probe_stop_margin` 0.5 m and `probe_stop_time` 1.2 s
+  (margin(v) = 0.5 + 1.2 v: 0.86 m at 0.3 m/s, 1.1 m at 0.5), and `creep_speed` 0.5 m/s (was
+  1.0). Cap check (seeds 30-34 on the same cell at cap 0.5, the creep forced to 0.85 m; 4 runs
+  probed, the fifth went first on a clear reading): Autoware tracks the cap as a creep. Motion
+  0.8-0.85 s after the creep's ACTIVATE, 0.3 m/s at 1.35 s, a plateau of 0.50-0.53 m/s (peak
+  0.513-0.525, mean 0.49-0.50 over the creep's 0.25-0.75 m), 0.5 m crept in 2.3-2.35 s (2.05 s
+  uncapped at 1.0); each was stopped by a hard verdict (`turn`) after 0.60-0.68 m, travel 0.23-0.31 m,
+  1.1-1.8 m short of the zone.
+  Data: NAS `logs/2026 SSv2 on CARLA/2026-11-20 078 creep-stop set (133)/` (`runs/fit.md`,
+  `runs/creepstop.md`, `runs/fit.json`; the probe patch that forced the creeps,
+  `czp_probe_creepstop.patch`, stays out of the product: it is the experiment's lever, not a fix).
+  Next: grid076 (grid075's cells and seeds 20-23) on the branch.

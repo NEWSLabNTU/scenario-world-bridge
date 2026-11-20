@@ -30,9 +30,10 @@ PROBED = ("round2", "cycle", "last_resort", "first_probe", "rest_tie")
 
 def stop_margin(v, params):
     """Issue 069: how far before the zone the car must be asked to stop, at speed v, to stop before it. Autoware
-    keeps accelerating for about 0.4 s after a stop request, then brakes. The envelope of the creeps stopped in
-    078 P2g's grid and its rerun (15 stops requested at 0.06-0.20 m/s, travel 0.04-0.25 m) is
-    ``probe_stop_margin + probe_stop_time * v``; above 0.2 m/s it is extrapolated."""
+    keeps accelerating for about 0.4 s after a stop request, then brakes. The margin is
+    ``probe_stop_margin + probe_stop_time * v``, fitted on 078's creep-stop set (20 forced creeps stopped at
+    0.1-1.0 m/s): the travel after the stop request, czp's localisation lag and a 0.1 s tick, against czp's own
+    speed, is 0.24 + 1.06 v; 0.5 + 1.2 v covers it."""
     return params.probe_stop_margin + params.probe_stop_time * max(v, 0.0)
 
 

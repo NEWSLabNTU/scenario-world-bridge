@@ -83,6 +83,8 @@ case $STAGE in
       echo "ref $side rc=$? $(date +%T)"
     done ;;
 esac
+# final results, and every failed attempt apart (082's signature per one; cells with no verdict)
+python3 scripts/coop/crossing_aw.py --out "$OUT" --summary > "$OUT/summary.json" || echo "summary failed" >&2
 stop_stack
 echo "ALLDONE $STAGE $(date +%T)"
 touch "$OUT/DONE"

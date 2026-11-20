@@ -1,7 +1,9 @@
-"""crossing_aw's score (074 U3): a run where A crossed and the ego (B) never entered Z is an error, not a verdict.
+"""crossing_aw's score (074 U3): a run where A crossed and the ego (B) never entered Z is "starved", a counted
+verdict like a deadlock, unless its bag shows issue 082 -- then it is the error "ego never entered", retried.
 
 On 139's stage 1 one such run was scored ok: Autoware's velocity limit went to 0 after the ego had stopped at its
-line (issue 082), A crossed alone, and neither the contact nor the deadlock check sees that.
+line (issue 082), A crossed alone, and neither the contact nor the deadlock check saw it. A strategy that holds the
+ego is its own liveness failure (243): counted, so it cannot drop out of the grid through retries.
 """
 
 import json
@@ -45,23 +47,69 @@ def write_log(rd, a_moves, b_moves):
     (rd / "coop_a.jsonl").write_text("".join(json.dumps(r) + "\n" for r in ev + rows))
 
 
-def test_ego_never_entered_is_an_error(C, tmp_path):
+def test_ego_never_entered_is_starved(C, tmp_path):
     write_log(tmp_path, a_moves=True, b_moves=False)
     r = C.score(tmp_path, 0.0)
-    assert r["error"] == "ego never entered"
+    assert r["starved"] == 1 and "error" not in r
     assert r["tB_in"] is None and r["tA_in"] is not None
     assert r["deadlock"] == 0 and r["contact"] == 0  # what the old scoring saw: an ok run
 
 
-def test_both_entered_is_no_error(C, tmp_path):
+def test_both_entered_is_neither(C, tmp_path):
     write_log(tmp_path, a_moves=True, b_moves=True)
     r = C.score(tmp_path, 0.0)
-    assert "error" not in r
+    assert "error" not in r and r["starved"] == 0
     assert r["tA_in"] is not None and r["tB_in"] is not None and r["tA_in"] < r["tB_in"]
 
 
 def test_neither_entered_stays_a_deadlock(C, tmp_path):
     write_log(tmp_path, a_moves=False, b_moves=False)
     r = C.score(tmp_path, 0.0)
-    assert "error" not in r
+    assert "error" not in r and r["starved"] == 0
     assert r["deadlock"] == 1
+
+
+@pytest.mark.parametrize("sig, error", [((1, 68.5), "ego never entered"), ((0, None), None), ((None, None), None)])
+def test_finish_082_makes_starved_an_error(C, tmp_path, monkeypatch, sig, error):
+    """082's signature in the bag: a stack fault, an error; none, or a bag that cannot be read: the verdict stays."""
+    write_log(tmp_path, a_moves=True, b_moves=False)
+    (tmp_path / "bag").mkdir()
+    monkeypatch.setattr(C, "bag_limit0", lambda bag: sig)
+    r = C.finish(tmp_path, {"dt": 0.0})
+    assert r.get("error") == error and r["starved"] == 1 and (r["sig082"], r["sig082_t"]) == sig
+
+
+def test_finish_reads_no_bag_for_a_good_run(C, tmp_path, monkeypatch):
+    write_log(tmp_path, a_moves=True, b_moves=True)
+    (tmp_path / "bag").mkdir()
+    monkeypatch.setattr(C, "bag_limit0", lambda bag: pytest.fail("read a bag for a good run"))
+    assert "sig082" not in C.finish(tmp_path, {"dt": 0.0})
+
+
+def test_limit0(C):
+    assert C.limit0([(0.0, 8.0, ""), (52.0, 0.0, "")]) == 52.0
+    assert C.limit0([(0.0, 8.0, ""), (40.0, 0.0, "interaction_strategy"), (41.0, 8.0, "")]) is None  # czp's own stop
+    assert C.limit0([(0.0, 0.0, "")]) is None  # nothing real before it
+    assert C.limit0([]) is None
+
+
+def test_summary_keeps_failed_attempts_apart(C, tmp_path):
+    rows = [
+        # 082 twice, then a good run: the final is ok, the two attempts are listed with their signature
+        {"tag": "a", "arm": "on", "attempt": 0, "starved": 1, "error": "ego never entered", "sig082": 1, "sig082_t": 52.0},
+        {"tag": "a", "arm": "on", "attempt": 1, "error": "no lock logged"},
+        {"tag": "a", "arm": "on", "attempt": 2, "contact": 0, "deadlock": 0, "starved": 0},
+        # starved without 082 under load: the quiet rerun counts, starved again
+        {"tag": "b", "arm": "on", "attempt": 0, "starved": 1, "sig082": 0, "counted": 0},
+        {"tag": "b", "arm": "on", "attempt": 0, "starved": 1, "sig082": 0, "quiet_rerun": 1},
+        # errors only: no verdict
+        {"tag": "c", "arm": "off", "attempt": 0, "error": "no setup logged"},
+        {"tag": "c", "arm": "off", "attempt": 1, "error": "no setup logged"},
+    ]
+    (tmp_path / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    s = C.summary(tmp_path / "runs.jsonl")
+    assert (s["tags"], s["final_ok"], s["starved"], s["final_errors"]) == (3, 2, 1, {"no setup logged": 1})
+    assert s["failed_attempts"] == {"ego never entered": 1, "no lock logged": 1, "no setup logged": 1}
+    assert [(x["tag"], x["attempt"], x["sig082"], x["final"]) for x in s["ego_never_entered"]] == \
+        [("a", 0, 1, "ok"), ("b", 0, 0, "starved"), ("b", 0, 0, "this row")]
+    assert s["no_verdict"] == ["c"]

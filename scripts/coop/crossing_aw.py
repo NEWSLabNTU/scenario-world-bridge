@@ -15,6 +15,7 @@ stopped. The bag is read by crossing_aw_bag.py (RTC, the node, planning factors,
   scripts/coop/crossing_aw.py --out <dir> [--arms on,off] [--dts -1,-0.3,0,0.3,1] [--seeds 0,1]
                               [--rules t1.5p5] [--side left] [--only arm:dt:rule:seed,...]
   scripts/coop/crossing_aw.py --out <dir> --rescore
+  scripts/coop/crossing_aw.py --out <dir> --summary   (final results; failed attempts apart, 082's signature per one)
 
 Host load (issue 075's grid): --start-gate CMD runs CMD (a shell command) once the ego is ready and before A, the
 bag and the scenario start; it should return when the host is quiet enough, and its last stdout line (JSON) is kept
@@ -25,7 +26,8 @@ exceeded --load-max is invalid ("invalid_load": 1) and rerun as an invalid run i
 074 U3 on Autoware (the all-way stop): --map <dir> runs the ego, the scenario's LogicFile and czp's zones
 (--zones, built from that map) on another Town05 map, the j979 stop-sign variant; A then takes one of
 four_way_game's stop-sign rules (--rules stop1y_c1.5,fcfse_c0; crossing_agent.py). Each run also scores
-both cars' rest at their stop lines (their order, tie distance) and a deadlock (neither car in Z by the end).
+both cars' rest at their stop lines (their order, tie distance), a deadlock (neither car in Z by the end) and
+starved (A crossed, the ego never entered Z; an error instead when its bag shows issue 082).
 """
 
 import argparse
@@ -202,11 +204,9 @@ def score(rd, dt):
             "both_cleared": int(out_a is not None and out_b is not None),
             "t_run": round(last["t"] - t_lock, 1) if last else None, "physics_off": ev["setup"].get("physics_off"),
             "deadlock": int(math.isinf(fa) and math.isinf(fb)), **rests(run, t_lock, ev["setup"].get("stops") or {})}
-    if math.isinf(fb) and not math.isinf(fa):
-        # A crossed and the ego never entered Z: not a deadlock (A got through), and not a verdict either -- on
-        # 139's stage 1 it was issue 082 (Autoware's velocity limit stuck at 0 after the ego stopped at its line),
-        # scored ok. An error, so the run is retried; the measures stay in the row for a look.
-        res["error"] = "ego never entered"
+    # A crossed and the ego never entered Z: not a deadlock (A got through). A verdict, counted like a deadlock
+    # (the strategy's own liveness, 243), unless the bag shows issue 082 -- then finish() makes it an error.
+    res["starved"] = int(math.isinf(fb) and not math.isinf(fa))
     return res
 
 
@@ -434,12 +434,88 @@ def wait_load(max_load, hold=60.0, poll=20.0, give_up=4 * 3600.0, min_mem=0.0, s
     return False
 
 
+def limit0(msgs):
+    """Issue 082's signature in /planning/scenario_planning/current_max_velocity, msgs [(t, max_velocity, sender)]:
+    the selector publishing its value-initialised limit (0 m/s, sender '') after a real one. The time of the first
+    such message, or None."""
+    seen = False
+    for t, v, sender in msgs:
+        if v > 0.01:
+            seen = True
+        elif seen and sender == "":
+            return t
+    return None
+
+
+def bag_limit0(bag):
+    """limit0 over a run's bag, its time relative to the bag's first message: (1, t) with 082's signature, (0, None)
+    without, (None, None) when the bag cannot be read (no ROS, no bag)."""
+    try:
+        import rosbag2_py
+        from rclpy.serialization import deserialize_message
+        from rosidl_runtime_py.utilities import get_message
+        topic = "/planning/scenario_planning/current_max_velocity"
+        r = rosbag2_py.SequentialReader()
+        r.open(rosbag2_py.StorageOptions(uri=str(bag), storage_id="mcap"), rosbag2_py.ConverterOptions("cdr", "cdr"))
+        t0 = r.get_metadata().starting_time.nanoseconds / 1e9
+        r.set_filter(rosbag2_py.StorageFilter(topics=[topic]))
+        cls = get_message("autoware_internal_planning_msgs/msg/VelocityLimit")
+        msgs = []
+        while r.has_next():
+            _, data, ts = r.read_next()
+            m = deserialize_message(data, cls)
+            msgs.append((ts / 1e9 - t0, m.max_velocity, m.sender))
+    except Exception:  # noqa: BLE001 -- unreadable: unknown, not "no 082"
+        return None, None
+    t = limit0(msgs)
+    return (0, None) if t is None else (1, round(t, 1))
+
+
 def finish(rd, res):
     try:
         res.update(score(rd, res["dt"]))
     except Exception as e:  # noqa: BLE001 -- recorded with the run
         res["error"] = repr(e)[:200]
+    if ("error" in res or res.get("starved")) and (Path(rd) / "bag").exists():
+        # 133: whether a failed or starved run was issue 082, in its row (the bag moves to bag.failed<n> when the
+        # next attempt starts). A starved ego with 082's signature is a stack fault, not a verdict: an error, retried
+        # (on 139's stage 1 one was scored ok). Without it -- or with an unreadable bag -- it stays a counted verdict,
+        # so a strategy that holds the ego cannot drop out of the grid through retries.
+        res["sig082"], res["sig082_t"] = bag_limit0(Path(rd) / "bag")
+        if res.get("starved") and res["sig082"] == 1:
+            res["error"] = "ego never entered"
     return res
+
+
+def summary(path):
+    """The stage's runs.jsonl, per tag: the final result (its last counted row) and, apart from it, every failed
+    attempt by reason; "ego never entered" attempts listed one by one with whether their bag had 082's signature
+    (sig082 0: no -- look at czp's liveness)."""
+    rows = [json.loads(line) for line in open(path) if line.strip()]
+    final, failed, never = {}, {}, []
+    for r in rows:
+        if r.get("counted", 1):
+            final[r["tag"]] = r
+    for r in rows:
+        if "error" in r and r is not final.get(r["tag"]):
+            failed[r["error"]] = failed.get(r["error"], 0) + 1
+        if r.get("starved"):
+            fin = final.get(r["tag"], {})
+            never.append({"tag": r["tag"], "arm": r.get("arm"), "attempt": r.get("attempt"), "error": r.get("error"),
+                          "sig082": r.get("sig082"), "sig082_t": r.get("sig082_t"), "counted": r.get("counted", 1),
+                          "final": "this row" if fin is r else
+                          fin.get("error") or ("starved" if fin.get("starved") else "ok")})
+    errs = {}
+    for r in final.values():
+        if "error" in r:
+            errs[r["error"]] = errs.get(r["error"], 0) + 1
+    ok = [r for r in final.values() if "error" not in r]
+    return {"tags": len(final), "final_ok": len(ok), "final_errors": errs,
+            "contacts": sum(r.get("contact") or 0 for r in ok), "deadlocks": sum(r.get("deadlock") or 0 for r in ok),
+            "starved": sum(r.get("starved") or 0 for r in ok),
+            "failed_attempts": failed, "ego_never_entered": never,
+            # 243: a cell that ran out of attempts with errors only has no verdict; listed so none drops out unseen
+            "no_verdict": sorted(t for t, r in final.items() if "error" in r)}
 
 
 def main():
@@ -466,9 +542,10 @@ def main():
     ap.add_argument("--rest-offset", type=float, default=1.4,
                     help="stop-sign rules: s added to A's pacing aim so rest_d lands on dt (074 U3 pace stage: 1.4)")
     ap.add_argument("--quiet-load", type=float, default=float(os.cpu_count() or 32),
-                    help="a contact or deadlock run whose load_max reached this is rerun once, gated below it; "
+                    help="a contact, deadlock or starved run whose load_max reached this is rerun once, gated below it; "
                          "only the rerun counts (counted 0 on the first)")
     ap.add_argument("--rescore", action="store_true")
+    ap.add_argument("--summary", action="store_true", help="print the stage's summary (final results, failed attempts) as JSON")
     ap.add_argument("--start-gate", default="", help="a shell command run after the ego is ready, before the scenario")
     ap.add_argument("--load-log", default="", help="the host's load samples: <epoch s> <1-min load> <PSI cpu avg10>")
     ap.add_argument("--load-max", type=float, default=64.0, help="a run whose in-run 1-min load exceeds this is invalid")
@@ -476,6 +553,9 @@ def main():
     signal.signal(signal.SIGTERM, _stop)
     os.makedirs(a.out, exist_ok=True)
     path = Path(a.out) / "runs.jsonl"
+    if a.summary:
+        print(json.dumps(summary(path), indent=1))
+        return 0
     if a.rescore:
         rows = [json.loads(line) for line in open(path) if line.strip()]
         keep = ("arm", "dt", "rule", "seed", "side", "tag", "scenario_rc", "wall_s", "t_ready", "attempt", "gate",
@@ -512,7 +592,7 @@ def main():
                 res["attempt"] = attempt
                 if a.max_load or a.min_mem:
                     res["load_pre_ok"] = int(pre_ok)
-                if "error" not in res and (res.get("contact") or res.get("deadlock")) and \
+                if "error" not in res and (res.get("contact") or res.get("deadlock") or res.get("starved")) and \
                         res.get("load_max", 0.0) >= a.quiet_load:
                     res["counted"] = 0  # under load: its verdict waits for the quiet rerun
                     print(json.dumps(res), flush=True)

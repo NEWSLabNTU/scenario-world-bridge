@@ -326,6 +326,11 @@ def run_one(out, arm, dt, rule, seed, side, a):
         killpg(ego)
         return {**base, "error": "ego not ready", "t_ready": t_ready}
     time.sleep(5)
+    # 074 U3 (133): the gate before the ego's start passed at < max_load, but the ego's own bring-up then took
+    # the 1-min load to 117-132 by the scenario's start; so wait again here, ego up and idle, for its burst to decay
+    t_gate = time.monotonic()
+    wait_load(a.max_load, hold=30.0, poll=5.0, give_up=600.0)
+    base["load_gate_s"] = round(time.monotonic() - t_gate, 1)
     gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
            "a_ref": list(site["a_ref"]), "b_ref": list(site["b_ref"]), "log": str(rd / "coop_a.jsonl"),

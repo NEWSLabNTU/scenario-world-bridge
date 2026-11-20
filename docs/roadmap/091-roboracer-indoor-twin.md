@@ -129,9 +129,9 @@ means not yet assigned; 133 assigns.
 
 | # | work item | for | step | owner | state |
 |---|---|---|---|---|---|
-| W1 | the component interface in `sim_vehicle_ecu`, `Ecu` behind it, `ideal` and `ev` registered, declared truth (`TruthFeed`) | V3 | 2 | 241 | on the submodules' mains; pins landing |
-| W2 | aib's `Vehicle.apply` calling the component; the Isaac exit check (a sample component from an outside workspace, byte-identical to `ideal`) | V3 | 2 | 241 | passed; pins landing |
-| W3 | the testbench side: the pilot's `component:` key, the overlay workspaces on the world server's path, `testbench check`'s import and cost checks, the truth settings, the component's provenance | V3, J2 | 2b | 241 | next |
+| W1 | the component interface in `sim_vehicle_ecu`, `Ecu` behind it, `ideal` and `ev` registered, declared truth (`TruthFeed`) | V3 | 2 | 241 | done 2026-11-20 (scensim 1b596d7: sim_vehicle_ecu 7bdcb8e, sim_vehicle_spec f96adf5, aib 7cf7905) |
+| W2 | aib's `Vehicle.apply` calling the component; the Isaac exit check (a sample component from an outside workspace, byte-identical to `ideal`) | V3 | 2 | 241 | done 2026-11-20 (scensim 1b596d7: sim_vehicle_ecu 7bdcb8e, sim_vehicle_spec f96adf5, aib 7cf7905) |
+| W3 | the testbench side: the pilot's `component:` key, the overlay workspaces on the world server's path, `testbench check`'s import and cost checks, the truth settings, the component's provenance | V3, J2 | 2b | 241 | in progress |
 | W4 | the `fmu` component: an FMI 2.0 unit wrapped as one shipped component, for compiled models; its dependency decided | V3 | 2 | open | |
 | W5 | own cars on Isaac: lift `testbench check`'s refusal; the rig made from a user's spec in the testbench | V1 | 3 | open | |
 | W6 | a small-car example spec (1/10 RoboRacer class) and its refit of the full-size settings: PhysX slip denominators, `est_slip_offset`, sticky-tyre thresholds, suspension frequency, wheel inertia | V1, V4 | 3 | open | |

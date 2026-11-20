@@ -143,6 +143,7 @@ Each step on current scensim main; the exit check is what lets the next step sta
 | **C6. The rest of 066** | R1's checks, R4 rocks finished, R6 wheel hop, R7 sensors and Autoware, all reading the road record | 5-7 weeks, in 066's order | 066's acceptance; aib's slope matrix and 055's manoeuvre suite unchanged on smooth road |
 | **C7. CARLA as a second target for the surface record** | the CARLA world server reads `surfaces.yaml`'s zones as friction trigger boxes (class `mu` x `wet`) and takes `swb.zone.<id>.*`; on 0.9.16 first, then on CARLA 1.0 once 083 step 5 maps the spec to Chaos; label defaults stay asphalt (CARLA's towns have no ground labels per wheel) | 1 week (0.9.16), 3-5 days more (1.0) | a wet zone and a split-mu zone change the CARLA ego's stopping distance and yaw the same way as on Isaac, within 25 % of Isaac's for the same class, on both CARLA versions; the T3 suites unchanged without zones |
 | **C8. Calibration and the open 052 item** (independent) | 053: dirt when data comes, step 4 (dropping the flags); 052: the lead NPC's sinking seen by camera and lidar | as data allows; 052's item about 1 week | 053's and 052's own acceptance |
+| **C9. Every car on the sweep** (issue 077's option B; registered 2026-11-20, the user's choice; not started) | aib's default `wheel_query` becomes `sweep` (with its bump stop, landed opt-in in 077), so every Isaac car climbs a curb. The mud classes (047 S5, 053, 054; fitted under the raycast) are refitted under the sweep. The cause of the sweep's yaw-rate chatter on a straight stop on mud is found and removed | 2-3 weeks (estimate) | 055's mud pad back within the fits' tolerances; it stands today at mud_circle 21.3 m off its line against -1.1 under the raycast, mud_dlc peak sideslip 10.7 against 20.8 deg, mud_sine heading change -32 against -42 deg; no yaw rate on `mud_brake` (the sweep's chatters by about 0.5 deg/s); dry and wet within 055's tolerances; aib's slope matrix, haruna_down, isaac_soil and the road_physics example unchanged |
 
 #### C1: the road record (done 2026-11-20)
 
@@ -248,7 +249,7 @@ scensim_isaac_world 6177ced (pins cebb5557), scensim 82787b91; 056's steps 1-4.
 
 Order: C1, C2 and C3 make the shared data; C4 and C5 are its first consumers, C5 after C3.
 C6 follows C5 (rocks and wheel hop on the record's road). C7 can start after C2 on 0.9.16,
-and on 1.0 after 083 step 5. C8 runs beside the others. 069 E1 and E2 (Track B, unassigned) can start once
+and on 1.0 after 083 step 5. C8 runs beside the others. C9 comes after C5 and C6. 069 E1 and E2 (Track B, unassigned) can start once
 C3 has written Haruna's record. About 4-5 weeks of work to C5, which gives one road from the
 record to Isaac, Autoware's maps and the planner.
 

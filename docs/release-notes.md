@@ -1,5 +1,15 @@
 # Release notes
 
+## v0.2.2 (not released)
+
+### What is new
+
+- **`isaac.wheel_query: sweep`** in `testbench.yaml`: the Isaac ego's wheels find the ground
+  with their cylinder instead of one ray, so the car climbs a curb, with a bump stop at the
+  real suspension travel (issue 077). `isaac_verge` uses it. It is opt-in: on mud the sweep
+  drives differently from the raycast the mud classes were fitted with, so leave soil
+  scenarios on the default (`raycast`).
+
 ## v0.2.1
 
 scensim 0.2.1 runs a suite or a scenario's rollouts on several seats of one host at once,

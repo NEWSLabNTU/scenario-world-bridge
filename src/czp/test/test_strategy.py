@@ -351,11 +351,14 @@ def test_a_partner_dropped_unseen_is_kept_in_the_conflict_set_for_cs_hold_s():
     acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), seen, None, stat, 0.1)
     first = acts.decision
     assert first.kind in ("wait", "yield")
+    # it covers every gap 139 measured in U3 stage 1 (11 czp runs, 21 gaps, 0.097-1.156 s)
+    assert st.p.cs_hold_s >= 1.156
+    n = round(st.p.cs_hold_s / 0.1)
     events, records = [], []
-    for k, objs in enumerate([off, off, seen, off] + [off] * 12, start=1):
+    for k, objs in enumerate([off, off, seen, off] + [off] * n, start=1):
         acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), objs, None, stat, 0.1)
         events += [json.loads(cs_hold_to_json(e)) for e in acts.cs_events]
-        if k <= 12:  # the last time in the set is k = 3; kept while 0.1 k - 0.3 < cs_hold_s
+        if k < 3 + n:  # the last time in the set is k = 3; kept while 0.1 k - 0.3 < cs_hold_s
             records += acts.records
             assert acts.decision.kind == first.kind and not acts.held_dropped, k
             assert acts.cs_held == ({} if k == 3 else {z.id: ("o1",)}), k
@@ -364,7 +367,7 @@ def test_a_partner_dropped_unseen_is_kept_in_the_conflict_set_for_cs_hold_s():
     assert not records  # the protocol's decision never changed while the partner was kept
     assert [(round(e["t"], 1), e["kept"], e["reason"]) for e in events] == [
         (0.1, ["o1"], "cs_hold: o1 kept in the conflict set"), (0.3, [], "cs_hold: released"),
-        (0.4, ["o1"], "cs_hold: o1 kept in the conflict set"), (1.3, [], "cs_hold: released")]
+        (0.4, ["o1"], "cs_hold: o1 kept in the conflict set"), (round(0.3 + 0.1 * n, 1), [], "cs_hold: released")]
     assert all(e["event"] == "cs_hold" and e["decision"] is None for e in events)
 
 

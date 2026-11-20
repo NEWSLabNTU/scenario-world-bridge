@@ -53,12 +53,14 @@ flipped, and its decision timers restarted when A came back.
    and in ddbbdde's first form a car stopped head-on on the own car's path was matched to the own approach in
    reverse, as a lead, which took it out of the conflict set. It is now the off-lane crossing agent it was before
    the fix (133's question, the same day).
-2. **The backstop.** `Strategy` keeps a partner in a zone's conflict set for `cs_hold_s` (1.0 s, new in
+2. **The backstop.** `Strategy` keeps a partner in a zone's conflict set for `cs_hold_s` (1.5 s, new in
    params.yaml) after it was last in it, as it was placed then and stamped now. This applies whatever the reason it
    dropped out, unless it was seen leaving (P2c's ruling: it was inside the zone, or it is tracked and moving).
-   The protocol then keeps its decision and its memory of the partner. The drops measured were 0.20 and 0.26 s,
-   one or two flipped 10 Hz messages; 1.0 s covers four in a row. After `cs_hold_s`, P2c's hold still applies
-   (`mode_hold`, 1.5 s), so a partner that really vanished holds the decision for `cs_hold_s + mode_hold`.
+   The protocol then keeps its decision and its memory of the partner. 139's counts from U3 stage 1 (11 czp runs
+   on f090363c, before the reverse match): 21 gaps out of the conflict set, 0.097 to 1.156 s (median 0.4 s), and
+   no gaps in perception's track, so every gap was czp's. The first value, 1.0 s, covered 20 of the 21; 1.5 s
+   covers all (133, 2026-11-20). After `cs_hold_s`, P2c's hold still applies (`mode_hold`, 1.5 s), so a partner
+   that really vanished holds the decision for `cs_hold_s + mode_hold` (3.0 s), which 133 ruled the safe side.
 3. **The record.** Each change of a zone's kept partners is a line of `decisions.jsonl` of its own:
    `event: cs_hold`, `decision: null`, `kept: [ids]`, `conflict_set: [...]`, and `reason: "cs_hold: <ids> kept in
    the conflict set"` or `"cs_hold: released"`. Readers of decision lines skip or count it, as they do the
@@ -74,7 +76,7 @@ flipped, and its decision timers restarted when A came back.
   path runs 3.5 m beside it). A car stopped inside the zone on the own path, facing the own car, stays a crossing
   agent in the conflict set. The second part fails on ddbbdde.
 - `test_strategy.py::test_a_partner_dropped_unseen_is_kept_in_the_conflict_set_for_cs_hold_s`: a track missing for
-  ticks is kept for `cs_hold_s` after its last time in the set. The protocol's decision does not change, P2c's hold
+  ticks is kept for `cs_hold_s` after its last time in the set, and `cs_hold_s` covers the longest gap measured. The protocol's decision does not change, P2c's hold
   follows, and the `cs_hold` lines are as above. It fails on the old code.
 - `test_dropped_partner_at_rest_holds_the_wait` and `test_mode_hysteresis_band_edge_flicker` count `cs_hold_s`
   before P2c's hold. czp's tests: 85 passed.

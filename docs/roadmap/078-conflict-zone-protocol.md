@@ -713,7 +713,8 @@ and G2.
   - a stopped agent (below `moved_speed`) matches an approach within 45 deg of its heading or of
     its reverse;
   - backstop: a partner that drops out of a zone's conflict set, not seen leaving, stays in it for
-    `cs_hold_s` (1.0 s) after it was last in it; P2c's hold follows, so a partner that really
-    vanished holds the decision for `cs_hold_s + mode_hold`;
+    `cs_hold_s` after it was last in it; P2c's hold follows, so a partner that really vanished
+    holds the decision for `cs_hold_s + mode_hold`. `cs_hold_s` is 1.5 s since 139's counts from
+    U3 stage 1 (21 gaps, 0.097-1.156 s, all czp's, none perception's; 1.0 s covered 20);
   - each change of the kept partners is a `cs_hold` line of `decisions.jsonl`.
   Next: folded into the next grid on 133.

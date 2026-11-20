@@ -141,11 +141,11 @@ means not yet assigned; 133 assigns.
 | W10 | the fitting tool: long-horizon trajectory error from matched starts; on-track tyre identification first; fits the spec's tyre and suspension values and a component's exposed `params`; randomisation bands from the real spread | V3, V4 | 3b | open | |
 | W11 | the validation harnesses: (a) component replay against logged VESC telemetry, (b) M1 to M6 against 5.3's bands, (c) lap comparison for M7; one report per twin release | V3, V4, J1 | 3b, 6 | open | |
 | W12 | session conditions: a schema (battery voltage, floor state, tyre age) recorded with each run and each real log; battery voltage declarable as a component input | V2, J2, J3 | 2b, 6 | open | |
-| W13 | the authored stage as a map (`authored: true`): the session-layer rule, the material and `scensim:surface` readers, Track C overrides only where given | F2, F3 | 4 | open | |
-| W14 | the layered stage: visual layer (NuRec splats or a mesh), evidence layer (raw scan), required physics layer; `scensim:source` on measured attributes | F2, F3 | 4 | open | |
-| W15 | `provenance.stage`: the sha256 of every composed layer and resolved asset, the overrides, the records; an unresolved dependency refuses the run | F5, J2 | 4 | open | |
-| W16 | the map check: units and axes, no PhysX vehicle prim, every layer resolved and hashed | F5 | 4 | open | |
-| W17 | the minimal lanelet2 loop generator, from the field's centreline or the occupancy map | F4 | 4 | open | |
+| W13 | the authored stage as a map (`authored: true`): the session-layer rule, the material and `scensim:surface` readers, Track C overrides only where given | F2, F3 | 4 | 243 | in progress |
+| W14 | the layered stage: visual layer (NuRec splats or a mesh), evidence layer (raw scan), required physics layer; `scensim:source` on measured attributes | F2, F3 | 4 | 243 | |
+| W15 | `provenance.stage`: the sha256 of every composed layer and resolved asset, the overrides, the records; an unresolved dependency refuses the run | F5, J2 | 4 | 243 | |
+| W16 | the map check: units and axes, no PhysX vehicle prim, every layer resolved and hashed | F5 | 4 | 243 | |
+| W17 | the minimal lanelet2 loop generator, from the field's centreline or the occupancy map | F4 | 4 | 243 | |
 | W18 | the `ackermann` and `vesc` vehicle-interface profiles, mirroring f1tenth_system `humble-devel` (`vesc_driver_node` topics, `/sensors/core` from the component's telemetry, the servo echo); `jazzy-devel`'s names checked | J1 | 5 | 241 | in progress: the names checked 2026-11-20, both branches agree ([design 6](../design/roboracer-indoor-twin.md)) |
 | W19 | the RoboRacer sensors: a planar lidar profile (UST-10LX class) checked against real scans at known poses; the IMU; wheel odometry by `vesc_to_odom`'s kinematics | F5, J1 | 5 | open | |
 | W20 | the end-to-end exit: an unmodified f1tenth_system drives the example car in an example field | J1 | 5 | open | |

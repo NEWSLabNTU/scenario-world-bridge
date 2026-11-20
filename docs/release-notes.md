@@ -1,6 +1,6 @@
 # Release notes
 
-## v0.2.1 (draft, not released)
+## v0.2.1
 
 scensim 0.2.1 runs a suite or a scenario's rollouts on several seats of one host at once,
 completes the Haruna course on Isaac Sim, and fixes what 0.2.0's release showed. The
@@ -32,7 +32,10 @@ Town01 with Autoware's overlay built.
   (`ground.<map>.surface_maps.<name>`), and a scenario picks one in its `RoadCondition`
   (`scensim.surface_map`); see [Road physics on Isaac Sim](reference/road-physics.md). The
   soil scenarios (mud, snow, the zones) are now a testbench of their own, `isaac_soil`, whose
-  suite `soil` runs them one after another on one Isaac world.
+  suite `soil` runs them one after another on one Isaac world. A scenario also sets one
+  ground label's class for itself (`scensim.default.<Label>`, friction only); `isaac_verge`
+  drives off the road onto a sidewalk so treated, with the `simple` pilot's new `route:
+  direct` (straight through the scenario's waypoints).
 - **The road record.** A map's `road_detail.yaml` describes the road's section along it: lanes,
   shoulder, and what lies past the edge on each side. Its surfaces are checked against the
   surface class table, now one table shared by both world servers. The course builder writes
@@ -78,7 +81,7 @@ Town01 with Autoware's overlay built.
 - **Town01 on Isaac loses the GPU on some NVIDIA drivers** (issue 005): seen on 615.71.09;
   610.57.04 and 580.105.08 work.
 
-### Before the release
+### Checked for this release
 
 - The Isaac examples' live check (`isaac_first_drive`, `road_physics`), promised for 0.2.1
   in 0.2.0's notes: done on 241 (2026-11-20, driver 610.57.04). With Autoware's overlay all
@@ -89,7 +92,9 @@ Town01 with Autoware's overlay built.
   (2026-11-20, with the overlay). All four scenarios passed (town01_soil, town01_mud,
   town01_snow, town01_zones) on one Isaac world, each with the surface map it names, and the
   car drove through every zone.
-- The version, the tag and the publish are the user's.
+- `isaac_verge`'s drive off the road: passed on CARLA on 118 without its label classes
+  (CARLA has none), 26 m to the sidewalk, no contact; on Isaac it has not run yet (Town01
+  needs a driver of the list above).
 
 ## v0.2.0
 

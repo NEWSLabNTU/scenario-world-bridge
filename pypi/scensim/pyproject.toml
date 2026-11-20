@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scensim"
-version = "0.2.0"
+version = "0.2.1"
 description = "scensim runs driving scenarios in simulation: the front end that installs the prebuilt scensim for your ROS 2 release"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -13,8 +13,8 @@ dependencies = [
     "zstandard>=0.21",
     # The release package for the user's ROS 2, chosen by the Python version apt's ROS
     # runs on (Ubuntu 22.04: Humble on 3.10; 24.04: Jazzy on 3.12).
-    "scensim-ros-humble==0.2.0; python_version == '3.10'",
-    "scensim-ros-jazzy==0.2.0; python_version == '3.12'",
+    "scensim-ros-humble==0.2.1; python_version == '3.10'",
+    "scensim-ros-jazzy==0.2.1; python_version == '3.12'",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

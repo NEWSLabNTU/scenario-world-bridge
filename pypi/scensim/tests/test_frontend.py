@@ -24,7 +24,7 @@ import pytest
 import zstandard
 
 SRC = Path(__file__).resolve().parent.parent / "src"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 
 # --- a fake release ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ def test_install_downloads_checks_unpacks_and_prints_next_steps(env) -> None:
     publish(env)
     r = env.run("install")
     assert r.returncode == 0, r.stderr
-    assert "downloading scensim 0.2.0 for ROS 2 humble" in r.stderr
+    assert "downloading scensim 0.2.1 for ROS 2 humble" in r.stderr
     assert "sha256 ok" in r.stderr
     # Python 3.11+ (PEP 668, Jazzy's 3.12): rosdep's pip keys need pip allowed next to apt's
     pep668 = "PIP_BREAK_SYSTEM_PACKAGES=1 PIP_IGNORE_INSTALLED=1 " if sys.version_info >= (3, 11) else ""
@@ -231,18 +231,18 @@ def test_install_downloads_checks_unpacks_and_prints_next_steps(env) -> None:
     assert line in r.stderr and "/current/sim/share" in r.stderr
     assert r.stderr.index("  rosdep update\n") < r.stderr.index(line)
     assert f"source {env.home}/current/sim/setup.bash" in r.stderr
-    assert (env.home / "current").resolve() == (env.home / "0.2.0-humble").resolve()
-    assert (env.home / "0.2.0-humble" / "sim" / "bin" / "scensim").exists()
+    assert (env.home / "current").resolve() == (env.home / "0.2.1-humble").resolve()
+    assert (env.home / "0.2.1-humble" / "sim" / "bin" / "scensim").exists()
     assert not list((env.home / ".downloads").glob("*"))  # archive and .part removed
     v = env.run("--version")
-    assert f"installed for ROS humble: {env.home}/0.2.0-humble" in v.stdout
+    assert f"installed for ROS humble: {env.home}/0.2.1-humble" in v.stdout
 
 
 def test_first_command_downloads_once_then_execs_the_release(env) -> None:
     publish(env)
     r = env.run("run", "my_first_drive")
     assert r.returncode == 0, r.stderr
-    assert "first use: downloading scensim 0.2.0 for ROS 2 humble" in r.stderr
+    assert "first use: downloading scensim 0.2.1 for ROS 2 humble" in r.stderr
     assert "fake scensim: run my_first_drive (setup=1, vehicle=0)" in r.stdout
     hits = env.server.hits
     r2 = env.run("runs", "list", "my_first_drive")
@@ -254,7 +254,7 @@ def test_archive_with_one_top_directory(env) -> None:
     publish(env, top_dir=True)
     r = env.run("install")
     assert r.returncode == 0, r.stderr
-    assert (env.home / "0.2.0-humble" / "sim" / "scensim-release.yaml").exists()
+    assert (env.home / "0.2.1-humble" / "sim" / "scensim-release.yaml").exists()
 
 
 def test_a_sourced_autoware_runs_the_simulation_side(env) -> None:
@@ -266,7 +266,7 @@ def test_a_sourced_autoware_runs_the_simulation_side(env) -> None:
     assert r.returncode == 0, r.stderr
     assert "fake scensim: run x (setup=1, vehicle=0)" in r.stdout
     assert "vehicle" not in r.stderr and "connect-autoware" in r.stderr
-    assert sorted(p.name for p in (env.home / "0.2.0-humble").iterdir()) == ["sim"]
+    assert sorted(p.name for p in (env.home / "0.2.1-humble").iterdir()) == ["sim"]
     for other in ("2.1.0", "1.9.0"):   # any release, from any distribution
         r = env.run("runs", "list", extra={"AMENT_PREFIX_PATH": f"/opt/autoware/{other}"})
         assert r.returncode == 0 and "fake scensim: runs list" in r.stdout, r.stderr
@@ -333,7 +333,7 @@ def test_relocate_runs_in_the_final_prefix_before_current_moves(env) -> None:
     publish(env, members={"./setup.sh": SETUP_SH}, relocate=RELOCATE)
     r = env.run("install")
     assert r.returncode == 0, r.stderr
-    sim = env.home / "0.2.0-humble" / "sim"
+    sim = env.home / "0.2.1-humble" / "sim"
     assert (sim / ".scensim-prefix").read_text().strip() == str(sim)
     assert (env.home / "current").resolve() == sim.parent.resolve()
     s = subprocess.run(["sh", "-c", f". {env.home}/current/sim/setup.sh && echo sourced"],
@@ -356,7 +356,7 @@ def test_a_failing_relocate_removes_the_prefix_and_refuses(env) -> None:
     r = env.run("install")
     assert r.returncode == 3, r.stderr
     assert "relocate.sh failed: relocate: cannot write" in r.stderr
-    assert not (env.home / "0.2.0-humble" / "sim").exists()
+    assert not (env.home / "0.2.1-humble" / "sim").exists()
     assert not (env.home / "current").exists()
 
 
@@ -366,7 +366,7 @@ def test_sha256_mismatch_removes_the_file(env) -> None:
     assert r.returncode == 2
     assert "sha256 mismatch" in r.stderr and "run the command again" in r.stderr
     assert not list((env.home / ".downloads").glob("*"))
-    assert not (env.home / "0.2.0-humble").exists()
+    assert not (env.home / "0.2.1-humble").exists()
 
 
 def test_cut_download_then_retry(env) -> None:
@@ -400,15 +400,15 @@ def test_release_package_version_skew(env) -> None:
     publish(env, version="0.0.9", tar_version="0.0.9")
     r = env.run("run", "x")
     assert r.returncode == 3
-    assert "version skew: the scensim front end is 0.2.0, scensim-ros-humble is 0.0.9" in r.stderr
+    assert "version skew: the scensim front end is 0.2.1, scensim-ros-humble is 0.0.9" in r.stderr
 
 
 def test_a_release_candidate_is_not_its_final_release(env) -> None:
-    # 0.2.0-rc1 normalises to 0.2.0rc1, which is not 0.2.0: still skew for a 0.2.0 front end
-    publish(env, version="0.2.0-rc1", tar_version="0.2.0-rc1")
+    # 0.2.1-rc1 normalises to 0.2.1rc1, which is not 0.2.1: still skew for a 0.2.1 front end
+    publish(env, version="0.2.1-rc1", tar_version="0.2.1-rc1")
     r = env.run("run", "x")
     assert r.returncode == 3
-    assert ("version skew: the scensim front end is 0.2.0, scensim-ros-humble is 0.2.0-rc1"
+    assert ("version skew: the scensim front end is 0.2.1, scensim-ros-humble is 0.2.1-rc1"
             in r.stderr)
 
 
@@ -458,7 +458,7 @@ def _release_module():
 def test_tarball_version_skew_installs_nothing(env) -> None:
     publish(env, tar_version="0.0.9")
     r = env.run("install")
-    assert r.returncode == 3 and "is scensim 0.0.9, the front end expects 0.2.0" in r.stderr
+    assert r.returncode == 3 and "is scensim 0.0.9, the front end expects 0.2.1" in r.stderr
     assert not (env.home / "0.2.0-humble" / "sim").exists()
 
 
@@ -510,7 +510,7 @@ def test_unknown_install_argument(env) -> None:
 
 
 def test_v_prefixed_version_in_the_tarball(env) -> None:
-    publish(env, tar_version="v0.2.0")
+    publish(env, tar_version="v0.2.1")
     r = env.run("run", "x")
     assert r.returncode == 0, r.stderr
     assert "fake scensim: run x" in r.stdout
@@ -518,13 +518,13 @@ def test_v_prefixed_version_in_the_tarball(env) -> None:
 
 def test_make_manifest_then_install(env, tmp_path: Path) -> None:
     """The release workflow's manifest writer feeds the front end as-is."""
-    sim = make_tarball(env.files / "scensim-sim-0.2.0-humble-x86_64.tar.zst")
+    sim = make_tarball(env.files / "scensim-sim-0.2.1-humble-x86_64.tar.zst")
     veh = make_tarball(
-        env.files / "scensim-vehicle-0.2.0-autoware1.5.0-x86_64.tar.zst", side="vehicle"
+        env.files / "scensim-vehicle-0.2.1-autoware1.5.0-x86_64.tar.zst", side="vehicle"
     )
     out = tmp_path / "manifest.json"
     tool = Path(__file__).resolve().parents[2] / "make_manifest.py"
-    base = [sys.executable, str(tool), "--version", "0.2.0", "--distro", "humble",
+    base = [sys.executable, str(tool), "--version", "0.2.1", "--distro", "humble",
             "--base-url", env.server.url, "--out", str(out)]
     # a vehicle tarball is refused by name: a release has none since 0.2.0
     r = subprocess.run([*base, str(sim), str(veh)], capture_output=True, text=True)
@@ -535,7 +535,7 @@ def test_make_manifest_then_install(env, tmp_path: Path) -> None:
             sys.executable,
             str(tool),
             "--version",
-            "0.2.0",
+            "0.2.1",
             "--distro",
             "humble",
             "--base-url",
@@ -614,7 +614,7 @@ def test_ros_then_sim_order_with_autoware_left_as_sourced(env, tmp_path: Path) -
 def test_an_already_sourced_prefix_is_not_sourced_again(env) -> None:
     publish(env)
     assert env.run("install").returncode == 0
-    sim = env.home / "0.2.0-humble" / "sim"
+    sim = env.home / "0.2.1-humble" / "sim"
     r = env.run("run", "x", extra={"AMENT_PREFIX_PATH": str(sim), "FAKE_SETUP_SIM": "1"})
     assert r.returncode == 0, r.stderr
     assert "order=" in r.stdout and "order=sim" not in r.stdout

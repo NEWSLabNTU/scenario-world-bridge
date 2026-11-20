@@ -1,0 +1,36 @@
+# Phase 092: Scenario to world, and sampling
+
+Turn a declared scenario into a world on a chosen target (an Isaac Lab batch for training,
+Isaac Sim or CARLA on seats for evaluation), and sample scenarios with an identity that
+replays across targets. Published as adaptable components and specifications, not a
+framework; Isaac Lab keeps training throughput.
+
+**Status**: design accepted for now (user, 2026-11-20: "The shape is better ... Accept the
+decision for now"); the scenario-to-world compiler is being studied further before any work
+item starts.
+
+**Source**: feedback from a RoboRacer team after the scensim presentation, 2026-11-20 (Jazzy;
+hand-set-up runs; slow data between autopilot, simulator and ML infrastructure), and four
+rounds of review with the user the same day.
+
+**Design**: [ml-training-interface.md](../design/ml-training-interface.md) (revision 4):
+the contributions C1 to C5, decisions D1 to D12, the layers, the architecture and workflow,
+throughput against Isaac Lab, usage by user.
+
+## Work items
+
+From the design's section 10; none started.
+
+| Item | What | Kind | Depends on | Owner | Status |
+|---|---|---|---|---|---|
+| S1 | The sample record: schema, hashing, checker | spec | none | | open |
+| S2 | The compilable subset of OpenSCENARIO | spec | the compiler study | | open |
+| S3 | The batched control component (`step_batch`) | spec | 091 | | open |
+| S4 | The stage record (091 W15) and the truth stream's content | spec | 091 W15 | | open |
+| K1 | The sampler (pure Python) | component | S1 | | open |
+| K2 | The Isaac Lab adapter, with `scensim bench` | component | S1, S2, S3, 091 W5 | | open |
+| K3 | Replay of a sample record on seats, fidelity measured | component | S1, K1 | | open |
+| K4 | The truth stream, judge and attachment hooks, the paced clock | components | S4 | | open |
+| K5 | GPU transport for evaluation (NITROS first) | component | none | | open |
+| K6 | Jazzy for the whole set | all | 082 | | open |
+| E1 | Examples | examples | the above | | open |

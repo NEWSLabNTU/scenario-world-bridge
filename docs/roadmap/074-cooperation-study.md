@@ -8,7 +8,7 @@ starting with the cases swb can run today. The method, the theory and the litera
 this phase is its first experiment and the urban cases next to it.
 
 **Status**: started 2026-11-13; C1 done; C2 redesigned for mass runs of light policies (C2a arena, C2b swb check). Design review and the staged plan with exploration and decision steps
-(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); N3 done, D9 met (composition holds for queues up to seven cars); E4/C5 done (commitment not supported; a heavy-vehicle spec deferred until an Autoware test needs one); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided and confirmed by the user (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); friction canaries done (no verdict changes); C7's coin at the stop done (it recovers the gap at a crossing with no restart crash; gate it to the conflict window, and a car that cannot stop keeps the turn); C3c rerun on the friction fix done (swb 241; no verdict changed, C3c final); U3 kinematic and arena done (stop-then-yield breaks ties by noise; FCFS alone crashes at ties; FCFS + right-before-left removes them; mixed conventions deadlock), its stop-sign map variant built (5d94dee); the Autoware 2.0.0 profile done (swb 139, c2a2879; autoware_release:=2.0.0, 1.5.0 the default);  the swb friction fix, full CenterPoint as `centerpoint` and the spec's lidar intensity model done (fe63f5d; TransFusion sees cars offline); closed-loop S5 on the new lidar done (full CenterPoint unchanged, 1 contact in 8; TransFusion 6 in 8, its detector reaches 20-25 m and loses A in the junction: the reflectance table needs a replay sweep); open: a heavy-vehicle spec deferred by the user until an Autoware test needs a truck; arena tracking checked (the D2 gaps are a launch delay and S4's held-car crawl in the kinematic model; switches adopted, crossing family re-run: D2 payoffs up, e.g. S2 73/75 %, S4 outcomes 89/90 %, no contact in any equilibrium; HOLD_STOP kept out of the arena, which coasts to rest; held arena cars brake to rest, done (4fcaa8d; D2 moves a few points either way; the near-tie gap is perception noise, not a brake-release lag: the band is scored by contact share (outcomes up 1-6 points, S2 v14 96 → 95 %); at 20 arena seeds D2 stands, share gap median 0.05)); N5 (a) done (the Y merge is S2's crossing game with a cheap fall-in-behind; N stops mattering by about 10); N5's swb check done (three cars, outcomes 15 of 15, payoffs 68 %; D2 accepted); with stock Autoware as B, paced rerun: outcomes 11 of 15 against HOLD, the misses Autoware's STOP-then-go policy against a cautious A, mutual-yield waits in 10 of 30 runs at A-first Δt, late tracking is static occlusion at the corner; next: U3 on Autoware (swb 139); C8 on U3 done (fcfsr unsafe for any e > 0; the fail-safe rule with the map order, (e), safe and live for 2-4 cars in the model, 0 contacts in arena self-play; never worse than stock not met against stock's static-at-rest; noise ×2 needs guard hysteresis, heavy cars their own zone interval; G0 in 078); 078 P1 built (czp; G0: only the unsignalled crossing enters the table, the all-way stop, narrow passage and lane drop stay stock: a car waiting by its role is read as static by a gap-test driver; G1 passed for the crossing), then P1 with no V2X (stock, + convention and probe, + learned role estimate and response model; intent messages last, optional, by adoption rate). User direction: "Start from those already doable in
+(E1-E7, D1-D9) below. E1 done and D1 decided (build the arena); E2 measured (lane change open); C2a's grid and double oracle done; U1 kinematic done; C2b: outcomes agree 24/24, payoffs 92 % after a scoring fix (D2 met); N-car path planned (N1-N5); E2 done (lane change 4 s + 4.8 s; the east straight's target lane is a divider); C3a done (4/6 cells agree with the arena; the imitation reacts too late to a slow cut-in); C3b done (same classes; perception adds 0.1-0.45 s to Autoware's reaction; 14/-3 is a near miss, 0.2-0.6 m); the arena's B refitted to a reacting rule; double oracle rerun with it (do3: Autoware's pair unchanged); utility generalized to every path relation (design ①, 2026-11-14); S0 done (the general utility; cut-in results re-scored: classes and equilibria unchanged, D2 92 %, 14/-3 a shallow footprint touch); N3 done, D9 met (composition holds for queues up to seven cars); E4/C5 done (commitment not supported; a heavy-vehicle spec deferred until an Autoware test needs one); C4 done, D5 decided (κ rules on the car, the potential model to predict others); C6 done, D6 decided and confirmed by the user (no belief node: B's intent, read by a probe rule, carries the value; capability broadcasts are worth 0); C7 done (binding priority at a tie ends every restart crash; the zipper shortens the queue, not throughput); S6 kinematic and arena done (overtaking: chicken only in a narrow band where B can give way; the abort fails, harder in the arena; only the margin keeps it safe; D2 accepted for outcomes, 96 %); S1 kinematic and arena done (the cut-out's danger is look-through, not the gap; L does not dump risk on B; D2 accepted for outcomes and the risk band); S3 kinematic and arena done (a lane drop's deadline makes the merge a coordination game near the end; D2 accepted for classes, 14 of 16, and outcomes, 93 %; the zipper needs a queue); S2 kinematic and arena done (a near-tie, |Δt| ≤ 0.2 s, is a war of attrition and costly either way; the crossing's D2 accepted for outcomes, 95-98 %, and classes, payoff levels from the arena); N1-N2 done (conflict sets sparser than the literature's; composed pairs predict 81 % of car-cells, D9: not enough, the residual systematic, so N3); N3 first round (window fixed, follower bug fixed; held out 79 % of contexts, 92 % of cells; one more round decided); C3a rerun done (14/-3 a 1 cm near miss on ground truth; the arena's B lacks Autoware's last-moment stop); N3 second round done (held out 82 % of contexts, 92 % of cells; D9 decided: composition for queues up to 4 cars, a closing lead and longer queues stay explicit); N3 window cap and N4 done (composition holds for any queue with slack; tight queues need a depth term; in a merge N does not matter past about 10 cars, mean-field error 0.05); E3 done, D3 decided (stock Autoware is one strategy; the cruise-gap knobs, load-time only, are strategies for how far B yields back); friction canaries done (no verdict changes); C7's coin at the stop done (it recovers the gap at a crossing with no restart crash; gate it to the conflict window, and a car that cannot stop keeps the turn); C3c rerun on the friction fix done (swb 241; no verdict changed, C3c final); U3 kinematic and arena done (stop-then-yield breaks ties by noise; FCFS alone crashes at ties; FCFS + right-before-left removes them; mixed conventions deadlock), its stop-sign map variant built (5d94dee); the Autoware 2.0.0 profile done (swb 139, c2a2879; autoware_release:=2.0.0, 1.5.0 the default);  the swb friction fix, full CenterPoint as `centerpoint` and the spec's lidar intensity model done (fe63f5d; TransFusion sees cars offline); closed-loop S5 on the new lidar done (full CenterPoint unchanged, 1 contact in 8; TransFusion 6 in 8, its detector reaches 20-25 m and loses A in the junction: the reflectance table needs a replay sweep); open: a heavy-vehicle spec deferred by the user until an Autoware test needs a truck; arena tracking checked (the D2 gaps are a launch delay and S4's held-car crawl in the kinematic model; switches adopted, crossing family re-run: D2 payoffs up, e.g. S2 73/75 %, S4 outcomes 89/90 %, no contact in any equilibrium; HOLD_STOP kept out of the arena, which coasts to rest; held arena cars brake to rest, done (4fcaa8d; D2 moves a few points either way; the near-tie gap is perception noise, not a brake-release lag: the band is scored by contact share (outcomes up 1-6 points, S2 v14 96 → 95 %); at 20 arena seeds D2 stands, share gap median 0.05)); N5 (a) done (the Y merge is S2's crossing game with a cheap fall-in-behind; N stops mattering by about 10); N5's swb check done (three cars, outcomes 15 of 15, payoffs 68 %; D2 accepted); with stock Autoware as B, paced rerun: outcomes 11 of 15 against HOLD, the misses Autoware's STOP-then-go policy against a cautious A, mutual-yield waits in 10 of 30 runs at A-first Δt, late tracking is static occlusion at the corner; U3 on Autoware done (swb 139 and 133, 2026-11-20/21: 0 contacts and 0 deadlocks in 80 + 7 + 10 runs; every czp failure was issue 082, fixed in czp, and the 7 runs it spoiled pass on main's czp; flicker 12 of 40 czp runs before 079's fixes, 1 of 7 after); C8 on U3 done (fcfsr unsafe for any e > 0; the fail-safe rule with the map order, (e), safe and live for 2-4 cars in the model, 0 contacts in arena self-play; never worse than stock not met against stock's static-at-rest; noise ×2 needs guard hysteresis, heavy cars their own zone interval; G0 in 078); 078 P1 built (czp; G0: only the unsignalled crossing enters the table, the all-way stop, narrow passage and lane drop stay stock: a car waiting by its role is read as static by a gap-test driver; G1 passed for the crossing), then P1 with no V2X (stock, + convention and probe, + learned role estimate and response model; intent messages last, optional, by adoption rate). User direction: "Start from those already doable in
 swb. We'll study npc things once we reach the scooter and night market cases." So Taiwan's
 scooters and the night market (reactive NPC populations) are out of this phase.
 
@@ -1840,6 +1840,92 @@ NAS `logs/2026 SSv2 on CARLA/2026-11-15 coop N5 Y merge/`).
     for A. 1 contact, A with C (light agents only). Not tuned. The argument stays for occlusion
     scenarios.
 - **Still open:** N5 (b), Town06's lane drop, still needs a Lanelet2 map.
+
+### U3 on Autoware: the four-way stop on the real stack (2026-11-20/21)
+
+swb 139 ran stage 1, and swb 133 reran the czp runs that failed and the reference. The runner is
+`scripts/coop/crossing_aw.py` with `u3_aw_grid.sh`, and `u3_flicker.py` counts flicker. NAS
+`logs/2026 SSv2 on CARLA/2026-11-20 074 U3 stage 1 on Autoware (139)/` and `.../2026-11-21 074 U3
+reruns on 133 (133)/`.
+
+**Setup.** The Autoware ego (B, CenterPoint) meets crossing_agent.py's A at Town05 j979, on the
+stop-sign map. czp's all_way_stop row (arm `on`) runs against stock Autoware (arm `off`).
+
+- A takes four_way_game's stop-sign rules: `stop1y_c1.5` (stop 1 s, then yield) or `fcfse_c0`
+  (first come, first served).
+- A comes from the left or the right, at Δt −1, −0.3, 0, 0.3 and 1 s (the gap between the two
+  cars' rests at their lines), with seeds 0 and 1: 80 runs.
+- A paces Δt plus a measured rest offset of 1.4 s. Autoware brakes for its line more gently than
+  A and cruises at 6.5 m/s; the pace stage measured it. A run is valid when A locked within
+  tolerance.
+- Two load gates, before the ego starts and once it is up: the 1-min load below 1.5 × the cores
+  for 60 s, then 30 s. A contact, deadlock or starved run under load is rerun once below the core
+  count.
+
+**Stage 1, first pass** (6dd69232) is void. czp's speed caps never reached Autoware because of a
+message type mismatch (issue 074's), so the czp arm had no effect. It was rerun after 241's fix.
+
+**Stage 1** (139, scensim f090363c): czp with the type fix and 066's fix, but **neither 079's
+flicker fixes nor 082's**. 80 of 80 ran, with 0 contacts and 0 deadlocks.
+
+Issue 082 spoiled 7 czp runs. czp's watchdog cleared a velocity limit it did not hold, and
+Autoware 1.5's selector then published its value-initialised 0 m/s limit (sender ''), holding the
+ego. Six runs errored. One (Δt −1, stop1y, seed 0, right) was scored ok while the ego never
+entered: the limit dropped at 68.5 s after the ego had stopped at its line, and since A had
+cleared, the run was no deadlock. That miss is why crossing_aw now scores it (below). Every czp
+run with a heartbeat gap over 1 s (5 runs, gaps up to 10.7 s) was one of these, under memory
+pressure: 3-5 GiB free, swap nearly full.
+
+| rule | A from | arm | n ok | rest_d − Δt | ego first | ego wait (s) | ego out (s) | min PET (s) | min clear (m) |
+|---|---|---|---|---|---|---|---|---|---|
+| fcfse_c0 | left | stock | 10 | −0.14 | 8 | 3.32 | 17.39 | 4.03 | 4.02 |
+| fcfse_c0 | left | czp | 7 | −0.15 | 5 | 5.94 | 22.26 | 4.22 | 3.69 |
+| fcfse_c0 | right | stock | 10 | −0.09 | 0 | 3.27 | 19.75 | 4.22 | 12.85 |
+| fcfse_c0 | right | czp | 10 | −0.07 | 0 | 3.16 | 19.66 | 4.17 | 12.85 |
+| stop1y_c1.5 | left | stock | 10 | −0.18 | 0 | 4.51 | 20.61 | 3.50 | 2.15 |
+| stop1y_c1.5 | left | czp | 7 | −0.14 | 0 | 4.59 | 20.79 | 3.69 | 2.23 |
+| stop1y_c1.5 | right | stock | 10 | −0.10 | 0 | 3.02 | 18.84 | 4.14 | 13.54 |
+| stop1y_c1.5 | right | czp | 9 | −0.10 | 0 | 3.08 | 18.86 | 4.15 | 13.61 |
+
+(The stop1y right czp row leaves out the run 082 held. Ego wait is the ego's time below the wait
+speed before Z; ego out is when it left Z after A's lock.)
+
+- **The arms match except fcfse_c0 from the left.** There, under czp, the ego waits 2.6 s longer
+  and goes first in 5 of 7 runs, against 8 of 10 for stock. From the right, A and the ego never
+  come close (clear > 12 m).
+- **Flicker before 079's fixes**: 12 of 40 czp runs, all with A from the left; 25 flips and 26
+  drops back within 2 s. A partner was out of the conflict set for 0.10-1.16 s, which is what
+  079's cs_hold_s 1.5 s now covers. The fcfse_c0 left runs flickered most.
+- Load: 13 runs before the second gate had a mean load over 64, with no contact. After it, the
+  median was 34.6, and the gate never gave up.
+
+**Reruns on 133** (scensim a75703d4: main 738c563f's czp, with 079's and 082's fixes, the probe
+margin 0.5 + 1.2 v and the 0.5 m/s creep cap):
+
+- The 7 spoiled czp runs: 7 of 7 ok on their first attempt, and the ego entered and cleared in
+  every one. The run 082 had held now enters at 16.9 s. 0 contacts, 0 deadlocks, 0 starved, and
+  no 082 signature in any bag.
+- Flicker: 0 drops back. One run of 7 has 1 flip (one 0.28 s track gap).
+- Heartbeat gaps were at most 0.69 s.
+- The reference (stock, the plain Town05 map, A's rule t1.5p5, both sides, the same Δt, seed 0):
+  10 of 10 ok, with no contact and no deadlock.
+
+So U3 on Autoware has no safety finding: no contact or deadlock in 97 runs. The one systematic
+czp-versus-stock difference is fcfse_c0 from the left, measured on czp before 079's fixes. Only the
+7 reruns ran on main's czp, so that difference has not been remeasured there.
+
+**Scoring added on the way** (crossing_aw, 66bcf137..a75703d4):
+
+- `starved`: A crossed and the ego never entered Z. It is a counted verdict like a deadlock, with
+  the quiet rerun under load, so a strategy that holds the ego cannot drop out through retries.
+- When the bag shows 082's signature, the run is an error instead (a stack fault), and it is
+  retried.
+- Every failed or starved row records `sig082`. On a czp arm it also records the watchdog's
+  velocity-limit clears.
+- `--summary` gives the final results, and apart from them every failed attempt, the czp-arm 082
+  hits (`czp_082`, which with czp's fix in would be a regression) and the cells left with no
+  verdict.
+- `--rescore` rescores only each tag's last row.
 
 ### Audit: did any Autoware run drive blind? (2026-11-17)
 

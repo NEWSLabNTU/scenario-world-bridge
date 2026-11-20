@@ -483,6 +483,25 @@ def yaml_load(path: Path):
         return None
 
 
+def _ego_doc(isaac_ego, ego) -> dict:
+    """The stack's Isaac ego config so far, to add to: the one scensim writes (``isaac_ego``),
+    else aib's (``ego`` default or unset) or the testbench's (``ego``, its ground truth kept),
+    its paths absolute."""
+    if isaac_ego is not None:
+        return dict(isaac_ego["config"])
+    if ego in (None, "default"):
+        doc = isaac_ego_with_ground_truth()
+        doc.pop("ground_truth", None)
+        return doc
+    doc = isaac_ego_with_ground_truth(Path(ego))
+    gt = (yaml_load(Path(ego)) or {}).get("ground_truth")
+    if gt:
+        doc["ground_truth"] = gt
+    else:
+        doc.pop("ground_truth", None)
+    return doc
+
+
 def isaac_ego_with_ground_truth(base: Path = None) -> dict:
     """aib's ego config ``base`` (default: aib_ego_config()) with its paths made absolute and
     the ground truth on (Odometry of base_link in the map on ISAAC_GROUND_TRUTH_TOPIC): the
@@ -904,19 +923,19 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
             raise StackRefused(f"pilots.{b.key}.component: one pilot with the vehicle side (the ego) may "
                                "name a control component")
         rec = componentmod.resolved(project, b.spec, host)
-        if isaac_ego is not None:
-            doc = dict(isaac_ego["config"])
-        elif sim_side.get("ego") in (None, "default"):
-            doc = isaac_ego_with_ground_truth()
-            doc.pop("ground_truth", None)
-        else:
-            doc = isaac_ego_with_ground_truth(Path(sim_side["ego"]))
-            gt = (yaml_load(Path(sim_side["ego"])) or {}).get("ground_truth")
-            if gt:
-                doc["ground_truth"] = gt
-            else:
-                doc.pop("ground_truth", None)
+        doc = _ego_doc(isaac_ego, sim_side.get("ego"))
         doc["component"] = componentmod.ego_entry(rec)
+        isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
+        sim_side["ego"] = isaac_ego["path"]
+    wheel_query = (isaac or {}).get("wheel_query")
+    if wheel_query and not server and sim == "isaac":
+        # the ego's PhysX wheel query (issue 077): the sweep climbs a sharp curb the raycast
+        # does not; aib then lengthens PhysX's travel and stops the wheel at the real one
+        if sim_side.get("ego") == "none":
+            raise StackRefused("isaac.wheel_query: this stack has no Isaac ego (no pilot with "
+                               "the vehicle side, or isaac.ego: none)")
+        doc = _ego_doc(isaac_ego, sim_side.get("ego"))
+        doc["vehicle"] = {**(doc.get("vehicle") or {}), "wheel_query": wheel_query}
         isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
         sim_side["ego"] = isaac_ego["path"]
     ego_car = cars.get(vehicle) if vehicle else None

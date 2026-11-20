@@ -66,11 +66,14 @@ def test_world_problems(tmp_path):
     (tmp_path / "assets" / "maps" / "Town05").mkdir(parents=True)
     (tmp_path / "ego.yaml").write_text("{}\n")
     good = {"isaac": {"ego": "ego.yaml", "render": "headless", "follow": "editor",
-                      "physics_hz": 240, "preload": ["Town05"], "wheels_topic": False}}
+                      "physics_hz": 240, "preload": ["Town05"], "wheels_topic": False,
+                      "wheel_query": "sweep"}}
     assert world.problems(good, "isaac", tmp_path) == []
     text = [f"{w}: {m}" for w, m in world.problems(
         {"isaac": {"ego": "missing.yaml", "render": "vr", "follow": "maybe", "physics_hz": -1,
-                   "preload": ["Town09"], "world": "x"}}, "isaac", tmp_path)]
+                   "preload": ["Town09"], "world": "x", "wheel_query": "ray"}}, "isaac",
+        tmp_path)]
+    assert "isaac.wheel_query: 'ray' is not one of raycast, sweep" in text
     assert "isaac.ego: missing.yaml: no such file" in text
     assert "isaac.render: 'vr' is not one of auto, window, headless" in text
     assert "isaac.follow: 'maybe' is not one of true, false, editor" in text
@@ -94,7 +97,8 @@ def test_world_args(tmp_path):
         "config_file": str((tmp_path / "c.yaml").resolve())}
     assert world.sim_args(tmp_path, "isaac", w, {"ego": "none", "render": "headless",
                                                  "follow": True, "physics_hz": 240,
-                                                 "wheels_topic": False}) == {
+                                                 "wheels_topic": False,
+                                                 "wheel_query": "sweep"}) == {
         "ego": "none", "render": "headless", "physics_hz": "240", "follow": "true",
         "wheels_topic": "false"}
     # stack_args merge: the user's win, a key scensim owns is refused naming what to give

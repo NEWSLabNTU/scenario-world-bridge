@@ -14,6 +14,8 @@ pilots:
     vehicle: tesla_model3
     inputs: [map, ground_truth]
     args: {route: direct, max_speed_kmh: 15}
+isaac:
+  wheel_query: sweep   # the curb onto the walkway: the raycast wheel cannot climb it (issue 077)
 logging:
   keep: {passed: full, failed: full, error: full}
 default: verge   # the suite `scensim run isaac_verge` runs

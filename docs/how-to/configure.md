@@ -118,6 +118,7 @@ isaac:
 | `ego` | `default` (the Model 3 with Autoware's sensors), `none`, or your own ego config |
 | `preload` | more maps loaded at start (each takes minutes and memory) |
 | `wheels_topic` | `true` (default): publish `/scensim/wheels` |
+| `wheel_query` | `raycast` (default) or `sweep`: `sweep` lets the ego climb a curb (issue 077); not for soil scenarios |
 
 Isaac's own options go in `ISAAC_KIT_ARGS` ([Getting started on Isaac
 Sim](../getting-started/isaac.md)); its GPU is the host setting `gpu:`, which the stack gives

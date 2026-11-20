@@ -394,6 +394,36 @@ def test_isaac_plan_simple_pilot_turns_ground_truth_on(where, maps_hub, tmp_path
                               stack.Bound("b", "b", {"kind": "simple"})], s, "isaac")
 
 
+def test_isaac_wheel_query_goes_into_the_ego_config(where, maps_hub, tmp_path):
+    """isaac.wheel_query (issue 077): the stack's ego config carries vehicle.wheel_query, over
+    the ground truth a simple pilot turns on and the ego config's own vehicle overrides."""
+    base = tmp_path / "aib" / "ego.yaml"
+    base.parent.mkdir()
+    base.write_text("rig: tesla_model3.rig.yaml\ndomain: 1\nvehicle: {mass: 1900.0}\n")
+    d = make(where, template="isaac")
+    text = (d / "testbench.yaml").read_text().replace("kind: autoware", "kind: simple")
+    (d / "testbench.yaml").write_text(text + "isaac: {wheel_query: sweep}\n")
+    real = stack.aib_ego_config
+    stack.aib_ego_config = lambda: base
+    try:
+        p = stack.plan(project_arg=str(d))
+    finally:
+        stack.aib_ego_config = real
+    cfg = p.record["isaac_ego"]["config"]
+    assert cfg["vehicle"] == {"mass": 1900.0, "wheel_query": "sweep"}
+    assert cfg["ground_truth"] == {"topic": "/ground_truth/odom"}
+    assert f"ego:={p.stack_dir / stack.ISAAC_EGO}" in p.launch_args["sim_args"]
+    # an autoware ego (aib's default config): the stack writes one for the wheel query alone
+    (d / "testbench.yaml").write_text(text.replace("kind: simple", "kind: autoware")
+                                      + "isaac: {wheel_query: sweep}\n")
+    stack.aib_ego_config = lambda: base
+    try:
+        cfg = stack.plan(project_arg=str(d)).record["isaac_ego"]["config"]
+    finally:
+        stack.aib_ego_config = real
+    assert cfg["vehicle"]["wheel_query"] == "sweep" and "ground_truth" not in cfg
+
+
 def test_isaac_ego_config_needs_aib(tmp_path):
     with pytest.raises(stack.StackRefused, match="aib"):
         stack.isaac_ego_with_ground_truth(tmp_path / "missing.yaml")

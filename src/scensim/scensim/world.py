@@ -22,6 +22,7 @@ world and the ports) is refused by name, in ``testbench.yaml`` and in ``stack_ar
       physics_hz: 240
       preload: [Town05]                 # more maps the world server loads at start
       wheels_topic: true
+      wheel_query: sweep                # the ego's PhysX wheel query: raycast (aib's) | sweep
 
 Weather parameters are set through the bridge's ``set_weather`` service once the bridge
 serves it, before the stack is ready (the keeper); a preset goes as the bridge's ``weather``
@@ -35,7 +36,8 @@ from scensim import config, own_world
 
 WORLD_KEYS = ("weather", "npc_motion", "contact_report_dir", "config_file", "world_config_file",
               own_world.KEY)
-ISAAC_KEYS = ("ego", "render", "follow", "physics_hz", "preload", "wheels_topic")
+ISAAC_KEYS = ("ego", "render", "follow", "physics_hz", "preload", "wheels_topic", "wheel_query")
+WHEEL_QUERIES = ("raycast", "sweep")
 NPC_MOTIONS = ("tracked", "kinematic")
 RENDERS = ("auto", "window", "headless")
 FOLLOWS = ("true", "false", "editor")
@@ -148,6 +150,8 @@ def problems(settings: dict, simulator: str, project: Path = None) -> list:
             out.append(("isaac.follow", f"{v!r} is not one of {', '.join(FOLLOWS)}"))
         elif k == "physics_hz" and not (_number(v) and v > 0):
             out.append(("isaac.physics_hz", f"{v!r} is not a positive number"))
+        elif k == "wheel_query" and v not in WHEEL_QUERIES:
+            out.append(("isaac.wheel_query", f"{v!r} is not one of {', '.join(WHEEL_QUERIES)}"))
         elif k == "wheels_topic" and not isinstance(v, bool):
             out.append(("isaac.wheels_topic", f"{v!r} is not true or false"))
         elif k == "preload":

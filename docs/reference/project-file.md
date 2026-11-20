@@ -333,6 +333,7 @@ isaac:
   physics_hz: 240                     # the physics rate, Hz (default 60)
   preload: [Town05]                   # more maps the world server loads at start
   wheels_topic: true                  # /scensim/wheels on the ego's domain
+  wheel_query: sweep                  # the ego's wheels: raycast (default) | sweep
 ```
 
 | Key | |
@@ -343,6 +344,7 @@ isaac:
 | `physics_hz` | physics steps per simulated second; each SSv2 step is split into steps no longer than one over this |
 | `preload` | maps the world server loads at start beside the stack's first; a run on one of them moves the pilots there instead of being refused. Each must be fetched |
 | `wheels_topic` | `false` turns `/scensim/wheels` off |
+| `wheel_query` | how the ego's PhysX wheels find the ground. `raycast` (the default): one ray down each wheel's centre. `sweep`: the wheel's cylinder, which climbs a sharp curb the raycast cannot (issue 077). With `sweep` the suspension's PhysX travel is 2.5 times the real one and a bump stop holds the wheel at the real one. It changes the car on soil (issue 077's open item), so it is for scenarios that leave the road over a curb or a step |
 
 `isaac:` is refused on a CARLA testbench. The world (`world`) and the state directory are
 scensim's: give `maps:` and `map:=` instead.

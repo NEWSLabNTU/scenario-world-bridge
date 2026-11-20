@@ -1,7 +1,9 @@
 # 077: The Isaac car does not climb Town01's curb: isaac_verge never reaches the sidewalk
 
 **Severity**: medium (056 step 5's scenario fails on Isaac; a car on Isaac cannot leave the
-road over a curb). **Status**: open; cause confirmed 2026-11-20 (118); the fix is roadmap 086's (below).
+road over a curb). **Status**: a fix for scenarios that opt in (`isaac.wheel_query: sweep`, 118, 2026-11-20). `isaac_verge`'s
+own run on Isaac Town01 waits for a host that renders Town01 (241 or 139). The sweep on soil is
+open (below).
 **Found**: 2026-11-20, swb 241, `isaac_verge` (main 7d5bb9d) on Isaac Town01, 2 of 2 runs.
 
 ## What happens
@@ -41,69 +43,88 @@ layer's tyre contact (066 R5) is not there, and the curb meets PhysX's query alo
 - **No workaround in the scenario.** This road has no curb cut, and no approach angle is
   dependable: only 60 degrees climbed at every speed tried, while 45 and 75 failed at some.
 
-## Fix (roadmap 086)
+## Fix (roadmap 086): the sweep with a bump stop, for scenarios that opt in
 
-1. **The sweep, rechecked** (066 R1's check, pulled forward from C6; 2-3 days):
-   - Rerun 029's fixtures (`spikes/road_fixtures.py`, `ROAD_QUERY=sweep`) at 10 and 20 m/s,
-     with PhysX's rigid travel set beyond the rig's, as R2 sets it on the road layer's
-     corridors.
-   - Rerun aib's slope matrix and 055's manoeuvre suite.
+The fix applies to scenarios that opt in with `isaac.wheel_query: sweep` in `testbench.yaml`.
+Every other scenario keeps the raycast, unchanged. `isaac_verge` is the first to opt in.
 
-   If the sweep no longer throws the car, aib switches to it, which takes curbs on every map.
-2. **Otherwise, the road layer owns the curb** (C5's lip, its re-entry fixtures at 5, 10 and
-   15 cm, plus this one).
-   - Town01 needs a road record whose sections carry the curb as a lip.
-   - PhysX's query stops seeing the sidewalk collider, so the tyre contact gives the step and
-     the walkway's height.
+**What changed.** In aib (`VehicleParams`, `aib.bump_stop`):
+- `wheel_query: sweep` makes PhysX query the ground with the wheel's cylinder.
+- PhysX's suspension travel becomes 2.5 times the real one (`physx_travel`; 0.50 m on the
+  Model 3), its frame raised so the droop stays the real one.
+- A progressive bump stop holds the wheel at the real travel. Each PhysX step it applies a
+  force at the wheel's attachment, from PhysX's jounce:
+  - it engages 0.06 m before full compression;
+  - its rate is 5 times the axle's spring;
+  - its force is capped at rate times engagement;
+  - its damper sees at most 0.2 m/s.
 
-Until then `isaac_verge` fails on Isaac and the release notes keep 077 as a known issue.
+  The sweep's jounce jumps by most of a step's height within one PhysX step at the step's
+  face, so the stop acts on the jounce as read: extrapolated, the first version gave 420 kN
+  and threw the car.
 
-### Step 1 result (118, 2026-11-20)
+On road-detail maps, scensim_isaac_world's road layer sets PhysX's longer travel through
+`physx_travel`, and turns aib's stop off: its own corner has one.
 
-029's fixtures with the sweep, at four PhysX travels:
+**Why not the sweep alone.** 029's fixtures, sweep with no stop:
 
 | PhysX travel | passes | cases thrown (rise above 0.3 m or pitch above 10 deg) |
 |---|---|---|
 | 0.20 m (the rig's) | 1 | 6, up to 4.5 m |
 | 0.30 m | 1 | 2 |
 | 0.40 m | 2 | 1 in both (4.6 m) |
-| 0.50 m | 5 | none, the same numbers every pass |
+| 0.50 m | 5 | none |
 
-The kicker is left out: the car leaves that ramp under every variant, raycast included.
+At 0.50 m, though, the wheel compressed up to 0.24 m past rest against the Model 3's 0.11, so
+the stop is needed.
 
-At 0.50 m the peak loads are near the reference on the cleats and the boulder (26.8, 27.1 and
-30.5 kN against 20.2, 26.6 and 29.9). The pothole is too high: 26.4 kN against 10.1.
+**Checks of the sweep with the stop** (118):
+- **029's fixtures:** no throws. Rise is at most 0.13 m and pitch at most 2.9 deg, with the
+  kicker ramp left out. Three passes are identical, and every case stayed on its lane.
+- **The curb:** all 30 cases climb (Town01's collision profile and a box; 15, 25, 38, 60 and
+  90 deg; 1, 2 and 4 m/s). The body rises at most 0.144 m on the 0.103 m curb. With the
+  raycast, most fail.
+- **aib's slope matrix:** identical (start and hold on downhill, flat and uphill). So are the
+  launch, regen, coast and step responses. Braking past the tire moves: `brake_100` stops in
+  39.59 m against 40.01, with fewer locked frames.
+- **055's suite on dry and wet asphalt:** small changes. Examples: dry drift peak sideslip
+  -13.7 against -14.8 deg; split-mu peak sideslip 3.1 against 2.5 deg; ABS share up 2 to 3
+  points.
+- **The road layer with today's car:** rock_world.py, 2 km of R3's gravel at 40, 60 and
+  80 km/h. Every result matches main's, with only frame times differing.
 
-But 0.50 m works only because the wheel compresses past the real car's travel. The Model 3 has
-about 0.11 m past rest, and with no stop the wheel went up to 0.24 m past rest. So the sweep
-alone is not the fix: it needs a progressive bump stop at the real travel, with PhysX's own
-limit well past it. That is R2's corner force, which today runs only on the road layer's
-corridors.
+**Known limits.**
+- **Cleats:** on 10 to 15 cm cleats at 10 to 20 m/s the wheel still goes past the real travel,
+  to a jounce of 0.28 to 0.39 m against 0.20. The rigid sweep puts the wheel on the cleat's
+  edge before a tire would envelop it, and no force applied a step later can catch it. The
+  body's motion stays as above.
+- **Pothole and fast cleat loads:** peak loads are high (26.4 kN against the reference's
+  10.1 on the pothole; 46 kN against 24 on a 10 cm cleat at 20 m/s).
 
-Step 1 continues in aib:
-- R2's bump stop as a force on the body from PhysX's jounce, every PhysX step;
-- the sweep, with PhysX's travel at 0.50 m and the droop kept;
-- the gates: no throw on the fixtures, compression within the real travel plus the stop's
-  engagement, the curb matrix climbed.
+**Open: the sweep on soil.** On 055's mud pad the sweep is a different car:
 
-Then come the references 133 named for a change to every Isaac car. These are compared with
-today's results:
-- haruna_down;
-- the isaac_first_drive and road_physics examples;
-- isaac_soil;
-- aib's slope matrix;
-- 055's manoeuvre suite.
+| case | metric | raycast | sweep |
+|---|---|---|---|
+| `mud_circle` | ends off its line | -1.1 m | 21.3 m |
+| `mud_dlc` | peak sideslip | 20.8 deg | 10.7 deg |
+| `mud_sine` | heading change | -42 deg | -32 deg |
+
+On a straight stop on mud (`mud_brake`) the sweep's yaw rate chatters by about 0.5 deg/s and
+the left and right wheel slips differ, with the car's track within 2 mm. The raycast shows
+neither. The soil classes (047 S5, 053, 054) were fitted under the raycast, so a scenario on
+soil should not opt in. Switching every car to the sweep and refitting mud under it is a
+separate decision (asked of the user through 133, 2026-11-20).
 
 **For roadmap 091's small car.** A RoboRacer (a 1/10-scale car) has wheels of about 0.05 m radius, so door sills,
 floor seams and cable covers are steps of a third of the wheel or more. A raycast takes each of
-these as a wall, as it takes Town01's curb. That is one more reason to have the sweep and the
-bump stop in aib, for every car, and not only on the road layer's corridors.
+these as a wall, as it takes Town01's curb. Such a car opts in the same way.
 
 ## Evidence
 
 NAS logs `2026 SSv2 on CARLA/2026-11-20 077 curb climb, raycast and sweep (118)/` (the test,
 per-step traces, Town01's mesh section) and `2026-11-20 077 sweep recheck, 029 fixtures (118)/`
-(step 1).
+(the sweep without a stop), `2026-11-20 077 aib bump stop, fixtures and curb (118)/` and
+`2026-11-20 077 aib bump stop, 055 suite and slope matrix (118)/` (the stop).
 
 
 NAS logs `2026 SSv2 on CARLA/2026-11-20 086 C4 isaac_verge on Isaac Town01 (241)/`.

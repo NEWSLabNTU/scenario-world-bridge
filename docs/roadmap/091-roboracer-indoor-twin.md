@@ -1,6 +1,6 @@
 # 091: A RoboRacer Indoor Twin on Isaac Sim
 
-**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, done 2026-11-20 (approved by 133): [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md); the reference stack for step 5 is f1tenth_system with its VESC driver (assumed). Step 2 next.
+**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, done 2026-11-20 (approved by 133): [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md); the reference stack for step 5 is f1tenth_system's `humble-devel` (133); a component sees the car's own sensors and, when it declares them, ground truth the user also measured on the real car (the user). Step 2 in progress.
 
 ## Goal
 
@@ -96,7 +96,9 @@ properties; that convenience is why they work there. So for an indoor field:
 
 ## Open questions
 
-- Which open RoboRacer stack is the reference for step 5?
+- Which open RoboRacer stack is the reference for step 5? Answered: f1tenth_system,
+  `humble-devel` (133, 2026-11-20).
 - The physics rate: does a 1/10 car need more than 100 Hz substeps, and what does that cost?
-- Does a user component need ground truth (it should not, as `sim_vehicle_ecu` does not), or
-  only the car's own sensors?
+- Does a user component need ground truth? Answered (the user, 2026-11-20): the car's own
+  sensors by default; ground truth only as declared, and only what the user also measured on
+  the real car, delivered with its latency and noise (design note 2.4).

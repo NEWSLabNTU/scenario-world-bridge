@@ -90,9 +90,11 @@ The rules for `step`:
   `sim_vehicle_ecu.signals`. A car with one motor and a differential returns the torque at
   each wheel after the differential. The component owns the driveline, so the gear ratio and
   the differential's split are its own business.
-- **No ground truth.** `sensors` are the readings a real car has (2.4). A component never sees
-  the pose, the true speed over the ground, slip or friction, as with `sim_vehicle_ecu`. This
-  answers 091's third open question: no.
+- **Ground truth only as measured.** By default `sensors` are the readings a real car has
+  (2.4), as with `sim_vehicle_ecu`. A component may declare ground-truth inputs it needs, but
+  only quantities the user also measured on the real car, for example by motion capture
+  (2.4). This answers 091's third open question (the user, 2026-11-20): what the component sees
+  is what the user can measure.
 - **Determinism.** The same `(command, sensors, dt)` sequence after `reset()` gives the same
   outputs. Noise is drawn from a generator seeded by `seed`.
 - **Cost.** At most 0.1 ms per call, mean, per car, measured on the world server. The budget
@@ -161,8 +163,41 @@ and the component sees exactly what the real VESC sees. That is 091's success cr
 - `accel_x` and `accel_y` (m/s^2, body frame).
 
 A RoboRacer's VESC measures the motor's speed, not the wheels'. The component derives it from
-the driven wheels and its own gear ratio and differential, which it owns (2.1). Nothing else is
-added: the IMU the stack sees is the vehicle interface's (4.2), not the component's input.
+the driven wheels and its own gear ratio and differential, which it owns (2.1). The IMU the
+stack sees is the vehicle interface's (4.2), not the component's input.
+
+**Declared ground truth.** A model fitted against measurements may need a quantity no onboard
+sensor gives, when the user measured it on the real car (a motion capture's pose, say). The
+component declares those inputs by name, and gets them in `sensors.truth`, a mapping holding
+the declared names only:
+
+```python
+class MyCar:
+    commands = "vesc"
+    truth = ("speed", "yaw")        # declared ground truth: names from TRUTH_INPUTS
+```
+
+| name | unit | meaning |
+|---|---|---|
+| `pose` | m, rad | x, y, yaw in the map frame |
+| `yaw` | rad | heading in the map frame |
+| `velocity` | m/s | the body's velocity, x and y in the body frame |
+| `speed` | m/s | forward speed over the ground |
+| `yaw_rate` | rad/s | the body's, true (the sensor's is in `sensors.yaw_rate`) |
+| `wheel_slip` | 1, 4-tuple | each wheel's longitudinal slip, PhysX's |
+| `sideslip` | rad | the body's sideslip angle |
+
+The rules for declared inputs:
+- **Latency and noise.** Each declared input is delivered with an optional latency and noise
+  model, set per run (the testbench's `component: {truth: {speed: {latency_s: 0.02, noise_std:
+  0.01}}}`): the value is the truth `latency_s` ago, plus Gaussian noise of `noise_std` from
+  the run's seed. The default is none and none. The model should match how the real
+  measurement was taken.
+- **Provenance.** The run records the declared inputs with their latency and noise in
+  `provenance.pilots.<entity>.component`.
+- **The check.** `testbench check` refuses a component that reads an undeclared input (it gets
+  only what it declared, and a name outside `TRUTH_INPUTS` is refused when it loads). It also
+  refuses a latency or noise setting for an input the component did not declare.
 
 ### 2.5 How it is named
 
@@ -314,8 +349,8 @@ Each run's `result.json` gets `provenance.stage`:
 
 The pilot's vehicle side gets a profile, `vehicle_interface: ackermann | vesc | autoware`
 (default `autoware`). It sets the topics, and the command type of 2.3 that it hands the
-component. Topic names follow f1tenth_system and are remappable per pilot (`remap:`), since
-stacks differ (f1tenth_gym_ros uses `/ego_racecar/odom`).
+component. Topic names follow f1tenth_system's `humble-devel` (6, the reference stack) and are
+remappable per pilot (`remap:`), since stacks differ (f1tenth_gym_ros uses `/ego_racecar/odom`).
 
 ### 4.1 In
 
@@ -422,6 +457,18 @@ reported per quantity and condition, never averaged away, by the harness of step
   - the `ackermann` and `vesc` vehicle-interface profiles;
   - a planar lidar profile (Hokuyo UST-10LX class: 270 deg, 1081 beams, 40 Hz, 0.06 to 10 m),
     checked against a real scan of the field.
-- **Assumed.** The reference stack for step 5 is f1tenth_system with its VESC driver (133,
-  2026-11-20). The topic names of 4 and the `vesc` profile follow it. Another stack is a remap
-  (`remap:`), or a profile of its own if its commands differ.
+- **The reference stack** for step 5 is f1tenth_system (github.com/f1tenth/f1tenth_system),
+  branch `humble-devel`, which f1tenth's install docs (f1tenth.readthedocs.io) clone for ROS 2
+  Humble (133, 2026-11-20). The repository's default branch is `jazzy-devel`; step 5 checks its
+  topic names against 4 before relying on them. Autoware's own RoboRacer reference design
+  (f1tenth_galactic) is old and is not used.
+  - Bringup: `ros2 launch f1tenth_stack bringup_launch.py`, with vesc_driver_node,
+    ackermann_to_vesc_node, vesc_to_odom_node, ackermann_mux, joy_teleop and urg_node.
+  - The `vesc` profile mirrors vesc_driver_node exactly, so the user's ackermann_to_vesc and
+    vesc_to_odom run unchanged:
+    - commands in: `commands/motor/speed`, `duty_cycle`, `current`, `brake` and
+      `commands/servo/position`;
+    - out: `/sensors/core`, `/sensors/imu/raw`, `/sensors/servo_position_command`.
+    - The gains (`speed_to_erpm_gain` and `_offset`, `steering_angle_to_servo_gain` and
+      `_offset`) are the user's, in their own launch configuration.
+  - Another stack is a remap (`remap:`), or a profile of its own if its commands differ.

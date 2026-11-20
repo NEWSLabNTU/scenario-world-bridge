@@ -1003,6 +1003,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     for k, v in user.items():
         args[k] = v
 
+    not_applied_rec = {}
     common = {"relay": f"tcp://localhost:{s.relay_port}", "vehicle": vehicle, "sim": sim,
               "use_sim_time": "true"}
     if sim == "carla" and vehicle:
@@ -1022,6 +1023,15 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         physics = _named(args.get("sim_args")).get("vehicle_physics", "none")
         if physics and physics != "none":
             common.update(carla_physics=physics, carla_physics_mode="verify")
+        # what the car's spec says that this CARLA does not apply (roadmap 091 W24): named at
+        # the start, and in stack.json for the runs' provenance
+        missing = vehiclesmod.not_applied(physics, (carla_run or {}).get("version"))
+        if missing and vehicle:
+            not_applied_rec[vehicle] = missing
+            print(f"scensim stack: CARLA {(carla_run or {}).get('version') or ''} does not "
+                  f"apply these of {vehicle}'s spec: "
+                  f"{', '.join(vehiclesmod.not_applied_fields(missing))} "
+                  f"(its {Path(physics).name}'s not_applied)", file=sys.stderr)
     common = contract_for_map(common, project, sim, chosen)
 
     pilots = []
@@ -1077,6 +1087,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
                           or spec_hash_of(b.spec.get("vehicle")))},
         "vehicles": {n: {k: c.get(k) for k in ("spec", "spec_hash", "catalog", "pedal_maps")}
                      for n, c in cars.items()},
+        "not_applied": not_applied_rec,
         "proc": str(proc),
         "launch_args": args,
         "pid": None,

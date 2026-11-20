@@ -1302,6 +1302,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                   if p.get("vehicle_interface") not in (None, "autoware")}
     if interfaces:
         prov["vehicle_interfaces"] = interfaces   # the profile each ego's stack drove (roadmap 091 W18)
+    if rec.get("not_applied"):
+        # what each car's spec says that the simulator did not apply (roadmap 091 W24)
+        prov["not_applied"] = rec["not_applied"]
     world_server = worldmod.carla_world_settings(rec)
     if world_server:
         prov["world_server"] = world_server

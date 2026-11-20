@@ -57,7 +57,9 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 
 - **An own car (`vehicles:`) on Isaac drives as a box.** The stack makes its rig from the
   spec (roadmap 091 W5), but the installed car's body does not fit it, so the chassis box
-  shows. A small car (a 1/10 RoboRacer class) is not tuned yet (091 W6 to W8). An `autoware`
+  shows. A small car (a 1/10 RoboRacer class) is worked through in
+  `scenarios/projects/roboracer` (091 W6 to W9): it needs physics at 240 Hz, front and rear
+  tyres of their own, and real data to fit them, which is not yet in hand. An `autoware`
   pilot of an own car needs
   the car's Autoware packages built and installed; a car without measured pedal maps drives
   on the Tesla Model 3's ([Your car](../how-to/your-car.md)).

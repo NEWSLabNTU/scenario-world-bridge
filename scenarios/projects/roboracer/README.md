@@ -206,3 +206,30 @@ A cone's measured push-over behaviour therefore needs the measured floor frictio
 body material, both authored.
 
 The runs are on the NAS under `2026 SSv2 on CARLA/2026-11-20 091 W9 RoboRacer walls and cones (118)`.
+
+## Front and rear tyres, and the body's contact, in the spec (W24)
+
+W8 and W9 found two things the spec could not say. Roadmap 091 W24 adds both, as optional keys:
+- **`tires.front`, `tires.rear`**: an axle's `friction`, `lat_stiff_max_load`,
+  `lat_stiff_value` and `long_stiff_value`, where they differ from `tires`;
+- **`body.contact`**: the body's `restitution`, `static_friction`, `dynamic_friction` and
+  `combine`.
+
+Isaac applies both at the car's creation. CARLA takes the tyres per wheel and leaves out the
+body's contact, naming it (sim_vehicle_spec's `not_applied`). A spec without them is the car
+it was, hashes included. This example sets neither: its tyres wait for real data (W22, or W23's
+stand-in). The values would be written as W8's fit to NUC7 here, in the spec's own units:
+
+```yaml
+tires:
+  friction: 1.05
+  # ...
+  front: {friction: 0.6796, lat_stiff_value: 11.2725}
+  rear: {friction: 1.1913, lat_stiff_value: 19.2955}
+body:
+  contact: {static_friction: 0.5, dynamic_friction: 0.5, restitution: 0.5}
+```
+
+Written in the spec, that fit gives on Isaac the same M5 and M6, to the last digit, as aib's
+per-wheel setters gave in W8, and the same wall rebound as W9's hand-bound body material (0.407
+against 0.408). The runs are on the NAS under `2026 SSv2 on CARLA/2026-11-20 091 W24 contact properties check (118)`.

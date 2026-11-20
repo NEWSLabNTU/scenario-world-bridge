@@ -96,6 +96,11 @@ as `scensim`.
 - `quality` and `args`: the effective [`carla:` settings](project-file.md#carla);
 - `applied`: false when the stack did not start that CARLA, so they did not apply.
 
+`provenance.not_applied` is, per car, what its spec says that the simulator did not apply
+(roadmap 091 W24), from the car's generated CARLA file. On CARLA, that is a `body.contact`,
+because CARLA has no per-actor physics material. On CARLA 1.0 it is also what Chaos keeps from
+the blueprint's asset. It is absent when nothing was left out.
+
 Event types: `collision.vehicle`, `collision.pedestrian`, `collision.static`, `red_light`,
 `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`.
 

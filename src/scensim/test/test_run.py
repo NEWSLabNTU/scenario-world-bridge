@@ -324,6 +324,19 @@ def test_a_runs_provenance_lists_the_pilots_overlays(live, where):
     assert stored.provenance["overlays"] == {"ego": ov}
 
 
+def test_a_runs_provenance_keeps_what_the_simulator_did_not_apply(live, where):
+    # roadmap 091 W24: stack.json's not_applied, per car, into the run's provenance
+    d, p = live
+    rec = json.loads(p.stack_json.read_text())
+    rec["not_applied"] = {"my_car": ["body.contact: CARLA has no per-actor physics material"]}
+    p.stack_json.write_text(json.dumps(rec))
+    r = api.run_one(d, "scenarios/three_pilots.xosc",
+                    {"logging": {"keep": {}}, "scenario_command": fake(where), "ready_timeout": 5})
+    stored = results.RunResult.read(where["tmp"] / "logs" / "proj" / "runs" / r.run_id /
+                                    "result.json")
+    assert stored.provenance["not_applied"] == rec["not_applied"]
+
+
 def test_fingerprint_mismatch_refused(live, capsys):
     d, _ = live
     (d / "testbench.yaml").write_text((d / "testbench.yaml").read_text().replace("kind: carla_basic",

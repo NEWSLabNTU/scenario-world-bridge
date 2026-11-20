@@ -873,6 +873,33 @@ def test_an_own_car_reaches_the_bridge_the_world_server_and_its_pilot(where, map
     assert p.record["vehicles"]["my_lincoln"]["spec_hash"] == "hash-of-my_lincoln"
 
 
+def test_what_carla_does_not_apply_is_named_and_recorded(where, maps_hub, monkeypatch, capsys):
+    """roadmap 091 W24: an own car whose CARLA file names what CARLA does not apply (its
+    body.contact): the stack's start says so, and stack.json keeps it for the runs."""
+    from scensim import vehicles
+    from test_vehicles import INSTALLED, fake_gen, own_spec
+
+    def gen(spec, d):
+        fake_gen(spec, d)
+        (d / "carla" / "carla_physics.yaml").write_text(
+            "not_applied: ['body.contact: CARLA has no per-actor physics material']\n")
+    monkeypatch.setattr(vehicles, "run_gen", gen)
+    monkeypatch.setattr(vehicles, "installed_catalog", lambda body=None: INSTALLED)
+    d = make(where)
+    own_spec(d)
+    s = yaml.safe_load((d / "testbench.yaml").read_text())
+    s["vehicles"] = ["vehicles/my_lincoln.yaml"]
+    s["pilots"] = {"ego": {"kind": "simple", "vehicle": "my_lincoln"}, "*": {"kind": "none"}}
+    (d / "testbench.yaml").write_text(yaml.safe_dump(s))
+    p = stack.plan(project_arg=str(d), check=None)
+    assert p.record["not_applied"] == {
+        "my_lincoln": ["body.contact: CARLA has no per-actor physics material"]}
+    assert "does not apply these of my_lincoln's spec: body.contact" in capsys.readouterr().err
+    # a car that names nothing: nothing said, nothing recorded
+    monkeypatch.setattr(vehicles, "run_gen", fake_gen)
+    assert stack.plan(project_arg=str(d), check=None).record["not_applied"] == {}
+
+
 def test_isaac_ground_truth_for_a_pilot_that_says_it_drives_on_it(where, maps_hub, tmp_path,
                                                                    monkeypatch):
     """A launch pilot running simple_pilot on Isaac (inputs: [ground_truth]) gets the

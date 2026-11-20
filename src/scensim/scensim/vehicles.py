@@ -91,6 +91,41 @@ def installed_physics(car: str):
     return f if f.is_file() else None
 
 
+def not_applied(physics, version=None) -> list:
+    """What a car's spec says that CARLA does not apply (sim_vehicle_spec's ``not_applied``:
+    a body's contact material, roadmap 091 W24; and on 1.0 what Chaos keeps from the
+    blueprint's asset), from its CARLA physics file ``physics``: on a CARLA 1.0 its sibling
+    carla_physics_1.0.yaml, which that server takes. [] when the file is missing or names
+    none."""
+    if not physics or physics == "none":
+        return []
+    f = Path(physics)
+    if carla_body(version) == "carla-1.0" and (f.parent / "carla_physics_1.0.yaml").is_file():
+        f = f.parent / "carla_physics_1.0.yaml"
+    try:
+        doc = yaml.safe_load(f.read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    return [str(n) for n in doc.get("not_applied") or []]
+
+
+def not_applied_fields(entries) -> list:
+    """The fields of ``not_applied`` entries (the text before each one's first colon)."""
+    return [e.split(":", 1)[0].strip() for e in entries]
+
+
+def spec_not_applied(spec_path, simulator) -> list:
+    """What a spec says that ``simulator`` does not apply, from the spec alone (before its
+    files are generated): on CARLA, a ``body.contact`` (no per-actor material, W24)."""
+    if simulator != "carla":
+        return []
+    try:
+        doc = yaml.safe_load(Path(spec_path).read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    return ["body.contact"] if (doc.get("body") or {}).get("contact") else []
+
+
 def catalog_dir(project, body=None) -> Path:
     """What ``$(env SCENSIM_VEHICLES)`` names for a project: its merged catalog's directory when
     it has own cars, else the installed one's for ``body`` (the CARLA server's, ``carla_body``):

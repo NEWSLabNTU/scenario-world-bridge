@@ -190,3 +190,34 @@ def test_the_rig_is_aibs_from_the_spec(tmp_path):
     doc = yaml.safe_load(rig.read_text())
     assert (rig.parent / doc["spec"]).resolve() == spec.resolve()
     assert doc["spec_hash"] and doc["vehicle"]["wheel_base"] > 0
+
+
+def test_what_carla_does_not_apply_is_read_from_the_cars_file(tmp_path):
+    # roadmap 091 W24: sim_vehicle_spec names what CARLA cannot apply in the file's not_applied
+    carla = tmp_path / "carla"
+    carla.mkdir()
+    f = carla / "carla_physics.yaml"
+    f.write_text("not_applied: ['body.contact: CARLA has no per-actor physics material']\n")
+    (carla / "carla_physics_1.0.yaml").write_text(
+        "not_applied: ['suspension (frequency): the asset''s', 'body.contact: none']\n")
+    assert vehicles.not_applied(f) == ["body.contact: CARLA has no per-actor physics material"]
+    assert vehicles.not_applied(f, "0.9.16") == vehicles.not_applied(f)
+    assert vehicles.not_applied_fields(vehicles.not_applied(f, "1.0-abc")) == [
+        "suspension (frequency)", "body.contact"]
+    f.write_text("vehicle: {}\n")
+    assert vehicles.not_applied(f) == []
+    assert vehicles.not_applied(None) == vehicles.not_applied("none") == []
+    assert vehicles.not_applied(tmp_path / "missing.yaml") == []
+
+
+def test_check_notes_a_contact_carla_does_not_apply(tmp_path):
+    p = own_spec(tmp_path)
+    s = {"simulator": "carla", "vehicles": ["vehicles/my_lincoln.yaml"]}
+    assert projectmod.not_applied_notes(tmp_path, s) == []
+    doc = yaml.safe_load(p.read_text())
+    doc["body"]["contact"] = {"restitution": 0.3}
+    p.write_text(yaml.safe_dump(doc, sort_keys=False))
+    notes = projectmod.not_applied_notes(tmp_path, s)
+    assert len(notes) == 1 and "my_lincoln" in notes[0] and "body.contact" in notes[0]
+    s["simulator"] = "isaac"  # Isaac applies it
+    assert projectmod.not_applied_notes(tmp_path, s) == []

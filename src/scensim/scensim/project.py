@@ -869,6 +869,24 @@ def autoware_side_problems(settings: dict, env=None, share=None) -> list:
             for where, what, fix in problems]
 
 
+def not_applied_notes(project: Path, settings: dict) -> list:
+    """What each own car's spec says that the testbench's simulator does not apply (roadmap
+    091 W24: a body.contact on CARLA): notes, not problems. The stack names it again at its
+    start, with the generated files' full list, and the run's provenance keeps it."""
+    try:
+        cars = vehiclesmod.spec_names(project, settings)
+    except vehiclesmod.VehicleError:
+        return []
+    sim = settings.get("simulator")
+    out = []
+    for name, spec, _ in cars:
+        missing = vehiclesmod.spec_not_applied(spec, sim)
+        if missing:
+            out.append(f"vehicles: {name}: {sim} does not apply its spec's "
+                       f"{', '.join(missing)}; the car runs there without it")
+    return out
+
+
 def autoware_side_notes(settings: dict, env=None, share=None) -> list:
     kw = {"env": env} if share is None else {"env": env, "share": share}
     return autoware_side.assess(_pilots(settings), **kw)[1]

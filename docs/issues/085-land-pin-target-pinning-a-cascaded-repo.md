@@ -1,7 +1,7 @@
 # 085: land_pin does not bump a target that pins a repository its own cascade moves
 
 **Severity**: low. The landing is refused before anything is pushed, and landing the deepest
-target alone works around it. **Status**: open; worked around. **Found**: 2026-11-20, by 241,
+target alone works around it. **Status**: fixed (this commit). **Found**: 2026-11-20, by 241,
 landing roadmap 091 W19.
 
 ## What happens
@@ -43,13 +43,22 @@ takes aib from its own main (5520655, which already had the W19 code) and bumps 
 `autoware_sim_vehicle`, giving aib 18d218e. That landed as dd126de, after the full `just test`
 passed on the same cascade staged locally.
 
-## Fix (not done)
+## Fix
 
-When a target pins a repository that is moving to a new commit, either:
-- give the target a new commit on top of the given one, bumping that dependency (what the
-  workaround produces); or
-- refuse in the dry run, naming the target and the dependency, and suggest landing the deeper
-  target alone.
+Targets now join the dependency-ordered pass with the other moving components, read from their given
+commit rather than their main. When that commit pins a repository that the landing moves elsewhere
+(including one that gets a new commit in the cascade), the target gets a new commit on top of it,
+bumping those pins. This is the same rule as for any other component, and what the workaround produced.
 
-The first is what a user wants. It is the same rule as for any other component in the
-cascade, applied after the target's own commit.
+The new commit goes on the target's main, which must therefore be the given commit. A given commit behind
+its main's tip would bring the commits after it along. In that case the landing is refused by name, naming
+the dependencies, before anything is made.
+
+## Tests
+
+`scripts/test_land_pin.py` has two new cases, and both fail on the script before the fix:
+
+- A and D land together, where D's tip pins C and the cascade moves C (C pins A). D gets a new commit
+  on top of the given one, pinning C's new commit, and E follows. `check_pins` is green.
+- The same, with D's main moved past the given commit. The landing is refused, exit 2, naming C, and
+  nothing is pushed.

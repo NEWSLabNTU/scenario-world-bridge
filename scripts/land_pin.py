@@ -13,6 +13,10 @@ keeps scripts/check_pins.py green on main (scripts/land_pin.sh runs this):
    scensim_isaac_world. In dependency order, each gets a new commit on its main with its moving deps bumped,
    all in one commit, when its main pins any of them elsewhere than its target; otherwise (its main already
    pins every one at its target, issue 083) it moves here to its main as it is, with no commit of its own.
+   A target is treated the same, from its given commit: when that commit pins a repository the cascade
+   moves (aib pinning autoware_sim_vehicle while sim_vehicle_spec lands), it gets a new commit on top
+   bumping it. That commit goes on the target's main, so the given commit must be its main's tip; one
+   behind it is refused by name rather than landing the commits after it (issue 085).
 3. Every commit is made locally first: the components' (from their origin/main), then this repository's
    pins, one commit for the whole cascade. check_pins runs on that. Only then is anything pushed: the
    components in dependency order, then this repository. A failed check pushes nothing; a component
@@ -120,8 +124,8 @@ def main(argv):
             if c not in moving and deps[c] & moving:
                 moving.add(c)
                 changed = True
-    order = []  # the moving components (not the targets), in dependency order
-    rest = sorted(moving - set(targets))
+    order = []  # the moving components, the targets among them, in dependency order
+    rest = sorted(moving)
     while rest:
         ready = [c for c in rest if all(d not in rest for d in deps.get(c, ()))]
         if not ready:
@@ -129,24 +133,34 @@ def main(argv):
             return 2
         order += ready
         rest = [c for c in rest if c not in ready]
-    # each: a new commit bumping its moving deps when its main pins any of them elsewhere than its target
-    # (a dep that gets a new commit itself counts as elsewhere), else its main as it is (issue 083)
+    # each: a new commit bumping its moving deps when its main (a target: the given commit) pins any of them
+    # elsewhere than its target (a dep that gets a new commit itself counts as elsewhere), else that commit
+    # as it is (issue 083). A target bumped so must be its main's tip: the new commit goes on its main, and
+    # anything after the given commit would land with it (issue 085).
     target, new = dict(targets), []
     for c in order:
-        mv = sorted(deps[c] & moving)
-        if any(d in new or pin(src / c, "origin/main", f"deps/{d}") != target[d] for d in mv):
+        mv = sorted(deps.get(c, set()) & moving - {c})
+        at = targets.get(c) or "origin/main"
+        if any(d in new or pin(src / c, at, f"deps/{d}") != target[d] for d in mv):
+            if c in targets and targets[c] != git("rev-parse", "origin/main", cwd=src / c):
+                print(f"{c} {targets[c][:7]} pins " + ", ".join(
+                    d for d in mv if d in new or pin(src / c, at, f"deps/{d}") != target[d])
+                      + " elsewhere than this landing moves it, and is not its main's tip: land its main, "
+                      "or move those pins in it first", file=sys.stderr)
+                return 2
             new.append(c)
             target[c] = None
-        else:
+        elif c not in targets:
             target[c] = git("rev-parse", "origin/main", cwd=src / c)
     short = lambda s: s[:7] if s else "(new)"  # noqa: E731
     for repo, full in targets.items():
         print(f"{repo} -> {short(full)} ({git('log', '-1', '--format=%s', full, cwd=src / repo)})")
     for c in order:
         if c not in new:
-            print(f"== {c}: its main {short(target[c])} already pins its moving deps")
+            if c not in targets:
+                print(f"== {c}: its main {short(target[c])} already pins its moving deps")
             continue
-        mv = sorted(deps[c] & moving)
+        mv = sorted(deps[c] & moving - {c})
         print(f"== {c}: " + ", ".join(f"deps/{d} {short(pin(src / c, 'origin/main', f'deps/{d}'))} -> "
                                       f"{short(target.get(d))}" for d in mv))
         if dry:
@@ -165,7 +179,7 @@ def main(argv):
         names = ", ".join(f"{d} {short(target[d])}" for d in mv)
         git("commit", "-q", "-m", f"deps: {names}{trailer}", cwd=cd)
         target[c] = git("rev-parse", "HEAD", cwd=cd)
-    landing = list(targets) + order
+    landing = order
     for c in landing:
         cur = pin(ROOT, base, f"src/{c}")
         if cur != target[c]:

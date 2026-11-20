@@ -198,3 +198,35 @@ def test_bad_arguments(world):
     assert world.land("A", "x", "B", "y", "C").returncode == 2  # pairs and a stray argument
     assert world.land("A", "deadbeef", "A", "deadbeef").returncode == 2  # a repository twice
     assert world.land("Z", "deadbeef").returncode == 2
+
+
+def test_a_target_pinning_a_repo_its_own_cascade_moves_is_bumped(world):
+    """Issue 085 (091 W19's shape): A and D land together; D's given commit pins C, which the cascade moves
+    (C pins A). D gets a new commit on top of the given one, pinning C's new commit; E follows. Before the fix
+    D landed as given and check_pins refused it."""
+    a2 = world.advance("A")
+    d2 = world.advance("D")                               # D's main tip, still pinning C's old commit
+    r = world.land("--dry-run", "A", a2, "D", d2)
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = world.land("A", a2, "D", d2)
+    assert r.returncode == 0, r.stdout + r.stderr
+    c = world.remote_pin("C")
+    assert c != world.sha["C"] and world.pin(c, "deps/A", world.super / "src" / "C") == a2
+    d = world.remote_pin("D")
+    ddir = world.super / "src" / "D"
+    assert d != d2 and git(ddir, "rev-parse", f"{d}~1") == d2   # on top of the given commit
+    assert world.pin(d, "deps/C", ddir) == c
+    e = world.remote_pin("E")
+    assert world.pin(e, "deps/D", world.super / "src" / "E") == d
+    assert world.check_pins().returncode == 0
+
+
+def test_a_target_behind_its_main_that_would_need_a_bump_is_refused(world):
+    """Issue 085: the bump goes on the target's main, so a given commit behind its main's tip is refused by
+    name rather than landing the commits after it unasked."""
+    a2 = world.advance("A")
+    d2 = world.advance("D")
+    world.advance("D")                                    # D's main moves past d2
+    r = world.land("A", a2, "D", d2)
+    assert r.returncode == 2 and "not its main's tip" in r.stderr and "C" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("A") == world.sha["A"]        # nothing pushed

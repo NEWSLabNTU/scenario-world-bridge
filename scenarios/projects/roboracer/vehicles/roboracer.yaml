@@ -1,0 +1,101 @@
+# A 1/10-scale RoboRacer (the F1TENTH class: a Traxxas Slash 4x4 chassis, a VESC, a 2D lidar), the
+# worked example of roadmap 091 W6. Its numbers are the class's published values (f1tenth_gym's
+# vehicle parameters, F1TENTH's build docs), not a measured car: a user fits their own car's
+# spec from M1 to M6 (design note 5) with the fitting tool (W10). The full-size settings this
+# library defaults to (PhysX's slip denominators, the sticky-tyre thresholds, the suspension,
+# the wheels) are refitted for a car of 3.7 kg on 0.055 m wheels; each says why.
+spec_version: 2
+name: roboracer
+description: 1/10-scale RoboRacer (F1TENTH class), the worked example of roadmap 091
+
+body:
+  catalogue_model: vehicle.roboracer.f1tenth   # no CARLA or Isaac asset: Isaac shows the box
+  ground_clearance: 0.03       # m: the chassis plate's underside
+
+geometry:
+  wheel_base: 0.33             # f1tenth_gym: lf 0.15875 + lr 0.17145
+  wheel_tread: 0.265           # the car's 0.31 m width less a tire's width
+  wheel_radius: 0.055          # 110 mm tires
+  wheel_width: 0.045
+  front_overhang: 0.13         # 0.58 m long overall
+  rear_overhang: 0.12
+  left_overhang: 0.005
+  right_overhang: 0.005
+  vehicle_height: 0.20         # with the lidar on its mast
+  max_steer_angle: 0.36        # rad: the servo's travel at the wheels
+
+mirror:                        # none: Autoware's keys, at the body's sides
+  min_longitudinal_offset: 0.0
+  max_longitudinal_offset: 0.0
+  min_lateral_offset: 0.0
+  max_lateral_offset: 0.0
+  min_height_offset: 0.0
+  max_height_offset: 0.0
+
+inertia:
+  mass: 3.74                   # kg, f1tenth_gym, with the computer, lidar and battery
+  com_front_fraction: 0.52     # lr / wheel base: 0.17145 / 0.3302
+  com_lateral: 0.0
+  com_height: 0.074            # f1tenth_gym's h_cg
+  inertia_box: [0.34, 0.18, 0.10]   # a box whose yaw inertia is f1tenth_gym's 0.047 kg m^2
+
+wheels:
+  mass: 0.10                   # kg: wheel and tire; inertia 0.5 m r^2 = 1.5e-4 kg m^2
+  damping_rate: 0.0001         # N m s: the Model 3's 0.25 scaled by its wheels' inertia
+
+tires:
+  friction: 1.05               # f1tenth_gym's mu, on a lab floor
+  lat_stiff_max_load: 2.0
+  lat_stiff_value: 5.0         # N/rad per N of rest load: f1tenth_gym's C_Sf 4.72, C_Sr 5.46
+  long_stiff_value: 9.35       # kg (x g): 10 x a quarter-car rest load, as the Model 3's
+  friction_vs_slip: [[0.0, 1.0], [0.1, 1.0], [1.0, 0.8]]
+
+brakes:
+  max_brake_torque: 1.0        # N m per wheel: past the tires (9.2 N rest load x 0.055 m)
+  hold_brake_torque: 0.5
+  distribution: dynamic_axle_load
+  dead_time: 0.02              # s: a VESC brakes electrically, no hydraulics
+  time_constant: 0.02
+  abs: {enabled: false, slip_release: 0.25, slip_reapply: 0.15, release_rate: 8.0, apply_rate: 4.0, min_speed: 0.3}
+
+powertrain:
+  model: ideal                 # until the user's component (091 step 2) models the VESC
+  max_drive_torque: 0.45       # N m per wheel: about 8 m/s^2 on four driven wheels
+  drive_axle: all              # the Slash 4x4's shafts to both axles
+
+resistance:
+  rolling_coefficient: 0.02    # small rubber tires on a hard floor
+  drag_coefficient: 0.6
+  frontal_area: 0.047          # m^2: 0.31 m by 0.15 m
+  air_density: 1.2
+
+steering:
+  ackermann: true
+  time_constant: 0.05          # s: a hobby servo
+  rate_limit: 5.0              # rad/s at the wheels
+
+suspension:
+  frequency: 5.0               # Hz: the static sag g / (2 pi f)^2 is 9.9 mm, a third of the travel
+                               # (at 3 Hz it is 27.6 mm, and the car rests on its bump stop)
+  damping_ratio: 0.5
+  travel: 0.03                 # m
+
+isaac:
+  physx:
+    substeps: 8
+    substep_threshold_speed: 1.0       # m/s: the Model 3's 5.0, scaled to the car's speeds
+    # PhysX floors each slip's denominator at these speeds. At the Model 3's 4 m/s a car whose
+    # speeds are 0.5 to 8 m/s would see its slip divided by a floor above its own speed.
+    min_active_slip_denominator: 0.5
+    min_passive_slip_denominator: 0.5
+    min_lateral_slip_denominator: 0.25
+    sticky_tire_threshold_speed: 0.05  # m/s: the Model 3's 0.2, scaled
+    sticky_tire_threshold_time: 1.0
+    longitudinal_sticky_tire_damping: 200.0
+    lateral_sticky_tire_damping: 200.0
+
+sensor_kit:
+  mount: {x: 0.2, y: 0.0, z: 0.12, roll: 0.0, pitch: 0.0, yaw: 0.0}
+
+# sensors: the planar lidar (UST-10LX class) comes with roadmap 091 W19 (sim_vehicle_spec's
+# laser_scan fields); an IMU and the VESC's telemetry follow the vehicle interface's profile.

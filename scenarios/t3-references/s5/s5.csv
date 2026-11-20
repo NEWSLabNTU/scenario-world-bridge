@@ -1,13 +1,13 @@
 scenario,params,repetition,seed,verdict,judges,duration
-s5_v10_g5.5.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,127.193
-s5_v10_g5.5.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,125.795
-s5_v10_g6.5.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,100.872
-s5_v10_g6.5.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,109.854
-s5_v10_g6.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,139.007
-s5_v10_g6.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,192.455
-s5_v10_g7.xosc,,0,0,passed,physical_verdict=failed s5_score=passed,109.424
-s5_v10_g7.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,164.953
-s5_v10_g8.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,107.902
-s5_v10_g8.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,103.407
-s5_v10_g9.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,150.368
-s5_v10_g9.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,108.891
+s5_v10_g5.5.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,88.188
+s5_v10_g5.5.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,87.192
+s5_v10_g6.5.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,87.194
+s5_v10_g6.5.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,87.198
+s5_v10_g6.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,87.194
+s5_v10_g6.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,88.186
+s5_v10_g7.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,88.191
+s5_v10_g7.xosc,,1,1,passed,physical_verdict=failed s5_score=passed,89.194
+s5_v10_g8.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,88.187
+s5_v10_g8.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,88.186
+s5_v10_g9.xosc,,0,0,passed,physical_verdict=passed s5_score=passed,87.206
+s5_v10_g9.xosc,,1,1,passed,physical_verdict=passed s5_score=passed,87.191

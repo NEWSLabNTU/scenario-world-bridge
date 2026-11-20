@@ -2,13 +2,14 @@
 
 ## v0.2.1 (draft, not released)
 
-scensim 0.2.1 runs a suite or a scenario's rollouts on several seats of one host at once, and
-fixes what 0.2.0's release showed. Nothing changes in the simulation side's components (no
-submodule moved since `v0.2.0`), the requirements or the install.
+scensim 0.2.1 runs a suite or a scenario's rollouts on several seats of one host at once,
+completes the Haruna course on Isaac Sim, and fixes what 0.2.0's release showed. The
+requirements and the install do not change. The Isaac examples of Tutorials 6 and 7 pass on
+Town01 with Autoware's overlay built.
 
 ### What is new
 
-- **`scensim run --seats <list|auto>`** (roadmap 088). A suite, or a scenario's rollouts, on
+- **`scensim run --seats <list|auto>`**. A suite, or a scenario's rollouts, on
   several seats at once, each with its own stack and CARLA (the seat table needs
   `seats.carla`); a free seat takes the next run, and every run goes into one report under
   `suites/`. Seats start one at a time, each only with room on its GPU and in the host load
@@ -27,6 +28,15 @@ submodule moved since `v0.2.0`), the requirements or the install.
   has `rollouts.csv` (per scenario and parameter set: counts, pass rate, seeds, the
   duration's spread) and `rollout_metrics.csv` (each numeric metric's spread).
 - T3's comparison names an overloaded run beside a verdict that differs.
+- **Named surface maps.** A testbench names surface maps per map under `ground:`
+  (`ground.<map>.surface_maps.<name>`), and a scenario picks one in its `RoadCondition`
+  (`scensim.surface_map`); see [Road physics on Isaac Sim](reference/road-physics.md). The
+  soil scenarios (mud, snow, the zones) are now a testbench of their own, `isaac_soil`, whose
+  suite `soil` runs them one after another on one Isaac world.
+- **The road record.** A map's `road_detail.yaml` describes the road's section along it: lanes,
+  shoulder, and what lies past the edge on each side. Its surfaces are checked against the
+  surface class table, now one table shared by both world servers. The course builder writes
+  a course's road record, and places its guard rails from it.
 
 ### Fixed since 0.2.0
 
@@ -46,19 +56,36 @@ submodule moved since `v0.2.0`), the requirements or the install.
   Autoware's downhill start (a slight brake, gravity expected to start the car) never moved.
 - The Haruna how-to fixes the course scenario's old names (`SWB_MAPS`, the installed
   catalog), which `testbench check` refuses.
+- **Haruna's course completes on Isaac** (issue 072). Its point cloud map was too large for
+  Autoware's compare-map filter, so static map points stopped the ego about 230 m in. The
+  `haruna-tsukuba-courses` dataset's revision v2026.11.1 divides the map into 100 m tiles that
+  Autoware loads as the car moves, and the Autoware profile filters by that map; `scensim
+  assets fetch --update` takes it. haruna_down passed: 383 s simulated, no contact.
+- **An Isaac camera publishes at its rate.** A camera whose period is not a whole number of
+  frames lost the remainder at every image: a 30 Hz camera on 100 Hz frames published at
+  25 Hz. It now keeps 30 Hz on average.
+- **Traffic lights on a Town03 regenerated from CARLA's OpenDRIVE** (issue 073): a light head within 1 m of a CARLA
+  light that another element already claims now shares that light, so the ego no longer waits
+  at a head no CARLA light drives.
+- `town03_ego_drive`'s goal is on its lane on both Town03 maps (issue 068); Autoware had
+  refused it there as not valid.
 
 ### Known issues
 
-- **Haruna's course is not completed on Isaac** (issue 072): its point cloud map is too large
-  for Autoware's compare-map filter, so static map points stop the ego about 230 m in. A
-  divided map is needed.
+- **Without Autoware's overlay** an Isaac run can end in an error when stock Autoware's
+  pose_instability_detector dies (issue 027): build it once with `scensim autoware overlay`.
+  Tutorials 6 and 7 now say so.
+- **Town01 on Isaac loses the GPU on some NVIDIA drivers** (issue 005): seen on 615.71.09;
+  610.57.04 and 580.105.08 work.
 
 ### Before the release
 
 - The Isaac examples' live check (`isaac_first_drive`, `road_physics`), promised for 0.2.1
-  in 0.2.0's notes: run on 118 (2026-11-20), where every Isaac render of Town01 loses the GPU
-  on its driver (issue 005), so all four scenarios ended without a verdict; they need a host
-  with a working driver (139).
+  in 0.2.0's notes: done on 241 (2026-11-20, driver 610.57.04). With Autoware's overlay all
+  four scenarios passed (drive_to_goal, follow_to_goal, mud_and_gravel, after_rain). Without
+  it, follow_to_goal ended once in issue 027's error and the other three passed. On 118 every
+  Isaac render of Town01 lost the GPU on its driver (issue 005).
+- `isaac_soil`'s suite `soil` on Town01, its first run as a testbench.
 - Branch `088-startup-hold` (no run starts beside another seat's stack start-up), after 133's
   check.
 - The version, the tag and the publish are the user's.

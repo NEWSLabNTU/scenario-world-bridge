@@ -7,7 +7,8 @@ One tyre-and-ground model: surfaces and soil (wet, gravel, mud, sand, snow), cal
 approved by 133 the same day with its three decisions. C1 done 2026-11-20 (scensim_isaac_world
 87e0ea1, pins f00f02a2). C2 done 2026-11-20 (scensim_world_protocol 2519aca, scensim_isaac_world
 51a95b4, pins 7aad5216). C3 done 2026-11-20 (scensim_isaac_world 98a5d8c, pins 4c67e51d); the
-courses' dataset revision prepared, not published.
+courses' dataset revision prepared, not published. C4 landed 2026-11-20 (scensim_isaac_world
+6177ced, scensim 82787b91); its Town01 suite waits for 139. C5 next.
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that
@@ -133,7 +134,7 @@ Each step on current scensim main; the exit check is what lets the next step sta
 | **C1. The road record and its reader** (done 2026-11-20) | `road_detail.yaml` schema 1; a pure reader and checker in `scensim_isaac_world` (`road_record`, every problem named, `road_detail check <map>`); constant sections and per-station `.npz` both become stations | 1 week (took 1 day) | every converted example builds the same detail tiles, byte for byte (tile hashes before and after); `test_road_detail`, `test_road_layer` pass; a malformed record lists every problem |
 | **C2. The class table moves to the protocol package** (done 2026-11-20) | `surface_classes.yaml` into `scensim_world_protocol`'s share; both world servers find it there; the road record's surface names checked against it | 3 days (took half a day) | Isaac: the Town01 soil, mud and snow scenarios pass as on 053 step 5; an unknown class in a section or zone is refused at load |
 | **C3. The course builder writes the record** (069 E0, swb half; done 2026-11-20) | `road_detail.yaml` + `<corridor>.npz` from the builder: bank 0, today's section, `kappa_v` from z, the hazard classifier from today's rail rule; `props.py` places rails from `barrier_offset` | 1 week | Haruna and Tsukuba rebuilt: the same rails at the same positions, the world USD unchanged except the new files, `haruna_down` still passes; the course's dataset revision prepared, published only on the user's go |
-| **C4. Named surface maps** (056) | as 056's steps 1-5 | 1-1.5 weeks | 056's acceptance: Town01's soil scenarios one after another on one world server, no file copied |
+| **C4. Named surface maps** (056; landed 2026-11-20, Town01 runs pending) | as 056's steps 1-5 | 1-1.5 weeks | 056's acceptance: Town01's soil scenarios one after another on one world server, no file copied |
 | **C5. Isaac's geometry from the record** (066 R8) | the ribbon tilted by bank and crown; `road_detail` per station; the lip; the shoulder and run-off strips as surface zones; Autoware's point cloud and lanelet heights regenerated from the same meshes, divided when large | 1.5-2 weeks | Isaac's road height and cross slope within 5 mm and 0.1 deg of the record at every station; lip re-entry fixtures (5, 10, 15 cm at 90, 45, 30 deg); aib's slope matrix unchanged; `haruna_down` passes on a course with a nonzero crown |
 | **C6. The rest of 066** | R1's checks, R4 rocks finished, R6 wheel hop, R7 sensors and Autoware, all reading the road record | 5-7 weeks, in 066's order | 066's acceptance; aib's slope matrix and 055's manoeuvre suite unchanged on smooth road |
 | **C7. CARLA as a second target for the surface record** | the CARLA world server reads `surfaces.yaml`'s zones as friction trigger boxes (class `mu` x `wet`) and takes `swb.zone.<id>.*`; on 0.9.16 first, then on CARLA 1.0 once 083 step 5 maps the spec to Chaos; label defaults stay asphalt (CARLA's towns have no ground labels per wheel) | 1 week (0.9.16), 3-5 days more (1.0) | a wet zone and a split-mu zone change the CARLA ego's stopping distance and yaw the same way as on Isaac, within 25 % of Isaac's for the same class, on both CARLA versions; the T3 suites unchanged without zones |
@@ -211,6 +212,35 @@ scensim_isaac_world 98a5d8c (`course/record.py`, the builder's `record` step), p
 - The dataset revision is prepared on NAS home, `2026-11-20 086 C3 course road records
   (118)/`: the two courses' `road_detail.yaml` and `section.npz`, README, SHA256SUMS.
   Publishing it (with a new tag) is the user's.
+
+#### C4: the scenario chooses its ground (landed 2026-11-20)
+
+scensim_isaac_world 6177ced (pins cebb5557), scensim 82787b91; 056's steps 1-4.
+
+- `scensim.surface_map=<name>` in a `RoadCondition` loads the map's `surfaces/<name>.yaml`
+  (the testbench state's first) instead of its own `surfaces.yaml`, only while no wheel has
+  driven on soil since the load or the last map: the old map's soil ground comes off, the new
+  one's is built and settled, its rut sets live in `surfaces/<name>/ruts/`, and the rest of
+  the condition is checked against it. It stays until a release, a new owner (both back to the
+  world's own map) or the next `LoadWorld`. `scensim.default.<Label>=<class>` sets one ground
+  label's class for the scenario, friction only. Every named map is checked when the server
+  registers its maps, and `surfaces check <map dir>` checks them too.
+- scensim: `ground.<map>.surface_maps: {<name>: <file>}` links each into
+  `<state>/<map>/surfaces/<name>.yaml` at stack start (and removes links no longer named).
+- The soil scenarios of 047, 052 and 054 moved from `scenarios/surfaces/` into the testbench
+  `isaac_soil` (077's inventory item 19, blocked on per-scenario ground until now): each names
+  its map in its Init and takes the stack's vehicle catalog; suite `soil` runs 053 step 5's set
+  (soil, mud, snow) and the zones. `town01_dry` now opts in to `mud_wet` as the other mud maps
+  do (refused since 053 flagged it). `scensim project check isaac_soil`: ok; all 11 maps pass
+  `surfaces check`.
+- Checks: tests 7 new in the world server (305), 2 in scensim; the full `just test` from
+  `env -i` passed. Live on 118 (Town01 does not render there), the whole path on Haruna: a
+  local testbench's `surface_maps` linked `state/haruna/surfaces/haruna_verge.yaml`, a copy
+  of `haruna_down` named it with `scensim.default.SideWalk=gravel` in its Init, the world
+  server logged the named map and the condition, and the run passed (381.4 s, 0 contacts).
+- Open: 056 step 5 and its acceptance, `isaac_soil`'s suite on Town01 one after another on one
+  world server, on 139 (asked of 133); and 056's "one scenario setting a label class beside a
+  road it leaves" has no Town01 scenario yet.
 
 Order: C1, C2 and C3 make the shared data; C4 and C5 are its first consumers, C5 after C3.
 C6 follows C5 (rocks and wheel hop on the record's road). C7 can start after C2 on 0.9.16,

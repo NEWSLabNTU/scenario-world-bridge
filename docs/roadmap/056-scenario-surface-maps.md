@@ -8,7 +8,11 @@ takes (`swb.default.<Label>`), so that an off-road scenario sets the ground besi
 as well as on it, and several scenarios share one map directory without a file copied in
 before each run.
 
-**Status**: planned, 2026-10-27.
+**Status**: planned, 2026-10-27. Built 2026-11-20 as 086 C4 (scensim_isaac_world 6177ced,
+scensim 82787b91): steps 1-4 done; step 5's Town01 runs wait for an Isaac host that renders Town01
+(139). The properties are `scensim.surface_map` and `scensim.default.<Label>` (the `swb.` prefix
+was renamed), and the tooling is the testbench's `ground.<map>.surface_maps` (the `just` recipes
+below predate scensim).
 
 **Source**: user direction 2026-10-27: "I'd like to see how we can specify the road
 attributes in openscenario and how our swb can configure it. For the off-road project, I
@@ -92,16 +96,16 @@ What a scenario cannot do:
 
 ## Steps
 
-- [ ] **1. Named maps.** `surfaces.road_condition` takes `swb.surface_map`; the surface layer
+- [x] **1. Named maps.** `surfaces.road_condition` takes `swb.surface_map`; the surface layer
   loads `<map>/surfaces/<name>.yaml` before any wheel drives on soil, refuses it after; the
   zone and rut properties checked against it; back to the default at a `LoadWorld`, a new
   owner, a release. Unit tests (a named map, an unknown one, after driving, the zone
   properties against the named map, back to the default).
-- [ ] **2. Label classes.** `swb.default.<Label>`: checked, applied, friction only. Unit tests.
-- [ ] **3. Tooling.** `just surfaces-install`, `just surfaces-check` over `<map>/surfaces/`; the
+- [x] **2. Label classes.** `swb.default.<Label>`: checked, applied, friction only. Unit tests.
+- [x] **3. Tooling.** (as the testbench key `ground.<map>.surface_maps` and `surfaces check <map dir>`; the scenarios moved to the testbench `isaac_soil`) `just surfaces-install`, `just surfaces-check` over `<map>/surfaces/`; the
   soil scenarios (`scenarios/surfaces/*.xosc`) name their maps in their Init, and the run
   scripts stop copying.
-- [ ] **4. Docs.** design/off-road-surfaces.md's road-condition section; the user guide.
+- [x] **4. Docs.** design/off-road-surfaces.md's road-condition section; the user guide.
 - [ ] **5. Runs.** On Isaac with Autoware, one world server, no restart between them: the
   Town01 soil scenarios one after another (053 step 5's set), each naming its map; and one
   scenario setting `swb.default.Terrain` beside a road it leaves.

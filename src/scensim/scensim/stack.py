@@ -47,6 +47,7 @@ import hashlib
 import json
 import os
 import shlex
+import re
 import signal
 import socket
 import subprocess
@@ -75,6 +76,7 @@ WEATHER_RETRY = 5.0       # s between set_weather attempts while the bridge does
 WEATHER_DEADLINE = 600.0  # s of attempts after the simulator is up before the stack fails
 RESPAWN_DELAY = 5.0   # as stack.launch.py's nested launches
 STOP_GRACE = 20.0     # SIGINT, then SIGTERM, then SIGKILL
+LOAD_RESTARTS = 2     # restarts of a pilot whose start did not load its composables (088, 064)
 
 # kind -> its launch under scensim_launch's launch/pilots/ (stack.launch.py's PILOT_KINDS)
 PILOT_FILES = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.launch.py",
@@ -1421,6 +1423,8 @@ class Pilots:
         self.respawn_delay = respawn_delay
         self.procs = {}   # entity -> Popen
         self.due = {}     # entity -> wall time of its (re)start
+        self.started = {}  # entity -> wall time its running process started
+        self.offset = {}   # entity -> its console's size when it last started (issue 088)
 
     @staticmethod
     def stack_pilots(rec):
@@ -1434,6 +1438,10 @@ class Pilots:
         if not argv:
             return
         try:
+            self.offset[p["entity"]] = (log_dir / "console.log").stat().st_size
+        except OSError:
+            self.offset[p["entity"]] = 0
+        try:
             proc = start_process(argv, ros_env(rec, p["domain"]), log_dir / "console.log",
                                  cwd=rec.get("project"), die_with_parent=True)
         except OSError as e:
@@ -1443,6 +1451,7 @@ class Pilots:
             self.due[p["entity"]] = time.time() + self.respawn_delay
             return
         self.procs[p["entity"]] = proc
+        self.started[p["entity"]] = time.time()
         p["pid"] = proc.pid
         p["started_at"] = iso_now()
         p["map"] = rec.get("map")
@@ -1461,6 +1470,27 @@ class Pilots:
         stop_processes(procs)
         for p in (rec or {}).get("pilots", []):
             p["pid"] = None
+
+    def restart(self, rec, entity, why) -> bool:
+        """Stop pilot ``entity``, whose start will not finish (issue 088: a composable load stalled
+        or failed), and respawn it as if it had ended; at most LOAD_RESTARTS times per pilot, then
+        False: it stays not ready, with why, as before 088."""
+        proc = self.procs.get(entity)
+        p = next((x for x in rec.get("pilots", []) if x["entity"] == entity), {})
+        if proc is None or int(p.get("load_restarts") or 0) >= LOAD_RESTARTS:
+            return False
+        del self.procs[entity]
+        stop_processes([proc])
+        self.due[entity] = time.time() + self.respawn_delay
+        p["pid"] = None
+        p["restarts"] = int(p.get("restarts") or 0) + 1
+        p["load_restarts"] = int(p.get("load_restarts") or 0) + 1
+        event(self.stack_dir, "pilot.stalled", entity=entity, containers=why,
+              restart=p["load_restarts"])
+        print(f"scensim stack: pilot {entity} restarted ({p['load_restarts']} of {LOAD_RESTARTS}): "
+              f"its launch did not load its composables: {why}; respawn in "
+              f"{self.respawn_delay:.0f} s", file=sys.stderr, flush=True)
+        return True
 
     def supervise(self, rec) -> bool:
         """Respawn what ended; True when stack.json should be written."""
@@ -1912,11 +1942,24 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                 for p in waiting:
                     if stop["now"] or external_refused():
                         break
-                    missing = timelinemod.missing_composables(
-                        Path(rec["proc"]) / f"pilot-{p['entity']}" / "console.log")
+                    console = Path(rec["proc"]) / f"pilot-{p['entity']}" / "console.log"
+                    if p["entity"] in pilots.due:
+                        continue  # between a restart and its respawn
+                    since, offset = pilots.started.get(p["entity"]), pilots.offset.get(p["entity"], 0)
+                    missing = timelinemod.missing_composables(console, offset=offset)
+                    # a start that did not load its composables -- one failed (064) or one that
+                    # will never be answered (088): restarted, LOAD_RESTARTS times at most
+                    stalled = "" if missing else timelinemod.stalled_loads(
+                        console, since=since, offset=offset)
+                    if (missing or stalled) and pilots.restart(rec, p["entity"], missing or stalled):
+                        continue
+                    if stalled:
+                        missing = f"(stalled) {stalled}"
                     if missing:
-                        # not ready while a composable is missing (issue 064); said once
-                        if p.get("missing") != missing:
+                        # not ready while a composable is missing (issue 064); said once (a
+                        # stall's message counts its seconds: not a new one)
+                        if re.sub(r"\d+ s\b", "N s", p.get("missing") or "") != \
+                                re.sub(r"\d+ s\b", "N s", missing):
                             p["missing"] = missing
                             event(stack_dir, "pilot.missing", entity=p["entity"],
                                   composables=missing)
@@ -1925,6 +1968,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                         continue
                     if check_ready(p.get("ready"), ros_env(rec, p["domain"])):
                         p["ready_at"] = iso_now()
+                        p["load_restarts"] = 0  # a later start that fails to load gets its own
                         event(stack_dir, "pilot.ready", entity=p["entity"], map=rec.get("map"))
                         print(f"scensim stack: pilot {p['entity']} ready on {rec.get('map')}",
                               flush=True)

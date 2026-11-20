@@ -1074,6 +1074,39 @@ def test_a_crash_looping_pilot_fails_the_run_fast(where, maps_hub):
     assert "pilot follower is not coming up: its node /command_follower crashed" in r.reason
 
 
+def test_a_run_pilot_stuck_on_a_lost_load_reply_fails_the_run_fast(where, maps_hub, monkeypatch):
+    """Issue 088: a container's reply to the launch's load_node lost; launch_ros waits for it for
+    ever and nothing failed. A run's pilot has no keeper to restart it: the run ends `error` now,
+    naming the container, not at the readiness timeout."""
+    monkeypatch.setattr(timeline, "LOST_GRACE", 0.0)
+    d = make(where, RUN_PILOT)
+    p, proc = start_stack(d, ready=lambda x: ["false"] if x["entity"] == "follower" else ["true"])
+    deadline = time.time() + 20
+    while json.loads(p.stack_json.read_text()).get("state") != "ready" and time.time() < deadline:
+        time.sleep(0.05)
+    bp = "planning.behavior_planning_container"
+    stuck = ("import time; t = time.time(); print('[INFO] [launch]: All log files can be found below "
+             "/x'); print('[c-1] [INFO] [%.3f] [" + bp + "]: Instantiate class: Glog' % t); "
+             "print('[c-1] [WARN] [%.3f] [" + bp + ".rclcpp]: failed to send response to "
+             "/planning/behavior_planning_container/_container/load_node (timeout)' % t, flush=True); "
+             "time.sleep(60)")
+
+    def pilot_cmd(rec, pilot, entry, log_dir):
+        return [sys.executable, "-c", stuck]
+    try:
+        t = time.time()
+        r = api.run_one(d, "scenarios/three_pilots.xosc",
+                        {"parameters": {"policy": "push"}, "scenario_command": fake(where),
+                         "pilot_command": pilot_cmd})
+        assert time.time() - t < 40   # not the readiness timeout
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+    assert r.verdict == "error"
+    assert ("pilot follower is not coming up: its launch is stuck loading composables into "
+            "/planning/behavior_planning_container (its reply to the launch's load_node was lost") in r.reason
+
+
 def test_crash_watch_counts_only_new_lines(tmp_path):
     log = tmp_path / "console.log"
     log.write_text("x [node:/a] Exited with code 1 (crash 9 since last healthy run)\n")

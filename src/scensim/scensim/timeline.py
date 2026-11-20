@@ -81,14 +81,23 @@ _ROS_LOAD_FAILED = re.compile(r"Failed to load node '([^']+)' of type '[^']+' in
                               r"'([^']+)': (.*)$")
 
 
-def missing_composables(path) -> str:
-    """The composables a pilot's launch (its console at ``path``) declared and did not load,
-    in its current instance (after its last start: a respawned launch appends), each with why;
-    "" when none or when the console says nothing of it yet."""
+def _console_text(path, offset=0) -> str:
+    """A console from byte ``offset`` on (a pilot's restart appends to it: what came before the
+    restart is the previous launch's), ANSI colours removed; "" when unreadable."""
     try:
-        text = _ANSI.sub("", Path(path).read_text(errors="replace"))
+        with open(path, "rb") as f:
+            f.seek(offset)
+            return _ANSI.sub("", f.read().decode(errors="replace"))
     except OSError:
         return ""
+
+
+def missing_composables(path, offset=0) -> str:
+    """The composables a pilot's launch (its console at ``path``) declared and did not load,
+    in its current instance (after its last start: a respawned launch appends; ``offset``: the
+    console's size when the pilot was last started), each with why; "" when none or when the
+    console says nothing of it yet."""
+    text = _console_text(path, offset)
     lines = text.splitlines()
     start = 0
     for i, line in enumerate(lines):
@@ -124,6 +133,138 @@ def missing_composables(path) -> str:
     if not failed:
         return ""
     return "; ".join(f"{name} ({why[:200]})" for name, why in failed.items())
+
+# A composable load that never ends (issue 088): launch_ros (Humble) asks a container to load its
+# composables one request at a time and waits for each reply with no time limit. When a reply is
+# lost (the container's "failed to send response to .../_container/load_node"), the launch waits
+# for ever, the composables after it are never requested, and nothing failed, so 064's check sees
+# nothing. Under ros2 launch the console has both sides: the container logs each load it takes
+# ("Instantiate class: ..."), launch_ros each reply it got ("Loaded node '<n>' in container '<c>'",
+# or "Failed to load node"). A container with more loads taken than answered has one outstanding.
+# play_launch (0.35) loads through its own container, over a private channel or LoadNode, and
+# logs no reply per load; a load whose reply it lost it says so ("LoadNode response lost for
+# composable:<n> -- deferring to ComponentEvent"), and every 10 s how many are loaded ("Startup:
+# ... composable <a>/<b> loaded (<k> pending)"). With its container frozen it waited 12 minutes
+# so, its busy_budget (600 s) notwithstanding, and never wrote LOAD_FAILED or STARTUP_SUMMARY (139,
+# 2026-11-21): nothing for 064's check. So the same rule reads those lines.
+_INSTANTIATE = re.compile(r"^\[[^\]]+\]\s+\[INFO\]\s+\[(\d+(?:\.\d+)?)\]\s+\[([^\]]+)\]:\s+"
+                          r"Instantiate class: (.*)$")
+_LOADED = re.compile(r"Loaded node '[^']+' in container '([^']+)'")
+_PL_TIME = re.compile(r"^(\d{4}-\d\d-\d\dT\S+Z)\s")
+_PL_LOST = re.compile(r"\bWARN container:(\S+): LoadNode response lost for composable:(\S+)")
+_PL_PROGRESS = re.compile(r"\bINFO Startup: .*\bcomposable (\d+)/(\d+) loaded \((\d+) pending\)")
+_PL_DONE = re.compile(r"\bStartup complete\b|\bSTARTUP_SUMMARY ")
+_LOST_REPLY = re.compile(r"^\[[^\]]+\]\s+\[WARN\]\s+\[(\d+(?:\.\d+)?)\]\s+\[[^\]]+\]:\s+"
+                         r"failed to send response to (\S+)/_container/load_node\b")
+LOST_GRACE = 30.0   # s after a lost reply: the launch will not get it; a little slack for ordering
+PL_LOST_GRACE = 120.0  # s under play_launch: beyond its own retry (60 s), which may still recover
+LOAD_STALL = 600.0  # s a load may stay unanswered without a lost reply logged (065: a TensorRT build
+                    # takes up to 240 s inside a constructor, a first CenterPoint start 189 s)
+
+
+def _container(name: str) -> str:
+    """One spelling for a container: a logger (``a.b.c``), a launch's name (``/a/b/c`` or the
+    relative ``c``) or a service prefix."""
+    return name.strip("/").replace("/", ".")
+
+
+def stalled_loads(path, now=None, lost_grace=None, stall=None, since=None, offset=0) -> str:
+    """The containers of a pilot's launch (its console at ``path``, ros2 launch) with a composable
+    load that never ended, in its current instance: a load whose reply the container failed to send
+    (after ``lost_grace`` s), or one outstanding ``stall`` s (timed from the container's last load);
+    each with its counts and what was loaded there. "" when none, or under play_launch. ``now``: wall
+    time, default the clock. ``since``: the pilot's (re)start, wall time; lines stamped before it are
+    a previous launch's (a restarted pilot's console keeps them until its new launch writes);
+    ``offset``: read the console from there (its size at the pilot's last start)."""
+    import time as _time
+    now = _time.time() if now is None else now
+    stall = LOAD_STALL if stall is None else stall
+    lines = _console_text(path, offset).splitlines()
+    start, play_launch = 0, False
+    for i, line in enumerate(lines):
+        if LAUNCH_START.match(line):
+            start, play_launch = i, False
+        elif PLAY_LAUNCH_START.search(line):
+            start, play_launch = i, True
+    if play_launch:
+        return _pl_stalled(lines[start:], now, PL_LOST_GRACE if lost_grace is None else lost_grace,
+                           stall, since)
+    lost_grace = LOST_GRACE if lost_grace is None else lost_grace
+    taken, answered, lost = {}, {}, {}
+    for line in lines[start:]:
+        m = _INSTANTIATE.match(line)
+        if m:
+            if since is None or float(m.group(1)) >= since:
+                taken.setdefault(_container(m.group(2)), []).append((float(m.group(1)), m.group(3)))
+            continue
+        m = _LOADED.search(line) or _ROS_LOAD_FAILED.search(line)
+        if m:
+            c = _container(m.group(1) if m.re is _LOADED else m.group(2))
+            answered[c] = answered.get(c, 0) + 1
+            continue
+        m = _LOST_REPLY.match(line)
+        if m and (since is None or float(m.group(1)) >= since):
+            lost.setdefault(_container(m.group(2)), float(m.group(1)))
+    out = []
+    for c, loads in taken.items():
+        n = answered.get(c, 0)
+        if n >= len(loads):
+            continue
+        # which load is unanswered is not known: a container's lines reach the console late, after
+        # replies to later loads (088: glog_component's reply was the lost one, logged before
+        # behavior_path_planner's load whose reply came). Its age is at least the last load's.
+        last = max(t for t, _ in loads)
+        names = ", ".join(sorted({re.sub(r"^rclcpp_components::NodeFactoryTemplate<(.*)>$", r"\1", k)
+                                  .rsplit("::", 1)[-1] for _, k in loads}))
+        what = f"{n} of {len(loads)} loads answered; loaded there: {names}"
+        if c in lost and now - lost[c] >= lost_grace:
+            out.append(f"/{c.replace('.', '/')} (its reply to the launch's load_node was lost "
+                       f"{now - lost[c]:.0f} s ago; {what})")
+        elif now - last >= stall:
+            out.append(f"/{c.replace('.', '/')} (a load unanswered for at least {now - last:.0f} s; "
+                       f"{what})")
+    return "; ".join(out)
+
+
+def _pl_stalled(lines, now, lost_grace, stall, since) -> str:
+    """stalled_loads under play_launch: its loads still pending, the loaded count unchanged for
+    ``lost_grace`` s after a lost LoadNode reply or for ``stall`` s without one; "" once its start
+    is complete (or summarised: issue 064's check)."""
+    lost = {}  # container -> [(t, composable)]
+    progress = None  # (t when the loaded count last changed, loaded, total, pending)
+    for line in lines:
+        m = _PL_TIME.match(line)
+        t = parse_iso(m.group(1)) if m else None
+        if t is None or (since is not None and t < since):
+            continue
+        if _PL_DONE.search(line):
+            return ""
+        m = _PL_LOST.search(line)
+        if m:
+            lost.setdefault(m.group(1), []).append((t, m.group(2)))
+            continue
+        m = _PL_PROGRESS.search(line)
+        if m:
+            loaded, total, pending = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if progress is None or progress[1] != loaded:
+                progress = (t, loaded, total, pending)
+            else:
+                progress = (progress[0], loaded, total, pending)
+    if progress is None or progress[3] == 0:
+        return ""
+    t_same, loaded, total, pending = progress
+    what = f"{loaded} of {total} composables loaded, {pending} pending"
+    out = []
+    for c, ls in lost.items():
+        t_lost = max(t_same, max(t for t, _ in ls))  # unchanged since the reply was lost
+        if now - t_lost >= lost_grace:
+            names = ", ".join(sorted({n for _, n in ls}))
+            out.append(f"{c} (its LoadNode reply for {names} was lost {now - min(t for t, _ in ls):.0f} s "
+                       f"ago; {what}, none loaded for {now - t_same:.0f} s)")
+    if not out and now - t_same >= stall:
+        out.append(f"{', '.join(lost) or 'its containers'} ({what}, none loaded for {now - t_same:.0f} s)")
+    return "; ".join(out)
+
 
 # SSv2 milestones: (logger suffix or None, pattern, event)
 _MILESTONES = [

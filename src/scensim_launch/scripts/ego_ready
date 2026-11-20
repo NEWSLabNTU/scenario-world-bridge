@@ -220,7 +220,12 @@ def main() -> int:
                         + ("; " if dead and failed else "")
                         + (f"play_launch reports crashed composable(s): {', '.join(failed)}"
                            if failed else "")
-                        + ". A composable died inside its container (see "
+                        + (". A composable died inside its container" if failed else
+                           ". A composable died inside its container, or never loaded: under "
+                           "ros2 launch a container's lost load_node reply leaves the launch "
+                           "waiting with the composables after it unrequested (issue 088; the "
+                           "console says 'failed to send response to .../_container/load_node')")
+                        + " (see "
                         "play_log/ego/latest/play_launch.log for 'crashed:'); rerun with "
                         "--reload-failed, `curl -X POST localhost:"
                         f"{args.web_port}/api/nodes/<name>/load`, or restart `just ego-av`."

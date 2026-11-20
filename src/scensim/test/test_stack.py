@@ -1180,3 +1180,116 @@ def test_plan_refuses_carla_basic_on_another_carla_client(where, maps_hub, monke
     with pytest.raises(stack.StackRefused, match=r"pilots lead \(carla_basic\).*is 1\.0, "
                        r"and this Python's carla client is 0\.9\.16"):
         stack.plan(project_arg=str(d), map_name="Town01")
+
+
+def test_a_pilot_stuck_on_a_lost_load_reply_is_restarted(where, maps_hub, monkeypatch, tmp_path):
+    """Issue 088: a container's reply to the launch's load_node is lost and launch_ros waits for it
+    for ever; nothing failed, so the start sat in the ready timeout. The keeper now restarts that
+    pilot, naming the container, and the next start becomes ready."""
+    import sys
+    from scensim import timeline as timelinemod
+    monkeypatch.setattr(timelinemod, "LOST_GRACE", 0.0)
+    d = make(where)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    marker = tmp_path / "second-start"
+    for x in p.record["pilots"]:
+        x["ready"] = ["test", "-e", str(marker)]
+    stack.write_plan(p)
+    starts = []
+    bp = "planning.behavior_planning_container"
+    stalled = ("import time; t = time.time(); print('[INFO] [launch]: All log files can be found "
+               "below /x'); print('[c-1] [INFO] [%.3f] [" + bp + "]: Instantiate class: Glog' % t); "
+               "print('[c-1] [WARN] [%.3f] [" + bp + ".rclcpp]: failed to send response to "
+               "/planning/behavior_planning_container/_container/load_node (timeout)' % t, "
+               "flush=True); time.sleep(60)")
+
+    def cmd(rec, pilot, entry, log_dir):
+        starts.append(pilot["entity"])
+        if starts.count(pilot["entity"]) == 1:
+            return [sys.executable, "-c", stalled]
+        return [sys.executable, "-c", "import pathlib, time; print('[INFO] [launch]: All log files "
+                f"can be found below /y', flush=True); pathlib.Path({str(marker)!r}).touch(); "
+                "time.sleep(60)"]
+
+    monkeypatch.setattr(stack, "STOP_GRACE", 1.0)
+    assert stack.keep(p.stack_dir, poll=0.05, once=True, pilot_command=cmd, respawn_delay=0.1,
+                      once_timeout=30) == 0
+    rec = json.loads(p.stack_json.read_text())
+    assert rec["state"] == "ready"
+    events = [json.loads(x) for x in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+    stalls = [e for e in events if e["event"] == "pilot.stalled"]
+    assert stalls and all("/planning/behavior_planning_container (its reply to the launch's "
+                          "load_node was lost" in e["containers"] for e in stalls)
+    assert {e["entity"] for e in stalls} <= set(starts)
+    assert all(x.get("restarts", 0) >= 1 for x in rec["pilots"] if x["entity"] in
+               {e["entity"] for e in stalls})
+
+
+def _composables_pilot(marker, first, then=None):
+    """A pilot command whose first start writes ``first`` (console lines) and sleeps; later ones
+    write ``then`` and touch ``marker`` (its ready check), or repeat ``first`` when ``then`` is None."""
+    import sys
+    starts = []
+
+    def cmd(rec, pilot, entry, log_dir):
+        if pilot["entity"] != "ego":
+            return fake_pilot(rec, pilot, entry, log_dir)
+        starts.append(1)
+        lines = first if len(starts) == 1 or then is None else then
+        touch = "" if len(starts) == 1 or then is None else f"pathlib.Path({str(marker)!r}).touch(); "
+        # {T}: this start's wall time, as the container would stamp its lines
+        return [sys.executable, "-c", "import pathlib, time; "
+                f"print({chr(10).join(lines)!r}.replace('{{T}}', '%.3f' % time.time()), flush=True); "
+                f"{touch}time.sleep(60)"]
+    return cmd, starts
+
+
+def _ego_ready_on(p, marker):
+    for x in p.record["pilots"]:
+        x["ready"] = ["test", "-e", str(marker)] if x["entity"] == "ego" else ["true"]
+
+
+def test_a_play_launch_start_summarised_with_composables_missing_is_restarted(where, maps_hub, tmp_path):
+    """088 under play_launch: with its container frozen early, play_launch wrote a STARTUP_SUMMARY
+    naming every composable missing (064's check); the keeper restarts that start too."""
+    d = make(where)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    marker = tmp_path / "second-start"
+    _ego_ready_on(p, marker)
+    stack.write_plan(p)
+    summary = ('2026-11-20T20:01:36.749409Z  INFO STARTUP_SUMMARY {"composable_loaded":0,'
+               '"composable_shortfall":[{"container":"/planning/stall_container","declared":3,'
+               '"loaded":0,"missing":["/listener","/server","/talker"]}],"composable_total":3}')
+    cmd, starts = _composables_pilot(marker, ["INFO Step 1/3: Parsing launch file...", summary],
+                                     ["INFO Step 1/3: Parsing launch file..."])
+    assert stack.keep(p.stack_dir, poll=0.05, once=True, pilot_command=cmd, respawn_delay=0.1,
+                      once_timeout=30) == 0
+    events = [json.loads(x) for x in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+    stalls = [e for e in events if e["event"] == "pilot.stalled"]
+    assert len(stalls) == 1 and "/listener (not loaded in /planning/stall_container" in stalls[0]["containers"]
+    assert len(starts) == 2   # the old start's summary stays in the console: not read again
+
+
+def test_a_start_that_never_loads_is_restarted_twice_then_left_not_ready(where, maps_hub, tmp_path,
+                                                                          monkeypatch):
+    from scensim import timeline as timelinemod
+    monkeypatch.setattr(timelinemod, "LOST_GRACE", 0.0)
+    d = make(where)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    marker = tmp_path / "never"
+    _ego_ready_on(p, marker)
+    stack.write_plan(p)
+    bp = "planning.behavior_planning_container"
+    lost = ["[INFO] [launch]: All log files can be found below /x",
+            f"[c-1] [INFO] [{{T}}] [{bp}]: Instantiate class: Glog",
+            f"[c-1] [WARN] [{{T}}] [{bp}.rclcpp]: failed to send response to "
+            "/planning/behavior_planning_container/_container/load_node (timeout)"]
+    cmd, starts = _composables_pilot(marker, lost)
+    assert stack.keep(p.stack_dir, poll=0.05, once=True, pilot_command=cmd, respawn_delay=0.1,
+                      once_timeout=8) == 3
+    events = [json.loads(x) for x in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+    assert [e["restart"] for e in events if e["event"] == "pilot.stalled"] == [1, 2]
+    assert len(starts) == 3
+    missing = [e for e in events if e["event"] == "pilot.missing"]
+    assert len(missing) == 1 and missing[0]["composables"].startswith(
+        "(stalled) /planning/behavior_planning_container (its reply")

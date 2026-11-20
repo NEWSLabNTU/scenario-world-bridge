@@ -187,3 +187,138 @@ def test_a_composable_ros2_launch_did_not_load_is_named(tmp_path):
                  "cudaErrorMemoryAllocation")
     assert timeline.missing_composables(p) == (
         "/pointcloud_container/occupancy_grid_map_node (cudaErrorMemoryAllocation)")
+
+
+# Issue 088: a container's reply to the launch's load_node lost; launch_ros waits for it for ever
+# (lines as the 241 console had them; the container's lines reach the console late, after a reply
+# to a later load)
+_BP = "planning.scenario_planning.lane_driving.behavior_planning.behavior_planning_container"
+_BP_PATH = "/" + _BP.replace(".", "/")
+
+
+def _stalled_console(tmp_path, t0, lost=True, answered=1):
+    lines = ["[INFO] [launch]: All log files can be found below /x",
+             "[component_container_mt-2] [INFO] [%.3f] [pointcloud_container]: Instantiate class: "
+             "rclcpp_components::NodeFactoryTemplate<autoware::pointcloud_preprocessor::"
+             "CropBoxFilterComponent>" % (t0 - 5),
+             "[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/crop_box_filter' in "
+             "container 'pointcloud_container'"]
+    lines += ["[INFO] [launch_ros.actions.load_composable_nodes]: Loaded node "
+              f"'{_BP_PATH.rsplit('/', 1)[0]}/behavior_path_planner' in container '{_BP_PATH}'"] * answered
+    lines.append(f"[component_container_mt-53] [INFO] [{t0:.3f}] [{_BP}]: Instantiate class: "
+                 "rclcpp_components::NodeFactoryTemplate<autoware::glog_component::GlogComponent>")
+    if lost:
+        lines.append(f"[component_container_mt-53] [WARN] [{t0 + 0.2:.3f}] [{_BP}.rclcpp]: failed to "
+                     f"send response to {_BP_PATH}/_container/load_node (timeout): error not set")
+    lines.append(f"[component_container_mt-53] [INFO] [{t0 + 0.3:.3f}] [{_BP}]: Instantiate class: "
+                 "rclcpp_components::NodeFactoryTemplate<autoware::behavior_path_planner::"
+                 "BehaviorPathPlannerNode>")
+    return _console(tmp_path, *lines)
+
+
+def test_a_lost_load_node_reply_names_its_container(tmp_path):
+    t0 = 1795190012.7
+    p = _stalled_console(tmp_path, t0)
+    assert timeline.stalled_loads(p, now=t0 + 10) == ""      # within the grace
+    got = timeline.stalled_loads(p, now=t0 + 60)
+    assert got.startswith(f"{_BP_PATH} (its reply to the launch's load_node was lost 60 s ago; "
+                          "1 of 2 loads answered; loaded there: BehaviorPathPlannerNode, "
+                          "GlogComponent)")
+    assert "pointcloud_container" not in got                  # 'pointcloud_container' is '/pointcloud_container'
+
+
+def test_a_load_unanswered_too_long_is_stalled_without_a_lost_reply(tmp_path):
+    t0 = 1795190012.7
+    p = _stalled_console(tmp_path, t0, lost=False)
+    assert timeline.stalled_loads(p, now=t0 + 590) == ""     # 065: a constructor may build for minutes
+    assert "a load unanswered for at least 600 s" in timeline.stalled_loads(p, now=t0 + 600.3)
+
+
+def test_every_load_answered_is_no_stall(tmp_path):
+    t0 = 1795190012.7
+    p = _stalled_console(tmp_path, t0, lost=True, answered=2)
+    assert timeline.stalled_loads(p, now=t0 + 3600) == ""
+    assert timeline.stalled_loads(tmp_path / "none.log") == ""
+
+
+def test_a_stall_before_the_pilots_restart_is_not_its(tmp_path):
+    """A restarted pilot's console keeps the old launch's lines until its new launch writes."""
+    t0 = 1795190012.7
+    p = _stalled_console(tmp_path, t0)
+    assert timeline.stalled_loads(p, now=t0 + 60, since=t0 + 30) == ""
+    assert timeline.stalled_loads(p, now=t0 + 60, since=t0 - 1) != ""
+
+
+def test_a_stall_of_an_earlier_launch_instance_is_not_this_ones(tmp_path):
+    t0 = 1795190012.7
+    first = _stalled_console(tmp_path, t0).read_text()
+    p = _console(tmp_path, *first.splitlines(), "[INFO] [launch]: All log files can be found below /y")
+    assert timeline.stalled_loads(p, now=t0 + 60) == ""
+
+
+def test_launch_ros_lines_are_not_read_under_play_launch(tmp_path):
+    """play_launch's own loader logs no 'Loaded node' lines: launch_ros's rule is not applied."""
+    t0 = 1795190012.7
+    body = _stalled_console(tmp_path, t0).read_text().splitlines()[1:]
+    p = _console(tmp_path, "INFO Step 1/3: Parsing launch file...", *body)
+    assert timeline.stalled_loads(p, now=t0 + 3600) == ""
+
+
+# play_launch 0.35 with its container frozen (139, 2026-11-21): LoadNode replies lost, the loads
+# pending for 12 minutes, no LOAD_FAILED and no STARTUP_SUMMARY
+def _pl_line(t, msg):
+    return timeline._dt.datetime.fromtimestamp(t, timeline._dt.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%fZ") + "  " + msg
+
+
+def _pl_console(tmp_path, t0, until, lost=True, done_at=None, loaded_at=None):
+    lines = ["INFO Step 1/3: Parsing launch file...",
+             _pl_line(t0, "INFO Load timings: first_call=30s retry=60s attempts=3 busy_budget=600s")]
+    t = t0 + 10
+    while t <= until:
+        n = 3 if loaded_at is not None and t >= loaded_at else 0
+        lines.append(_pl_line(t, f"INFO Startup: nodes 0/0 running, containers 1/1 running, "
+                                 f"composable {n}/3 loaded ({3 - n} pending)"))
+        if lost and abs(t - (t0 + 30)) < 5:
+            for c in ("talker", "listener", "server"):
+                lines.append(_pl_line(t, f"WARN container:/planning/stall_container: LoadNode service "
+                                         f"call timed out after 30s for composable:/{c} (attempt 1/3)"))
+                lines.append(_pl_line(t, f"WARN container:/planning/stall_container: LoadNode response "
+                                         f"lost for composable:/{c} \u2014 deferring to ComponentEvent"))
+        if done_at is not None and t >= done_at:
+            lines.append(_pl_line(t, "INFO Startup complete: all nodes ready (nodes 0/0, containers "
+                                     "1/1, composable 3/3)"))
+            break
+        t += 10
+    return _console(tmp_path, *lines)
+
+
+def test_play_launch_lost_load_replies_name_the_container(tmp_path):
+    t0 = 1795203785.0
+    p = _pl_console(tmp_path, t0, until=t0 + 720)
+    assert timeline.stalled_loads(p, now=t0 + 30 + 119) == ""   # its own retry may still recover
+    got = timeline.stalled_loads(p, now=t0 + 30 + 125)
+    assert got.startswith("/planning/stall_container (its LoadNode reply for /listener, /server, "
+                          "/talker was lost 125 s ago; 0 of 3 composables loaded, 3 pending")
+
+
+def test_play_launch_loads_pending_too_long_without_a_lost_reply(tmp_path):
+    t0 = 1795203785.0
+    p = _pl_console(tmp_path, t0, until=t0 + 720, lost=False)
+    assert timeline.stalled_loads(p, now=t0 + 600) == ""
+    assert "3 pending, none loaded for 610 s" in timeline.stalled_loads(p, now=t0 + 620)
+
+
+def test_play_launch_recovered_or_complete_is_no_stall(tmp_path):
+    """A lost reply play_launch recovers (the T3 start on 139 resent one, then completed)."""
+    t0 = 1795203785.0
+    p = _pl_console(tmp_path, t0, until=t0 + 720, loaded_at=t0 + 60, done_at=t0 + 60)
+    assert timeline.stalled_loads(p, now=t0 + 3600) == ""
+    p = _pl_console(tmp_path, t0, until=t0 + 720, loaded_at=t0 + 60)   # all loaded, no "complete" line
+    assert timeline.stalled_loads(p, now=t0 + 3600) == ""
+
+
+def test_play_launch_stall_before_the_pilots_restart_is_not_its(tmp_path):
+    t0 = 1795203785.0
+    p = _pl_console(tmp_path, t0, until=t0 + 720)
+    assert timeline.stalled_loads(p, now=t0 + 800, since=t0 + 730) == ""

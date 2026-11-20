@@ -1155,6 +1155,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         waiting = list(pilots) if not infra else []
         watches = {p["entity"]: CrashWatch(pilot_console(rec, p, logs)) for p in waiting}
         why = {p["entity"]: [] for p in waiting}
+        started = {e["entity"]: e["t_wall"] for e in run_events if e["event"] == "pilot.start"}
         while waiting:
             for p in list(waiting):
                 # a composable that did not load is not ready, whatever its topics say
@@ -1164,6 +1165,17 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                     waiting.remove(p)
                     infra.append(f"pilot {p['entity']} is not ready: its launch did not load "
                                  f"{missing} (see {watches[p['entity']].path})")
+                    continue
+                # a load that will never be answered (issue 088): launch_ros waits for it for
+                # ever; nothing restarts a run's pilot, so the run fails now, naming the container
+                # (a stack's pilot is the keeper's: it restarts it)
+                stalled = (timeline.stalled_loads(watches[p["entity"]].path,
+                                                  since=started.get(p["entity"]))
+                           if p.get("lifetime") == "run" and p["entity"] in started else "")
+                if stalled:
+                    waiting.remove(p)
+                    infra.append(f"pilot {p['entity']} is not coming up: its launch is stuck loading "
+                                 f"composables into {stalled} (see {watches[p['entity']].path})")
                     continue
                 if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
                                         why=why[p["entity"]]):

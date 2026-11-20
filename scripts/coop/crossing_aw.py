@@ -292,7 +292,7 @@ def in_run_load(path, t0, t1):
             "load_mean": round(sum(x[0] for x in xs) / len(xs), 1), "psi_max": max(x[1] for x in xs)}
 
 
-def run_one(out, arm, dt, rule, seed, side, a):
+def run_one(out, arm, dt, rule, seed, side, a, gate_load=None):
     tag = tag_of(arm, dt, rule, seed, side)
     rd = Path(out) / tag
     rd.mkdir(parents=True, exist_ok=True)
@@ -329,7 +329,10 @@ def run_one(out, arm, dt, rule, seed, side, a):
     # 074 U3 (133): the gate before the ego's start passed at < max_load, but the ego's own bring-up then took
     # the 1-min load to 117-132 by the scenario's start; so wait again here, ego up and idle, for its burst to decay
     t_gate = time.monotonic()
-    base["load_gate_ok"] = int(wait_load(a.max_load, hold=30.0, poll=5.0, give_up=600.0))
+    # gate_load: the threshold this run waits for (the quiet rerun's is --quiet-load); 0: no gate, no load_gate_ok
+    gate_load = a.max_load if gate_load is None else gate_load
+    if gate_load:
+        base["load_gate_ok"] = int(wait_load(gate_load, hold=30.0, poll=5.0, give_up=600.0))
     base["load_gate_s"] = round(time.monotonic() - t_gate, 1)
     gate = run_gate(a.start_gate, rd) if a.start_gate else None
     cfg = {"entity": "coop_a", "other": "hero", "dt": dt, "v": a.v, "rule": rule, "seed": seed, "b_vmax": B_VMAX,
@@ -479,7 +482,9 @@ def main():
             for attempt in range(3):
                 pre_ok = wait_load(a.max_load)
                 res = run_one(a.out, arm, dt, rule, s, side, a)
-                res["attempt"], res["load_pre_ok"] = attempt, int(pre_ok)
+                res["attempt"] = attempt
+                if a.max_load:
+                    res["load_pre_ok"] = int(pre_ok)
                 if "error" not in res and (res.get("contact") or res.get("deadlock")) and \
                         res.get("load_max", 0.0) >= a.quiet_load:
                     res["counted"] = 0  # under load: its verdict waits for the quiet rerun
@@ -487,8 +492,10 @@ def main():
                     f.write(json.dumps(res) + "\n")
                     f.flush()
                     pre_ok = wait_load(a.quiet_load)
-                    res = run_one(a.out, arm, dt, rule, s, side, a)
-                    res["attempt"], res["quiet_rerun"], res["load_pre_ok"] = attempt, 1, int(pre_ok)
+                    res = run_one(a.out, arm, dt, rule, s, side, a, gate_load=a.quiet_load)
+                    res["attempt"], res["quiet_rerun"] = attempt, 1
+                    if a.quiet_load:
+                        res["load_pre_ok"] = int(pre_ok)
                 print(json.dumps(res), flush=True)
                 f.write(json.dumps(res) + "\n")
                 f.flush()

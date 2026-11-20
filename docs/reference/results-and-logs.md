@@ -45,8 +45,13 @@ every stack pilot is). A run refuses a stack whose fingerprint is not the testbe
 Groups: `simulator`, `bridge`, `relay`, `pilot-<entity>`, `scenario`, `judge`. The key
 topics at `full`: the ego's state, the control command, the vehicle status, the detected
 objects, the trajectory, and `/scensim/wheels` on Isaac; `logging.topics` replaces the list.
+Any other file in the run directory (a pilot's or a judge's own output) is kept at `debug`, or
+at `standard` and up when a judge names it in `reads`.
+
 A run's `capture` sets what it records; `keep` reduces it per verdict once the verdict is
-known ([The testbench file](project-file.md#logging)).
+known ([The testbench file](project-file.md#logging)). A run that failed or ended in error, a
+run a judge found `failed` or `error`, and a run with a contact of the ego in `contacts/` keep
+everything, whatever `keep` says.
 
 ## `result.json`
 

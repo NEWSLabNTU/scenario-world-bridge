@@ -126,7 +126,7 @@ pilot](../how-to/your-autopilot.md).
 | Key | |
 |---|---|
 | `capture` | what a run records: `result` (result, resolved inputs, JUnit, timeline), `standard` (+ each process's log for the run, SSv2's logs), `full` (+ a rosbag of the key topics per pilot, host samples), `debug` (+ every topic, the scenario domain's too). Default `standard` |
-| `keep` | per verdict, the level kept once the verdict is known: `{passed: result, failed: full, error: full}` (default). A judge's `failed` or `error` keeps what that verdict keeps, when that is more |
+| `keep` | per verdict, the level kept once the verdict is known: `{passed: result, failed: full, error: full}` (default); a verdict it does not name keeps everything. A run that failed or ended in error, a run a judge found `failed` or `error`, and a run with a contact of the ego keep everything, whatever `keep` says. The files the judges read (their `reads`) are kept wherever the logs are, `standard` and up |
 | `budget` | `{per_run: 2GB, total: 200GB}`: refuse a run or suite that cannot fit on the log disk |
 | `topics` | the topics `full` records, instead of the key topics |
 | `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `testbench.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
@@ -144,6 +144,7 @@ judges:
     on: [passed, failed]              # default; error runs are not judged
     timeout: 120                      # s, default
     needs: []                         # gap_trace, context: what the run must record
+    reads: []                         # the run's files it reads, kept with the logs
 ```
 
 A judge runs after each run whose verdict is in `on`. It is
@@ -158,6 +159,12 @@ duration, to `judges/<name>.json`, beside the run's verdict, never in its place.
 bridge's gap trace (for the whole stack), and `context`, a log of SSv2's storyboard state
 changes for each run, `context.jsonl` (one JSON object per line: `sim`, `element`, `from`,
 `to`).
+
+`reads` names the files of the run directory the judge reads that no level keeps by name, such
+as a log a `command` pilot writes into the run directory: paths or globs relative to it
+(`[coop_a.jsonl, out/*.csv]`). A run kept at `standard`, `full` or `debug` keeps them; one kept
+at `result` does not. Without it such a file is kept only at `debug`, or when the run keeps
+everything.
 
 Two judges come with scensim, both over the run's gap trace:
 

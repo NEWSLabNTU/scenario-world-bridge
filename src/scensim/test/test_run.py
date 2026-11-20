@@ -706,6 +706,30 @@ def test_judges_run_and_budget_refuses(where, maps_hub, monkeypatch):
         proc.wait(timeout=10)
 
 
+def test_a_judges_reads_are_kept_with_the_logs(where, maps_hub, monkeypatch):
+    """Issue 080: a passed run kept at standard keeps the files its judges read (`reads:`); other
+    files a pilot or judge left in the run directory go, as before."""
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    d = make(where, JUDGED.replace(
+        "  - {name: gap, version: \"2\", run: [python3, judge.py]}",
+        "  - {name: gap, version: \"2\", run: [python3, judge.py], reads: [coop_a.jsonl]}").replace(
+        "logging: {keep: {passed: result}, budget: {per_run: 1KB}}", "logging: {keep: {passed: standard}}"))
+    (d / "judge.py").write_text(  # stands in for a pilot's own logs, read by the judge
+        "import sys, pathlib\n"
+        "rd = pathlib.Path(sys.argv[1])\n"
+        "(rd / 'coop_a.jsonl').write_text('{}\\n'); (rd / 'scratch.txt').write_text('x')\n")
+    p, proc = start_stack(d)
+    try:
+        assert run.main(["scenarios/three_pilots.xosc", "--project", str(d)], out=io.StringIO()) == 0
+        run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+        assert results.RunResult.read(run_dir / "result.json").verdict == "passed"
+        assert (run_dir / "coop_a.jsonl").is_file() and (run_dir / "logs").is_dir()
+        assert not (run_dir / "scratch.txt").exists()
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+
+
 def test_capture_full_records_each_pilot_domain(live, where, monkeypatch):
     d, _ = live
     monkeypatch.setattr(run, "scenario_argv", fake(where))

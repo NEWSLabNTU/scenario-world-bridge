@@ -1311,12 +1311,13 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
         provenance=prov)
     result.write(run_dir / "result.json")
-    judged = judgesmod.run_all(config.project_settings(project).get("judges"), run_dir,
-                               project, verdict)
+    judge_list = config.project_settings(project).get("judges")
+    judged = judgesmod.run_all(judge_list, run_dir, project, verdict)
     if capture == "result":
         runsmod.downgrade(run_dir, "result")
     runsmod.apply_keep(run_dir, verdict, lg.get("keep") or {},
-                       judged=[(r or {}).get("verdict") for r in judged])
+                       judged=[(r or {}).get("verdict") for r in judged],
+                       reads=judgesmod.read_files(judge_list))
     if crashed and rec.get("map"):
         restart_pilots(ctx, crashed)
     return result

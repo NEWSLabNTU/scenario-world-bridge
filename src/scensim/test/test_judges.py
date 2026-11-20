@@ -29,6 +29,18 @@ def test_problems():
         assert part in msgs
 
 
+def test_reads_names_the_run_files_a_judge_reads():
+    """Issue 080: `reads:` is a list of paths or globs relative to the run directory."""
+    ok = [{"name": "s5", "run": ["true"], "reads": ["coop_a.jsonl", "out/*.csv"]},
+          {"name": "g", "run": ["true"], "reads": ["coop_a.jsonl", "b.txt"]}]
+    assert judges.problems(ok) == []
+    assert judges.read_files(ok) == ["coop_a.jsonl", "out/*.csv", "b.txt"]
+    for bad in ("coop_a.jsonl", ["/abs.jsonl"], ["../up.jsonl"], ["~/x"], [""], [3]):
+        msgs = [m for _, m in judges.problems([{"name": "j", "run": ["true"], "reads": bad}])]
+        assert msgs == ["reads: a list of paths or globs relative to the run directory"], bad
+    assert judges.read_files(None) == [] and judges.read_files([{"name": "j"}]) == []
+
+
 def test_judge_output_recorded(tmp_path):
     d = run_dir(tmp_path)
     j = judge(tmp_path, "import json, sys, os\n"

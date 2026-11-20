@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import time
 import xml.etree.ElementTree as ET
@@ -171,23 +172,65 @@ def test_apply_keep_levels(tmp_path):
     d = make_run(tmp_path, "unnamed", "error")
     assert runs.apply_keep(d, "error", {"passed": "result"}) == "debug"
     assert "debug" in names(d)
+    d = make_run(tmp_path, "bad_level", "passed")
     with pytest.raises(ValueError):
-        runs.apply_keep(d, "error", {"error": "everything"})
+        runs.apply_keep(d, "passed", {"passed": "everything"})
 
 
-def test_a_judges_failure_keeps_what_a_failed_run_keeps(tmp_path):
-    """G52: SSv2 passed, the incident judge failed; the run kept no logs to look into."""
+def test_a_judges_failure_keeps_everything(tmp_path):
+    """G52: SSv2 passed, the incident judge failed; the run kept no logs to look into. Since issue
+    080 a judge's failed or error keeps everything, as a failed run does."""
     keep = {"passed": "result", "failed": "full", "error": "standard"}
-    d = make_run(tmp_path, "judged", "passed")
-    assert runs.apply_keep(d, "passed", keep, judged=["passed", "failed"]) == "full"
-    assert "logs" in names(d) and "record" in names(d)
-    d = make_run(tmp_path, "judge_error", "passed")
-    assert runs.apply_keep(d, "passed", keep, judged=["error"]) == "standard"
-    assert "logs" in names(d) and "record" not in names(d)
+    for verdicts in (["passed", "failed"], ["error"]):
+        d = make_run(tmp_path, "judged_" + "_".join(verdicts), "passed")
+        assert runs.apply_keep(d, "passed", keep, judged=verdicts) == "debug"
+        assert {"logs", "record", "debug"} <= set(names(d))
     d = make_run(tmp_path, "all_good", "passed")
     assert runs.apply_keep(d, "passed", keep, judged=["passed"]) == "result"
-    d = make_run(tmp_path, "unnamed", "passed")
-    assert runs.apply_keep(d, "passed", {"passed": "result"}, judged=["failed"]) == "debug"
+
+
+def test_a_failed_run_keeps_everything_whatever_keep_says(tmp_path):
+    """Issue 080: 243's failed s5 run (a contact) lost coop_a.jsonl, the pilot log its judge read:
+    `keep` kept a pilot's own files only at debug. A run that failed or ended in error keeps
+    everything, whatever level `keep` names for it."""
+    keep = {"passed": "result", "failed": "result", "error": "standard"}
+    for verdict in ("failed", "error"):
+        d = make_run(tmp_path, verdict, verdict)
+        (d / "coop_a.jsonl").write_text("{}\n")
+        assert runs.apply_keep(d, verdict, keep) == "debug"
+        assert {"coop_a.jsonl", "logs", "record", "debug"} <= set(names(d))
+
+
+def test_a_run_with_a_contact_keeps_everything(tmp_path):
+    """Issue 080: a passed run whose contact report names a contact of the ego keeps everything; an
+    empty report does not count."""
+    keep = {"passed": "result"}
+    d = make_run(tmp_path, "hit", "passed")
+    (d / "contacts").mkdir()
+    (d / "contacts" / "e1.json").write_text(json.dumps({"contacts": [{"other": "coop_a"}]}))
+    (d / "coop_a.jsonl").write_text("{}\n")
+    assert runs.apply_keep(d, "passed", keep) == "debug"
+    assert {"coop_a.jsonl", "logs", "debug"} <= set(names(d))
+    d = make_run(tmp_path, "clear", "passed")
+    (d / "contacts").mkdir()
+    (d / "contacts" / "e1.json").write_text(json.dumps({"contacts": [], "npc_contacts": []}))
+    assert runs.apply_keep(d, "passed", keep) == "result"
+    assert "contacts" in names(d) and "logs" not in names(d)
+
+
+def test_what_the_judges_read_is_kept_with_the_logs(tmp_path):
+    """Issue 080: a judge's `reads:` names the run's files it reads; they are kept wherever the
+    logs are (standard and up), not at result."""
+    reads = ["coop_a.jsonl", "pilot_out/*.csv"]
+    for level, kept in (("standard", True), ("full", True), ("result", False)):
+        d = make_run(tmp_path, f"r_{level}", "passed")
+        (d / "coop_a.jsonl").write_text("{}\n")
+        (d / "pilot_out").mkdir()
+        (d / "pilot_out" / "a.csv").write_text("x\n")
+        (d / "scratch.txt").write_text("x\n")
+        assert runs.apply_keep(d, "passed", {"passed": level}, reads=reads) == level
+        assert ("coop_a.jsonl" in names(d)) == kept and ("pilot_out" in names(d)) == kept
+        assert "scratch.txt" not in names(d)
 
 
 def test_summary(root, tmp_path):

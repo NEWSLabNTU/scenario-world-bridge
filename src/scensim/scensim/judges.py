@@ -9,6 +9,7 @@ docs/design/projects-and-pilots.md, "Results". A project lists them in ``testben
         on: [passed, failed]             # verdicts it runs for (default: passed, failed)
         timeout: 120                     # s
         needs: [gap_trace]               # what the stack must record for it (below)
+        reads: [coop_a.jsonl]            # the run's files it reads, kept with the logs (below)
 
 A judge is given the run directory as its last argument, or where ``{run_dir}`` stands in
 ``run`` (``{scenario}``: the run's scenario file; either one means nothing is appended), and
@@ -22,7 +23,10 @@ place of it: scoring stays with the judges, and a third-party evaluator reads th
 turns the bridge's gap trace on for the project's stack (as ``logging.gap_trace: true``), each
 run's in ``gap_trace/`` (scensim.episodes; ``python3 -m scensim.gap`` runs gap_oracle and
 incident_judge as judges); ``context`` records SSv2's storyboard state changes for each run, in
-``context.jsonl`` (scensim.context; incident_judge's ``--context``).
+``context.jsonl`` (scensim.context; incident_judge's ``--context``). ``reads`` names the files of the
+run directory the judge reads that no level keeps by name (a pilot's own log, say): paths or globs
+relative to the run directory. Wherever a run keeps its logs (``standard`` and up), it keeps them
+too (issue 080: s5's judge read ``coop_a.jsonl``, which only ``debug`` kept).
 
 A judge that exits other than 0 or 1, prints JSON that is not an object, or overruns records
 ``verdict: error`` with the reason; the run itself is unaffected.
@@ -39,7 +43,7 @@ from scensim import results
 
 DEFAULT_ON = (results.PASSED, results.FAILED)
 DEFAULT_TIMEOUT = 120.0
-KEYS = ("name", "run", "version", "on", "timeout", "needs")
+KEYS = ("name", "run", "version", "on", "timeout", "needs", "reads")
 NEEDS = ("gap_trace", "context")
 JUDGE_VERDICTS = (results.PASSED, results.FAILED, results.ERROR)
 
@@ -79,6 +83,9 @@ def problems(judges) -> list:
         if needs is not None and (not isinstance(needs, list)
                                   or any(n not in NEEDS for n in needs)):
             out.append((w, f"needs: a list of {', '.join(NEEDS)}"))
+        reads = j.get("reads")
+        if reads is not None and (not isinstance(reads, list) or not all(_relative(r) for r in reads)):
+            out.append((w, "reads: a list of paths or globs relative to the run directory"))
         t = j.get("timeout")
         if t is not None and (isinstance(t, bool) or not isinstance(t, (int, float)) or t <= 0):
             out.append((w, "timeout: a positive number of seconds"))
@@ -91,6 +98,20 @@ def needed(judges) -> set:
     for j in judges if isinstance(judges, list) else []:
         if isinstance(j, dict) and isinstance(j.get("needs"), list):
             out |= {n for n in j["needs"] if n in NEEDS}
+    return out
+
+
+def _relative(r) -> bool:
+    return (isinstance(r, str) and bool(r.strip("/")) and not r.startswith(("/", "~"))
+            and ".." not in Path(r).parts)
+
+
+def read_files(judges) -> list:
+    """The run directory's paths or globs the project's judges read (``reads:``)."""
+    out = []
+    for j in judges if isinstance(judges, list) else []:
+        if isinstance(j, dict) and isinstance(j.get("reads"), list):
+            out += [r for r in j["reads"] if _relative(r) and r not in out]
     return out
 
 

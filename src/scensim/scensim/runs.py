@@ -7,6 +7,7 @@ arguments).
 """
 import argparse
 import csv
+import fnmatch
 import json
 import shutil
 import sys
@@ -47,14 +48,22 @@ def kept_names(level: str):
     return names
 
 
-def downgrade(run_dir, level: str, dry_run=False) -> list:
-    """Remove from ``run_dir`` what ``level`` does not keep; returns the removed paths."""
+def _read_by_judge(name: str, reads) -> bool:
+    """A top-level entry of the run directory holds a file the judges read (``reads:``)."""
+    return any(fnmatch.fnmatchcase(name, Path(r.strip("/")).parts[0]) for r in reads)
+
+
+def downgrade(run_dir, level: str, dry_run=False, reads=()) -> list:
+    """Remove from ``run_dir`` what ``level`` does not keep; returns the removed paths. ``reads``:
+    what the judges read (their ``reads:``), kept at ``standard`` and up (issue 080)."""
     keep = kept_names(level)
     if keep is None:
         return []
+    if LEVELS.index(level) < LEVELS.index("standard"):
+        reads = ()
     removed = []
     for p in sorted(Path(run_dir).iterdir()):
-        if p.name in keep:
+        if p.name in keep or _read_by_judge(p.name, reads):
             continue
         removed.append(p)
         if not dry_run:
@@ -65,18 +74,31 @@ def downgrade(run_dir, level: str, dry_run=False) -> list:
     return removed
 
 
-def apply_keep(run_dir, verdict: str, keep: dict, judged=()) -> str:
+def has_contact(run_dir) -> bool:
+    """The run's contact reports (``contacts/*.json``) name a contact of the ego."""
+    for f in sorted((Path(run_dir) / "contacts").glob("*.json")):
+        try:
+            if json.loads(f.read_text()).get("contacts"):
+                return True
+        except (OSError, ValueError, AttributeError):
+            continue
+    return False
+
+
+def apply_keep(run_dir, verdict: str, keep: dict, judged=(), reads=()) -> str:
     """Prune a finished run to the level ``keep`` names for its verdict (the project's
-    ``logging.keep``, e.g. ``{passed: result, failed: full, error: full}``); a verdict it does
-    not name keeps everything. ``judged``: its judges' verdicts; a judge's ``failed`` or
-    ``error`` keeps what that verdict keeps when it is more (roadmap 077, G52: a run SSv2
-    passed and a judge failed kept no logs to look into). Returns the level kept."""
-    verdicts = [verdict] + [v for v in judged if v in (results.FAILED, results.ERROR)]
-    levels = [(keep or {}).get(v) for v in verdicts]
-    if any(lv is None for lv in levels):
+    ``logging.keep``, e.g. ``{passed: result}``); a verdict it does not name keeps everything.
+    A run that failed or ended in error, one a judge failed or could not judge (roadmap 077,
+    G52), and one with a contact of the ego keep everything, whatever ``keep`` says (issue 080:
+    a failed s5 run with a contact lost the pilot log its judge had read). ``reads``: the files
+    the judges read (``reads:``), kept with the logs. Returns the level kept."""
+    if verdict in (results.FAILED, results.ERROR) or \
+            any(v in (results.FAILED, results.ERROR) for v in judged) or has_contact(run_dir):
         return "debug"
-    level = max(levels, key=LEVELS.index)
-    downgrade(run_dir, level)
+    level = (keep or {}).get(verdict)
+    if level is None:
+        return "debug"
+    downgrade(run_dir, level, reads=reads)
     return level
 
 

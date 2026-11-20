@@ -1,9 +1,9 @@
 # 077: The Isaac car does not climb Town01's curb: isaac_verge never reaches the sidewalk
 
 **Severity**: medium (056 step 5's scenario fails on Isaac; a car on Isaac cannot leave the
-road over a curb). **Status**: a fix for scenarios that opt in (`isaac.wheel_query: sweep`, 118, 2026-11-20). `isaac_verge`'s
-own run on Isaac Town01 waits for a host that renders Town01 (241 or 139). The sweep on soil is
-open (below).
+road over a curb). **Status**: fixed for scenarios that opt in (`isaac.wheel_query: sweep`; scensim c4afe3e, 2026-11-20).
+`isaac_verge` passed on Isaac Town01 with it (241, 2026-11-20): the car reached the walkway
+waypoint within 1.5 m in 37.7 s. The sweep on soil is open, as roadmap 086 C9 (below).
 **Found**: 2026-11-20, swb 241, `isaac_verge` (main 7d5bb9d) on Isaac Town01, 2 of 2 runs.
 
 ## What happens
@@ -113,7 +113,7 @@ On a straight stop on mud (`mud_brake`) the sweep's yaw rate chatters by about 0
 the left and right wheel slips differ, with the car's track within 2 mm. The raycast shows
 neither. The soil classes (047 S5, 053, 054) were fitted under the raycast, so a scenario on
 soil should not opt in. Switching every car to the sweep and refitting mud under it is a
-separate decision (asked of the user through 133, 2026-11-20).
+later Track C item: roadmap 086 C9 (the user's choice, 2026-11-20).
 
 **For roadmap 091's small car.** A RoboRacer (a 1/10-scale car) has wheels of about 0.05 m radius, so door sills,
 floor seams and cable covers are steps of a third of the wheel or more. A raycast takes each of
@@ -124,7 +124,8 @@ these as a wall, as it takes Town01's curb. Such a car opts in the same way.
 NAS logs `2026 SSv2 on CARLA/2026-11-20 077 curb climb, raycast and sweep (118)/` (the test,
 per-step traces, Town01's mesh section) and `2026-11-20 077 sweep recheck, 029 fixtures (118)/`
 (the sweep without a stop), `2026-11-20 077 aib bump stop, fixtures and curb (118)/` and
-`2026-11-20 077 aib bump stop, 055 suite and slope matrix (118)/` (the stop).
+`2026-11-20 077 aib bump stop, 055 suite and slope matrix (118)/` (the stop);
+`2026-11-20 077 isaac_verge with the sweep on Isaac Town01 (241)/` (the scenario, passed).
 
 
 NAS logs `2026 SSv2 on CARLA/2026-11-20 086 C4 isaac_verge on Isaac Town01 (241)/`.

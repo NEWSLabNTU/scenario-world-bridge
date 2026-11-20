@@ -133,11 +133,11 @@ means not yet assigned; 133 assigns.
 | W2 | aib's `Vehicle.apply` calling the component; the Isaac exit check (a sample component from an outside workspace, byte-identical to `ideal`) | V3 | 2 | 241 | done 2026-11-20 (scensim 1b596d7: sim_vehicle_ecu 7bdcb8e, sim_vehicle_spec f96adf5, aib 7cf7905) |
 | W3 | the testbench side: the pilot's `component:` key, the overlay workspaces on the world server's path, `testbench check`'s import and cost checks, the truth settings, the component's provenance | V3, J2 | 2b | 241 | done 2026-11-20 (scensim 749d5dc, pins 9300a5d: aib db5bf97, scensim_isaac_world 0715624; Isaac run with a workspace component passed) |
 | W4 | the `fmu` component: an FMI 2.0 unit wrapped as one shipped component, for compiled models; its dependency decided | V3 | 2 | open | |
-| W5 | own cars on Isaac: lift `testbench check`'s refusal; the rig made from a user's spec in the testbench | V1 | 3 | open | |
-| W6 | a small-car example spec (1/10 RoboRacer class) and its refit of the full-size settings: PhysX slip denominators, `est_slip_offset`, sticky-tyre thresholds, suspension frequency, wheel inertia | V1, V4 | 3 | open | |
-| W7 | the physics rate and solver for a light car: jitter tests at 100 to 600 Hz, the cost of each, the chosen default | V4 | 3 | open | |
-| W8 | the tyre-model risk: PhysX's tyre against foam and soft RC tyres, measured on M5 and M6; a decision to keep it, tune it, or take tyre forces from the component | V4 | 3 | open | |
-| W9 | collisions with walls and cones: restitution and friction read from the authored materials, checked by drop and push tests | F3 | 3, 4 | open | |
+| W5 | own cars on Isaac: lift `testbench check`'s refusal; the rig made from a user's spec in the testbench | V1 | 3 | 118 | in progress |
+| W6 | a small-car example spec (1/10 RoboRacer class) and its refit of the full-size settings: PhysX slip denominators, `est_slip_offset`, sticky-tyre thresholds, suspension frequency, wheel inertia | V1, V4 | 3 | 118 | |
+| W7 | the physics rate and solver for a light car: jitter tests at 100 to 600 Hz, the cost of each, the chosen default | V4 | 3 | 118 | |
+| W8 | the tyre-model risk: PhysX's tyre against foam and soft RC tyres, measured on M5 and M6; a decision to keep it, tune it, or take tyre forces from the component | V4 | 3 | 118 | |
+| W9 | collisions with walls and cones: restitution and friction read from the authored materials, checked by drop and push tests | F3 | 3, 4 | 118 | |
 | W10 | the fitting tool: long-horizon trajectory error from matched starts; on-track tyre identification first; fits the spec's tyre and suspension values and a component's exposed `params`; randomisation bands from the real spread | V3, V4 | 3b | open | |
 | W11 | the validation harnesses: (a) component replay against logged VESC telemetry, (b) M1 to M6 against 5.3's bands, (c) lap comparison for M7; one report per twin release | V3, V4, J1 | 3b, 6 | open | |
 | W12 | session conditions: a schema (battery voltage, floor state, tyre age) recorded with each run and each real log; battery voltage declarable as a component input | V2, J2, J3 | 2b, 6 | open | |

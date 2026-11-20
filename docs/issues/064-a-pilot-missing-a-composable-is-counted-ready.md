@@ -1,7 +1,7 @@
 # 064: A pilot with a composable that never loaded was counted ready
 
 **Severity**: high. Every run on the stack timed out waiting for an engage that could not
-come, and nothing named the cause. **Status**: fixed on main. **Found**: 2026-11-19, swb 133,
+come, and nothing named the cause. **Status**: fixed on main. Since issue 088, the stack keeper also restarts such a start (a LOAD_FAILED can be transient: here a GPU shared with another job), at most twice per pilot, then leaves it not ready, naming the composable, as before; the check reads the console from the pilot's last start only. **Found**: 2026-11-19, swb 133,
 roadmap 088 (seats per host): a seat's Autoware started beside another user's GPU job.
 
 ## What happens

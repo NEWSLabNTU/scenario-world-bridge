@@ -81,8 +81,11 @@ names each container with more loads taken than answered, in two cases:
 
 - its reply was lost: the container logged `failed to send response to <c>/_container/load_node`,
   and `LOST_GRACE` (30 s) has passed;
-- or a load stays unanswered for `LOAD_STALL` (600 s), timed from the container's last load. That
-  is longer than any construction measured (issue 065: a TensorRT build, up to 240 s).
+- or a load stays unanswered for `LOAD_STALL` (600 s), timed from the container's last load, while
+  the container's process is idle. A constructor still building answers only when it ends, and a
+  CenterPoint TensorRT build took 3-11 minutes on a loaded host before 10.8's cache (065 measured
+  up to 240 s). Such a build burns a core, so the container's CPU time over 0.5 s (from `/proc`, its
+  pid from the launch's `process started with pid` line) tells a busy container from a blocked one.
 
 Which load is unanswered is not known. A container's lines reach the console late, after the
 replies to later loads: in 241's console, glog_component's reply was the lost one, logged before
@@ -119,6 +122,11 @@ on 139) is not a stall.
 - **`ego_ready`'s hint**: when play_launch reports no crashed composable, it now also names this
   case.
 
+Under play_launch the 600 s bound has no CPU guard: play_launch's container is its own, and its
+console names no pid per container. A build that keeps play_launch's loaded count unchanged for
+600 s, with no lost reply, would be restarted (at most twice). Not seen, and not measured: whether
+play_launch's own `busy_budget` (600 s) fails such a build first is not known.
+
 The named limit: a container frozen before it logs taking the load, under `ros2 launch`. The
 console then shows nothing outstanding. Under play_launch, the same freeze ends in its summary.
 
@@ -132,6 +140,8 @@ No change to launch_ros or play_launch.
 - `test_timeline.py`, play_launch: lost replies with the loads pending (named after 120 s, not at
   119 s), loads pending 600 s without one, a recovered or completed start (no stall), a stall
   before the restart.
+- `test_timeline.py`, the CPU guard: a container busy past `LOAD_STALL` is not stalled, an idle one
+  is, and a lost reply is named either way.
 - `test_stack.py`: a `ros2 launch` start with a lost reply is restarted and its next start is
   ready. A play_launch start summarised with composables missing is restarted once, and the old
   summary is not read again. A start that never loads is restarted twice, then left not ready,
@@ -154,3 +164,5 @@ No change to launch_ros or play_launch.
   its own, it waited 12 minutes as above, and `stalled_loads` names the container at 125 s and not
   at 119 s. As a stack pilot (with play_launch's summary at 30 s that time), the keeper restarted it
   at 34 s and the second start was ready at 39 s.
+- After each live run, nothing was left: no `component_container*` or `play_launch` process, the
+  SIGSTOPped containers included (the keeper's stop takes STOP_GRACE + 10 s on them, then SIGKILL).

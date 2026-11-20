@@ -26,6 +26,7 @@ names its process.
 """
 import datetime as _dt
 import json
+import os
 import re
 from pathlib import Path
 
@@ -147,7 +148,7 @@ def missing_composables(path, offset=0) -> str:
 # ... composable <a>/<b> loaded (<k> pending)"). With its container frozen it waited 12 minutes
 # so, its busy_budget (600 s) notwithstanding, and never wrote LOAD_FAILED or STARTUP_SUMMARY (139,
 # 2026-11-21): nothing for 064's check. So the same rule reads those lines.
-_INSTANTIATE = re.compile(r"^\[[^\]]+\]\s+\[INFO\]\s+\[(\d+(?:\.\d+)?)\]\s+\[([^\]]+)\]:\s+"
+_INSTANTIATE = re.compile(r"^\[([^\]]+)\]\s+\[INFO\]\s+\[(\d+(?:\.\d+)?)\]\s+\[([^\]]+)\]:\s+"
                           r"Instantiate class: (.*)$")
 _LOADED = re.compile(r"Loaded node '[^']+' in container '([^']+)'")
 _PL_TIME = re.compile(r"^(\d{4}-\d\d-\d\dT\S+Z)\s")
@@ -158,8 +159,29 @@ _LOST_REPLY = re.compile(r"^\[[^\]]+\]\s+\[WARN\]\s+\[(\d+(?:\.\d+)?)\]\s+\[[^\]
                          r"failed to send response to (\S+)/_container/load_node\b")
 LOST_GRACE = 30.0   # s after a lost reply: the launch will not get it; a little slack for ordering
 PL_LOST_GRACE = 120.0  # s under play_launch: beyond its own retry (60 s), which may still recover
+_PID = re.compile(r"^\[INFO\] \[([^\]]+)\]: process started with pid \[(\d+)\]")
+BUSY_CPU = 0.1      # s of CPU in BUSY_SAMPLE s: a container still constructing (a TensorRT build, 3-11
+BUSY_SAMPLE = 0.5   # minutes on a loaded host before 10.8's cache) is busy; a blocked one is idle (243)
 LOAD_STALL = 600.0  # s a load may stay unanswered without a lost reply logged (065: a TensorRT build
                     # takes up to 240 s inside a constructor, a first CenterPoint start 189 s)
+
+
+def _cpu_s(pid: int):
+    """utime + stime of process ``pid`` in seconds, None if it is gone."""
+    try:
+        f = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+        return (int(f[11]) + int(f[12])) / os.sysconf("SC_CLK_TCK")
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _cpu_busy(pid: int) -> bool:
+    """The process used at least BUSY_CPU s of CPU over BUSY_SAMPLE s."""
+    import time as _time
+    a = _cpu_s(pid)
+    _time.sleep(BUSY_SAMPLE)
+    b = _cpu_s(pid)
+    return a is not None and b is not None and b - a >= BUSY_CPU
 
 
 def _container(name: str) -> str:
@@ -190,12 +212,17 @@ def stalled_loads(path, now=None, lost_grace=None, stall=None, since=None, offse
         return _pl_stalled(lines[start:], now, PL_LOST_GRACE if lost_grace is None else lost_grace,
                            stall, since)
     lost_grace = LOST_GRACE if lost_grace is None else lost_grace
-    taken, answered, lost = {}, {}, {}
+    taken, answered, lost, pids, procs = {}, {}, {}, {}, {}
     for line in lines[start:]:
+        m = _PID.match(line)
+        if m:
+            pids[m.group(1)] = int(m.group(2))
+            continue
         m = _INSTANTIATE.match(line)
         if m:
-            if since is None or float(m.group(1)) >= since:
-                taken.setdefault(_container(m.group(2)), []).append((float(m.group(1)), m.group(3)))
+            if since is None or float(m.group(2)) >= since:
+                taken.setdefault(_container(m.group(3)), []).append((float(m.group(2)), m.group(4)))
+                procs[_container(m.group(3))] = m.group(1)
             continue
         m = _LOADED.search(line) or _ROS_LOAD_FAILED.search(line)
         if m:
@@ -220,7 +247,9 @@ def stalled_loads(path, now=None, lost_grace=None, stall=None, since=None, offse
         if c in lost and now - lost[c] >= lost_grace:
             out.append(f"/{c.replace('.', '/')} (its reply to the launch's load_node was lost "
                        f"{now - lost[c]:.0f} s ago; {what})")
-        elif now - last >= stall:
+        elif now - last >= stall and not (procs.get(c) in pids and _cpu_busy(pids[procs[c]])):
+            # no lost reply: only a container that does nothing (a constructor still building
+            # burns a core; it answers when the build ends)
             out.append(f"/{c.replace('.', '/')} (a load unanswered for at least {now - last:.0f} s; "
                        f"{what})")
     return "; ".join(out)

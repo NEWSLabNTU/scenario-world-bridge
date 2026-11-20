@@ -322,3 +322,23 @@ def test_play_launch_stall_before_the_pilots_restart_is_not_its(tmp_path):
     t0 = 1795203785.0
     p = _pl_console(tmp_path, t0, until=t0 + 720)
     assert timeline.stalled_loads(p, now=t0 + 800, since=t0 + 730) == ""
+
+
+def test_a_container_still_busy_is_not_stalled_without_a_lost_reply(tmp_path, monkeypatch):
+    """243: a constructor building a TensorRT engine (3-11 min on a loaded host) answers load_node
+    only when it ends; a busy container is not stalled, an idle one is. A lost reply needs no
+    such check."""
+    t0 = 1795190012.7
+    body = _stalled_console(tmp_path, t0, lost=False).read_text().splitlines()
+    p = _console(tmp_path, body[0], "[INFO] [component_container_mt-53]: process started with pid [4242]",
+                 *body[1:])
+    seen = []
+    monkeypatch.setattr(timeline, "_cpu_busy", lambda pid: seen.append(pid) or True)
+    assert timeline.stalled_loads(p, now=t0 + 900) == "" and seen == [4242]
+    monkeypatch.setattr(timeline, "_cpu_busy", lambda pid: False)
+    assert "a load unanswered for at least" in timeline.stalled_loads(p, now=t0 + 900)
+    lost = _stalled_console(tmp_path, t0).read_text().splitlines()
+    p = _console(tmp_path, lost[0], "[INFO] [component_container_mt-53]: process started with pid [4242]",
+                 *lost[1:])
+    monkeypatch.setattr(timeline, "_cpu_busy", lambda pid: True)
+    assert "was lost" in timeline.stalled_loads(p, now=t0 + 60)

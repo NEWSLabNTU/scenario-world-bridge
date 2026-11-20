@@ -4,7 +4,8 @@ One tyre-and-ground model: surfaces and soil (wet, gravel, mud, sand, snow), cal
 
 **Status**: consolidated 2026-11-18 from 047, 052, 053, 056, 066, 069. Owner swb 118 from
 2026-11-20 (user, through 133). 2026-11-20: re-planned as one model ("The plan" below),
-approved by 133 the same day with its three decisions; C1 next.
+approved by 133 the same day with its three decisions. C1 done 2026-11-20 (scensim_isaac_world
+87e0ea1, pins f00f02a2); C2 next.
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that
@@ -77,16 +78,19 @@ throws it away.
    world server and the road record read the same class names and values without depending on
    Isaac's package. Classes keep every field they have; a simulator uses what it can (CARLA:
    `mu`, `wet`; Isaac: all of it).
-2. **The road record**: `<map>/road.yaml`, a list of corridors, each with a centreline, a seed
-   and its section **per station**, which replaces both `road_detail.yaml`'s constant `section`
-   and 069's planned `course/section.npz`:
+2. **The road record**: `<map>/road_detail.yaml`, a list of corridors, each with a centreline,
+   a seed and its section **per station**, which takes the place of 069's planned
+   `course/section.npz` (C1 kept the file's name: the `isaac-road-physics-stages` dataset and
+   scensim's testbench key `ground.<map>.road_detail` already carry it, and renaming it would
+   need a dataset revision for nothing):
    - per corridor in YAML: `centreline` (or `stations: <corridor>.npz`), `seed`, `roughness`,
      `ruts`, `potholes`, `washboard`, `water_bars`, `rocks` (066 R3/R4's keys, unchanged);
    - the section: either constants in YAML (today's `section:`, expanded to every station) or
-     arrays in `<corridor>.npz` over the corridor's 1 m stations: 069's fields (`bank`,
-     `crown_left`, `crown_right`, `crown_offset`, `kappa_v`, and per side `shoulder_w`,
-     `shoulder_surface`, `lip_h`, `lip_angle`, `foreslope`, `ditch_depth`, `runoff_len`,
-     `runoff_surface`, `barrier_offset`, `hazard`);
+     arrays in `<corridor>.npz` over the corridor's stations: 069's fields with 066 R3's
+     (`half_width`, `bank`, `crown_offset`, `kappa_v`, and per side `crown`, `shoulder`,
+     `foreslope`, `ditch_depth`, `ditch_bottom`, `backslope`, `lip_h`, `lip_angle`,
+     `runoff_len`, `barrier_offset`, `shoulder_surface`, `runoff_surface`, `hazard`; in the
+     .npz `<field>_left` and `<field>_right`);
    - surfaces in the section are class names of the surface record's table; the shoulder and
      run-off strips become zones of the surface layer, generated from the record at load, not
      written twice;
@@ -96,8 +100,8 @@ throws it away.
 
 | writer | writes | when |
 |---|---|---|
-| the course builder (`scensim_isaac_world.course`) | `road.yaml` and the `.npz` for a generated course (Haruna, Tsukuba): sections from its own geometry, `kappa_v` from the smoothed profile, the hazard classes from one classifier (today's rail rule, kept) | at build; shipped in the course's dataset |
-| a map author | `road.yaml` with constant sections for a town corridor (today's `road_detail.yaml` files), `surfaces.yaml` zones | by hand, checked by `road check` and `surfaces-check` |
+| the course builder (`scensim_isaac_world.course`) | `road_detail.yaml` and the `.npz` for a generated course (Haruna, Tsukuba): sections from its own geometry, `kappa_v` from the smoothed profile, the hazard classes from one classifier (today's rail rule, kept) | at build; shipped in the course's dataset |
+| a map author | `road_detail.yaml` with constant sections for a town corridor, `surfaces.yaml` zones | by hand, checked by `road_detail check` and `surfaces check` |
 | 053's fits | the class table's soil rows and their `calibration:` | per fit |
 | later, a twin fitter (087) | sections fitted to a scan with a curvature penalty (069's note on noisy sections) | per twin |
 
@@ -124,14 +128,35 @@ Each step on current scensim main; the exit check is what lets the next step sta
 
 | step | what | effort | exit check |
 |---|---|---|---|
-| **C1. The road record and its reader** | `road.yaml` schema 1; a pure reader and checker in `scensim_isaac_world` (`road_record`, every problem named, `road check <map>`); constant sections expand to stations; `road_detail.yaml` read as a road record of constant sections (refused by name once converted, no alias kept); the example maps converted | 1 week | every converted example builds the same detail tiles, byte for byte (tile hashes before and after); `test_road_detail`, `test_road_layer` pass; a malformed record lists every problem |
+| **C1. The road record and its reader** (done 2026-11-20) | `road_detail.yaml` schema 1; a pure reader and checker in `scensim_isaac_world` (`road_record`, every problem named, `road_detail check <map>`); constant sections and per-station `.npz` both become stations | 1 week (took 1 day) | every converted example builds the same detail tiles, byte for byte (tile hashes before and after); `test_road_detail`, `test_road_layer` pass; a malformed record lists every problem |
 | **C2. The class table moves to the protocol package** | `surface_classes.yaml` into `scensim_world_protocol`'s share; both world servers find it there; the road record's surface names checked against it | 3 days | Isaac: the Town01 soil, mud and snow scenarios pass as on 053 step 5; an unknown class in a section or zone is refused at load |
-| **C3. The course builder writes the record** (069 E0, swb half) | `road.yaml` + `<corridor>.npz` from the builder: bank 0, today's section, `kappa_v` from z, the hazard classifier from today's rail rule; `props.py` places rails from `barrier_offset` | 1 week | Haruna and Tsukuba rebuilt: the same rails at the same positions, the world USD unchanged except the new files, `haruna_down` still passes; the course's dataset revision prepared, published only on the user's go |
+| **C3. The course builder writes the record** (069 E0, swb half) | `road_detail.yaml` + `<corridor>.npz` from the builder: bank 0, today's section, `kappa_v` from z, the hazard classifier from today's rail rule; `props.py` places rails from `barrier_offset` | 1 week | Haruna and Tsukuba rebuilt: the same rails at the same positions, the world USD unchanged except the new files, `haruna_down` still passes; the course's dataset revision prepared, published only on the user's go |
 | **C4. Named surface maps** (056) | as 056's steps 1-5 | 1-1.5 weeks | 056's acceptance: Town01's soil scenarios one after another on one world server, no file copied |
 | **C5. Isaac's geometry from the record** (066 R8) | the ribbon tilted by bank and crown; `road_detail` per station; the lip; the shoulder and run-off strips as surface zones; Autoware's point cloud and lanelet heights regenerated from the same meshes, divided when large | 1.5-2 weeks | Isaac's road height and cross slope within 5 mm and 0.1 deg of the record at every station; lip re-entry fixtures (5, 10, 15 cm at 90, 45, 30 deg); aib's slope matrix unchanged; `haruna_down` passes on a course with a nonzero crown |
 | **C6. The rest of 066** | R1's checks, R4 rocks finished, R6 wheel hop, R7 sensors and Autoware, all reading the road record | 5-7 weeks, in 066's order | 066's acceptance; aib's slope matrix and 055's manoeuvre suite unchanged on smooth road |
 | **C7. CARLA as a second target for the surface record** | the CARLA world server reads `surfaces.yaml`'s zones as friction trigger boxes (class `mu` x `wet`) and takes `swb.zone.<id>.*`; on 0.9.16 first, then on CARLA 1.0 once 083 step 5 maps the spec to Chaos; label defaults stay asphalt (CARLA's towns have no ground labels per wheel) | 1 week (0.9.16), 3-5 days more (1.0) | a wet zone and a split-mu zone change the CARLA ego's stopping distance and yaw the same way as on Isaac, within 25 % of Isaac's for the same class, on both CARLA versions; the T3 suites unchanged without zones |
 | **C8. Calibration and the open 052 item** (independent) | 053: dirt when data comes, step 4 (dropping the flags); 052: the lead NPC's sinking seen by camera and lidar | as data allows; 052's item about 1 week | 053's and 052's own acceptance |
+
+#### C1: the road record (done 2026-11-20)
+
+scensim_isaac_world 87e0ea1 (`road_record`, `road_layer.parse`), pins f00f02a2;
+[reference: road physics](../reference/road-physics.md), "The section along the road".
+
+- `road_detail.yaml` takes `schema: 1` (absent: 1; a newer one is refused, naming the update)
+  and, per corridor, `section:` constants or `stations: <file>.npz` beside it. Every field
+  has a default, a range and a meaning (`road_detail keys`); every problem is listed with
+  where it is (the corridor, the field, the station).
+- Today's road layer shapes the road with one symmetric section. A record it cannot express
+  yet (banked, a lip, an offset crown, a shape that changes along the road or between the
+  sides) is refused when the world loads, naming what differs; `road_detail check` notes it
+  instead. `kappa_v`, the surfaces, the barrier and the hazard are carried, unread by Isaac
+  until C3 and C5.
+- Exit check: the detail tiles (surface heights and zones, sha256 over every tile within 4 m
+  of each corridor's first 40 m) are byte-identical before and after for both examples
+  (`proving_ground` d4a5a16f..., `town01` 429148cc...) and the stages dataset's `road_town`
+  (429148cc..., the same road as the example). A constant record written as an `.npz` makes
+  the same tiles as its YAML constants (test). Tests: 13 new (`test_road_record`), the world
+  server's 287 pass.
 
 Order: C1, C2 and C3 make the shared data; C4 and C5 are its first consumers, C5 after C3.
 C6 follows C5 (rocks and wheel hop on the record's road). C7 can start after C2 on 0.9.16,

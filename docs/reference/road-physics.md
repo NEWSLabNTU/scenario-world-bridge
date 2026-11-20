@@ -182,6 +182,36 @@ corridors:
 | `rocks` | rock cover per part of the section: `carriageway` 0.002, `shoulder` 0.01, `ditch` 0.03; `embed` 0 to 0.4 of a rock's height buried; `carriageway_protrude` 0.05 m, `carriageway_d_max` 0.30 m |
 | `taper` | m over which the detail fades in and out at the ends |
 
+### The section along the road
+
+The file is also the road record (roadmap 086): `schema: 1` at its top (absent means 1; a
+newer one is refused, naming the update), and each corridor's cross-section either as the
+`section` constants above or per station, in an `.npz` beside the file:
+
+```yaml
+schema: 1
+corridors:
+  - centreline: [[0.0, 0.0], [400.0, 0.0]]
+    stations: pass.npz             # instead of section
+```
+
+The `.npz` holds `u`, the stations in m along the centreline (from 0, increasing, the last on
+the centreline), and an array per field: one value per station for `half_width`, `bank` (rad,
+positive leaning left), `crown_offset` (m) and `kappa_v` (1/m, positive in a sag), and two,
+`<field>_left` and `<field>_right`, for a side's fields: `crown`, `shoulder`, `foreslope`,
+`ditch_depth`, `ditch_bottom`, `backslope`, `lip_h` (m), `lip_angle` (deg), `runoff_len` (m),
+`barrier_offset` (m, nan for none), the surface classes `shoulder_surface` and
+`runoff_surface`, and `hazard` (`shoulder`, `runoff`, `lip`, `ditch`, `barrier` or `drop`). An
+array left out takes its default everywhere. The same fields go into `section` as constants,
+a side's as a number for both sides or `{left: .., right: ..}`. `road_detail keys` lists them
+all with their defaults.
+
+Today the world server shapes the road with one symmetric section: a record that is banked,
+has a lip or an offset crown, or whose shape changes along the road or between its sides is
+refused when the world loads, naming what differs (`road_detail check` notes it and draws the
+first station's left side). The other fields (`kappa_v`, the surfaces, the barrier and the
+hazard) are carried for the rails, the surface strips and the planner.
+
 Rocks run from 9 cm across (smaller is the `gravel` class) to 1.5 m; one buried more than
 15 %, or over 50 kg, is static, the rest are loose rigid bodies, placed per 16 m tile from
 the seed and streamed around each car.

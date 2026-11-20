@@ -22,6 +22,10 @@ categorisations (NHTSA pre-crash typology, PBCAT, Euro NCAP, UN R157, JAMA and I
 SOTIF, Waymo's collision avoidance testing, accelerated evaluation) and a coverage model for
 the two purposes the user chose (2026-11-20): a realistic risk rate, and failure-mode search.
 Scenario and world stay separate concepts, joined by the compiler (user: option A).
+[survey-vehicle-risk-taxonomy.md](../design/survey-vehicle-risk-taxonomy.md): the whole space
+of vehicle risk in eight families (traffic conflicts, VRUs, infrastructure and maps,
+perception, vehicle motion, the ego's own faults, interaction, ODD boundaries), what a
+scenario must express for each, three layers of coverage and realism per family.
 
 ## Work items
 

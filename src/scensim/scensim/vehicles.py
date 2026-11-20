@@ -2,8 +2,9 @@
 
 Each listed spec (sim_vehicle_spec's format) is generated, when the stack starts, into
 ``<project>/state/vehicles/<name>/`` by ``sim_vehicle_spec.gen``: its SSv2 catalog entry,
-its ``spec_hash.yaml``, and its CARLA files (``carla/carla_physics.yaml``,
-``carla/carla_sensors.yaml``). Then one catalog holds the installed cars and the project's,
+its ``spec_hash.yaml``, its CARLA files (``carla/carla_physics.yaml``,
+``carla/carla_sensors.yaml``) and, for an Isaac testbench, its Isaac rig (``isaac/<name>.rig.yaml``,
+by ``aib.gen``; roadmap 091 W5). Then one catalog holds the installed cars and the project's,
 ``state/vehicles/catalogs/vehicles.xosc``: a scenario names it by
 ``$(env SCENSIM_VEHICLES)`` (the stack sets it for every run, with or without own cars), the
 bridge reads it (``vehicle_catalogs``), and a pilot's car is looked up there.
@@ -127,6 +128,20 @@ def spec_names(project, settings: dict) -> list:
     return out
 
 
+def body_models(spec_path) -> set:
+    """Every body a spec's car drives: ``body.catalogue_model`` and each simulator body's
+    (``bodies.<body>.catalogue_model``), which the catalog for that body names instead."""
+    try:
+        doc = yaml.safe_load(Path(spec_path).read_text()) or {}
+    except (OSError, yaml.YAMLError):
+        return set()
+    out = {(doc.get("body") or {}).get("catalogue_model")}
+    for b in (doc.get("bodies") or {}).values():
+        if isinstance(b, dict):
+            out.add(b.get("catalogue_model"))
+    return {m for m in out if isinstance(m, str) and m}
+
+
 def problems(project, settings: dict, installed: dict = None) -> list:
     """``project check``'s words on ``vehicles:``: a name or body an installed car has, two
     specs of one name."""
@@ -141,21 +156,24 @@ def problems(project, settings: dict, installed: dict = None) -> list:
         if name in installed:
             out.append(f"vehicles: {path.name}: {name} is an installed car's name; give yours "
                        "another")
-        if body and body in bodies:
-            out.append(f"vehicles: {path.name}: its body {body} is {bodies[body]}'s; give "
-                       "your car a body of its own (the bridge refuses two specs on one body)")
+        for b in sorted(body_models(path) | ({body} if body else set())):
+            if b in bodies:
+                out.append(f"vehicles: {path.name}: its body {b} is {bodies[b]}'s; give your "
+                           "car a body of its own, in body: and in each of bodies: (the "
+                           "bridge refuses two specs on one body)")
         if name in seen:
             out.append(f"vehicles: two specs are named {name}")
         seen.add(name)
     return out
 
 
-def generate(project, settings: dict, gen=None, body=None) -> dict:
+def generate(project, settings: dict, gen=None, body=None, rig_gen=None) -> dict:
     """Generate every own car (``gen(spec, out_dir) -> None``, default sim_vehicle_spec.gen)
     and the merged catalog. ``{name: {spec, dir, catalog, spec_hash_file, spec_hash,
-    carla_physics, carla_sensors}}`` and ``"__catalog__"``: the merged catalog (None without
-    own cars). The merged catalog is ``body``'s where a car has a catalog for it (the CARLA
-    server's, ``carla_body``)."""
+    carla_physics, carla_sensors, isaac_rig}}`` and ``"__catalog__"``: the merged catalog (None
+    without own cars). The merged catalog is ``body``'s where a car has a catalog for it (the
+    CARLA server's, ``carla_body``). On an Isaac testbench each car's rig is made too
+    (``rig_gen(spec, rig) -> None``, default aib.gen); elsewhere ``isaac_rig`` is None."""
     cars = spec_names(project, settings)
     root = Path(project) / STATE
     out = {}
@@ -163,6 +181,11 @@ def generate(project, settings: dict, gen=None, body=None) -> dict:
         d = root / name
         d.mkdir(parents=True, exist_ok=True)
         (gen or run_gen)(spec, d)
+        rig = None
+        if settings.get("simulator") == "isaac":
+            rig = d / "isaac" / f"{name}.rig.yaml"
+            rig.parent.mkdir(parents=True, exist_ok=True)
+            (rig_gen or run_rig_gen)(spec, rig)
         hash_file = d / "spec_hash.yaml"
         (d / "description.urdf").write_text(urdf(yaml.safe_load(Path(spec).read_text())))
         out[name] = {
@@ -173,6 +196,7 @@ def generate(project, settings: dict, gen=None, body=None) -> dict:
             "carla_sensors": str(d / "carla" / "carla_sensors.yaml"),
             "description": str(d / "description.urdf"),
             "pedal_maps": pedal_maps(spec, name),
+            "isaac_rig": str(rig) if rig else None,
         }
     merged = None
     if out:
@@ -191,6 +215,21 @@ def run_gen(spec: Path, d: Path):
     if r.returncode != 0:
         raise VehicleError(f"generating {spec.name} failed: "
                            + (r.stderr.strip().splitlines() or ["(no output)"])[-1])
+
+
+def run_rig_gen(spec: Path, rig: Path):
+    """The Isaac rig of ``spec`` (aib.gen --spec), which names the spec by a path relative to
+    the rig; aib loads the car's onboard computers' calibration from that spec."""
+    argv = [sys.executable, "-m", "aib.gen", "--spec", str(spec), "-o", str(rig)]
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=120)
+    except OSError as e:
+        raise VehicleError(f"making {Path(spec).name}'s Isaac rig: {e}") from None
+    if r.returncode != 0:
+        last = (r.stderr.strip().splitlines() or ["(no output)"])[-1]
+        hint = (" (aib is not importable: build and source scensim's workspace)"
+                if "No module named 'aib'" in r.stderr else "")
+        raise VehicleError(f"making {Path(spec).name}'s Isaac rig failed: {last}{hint}")
 
 
 def merge(catalogs: list, out: Path) -> Path:

@@ -424,6 +424,40 @@ def test_isaac_wheel_query_goes_into_the_ego_config(where, maps_hub, tmp_path):
     assert cfg["vehicle"]["wheel_query"] == "sweep" and "ground_truth" not in cfg
 
 
+def test_an_own_car_on_isaac_drives_its_rig(where, maps_hub, tmp_path, monkeypatch):
+    """Roadmap 091 W5: an own car's ego on Isaac is its rig, made from its spec; the installed
+    car's body does not fit it."""
+    base = tmp_path / "aib" / "ego.yaml"
+    base.parent.mkdir()
+    base.write_text("rig: tesla_model3.rig.yaml\nbody: model3/entry.json\ndomain: 1\n")
+    d = make(where, template="isaac")
+    spec = Path(__file__).resolve().parents[2] / "sim_vehicle_spec" / "vehicles" / "tesla_model3.yaml"
+    if not spec.is_file():
+        pytest.skip("sim_vehicle_spec not checked out")
+    doc = yaml.safe_load(spec.read_text())
+    doc["name"], doc["body"]["catalogue_model"] = "my_racer", "vehicle.my.racer"
+    for b in (doc.get("bodies") or {}).values():
+        b["catalogue_model"] = "vehicle.my.racer"
+    (d / "vehicles").mkdir(exist_ok=True)
+    (d / "vehicles" / "my_racer.yaml").write_text(yaml.safe_dump(doc, sort_keys=False))
+    rig = d / "state" / "vehicles" / "my_racer" / "isaac" / "my_racer.rig.yaml"
+    car = {"spec": str(d / "vehicles" / "my_racer.yaml"), "dir": str(rig.parents[1]),
+           "catalog": "", "spec_hash_file": "/h.yaml", "spec_hash": "h", "carla_physics": "",
+           "carla_sensors": "", "description": "/d.urdf", "pedal_maps": {},
+           "isaac_rig": str(rig)}
+    monkeypatch.setattr(stack.vehiclesmod, "generate",
+                        lambda *a, **k: {"my_racer": dict(car), "__catalog__": None})
+    text = (d / "testbench.yaml").read_text().replace("kind: autoware", "kind: simple")
+    text = text.replace("vehicle: tesla_model3", "vehicle: my_racer")
+    (d / "testbench.yaml").write_text(text + "vehicles: [vehicles/my_racer.yaml]\n")
+    monkeypatch.setattr(stack, "aib_ego_config", lambda: base)
+    p = stack.plan(project_arg=str(d))
+    cfg = p.record["isaac_ego"]["config"]
+    assert cfg["rig"] == str(rig) and "body" not in cfg
+    assert cfg["ground_truth"] == {"topic": "/ground_truth/odom"}
+    assert f"ego:={p.stack_dir / stack.ISAAC_EGO}" in p.launch_args["sim_args"]
+
+
 def test_isaac_ego_config_needs_aib(tmp_path):
     with pytest.raises(stack.StackRefused, match="aib"):
         stack.isaac_ego_with_ground_truth(tmp_path / "missing.yaml")

@@ -816,23 +816,19 @@ def check_scenario(project: Path, sc: Scenario, settings: dict, managed: bool = 
 
 def own_car_problems(project: Path, settings: dict) -> list:
     """``vehicles:`` (roadmap 077, G5): names and bodies of their own; an autoware pilot of
-    an own car needs the car's Autoware packages installed; Isaac's rig is not made yet."""
+    an own car needs the car's Autoware packages installed. On Isaac the stack makes the car's
+    rig from its spec (roadmap 091 W5)."""
     pf = config.PROJECT_FILE
     out = [Finding(pf, m, refused=True) for m in vehiclesmod.problems(project, settings)]
     try:
         own = {n for n, _, _ in vehiclesmod.spec_names(project, settings)}
     except vehiclesmod.VehicleError:
         return out
-    sim = settings.get("simulator")
     pilots = settings.get("pilots") if isinstance(settings.get("pilots"), dict) else {}
     for key, p in pilots.items():
         if not isinstance(p, dict) or p.get("vehicle") not in own:
             continue
         car = p["vehicle"]
-        if sim == "isaac":
-            out.append(Finding(pf, f"pilots.{key}: {car} is a car of the project's own; on "
-                               "Isaac its rig is not made from the spec yet", "simulator: carla,"
-                               " or an installed car", refused=True))
         if p.get("kind") == "autoware" and not _package_installed(f"{car}_description"):
             out.append(Finding(pf, f"pilots.{key}: an autoware pilot of {car} needs Autoware's"
                                f" packages of the car ({car}_description, {car}_sensor_kit_*),"

@@ -939,6 +939,17 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
         sim_side["ego"] = isaac_ego["path"]
     ego_car = cars.get(vehicle) if vehicle else None
+    if ego_car is not None and not server and sim == "isaac":
+        # an own car on Isaac (roadmap 091 W5): the ego is its rig, made from its spec with
+        # the car's other files; the installed car's body does not fit it, so the box shows
+        if sim_side.get("ego") == "none":
+            raise StackRefused(f"pilots: {vehicle} is the ego's car, but this stack has no "
+                               "Isaac ego (isaac.ego: none)")
+        doc = _ego_doc(isaac_ego, sim_side.get("ego"))
+        doc["rig"] = ego_car["isaac_rig"]
+        doc.pop("body", None)
+        isaac_ego = {"path": str(stack_dir / ISAAC_EGO), "config": doc}
+        sim_side["ego"] = isaac_ego["path"]
     if server:
         pass
     elif sim == "carla" and ego_car is not None:

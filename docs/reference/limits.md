@@ -55,8 +55,10 @@ The rules in full, with what fails and how: [What a scenario may use](scenarios.
 
 ## Testbenches
 
-- **An own car (`vehicles:`) runs on CARLA only.** On Isaac its rig is not made from the
-  spec yet, and `testbench check` refuses it there. An `autoware` pilot of an own car needs
+- **An own car (`vehicles:`) on Isaac drives as a box.** The stack makes its rig from the
+  spec (roadmap 091 W5), but the installed car's body does not fit it, so the chassis box
+  shows. A small car (a 1/10 RoboRacer class) is not tuned yet (091 W6 to W8). An `autoware`
+  pilot of an own car needs
   the car's Autoware packages built and installed; a car without measured pedal maps drives
   on the Tesla Model 3's ([Your car](../how-to/your-car.md)).
 - **The bridge's trace and contact directories are the stack's, not a run's.** The bridge

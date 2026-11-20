@@ -13,9 +13,14 @@ INSTALLED = Path(__file__).resolve().parents[2] / "sim_vehicle_spec" / "catalogs
 pytestmark = pytest.mark.skipif(not SPEC.is_file(), reason="sim_vehicle_spec not checked out")
 
 
-def own_spec(d: Path, name="my_lincoln", body="vehicle.lincoln.mkz_2020") -> Path:
+def own_spec(d: Path, name="my_lincoln", body="vehicle.lincoln.mkz_2020", bodies=False) -> Path:
+    """A copy of the Model 3's spec as `name` on `body`; with `bodies`, its simulator bodies
+    (bodies:) moved to `body` too."""
     doc = yaml.safe_load(SPEC.read_text())
     doc["name"], doc["body"]["catalogue_model"] = name, body
+    if bodies:
+        for b in (doc.get("bodies") or {}).values():
+            b["catalogue_model"] = body
     p = d / "vehicles" / f"{name}.yaml"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(yaml.safe_dump(doc, sort_keys=False))
@@ -52,7 +57,14 @@ def test_problems_name_a_taken_name_or_body(tmp_path):
     p = vehicles.problems(tmp_path, s, installed=vehicles.installed_names(INSTALLED))
     assert any("is an installed car's name" in x for x in p)
     assert any("vehicle.tesla.model3 is tesla_model3's" in x for x in p)
+    # the Model 3's spec names its CARLA bodies too (bodies:): a copy that renames only body:
+    # still drives the Model 3's body there, which the bridge refuses (roadmap 091 W5)
     own_spec(tmp_path)
+    p = vehicles.problems(tmp_path, {"vehicles": ["vehicles/my_lincoln.yaml"]},
+                          installed=vehicles.installed_names(INSTALLED))
+    assert p and all("vehicle.tesla.model3 is tesla_model3's" in x for x in p)
+    spec = own_spec(tmp_path, bodies=True)
+    assert vehicles.body_models(spec) == {"vehicle.lincoln.mkz_2020"}
     assert vehicles.problems(tmp_path, {"vehicles": ["vehicles/my_lincoln.yaml"]},
                              installed=vehicles.installed_names(INSTALLED)) == []
 
@@ -96,15 +108,16 @@ def test_own_car_args_per_kind():
 def test_project_check_names_an_autoware_pilot_without_the_cars_packages(tmp_path, monkeypatch):
     monkeypatch.setattr(vehicles, "installed_names", lambda catalog=None: {"tesla_model3": "vehicle.tesla.model3"})
     monkeypatch.setattr(projectmod, "_package_installed", lambda name: False)
-    own_spec(tmp_path)
+    own_spec(tmp_path, bodies=True)
     s = {"simulator": "carla", "vehicles": ["vehicles/my_lincoln.yaml"],
          "pilots": {"ego": {"kind": "autoware", "vehicle": "my_lincoln"},
                     "lead": {"kind": "simple", "vehicle": "my_lincoln"}}}
     found = projectmod.own_car_problems(tmp_path, s)
     assert len(found) == 1 and "my_lincoln_description" in found[0].what and found[0].refused
+    # on Isaac the stack makes the car's rig (roadmap 091 W5): the same one finding
     s["simulator"] = "isaac"
     found = projectmod.own_car_problems(tmp_path, s)
-    assert any("on Isaac its rig is not made" in f.what for f in found)
+    assert len(found) == 1 and "my_lincoln_description" in found[0].what
 
 
 def test_pedal_maps_beside_the_spec_else_the_teslas(tmp_path):
@@ -146,3 +159,34 @@ def test_the_merged_catalog_is_the_bodys(tmp_path, monkeypatch):
     assert 'length="4.694"' in text and "my_lincoln" in text
     # no own cars: the scenarios read the installed catalog of the body
     assert vehicles.catalog_dir(tmp_path / "empty", "carla-1.0") == INSTALLED.parent / "carla-1.0"
+
+
+def test_on_isaac_each_car_gets_its_rig(tmp_path, monkeypatch):
+    """Roadmap 091 W5: an Isaac testbench's own car is made into an aib rig beside its other
+    files; a CARLA testbench's is not."""
+    monkeypatch.setattr(vehicles, "installed_catalog", lambda body=None: INSTALLED)
+    own_spec(tmp_path)
+    made = []
+    rig_gen = lambda spec, rig: made.append((Path(spec).name, rig)) or rig.write_text("x: 1\n")  # noqa: E731
+    s = {"vehicles": ["vehicles/my_lincoln.yaml"]}
+    assert vehicles.generate(tmp_path, s, gen=fake_gen, rig_gen=rig_gen)["my_lincoln"][
+        "isaac_rig"] is None and made == []
+    c = vehicles.generate(tmp_path, {**s, "simulator": "isaac"}, gen=fake_gen,
+                          rig_gen=rig_gen)["my_lincoln"]
+    rig = tmp_path / "state" / "vehicles" / "my_lincoln" / "isaac" / "my_lincoln.rig.yaml"
+    assert c["isaac_rig"] == str(rig) and made == [("my_lincoln.yaml", rig)]
+
+
+def test_the_rig_is_aibs_from_the_spec(tmp_path):
+    """The real generator (aib.gen --spec), where aib imports: a rig naming the spec and its
+    hash, with the PhysX vehicle's fields."""
+    import importlib.util
+    if importlib.util.find_spec("aib") is None:
+        pytest.skip("aib not importable (scensim's workspace not sourced)")
+    spec = own_spec(tmp_path)
+    rig = tmp_path / "isaac" / "my_lincoln.rig.yaml"
+    rig.parent.mkdir()
+    vehicles.run_rig_gen(spec, rig)
+    doc = yaml.safe_load(rig.read_text())
+    assert (rig.parent / doc["spec"]).resolve() == spec.resolve()
+    assert doc["spec_hash"] and doc["vehicle"]["wheel_base"] > 0

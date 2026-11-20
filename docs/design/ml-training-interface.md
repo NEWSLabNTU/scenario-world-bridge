@@ -1,291 +1,283 @@
-# Training and deploying learned policies: the design (draft)
+# Building blocks for learned policies: run, sample, batch, evaluate (draft)
 
-Status: draft for review, 2026-11-20. Not a roadmap phase yet.
+Status: draft for review, revision 2, 2026-11-20. Not a roadmap phase yet.
 
-Source: feedback from a RoboRacer team (TUM) after a scensim presentation, 2026-11-20. They
+Source: a RoboRacer team (TUM) gave feedback after a scensim presentation on 2026-11-20. They
 train and deploy RL and ML policies and know simulation well. Their pain points:
 
-- **Many runs, set up by hand.** Training seeds many simulation runs, and each world is still
-  set up by hand.
-- **Slow data movement.** Data crawls between the autopilot, the simulator and the training
-  infrastructure, above all camera frames.
-- **Jazzy.** They need ROS 2 Jazzy as well as Humble.
+- training seeds many simulation runs, and each world is set up by hand;
+- data crawls between the autopilot, the simulator and the training infrastructure;
+- they need ROS 2 Jazzy as well as Humble.
+
+Revision 2 follows the user's review of the first draft:
+
+- no special-purpose `training:` section: randomness lives in the scenario file and in the
+  autopilot;
+- the design is organised as layers of application;
+- batching uses compiled scenarios (option b);
+- evaluation is covered as well as training: real target platforms, several actors on
+  different ML stacks, vision under varied scenes, V2X;
+- scensim provides building blocks that users combine; it does not cover every use case.
 
 ## 1. Decisions
 
 | # | Decision | From |
 |---|---|---|
-| D1 | scensim provides interfaces and functions that different ML users build on; it does not cover the whole ML workflow (no learner, no experiment tracker, no model compiler) | user |
-| D2 | Adopt existing technology where it fits (Isaac Lab's vectorised environments, NITROS, NCCL, TensorRT) rather than invent | user |
-| D3 | No patches to official ROS; Humble and Jazzy both supported | user |
-| D4 | Training follows Isaac Lab's model: many environments stepped as a batch in one process, observations as GPU tensors. scensim compiles a declarative training job into such an environment (option A) | user (A chosen over a batched world server) |
-| D5 | One interface across platforms: CARLA 1.0 is a training backend behind the same interface, at its own throughput | user |
-| D6 | Training does not need the multi-simulator setup (world server, SSv2, lockstep) that evaluation uses; throughput comes first | user |
-| D7 | Deployment: the user compiles the model (ONNX, TensorRT engine, or a board's own format); scensim runs it through the autopilot (pilot) interface, in scenarios and on boards, as with the NXP board and SSv2 | user |
-| D8 | Gradients stay in the learner. Model-free RL (PPO, SAC) needs only observations, rewards and resets from the simulator; gradients between GPUs are NCCL's, inside the user's learner. Differentiable physics is out of scope | finding (section 6) |
-| D9 | The Python interface is Gymnasium's vector environment, with tensors as observations | ours |
-| D10 | Rewards and terminations: a small built-in library of terms, plus user terms registered as Python entry points (as 091's control components are) | ours |
-| D11 | During training SSv2 does not run; a scenario family is compiled into initial conditions, randomisation and a supported subset of behaviours. SSv2 runs the evaluation | ours |
-| D12 | Every training run records its job hash, per-environment seeds and provenance (stage, spec and component hashes), in the run layout scensim already has | ours |
+| D1 | scensim provides building blocks and interfaces; users compose them. No learner, experiment tracker, model compiler or perception metric library of our own | user |
+| D2 | Adopt existing technology where it fits: Isaac Lab's batched simulation, NITROS, NCCL, TensorRT, perception_eval, CARLA 1.0's V2X sensors | user |
+| D3 | No patches to official ROS; Humble and Jazzy | user |
+| D4 | No training-specific specification. A scenario file carries its own sampling (OpenSCENARIO `ParameterValueDistribution`, which SSv2 already interprets); the autopilot carries its own randomness, seeded per run | user |
+| D5 | Three layers: L1 simulator plus autopilot; L2 one sampled run of a scenario; L3 many managed runs | user |
+| D6 | L3's batched executor compiles scenarios into a batched simulation (Isaac Lab style). Scenarios outside the compilable subset run one per seat, as today | user (option b) |
+| D7 | One interface across simulators: Isaac Sim and CARLA 1.0 (and 0.9.16) behind the same blocks, each at its own throughput | user |
+| D8 | Deployment and evaluation on the real target: the user compiles the model; scensim runs it through the pilot interface, on the host or on a board | user |
+| D9 | Gradients stay in the learner; NCCL between GPUs is the user's. The reward is the learner's: scensim streams observations and events, not rewards | finding, and D1 |
+| D10 | V2X is optional and attaches as a block; nothing requires it | user (2026-11-15 rule) |
 
-## 2. Architecture
-
-```mermaid
-flowchart LR
-  classDef user fill:#FFF3E0,stroke:#A85F00,color:#222
-  classDef ours fill:#EAF1FE,stroke:#2F6FC9,color:#222
-  classDef ext fill:#F1F1F1,stroke:#6B6B6B,color:#222
-
-  subgraph WS["Testbench (declarative)"]
-    JOB["training job<br/>tasks, ranges, obs, action,<br/>reward terms, envs, seed"]:::user
-    FIELD["field<br/>USD stage or CARLA town"]:::user
-    CAR["car<br/>spec, control component"]:::user
-    SCN["scenarios<br/>OpenSCENARIO"]:::user
-  end
-
-  COMP["scensim compiler<br/>job to environment"]:::ours
-  JOB --> COMP
-  FIELD --> COMP
-  CAR --> COMP
-  SCN --> COMP
-
-  subgraph TRAIN["Training (one process per GPU)"]
-    VENV["scensim.rl vector env<br/>Gymnasium API, tensors"]:::ours
-    ISL["Isaac Lab backend<br/>N clones, PhysX GPU,<br/>tiled cameras, zero copy"]:::ext
-    CRL["CARLA 1.0 backend<br/>N servers, synchronous,<br/>host copies"]:::ext
-    LRN["learner<br/>rsl_rl, skrl, SB3, own"]:::user
-    VENV --- ISL
-    VENV --- CRL
-    LRN <--> VENV
-    NCCL["NCCL<br/>multi-GPU gradients"]:::ext
-    LRN --- NCCL
-  end
-  COMP --> VENV
-
-  RUNS["runs and provenance<br/>job hash, seeds, hashes"]:::ours
-  VENV --> RUNS
-
-  EXP["export<br/>ONNX, TensorRT engine,<br/>board format"]:::user
-  LRN --> EXP
-
-  subgraph EVAL["Evaluation and deployment"]
-    PP["policy pilot<br/>runs the engine"]:::ours
-    SSV2["SSv2 scenarios<br/>world protocol, lockstep"]:::ours
-    SIMS["Isaac Sim, CARLA 1.0,<br/>CARLA 0.9.16"]:::ext
-    BOARD["board in the loop<br/>NXP, Jetson"]:::user
-    PP --> SSV2 --> SIMS
-    PP --> BOARD
-    NIT["NITROS or ROS topics<br/>camera data across processes"]:::ext
-    PP --- NIT
-  end
-  EXP --> PP
-  SCN --> SSV2
-```
-
-Key: amber is the user's, blue is scensim's, grey is third-party used as is.
-
-The same testbench feeds both halves. Training reads the job and compiles it into a vector
-environment; evaluation runs the same scenarios in SSv2, with the exported policy as a
-pilot. The car comes from one spec in both (the `bodies:` mechanism of roadmap 083), and so
-does the control component (091), so a policy trained on one backend can be evaluated on the
-other. The difference between the two is a measurement in its own right.
-
-## 3. Workflow
+## 2. The layers
 
 ```mermaid
 flowchart TB
+  classDef l1 fill:#EAF1FE,stroke:#2F6FC9,color:#222
+  classDef l2 fill:#E8F5E9,stroke:#2E7D32,color:#222
+  classDef l3 fill:#F3ECFA,stroke:#7A3FB0,color:#222
   classDef user fill:#FFF3E0,stroke:#A85F00,color:#222
-  classDef ours fill:#EAF1FE,stroke:#2F6FC9,color:#222
-  classDef gate fill:#FFF8D6,stroke:#B08800,color:#222
 
-  A["1 Author<br/>field, car, scenarios, training job"]:::user
-  B["2 Check<br/>scensim testbench check:<br/>job compiles, terms import, spaces match"]:::gate
-  C["3 Train<br/>scensim train job, or own loop on scensim.rl.make"]:::user
-  D["4 Evaluate in simulation<br/>scensim run suite with the checkpoint as pilot,<br/>on Isaac and on CARLA"]:::ours
-  E["5 Export<br/>ONNX, then TensorRT or the board's format"]:::user
-  F["6 Deploy check<br/>the engine as pilot: same suite, then board in the loop"]:::gate
-  G["7 Real car<br/>laps and logs"]:::user
-  H["8 Close the gap<br/>logs fit the twin (091): measure and model"]:::ours
+  subgraph L3["L3: many managed runs"]
+    PLAN["sampling plan<br/>suite: distribution, N, seed,<br/>adaptive sampler"]:::l3
+    EXEC["executor<br/>seats (one run per stack)<br/>or batch (compiled, many per process)"]:::l3
+    DATA["data plane<br/>in-process tensors, GPU side channel,<br/>NITROS, ROS"]:::l3
+    CONS["consumers<br/>report, dataset recorder,<br/>learner, dashboard"]:::user
+    PLAN --> EXEC --> DATA --> CONS
+  end
 
-  A --> B --> C --> D --> E --> F --> G --> H
-  D -- "fails a judge" --> C
-  F -- "engine differs from checkpoint" --> E
-  H -- "twin updated" --> C
+  subgraph L2["L2: one sampled run"]
+    SCN["scenario file<br/>parameters + distribution + seed"]:::l2
+    RUN["run<br/>sample, seed to world and pilots,<br/>judges, trace, provenance"]:::l2
+    SCN --> RUN
+  end
+
+  subgraph L1["L1: simulator plus autopilot"]
+    W["world<br/>field, car from spec,<br/>sensors, clock"]:::l1
+    P["pilots<br/>Autoware, E2E model, RL policy,<br/>board, own"]:::l1
+    W <--> P
+  end
+
+  EXEC -->|"runs samples"| RUN
+  RUN -->|"sets up"| W
 ```
 
-Steps 4 and 6 use the scensim that exists today (suites, judges, `result.json`, pilots);
-steps 1 to 3 and the policy pilot are new.
+**L1, simulator plus autopilot.** A field, a car and one or more pilots, with no scenario.
+The world steps under a clock (lockstep, or paced to wall time for a board), publishes
+sensors and accepts commands. This is what `just run` does today, and a policy developer
+uses it as a single environment.
 
-## 4. The training job
+**L2, one sampled run.**
 
-A new `training:` section in a testbench, or a file it names. An example for a RoboRacer
-racing task:
+- A scenario file states the setup, the actors, their pilots and the sampling: parameter
+  ranges and distributions, and the number of runs (SSv2's `Stochastic` with `numberOfTestRuns`
+  and `randomSeed`, or `Deterministic` sets and ranges).
+- One run is one sample: a concrete parameter set plus a run seed. The run seed reaches the
+  scenario sample, the simulator's own randomness (traffic, sensor noise, weather variation),
+  and each pilot (as `{seed}` in its arguments, or as an SSv2 controller property).
+- The run writes `result.json`, judge verdicts, a trace and its provenance, which names the
+  sample. Replaying a sample reproduces the run.
 
-```yaml
-# training/race.yaml
-backend: isaaclab            # or carla
-envs: 2048                   # carla: servers x cars per server
-seed: 7                      # environment i draws from seed + i
-episode_s: 30
-step_hz: 50                  # policy rate; physics substeps follow the field
-field: fields/lab_hall       # a USD stage (091), or a CARLA town
-car: vehicles/my_racer.yaml  # spec v2, with its control component
-tasks:                       # where an episode starts and what it is for
-  - scenario: scenarios/lap.xosc      # start pose, route; compiled, not run
-    weight: 0.8
-  - scenario: scenarios/overtake.xosc # NPCs on the supported subset
-    weight: 0.2
-randomise:                   # ranges, sampled per environment per reset
-  floor_friction: [0.6, 1.0]
-  mass_scale: [0.95, 1.05]
-  motor_gain: [0.9, 1.1]
-  latency_s: [0.00, 0.03]
-observations:
-  scan: {sensor: lidar, history: 2}
-  state: [speed, yaw_rate, steering]
-  path: {waypoints: 60, spacing_m: 0.2}
-action:
-  interface: ackermann        # ackermann | vesc | autoware_control
-  residual_over: pure_pursuit # optional: the policy adds to a base controller
-rewards:
-  progress: 1.0
-  collision: -10.0
-  scensim_terms.my_team:smooth_steering: -0.1   # a user term (entry point)
-terminations: [collision, off_track, timeout]
-```
+**L3, many runs.**
 
-What the compiler does with it:
+- *The sampling plan* is a suite: which scenarios and distributions, how many runs, a base seed,
+  and optionally a sampler that picks the next sample from earlier results (as in the gap
+  campaign).
+- *The executor* places runs. `seats` runs each sample on its own stack, as today, with full
+  scenario semantics. `batch` compiles samples into one batched simulation (section 5).
+- *The data plane* moves sensor data and events to the consumers.
+- *The consumers* are the user's: a report, a dataset recorder, a learner. Training is L3 with
+  a learner as consumer and a learning policy as pilot; it needs no section of its own.
 
-- **field.** On Isaac Lab, the stage is cloned `envs` times on a grid; surfaces and colliders
-  come from the stage as 091 designs (the stage is the source of truth). On CARLA, the town is
-  loaded on each server.
-- **car.** The rig is generated from the spec (aib's generator, 091 W5); the control
-  component runs inside the physics step, batched over environments.
-- **tasks.** Each scenario is read for its start, route and goal, and for the NPCs' initial
-  states and the supported subset of actions (section 7). Its storyboard is not executed.
-- **randomise.** Each entry becomes a reset event, and the sample per environment is stored
-  in the run.
-- **observations.** The car's sensors are named from its spec. Cameras use tiled rendering on
-  Isaac Lab and are delivered as GPU tensors.
-- **action.** It is mapped onto the same command interface that the car's stack uses
-  (091 W18), so the trained policy speaks the deployed stack's language.
+Rollouts: when a run inside a batch ends, the executor draws the next sample from the same
+plan and resets that slot. The scenario file needs no new syntax for it.
 
-## 5. The Python interface
+## 3. The blocks
 
-```python
-import scensim.rl as rl
+Each block has one job and a stable interface. Users compose them in a testbench.
 
-env = rl.make("training/race.yaml", device="cuda:0")  # gymnasium.vector.VectorEnv
-obs, info = env.reset(seed=7)          # obs: dict of torch tensors, leading dim = envs
-for _ in range(steps):
-    act = policy(obs)                   # torch tensor on the same device
-    obs, rew, term, trunc, info = env.step(act)
+| Block | What it does | Exists today | New |
+|---|---|---|---|
+| **World** | a simulator behind the world protocol; field, weather, lights, time | world servers (CARLA, Isaac), `set_weather` | scene parameters settable from a scenario sample (section 6.3) |
+| **Car** | the car from one spec, per simulator body | spec v2, bodies, rigs | rig from spec on Isaac (091 W5) |
+| **Pilot** | anything that drives an entity: Autoware, a launch file, a program, an exported model, a board | pilots of six kinds, agent protocol, relay | the *model pilot* (an engine runner), the *board pilot* (section 6.1) |
+| **Sensor stream** | sensors from the car's spec to a pilot | vehicle bridges publish ROS topics | GPU tensors in process; a GPU side channel or NITROS between processes; a compressed stream to a board |
+| **Truth stream** | ground truth per step: objects with boxes and occlusion, lanes, signals, contacts, route progress | parts, in judges and traces | one published stream, per step, which any block can read |
+| **Clock** | how time advances | lockstep in simulated time | paced mode for boards (simulated time held to wall time, with the lag recorded) |
+| **Scenario** | setup, actors, sampling | SSv2, distributions, suites | the compilable subset for `batch` |
+| **Judge** | a verdict or metric from a run | judges, `result.json` | adapters for third-party scorers (perception_eval, Bench2Drive-style driving score) |
+| **Attachment** | any extra process tied to a run's lifetime, clock and seed: a recorder, an evaluator, a V2X stack, a network simulator | the tick gate's followers, the episode files, the gap trace | a declared attachment with the entity-to-role map and start and stop per run (section 6.4) |
+| **Executor** | places runs | seats, suites, retries | `batch` (section 5) |
+| **Record** | provenance, traces, datasets | runs layout, provenance, logs | a dataset writer over the sensor and truth streams |
 
-env.run.record(checkpoint="ckpt/iter_500.pt")   # provenance for the checkpoint
-```
+## 4. Real evaluation pipelines, and the blocks they use
 
-- **Learners.** rsl_rl, skrl and Stable-Baselines3 attach through their usual wrappers.
-- **Capabilities.** `env.capabilities` reports where tensors live, whether physics is
-  deterministic per seed, the maximum environments per process, and the backend.
-- **Tensor exchange.** Tensors cross library boundaries through DLPack (PyTorch, JAX, Warp,
-  CuPy).
-- **Commands.** `scensim train <job> --learner rsl_rl` is a thin launcher over the same
-  interface, for users who want no code of their own. It is optional (D1).
+The examples were read for the blocks they need. The gaps they expose are work items.
 
-## 6. What crosses process boundaries, and with what
+| Pipeline | What it is | Blocks | Gap |
+|---|---|---|---|
+| **Bench2Drive** ([NeurIPS 2024](https://arxiv.org/abs/2406.03877)) | closed-loop evaluation of end-to-end models on CARLA: 44 interactive scenarios across locations and weathers, 220 routes, a driving score and success rate per ability | scenario sampling over town and weather, model pilot, judge | a driving-score judge adapter; weather and location as sample parameters |
+| **CARLA Leaderboard and Roach** ([ICCV 2021](https://arxiv.org/abs/2108.08265)) | route-based evaluation of a sensor agent; an RL expert trained on a bird's-eye view, then imitated | pilot, truth stream (BEV), record (data for imitation) | BEV rendered from the truth stream |
+| **driving_log_replayer v2** ([docs](https://tier4.github.io/driving_log_replayer_v2/overview)) | Autoware's evaluator: perception scored against annotations by perception_eval, or without annotations from online metrics; planning and control from evaluator metric topics | judge adapter, truth stream as the annotation | perception scoring against simulated truth: perception_eval reading our truth stream |
+| **OpenCDA** ([arXiv 2107.06260](https://arxiv.org/abs/2107.06260)) | cooperative driving on CARLA with SUMO traffic: V2X, cooperative perception, platooning; collects V2X perception data (OPV2V) | attachment (V2X), truth stream, record | V2X stacks and their network simulators attach; non-commercial licence, so a reference, not a dependency |
+| **Board in the loop** (e.g. [MMRHP](https://arxiv.org/html/2510.18371v1); our NXP board with SSv2) | the stack on the target board; sensors injected; latency measured; Autoware's tracking broke past about 40 ms of injected latency in that study | board pilot, paced clock, sensor stream to the board | the paced clock; a latency record per command; sensor compression |
+| **Wheeled Lab** ([CoRL 2025](https://arxiv.org/abs/2502.07380)) and **RoboRacer Arena** ([arXiv 2608.23040](https://arxiv.org/pdf/2608.23040)) | small cars trained on Isaac Lab or Isaac Sim with heavy randomisation; residual RL over Pure Pursuit; deployed zero-shot | batch executor, scenario sampling, model pilot | residual actions over a named base controller; observation history recorded with the model |
+| **GPUDrive** ([ICLR 2025](https://arxiv.org/html/2408.01584v3)) | multi-agent driving on recorded scenes, about a million steps per second | batch executor | several learning actors per environment (later) |
 
-| Data | Where it moves | Mechanism |
+## 5. The batch executor (option b)
+
+The executor compiles a scenario sample into a slot of a batched simulation: N clones of the
+field in one Isaac process, stepped together on the GPU (Isaac Lab's model).
+
+- **The subset that compiles.** Start poses, routes, speeds, NPC routes with constant or
+  profiled speed, simple distance and time triggers, weather and scene parameters (section
+  6.3), and the end conditions. A scenario outside the subset is refused for `batch` by name,
+  with the first construct that does not compile, and runs on `seats` instead.
+- **Pilots in a batch.** A batched pilot steps all slots at once: an RL policy or an exported
+  model on the GPU. Autoware and other per-process stacks do not batch; they run on `seats`.
+- **The interface for learners.** A batched run is also a Gymnasium vector environment:
+  observations as tensors (DLPack across PyTorch, JAX, Warp), actions in, per-step events out
+  (contacts, route progress, judge states, episode ends). The learner computes its reward
+  from them (D9).
+- **Same car, same component.** The rig comes from the car's spec, and the 091 control
+  component runs inside the physics step, in batched form.
+- **Provenance per slot.** Each slot records its sample and seed, so any slot's episode can be
+  replayed as an L2 run on `seats`, with full SSv2 semantics. That is how a surprising training
+  episode becomes a test.
+
+## 6. Evaluation building blocks in detail
+
+### 6.1 The real target platform
+
+A *board pilot* runs the stack on the target (a Jetson, an NXP board) and talks to the run over
+the network, through the agent protocol's relay, which already crosses domains.
+
+- **Clock.** A board runs in wall time. The paced clock holds simulated time to wall time and
+  records the lag. A run whose lag exceeds its budget is marked as such, not silently
+  stretched.
+- **Sensors.** Sensors are encoded for the link (compressed images, decimated lidar) at rates
+  the board declares.
+- **Latency.** Every command is stamped, so latency per command, from sensor to actuation, is
+  part of the record.
+
+### 6.2 Several actors on different ML stacks
+
+A scenario names a pilot per entity: Autoware for one car, an end-to-end vision model for
+another, an RL policy for a third, a board for a fourth.
+
+- **Seats.** Seats isolate each pilot's ROS domain, as today (`multi_av`).
+- **Sensors.** Each pilot gets the sensors of its own car's spec.
+- **Judges.** Judges score each actor separately, and the run records which pilot drove which
+  entity.
+- **Transport.** Where pilots on one host consume the same camera data, they share it on the
+  GPU (NITROS or the side channel) rather than each taking a copy.
+
+### 6.3 Vision under varied scenes
+
+Scene parameters become scenario parameters, so a distribution sweeps them. They cover
+weather, sun angle and time of day, wet roads, fog, lighting presets, props and surfaces, and,
+on Isaac, variants of the authored stage.
+
+- **How they reach the world.** The world server applies them at the start of a run (the
+  weather path exists).
+- **Two kinds of scoring.**
+  - *Closed-loop:* the run's judges.
+  - *Perception:* the pilot's detections against the truth stream, through perception_eval, the
+    scorer Autoware's own evaluator uses.
+
+### 6.4 V2X, as an attachment
+
+An attachment is a process declared in the testbench and tied to a run. It receives the run's
+seed, the entity-to-role map, and start and stop at the run's edges. It follows the run's clock
+as a follower of the world server's tick gate (`SCENSIM_TICK_GATE`, which already takes
+several followers). It reads the truth stream and writes into the run's record. Nothing in a
+run requires V2X, and a scenario with V2X also runs without it.
+
+A neighbouring lab project gives the requirements. It runs shared perception and junction
+space leases over a simulated 5G network, which ns-3 5G-LENA and a ray tracer model.
+
+- **What it exchanges.** Each car runs a node that reads its own stack's state (pose, tracked
+  objects) and UWB ranges, and sends its own packets every 100 ms (state, tracks, leases), with
+  evidence patches every 200 ms. The packets travel over Zenoh through the network simulator.
+  A roadside node grants leases from the junction's lights.
+- **What it needs from the simulator.** Every vehicle's true pose each frame, by role name, to
+  drive the network simulator's mobility and line of sight. True ranges for the UWB model.
+  Truth logged per run for scoring. The cars' own state still comes from each stack, never
+  from truth.
+- **Clock.** Simulated time in lockstep, with the network simulator, the junction coordinator
+  and the ray tracer as tick-gate followers. Zenoh's keep-alives and TCP still run on wall
+  time, so the record states it.
+- **Lifetime.** The nodes start fresh per run and stop after the verdict. The network
+  simulator and gateways live for a lab (one town). Seeds go to the network simulator and the
+  UWB noise.
+- **What it asks of scensim**, in its order:
+  1. the attachment hook (entity-to-role map, start and stop per run);
+  2. the tick gate with several followers, kept as it is;
+  3. per-run recorded truth (poses, actor ids, frame times) in the run directory.
+
+  It needs no channel model from us. CARLA 1.0's V2X sensor would serve only as a quick
+  baseline.
+
+So the attachment block (B6) and the truth stream (B3) cover V2X. A channel model is not a
+scensim block.
+
+## 7. Transport
+
+| Data | Between | Mechanism |
 |---|---|---|
-| observations, actions, rewards during training | within one process | Isaac Lab tensors; nothing to transport |
-| gradients and parameters between GPUs | learner to learner | NCCL (the user's learner, e.g. torch.distributed) |
-| camera frames to a separate inference process in evaluation | process to process, same host | NITROS where the stack uses Isaac ROS (3.2 on Humble, 4.x on Jazzy); otherwise ROS topics |
-| any GPU buffer between our own processes | process to process | CUDA IPC or VMM handles over a small side channel, if NITROS does not fit; descriptors only on ROS |
-| commands, states, scenario control | everywhere | ROS topics and the world protocol, as today |
+| observations, actions, events in a batch | within one process | tensors; nothing to transport |
+| gradients and parameters | the user's learners | NCCL |
+| camera frames to a pilot process on the same host | process to process | NITROS where the stack uses Isaac ROS (3.2 on Humble, 4.x on Jazzy); a CUDA IPC side channel otherwise; ROS topics as the fallback |
+| sensors to a board | host to board | compressed stream over the relay |
+| commands, states, scenario control | everywhere | ROS topics and the world protocol |
 
 Notes:
 
-- **NITROS.** It is zero-copy only between nodes in one process. Between processes it uses
-  the NITROS Bridge. Isaac ROS 4.5 dropped the GXF implementation, so the 4.x API has to be
-  pinned.
+- **NITROS.** It is zero-copy only within one process. Between processes it uses the NITROS
+  Bridge. Isaac ROS 4.5 dropped the GXF implementation, so the 4.x API has to be pinned.
 - **ROS Lyrical.** Lyrical's `rosidl::Buffer` with its CUDA backend does the same job
-  upstream, with no side channel. It is not in Humble or Jazzy, and D3 rules out
-  backporting it. When a distro has it, our side channel steps aside.
-- **The common case.** In the RL workflow, the volume moves inside the training process.
-  Cross-process GPU transport matters for evaluation and deployment, where a separate
-  inference process or a board consumes camera frames.
+  upstream. It is not in Humble or Jazzy, and D3 rules out backporting it. When a distro has
+  it, our side channel steps aside.
 
-## 7. Real examples, mapped onto the design
+## 8. Not in scope
 
-Each example was read for what it would need from scensim. The gaps it exposes are work
-items.
+- learners, RL algorithms and experiment tracking;
+- model export and compilation;
+- our own perception metrics (perception_eval and others are adopted);
+- differentiable simulation;
+- patching ROS;
+- a V2X stack or a channel model of our own.
 
-| Example | What it does | How it maps | Gap it shows |
-|---|---|---|---|
-| **Wheeled Lab** ([CoRL 2025](https://arxiv.org/abs/2502.07380), [code](https://github.com/UWRobotLearning/WheeledLab)) | Isaac Lab for small cars (HOUND, MuSHR; F1TENTH listed as coming): drifting, elevation traversal, visual navigation, zero-shot to real; heavy randomisation and massive parallelism; RSL-RL and SB3 | `backend: isaaclab`, `randomise:`, camera observations; the closest match to D4 | Observation history must match between training and playback; the job records it, and the policy pilot reads it from the job |
-| **RoboRacer Arena** ([arXiv 2608.23040](https://arxiv.org/pdf/2608.23040), 2026) | Isaac Sim, GPU PhysX (TGS), 130 tracks generated from specifications (also from text), 270° lidar by GPU ray casting, residual RL over Pure Pursuit, ROS 2 bridge with Ackermann commands; 1080 lidar values, 11 state values and 60 waypoint features per frame | `field:` from generated stages; `action: residual_over: pure_pursuit`; the observation example above | Generated fields: a track generator feeding stages is a later item (with 091's map twin); residual actions over a named base controller |
-| **Learning to drift with individual wheel drive** ([arXiv 2507.23339](https://arxiv.org/abs/2507.23339)) | A 1/10 car with four motors on VESC; a custom GPU simulator in PyTorch with a Pacejka tyre; PPO with about 10^5 environments, converging in about 11 min; randomised tyre B, C, D; reported path error 0.14 m in simulation and 0.22 m on the real car (from a summary of the paper's tail, to verify) | `randomise:` over tyre parameters; the reported gap motivates 091's measured tyres | Per-wheel drive: the action interface needs a per-wheel profile beyond ackermann and vesc |
-| **F1TENTH Gym with SB3** ([f1tenth_gym](https://github.com/f1tenth/f1tenth_gym), [RLPP](https://arxiv.org/html/2501.17311v2)) | Kinematic simulator; PPO tunes Pure Pursuit's lookahead, or adds a residual; deployed through ROS 2 on the 1/10 car | A cheap backend that fits the same interface; PPO over a base controller | A kinematic backend (f1tenth_gym) could sit behind `scensim.rl` for the first iterations; optional |
-| **Roach** ([ICCV 2021](https://arxiv.org/abs/2108.08265), [code](https://github.com/zhejz/carla-roach)) | CARLA 0.9.10.1, PPO on a bird's-eye-view image, 10M steps; the RL expert then teaches an imitation agent | `backend: carla`; the BEV is an observation the compiler renders from ground truth | BEV observations from ground truth; data collection for imitation from evaluation runs (record mode) |
-| **GPUDrive** ([ICLR 2025](https://arxiv.org/html/2408.01584v3)) | Multi-agent driving on recorded scenes, about one million steps per second on one GPU, tens of millions of training steps per hour | The throughput ceiling for kinematic multi-agent work; scenario-driven like our tasks | Multi-agent self-play (several learning cars per environment) is not in the first version |
+## 9. Open questions
 
-What the examples agree on:
-
-- Model-free on-policy RL (PPO), many parallel environments and heavy randomisation (D4, D8).
-- Small cars benefit from residual control over a classical controller, which also eases
-  deployment.
-- The policy's observation and action must be defined once and shared by training and
-  deployment. That is the job file's purpose (D7, D11).
-
-## 8. Backends
-
-| | Isaac Lab | CARLA 1.0 |
-|---|---|---|
-| environments | clones in one process (thousands for state, hundreds with cameras) | one car per server, or several cars per world; servers on separate ports |
-| tensors | GPU, zero copy | host memory, copied to the device |
-| physics | PhysX GPU; the car from the spec; the control component batched | Chaos; the car from the spec's `carla-1.0` body |
-| determinism | per seed on one GPU, within PhysX limits | synchronous mode, fixed delta, `deterministic_collisions` |
-| sensors | tiled cameras, ray-cast lidar | CARLA sensors, fisheye, solid-state lidar |
-| when to use | training | cross-simulator check, CARLA-specific sensors and towns |
-
-A backend is a plug-in under one entry-point group (`scensim.rl_backends`), so a team can add
-its own (a kinematic simulator, a JAX simulator) without changing scensim.
-
-## 9. Not in scope
-
-- RL algorithms, learners and experiment tracking. The user's choice: rsl_rl, skrl, SB3,
-  Weights & Biases, their own.
-- Model export and compilation (ONNX, TensorRT, a board's compiler). The policy pilot runs
-  the result.
-- Differentiable simulation.
-- Running SSv2 inside the training loop.
-- Patching ROS.
-
-## 10. Open questions
-
-1. **Which Isaac Lab release.** Our Isaac Sim is 6.x; which Isaac Lab release supports it, and
-   does its scene cloning accept an authored stage with our session layer (091)?
-2. **The behaviour subset.** How much of a scenario's storyboard should training honour:
-   start poses only, or also NPC routes and simple triggers? The first version does start
-   poses and NPC routes.
-3. **Batching the control component.** The 091 component steps one car. A batched form (a
-   vectorised `step` over environments) is needed for throughput; is it a second method or a
+1. **Isaac Lab and our stage.** Which Isaac Lab release fits Isaac Sim 6.x, and can it clone an
+   authored stage with our session layer (091 W13)?
+2. **The compilable subset.** Start poses and NPC routes first; which triggers next?
+3. **The batched control component.** A vectorised `step` over slots: a second method, or a
    second component?
-4. **Policy pilot runtimes.** TensorRT on x86 and Jetson, ONNX Runtime on CPU; the NXP board's
-   runtime is the board's own. Which ones ship with scensim, and which are the user's?
-5. **CARLA 1.0 at scale.** How many servers fit on one GPU with the RoboRacer-size sensor
-   set? To be measured once 083 runs on 1.0.
+4. **The paced clock's budget.** How much lag may a board run carry before its verdict is void?
+5. **The truth stream's form.** Is it a ROS topic set, the world protocol, or both? It must be
+   cheap enough to publish every step.
+6. **Attachments that outlive a run.** A network simulator lives for a lab (one town), its
+   nodes for a run: does an attachment declare its lifetime (run, lab), as pilots do?
 
-## 11. Work items (sketch, for a roadmap phase once approved)
+## 10. Work items (sketch, for a roadmap phase once approved)
 
-| Item | What | Depends on |
-|---|---|---|
-| T1 | The job schema and `testbench check` for it | none |
-| T2 | `scensim.rl.make`, the vector interface, capabilities, run provenance | T1 |
-| T3 | The Isaac Lab backend: stage cloning, rig from spec, batched component, randomisation events, lidar and tiled cameras | T2, 091 W5 |
-| T4 | The term library and the entry-point group for user terms | T2 |
-| T5 | The policy pilot: run an exported engine in a suite (TensorRT, ONNX Runtime) | none |
-| T6 | The CARLA 1.0 backend | T2, 083 |
-| T7 | Residual actions over a named base controller | T3 |
-| T8 | Cross-process GPU transport for evaluation: NITROS profile, CUDA IPC side channel otherwise | T5 |
-| T9 | Jazzy for the whole set (with 082 step 7) | 082 |
-| T10 | The worked example: a RoboRacer racing job trained on Isaac Lab, evaluated on Isaac and CARLA, deployed as a pilot | T3 to T6 |
+| Item | What | Layer | Depends on |
+|---|---|---|---|
+| B1 | Seeds end to end: run seed to sample, world and pilots; provenance names the sample; replay a sample | L2 | none |
+| B2 | Scene parameters as scenario parameters (weather, light, surfaces, stage variants) | L2 | B1 |
+| B3 | The truth stream | L1 | none |
+| B4 | The model pilot (TensorRT, ONNX Runtime) | L1 | none |
+| B5 | Judge adapters: perception_eval against the truth stream; a driving-score judge | L2 | B3 |
+| B6 | Attachments: declaration, lifetime, clock, seed, record | L2 | B1 |
+| B7 | The board pilot and the paced clock, with latency records | L1 | B4 |
+| B8 | The batch executor: compiled subset, slots, rollouts, vector interface, replay on seats | L3 | B1, 091 W5 |
+| B9 | GPU transport between processes: NITROS profile, CUDA IPC side channel | L3 | B4 |
+| B10 | Jazzy for the whole set (with 082 step 7) | all | 082 |
+| B11 | Worked examples: a RoboRacer policy trained in a batch and evaluated on seats; a vision stack swept over weather with perception scored; two stacks in one scenario; V2X attached | all | the above |

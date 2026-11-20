@@ -58,7 +58,9 @@ def read(bag):
                               max(o.classification, key=lambda c: c.probability).label if o.classification else 0)
                              for o in m.objects]))
         else:
-            decs.append((t, json.loads(m.data)))
+            d = json.loads(m.data)
+            if d.get("decision") is not None:  # czp's event lines (e.g. "cs_hold", 079's kept partners) carry none
+                decs.append((t, d))
     return objs, ego, decs
 
 

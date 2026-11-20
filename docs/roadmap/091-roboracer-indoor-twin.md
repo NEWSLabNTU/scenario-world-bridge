@@ -1,6 +1,6 @@
 # 091: A RoboRacer Indoor Twin on Isaac Sim
 
-**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, done 2026-11-20 (approved by 133): [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md); the reference stack for step 5 is f1tenth_system's `humble-devel` (133); a component sees the car's own sensors and, when it declares them, ground truth the user also measured on the real car (the user). Step 2 in progress.
+**Status**: opened 2026-11-20 (user). Design agreed in conversation; step 1, the design note, done 2026-11-20 (approved by 133): [roboracer-indoor-twin.md](../design/roboracer-indoor-twin.md); the reference stack for step 5 is f1tenth_system's `humble-devel` (133); a component sees the car's own sensors and, when it declares them, ground truth the user also measured on the real car (the user). Step 2 in progress (241); work items W1 to W22 below, registered 2026-11-20 (user).
 
 ## Goal
 
@@ -119,6 +119,42 @@ properties; that convenience is why they work there. So for an indoor field:
      model in the style of ANYmal's actuator net (arXiv 1901.08652) needs it.
    - **Friction measured two ways that must agree**: an inclined-plane tilt test of the tyre on
      the floor (ASTM G219 style) and M6's grip limit.
+
+## Work items
+
+The procedure the user follows is the design note's section 7 (map twin F1 to F5, vehicle
+twin V1 to V4, joining them J1 to J3). These are the work items that give every procedure
+step its tool or interface, and that close the gaps found so far (2026-11-20). Owner "open"
+means not yet assigned; 133 assigns.
+
+| # | work item | for | step | owner | state |
+|---|---|---|---|---|---|
+| W1 | the component interface in `sim_vehicle_ecu`, `Ecu` behind it, `ideal` and `ev` registered, declared truth (`TruthFeed`) | V3 | 2 | 241 | on the submodules' mains; pins landing |
+| W2 | aib's `Vehicle.apply` calling the component; the Isaac exit check (a sample component from an outside workspace, byte-identical to `ideal`) | V3 | 2 | 241 | passed; pins landing |
+| W3 | the testbench side: the pilot's `component:` key, the overlay workspaces on the world server's path, `testbench check`'s import and cost checks, the truth settings, the component's provenance | V3, J2 | 2b | 241 | next |
+| W4 | the `fmu` component: an FMI 2.0 unit wrapped as one shipped component, for compiled models; its dependency decided | V3 | 2 | open | |
+| W5 | own cars on Isaac: lift `testbench check`'s refusal; the rig made from a user's spec in the testbench | V1 | 3 | open | |
+| W6 | a small-car example spec (1/10 RoboRacer class) and its refit of the full-size settings: PhysX slip denominators, `est_slip_offset`, sticky-tyre thresholds, suspension frequency, wheel inertia | V1, V4 | 3 | open | |
+| W7 | the physics rate and solver for a light car: jitter tests at 100 to 600 Hz, the cost of each, the chosen default | V4 | 3 | open | |
+| W8 | the tyre-model risk: PhysX's tyre against foam and soft RC tyres, measured on M5 and M6; a decision to keep it, tune it, or take tyre forces from the component | V4 | 3 | open | |
+| W9 | collisions with walls and cones: restitution and friction read from the authored materials, checked by drop and push tests | F3 | 3, 4 | open | |
+| W10 | the fitting tool: long-horizon trajectory error from matched starts; on-track tyre identification first; fits the spec's tyre and suspension values and a component's exposed `params`; randomisation bands from the real spread | V3, V4 | 3b | open | |
+| W11 | the validation harnesses: (a) component replay against logged VESC telemetry, (b) M1 to M6 against 5.3's bands, (c) lap comparison for M7; one report per twin release | V3, V4, J1 | 3b, 6 | open | |
+| W12 | session conditions: a schema (battery voltage, floor state, tyre age) recorded with each run and each real log; battery voltage declarable as a component input | V2, J2, J3 | 2b, 6 | open | |
+| W13 | the authored stage as a map (`authored: true`): the session-layer rule, the material and `scensim:surface` readers, Track C overrides only where given | F2, F3 | 4 | open | |
+| W14 | the layered stage: visual layer (NuRec splats or a mesh), evidence layer (raw scan), required physics layer; `scensim:source` on measured attributes | F2, F3 | 4 | open | |
+| W15 | `provenance.stage`: the sha256 of every composed layer and resolved asset, the overrides, the records; an unresolved dependency refuses the run | F5, J2 | 4 | open | |
+| W16 | the map check: units and axes, no PhysX vehicle prim, every layer resolved and hashed | F5 | 4 | open | |
+| W17 | the minimal lanelet2 loop generator, from the field's centreline or the occupancy map | F4 | 4 | open | |
+| W18 | the `ackermann` and `vesc` vehicle-interface profiles, mirroring f1tenth_system `humble-devel` (`vesc_driver_node` topics, `/sensors/core` from the component's telemetry, the servo echo); `jazzy-devel`'s names checked | J1 | 5 | open | |
+| W19 | the RoboRacer sensors: a planar lidar profile (UST-10LX class) checked against real scans at known poses; the IMU; wheel odometry by `vesc_to_odom`'s kinematics | F5, J1 | 5 | open | |
+| W20 | the end-to-end exit: an unmodified f1tenth_system drives the example car in an example field | J1 | 5 | open | |
+| W21 | the guide, "A RoboRacer indoor twin": the procedure, the measurement protocol (tilt test, drop and push tests, M1 to M7), friction two ways, where Isaac's editor shows `dynamicFriction` and what it means here | all | 6 | open | |
+| W22 | real data for the worked example: a RoboRacer and an indoor field to log M1 to M7 and scan F1, or a partner's logs; without them steps 3b to 6 can only be checked on synthetic data | V2, F1 | 3b to 6 | the user | to decide |
+
+Order: W3, then W5 to W8 (the car on Isaac) beside W13 to W17 (the field), then W10 to W12
+(fitting and validation), then W18 to W20 (the stack), then W21. W22 gates the real-data checks
+of 3b to 6.
 
 ## Not in scope
 

@@ -33,7 +33,7 @@ abstract those patterns.
 | D3 | No patches to official ROS; Humble and Jazzy | user |
 | D4 | No training-specific specification. A scenario file carries its own sampling (OpenSCENARIO `ParameterValueDistribution`, which SSv2 already interprets); the autopilot carries its own randomness, seeded per run | user |
 | D5 | Three layers: L1 simulator plus autopilot; L2 one sampled run of a scenario; L3 many managed runs | user |
-| D6 | L3's batched executor compiles scenarios into a batched simulation (Isaac Lab style). Scenarios outside the compilable subset run one per seat, as today | user (option b) |
+| D6 | L3's batched executor compiles scenarios into a batched simulation built on Isaac Lab (adopted, not reimplemented). Scenarios outside the compilable subset, and components without a batched form, run one per seat, as today | user (option b) |
 | D7 | One interface across simulators: Isaac Sim and CARLA 1.0 (and 0.9.16) behind the same blocks, each at its own throughput | user |
 | D8 | Deployment and evaluation on the real target: the user compiles the model; scensim runs it through the pilot interface, on the host or on a board | user |
 | D9 | Gradients stay in the learner; NCCL between GPUs is the user's. The reward is the learner's: scensim streams observations and events, not rewards | finding, and D1 |
@@ -259,6 +259,86 @@ field in one Isaac process, stepped together on the GPU (Isaac Lab's model).
 - **Provenance per slot.** Each slot records its sample and seed, so any slot's episode can be
   replayed as an L2 run on `seats`, with full SSv2 semantics. That is how a surprising training
   episode becomes a test.
+
+## 5a. Throughput
+
+Training throughput is environment steps per second across all slots. The batch executor is
+built on Isaac Lab (D2), not a simulator of our own. Its ceiling is therefore Isaac Lab's, and
+scensim's job is to add as little as possible on top: compiling the scenario, the car and the
+field, sampling, and records.
+
+### Reference numbers
+
+These are published figures, each on its own hardware and release. They are not comparable
+with each other, only with themselves.
+
+| System | Workload | Throughput | Source |
+|---|---|---|---|
+| Isaac Lab 2.2, RTX 4090 | Cartpole, state only, 4096 envs | about 1.1 M steps/s | [performance benchmarks](https://docs.nvidia.com/isaaclab/2.2/overview/performance-benchmarks) |
+| Isaac Lab 2.2, RTX 4090 | Cartpole, RGB camera, 1024 envs | about 50 k steps/s | same |
+| Isaac Lab 2.2, RTX 4090 | Unitree G1 locomotion, rough terrain, 4096 envs | about 94 k steps/s | same |
+| Isaac Lab 3.0 | Cartpole state, 4096 envs, against camera, 1024 envs | 857 k against 31.6 k steps/s (mean) | [run benchmarks](https://isaac-sim.github.io/IsaacLab/v3.0.0/source/developer-tools/benchmarking/run_benchmarks.html) |
+| Wheeled Lab, one RTX 3080 | small-car drifting, Isaac Lab | a transferable policy in a couple of hours | [README](https://github.com/Hashu-CH/WheeledLab), [paper](https://arxiv.org/abs/2502.07380) |
+| Xcar drift, RTX 3080 | 1/10 car, custom PyTorch simulator, state only, about 10^5 envs | PPO converges in about 11 min | [arXiv 2507.23339](https://arxiv.org/abs/2507.23339) |
+| GPUDrive, consumer GPU | multi-agent driving, kinematic, 512 worlds | about 1 M agent steps/s; 20 to 30 M training steps per hour | [ICLR 2025](https://arxiv.org/html/2408.01584v3) |
+| scensim today, seats on Isaac | one car, full sensors, SSv2 in lockstep, loaded host | about 10 steps/s per stack (tick median 94 ms) | our run, 2026-11-20 (`isaac_verge`) |
+
+These figures give three lessons:
+
+- **Seats are no training path.** They are three to five orders of magnitude below a batch. A
+  seat is worth its cost for evaluation only.
+- **Cameras cost about 20 to 30 times state alone** at equal scale, on Isaac Lab's own
+  Cartpole. Sensors are the first throughput decision.
+- **A RoboRacer car with a planar lidar and state** sits between Cartpole and locomotion in
+  cost. It has to be measured on our field, not assumed.
+
+### Where a step's time goes, and what the batch executor does about it
+
+| Cost | Risk | Rule in the batch executor |
+|---|---|---|
+| The control component | 091's component steps one car in Python; with 2048 slots, that is 2048 calls per physics step | A batch requires a **batched component**: `step_batch(commands, sensors, dt)` on tensors (Torch or Warp), one call for all slots. A component without it is refused for `batch` by name and still runs on seats |
+| Cameras | rendering dominates once any camera is on | tiled rendering; only the sensors the pilot declares, at their declared resolution and rate; sensor periods decoupled from physics (Isaac Lab's update period) |
+| Lidar | ray casts per slot | batched GPU ray casting (Warp), with the spec's beam count |
+| Physics | substeps times slots | the policy rate decimated from physics; substeps from the car's measured needs (091), not a global default |
+| Resets | a scene reset stalls every slot | per-slot reset in tensors (pose, velocity, randomised parameters); no stage reload; samples drawn on the GPU from the compiled distribution |
+| Host synchronisation | Python per slot, or `.item()`, stalls the GPU | events and truth in batch mode are tensors; nothing per slot in Python |
+| Scenario logic | triggers evaluated per slot in Python | the compilable subset compiles to vectorised conditions over all slots (distance, time, speed, region) |
+| Field size | a large stage times slots exhausts VRAM | the field is instanced: shared meshes, per-slot transforms; slots per GPU sized from measured VRAM |
+| Policy inference | the learner's own | the user's (mixed precision, CUDA graphs); the step is capturable, with no Python control flow per slot |
+| Several GPUs | one process cannot span them | one batch process per GPU, sharing one sampling plan with disjoint seeds; the learner's NCCL joins them |
+
+### Our design against Isaac Lab
+
+| | Isaac Lab, an environment written by hand | scensim's batch executor | scensim's seats |
+|---|---|---|---|
+| The environment | Python configuration classes (scene, observations, events, rewards, terminations) | compiled from the declarative workspace: car spec, stage, scenario with its distribution | the same workspace, run in full |
+| Randomisation | the event manager | the scenario's distribution, plus the pilot's own seed | the same distribution, one sample per run |
+| Reward | reward terms in the environment | the user's, from per-step events (D9) | not applicable |
+| Throughput | the ceiling | the ceiling, less the compile and record overhead (target below) | about 10 steps/s per stack |
+| Scenario semantics | none built in | the compilable subset | full SSv2 |
+| Other simulators | Isaac only | Isaac only (Isaac Lab) | Isaac, CARLA 1.0, CARLA 0.9.16 |
+| Evaluation and deployment | the user's own | replay any slot's sample on seats | suites, judges, pilots, boards, V2X |
+| Car and field | written per task | one spec, one stage, shared with evaluation | the same |
+
+What scensim adds over a hand-written Isaac Lab environment is not speed: it is that the same
+declared car, field and scenario train in a batch and are then evaluated, replayed and deployed
+on seats without being rewritten. What it must not do is cost speed.
+
+### Benchmark and target
+
+- **The benchmark.** `scensim bench <suite>` reports steps per second against slot count (256,
+  1024, 4096) for three sensor sets: state only, the planar lidar, and one camera per car. It
+  splits each step by stage (physics, sensors, component, scenario conditions, resets,
+  transfer) per GPU, and records the hardware, the driver and the Isaac Lab release.
+- **The baseline.** A hand-written Isaac Lab environment with the same car, field and sensors,
+  built as part of B6.
+- **The working target.** The batch executor stays within 20 % of that baseline at every slot
+  count. The figure is to be confirmed after the first measurement. Absolute targets come from
+  the first RoboRacer measurement, not before.
+
+A batched V2X network is outside this design: attachments run on seats. GPU-batched network
+simulation exists as research ([arXiv 2610.02370](https://arxiv.org/html/2610.02370v1)) and
+could become an attachment form later.
 
 ## 6. Evaluation patterns users build (examples, not blocks)
 
@@ -513,7 +593,7 @@ Notes:
 | B3 | The truth stream | L1 | none |
 | B4 | The judge and attachment plug-in points: declaration, lifetime, clock, seed, entity-to-role map, record | L2 | B1 |
 | B5 | The paced clock, with the lag and a latency stamp per command recorded | L1 | none |
-| B6 | The batch executor: compiled subset, slots, rollouts, the vector interface, replay on seats | L3 | B1, 091 W5 |
+| B6 | The batch executor on Isaac Lab: compiled subset, slots, rollouts, the vector interface, the batched component, replay on seats; exit: `scensim bench` against a hand-written Isaac Lab baseline (section 5a) | L3 | B1, 091 W5 |
 | B7 | GPU transport between processes: NITROS profile, CUDA IPC side channel | L3 | none |
 | B8 | Jazzy for the whole set (with 082 step 7) | all | 082 |
 | B9 | Examples, each a pattern to copy: a RoboRacer policy trained in a batch and evaluated on seats; an exported model as a pilot; a board pilot; a vision stack swept over weather and scored with perception_eval; two stacks in one scenario; V2X attached | all | the above |

@@ -79,6 +79,12 @@ DELAYS = (X.OBS + X.DECIDE, X.OBS + X.DECIDE + 0.1)
 MODES2 = ("-e", "0", "+e", "sq0.3", "sq0.7")
 MODES3 = ("-e", "+e", "sq0.5")
 LAT_GAP = 2.0  # m, the standstill gap of a follower
+# The probe's watch is a stop request (czp.strategy: probe:watch DEACTIVATEs the module), and Autoware stops this far
+# after it at speed v: WATCH_STOP[0] + WATCH_STOP[1] v (078 creep-stop set, 133, 2026-11-20: 20 creeps stopped at
+# 0.1-1.0 m/s, RMSE 0.086 m, max residual 0.22 m). --watch-model roll keeps the old model: the car rolls on at
+# probe_watch_speed through the watch, braking only 0.3 m before the zone (078 V2b's assumption, never the node's).
+WATCH_STOP = (0.119, 0.954)
+WATCH_MODEL = "stop"
 
 
 def err(mode, e, t):
@@ -106,6 +112,7 @@ class Car:
         self.proto = czp.Protocol(CA.conventions_for(True), p)
         self.cap = p.capability("car", v_max=v0, length=X.L)
         self.zone = zone
+        self.watch_to = None  # where the watch's stop request brings the car to rest (WATCH_STOP)
 
     def seen(self, t, delay, e):
         i = len(self.hist) - 1
@@ -174,6 +181,20 @@ def zone_of(row, n):
                                              CM.Approach("B", heading=math.pi, order=1)))
 
 
+def watch_accel(c):
+    """The watch: Autoware's stop after a DEACTIVATE, at rest WATCH_STOP after where it was asked (the request's
+    travel, the command lags' share taken off the braking distance so the travel is the measured one)."""
+    if c.watch_to is None:
+        c.watch_to = c.u + WATCH_STOP[0] + WATCH_STOP[1] * c.v
+    if c.v <= 0:
+        return 0.0
+    if c.v < 0.02:  # the last of it (else the braking distance's asymptote creeps on at mm/s)
+        return -min(X.B_MAX, c.v / X.DT)
+    lag = c.act.dead + c.act.tb
+    room = c.watch_to - c.u - c.v * lag
+    return -min(X.B_MAX, c.v * c.v / (2 * max(room, 0.02)))
+
+
 def czp_lags(lags):
     """A czp car's lags: with Autoware's launch (--autoware-launch, crossing_game.AUTOWARE_LAUNCH; 078 P2g) when set.
     The adversary keeps the arena car's."""
@@ -227,13 +248,19 @@ def run_passage(row, ctx, adv, e, lags, trace=None, bystanders=True, adversary=N
             dec, _ = c.proto.step(t, own, others, zone, inputs=inputs, obs_age=age, bystanders=bys)
             if dec.kind in (CM.GO, CM.STOCK):
                 a = X.drive(c.v, c.v0)
+            elif dec.kind == CM.CREEP and dec.reason.endswith("creep"):
+                a = CA.creep_accel(c.u, c.v, c.p)
+            elif dec.kind == CM.CREEP and WATCH_MODEL == "stop":
+                a = watch_accel(c)
             elif dec.kind == CM.CREEP:
-                a = CA.creep_accel(c.u, c.v, c.p, None if dec.reason.endswith("creep") else c.p.probe_watch_speed)
+                a = CA.creep_accel(c.u, c.v, c.p, c.p.probe_watch_speed)
             else:
                 a = X.hold_out(c.u, c.v)
             if c.leader is not None:
                 ld = cars[c.leader]
                 a = min(a, C1.follow_accel(ld.u - X.L - c.u, c.v, ld.v, C1.TYPES["car"], c.v0))
+            if not (dec.kind == CM.CREEP and not dec.reason.endswith("creep")):
+                c.watch_to = None
             cmd[c.name] = a
             if trace is not None:
                 trace.append((round(t, 2), c.name, round(c.u, 2), round(c.v, 2), dec.kind, dec.reason))
@@ -407,6 +434,7 @@ def check_context(job):
 
 
 def main():
+    global WATCH_MODEL, WATCH_STOP
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--row", choices=("cross", "narrow", "merge"), required=True)
     ap.add_argument("--cars", type=int, default=2, choices=(2, 3))
@@ -426,8 +454,16 @@ def main():
     ap.add_argument("--cross-probe", action="store_true", help="078 P2g: the crossing probes a go from a mutual rest "
                     "(creep, watch, go), as the all-way stop does")
     ap.add_argument("--probe-watch", type=float, default=None, help="078 P2g: czp's probe_watch (s)")
+    ap.add_argument("--watch-model", choices=("stop", "roll"), default="stop",
+                    help="the probe's watch: Autoware's stop after DEACTIVATE (WATCH_STOP, the node) or 078 V2b's roll "
+                    "at probe_watch_speed (the model before 2026-11-20)")
+    ap.add_argument("--watch-stop", default=None, metavar="D0,K",
+                    help=f"the watch's stop travel D0 + K v (default {WATCH_STOP[0]:g},{WATCH_STOP[1]:g})")
     CA.add_bias_args(ap)
     a = ap.parse_args()
+    WATCH_MODEL = a.watch_model
+    if a.watch_stop:
+        WATCH_STOP = tuple(float(x) for x in a.watch_stop.split(","))
     X.REST_LAG = a.rest_lag
     if a.probe_watch is not None:
         os.environ["P2G_PROBE_WATCH"] = str(a.probe_watch)
@@ -460,6 +496,7 @@ def main():
             tot[k] += r.get(k, 0)
     summ = {"row": a.row, "cars": a.cars, "e": a.e, "adversary": a.adversary, "adv_patience": a.adv_patience, "rest_stamp_bias": a.rest_stamp_bias, "arrival_bias": a.arrival_bias,
             "autoware_launch": a.autoware_launch, "rest_lag": a.rest_lag, "guard_extra": a.guard_extra, "cross_probe": a.cross_probe, "probe_watch": a.probe_watch,
+            "watch_model": WATCH_MODEL, "watch_stop": list(WATCH_STOP),
             "contexts": len(res), **tot,
             "contexts_unsafe": sum(1 for r in res if r.get("unsafe")),
             "contexts_not_live": sum(1 for r in res if r.get("not_live")),
@@ -469,7 +506,8 @@ def main():
         "" if a.adversary == "none" else f"_adv-{a.adversary}-p{a.adv_patience:g}") + (
         f"_aw{a.autoware_launch.replace(',', '-')}" if a.autoware_launch else "") + (f"_lag{a.rest_lag:g}" if a.rest_lag else "") + (
         f"_g{a.guard_extra:g}" if a.guard_extra else "") + ("_probe" if a.cross_probe else "") + (
-        f"_w{a.probe_watch:g}" if a.probe_watch is not None else "")
+        f"_w{a.probe_watch:g}" if a.probe_watch is not None else "") + ("_roll" if WATCH_MODEL == "roll" else "") + (
+        f"_ws{WATCH_STOP[0]:g}-{WATCH_STOP[1]:g}" if a.watch_stop else "")
     json.dump({"summary": summ, "contexts": res}, open(os.path.join(a.out, f"{tag}.json"), "w"), indent=1)
     lines = [f"# czp_rows_check {a.row}, {a.cars} cars, e {a.e:g}"
              + ("" if a.adversary == "none" else f", adversary {a.adversary} (patience {a.adv_patience:g} s)")

@@ -1,7 +1,7 @@
 # Measured terramechanics data to calibrate the soil layer against
 
 Survey for [off-road-surfaces.md](off-road-surfaces.md), 2026-10-24: published, real-world
-measurements that the soil layer's classes (`src/isaac_world/config/surface_classes.yaml`)
+measurements that the soil layer's classes (`surface_classes.yaml`, since 086 C2 in `scensim_world_protocol`'s `scensim_world_server`)
 could be calibrated against. The earlier survey
 ([survey-localized-deformable-terrain.md](survey-localized-deformable-terrain.md)) chose the
 model; this one looks for ground truth. Nothing here was measured by us. Roadmap 053 fitted

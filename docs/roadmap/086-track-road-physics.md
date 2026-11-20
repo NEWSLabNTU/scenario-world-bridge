@@ -5,7 +5,8 @@ One tyre-and-ground model: surfaces and soil (wet, gravel, mud, sand, snow), cal
 **Status**: consolidated 2026-11-18 from 047, 052, 053, 056, 066, 069. Owner swb 118 from
 2026-11-20 (user, through 133). 2026-11-20: re-planned as one model ("The plan" below),
 approved by 133 the same day with its three decisions. C1 done 2026-11-20 (scensim_isaac_world
-87e0ea1, pins f00f02a2); C2 next.
+87e0ea1, pins f00f02a2). C2 done 2026-11-20 (scensim_world_protocol 2519aca, scensim_isaac_world
+51a95b4, pins 7aad5216); C3 next.
 
 **Research rule** (user, 2026-11-18): a research track does not wait for scensim releases.
 Its work runs on current scensim main, and it moves to each new scensim release when that
@@ -129,7 +130,7 @@ Each step on current scensim main; the exit check is what lets the next step sta
 | step | what | effort | exit check |
 |---|---|---|---|
 | **C1. The road record and its reader** (done 2026-11-20) | `road_detail.yaml` schema 1; a pure reader and checker in `scensim_isaac_world` (`road_record`, every problem named, `road_detail check <map>`); constant sections and per-station `.npz` both become stations | 1 week (took 1 day) | every converted example builds the same detail tiles, byte for byte (tile hashes before and after); `test_road_detail`, `test_road_layer` pass; a malformed record lists every problem |
-| **C2. The class table moves to the protocol package** | `surface_classes.yaml` into `scensim_world_protocol`'s share; both world servers find it there; the road record's surface names checked against it | 3 days | Isaac: the Town01 soil, mud and snow scenarios pass as on 053 step 5; an unknown class in a section or zone is refused at load |
+| **C2. The class table moves to the protocol package** (done 2026-11-20) | `surface_classes.yaml` into `scensim_world_protocol`'s share; both world servers find it there; the road record's surface names checked against it | 3 days (took half a day) | Isaac: the Town01 soil, mud and snow scenarios pass as on 053 step 5; an unknown class in a section or zone is refused at load |
 | **C3. The course builder writes the record** (069 E0, swb half) | `road_detail.yaml` + `<corridor>.npz` from the builder: bank 0, today's section, `kappa_v` from z, the hazard classifier from today's rail rule; `props.py` places rails from `barrier_offset` | 1 week | Haruna and Tsukuba rebuilt: the same rails at the same positions, the world USD unchanged except the new files, `haruna_down` still passes; the course's dataset revision prepared, published only on the user's go |
 | **C4. Named surface maps** (056) | as 056's steps 1-5 | 1-1.5 weeks | 056's acceptance: Town01's soil scenarios one after another on one world server, no file copied |
 | **C5. Isaac's geometry from the record** (066 R8) | the ribbon tilted by bank and crown; `road_detail` per station; the lip; the shoulder and run-off strips as surface zones; Autoware's point cloud and lanelet heights regenerated from the same meshes, divided when large | 1.5-2 weeks | Isaac's road height and cross slope within 5 mm and 0.1 deg of the record at every station; lip re-entry fixtures (5, 10, 15 cm at 90, 45, 30 deg); aib's slope matrix unchanged; `haruna_down` passes on a course with a nonzero crown |
@@ -157,6 +158,28 @@ scensim_isaac_world 87e0ea1 (`road_record`, `road_layer.parse`), pins f00f02a2;
   (429148cc..., the same road as the example). A constant record written as an `.npz` makes
   the same tiles as its YAML constants (test). Tests: 13 new (`test_road_record`), the world
   server's 287 pass.
+
+#### C2: one class table (done 2026-11-20)
+
+scensim_world_protocol 2519aca (the land_pin cascade bumped scensim_carla_world 4d95440 and
+scensim_isaac_world e746674, pins 3f0f24fa), scensim_isaac_world 51a95b4 (pins 7aad5216).
+
+- The table is `scensim_world_server/surface_classes.yaml`: package data
+  (`scensim_world_server.classes.SURFACE_CLASSES`, what the Isaac surfaces read by default)
+  and `share/scensim_world_server/config/surface_classes.yaml` for a world server that is not
+  Python (C7). The Isaac world server's `config/` copy is gone; a map's own `classes:` in
+  `surfaces.yaml` still wins.
+- A road record's `shoulder_surface` and `runoff_surface` must be classes of the map's table:
+  checked when the world server registers its maps, at every `LoadWorld`, and by
+  `road_detail check`, naming the classes the table has.
+- Exit check, adjusted: the plan's live check was the Town01 soil, mud and snow scenarios,
+  but Town01 on Isaac does not render on 118 (driver 615.71.09, issue 005; 139's host). In
+  its place: the moved table loads to an object equal to the old one (12 classes; the files
+  differ only in the header comment); the installed build (j021 at 7aad5216) finds it, and
+  `surfaces check` and `road_detail check` pass on the installed Town01 example; a live
+  `haruna_down` on Isaac, the world server loading the course's `surfaces.yaml` with the
+  shared table, passed (381.4 s simulated, 0 contacts, 118). An unknown class in a zone or
+  a section is refused (tests). Tests: 3 new, the world server's 290 pass, the shell's 36.
 
 Order: C1, C2 and C3 make the shared data; C4 and C5 are its first consumers, C5 after C3.
 C6 follows C5 (rocks and wheel hop on the record's road). C7 can start after C2 on 0.9.16,

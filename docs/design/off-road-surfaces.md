@@ -56,7 +56,8 @@ soil model must return to the wheel has a working channel.
   ids and a class, and per zone an optional raster for gradients (a ford's water depth):
 
   ```yaml
-  classes: config/surface_classes.yaml        # friction, slip shape, soil parameters per class
+  classes: surface_classes.yaml        # optional: friction, slip shape, soil per class (default:
+                                       # the shared table, scensim_world_server's; 086 C2)
   defaults: {Road: asphalt, RoadLine: asphalt, SideWalk: concrete, Terrain: grass, Ground: dirt}
   zones:
     - id: mud_pit

@@ -4,7 +4,7 @@
 points lie more than 60 deg of longitude from 3 deg E: Haruna and Tsukuba (Japan, 138-140 deg E)
 and any real-world map east of about 63 deg E or west of about 57 deg W. CARLA's maps lie near
 0 deg and are not affected.
-**Status**: open; cause found 2026-11-20 (118), not fixed (133 assigns the fix).
+**Status**: fixed 2026-11-20 (118): the full haruna_down with `kind: simple` passed (176.4 s).
 **Found**: 2026-11-20, swb 118, roadmap 091 W5's live check. haruna_down (isaac_first_drive)
 with `kind: simple`.
 
@@ -47,19 +47,45 @@ Checked on the Haruna map of haruna-tsukuba-courses fff4cb0b:
   `UtmProjector(Origin(36.494, 138.903))`, the map's projector origin, gives 0 errors and
   2295 points.
 
-## Fix (not made)
+## Fix
 
-`load_map` should give lanelet2 a projector origin near the map, so that parsing succeeds.
-The points are moved to the map frame afterwards anyway, so any origin within the zone rule
-works: for example the map's `map_origin` from `map_projector_info.yaml`, or the first node's
-latitude and longitude for an MGRS map. A test should load a map whose nodes lie far from
-0 deg, and `load_map` should refuse a map that loads with parse errors rather than route on an
-empty one.
+In `simple_route.load_map`:
+- **The parsing origin is near the map.** A transverse Mercator map uses its `map_origin`
+  from `map_projector_info.yaml`; CARLA's is (0, 0), so their parse is unchanged. Any other
+  map uses its first node (`parse_origin`).
+- **A parse error refuses the map.** The refusal names the count and the first error, as do
+  lanelet2's own exceptions. Every map in the cache loads with 0 errors at its own origin:
+  Town01 to Town10, town05_ring_110kmh, and the coop maps (Town03, Town04, Town05). Haruna
+  and Tsukuba had 6196 and 8674 errors at (0, 0).
+- **The map is made again from its lanelets after its points move to the map frame.** The
+  layers' spatial index, which `findNearest` uses, was built from the parsed positions, and
+  moving a point does not update it. At (0, 0) the parsed positions of CARLA's maps nearly
+  agreed with the map frame, which is why the stale index went unnoticed there. With a parsing
+  origin near the map, Town01's routing test failed until the map was rebuilt.
+
+The tests:
+- the synthetic map, placed at Haruna's latitude and longitude, routes; at (0, 0) lanelet2
+  refuses it;
+- a map with a node lanelet2 cannot parse is refused, naming the count and the first error.
+
+The probe at haruna_down's start now finds lanelet 2000001 under the car, heading 164 deg, and
+the pilot picks it. Live on 118, the whole of isaac_first_drive's haruna_down with the
+installed Model 3 and `kind: simple` on its lanelet route passed in 176.4 s. The pilot took
+SSv2's goal at the first request.
+
+The same parse at (0, 0) was in two coop scripts: `scripts/coop/sites.py` and
+`scripts/coop/stop_sign_map.py`. They now use the same rule, so CARLA's maps keep their frame.
+Two other loads use projectors without the zone limit and were left as they are:
+- `scripts/coop/e2_lane_change.py` (LocalCartesian);
+- `scripts/open_maps/route_plan.py` (MGRS).
+
+`czp/zones_tool.py` and `scripts/open_maps/route_matrix.py` already take their origin from the
+map.
 
 ## Evidence
 
 - NAS logs `2026 SSv2 on CARLA/2026-11-20 091 W5 own car on Isaac (118)/runs/isaac_owncar/
   2026-11-20T19-40-47_haruna_owncar_r0` (the run, the pilot's log).
-- The probes are on 118 in `/mnt/renegade/aeon/isaac-ex/i084/`: the pilot's lookup at the pose
-  (`probe.py`), the projection and the loaded points (`probe2.py`), and lanelet2's errors at
-  both origins (`probe3.py`).
+- NAS logs `2026 SSv2 on CARLA/2026-11-20 issue 084 haruna_down with the simple pilot (118)/`:
+  the passing run after the fix, and the probes (the pilot's lookup at the pose, the projection
+  and the loaded points, lanelet2's errors at both origins, every cached map's errors).

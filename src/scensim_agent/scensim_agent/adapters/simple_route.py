@@ -109,9 +109,10 @@ def _osm_nodes(osm):
     return nodes
 
 
-def map_frame_positions(osm, info):
-    """{node id: (x, y)} in the map frame `info` (read_projector_info) declares."""
-    nodes = _osm_nodes(osm)
+def map_frame_positions(osm, info, nodes=None):
+    """{node id: (x, y)} in the map frame `info` (read_projector_info) declares (`nodes`:
+    _osm_nodes(osm), when already read)."""
+    nodes = _osm_nodes(osm) if nodes is None else nodes
     kind = (info or {}).get("projector_type") or "MGRS"
     if kind == "TransverseMercator":
         k0 = info.get("scale_factor")
@@ -159,13 +160,41 @@ def load_map(map_path):
     if not osm.is_file():
         raise RouteError(f"no lanelet2 map at {osm}")
     info = read_projector_info(osm.parent)
-    lmap, errors = lanelet2.io.loadRobust(str(osm), UtmProjector(Origin(0.0, 0.0)))
-    positions = map_frame_positions(osm, info)
+    nodes = _osm_nodes(osm)
+    lat, lon = parse_origin(info, nodes)
+    # lanelet2 parses with a UTM projector whose zone follows its origin, and GeographicLib
+    # refuses a longitude more than 60 deg from the zone's centre: at (0, 0) every point of a
+    # map in Japan failed and the map loaded empty (issue 084). The points are moved to the
+    # map frame below, so any origin near the map serves.
+    try:
+        lmap, errors = lanelet2.io.loadRobust(str(osm), UtmProjector(Origin(lat, lon)))
+    except RuntimeError as e:   # lanelet2 raises for an origin it cannot project
+        raise RouteError(f"{osm}: lanelet2 could not parse the map at origin ({lat}, {lon}): "
+                         f"{e}") from None
+    if errors:
+        detail = [e.strip() for e in errors if e.strip().startswith("-")] or errors
+        raise RouteError(f"{osm}: lanelet2 could not parse the map ({len(detail)} error(s)); "
+                         f"the first: {detail[0].lstrip('- ').strip()}")
+    positions = map_frame_positions(osm, info, nodes)
     for point in lmap.pointLayer:
         xy = positions.get(point.id)
         if xy is not None:
             point.x, point.y = xy
+    # the layers' spatial index (findNearest) was built from the parsed positions, which moving
+    # the points does not update: a map made again from its lanelets indexes the moved ones
+    # (issue 084; on CARLA's maps the two happened to nearly agree)
+    lmap = lanelet2.core.createMapFromLanelets(list(lmap.laneletLayer))
     return finish_map(lmap)
+
+
+def parse_origin(info, nodes):
+    """(lat, lon) for lanelet2's parsing projector: a transverse Mercator map's `map_origin`
+    (read_projector_info), else its first node; (0, 0) for a map with neither."""
+    if info and info.get("projector_type") == "TransverseMercator":
+        return float(info["latitude"]), float(info["longitude"])
+    for lat, lon, _, _ in nodes.values():
+        return float(lat), float(lon)
+    return 0.0, 0.0
 
 
 def finish_map(lmap):

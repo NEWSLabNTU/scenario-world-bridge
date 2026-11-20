@@ -170,13 +170,43 @@ def test_positions_follow_the_projector(tmp_path):
         R.map_frame_positions(osm, R.read_projector_info(tmp_path))
 
 
-def _write_local_map(folder):
+def _write_local_map(folder, origin=(0.0, 0.0)):
+    """The synthetic map as a Local map file, its nodes' lat/lon around `origin`."""
     from lanelet2.io import Origin
     from lanelet2.projection import UtmProjector
     lanelet2.io.write(str(folder / "lanelet2_map.osm"), synthetic_map(local=True),
-                      UtmProjector(Origin(0.0, 0.0)))
+                      UtmProjector(Origin(*origin)))
     (folder / "map_projector_info.yaml").write_text("projector_type: Local\n")
     return folder
+
+
+@needs_lanelet2
+def test_a_map_far_from_0_deg_longitude_loads(tmp_path):
+    """Issue 084: at Haruna's longitude a parsing projector at (0, 0) refused every node and the
+    map loaded empty; the origin now comes from the map, so it routes as near 0 deg."""
+    from lanelet2.io import Origin
+    from lanelet2.projection import UtmProjector
+    folder = _write_local_map(tmp_path, (36.494, 138.903))
+    _, errors = lanelet2.io.loadRobust(str(folder / "lanelet2_map.osm"),
+                                       UtmProjector(Origin(0.0, 0.0)))
+    assert errors   # what the pilot did before
+    r = R.Router.load(folder)
+    assert len(list(r.lmap.pointLayer)) > 0
+    path = r.route((5.0, 0.0, 0.0), [GOAL_END])
+    assert path is not None and len(path) > 0
+
+
+@needs_lanelet2
+def test_a_map_lanelet2_cannot_parse_is_refused(tmp_path):
+    folder = _write_local_map(tmp_path)
+    osm = folder / "lanelet2_map.osm"
+    import re
+    text = osm.read_text()
+    last = list(re.finditer(r'lat="[-0-9.]+"', text))[-1]   # not the first: it sets the origin
+    osm.write_text(text[:last.start()] + 'lat="95.0"' + text[last.end():])
+    with pytest.raises(R.RouteError, match=r"could not parse the map \(\d+ error\(s\)\); the first: "
+                                           r"Error parsing primitive .*Latitude 95"):
+        R.Router.load(folder)
 
 
 @needs_lanelet2

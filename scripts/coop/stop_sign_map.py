@@ -51,11 +51,30 @@ COPY = ("map_projector_info.yaml", "map_config.yaml", "LICENSE.md")
 LINK = ("pointcloud_map.pcd",)
 
 
+def parse_origin(osm):
+    """(lat, lon) for lanelet2's UTM parsing projector near the map `osm` (issue 084: at (0, 0),
+    zone 31, GeographicLib refuses every point more than 60 deg of longitude away): a transverse
+    Mercator map's map_origin beside it ((0, 0) for CARLA's, so their frame is unchanged),
+    else the first node's."""
+    import re
+    from pathlib import Path
+    info = Path(osm).parent / "map_projector_info.yaml"
+    if info.is_file():
+        import yaml
+        doc = yaml.safe_load(info.read_text()) or {}
+        if doc.get("projector_type") == "TransverseMercator":
+            o = doc.get("map_origin") or {}
+            return float(o.get("latitude") or 0.0), float(o.get("longitude") or 0.0)
+    with open(osm) as f:
+        m = re.search(r'<node[^>]*\blat="([-0-9.]+)"[^>]*\blon="([-0-9.]+)"', f.read(1 << 16))
+    return (float(m.group(1)), float(m.group(2))) if m else (0.0, 0.0)
+
+
 def load(path):
     import lanelet2
     from lanelet2.io import Origin
     from lanelet2.projection import UtmProjector
-    m, errs = lanelet2.io.loadRobust(path, UtmProjector(Origin(0, 0)))
+    m, errs = lanelet2.io.loadRobust(path, UtmProjector(Origin(*parse_origin(path))))
     for pt in m.pointLayer:
         if "local_x" in pt.attributes:
             pt.x = float(pt.attributes["local_x"])

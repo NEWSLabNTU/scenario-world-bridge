@@ -737,3 +737,46 @@ and G2.
   `runs/creepstop.md`, `runs/fit.json`; the probe patch that forced the creeps,
   `czp_probe_creepstop.patch`, stays out of the product: it is the experiment's lever, not a fix).
   Next: grid076 (grid075's cells and seeds 20-23) on the branch.
+- 2026-11-20: **landed on main** (the czp work through `70316c66`, fast-forward from branch
+  `p2g-launch-margin-4`; issues 066, 069, 074, 075, 079 and 082 fixed by it).
+  - **grid076** (grid075's cells, left t1.5p5 at dt -1/-0.3/0/0.3/1, seeds 20-23, on the margin
+    branch, CARLA, 133): stock 20 runs, czp 20 runs, **0 contacts** in either arm; czp: 0 probe
+    overruns, 0 self-contract failures, 0 holds by contract, 0 committed gos handed over; decision
+    CPU p99 3.55 ms median (max 3.9). Every run passed the load gate. G0 for the crossing holds on
+    this cell set.
+  - **the creep-stop fit** (above): travel after DEACTIVATE 0.119 + 0.954 v; so the probe's stop
+    margin is 0.5 m + 1.2 s x v and the creep cap 0.5 m/s.
+  - **the checker fix** (`czp_rows_check`, `70316c66`): at the new margin the impatient row at
+    patience 8 s found 4 unsafe runs of 3780. The cause was the checker's car: its watch rolled on at
+    0.4 m/s to 0.3 m before the zone (V2b's assumption), while the node DEACTIVATEs for the watch and
+    Autoware stops. The watch now brakes to rest at the fit's travel (`--watch-model stop`, the
+    default; `roll` keeps the old model); `scripts/test_czp_rows_check.py` reproduces both contexts.
+    Every row is safe (0 unsafe runs) and live (0 runs not through by 40 s), with the new parameters
+    at the fit's travel and at fit + max residual (0.339 + 0.954 v). Worst wait (s), stop model:
+
+    | row | runs | new params | new, pessimistic travel | old params (0.1 + 1.0 v, cap 1.0) |
+    |---|---|---|---|---|
+    | cross self2 | 18900 | 17.7 | 17.7 | 18.25 |
+    | cross3 | 6561 | 20.45 | 20.35 | 20.6 |
+    | impatient, patience 2 s | 3780 | 8.55 | 8.55 | 8.55 |
+    | impatient, 3-7 s | 3780 each | 14.5 | 14.4 | 14.75 |
+    | impatient, 8-9 s | 3780 each | 20.35 | 20.25 | 20.6 |
+    | adversary never | 3780 | 5.85 | 5.85 | 5.85 |
+    | adversary both | 7560 | 6.65 | 6.65 | 6.65 |
+    | narrow2 | 25200 | 19.05 | 19.05 | 19.05 |
+    | merge2 | 4500 | 0.0 | 0.0 | 0.0 |
+
+  - Data: NAS `logs/2026 SSv2 on CARLA/2026-11-20 078 grid076 margin (133)/` (`grid076/f4_summary.md`,
+    `grid076/swb_table.md`, the cap check in `cap_check/`); the creep-stop set in
+    `logs/2026 SSv2 on CARLA/2026-11-20 078 creep-stop set (133)/`; the checker rows on 133 in
+    `/mnt/p5plus/aeon/czp-land-rows/m3/` (`new-stop`, `new-stop-pess`, `old-stop`; `try8` holds the
+    rolling model's failure at patience 8 s).
+  - **Open item, untested: the watch can end before an impatient driver's restart is visible.**
+    With the new margin the creep turns into the watch sooner, so the probe counted from the creep's
+    start shrank from 3.2 s to 2.55 s. The other car's start is visible about 2.65 s after the creep
+    starts, so against an impatient driver restarting at ~8 s the ego can end its watch before it can
+    see that car move. It stays safe because the watch's stop leaves the ego ~0.45 m back from the
+    zone and slow, and the checker's rows (stop model) hold, but the margin of that argument is the
+    stop, not the watch. Candidate protocol change: end the watch no earlier than creep start + ~3 s,
+    or count `probe_watch` from the creep's start. If adopted, it needs a checker run over the row
+    list and a short CARLA recheck (the impatient cells).

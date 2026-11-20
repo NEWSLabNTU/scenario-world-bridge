@@ -1,8 +1,8 @@
 # 075: czp hands a stopped decision to stock on a slow tick
 
 **Severity**: high. A self-contract failure in the middle of a probe handed the car to stock. Stock read the other car
-at rest as static and launched against it: the one contact of the issue 074 grid. **Status**: open (fixes on
-p2g-launch; a new grid decides). **Found**: 2026-11-20, by 133, in the issue 069/074 grid (NAS `logs/2026 SSv2 on CARLA/2026-11-20
+at rest as static and launched against it: the one contact of the issue 074 grid. **Status**: fixed, landed on main
+(70316c66; the 076 grid had no contact and no hold by contract). **Found**: 2026-11-20, by 133, in the issue 069/074 grid (NAS `logs/2026 SSv2 on CARLA/2026-11-20
 078 issues 069 074 grid left t1.5p5 (133)/grid074`).
 
 ## What happens

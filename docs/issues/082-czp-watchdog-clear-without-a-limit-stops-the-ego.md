@@ -1,6 +1,6 @@
 # 082: czp's watchdog clears a velocity limit czp never set, and Autoware answers with 0 m/s
 
-**Severity**: high. The ego never moves: 7 czp runs in U3 stage 1. **Status**: fixed on `p2g-launch` (czp's side); the selector's behaviour is an Autoware defect, for the user to report upstream; U3's reruns and
+**Severity**: high. The ego never moves: 7 czp runs in U3 stage 1. **Status**: fixed, landed on main (70316c66; czp's side); the selector's behaviour is an Autoware defect, for the user to report upstream; U3's reruns and
 the next 078 grid check it. **Found**: 2026-11-20, by 139, in U3 stage 1 (u3-autoware; the runs on 139, copied to the
 NAS by 139).
 

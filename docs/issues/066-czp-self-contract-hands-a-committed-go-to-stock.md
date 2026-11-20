@@ -2,7 +2,7 @@
 
 **Severity**: high. A crossing car that has been told to go, and is moving into the zone, is handed
 back to stock Autoware mid-crossing because its decision took 20 ms, and the other car can go first
-into it. **Status**: fixed on p2g-launch (roadmap 078 P2g). **Found**: 2026-11-19, swb 133's P2g
+into it. **Status**: fixed, landed on main (70316c66; roadmap 078 P2g). **Found**: 2026-11-19, swb 133's P2g
 scensim grid (NAS `logs/2026 SSv2 on CARLA/2026-11-19 078 P2g scensim grid (133)`), analysed by 241.
 
 ## What happens

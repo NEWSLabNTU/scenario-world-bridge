@@ -1500,6 +1500,8 @@ def run_suite(ctx: Context, specs, suite_dir: Path = None, resume=False, retry=N
     if suite_dir is not None:
         csv_path, junit_path = runsmod.summarize(suite_dir)
         out.write(f"summary: {csv_path}\n")
+        for note in runsmod.mixed_seats_notes(suite_dir):
+            out.write(note + "\n")
     return worst
 
 

@@ -1,6 +1,6 @@
 # 088: Parallel Testing
 
-**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Steps 2 (the dispatcher) and 3 (rollouts, admission by pilots) done 2026-11-20: live check on 133 passed, 22 of 22, on main. Step 4 (determinism) done 2026-11-20 on 133: no verdict differs between one seat and two; durations repeat pass to pass. All four steps done. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
+**Status**: opened 2026-11-18 (user). Step 1 done 2026-11-19 on host 133: 2 ego seats (1.8x), 3 no-ego seats. Steps 2 (the dispatcher) and 3 (rollouts, admission by pilots) done 2026-11-20: live check on 133 passed, 22 of 22, on main. Step 4 (determinism) done 2026-11-20 on 133: no verdict differs between one seat and two; durations repeat pass to pass. All four steps done. Follow-up closed 2026-11-20: no start-up gate; durations are compared only at one seat count, and the reports flag a group that mixes counts. Model revised 2026-11-19 (user): one host, rollouts and many scenarios; several hosts dropped.
 
 ## Goal
 
@@ -267,3 +267,42 @@ parts (probably the engage timing), reproducibly per seat and seed, without chan
 verdict at two seats. A metric that reads durations or timing should be compared at the same
 seat count. NAS: `logs/2026 SSv2 on CARLA/2026-11-20 088 step 4 determinism (133)/`
 (`compare-split.txt`).
+
+## Follow-up: a start-up gate, tried and dropped (118, 133; 2026-11-20)
+
+Step 4 found two seats' runs longer than one seat's, most in each seat's first run. Two gates
+were tried on 133 against step 4's runs, the same two parts (basic's town01 suite, 6 runs;
+`town01_pedestrian --seeds 1-8`, 8 runs), seats 0 and 1, the mean simulated duration over one
+seat's:
+
+| | suite | rollout |
+|---|---|---|
+| step 4, no gate | +5.9 s | +5.9 s |
+| hold (3bcb71a4): no run while a seat's stack starts | +10.2 s | +5.0 s |
+| settle (1154a126): the hold, then wait for CPU pressure `some avg10` at most 20 % | +6.5 s | +7.3 s |
+
+Every verdict was the same as one seat's, and no run was overloaded. Neither gate shortened the
+first runs (ego_drive +9.4 to +14.1 s, engage_state +14.3 to +19.0 s, seeds 1 and 2 +8.0 to
++19.1 s). The settle never waited: the CPU pressure read 0 % the moment each stack was ready,
+and the 1-minute load rose to 813-899 only afterwards. So the cost is not in the stacks'
+start. It is in Autoware's own work in each seat's first runs after it is ready, and no start
+gate holds that. Later runs on two seats were still +3 to +6 s, the host shared.
+
+Weighed and not taken: a CPU-pressure gate before every run (slower suites, and still not
+one seat's numbers while two stacks share the host), and a staggered first run (it moves the
+first-run cost, it does not remove it).
+
+What stays:
+
+- **Compare simulated durations only at one seat count.** Verdicts are seat-independent
+  (step 4), so a pass/fail suite runs on any number of seats. A duration or a timing metric
+  is compared against a run at the same count.
+- Each run's `dispatch.json` records `seats`, the seats taking work at its start (an
+  overload lowers it for later runs). `summary.csv` and `rollouts.csv` gain a `seats` column
+  (a run with no `dispatch.json` ran on one seat). A `rollouts.csv` group whose runs ran at
+  different counts, say after `--resume` on another seat count or an overload, lists them
+  all (`1 2`), and the summary prints a note naming it. It flags, it does not refuse.
+
+The branches `088-startup-hold` and `088-startup-settle` are not landed. Results: NAS home
+`2026-11-20 088 startup hold (118, run on 133)` and `2026-11-20 088 startup settle (133)`
+(`compare.txt`, `analysis.txt`).

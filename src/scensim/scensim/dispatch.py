@@ -339,6 +339,7 @@ class Worker:
     loads: list = dataclasses.field(default_factory=list)   # 1-min load, sampled in the run
     psi0: int = None           # /proc/pressure/cpu full total at the run's start (us)
     t0: float = None           # the run's start (the dispatcher's clock)
+    seats0: int = None         # seats taking work at the run's start
 
 
 class Dispatcher:
@@ -402,7 +403,7 @@ class Dispatcher:
         w.job = (spec, attempt)
         w.state = "busy"
         w.loads = []
-        w.psi0, w.t0 = self.psi(), self.clock()
+        w.psi0, w.t0, w.seats0 = self.psi(), self.clock(), self.limit
         self.skips(w)   # the run's skips are counted from here
         self._send(w, run=True, spec=spec_to_json(spec), attempt=attempt)
 
@@ -485,12 +486,13 @@ class Dispatcher:
 
     def _record(self, run_dir: Path, w: Worker, skipped: int, loads: list, why: str,
                 ticks: tuple = (None, None), psi_pct=None):
-        """dispatch.json in the run's directory: the seat, its acb_bridge skips, its ticks
-        over budget, the host's CPU pressure and load while it ran (the load recorded, not
-        judged), and whether it was overloaded (runs.summarize reads it)."""
+        """dispatch.json in the run's directory: the seat, how many seats were taking work at
+        its start, its acb_bridge skips, its ticks over budget, the host's CPU pressure and
+        load while it ran (the load recorded, not judged), and whether it was overloaded
+        (runs.summarize reads it)."""
         try:
             (run_dir / "dispatch.json").write_text(json.dumps({
-                "seat": w.seat.index, "autoware_pilots": self.autoware,
+                "seat": w.seat.index, "seats": w.seats0 or self.limit, "autoware_pilots": self.autoware,
                 "acb_skipped_frames": skipped,
                 "ticks_over_budget": ticks[0], "frame_count": ticks[1],
                 "psi_cpu_full_pct": None if psi_pct is None else round(psi_pct, 2),
@@ -618,6 +620,8 @@ class Dispatcher:
         if self.suite_dir is not None:
             csv_path, _ = runsmod.summarize(self.suite_dir)
             self.say(f"summary: {csv_path}")
+            for note in runsmod.mixed_seats_notes(self.suite_dir):
+                self.say(note)
         if self.failed:
             from scensim.run import EXIT_INFRA
             self.worst = max(self.worst, EXIT_INFRA)

@@ -137,13 +137,18 @@ name, as play_launch names its process.
 
 `summary.csv` has one row per run: `run_id`, `scenario`, `params`, `repetition`, `seed`,
 `verdict`, `reason`, `duration`, `judges`, `path`, `overload` (a run of `run --seats` during
-which the host was overloaded, and why; empty otherwise). The merged `junit.xml` holds one test
+which the host was overloaded, and why; empty otherwise), `seats` (how many seats were taking
+work when the run started; 1 for a run without `--seats`). The merged `junit.xml` holds one test
 suite per run with SSv2's testcases, plus a testcase standing for an `error` (or a
 failure) SSv2 did not report.
 
 `rollouts.csv` groups the runs per scenario and parameter set: `scenario`, `params`, `runs`,
 `passed`, `failed`, `error`, `pass_rate`, `seeds` (as ranges), `duration_mean`,
-`duration_sd`, `duration_min`, `duration_max`, `overloaded` (how many). `rollout_metrics.csv`
+`duration_sd`, `duration_min`, `duration_max`, `overloaded` (how many), `seats` (the seat
+counts its runs ran at). Simulated durations grow with the seats sharing a host (a few
+seconds per run at two seats, more in each seat's first run), so compare them only at one
+seat count; a group whose runs ran at different counts lists them all (`1 2`), and the
+summary prints a note naming it. `rollout_metrics.csv`
 has one row per group and numeric metric of `result.json`: `metric`, `n`, `mean`, `sd`,
 `min`, `max`. A scenario run more than once (`--repeat`, `--seeds`, a `--param` list) gets
 the same files under `suites/rollouts-<scenario>/`.

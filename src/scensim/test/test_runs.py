@@ -254,6 +254,24 @@ def test_summary(root, tmp_path):
     assert call("summary", str(tmp_path / "nothing"))[0] == 3
 
 
+def test_durations_at_different_seat_counts_are_flagged(root):
+    """Roadmap 088: simulated durations grow with the seats sharing a host, so a group whose
+    runs ran at different seat counts says so (a run without dispatch.json ran on one seat)."""
+    (root / "2026-11-14T10-01-00_cut_in_r1" / "dispatch.json").write_text('{"seats": 2}')
+    (root / "2026-11-14T10-02-00_cut_in_r2" / "dispatch.json").write_text('{"seat": 0}')
+    code, out = call("summary", "--root", str(root))
+    assert code == 0
+    rows = list(csv.DictReader(open(root / "summary.csv")))
+    assert [r["seats"] for r in rows] == ["1", "2", "1"]
+    roll, = csv.DictReader(open(root / "rollouts.csv"))
+    assert roll["seats"] == "1 2"
+    assert "note: cut_in.xosc ran at 1 2 seats; compare its durations only at one seat count" \
+        in out
+    (root / "2026-11-14T10-01-00_cut_in_r1" / "dispatch.json").write_text('{"seats": 1}')
+    code, out = call("summary", "--root", str(root))
+    assert "note:" not in out and runs.mixed_seats(root) == []
+
+
 def test_why_names_the_bridges_refusal_not_ssv2s_error_nor_play_launchs_note():
     """G67, on 241's run of 2026-11-16 (host paths replaced): SSv2's reason is a SemanticError
     ("Spawn entity ... resulted in failure"); the cause is the bridge's "Cannot spawn ..." line

@@ -365,12 +365,12 @@ def _params(r):
 
 
 SUMMARY_FIELDS = ("run_id", "scenario", "params", "repetition", "seed", "verdict", "reason",
-                  "duration", "judges", "path", "overload")
+                  "duration", "judges", "path", "overload", "seats")
 
 
 ROLLOUT_FIELDS = ("scenario", "params", "runs", "passed", "failed", "error", "pass_rate",
                   "seeds", "duration_mean", "duration_sd", "duration_min", "duration_max",
-                  "overloaded")
+                  "overloaded", "seats")
 ROLLOUT_METRIC_FIELDS = ("scenario", "params", "metric", "n", "mean", "sd", "min", "max")
 
 
@@ -422,7 +422,8 @@ def rollouts(run_root: Path, dirs: list) -> tuple:
             w.writerow([file, params, n, count[results.PASSED], count[results.FAILED],
                         count[results.ERROR], round(count[results.PASSED] / n, 4),
                         _seeds([x for x in seeds if isinstance(x, int)]), *spread,
-                        sum(1 for d, _ in members if _overload(d))])
+                        sum(1 for d, _ in members if _overload(d)),
+                        " ".join(str(k) for k in sorted({_seat_count(d) for d, _ in members}))])
             names = []
             for _, r in members:
                 for k, v in (r.get("metrics") or {}).items():
@@ -455,7 +456,7 @@ def summarize(run_root: Path) -> tuple:
                         r.get("verdict", ""), r.get("reason", ""),
                         "" if dur is None else dur,
                         " ".join(f"{k}={v}" for k, v in judges.summary(d).items()), str(d),
-                        _overload(d)])
+                        _overload(d), _seat_count(d)])
             suite = _junit_suite(d, r)
             for k in totals:
                 totals[k] += int(suite.get(k, 0))
@@ -475,6 +476,34 @@ def _overload(d: Path) -> str:
         return str((json.loads((d / "dispatch.json").read_text()) or {}).get("overloaded") or "")
     except (OSError, ValueError, AttributeError):
         return ""
+
+
+def _seat_count(d: Path) -> int:
+    """How many seats were taking work while a run ran (its dispatch.json); 1 without one.
+    Simulated durations grow with the seats sharing the host (roadmap 088), so compare them
+    only at the same count."""
+    try:
+        n = (json.loads((d / "dispatch.json").read_text()) or {}).get("seats")
+    except (OSError, ValueError, AttributeError):
+        return 1
+    return n if isinstance(n, int) and not isinstance(n, bool) and n > 0 else 1
+
+
+def mixed_seats(run_root: Path) -> list:
+    """The rollouts.csv groups whose runs ran at different seat counts: ``(scenario, params,
+    seats)``; their durations are not comparable (roadmap 088)."""
+    try:
+        with open(run_root / "rollouts.csv", newline="") as f:
+            return [(r["scenario"], r["params"], r["seats"]) for r in csv.DictReader(f)
+                    if " " in (r.get("seats") or "")]
+    except (OSError, KeyError):
+        return []
+
+
+def mixed_seats_notes(run_root: Path) -> list:
+    """One line per group of mixed_seats, for the terminal."""
+    return [f"note: {Path(f).name or f}{' ' + p if p else ''} ran at {s} seats; compare its "
+            "durations only at one seat count (roadmap 088)" for f, p, s in mixed_seats(run_root)]
 
 
 def _junit_suite(d: Path, r: dict):
@@ -522,6 +551,8 @@ def cmd_summary(args, out):
         root = runs_root(args)
     csv_path, junit_path = summarize(root)
     out.write(f"{csv_path}\n{junit_path}\n")
+    for note in mixed_seats_notes(root):
+        out.write(note + "\n")
     return EXIT_OK
 
 

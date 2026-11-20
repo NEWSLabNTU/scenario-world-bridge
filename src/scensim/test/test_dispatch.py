@@ -329,6 +329,7 @@ def test_an_overloaded_run_is_run_again_on_one_seat_fewer(tmp_path, fake):
     flagged = [json.loads((x / "dispatch.json").read_text()) for x in tries
                if json.loads((x / "dispatch.json").read_text())["overloaded"]]
     assert len(flagged) == 1 and flagged[0]["seat"] == 1 and flagged[0]["acb_skipped_frames"] == 34
+    assert flagged[0]["seats"] == 2   # the seats at its start; the parked seat counts
     assert all(r["overload"] == "" for r in rows(suite))
 
 
@@ -556,4 +557,5 @@ def test_rollouts_on_two_seats_are_grouped_per_scenario(tmp_path, fake):
     assert {r["metric"] for r in m} == {"duration_s", "ticks_over_budget", "frame_count"}
     assert all(r["n"] == "3" for r in m)
     rec = json.loads((suite / roll[0].key / "dispatch.json").read_text())
-    assert rec["autoware_pilots"] == 1
+    assert rec["autoware_pilots"] == 1 and rec["seats"] == 2
+    assert {r["seats"] for r in got.values()} == {"2"}

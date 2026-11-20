@@ -51,6 +51,25 @@ scripts/land_pin.sh [--dry-run] <repo> <sha> [note]      # as before
 - **Pushes.** Only the new commits are pushed (in dependency order), then this repository's one commit. A dry run
   prints, for each component, whether it gets a new commit or moves to its main.
 
+## A third gap, found by the landing itself
+
+The first landing with the fixed script stopped mid-cascade, before pushing anything:
+
+```
+git -C .../src/scensim_isaac_world/deps/autoware_isaac_bridge fetch -q .../src/autoware_isaac_bridge 63ba78a:
+fatal: remote error: upload-pack: not our ref 69d35d1...
+Errors during submodule fetch: deps/autoware_sim_vehicle
+```
+
+**Cause.** A chain of three new commits (autoware_sim_vehicle, aib, scensim_isaac_world). `git fetch` of aib's new,
+local commit into scensim_isaac_world's `deps/autoware_isaac_bridge` recursed into that checkout's own submodules,
+which a workspace has initialised. It then asked aib's checkout for autoware_sim_vehicle's new commit, which exists
+only in `src/autoware_sim_vehicle`.
+
+**Fix.** The cascade's fetches into `deps/` no longer recurse (`--no-recurse-submodules`). Each dependency is fetched
+on its own, from its own checkout or remote. The old script had the same gap. No landing before this one had a chain of
+three new commits, so it never showed.
+
 ## Tests
 
 `scripts/test_land_pin.py` builds scratch repositories (pure git on the local disk, no network): a superproject with
@@ -59,6 +78,7 @@ components that pin each other under `deps/`, each with a bare "origin". Its cas
 - two targets land in one commit;
 - a component whose main already pins the targets is moved to its main, not committed;
 - step 2's case: two targets, one component already at both, and its dependent bumped; `check_pins` green after;
-- the dry run changes nothing.
+- the dry run changes nothing;
+- a chain of three new commits (A to C to D to E, with the workspace's checkouts initialised recursively). This case fails on the script before the third fix.
 
 The step 2 case fails on the old script.

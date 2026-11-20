@@ -1,8 +1,10 @@
 """scripts/land_pin.py on scratch repositories (issue 083): pure git on the local disk, no network.
 
-The scratch world mirrors this workspace's shape: bare "origins" for a superproject and four components, A and B
-pinned by C under deps/ (as sim_vehicle_spec and sim_vehicle_ecu are by aib), C pinned by D (as aib is by
-scensim_isaac_world), and the superproject pinning all four under src/ with copies of check_pins.py and land_pin.py.
+The scratch world mirrors this workspace's shape: bare "origins" for a superproject and five components, A and B
+pinned by C under deps/ (as sim_vehicle_spec and sim_vehicle_ecu are by aib), C pinned by D, D by E (a chain of
+three new commits, whose deepest is only local while the next is made: autoware_sim_vehicle, aib,
+scensim_isaac_world), and the superproject pinning all five under src/ with copies of check_pins.py and
+land_pin.py.
 """
 import os
 import shutil
@@ -40,7 +42,7 @@ class World:
         self.tmp = tmp
         self.origin = tmp / "origin"
         self.work = tmp / "work"
-        for n in ("A", "B", "C", "D", "super"):
+        for n in ("A", "B", "C", "D", "E", "super"):
             run("git", "init", "-q", "--bare", "-b", "main", str(self.origin / f"{n}.git"))
         self.sha = {}
         for n in ("A", "B"):
@@ -49,14 +51,16 @@ class World:
             git(d, "push", "-q", "origin", "main")
         self.sha["C"] = self.component("C", ("A", "B"))
         self.sha["D"] = self.component("D", ("C",))
+        self.sha["E"] = self.component("E", ("D",))
         s = self.clone("super")
         (s / "scripts").mkdir()
         for f in ("check_pins.py", "land_pin.py"):
             shutil.copy(HERE / f, s / "scripts" / f)
-        for n in ("A", "B", "C", "D"):
+        for n in ("A", "B", "C", "D", "E"):
             git(s, "submodule", "add", "-q", self.url(n), f"src/{n}")
         git(s, "commit", "-q", "-m", "super 1")
         git(s, "push", "-q", "origin", "main")
+        git(s, "submodule", "update", "-q", "--init", "--recursive")  # as a workspace's checkouts are
         self.super = s
 
     def url(self, n):
@@ -136,6 +140,8 @@ def test_one_target_cascades_as_before(world):
     assert c != world.sha["C"] and world.pin(c, "deps/A", world.super / "src" / "C") == a2
     d = world.remote_pin("D")
     assert world.pin(d, "deps/C", world.super / "src" / "D") == c
+    e = world.remote_pin("E")                             # three new commits in a chain (083's second gap)
+    assert world.pin(e, "deps/D", world.super / "src" / "E") == d
     assert world.check_pins().returncode == 0
 
 

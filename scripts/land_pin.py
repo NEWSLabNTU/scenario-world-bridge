@@ -156,9 +156,10 @@ def main(argv):
         for d in mv:
             git("submodule", "update", "-q", "--init", f"deps/{d}", cwd=cd)
             if d in new:  # a component bumped above: its commit is still only local, so fetch it from there
-                git("fetch", "-q", str(src / d), target[d], cwd=cd / "deps" / d)
+                # without recursing: its own deps/ may name commits that are only local too, in other checkouts
+                git("fetch", "-q", "--no-recurse-submodules", str(src / d), target[d], cwd=cd / "deps" / d)
             else:  # a target, or a component at its main: on its remote
-                git("fetch", "-q", "origin", cwd=cd / "deps" / d)
+                git("fetch", "-q", "--no-recurse-submodules", "origin", cwd=cd / "deps" / d)
             git("checkout", "-q", target[d], cwd=cd / "deps" / d)
             git("add", f"deps/{d}", cwd=cd)
         names = ", ".join(f"{d} {short(target[d])}" for d in mv)

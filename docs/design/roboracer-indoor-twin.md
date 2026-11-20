@@ -369,10 +369,10 @@ The last message on any of the motor topics wins, as on the VESC driver.
 
 | topic | type | from | `ackermann` | `vesc` |
 |---|---|---|---|---|
-| `/scan` | `sensor_msgs/LaserScan` | the spec's 2D lidar (a planar RTX lidar profile, step 5) | yes | yes |
-| `/sensors/imu/raw` | `sensor_msgs/Imu` | the spec's IMU | yes | yes |
+| `/scan` | `sensor_msgs/LaserScan` | the spec's lidar with `message: laser_scan`: one ring of a full turn, the scan's window kept, urg_node's layout and QoS (reliable, depth 20); one whole revolution per frame | yes | yes |
+| `/sensors/imu/raw` | `sensor_msgs/Imu` | the spec's IMU: in SI with its frame for `ackermann`; for `vesc` as the driver gives it, in the VESC's units (g, deg/s) with no frame_id | yes | yes |
 | `/odom`, tf `odom` to `base_link` | `nav_msgs/Odometry` | wheel speeds and the tire angle, by the same kinematics as `vesc_to_odom` | yes | no: the user's `vesc_to_odom` makes it from `/sensors/core` |
-| `/sensors/core` | `vesc_msgs/VescStateStamped` | the component's `telemetry` | no | yes |
+| `/sensors/core` | `vesc_msgs/VescStateStamped` | the component's `telemetry`, sampled after every physics step and published at `core_rate_hz` (default the driver's 50 Hz), each stamped at its tick | no | yes |
 | `/sensors/servo_position_command` | `std_msgs/Float64` | the command echoed, as the driver does | no | yes |
 | `/sensors/imu` | `vesc_msgs/VescImuStamped` | the spec's IMU, in the driver's own message | no | yes |
 | `/clock` | | the bridge | yes | yes |

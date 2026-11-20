@@ -1,6 +1,6 @@
 # Building blocks for learned policies: run, sample, batch, evaluate (draft)
 
-Status: draft for review, revision 2, 2026-11-20. Not a roadmap phase yet.
+Status: draft for review, revision 3, 2026-11-20. Not a roadmap phase yet.
 
 Source: a RoboRacer team (TUM) gave feedback after a scensim presentation on 2026-11-20. They
 train and deploy RL and ML policies and know simulation well. Their pain points:
@@ -19,11 +19,16 @@ Revision 2 follows the user's review of the first draft:
   different ML stacks, vision under varied scenes, V2X;
 - scensim provides building blocks that users combine; it does not cover every use case.
 
+Revision 3 narrows the scope (user): scensim owns the interfaces, the efficient management of
+runs, the efficiency of data and computation, and the declarative workspace. Users adapt to the
+interfaces and build their own ML training and evaluation patterns on them; scensim does not
+abstract those patterns.
+
 ## 1. Decisions
 
 | # | Decision | From |
 |---|---|---|
-| D1 | scensim provides building blocks and interfaces; users compose them. No learner, experiment tracker, model compiler or perception metric library of our own | user |
+| D1 | scensim's scope is four things: interfaces, efficient run management, efficient data and computation, and the declarative workspace. Training and evaluation patterns (learners, rewards, scorers, model runtimes, board integration, datasets, V2X stacks) are the users', built on the interfaces; scensim ships examples of them, not abstractions | user |
 | D2 | Adopt existing technology where it fits: Isaac Lab's batched simulation, NITROS, NCCL, TensorRT, perception_eval, CARLA 1.0's V2X sensors | user |
 | D3 | No patches to official ROS; Humble and Jazzy | user |
 | D4 | No training-specific specification. A scenario file carries its own sampling (OpenSCENARIO `ParameterValueDistribution`, which SSv2 already interprets); the autopilot carries its own randomness, seeded per run | user |
@@ -33,6 +38,19 @@ Revision 2 follows the user's review of the first draft:
 | D8 | Deployment and evaluation on the real target: the user compiles the model; scensim runs it through the pilot interface, on the host or on a board | user |
 | D9 | Gradients stay in the learner; NCCL between GPUs is the user's. The reward is the learner's: scensim streams observations and events, not rewards | finding, and D1 |
 | D10 | V2X is optional and attaches as a block; nothing requires it | user (2026-11-15 rule) |
+
+## 1a. Scope: what scensim owns, what users build
+
+| scensim owns | Users build on it |
+|---|---|
+| **Interfaces**: the world protocol, the pilot interface (agent protocol, relay), the sensor and truth streams, the clock (lockstep, paced), the judge interface, the attachment hook, the batched vector interface | learners and rewards; model runtimes (TensorRT, ONNX Runtime, a board's own); perception and driving scorers (perception_eval, a driving score); V2X stacks and network simulators; dashboards |
+| **Run management**: sampling plans and seeds end to end, executors (seats, batch), retries, provenance, replay of any sample | which samples to run next (an adaptive sampler is a user plug-in on the plan) |
+| **Efficiency**: batched simulation, GPU-resident data in process, GPU transport between processes (NITROS, a CUDA IPC side channel), seat isolation and placement | the user's own multi-GPU training (NCCL) |
+| **Declarative workspace**: the testbench, the car spec, the field (USD stage or town), scenario files with their distributions, suites | the contents: their cars, fields, scenarios, pilots |
+
+The test for a new feature: if a user could build it on the interfaces without changing
+scensim, it is an example, not a block. Section 6 describes such patterns; they ship as
+examples (`scensim_examples`) to copy and adapt.
 
 ## 2. The layers
 
@@ -105,15 +123,15 @@ Each block has one job and a stable interface. Users compose them in a testbench
 |---|---|---|---|
 | **World** | a simulator behind the world protocol; field, weather, lights, time | world servers (CARLA, Isaac), `set_weather` | scene parameters settable from a scenario sample (section 6.3) |
 | **Car** | the car from one spec, per simulator body | spec v2, bodies, rigs | rig from spec on Isaac (091 W5) |
-| **Pilot** | anything that drives an entity: Autoware, a launch file, a program, an exported model, a board | pilots of six kinds, agent protocol, relay | the *model pilot* (an engine runner), the *board pilot* (section 6.1) |
+| **Pilot** | the interface anything that drives an entity uses: Autoware, a launch file, a program, an exported model, a board | pilots of six kinds, agent protocol, relay | in-process access to the batched streams for a batched pilot; a model pilot and a board pilot ship as examples, not blocks (section 6.1) |
 | **Sensor stream** | sensors from the car's spec to a pilot | vehicle bridges publish ROS topics | GPU tensors in process; a GPU side channel or NITROS between processes; a compressed stream to a board |
 | **Truth stream** | ground truth per step: objects with boxes and occlusion, lanes, signals, contacts, route progress | parts, in judges and traces | one published stream, per step, which any block can read |
 | **Clock** | how time advances | lockstep in simulated time | paced mode for boards (simulated time held to wall time, with the lag recorded) |
 | **Scenario** | setup, actors, sampling | SSv2, distributions, suites | the compilable subset for `batch` |
-| **Judge** | a verdict or metric from a run | judges, `result.json` | adapters for third-party scorers (perception_eval, Bench2Drive-style driving score) |
+| **Judge** | the interface for a verdict or metric from a run | judges, `result.json` | a judge plug-in point; scorers such as perception_eval or a driving score are users' plug-ins, with one example |
 | **Attachment** | any extra process tied to a run's lifetime, clock and seed: a recorder, an evaluator, a V2X stack, a network simulator | the tick gate's followers, the episode files, the gap trace | a declared attachment with the entity-to-role map and start and stop per run (section 6.4) |
 | **Executor** | places runs | seats, suites, retries | `batch` (section 5) |
-| **Record** | provenance, traces, datasets | runs layout, provenance, logs | a dataset writer over the sensor and truth streams |
+| **Record** | provenance and traces | runs layout, provenance, logs | the sample and seed per run or slot; dataset writers are users' consumers of the streams |
 
 ## 4. Real evaluation pipelines, and the blocks they use
 
@@ -150,11 +168,11 @@ field in one Isaac process, stepped together on the GPU (Isaac Lab's model).
   replayed as an L2 run on `seats`, with full SSv2 semantics. That is how a surprising training
   episode becomes a test.
 
-## 6. Evaluation building blocks in detail
+## 6. Evaluation patterns users build (examples, not blocks)
 
 ### 6.1 The real target platform
 
-A *board pilot* runs the stack on the target (a Jetson, an NXP board) and talks to the run over
+A board pilot (an example on the pilot interface) runs the stack on the target (a Jetson, an NXP board) and talks to the run over
 the network, through the agent protocol's relay, which already crosses domains.
 
 - **Clock.** A board runs in wall time. The paced clock holds simulated time to wall time and
@@ -248,7 +266,7 @@ Notes:
 
 - learners, RL algorithms and experiment tracking;
 - model export and compilation;
-- our own perception metrics (perception_eval and others are adopted);
+- scorers, model runtimes, board drivers and dataset writers as maintained blocks (they are examples);
 - differentiable simulation;
 - patching ROS;
 - a V2X stack or a channel model of our own.
@@ -273,11 +291,9 @@ Notes:
 | B1 | Seeds end to end: run seed to sample, world and pilots; provenance names the sample; replay a sample | L2 | none |
 | B2 | Scene parameters as scenario parameters (weather, light, surfaces, stage variants) | L2 | B1 |
 | B3 | The truth stream | L1 | none |
-| B4 | The model pilot (TensorRT, ONNX Runtime) | L1 | none |
-| B5 | Judge adapters: perception_eval against the truth stream; a driving-score judge | L2 | B3 |
-| B6 | Attachments: declaration, lifetime, clock, seed, record | L2 | B1 |
-| B7 | The board pilot and the paced clock, with latency records | L1 | B4 |
-| B8 | The batch executor: compiled subset, slots, rollouts, vector interface, replay on seats | L3 | B1, 091 W5 |
-| B9 | GPU transport between processes: NITROS profile, CUDA IPC side channel | L3 | B4 |
-| B10 | Jazzy for the whole set (with 082 step 7) | all | 082 |
-| B11 | Worked examples: a RoboRacer policy trained in a batch and evaluated on seats; a vision stack swept over weather with perception scored; two stacks in one scenario; V2X attached | all | the above |
+| B4 | The judge and attachment plug-in points: declaration, lifetime, clock, seed, entity-to-role map, record | L2 | B1 |
+| B5 | The paced clock, with the lag and a latency stamp per command recorded | L1 | none |
+| B6 | The batch executor: compiled subset, slots, rollouts, the vector interface, replay on seats | L3 | B1, 091 W5 |
+| B7 | GPU transport between processes: NITROS profile, CUDA IPC side channel | L3 | none |
+| B8 | Jazzy for the whole set (with 082 step 7) | all | 082 |
+| B9 | Examples, each a pattern to copy: a RoboRacer policy trained in a batch and evaluated on seats; an exported model as a pilot; a board pilot; a vision stack swept over weather and scored with perception_eval; two stacks in one scenario; V2X attached | all | the above |

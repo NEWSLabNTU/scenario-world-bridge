@@ -33,9 +33,9 @@ Town01 with Autoware's overlay built.
   (`scensim.surface_map`); see [Road physics on Isaac Sim](reference/road-physics.md). The
   soil scenarios (mud, snow, the zones) are now a testbench of their own, `isaac_soil`, whose
   suite `soil` runs them one after another on one Isaac world. A scenario also sets one
-  ground label's class for itself (`scensim.default.<Label>`, friction only); `isaac_verge`
-  drives off the road onto a sidewalk so treated, with the `simple` pilot's new `route:
-  direct` (straight through the scenario's waypoints).
+  ground label's class for itself (`scensim.default.<Label>`, friction only). The `simple`
+  pilot takes `route: direct` (straight through the scenario's waypoints, off the road too),
+  which `isaac_verge` uses to leave the road for a sidewalk so treated (but see Known issues).
 - **The road record.** A map's `road_detail.yaml` describes the road's section along it: lanes,
   shoulder, and what lies past the edge on each side. Its surfaces are checked against the
   surface class table, now one table shared by both world servers. The course builder writes
@@ -80,6 +80,8 @@ Town01 with Autoware's overlay built.
   Tutorials 6 and 7 now say so.
 - **Town01 on Isaac loses the GPU on some NVIDIA drivers** (issue 005): seen on 615.71.09;
   610.57.04 and 580.105.08 work.
+- **On Isaac the car does not climb Town01's curb** (issue 077): `isaac_verge` fails there,
+  its car sliding along the curb short of the sidewalk; it passes on CARLA.
 
 ### Checked for this release
 
@@ -93,8 +95,8 @@ Town01 with Autoware's overlay built.
   town01_snow, town01_zones) on one Isaac world, each with the surface map it names, and the
   car drove through every zone.
 - `isaac_verge`'s drive off the road: passed on CARLA on 118 without its label classes
-  (CARLA has none), 26 m to the sidewalk, no contact; on Isaac it has not run yet (Town01
-  needs a driver of the list above).
+  (CARLA has none), 26 m to the sidewalk, no contact; failed on Isaac on 241, 2 of 2
+  (issue 077).
 
 ## v0.2.0
 

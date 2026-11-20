@@ -8,7 +8,8 @@ stack (W18 to W20) join it as their work items land.
   class's published values (f1tenth_gym's vehicle parameters), not a measured car. The planar
   lidar comes with W19.
 - `tools/smallcar.py`: open-loop tests of the car on Isaac at a chosen physics rate, no ROS:
-  rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and 4 m/s.
+  rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and 4 m/s, and in their
+  own lanes 10 mm cleats, a push on a wall and a cone hit.
 
 ## The refit of the full-size settings (W6)
 
@@ -50,3 +51,44 @@ its suspension's limit, and PhysX resolved that limit differently at each rate. 
 suspension must leave it room: check that the static sag is well short of the travel.
 
 The runs are on the NAS under `2026 SSv2 on CARLA/2026-11-20 091 W6 RoboRacer refit (118)`.
+
+## The physics rate (W7): 240 Hz
+
+A testbench with this car sets `physics_hz: 240`, four physics steps per 60 Hz frame. Below
+200 Hz the contacts are wrong. Above 240 Hz the results move by a few percent at most, and the
+cost keeps growing.
+
+Measured on Isaac (118, 2026-11-20) with `tools/smallcar.py`, 0.05 s frames, TGS (Isaac's
+default solver) at 60 to 600 Hz and PGS at 120 and 600 Hz:
+
+| | 60 Hz | 120 Hz | 240 Hz | 300 Hz | 600 Hz |
+|---|---|---|---|---|---|
+| launch, braking, full lock (W6's table) | agree | agree | agree | agree | agree |
+| pushing on a wall: rear wheel slip | 0.16 | 0.33 | 0.015 | 0.021 | 0.021 |
+| 10 mm cleats at 3 m/s: lowest speed, m/s | 2.39 | 2.38 | 2.34 | 2.33 | 2.33 |
+| the same: peak pitch rate, rad/s | 0.97 | 1.64 | 2.02 | 2.10 | 2.28 |
+| the cone, 0.1 kg at 2 m/s: carried, m | 0.48 | 0.73 | 3.91 | 0.57 | 3.91 |
+| cruise: acceleration noise (per step), m/s^2 | 0.003 | 0.006 | 0.021 | 0.022 | 0.160 |
+| cost: wall-clock s per simulated s, one car | 0.09 | 0.17 | 0.35 | 0.43 | 0.84 |
+
+- **The wall.** The car pushes about 15 N into the wall, and its tyres hold about 38 N, so its
+  wheels should not turn. At 120 Hz and below they slip at 0.16 to 0.33 while the car stands
+  still. From 200 Hz they hold (slip within 0.035 either way).
+- **The cleats.** The speed the cleats take off settles from 240 Hz. The peak pitch rate keeps
+  rising to 600 Hz. It is the peak of a signal sampled once a step, so a coarser step misses
+  part of it.
+- **The cone** is not jitter. Each rate gives the same result on every run (repeated at 240 and
+  300 Hz). Whether the cone tips over (0.5 to 0.7 m) or rides on the bumper upright (3.9 m)
+  turns on a tipping threshold, and the rate only moves the car across it. The cone's friction
+  and the bumper's shape decide it, which is W9's.
+- **The acceleration noise.** aib takes the body's acceleration from the second difference of
+  PhysX's float32 positions over one step, so the noise grows about as the square of the rate.
+  It is 0.02 m/s^2 at 240 Hz, against an IMU's own 0.02 to 0.05, and 0.16 at 600 Hz.
+  Differencing over 1/60 s brings 600 Hz down to 0.027. The IMU and the brake module's
+  acceleration sensor both read it (reported to 133).
+- **TGS and PGS** agree on the driving tests and the cleats to 3 significant figures. Against
+  the wall both are wrong at 120 Hz (slip 0.33 with TGS, -0.12 with PGS), and both hold at
+  600 Hz, PGS more steadily (acceleration noise 1e-5 m/s^2, against TGS's 0.04). PGS costs 2 %
+  more. Isaac's TGS is kept.
+- **The cost** is about 1.4 ms per physics step for one car, headless, the ECU and the vehicle
+  in Python included: linear in the rate.

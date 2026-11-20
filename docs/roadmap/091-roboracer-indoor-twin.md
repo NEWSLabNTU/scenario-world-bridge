@@ -138,7 +138,7 @@ means not yet assigned; 133 assigns.
 | W7 | the physics rate and solver for a light car: jitter tests at 100 to 600 Hz, the cost of each, the chosen default | V4 | 3 | 118 | done 2026-11-20: 240 Hz for a 1/10 car (`scenarios/projects/roboracer` README). Below 200 Hz its wheels slip against a wall they push on (0.16 to 0.33, against 0.02); above 240 Hz the results move by a few percent, at 1.4 ms per step per car (0.35 s per simulated s at 240 Hz). TGS kept. aib's acceleration (IMU, brake module) is a second difference of float32 positions per step, its noise about the rate squared (0.16 m/s^2 at 600 Hz). The cone's tip-or-carry is W9's (NAS `2026-11-20 091 W7 RoboRacer physics rate (118)`) |
 | W8 | the tyre-model risk: PhysX's tyre against foam and soft RC tyres, measured on M5 and M6; a decision to keep it, tune it, or take tyre forces from the component | V4 | 3 | 118 | done 2026-11-20: keep PhysX's tyre, tuned per axle (`scenarios/projects/roboracer` README, `tools/tyre_compare.py`). Against ForzaETH's identified F1TENTH tyres (NUC6, NUC7: rear about twice the front's cornering stiffness), one tyre for all four wheels (spec v2) misses M5's radii by up to 23 to 27 %; a stiffness and friction per axle comes within 5 to 7 %, and on Isaac (aib's per-wheel setters) within 4.5 and 1.8 %. Needs front and rear tyres in the spec (proposed to 133). Beyond the peak PhysX's curve stays flat (NAS `2026-11-20 091 W8 RoboRacer tyre model (118)`) |
 | W9 | collisions with walls and cones: restitution and friction read from the authored materials, checked by drop and push tests | F3 | 3, 4 | 118 | done 2026-11-20: authored restitution and friction are PhysX's as authored (drop, slide, tilt within 0.01 to 0.02 at 240 Hz; `tools/contact_check.py`); a pair's friction is combined (`average` by default), so a measured pair value goes on both materials or with a combine mode (for W21). The car's body has no material (aib authors none): a wall at restitution 1.0 returns 0.41, 0.86 with a body material (proposed to 133: a body contact material in the spec). The cone tips above about mu 0.5 and rides below it at every rate; PhysX's defaults sit on that threshold (W7's flip) (NAS `2026-11-20 091 W9 RoboRacer walls and cones (118)`) |
-| W10 | the fitting tool: long-horizon trajectory error from matched starts; on-track tyre identification first; fits the spec's tyre and suspension values and a component's exposed `params`; randomisation bands from the real spread | V3, V4 | 3b | open | |
+| W10 | the fitting tool: long-horizon trajectory error from matched starts; on-track tyre identification first; fits the spec's tyre and suspension values and a component's exposed `params`; randomisation bands from the real spread | V3, V4 | 3b | 118 | after W23 |
 | W11 | the validation harnesses: (a) component replay against logged VESC telemetry, (b) M1 to M6 against 5.3's bands, (c) lap comparison for M7; one report per twin release | V3, V4, J1 | 3b, 6 | open | |
 | W12 | session conditions: a schema (battery voltage, floor state, tyre age) recorded with each run and each real log; battery voltage declarable as a component input | V2, J2, J3 | 2b, 6 | open | |
 | W13 | the authored stage as a map (`authored: true`): the session-layer rule, the material and `scensim:surface` readers, Track C overrides only where given | F2, F3 | 4 | 243 | in progress |
@@ -151,12 +151,56 @@ means not yet assigned; 133 assigns.
 | W20 | the end-to-end exit: an unmodified f1tenth_system drives the example car in an example field | J1 | 5 | open | |
 | W21 | the guide, "A RoboRacer indoor twin": the procedure, the measurement protocol (tilt test, drop and push tests, M1 to M7), friction two ways, where Isaac's editor shows `dynamicFriction` and what it means here; from W9: a friction measured between two real objects is the pair's, and PhysX combines two materials' frictions (`average` when no mode is authored), so the guide has the user author the measured pair value on both materials, or set a combine mode and author each side to match | all | 6 | open | |
 | W22 | real data for the worked example: a RoboRacer and an indoor field to log M1 to M7 and scan F1. A lab team runs RoboRacers, but we have no access for now (the user, 2026-11-20): features first, real data later | V2, F1 | 3b to 6 | the user | deferred |
-| W23 | the synthetic stand-in while W22 waits: "real" logs made by a deliberately perturbed copy of the twin (tyre, mass, component parameters, latency, noise); the fitting tool must recover the perturbation, and the harnesses must pass and fail where they should. Kept afterwards as a regression test | V2, V3, V4 | 3b, 6 | open | |
-| W24 | the spec's contact properties, optional (absent: today's behaviour, every spec_hash unchanged): per-axle tyres (`tires.front`, `tires.rear`: friction and stiffness, W8) and the body's contact material (`body.contact`: restitution, friction, combine mode, W9), applied by aib's rig at creation and by the surface layer per wheel; CARLA maps per-axle tyres per wheel and refuses `body.contact` by name; 241 reviews the format | V1, V4, F3 | 3 | 118 | done 2026-11-20: optional `tires.front`/`tires.rear` and `body.contact` (sim_vehicle_spec 01797ee, aib 441a883, sim_vehicle_ecu 3e5dd52, scensim_isaac_world e3b4a33; pins 3accb188); every shipped hash and rig unchanged, the Model 3's steptest identical. CARLA takes the tyres per wheel and names `body.contact` as not applied: `testbench check` notes it, the stack's start names it, and `provenance.not_applied` keeps it. On Isaac the spec-written NUC7 fit equals W8's setter run exactly. Follow-up: scensim_carla_world to log the 0.9.16 file's not_applied |
+| W23 | the synthetic stand-in while W22 waits: "real" logs made by a deliberately perturbed copy of the twin (tyre, mass, component parameters, latency, noise); the fitting tool must recover the perturbation, and the harnesses must pass and fail where they should. Kept afterwards as a regression test | V2, V3, V4 | 3b, 6 | 118 | in progress (plan below) |
+| W24 | the spec's contact properties, optional (absent: today's behaviour, every spec_hash unchanged): per-axle tyres (`tires.front`, `tires.rear`: friction and stiffness, W8) and the body's contact material (`body.contact`: restitution, friction, combine mode, W9), applied by aib's rig at creation and by the surface layer per wheel; CARLA maps per-axle tyres per wheel and names `body.contact` as not applied (refusing it would fail generation for every spec that sets it); 241 reviews the format | V1, V4, F3 | 3 | 118 | done 2026-11-20: optional `tires.front`/`tires.rear` and `body.contact` (sim_vehicle_spec 01797ee, aib 441a883, sim_vehicle_ecu 3e5dd52, scensim_isaac_world e3b4a33; pins 3accb188); every shipped hash and rig unchanged, the Model 3's steptest identical. CARLA takes the tyres per wheel and names `body.contact` as not applied: `testbench check` notes it, the stack's start names it, and `provenance.not_applied` keeps it. On Isaac the spec-written NUC7 fit equals W8's setter run exactly. Follow-up: scensim_carla_world to log the 0.9.16 file's not_applied |
 
 Order: W3, then W5 to W8 (the car on Isaac) beside W13 to W17 (the field), then W10 to W12
 (fitting and validation), then W18 to W20 (the stack), then W21. W22 gates the real-data checks
 of 3b to 6; until then W23 stands in for them.
+
+### W23 and W10: the plan (118, 2026-11-20)
+
+The rule: the synthetic logs have the format the real logs of W22 will have, so W22 later
+swaps data, not code. The stand-in's pieces, in order:
+
+1. **The protocol.** The manoeuvres of design note 5.2, M1 to M6, as a file of VESC command
+   sequences (motor speed, current or brake, and servo position, over time). The real car runs
+   them with a small driver node publishing the same commands, and the generator below runs
+   them too.
+2. **A stand-in component.** A VESC drive model with its parameters exposed in `params`:
+   - the motor's ERPM per m/s, its current limits and its speed loop's gains;
+   - the servo's gain and offset, and its rate;
+   - the command latency.
+
+   It lives in `scenarios/projects/roboracer` as an example of a user's component, not a
+   shipped one (091 leaves the car's model to the user).
+3. **The generator.** It drives the twin on Isaac through the protocol, from aib's vehicle and
+   the component with no ROS, as `tools/smallcar.py` does. The perturbed copy changes the tyres
+   per axle (W24's keys), the mass, the component's parameters and the latency. It writes each
+   repetition as the real car's rosbag2 (sqlite3):
+   - the commands;
+   - `sensors/core` (vesc_msgs);
+   - `sensors/imu/raw`;
+   - the reference pose, with the reference's noise.
+
+   Beside each bag goes a session file: the manoeuvre, its condition and repetition, the battery
+   voltage, the floor, the tyre age, and the reference's kind and noise. That file is the first
+   cut of W12's schema. The repetitions differ by their noise seeds, five per condition, as 5.3
+   asks.
+4. **The quantities and the bands.** These read bags, real or synthetic, and give M1 to M6's
+   quantities and 5.3's verdict per quantity and condition: the first cut of W11 (b).
+5. **The fitting tool (W10).** It reads the same bags and the same session files. Tyre
+   identification comes first, from M5 and M6, through `tools/single_track.py` and
+   `tools/tyre_compare.py` (W8). Then the mass, the component's parameters and the latency are
+   fitted by the long-horizon error from matched starts, on Isaac.
+
+The exit (133, 2026-11-20):
+- The fit recovers each deliberate perturbation within a stated tolerance: the tyre per axle,
+  the mass, the component's parameters, the latency and the noise.
+- The harness fails the unfitted twin where the perturbation shows, and passes the fitted one.
+
+The bags need f1tenth's `vesc_msgs` in the ROS environment that writes and reads them, as the
+user's own stack has it.
 
 ## Not in scope
 

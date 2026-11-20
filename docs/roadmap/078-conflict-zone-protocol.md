@@ -706,3 +706,14 @@ and G2.
   - every self-window flip is a line of `decisions.jsonl` of its own.
   Next: the 075 grid (seeds 20-23) on 133, with a load gate on each run's start. The landing line
   is unchanged; the summary counts `hold: contract` beside it.
+- 2026-11-20: czp's decision flickered to `stock: no conflict` for single ticks while the partner
+  stood at its line (U3 stage 1 on 139: 2 flips in `on_dt-1_stop1y_c1.5_s0`, 0.20 and 0.26 s; issue
+  079). It was not perception: Autoware's tracker flipped the stopped car's yaw by 180 deg, and the
+  approach match needs 45 deg. Fixed on `p2g-launch` (assigned by the manager):
+  - a stopped agent (below `moved_speed`) matches an approach within 45 deg of its heading or of
+    its reverse;
+  - backstop: a partner that drops out of a zone's conflict set, not seen leaving, stays in it for
+    `cs_hold_s` (1.0 s) after it was last in it; P2c's hold follows, so a partner that really
+    vanished holds the decision for `cs_hold_s + mode_hold`;
+  - each change of the kept partners is a `cs_hold` line of `decisions.jsonl`.
+  Next: folded into the next grid on 133.

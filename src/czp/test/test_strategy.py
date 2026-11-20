@@ -108,9 +108,15 @@ def test_dropped_partner_at_rest_holds_the_wait():
     acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), obj, None, stat, 0.1)
     assert acts.decision.kind in ("wait", "yield") and ("intersection", "ab" * 16, False) in acts.rtc
     rest = [Obj("o1", 1, ox, oy, oh + math.pi / 2, 0.0, 0.0)]  # at rest, its yaw read 90 degrees off
-    for k in range(1, int(st.p.mode_hold / 0.1)):
+    # issue 079: kept in the conflict set for cs_hold_s (the decision is the protocol's own), then held by P2c
+    n_kept = round(st.p.cs_hold_s / 0.1)
+    for k in range(1, n_kept + int(st.p.mode_hold / 0.1)):
         acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), rest, None, stat, 0.1)
-        assert acts.held_dropped == ("o1",) and not acts.rtc and not acts.auto_mode, k
+        if k < n_kept:
+            assert acts.cs_held == {z.id: ("o1",)} and not acts.held_dropped, k
+        else:
+            assert acts.held_dropped == ("o1",) and not acts.cs_held, k
+        assert not acts.rtc and not acts.auto_mode, k
         assert acts.decision.kind in ("wait", "yield")
     acts = st.cycle(0.1 * k + 0.1, (x, y, h, 6.0, 0.0), rest, None, stat, obs_age=5.0)  # the latency contract fails
     assert ("intersection", True) in acts.auto_mode and not acts.held_dropped
@@ -132,8 +138,9 @@ def test_mode_hysteresis_band_edge_flicker():
         acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), objs, None, stat, 0.1)
         switches += len(acts.auto_mode)
     assert switches == 1 and st.manual == {"intersection"}
-    # the last [] spell is a dropped partner (unseen leaving): mode_hold held, then mode_hold of hysteresis
-    for k in range(20, 20 + int(2 * st.p.mode_hold / 0.1) + 2):
+    # the last [] spell is a dropped partner (unseen leaving): cs_hold_s kept in the conflict set (issue 079),
+    # mode_hold held, then mode_hold of hysteresis
+    for k in range(20, 20 + int((st.p.cs_hold_s + 2 * st.p.mode_hold) / 0.1) + 2):
         acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), [], None, stat, 0.1)
         switches += len(acts.auto_mode)
     assert switches == 2 and not st.manual
@@ -290,3 +297,72 @@ def test_the_trajectory_prefilter_keeps_the_candidates():
                     got = st.candidates(x, y, h, traj, None, lim)
                     want = full if lim is None else full[:lim]
                     assert [(r[0], r[1].id) for r in got] == [(r[0], r[1].id) for r in want], (d, lim)
+
+
+def test_a_stopped_partner_with_its_yaw_flipped_stays_in_the_conflict_set():
+    """Issue 079 (U3 on_dt-1_stop1y_c1.5_s0): the other car at rest at its line, its track's yaw flipped by 180
+    degrees for one or two messages with vx +0.1 m/s. relate() matched no approach (heading 180 degrees off), the
+    8 m path along the flipped yaw missed the zone, and czp went "stock: no conflict" for 0.2 s and back. A
+    stopped agent now matches its approach whatever way its yaw points; a moving one still does not."""
+    from czp.model import Agent
+    from czp.relation import place
+    from czp.strategy import Strategy as S
+    zones, z = setup()
+    a0, a1 = z.approaches
+    ox, oy, oh = pose_on(a1, 3.0)
+    cap = S(zones).p.capability("car")
+    flipped = Agent("o1", pose=(ox, oy, oh + math.pi), v=0.13, cap=cap)
+    assert place(z, flipped).approach == a1.id
+    assert place(z, replace_v(flipped, 6.0)).approach is None  # moving the other way: not on this approach
+
+    x, y, h = pose_on(a0, 20.0)
+    stat = [Status("intersection", "ab" * 16, safe=True)]
+    st = Strategy(zones)
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), [Obj("o1", 1, ox, oy, oh, 0.0, 0.0)], None, stat, 0.1)
+    assert acts.decision.kind in ("wait", "yield")
+    reasons = []
+    for k, (yaw, v) in enumerate([(oh, 0.0), (oh + math.pi, 0.13), (oh + math.pi, 0.12), (oh, 0.0),
+                                  (oh + math.pi, 0.11), (oh, 0.0)], start=1):
+        acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), [Obj("o1", 1, ox, oy, yaw, v, 0.0)], None, stat, 0.1)
+        reasons += [r.reason for r in acts.records]
+        assert acts.decision is not None and not acts.cs_held and not acts.held_dropped, k
+    assert "no conflict" not in reasons
+
+
+def replace_v(ag, v):
+    from dataclasses import replace
+    return replace(ag, v=v)
+
+
+def test_a_partner_dropped_unseen_is_kept_in_the_conflict_set_for_cs_hold_s():
+    """Issue 079, the backstop: a partner that drops out of the conflict set for any other reason (here its track
+    is missing) is kept in it for cs_hold_s after it was last in it, so the protocol keeps its
+    decision and its memory of the partner; the kept ticks have their own decisions.jsonl lines ("cs_hold")."""
+    from czp.record import cs_hold_to_json
+    import json
+    zones, z = setup()
+    a0, a1 = z.approaches
+    x, y, h = pose_on(a0, 20.0)
+    ox, oy, oh = pose_on(a1, 3.0)
+    stat = [Status("intersection", "ab" * 16, safe=True)]
+    st = Strategy(zones)
+    seen = [Obj("o1", 1, ox, oy, oh, 0.0, 0.0)]
+    off = []  # its track missing for those cycles
+    acts = st.cycle(0.0, (x, y, h, 6.0, 0.0), seen, None, stat, 0.1)
+    first = acts.decision
+    assert first.kind in ("wait", "yield")
+    events, records = [], []
+    for k, objs in enumerate([off, off, seen, off] + [off] * 12, start=1):
+        acts = st.cycle(0.1 * k, (x, y, h, 6.0, 0.0), objs, None, stat, 0.1)
+        events += [json.loads(cs_hold_to_json(e)) for e in acts.cs_events]
+        if k <= 12:  # the last time in the set is k = 3; kept while 0.1 k - 0.3 < cs_hold_s
+            records += acts.records
+            assert acts.decision.kind == first.kind and not acts.held_dropped, k
+            assert acts.cs_held == ({} if k == 3 else {z.id: ("o1",)}), k
+        else:
+            assert not acts.cs_held and acts.held_dropped == ("o1",), k  # then P2c's hold, as before
+    assert not records  # the protocol's decision never changed while the partner was kept
+    assert [(round(e["t"], 1), e["kept"], e["reason"]) for e in events] == [
+        (0.1, ["o1"], "cs_hold: o1 kept in the conflict set"), (0.3, [], "cs_hold: released"),
+        (0.4, ["o1"], "cs_hold: o1 kept in the conflict set"), (1.3, [], "cs_hold: released")]
+    assert all(e["event"] == "cs_hold" and e["decision"] is None for e in events)

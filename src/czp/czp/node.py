@@ -36,7 +36,7 @@ from std_msgs.msg import String
 from . import zones as ZN
 from .config import load_contracts, load_params
 from .contracts import SelfWindow
-from .record import flip_to_json, to_json
+from .record import cs_hold_to_json, flip_to_json, to_json
 from .strategy import Obj, Status, Strategy
 
 SELF_WINDOW = 10  # cycles: the self contract reads their median
@@ -207,6 +207,7 @@ class InteractionStrategy(Node):
                 self.get_logger().info(f"dropped partner {','.join(acts.held_dropped)}: holding {acts.decision.kind}")
         self.apply(acts)
         lines = [to_json(rec) for rec in acts.records]
+        lines += [cs_hold_to_json(ev) for ev in acts.cs_events]  # issue 079: a dropped partner kept, or released
         if flip is not None:  # issue 075: every self-window flip is its own line, a decision change or not
             lines.append(flip_to_json(flip))
             self.get_logger().info(f"self window: ok {flip['ok']}, alive {flip['alive']} at {flip['t']} "

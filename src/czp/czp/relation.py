@@ -20,6 +20,11 @@ KIND_RELATION = {ALL_WAY_STOP: CROSS, CROSS_UNSIGNALLED: CROSS, MERGE_LANE_DROP:
                  LEFT_TURN: ONCOMING_LEFT, ROUNDABOUT_ENTRY: CIRCULATING, "cut_in": "cut_in"}
 LATERAL_MATCH = 2.0  # m from an approach's centreline
 HEADING_MATCH = math.radians(45)
+# issue 079: below this speed an agent's yaw is no evidence of its direction. Autoware's tracker flips a stopped
+# car's yaw by 180 deg from one message to the next (U3 on_dt-1_stop1y_c1.5_s0: A at rest at its line read
+# -179 deg, then +0.5 deg with vx +0.11..0.13 m/s, four times in 0.6 s), so a stopped agent matches an approach
+# within HEADING_MATCH of its heading or of its reverse. The value is params.yaml's moved_speed.
+STOPPED_SPEED = 0.5  # m/s
 
 
 _BBOX = {}
@@ -34,10 +39,10 @@ def _bbox(ap):
     return b
 
 
-def match_approach(zone: Zone, x, y, yaw, cache=None, key=None):
+def match_approach(zone: Zone, x, y, yaw, cache=None, key=None, stopped=False):
     """(approach, arc length, lateral) of the zone approach this pose drives on, or (None, ...).
     cache (a dict, kept for one cycle) with key (the agent's id) memoises the projection per approach:
-    the zones of a junction share their approaches."""
+    the zones of a junction share their approaches. stopped: the yaw may be reversed (issue 079)."""
     best = (None, 0.0, math.inf)
     for ap in zone.approaches:
         if len(ap.centerline) < 2:
@@ -58,6 +63,8 @@ def match_approach(zone: Zone, x, y, yaw, cache=None, key=None):
             if ck is not None:
                 cache[ck] = (s, lat, h)
         dh = abs(math.atan2(math.sin(yaw - h), math.cos(yaw - h)))
+        if stopped:
+            dh = min(dh, math.pi - dh)
         if abs(lat) <= LATERAL_MATCH and dh <= HEADING_MATCH and abs(lat) < best[2]:
             best = (ap, s, abs(lat))
     return best
@@ -69,7 +76,7 @@ def place(zone: Zone, ag: Agent, approach=None, cache=None):
         return ag
     x, y, yaw = ag.pose
     if approach is None:
-        ap, s, _ = match_approach(zone, x, y, yaw, cache, ag.id)
+        ap, s, _ = match_approach(zone, x, y, yaw, cache, ag.id, stopped=ag.v < STOPPED_SPEED)
     else:
         ap = zone.approach(approach)
         s, _, _ = polyline_project(ap.centerline, x, y)

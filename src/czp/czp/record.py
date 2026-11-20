@@ -53,3 +53,13 @@ def flip_to_json(flip):
              reason="self_window: " + ("ok" if flip["ok"] else "failed") + ("" if flip["alive"] else ", not alive"),
              contracts={"self": {"ok": bool(flip["ok"] and flip["alive"]), "value": round(flip["cpu_median_ms"] / 1e3, 4)}})
     return json.dumps(_num(d), sort_keys=True, separators=(",", ":"))
+
+
+def cs_hold_to_json(ev):
+    """Issue 079: a change of the partners a zone's conflict set keeps after they dropped out of it unseen leaving
+    (Strategy.cs_events) as its own decisions.jsonl line. Like a self-window flip it carries ``decision`` (null) so
+    that the readers of decision lines skip or count it; ``event`` marks it and ``reason`` names the kept ids."""
+    kept = list(ev["kept"])
+    d = dict(ev, event="cs_hold", decision=None,
+             reason="cs_hold: " + (",".join(kept) + " kept in the conflict set" if kept else "released"))
+    return json.dumps(_num(d), sort_keys=True, separators=(",", ":"))

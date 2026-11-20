@@ -76,6 +76,8 @@ class Actions:
     decision: object = None
     zone: object = None
     held_dropped: tuple = ()  # partners that dropped out of the conflict set unseen, holding the decision
+    cs_held: dict = field(default_factory=dict)  # issue 079: zone id -> ids kept in its conflict set this cycle
+    cs_events: list = field(default_factory=list)  # issue 079: dicts for decisions.jsonl when a zone's kept set changes
 
 
 class Strategy:
@@ -104,6 +106,8 @@ class Strategy:
         self.partners = {}  # that zone's conflict set as last seen: id -> placed Agent
         self.drop_since = None  # since when a dropped partner holds the last decision
         self.dropped = ()  # the partners holding it (for the record)
+        self.cs_last = {}  # issue 079: zone id -> {agent id: (t last in the conflict set, the agent as placed then)}
+        self.cs_kept = {}  # issue 079: zone id -> the ids kept last cycle (for the record of changes)
         self.counts = {"rtc": 0, "auto_mode": 0, "velocity_limit": 0}
 
     def candidates(self, x, y, yaw, traj=None, cache=None, limit=None):
@@ -143,6 +147,31 @@ class Strategy:
                 break
         return kept
 
+    def _seen_leaving(self, last, tracked):
+        """A partner out of the conflict set has left it: it was inside the zone (it exits), or it is tracked and
+        moving, off the approaches (it turned away). The 078 P2c ruling."""
+        if last.s_entry <= 0.0:
+            return True
+        now = tracked.get(last.id)
+        return now is not None and now.v > self.p.moved_speed
+
+    def _keep_dropped(self, t, z, confl, tracked):
+        """Issue 079: the zone's conflict set with each partner that dropped out of it unseen leaving, for
+        cs_hold_s after it was last in it (as placed then, its stamp now). Returns (set, the ids kept)."""
+        last = self.cs_last.setdefault(z.id, {})
+        for ag in confl:
+            last[ag.id] = (t, ag)
+        present = {ag.id for ag in confl}
+        kept = []
+        for i, (t_in, ag) in list(last.items()):
+            if i in present:
+                continue
+            if t - t_in >= self.p.cs_hold_s - 1e-9 or self._seen_leaving(ag, tracked):
+                del last[i]
+                continue
+            kept.append(replace(ag, stamp=t))
+        return confl + kept, tuple(sorted(ag.id for ag in kept))
+
     def _dropped_hold(self, t, agents, confl_by_zone, s_entry_by_zone, contract):
         """The last decision, held while a partner of its zone that dropped out of the conflict set unseen is
         within ``mode_hold`` of its drop (the 078 P2c ruling); None once released (and the memory cleared)."""
@@ -152,16 +181,10 @@ class Strategy:
             return None
         present = {ag.id for ag in confl_by_zone[z.id]}
         tracked = {ag.id: ag for ag in agents}
-
-        def seen_leaving(last):
-            if last.s_entry <= 0.0:  # it was inside the zone: it exits
-                return True
-            now = tracked.get(last.id)
-            return now is not None and now.v > self.p.moved_speed  # tracked and moving, off the approaches: turned away
-
-        dropped = tuple(i for i, last in self.partners.items() if i not in present and not seen_leaving(last))
+        dropped = tuple(i for i, last in self.partners.items() if i not in present
+                        and not self._seen_leaving(last, tracked))
         if dropped and self.drop_since is None:
-            self.drop_since = t
+            self.drop_since = t  # issue 079: after cs_hold_s kept in the conflict set (the two add up)
         if not dropped or t - self.drop_since >= self.p.mode_hold - 1e-9:
             self.last_chosen, self.partners, self.drop_since, self.dropped = None, {}, None, ()
             return None
@@ -189,13 +212,22 @@ class Strategy:
         cache = {}
         confl_by_zone = {}
         s_entry_by_zone = {}
-        for s_entry, z, ap, s_exit in self.candidates(x, y, yaw, traj, cache, max_zones):
+        tracked = {ag.id: ag for ag in agents}
+        cands = self.candidates(x, y, yaw, traj, cache, max_zones)
+        for zid in set(self.cs_last) - {r[1].id for r in cands}:  # behind the car, or past max_zones
+            del self.cs_last[zid]
+        for s_entry, z, ap, s_exit in cands:
             own = Agent("ego", approach=ap.id, s_entry=s_entry, s_exit=s_exit, v=v, a=a, stamp=t, cap=self.own_cap,
                         pose=(x, y, yaw))
             cx, cy = self.centroid[z.id]
             near_agents = [ag for ag in agents if abs(ag.pose[0] - cx) < self.horizon and abs(ag.pose[1] - cy) < self.horizon]
             rel = conflict_set(relate(near_agents, own, [z], cache=cache).get(z.id, []))
-            confl = [ag for _, ag in rel]
+            confl, kept = self._keep_dropped(t, z, [ag for _, ag in rel], tracked)
+            if kept:
+                acts.cs_held[z.id] = kept
+            if kept != self.cs_kept.get(z.id, ()):
+                acts.cs_events.append({"t": t, "zone": z.id, "kept": list(kept),
+                                       "conflict_set": [ag.id for ag in confl]})
             confl_by_zone[z.id], s_entry_by_zone[z.id] = confl, s_entry
             inp = C.Inputs(obs_age=obs_age, cycle_time=cycle_time, self_ok=self_ok, alive=alive,
                            track_age={ag.id: ag.track_age for ag in confl},
@@ -206,6 +238,10 @@ class Strategy:
             if chosen is None and dec.kind != STOCK and not dec.stock_equivalent:
                 chosen = (dec, z, s_entry)
             contract = contract or (dec.kind == STOCK and dec.reason == "contract")
+        for zid in set(self.cs_kept) - set(acts.cs_held):
+            if zid not in confl_by_zone:  # the zone is no longer evaluated: its kept set ends unrecorded otherwise
+                acts.cs_events.append({"t": t, "zone": zid, "kept": [], "conflict_set": []})
+        self.cs_kept = dict(acts.cs_held)
         if chosen is not None:
             self.last_chosen = (chosen[0], chosen[1])
             self.partners = {ag.id: ag for ag in confl_by_zone.get(chosen[1].id, [])}

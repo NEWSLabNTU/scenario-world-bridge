@@ -24,6 +24,22 @@ import measures as M  # noqa: E402
 import s5_aw  # noqa: E402
 
 
+# Junction 861's traffic lights, all commanded green at Init (issue 073, 133's decision 2026-11-20):
+# the regenerated Town03 (carla_map_gen with far_traffic_lights, acb a13efb4) signalizes the junction,
+# so B's left turn is a permissive one on green. Every light way the junction's elements refer to: the
+# converter groups CARLA's heads across approaches (one pole's heads serve several elements), so a red
+# cross street would set the same CARLA light both ways; s5 has no cross traffic, and all green is the
+# one consistent state. Way ids of the dataset revision's Town03.
+GREEN = ("138070", "138415", "138418", "138430", "138439", "138442", "138448", "138451", "138454",
+         "138460", "138661")
+
+
+def green_init():
+    return "".join(f'\n\t\t\t<GlobalAction><InfrastructureAction><TrafficSignalAction>'
+                   f'<TrafficSignalStateAction name="{w}" state="green" /></TrafficSignalAction>'
+                   f'</InfrastructureAction></GlobalAction>' for w in GREEN)
+
+
 def name(v, gap):
     return f"s5_v{v:g}_g{gap:g}.xosc"
 
@@ -38,7 +54,10 @@ def write(path, v, gap):
               f'\t\t<ParameterDeclaration name="gap" parameterType="double" value="{gap}" />\n'
               f'\t</ParameterDeclarations>')
     text = text.replace("<ParameterDeclarations />", params, 1)
+    assert text.count("<Init><Actions>") == 1
+    text = text.replace("<Init><Actions>", "<Init><Actions>" + green_init(), 1)
     text = text.replace("$(env CARLA_MAPS)/Town03", "$(env SCENSIM_MAPS)/Town03", 1)
+    text = text.replace("$(find-pkg-share sim_vehicle_spec)/catalogs", "$(env SCENSIM_VEHICLES)", 1)  # the stack's catalog (083)
     text = text.replace("written by scripts/coop/s5_aw.py", "written by make_scenarios.py", 1)
     path.write_text(text)
 

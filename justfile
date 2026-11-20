@@ -283,7 +283,7 @@ test:
     # SSv2's protos in scensim_world_protocol are the fork's (roadmap 051)
     # no pytest plugins: ROS's launch_testing hook would import scripts/test_phase1.py, a
     # live ZMQ client (pyzmq, the runtime's protobuf), and fail where those differ (swb 139)
-    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py scripts/test_ego_used.py scripts/test_coop_pilots_dir.py scripts/test_land_pin.py scripts/test_czp_rows_check.py scripts/sim_compare/test_scene.py
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scripts/test_ssv2_protos.py scripts/test_sim_time.py scripts/test_t3.py scripts/test_ego_used.py scripts/test_coop_pilots_dir.py scripts/test_land_pin.py scripts/test_czp_rows_check.py scripts/test_crossing_aw_score.py scripts/sim_compare/test_scene.py
     # T1, world-server conformance (077 item 56): skipped unless SCENSIM_WORLD_CHECK=carla|isaac
     # names a running world server (SCENSIM_WORLD_ENDPOINT, SCENSIM_WORLD_MAP; scripts/test_world_conformance.py)
     PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q -rs scripts/test_world_conformance.py

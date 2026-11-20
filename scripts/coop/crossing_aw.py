@@ -190,7 +190,7 @@ def score(rd, dt):
     pet = meas._pet()
     dt_lock = lk.get("dt_lock")
     off = ev["setup"].get("rest_offset", 0.0)  # A aimed at dt + off (stop-sign rules; crossing_agent.py)
-    return {"first": who, "contact": int(contact), "clear": round(meas.clear, 3), "pet": round(pet, 3) if math.isfinite(pet) else None,
+    res = {"first": who, "contact": int(contact), "clear": round(meas.clear, 3), "pet": round(pet, 3) if math.isfinite(pet) else None,
             "ttc2d": round(meas.ttc2d, 3) if math.isfinite(meas.ttc2d) else None,
             "tA_in": None if math.isinf(fa) else round(fa, 2), "tB_in": None if math.isinf(fb) else round(fb, 2),
             "tA_out": None if out_a is None else round(out_a, 2), "tB_out": None if out_b is None else round(out_b, 2),
@@ -202,6 +202,12 @@ def score(rd, dt):
             "both_cleared": int(out_a is not None and out_b is not None),
             "t_run": round(last["t"] - t_lock, 1) if last else None, "physics_off": ev["setup"].get("physics_off"),
             "deadlock": int(math.isinf(fa) and math.isinf(fb)), **rests(run, t_lock, ev["setup"].get("stops") or {})}
+    if math.isinf(fb) and not math.isinf(fa):
+        # A crossed and the ego never entered Z: not a deadlock (A got through), and not a verdict either -- on
+        # 139's stage 1 it was issue 082 (Autoware's velocity limit stuck at 0 after the ego stopped at its line),
+        # scored ok. An error, so the run is retried; the measures stay in the row for a look.
+        res["error"] = "ego never entered"
+    return res
 
 
 def rests(run, t_lock, stops):

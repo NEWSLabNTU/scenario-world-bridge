@@ -414,7 +414,7 @@ version: 1
 datasets:
   carla-town-autoware-maps:
     repo: jerry73204/carla-town-autoware-maps
-    commit: 6b1bd8b9dd315ae36bb401fc137a09583e67d53d
+    commit: 3814a7475ddb11cecb4ae13bbdc09f5bbf313ae3
     take: [Town01]
     files: {Town01/lanelet2_map.osm: "sha256:...", ...}
 paths:

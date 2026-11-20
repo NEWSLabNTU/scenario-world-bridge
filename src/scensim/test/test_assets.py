@@ -465,6 +465,82 @@ def test_a_dataset_the_host_keeps_is_linked_from_its_copy_and_never_locked(host,
     assert f.refused and "is not a directory" in f.what
 
 
+USD_PROJECT = """simulator: isaac
+pilots: {}
+assets:
+  - {dataset: carla-town-autoware-maps, take: [Town01]}
+  - {dataset: carla-0.9.16-isaac-usd, take: [Town01, vehicles]}
+"""
+
+
+def _host_copy(host, name, files):
+    copy = host["tmp"] / "nas" / name
+    for rel, text in files.items():
+        (copy / rel).parent.mkdir(parents=True, exist_ok=True)
+        (copy / rel).write_text(text)
+    hy = host["tmp"] / "user" / "host.yaml"
+    h = yaml.safe_load(hy.read_text())
+    h["datasets"] = {name: str(copy)}
+    hy.write_text(yaml.safe_dump(h))
+    return copy, hy
+
+
+def test_a_hub_dataset_the_host_keeps_is_locked_as_the_hub_has_it(host, maps_hub):
+    """Issue 076: a host copy of a dataset the Hub has still puts it in the lock, from the
+    manifest, without downloading the files; a host without a copy then fetches that commit."""
+    p = project(host["tmp"], USD_PROJECT)
+    copy, hy = _host_copy(host, "carla-0.9.16-isaac-usd",
+                          {"Town01/Town01_physics.usda": "usda", "vehicles/vehicles.json": "{}"})
+    out = []
+    assets.fetch(p, out=out.append)
+    usd = "jerry73204/carla-0.9.16-isaac-usd"
+    commit = maps_hub.repos[usd]["refs"]["tags"]["2026-10-23"]
+    e = lock(p)["datasets"]["carla-0.9.16-isaac-usd"]
+    assert e["repo"] == usd and e["commit"] == commit and e["take"] == ["Town01", "vehicles"]
+    assert set(e["files"]) == {"Town01/Town01_physics.usda", "vehicles/vehicles.json"}
+    assert e["files"]["vehicles/vehicles.json"] == \
+        "sha256:" + hashlib.sha256(b"{}").hexdigest()
+    assert [rel for repo, rel in maps_hub.downloads if repo == usd] == ["MANIFEST.sha256"]
+    assert Path(os.readlink(p / "assets" / "carla-usd")) == copy   # linked from the copy
+    assert assets.check(p) == []
+    first = (p / "scensim.lock").read_text()
+    assets.fetch(p, out=out.append)                                # nothing new: no Hub call
+    assert (p / "scensim.lock").read_text() == first
+    assert [rel for repo, rel in maps_hub.downloads if repo == usd] == ["MANIFEST.sha256"]
+    # the same testbench on a host without the copy: the lock's commit, fetched
+    h = yaml.safe_load(hy.read_text())
+    del h["datasets"]
+    hy.write_text(yaml.safe_dump(h))
+    assets.fetch(p, out=out.append)
+    assert (p / "scensim.lock").read_text() == first
+    cdir = host["cache"] / "datasets" / usd / commit
+    assert Path(os.readlink(p / "assets" / "carla-usd")) == cdir
+    assert (cdir / "vehicles" / "vehicles.json").read_text() == "{}"
+    assert assets.check(p) == []
+
+
+def test_a_host_copy_keeps_its_lock_entry_when_the_hub_is_out_of_reach(host, maps_hub):
+    p = project(host["tmp"], USD_PROJECT.replace(
+        "  - {dataset: carla-town-autoware-maps, take: [Town01]}\n", ""))
+    _, hy = _host_copy(host, "carla-0.9.16-isaac-usd",
+                       {"Town01/Town01_physics.usda": "usda", "vehicles/vehicles.json": "{}"})
+    assets.fetch(p, out=[].append)
+    first = (p / "scensim.lock").read_text()
+    h = yaml.safe_load(hy.read_text())
+    h["hub_url"] = "http://127.0.0.1:9"
+    hy.write_text(yaml.safe_dump(h))
+    out = []
+    assets.fetch(p, update=True, hub=assets.HttpHub("http://127.0.0.1:9", retries=1),
+                 out=out.append)
+    assert (p / "scensim.lock").read_text() == first
+    assert any("the lock's entry kept" in o for o in out)
+    (p / "scensim.lock").unlink()
+    out = []
+    assets.fetch(p, hub=assets.HttpHub("http://127.0.0.1:9", retries=1), out=out.append)
+    assert "carla-0.9.16-isaac-usd" not in (lock(p).get("datasets") or {})
+    assert any("the Hub is out of reach" in o for o in out)
+
+
 # --- issue 050: huggingface_hub 2.x with brotli older than 1.2 ------------------------------
 
 def test_brotli_problem_names_the_mismatch_only_for_hf_2_and_old_brotli():

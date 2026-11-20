@@ -547,11 +547,16 @@ def _differs(path: Path, cdir: Path) -> AssetError:
                       f" u+w, then {FETCH})")
 
 
-def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, verify=False):
+def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, verify=False,
+                  lock_only=False):
     """``(lock entry, what changed or None)`` for one dataset. ``verify``: hash every file
-    already in the cache (otherwise only what its record says changed, G35)."""
+    already in the cache (otherwise only what its record says changed, G35). ``lock_only``:
+    the entry only, for a dataset the host keeps a copy of (issue 076): a file the manifest
+    gives a hash for is not downloaded; the manifest and the files it does not cover are."""
     old_commit = entry.get("commit") if entry else None
     if entry and not update and _entry_matches(entry, spec):
+        if lock_only:
+            return entry, None
         files = dict(entry.get("files") or {})
         cdir = commit_dir(cache, spec.repo, entry["commit"])
         missing = [f for f in files if not (cdir / f).is_file()]
@@ -603,6 +608,8 @@ def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, veri
                 if want and digest != want:
                     ver.save()
                     raise _differs(cdir / f, cdir)
+            elif lock_only and want:
+                digest = want
             else:
                 digest = store.add(f, want)
                 ver.record(f, cdir / f, digest)
@@ -635,8 +642,10 @@ def _under(f: str, d: str) -> bool:
 # A dataset this host has a copy of (a private one on the lab's NAS, say) is named in the host
 # settings, ``datasets: {<name>: <directory>}``: `assets fetch` links it from there, with the
 # project's own ``take:``, instead of fetching it, so the project file names it the same way
-# on every host. Its file list is the host's, kept in the project's state (git-ignored), and
-# scensim.lock keeps only what came from the Hub.
+# on every host. Its file list is the host's, kept in the project's state (git-ignored).
+# scensim.lock still names the dataset as the Hub has it (issue 076), resolved without
+# downloading what the manifest covers, so a host without a copy fetches what this one
+# locked; a dataset the Hub does not have (a private one) or a Hub out of reach leaves it out.
 LOCAL_FILE = "assets.local.json"
 
 
@@ -758,10 +767,28 @@ def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dic
     for spec in datasets:
         if spec.name in mine:
             local[spec.name] = local_entry(spec, mine[spec.name])
-            if spec.name in old.get("datasets", {}):
-                lock["datasets"][spec.name] = old["datasets"][spec.name]   # the Hub's, kept
             out(f"{spec.name}: the host's copy {mine[spec.name]}, "
                 f"{len(local[spec.name]['files'])} file(s)")
+            # the lock names it all the same, as the Hub has it (issue 076)
+            try:
+                if hub is None:
+                    hub = make_hub(settings)
+                entry, what = fetch_dataset(hub, cache, spec,
+                                            old.get("datasets", {}).get(spec.name), update,
+                                            lock_only=True)
+            except AssetError as e:   # not on the Hub (a private one), or the Hub unreachable
+                if spec.name in old.get("datasets", {}):
+                    lock["datasets"][spec.name] = old["datasets"][spec.name]
+                    out(f"{spec.name}: the lock's entry kept ({e})")
+                elif isinstance(e, HubUnreachable):
+                    out(f"{spec.name}: not in {config.LOCK_FILE}: the Hub is out of reach ({e});"
+                        f" {FETCH} again to lock it")
+                else:
+                    out(f"{spec.name}: not in {config.LOCK_FILE}: not on the Hub ({e})")
+                continue
+            lock["datasets"][spec.name] = entry
+            if what:
+                out(f"{spec.name}: locked as the Hub has it, {what}")
             continue
         if hub is None:
             hub = make_hub(settings)

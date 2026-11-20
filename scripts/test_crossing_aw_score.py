@@ -113,3 +113,48 @@ def test_summary_keeps_failed_attempts_apart(C, tmp_path):
     assert [(x["tag"], x["attempt"], x["sig082"], x["final"]) for x in s["ego_never_entered"]] == \
         [("a", 0, 1, "ok"), ("b", 0, 0, "starved"), ("b", 0, 0, "this row")]
     assert s["no_verdict"] == ["c"]
+
+
+def test_finish_counts_the_watchdog_clears_on_a_czp_arm(C, tmp_path, monkeypatch):
+    """243: with czp's 082 fix in, 082's signature on a czp arm is a regression; the row says how many clears czp's
+    watchdog sent (from the ego's play_log named in ego.log). Not looked up on the stock arm."""
+    write_log(tmp_path, a_moves=True, b_moves=False)
+    (tmp_path / "bag").mkdir()
+    wd = tmp_path / "work" / "play_log" / "ego" / "2026-11-21_01-02-03" / "node" / "interaction_strategy_watchdog"
+    wd.mkdir(parents=True)
+    (wd / "err").write_text("[WARN] no heartbeat for 1.35 s (it held none in manual mode): modules [] back to auto "
+                            "mode, velocity limit cleared\n[WARN] no heartbeat for 2.1 s (...): no velocity limit held, "
+                            "none cleared\n")
+    (tmp_path / "ego.log").write_text(f"log dir {wd.parents[1]}\n")
+    monkeypatch.setattr(C, "bag_limit0", lambda bag: (1, 52.0))
+    assert C.finish(tmp_path, {"dt": 0.0, "arm": "on"})["wd_clears"] == 1
+    assert "wd_clears" not in C.finish(tmp_path, {"dt": 0.0, "arm": "off"})
+    (tmp_path / "ego.log").write_text("no play_log here\n")
+    assert C.finish(tmp_path, {"dt": 0.0, "arm": "on"})["wd_clears"] is None
+
+
+def test_summary_lists_every_czp_082_attempt(C, tmp_path):
+    """One 082 hit, then a clean rerun: no_verdict misses it, czp_082 does not."""
+    rows = [{"tag": "a", "arm": "on", "attempt": 0, "error": "no lock logged", "sig082": 1, "sig082_t": 52.0, "wd_clears": 1},
+            {"tag": "a", "arm": "on", "attempt": 1, "contact": 0, "starved": 0},
+            {"tag": "b", "arm": "off", "attempt": 0, "error": "no lock logged", "sig082": 1}]
+    (tmp_path / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    s = C.summary(tmp_path / "runs.jsonl")
+    assert s["no_verdict"] == ["b"]
+    assert [(x["tag"], x["attempt"], x["error"], x["wd_clears"], x["final"]) for x in s["czp_082"]] == \
+        [("a", 0, "no lock logged", 1, "ok")]
+
+
+def test_rescore_touches_only_each_tags_last_row(C, tmp_path, monkeypatch):
+    """243: a tag's directory holds its last attempt only, so the earlier rows keep their live scoring."""
+    rows = [{"tag": "a", "dt": 0.0, "attempt": 0, "error": "ego never entered", "starved": 1, "sig082": 1},
+            {"tag": "a", "dt": 0.0, "attempt": 0, "counted": 0, "starved": 1, "sig082": 0},
+            {"tag": "a", "dt": 0.0, "attempt": 0, "quiet_rerun": 1, "starved": 0},
+            {"tag": "b", "dt": 0.0, "attempt": 0, "starved": 0}]
+    (tmp_path / "runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    monkeypatch.setattr(C, "finish", lambda rd, res: {**res, "rescored": Path(rd).name})
+    monkeypatch.setattr(sys, "argv", ["crossing_aw.py", "--out", str(tmp_path), "--rescore"])
+    assert C.main() == 0
+    out = [json.loads(line) for line in open(tmp_path / "runs.jsonl")]
+    assert [r.get("rescored") for r in out] == [None, None, "a", "b"]
+    assert out[:2] == rows[:2] and out[2]["quiet_rerun"] == 1

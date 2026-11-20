@@ -34,6 +34,7 @@ import argparse
 import json
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -471,6 +472,17 @@ def bag_limit0(bag):
     return (0, None) if t is None else (1, round(t, 1))
 
 
+def wd_clears(rd):
+    """How often czp's watchdog cleared a velocity limit in this run (its WARN "... velocity limit cleared"), from the
+    ego's play_log named in the run's ego.log; None when that log is not found."""
+    try:
+        m = re.search(r"(/\S*?play_log/ego/[0-9_-]+)", (Path(rd) / "ego.log").read_text())
+        wd = Path(m.group(1)) / "node" / "interaction_strategy_watchdog"
+        return sum(f.read_text().count("velocity limit cleared") for f in (wd / "err", wd / "out") if f.exists())
+    except (OSError, AttributeError):
+        return None
+
+
 def finish(rd, res):
     try:
         res.update(score(rd, res["dt"]))
@@ -482,6 +494,10 @@ def finish(rd, res):
         # (on 139's stage 1 one was scored ok). Without it -- or with an unreadable bag -- it stays a counted verdict,
         # so a strategy that holds the ego cannot drop out of the grid through retries.
         res["sig082"], res["sig082_t"] = bag_limit0(Path(rd) / "bag")
+        if res["sig082"] == 1 and res.get("arm") in ("on", "commit"):
+            # 243: 082 is Autoware's defect set off by czp's watchdog clear; czp's fix (e5b5bc93) clears only a limit
+            # it holds, so on a czp arm with that fix this is a regression: how many clears the watchdog sent
+            res["wd_clears"] = wd_clears(rd)
         if res.get("starved") and res["sig082"] == 1:
             res["error"] = "ego never entered"
     return res
@@ -515,7 +531,14 @@ def summary(path):
             "starved": sum(r.get("starved") or 0 for r in ok),
             "failed_attempts": failed, "ego_never_entered": never,
             # 243: a cell that ran out of attempts with errors only has no verdict; listed so none drops out unseen
-            "no_verdict": sorted(t for t, r in final.items() if "error" in r)}
+            "no_verdict": sorted(t for t, r in final.items() if "error" in r),
+            # 243: every czp-arm attempt with 082's signature, whatever its error and however its tag ended -- with
+            # czp's fix in, each is a czp regression (wd_clears: the watchdog's clears in that run)
+            "czp_082": [{"tag": r["tag"], "arm": r.get("arm"), "attempt": r.get("attempt"), "error": r.get("error"),
+                         "sig082_t": r.get("sig082_t"), "wd_clears": r.get("wd_clears"),
+                         "final": "this row" if final.get(r["tag"]) is r else
+                         final.get(r["tag"], {}).get("error") or ("starved" if final.get(r["tag"], {}).get("starved") else "ok")}
+                        for r in rows if r.get("sig082") == 1 and r.get("arm") in ("on", "commit")]}
 
 
 def main():
@@ -559,10 +582,15 @@ def main():
     if a.rescore:
         rows = [json.loads(line) for line in open(path) if line.strip()]
         keep = ("arm", "dt", "rule", "seed", "side", "tag", "scenario_rc", "wall_s", "t_ready", "attempt", "gate",
-                "load_samples", "load_max", "load_mean", "psi_max", "invalid_load")
-        rows = [finish(Path(a.out) / r["tag"], {k: r[k] for k in keep if k in r}) for r in rows]
-        for r in rows:
-            if r.get("invalid_load"):
+                "load_samples", "load_max", "load_mean", "psi_max", "invalid_load", "counted", "quiet_rerun",
+                "load_start", "load_gate_s", "load_gate_ok", "load_pre_ok", "mem_avail_gb", "swap_gb")
+        # only a tag's last row: its run directory holds that attempt's log and bag (the earlier ones are
+        # <name>.failed<n>); the earlier rows keep what they were scored with live (243)
+        last = {r["tag"]: i for i, r in enumerate(rows)}
+        rows = [finish(Path(a.out) / r["tag"], {k: r[k] for k in keep if k in r}) if last[r["tag"]] == i else r
+                for i, r in enumerate(rows)]
+        for i, r in enumerate(rows):
+            if last[r["tag"]] == i and r.get("invalid_load"):
                 r["valid"] = 0
         path.write_text("".join(json.dumps(r) + "\n" for r in rows))
         return 0

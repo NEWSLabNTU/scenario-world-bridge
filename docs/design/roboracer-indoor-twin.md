@@ -285,8 +285,10 @@ centreline the user draws or the stage's floor outline. A RoboRacer stack's own 
 | `PhysicsScene` gravity | PhysX | as authored |
 | lights, materials, textures | the renderer | as authored |
 
-scensim's writes all go into the **session layer**, never into the user's layers. The stage is
-never saved by scensim.
+scensim never writes into the user's layers. The world server's stage has its own root layer,
+in memory, and the user's stage is referenced into it (under `/World/env`), so every write of
+scensim's lands in a layer the server owns. A load is refused, naming the layer, if any of the
+user's layers ever holds an unsaved edit. The stage is never saved by scensim.
 
 | set by scensim | why |
 |---|---|
@@ -307,13 +309,14 @@ This is what makes "set the floor's friction in the editor" work. Highest first:
 1. **a Track C record given for this map** (`surfaces.yaml` zones, `road_detail.yaml`), where
    it covers the point. These are optional overrides, and a run records which applied;
 2. **the authored `scensim:surface` class** on the collider or an ancestor;
-3. **the authored physics material's `dynamicFriction`**, taken as the peak friction of the
-   car's tire on that ground. That is the quantity the user measures (5, M6). It is not scaled
-   by any reference: the issue 013 reference (1.12, the Model 3's tire on asphalt) belongs to
-   the class table, not to a measured floor. This is not PhysX's own meaning. For PhysX it is
-   the coefficient between two colliders, and the vehicle's tires ignore it. So step 6's guide
-   says so where the user sets it in Isaac's editor (the material's Physics properties), with
-   M6's value to enter;
+3. **the authored physics material's `dynamicFriction`**, taken as the peak friction of our
+   tires on that ground, on the same scale as the class table's `mu`. That is the quantity the
+   user measures (5, M6). Internally it is divided by the reference class's `mu` (1.12, the
+   issue 013 reference: the Model 3's tire on asphalt) before it scales the car's tire table,
+   exactly as a class's `mu` is, so a floor authored at 1.12 drives as asphalt does. This is
+   not PhysX's own meaning. For PhysX it is the coefficient between two colliders, and the
+   vehicle's tires ignore it. So step 6's guide says so where the user sets it in Isaac's
+   editor (the material's Physics properties), with M6's value to enter;
 4. **the reference class** (`surfaces.NO_MAP`) when nothing is authored.
 
 Two more rules apply:
@@ -325,7 +328,9 @@ Two more rules apply:
   about the scenario.
 
 Objects (walls, cones, furniture) are PhysX's alone: their mass, friction and restitution as
-authored, with no layer of scensim's in between.
+authored, with no layer of scensim's in between. For every contact that is not a tire on the
+ground (the car's body against a wall, a cone on the floor, a prop against a prop), PhysX uses
+the materials' values as authored, unscaled; the conversion above touches only the tires.
 
 ### 3.4 The run's USD hash
 

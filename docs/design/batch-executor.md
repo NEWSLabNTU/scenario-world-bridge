@@ -11,7 +11,7 @@ and 5a). It lives in `src/scensim_batch`. This note grows with its milestones:
 | K2.1 | SSv2's default vehicle behaviour, batched in torch (section 2) | in progress |
 | K2.2 | The environment: a DirectRLEnv from a compiled scenario and sample records, the ego from aib's rig, the control component through `step_batch`, resets per slot | open |
 | K2.3 | The compiled storyboard (conditions, actions) and the truth export (truth-stream.md, schema 2) (section 6) | in progress: the state machine, 10 conditions, SpeedAction and the exits, truth per slot; the rest executor pending |
-| K2.4 | Agreement: each "batch" row of the subset on seats and in batch, on the same sample (Town01) | open |
+| K2.4 | Agreement: each "batch" row of the subset on seats and in batch, on the same sample (Town01); each seats run records S, its frames before startNpcLogic, and the batch replays with `start_frames=S` (section 6, scenario time) | open |
 | K2.5 | `scensim bench`: throughput at N = 256 and 1024 against a hand-written Isaac Lab environment (the RoboRacer indoor field) | open |
 
 ## 1. Shape

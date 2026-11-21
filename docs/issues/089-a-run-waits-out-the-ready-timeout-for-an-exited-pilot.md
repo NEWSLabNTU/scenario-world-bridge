@@ -1,7 +1,7 @@
 # 089: A run waits out its ready timeout for a pilot whose launch has exited
 
 **Severity**: medium. A suite whose ego cannot start costs its whole ready timeout per run,
-and the error does not name the cause. **Status**: open; the fix is handed to swb 139.
+and the error does not name the cause. **Status**: fixed (scensim 4e391d4b..6b30e70e, swb 139).
 **Found**: 2026-11-21, swb 243, an overnight T3 suite (issue 073, s5 on CARLA 1.0).
 
 ## What happens
@@ -42,17 +42,40 @@ process is still alive. A required node that exits once, and takes the launch wi
 neither a crash loop nor a failed load. So nothing fires, and readiness is polled against a
 stack that no longer exists.
 
-## Fix (wanted)
+## Fix
 
-A `lifetime: run` pilot whose launch process has exited fails the run at once, naming:
+- **A run's pilot** (`lifetime: run`): the run keeps each of its pilots' launch processes. One
+  that has exited before it was ready ends the run `error` at once:
 
-- the exit code of the pilot's launch;
-- the first error line of its console after the start (here acb's `CARLA version mismatch`
-  line), or the node the launcher names as the one that ended it (`[node:/acb_bridge] exited
-  (code 1)`).
+      pilot ego is not coming up: its launch exited (code 1) before it was ready: acb_bridge
+      exited 1: Error: ConfigError("CARLA version mismatch: the server is 1.0 but this binary
+      was built for CARLA 0.9.16. ...") (see .../logs/pilot-ego/console.log)
 
-A stack's pilot is the keeper's, which respawns it; there the same message belongs in the
-keeper's event for the exit, so a pilot that dies at every start is named the same way.
+  The reason comes from `stack.first_error`. When play_launch names the node that exited
+  (`ERROR [node:/acb_bridge] Exited with code 1`, or `exited (code 1) and was declared
+  on_exit=Shutdown`), it is that node's own first error line. The node's err is the one
+  play_launch's `ERROR Check <dir>` points to, else the newest `<stamp>/node/<name>/err` beside
+  the console: acb's reason is there, not in the console. Otherwise it is the console's first
+  error line (ros2 launch's `[ERROR]`, play_launch's bare `ERROR` level, a traceback's last
+  line, a panic). The "process has died" and "Exited with code" lines are used only when nothing
+  better is there.
+- **A stack's pilot**: it is not only named in an event, as was wanted. A pilot that ends before
+  it was ever ready on its start is counted. After `EXITS_UNREADY` (2) such ends the keeper stops
+  respawning it and stops the stack, with the same message as its error (event `pilot.failed`).
+  A launch that exits on its own does so again on every respawn. The count starts again once the
+  pilot is ready, and exits after ready are respawned as before. A transient failure at start (an
+  OOM) now costs the stack after two tries, as 088's `LOAD_RESTARTS` does.
+- **The runner waiting for a stack** (`check_stack`, `--wait`): a stack stopped with an error is
+  refused at once with that error, not at the deadline.
+
+Tests: `test_run.py` covers a run pilot whose launch prints a version-mismatch error and exits 3
+(the run ends `error` within seconds, naming pilot, code and line), and a stopped stack refused
+at once despite `wait=600`. `test_stack.py` covers a stack pilot exiting 3 twice (the keeper
+returns 2 and the stack's error names it), and `first_error`: on ros2 launch's lines, on
+play_launch's `Check` form with the node's err (from this suite's console and err), on the
+`on_exit=Shutdown` form with the err beside the console, and with no err. Checked by swb 243 on
+the console above: "its launch exited (code 1) before it was ready: acb_bridge exited 1: Error:
+ConfigError("CARLA version mismatch ...")".
 
 ## How it was confirmed
 

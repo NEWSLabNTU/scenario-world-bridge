@@ -856,6 +856,15 @@ fn a_world_file_names_the_world_beside_the_map() {
     assert_eq!(w.world, dir.join("isaac/field.usd").to_string_lossy());
     assert_eq!(w.ground_paths, vec!["/World/env/terrain".to_string()]);
     assert_eq!(w.map_origin, [1.0, 2.0, 3.0]);
+    // an authored field's keys are the world server's (roadmap 091 W13, W14): accepted
+    std::fs::write(
+        dir.join("isaac/world.yaml"),
+        "usd: field.usda\nauthored: true\nevidence: [scan/field.e57]\n",
+    )
+    .unwrap();
+    let (w, _) = WorldFile::for_map("isaac", &map).unwrap();
+    assert!(w.authored);
+    assert_eq!(w.evidence, vec!["scan/field.e57".to_string()]);
     std::fs::write(dir.join("isaac/world.yaml"), "usd: x\nsky: blue\n").unwrap();
     assert!(WorldFile::for_map("isaac", &map).is_err());
     // CARLA: a town by name stays a name; the older map_origin.yaml still gives the origin.

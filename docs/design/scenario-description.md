@@ -385,9 +385,10 @@ Two smaller points have their place elsewhere:
    `scensim-sample check` on a missing file ended in a traceback (fixed in 092 S2's branch: it
    names the file).
 
-One question for section 7's rule: CS7's cell attributes (`glare`, `swerve`) are derived values,
-computed from drawn ones, which the rule as written (a bound knob or a declared parameter) would
-refuse. They are computed, not labelled, so the rule should admit a derived value too.
+Section 7's rule admits a derived cell attribute when its expression reads only bound knobs,
+declared parameters and anchor geometry. CS7's `glare` and `swerve` are written that way: from
+the applied `sun_azimuth` and `sun_elevation` against the exit's heading, and from the applied
+`swerve_offset` against `kerb_offset`.
 
 ## 3. The world interface (D2)
 
@@ -503,12 +504,17 @@ A scenario carries its category id, and each cell's attributes, in its `FileHead
 ```
 
 A cell's attributes are computed, never labelled. Each attribute named in
-`scensim.cell_attributes` must be a bound knob or a declared scenario parameter. The sampler
-computes the record's cell from the record's values through those bindings, and the coverage
-report groups by the values the world applied (`result.json`'s `knobs`). `testbench check` and
-`scensim-sample check` refuse a cell attribute that is neither a bound knob nor a parameter,
-so no cell can claim a condition the world never set (found in D7: a drawn `illumination`
-labelled the cell while the run stayed in daylight). The coverage report groups
+`scensim.cell_attributes` must be a bound knob, a declared scenario parameter, or a derived
+value (the record's `derived:`) whose expression reads only bound knobs, declared parameters
+and anchor geometry (`anchor.<name>.<attribute>`, section 2a, gap 7), so that it is computed
+from what the world applied: CS7's `glare` reads the applied sun angle and the exit lane's
+heading, not a drawn label. The sampler computes the record's cell from the record's values
+through those bindings, and the coverage report groups by the values the world applied
+(`result.json`'s `knobs`, and derived attributes recomputed from them). `testbench check` and
+`scensim-sample check` refuse any other cell attribute, and a derived one whose expression
+reads anything else (a latent variable, another derived value that does), so no cell can claim
+a condition the world never set (found in D7: a drawn `illumination` labelled the cell while
+the run stayed in daylight). The coverage report groups
 records by category and cell. The category ids follow the taxonomy
 ([survey-vehicle-risk-taxonomy.md](survey-vehicle-risk-taxonomy.md)) as `R<family>.<category>.<subtype>`.
 

@@ -50,6 +50,7 @@ class Compiled:
     yaw: torch.Tensor
     speed: torch.Tensor
     placed: torch.Tensor             # [N, E] bool: Init placed it
+    speed_set: torch.Tensor = None   # [N, E] bool: an Init SpeedAction set its speed
     verdict: object = None
     seeds: list = field(default_factory=list)
 
@@ -161,6 +162,7 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
     z = torch.zeros(n, e, dtype=torch.float64)
     x, y, yaw, speed = z.clone(), z.clone(), z.clone(), z.clone()
     placed = torch.zeros(n, e, dtype=torch.bool)
+    speed_set = torch.zeros(n, e, dtype=torch.bool)
 
     for pr in root.findall("Storyboard/Init/Actions/Private"):
         ref = pr.get("entityRef")
@@ -177,6 +179,7 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
                 placed[:, i] = True
             elif sp is not None:
                 speed[:, i] = P.floats(sp.get("value"), where + "/.../AbsoluteTargetSpeed")
+                speed_set[:, i] = True
             elif pa.find("ControllerAction") is not None:
                 continue   # the ego's pilot: the batch's policy (subset.check said so)
             else:
@@ -193,7 +196,7 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
     seeds = [(r.get("seeds") or {}).get("scenario") for r in records]
     to = (lambda t: t.to(device))
     return Compiled(str(spath), n, entities, params, to(x), to(y), to(yaw), to(speed),
-                    placed.to(device), v, seeds)
+                    placed.to(device), speed_set.to(device), v, seeds)
 
 
 def _position(pos, where, P, world, names, x, y, yaw, placed):

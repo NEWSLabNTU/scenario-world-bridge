@@ -708,6 +708,20 @@ def test_a_held_commit_is_refused_naming_the_holder_and_kept_by_prune(host, maps
     assert assets.prune(host["cache"], out=lambda s: None) != []   # free now: removed
 
 
+def test_a_fetch_that_adds_nothing_does_not_wait_for_a_holder(host, maps_hub):
+    """243: a fully cached (or host-copy) fetch reads only complete files; it must not wait an
+    hour behind another project's download of the same commit."""
+    import time
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    with assets.CommitLock(host["cache"], MAPS, commit, project="/elsewhere/holder"):
+        t = time.monotonic()
+        out = []
+        assets.fetch(p, out=out.append)
+        assert time.monotonic() - t < 5 and not any("waiting" in x for x in out)
+
+
 def test_a_store_that_adds_nothing_leaves_the_modes_alone(host, maps_hub):
     p = project(host["tmp"], MAP_PROJECT)
     assets.fetch(p, out=lambda s: None)

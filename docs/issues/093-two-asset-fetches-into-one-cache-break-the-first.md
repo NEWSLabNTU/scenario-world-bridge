@@ -49,16 +49,20 @@ Not reproduced deliberately.
 
 ## Fix
 
-A fetch now holds an exclusive `flock` on the commit it writes, for as long as it may write:
-`assets.CommitLock`, on `<cache>/locks/<repo>@<commit>.lock`. A second fetch of that commit
-waits, and says once who holds it:
+A fetch now takes an exclusive `flock` on a commit when it first writes a file into it, and
+holds it until it is done: `assets.CommitLock`, on `<cache>/locks/<repo>@<commit>.lock`. A
+second fetch that also has to write a file into that commit waits, and says once who holds it:
 
 ```
 jerry73204/carla-0.9.16-isaac-usd@38347e26ab35: waiting for pid 4711 (/home/u/proj, since 11:42:07), which is fetching it
 ```
 
-After an hour (`LOCK_WAIT`) it refuses, naming the holder. Once the first fetch is done, the
-second finds its files in place and downloads nothing. The kernel drops the lock when its
+After an hour (`LOCK_WAIT`) it refuses, naming the holder. Once it holds the lock it looks for
+each file again before downloading, so it does not fetch again what the first one added.
+
+A fetch that writes nothing takes no lock and never waits. This covers a host copy, a
+`lock_only` fetch, or a commit whose files are all cached: it reads only complete files, each
+renamed in whole (243's review). The kernel drops the lock when its
 process dies, so a killed fetch leaves nothing that blocks.
 
 `_Store` makes the tree writable only when it adds its first file, and seals it again on the
@@ -77,5 +81,11 @@ The test is `test_a_second_fetch_waits_for_the_first_and_never_seals_under_it`. 
 fetch a, from the Hub, paused after its first file, beside fetch b, through a host copy of the
 same commit, as in the report. Against the old code it fails with the reported `PermissionError`
 on a's next file. Against the new code b waits, then a finishes, the tree is sealed `0555`, and
-both projects are registered. Two more tests cover the refusal naming the holder, `prune`
-keeping a held commit, and a store that adds nothing.
+both projects are registered. Three more tests cover:
+
+- the refusal, naming the holder;
+- `prune` keeping a held commit;
+- a fetch that adds nothing finishing at once beside a holder, and leaving the modes alone.
+
+The same change fixes the hash-mismatch message, which printed `{want[:16]}` literally (a
+missing `f`).

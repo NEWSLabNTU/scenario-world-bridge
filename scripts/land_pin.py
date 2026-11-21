@@ -2,7 +2,7 @@
 """Move one of our repositories to a landed commit, and every pin that follows from it, in the order that
 keeps scripts/check_pins.py green on main (scripts/land_pin.sh runs this):
 
-    scripts/land_pin.sh [--dry-run] <repo> <sha> [<repo> <sha> ...] [-- note]
+    scripts/land_pin.sh [--dry-run] [--onto <branch> [--gated <sha>]] <repo> <sha> [<repo> <sha> ...] [-- note]
     scripts/land_pin.sh [--dry-run] <repo> <sha> [note]
 
 1. Each <sha> must already be on its <repo>'s origin/main (push and land it there first). Several targets land
@@ -24,6 +24,15 @@ keeps scripts/check_pins.py green on main (scripts/land_pin.sh runs this):
    components in dependency order, then this repository. A failed check pushes nothing; a component
    whose main moved meanwhile stops the push before this repository's pins, so main never names a
    partial cascade.
+
+5. --onto <branch>: this repository's pins go on origin/<branch> instead of origin/main, so a change here that
+   needs them (code using a component's new interface) lands with them, as one tip. The branch must be pushed
+   and fast-forward origin/main; the checkout may hold its commits. Since that lands code, not only pins, the
+   tip must have passed the full gate: --gated <sha> names a commit the gate passed on whose tree is the
+   tip's (the pin commit is made here, so the tip's own sha is new; its content is what was gated; refused
+   when the cascade makes new component commits, whose shas are new each run), or else
+   the command in LAND_PIN_GATE (a shell line, run in this checkout at the tip, with the components' new
+   commits in place) runs, and must exit 0. Without either it is refused. Nothing is pushed before that.
 
 Plain fast-forward pushes of rebased mains, never forced. --dry-run prints the cascade and touches
 nothing. LAND_PIN_TRAILER, when set, is appended to each commit message (the session's attribution).
@@ -56,6 +65,26 @@ def pin(repo_dir, rev, path):
     return out.split()[2] if out else None
 
 
+def options(argv):
+    """(argv without --onto/--gated, onto, gated); None when an option lacks its value or --gated comes
+    without --onto."""
+    argv, onto, gated = list(argv), None, None
+    for flag in ("--onto", "--gated"):
+        if flag in argv:
+            i = argv.index(flag)
+            if i + 1 >= len(argv) or argv[i + 1].startswith("-"):
+                return None
+            value = argv[i + 1]
+            del argv[i:i + 2]
+            if flag == "--onto":
+                onto = value
+            else:
+                gated = value
+    if gated and not onto:
+        return None
+    return argv, onto, gated
+
+
 def parse(argv):
     """(dry, [(repo, sha), ...], note) of the arguments; None when they make no landing."""
     dry = bool(argv) and argv[0] == "--dry-run"
@@ -76,10 +105,12 @@ def parse(argv):
 
 
 def main(argv):
-    parsed = parse(argv)
-    if parsed is None:
+    opts = options(argv)
+    parsed = opts and parse(opts[0])
+    if not parsed:
         print(__doc__, file=sys.stderr)
         return 2
+    _, onto, gated = opts
     dry, pairs, note = parsed
     trailer = "\n\n" + os.environ["LAND_PIN_TRAILER"] if os.environ.get("LAND_PIN_TRAILER") else ""
     src = ROOT / "src"
@@ -94,6 +125,19 @@ def main(argv):
         print(f"{ROOT} has local changes", file=sys.stderr)
         return 2
     base = "origin/main"  # this repository's pins are read from, and committed onto, its origin/main
+    if onto:  # or onto a pushed branch carrying code here that needs them (5)
+        base = f"origin/{onto}"
+        if not ok("rev-parse", "-q", "--verify", f"{base}^{{commit}}"):
+            print(f"no branch {onto} on origin (push it first)", file=sys.stderr)
+            return 2
+        if not ok("merge-base", "--is-ancestor", "origin/main", base):
+            print(f"{onto} does not fast-forward origin/main: rebase it onto origin/main and push it under a "
+                  "new name", file=sys.stderr)
+            return 2
+        if not gated and not os.environ.get("LAND_PIN_GATE"):
+            print(f"--onto lands code: give --gated <sha> (a commit the full gate passed on, with the tip's "
+                  "tree) or set LAND_PIN_GATE to the gate's command", file=sys.stderr)
+            return 2
     # A commit here that is not on origin/main would be left out of the landing, silently (the pins go on
     # origin/main): refuse it, in a dry run too, naming it
     ahead = git("log", "--format=%h %s", f"{base}..HEAD")
@@ -162,6 +206,11 @@ def main(argv):
             target[c] = None
         elif c not in targets:
             target[c] = git("rev-parse", "origin/main", cwd=src / c)
+    if gated and new:  # a new component commit gets a new sha each run: no earlier gate saw this tree
+        print("--gated cannot name this landing's content: the cascade makes new commits in "
+              + ", ".join(new) + ", whose shas no earlier gate saw; run the gate in this landing "
+              "(LAND_PIN_GATE), or land those components first", file=sys.stderr)
+        return 2
     short = lambda s: s[:7] if s else "(new)"  # noqa: E731
     for repo, full in targets.items():
         print(f"{repo} -> {short(full)} ({git('log', '-1', '--format=%s', full, cwd=src / repo)})")
@@ -194,6 +243,9 @@ def main(argv):
         cur = pin(ROOT, base, f"src/{c}")
         if cur != target[c]:
             print(f"== src/{c} {short(cur)} -> {short(target[c])}")
+    if onto:
+        print(f"== onto {onto} ({git('log', '-1', '--format=%h %s', base)}); gate: "
+              + (f"--gated {gated}" if gated else f"LAND_PIN_GATE ({os.environ['LAND_PIN_GATE']})"))
     if dry:
         print("dry run: nothing changed")
         return 0
@@ -203,15 +255,30 @@ def main(argv):
         git("checkout", "-q", target[c], cwd=src / c)
         git("add", f"src/{c}")
     if not git("diff", "--cached", "--name-only"):
-        subprocess.run([sys.executable, "scripts/check_pins.py"], cwd=ROOT, check=True)
-        print("pins already at " + ", ".join(f"{r} {short(f)}" for r, f in targets.items()))
-        return 0
-    names = ", ".join(f"{c} {short(target[c])}" for c in landing
-                      if pin(ROOT, base, f"src/{c}") != target[c])
-    git("commit", "-q", "-m", f"pins: {names}{' (' + note + ')' if note else ''}{trailer}")
+        if not onto:
+            subprocess.run([sys.executable, "scripts/check_pins.py"], cwd=ROOT, check=True)
+            print("pins already at " + ", ".join(f"{r} {short(f)}" for r, f in targets.items()))
+            return 0
+        print(f"pins already at their targets in {onto}: it lands as it is")  # its code still lands
+    else:
+        names = ", ".join(f"{c} {short(target[c])}" for c in landing
+                          if pin(ROOT, base, f"src/{c}") != target[c])
+        git("commit", "-q", "-m", f"pins: {names}{' (' + note + ')' if note else ''}{trailer}")
     if subprocess.run([sys.executable, "scripts/check_pins.py"], cwd=ROOT).returncode:
         print("check_pins failed: nothing pushed (the local commits stay for a look)", file=sys.stderr)
         return 1
+    if onto and gated:  # the gate passed on this content (5)
+        full = git("rev-parse", "-q", "--verify", f"{gated}^{{commit}}", check=False)
+        tree = git("rev-parse", "HEAD^{tree}")
+        if not full or git("rev-parse", f"{full}^{{tree}}") != tree:
+            print(f"--gated {gated} is not this tip's content (tree {tree[:12]}): gate the tip, or name the "
+                  "commit the gate passed on; nothing pushed", file=sys.stderr)
+            return 1
+    elif onto:
+        print(f"== gate: {os.environ['LAND_PIN_GATE']}")
+        if subprocess.run(os.environ["LAND_PIN_GATE"], shell=True, cwd=ROOT).returncode:
+            print("the gate failed: nothing pushed (the local commits stay for a look)", file=sys.stderr)
+            return 1
     for c in new:  # dependency order: a component's deps are on their remotes before it is
         r = subprocess.run(["git", "-C", str(src / c), "push", "-q", "origin", "main"])
         if r.returncode:

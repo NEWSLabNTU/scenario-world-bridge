@@ -247,3 +247,98 @@ def test_a_local_commit_here_is_refused_by_name_in_a_dry_run_too(world):
     git(world.super, "checkout", "-q", "--detach", "origin/main")
     r = world.land("--dry-run", "A", a2)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+# --- --onto: code here that needs the pins lands with them, as one tip (5) ---------------------------------
+
+def code_branch(world, name="feat"):
+    """A pushed branch of the superproject with a code commit on origin/main; checked out; its sha."""
+    s = world.super
+    git(s, "fetch", "-q", "origin")
+    git(s, "checkout", "-q", "-B", name, "origin/main")
+    (s / "code.txt").write_text("uses A's new interface\n")
+    git(s, "add", "code.txt")
+    git(s, "commit", "-q", "-m", "code that needs A 2")
+    git(s, "push", "-q", "origin", name)
+    return git(s, "rev-parse", "HEAD")
+
+
+def test_onto_lands_the_code_and_the_pins_as_one_tip(world, monkeypatch):
+    a2 = world.advance("A")
+    code = code_branch(world)
+    monkeypatch.setenv("LAND_PIN_GATE", "test -f code.txt")   # runs in the checkout, at the tip
+    r = world.land("--onto", "feat", "A", a2)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert world.remote_pin("A") == a2
+    tip = git(world.super, "rev-parse", "origin/main")
+    assert git(world.super, "rev-parse", "origin/main~1") == code   # the pins on top of the code
+    assert git(world.super, "show", "origin/main:code.txt") == "uses A's new interface"
+    assert git(world.super, "log", "--merges", "--oneline", "origin/main") == ""
+    assert tip != code and world.check_pins().returncode == 0
+
+
+def test_onto_without_a_gate_is_refused(world):
+    a2 = world.advance("A")
+    code_branch(world)
+    for args in (("--dry-run", "--onto", "feat", "A", a2), ("--onto", "feat", "A", a2)):
+        r = world.land(*args)
+        assert r.returncode == 2 and "--gated" in r.stderr and "LAND_PIN_GATE" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("A") == world.sha["A"]
+    r = world.land("--gated", "abc", "A", a2)                 # --gated alone means nothing
+    assert r.returncode == 2
+
+
+def test_onto_a_branch_behind_main_is_refused(world, monkeypatch):
+    a2 = world.advance("A")
+    code_branch(world)
+    other = world.work / "super2"
+    run("git", "clone", "-q", world.url("super"), str(other))
+    commit(other, "someone else lands first")
+    git(other, "push", "-q", "origin", "main")
+    monkeypatch.setenv("LAND_PIN_GATE", "true")
+    r = world.land("--onto", "feat", "A", a2)
+    assert r.returncode == 2 and "does not fast-forward origin/main" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("A") == world.sha["A"]
+
+
+def test_onto_a_failed_gate_pushes_nothing_and_gated_takes_the_tips_content(world, monkeypatch):
+    # E has no dependents: no cascade, so the tip's content is the same on a second run
+    e2 = world.advance("E")
+    code_branch(world)
+    monkeypatch.setenv("LAND_PIN_GATE", "false")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode == 1 and "the gate failed: nothing pushed" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("E") == world.sha["E"]
+    gated = git(world.super, "rev-parse", "HEAD")             # the tip the gate ran on, left for a look
+    monkeypatch.delenv("LAND_PIN_GATE")
+    git(world.super, "checkout", "-q", "feat")
+    # a commit with other content is not the tip's: refused, nothing pushed
+    r = world.land("--onto", "feat", "--gated", git(world.super, "rev-parse", "feat"), "E", e2)
+    assert r.returncode == 1 and "is not this tip's content" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("E") == world.sha["E"]
+    # the gated commit's tree is the new tip's (the pin commit is made anew: its sha may differ, or not,
+    # when made within the same second; the content is what counts)
+    git(world.super, "checkout", "-q", "feat")
+    r = world.land("--onto", "feat", "--gated", gated, "E", e2)
+    assert r.returncode == 0, r.stdout + r.stderr
+    tip = git(world.super, "rev-parse", "origin/main")
+    assert git(world.super, "rev-parse", f"{tip}^{{tree}}") == \
+        git(world.super, "rev-parse", f"{gated}^{{tree}}")
+
+
+def test_onto_gated_is_refused_when_the_cascade_makes_new_commits(world):
+    a2 = world.advance("A")                                   # A moves C, D and E: new commits each run
+    code_branch(world)
+    r = world.land("--onto", "feat", "--gated", "HEAD", "A", a2)
+    assert r.returncode == 2 and "the cascade makes new commits in C, D, E" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("A") == world.sha["A"]
+
+
+def test_onto_dry_run_names_the_branch_and_the_gate(world, monkeypatch):
+    a2 = world.advance("A")
+    code_branch(world)
+    monkeypatch.setenv("LAND_PIN_GATE", "just test")
+    r = world.land("--dry-run", "--onto", "feat", "A", a2)
+    assert r.returncode == 0 and "== onto feat" in r.stdout and "LAND_PIN_GATE (just test)" in r.stdout, \
+        r.stdout + r.stderr
+    assert "dry run: nothing changed" in r.stdout and world.remote_pin("A") == world.sha["A"]

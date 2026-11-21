@@ -121,7 +121,9 @@ class Checker(unittest.TestCase):
         self.assertEqual(check(rehash(r), bound=True), [])
 
 
-@unittest.skipIf(jsonschema is None, "jsonschema is not installed in this Python")
+@unittest.skipIf(jsonschema is None or not hasattr(jsonschema, "Draft202012Validator"),
+                 "jsonschema >= 4 (Draft202012Validator) is not installed in this Python, e.g. "
+                 "Ubuntu 22.04's python3-jsonschema 3.2; the hand checker's tests still run")
 class Schema(unittest.TestCase):
     def test_the_schema_is_valid_and_accepts_what_the_sampler_writes(self):
         schema = json.loads(SCHEMA.read_text())

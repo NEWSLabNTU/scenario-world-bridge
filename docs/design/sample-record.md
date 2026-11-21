@@ -7,7 +7,10 @@ It is the record of [ml-training-interface.md](ml-training-interface.md)'s C2 an
 `scensim-sample draw`) writes it; another tool may write or read it from this page alone.
 
 - **The schema** (JSON Schema, draft 2020-12) is
-  [sample-record-1.json](../../src/scensim_sampler/scensim_sampler/schema/sample-record-1.json).
+  [sample-record-1.json](../../src/scensim_sampler/scensim_sampler/schema/sample-record-1.json). Validating against
+  it with the `jsonschema` package needs jsonschema 4 or later, for draft 2020-12; Ubuntu
+  22.04's `python3-jsonschema` is 3.2, so the schema's own tests skip there, saying so. The
+  checker does not need it.
 - **The checker** is `scensim-sample check` (`scensim_sampler.check`). It applies the schema's
   rules and the ones a schema cannot state (section 3), and names every problem.
 

@@ -35,6 +35,14 @@ Two gaps, both in what land_pin assumed between building the landing and pushing
   at push time. The same day a landing by hand pushed an ungated commit, because a failed
   `git checkout` left another commit as HEAD; this rule makes that impossible here.
 
+- **A build's own lock changes are not changes.** colcon-cargo patches the ROS crates into
+  every Rust build, and cargo records the ones a crate does not use as `[[patch.unused]]`
+  entries in its `Cargo.lock`, so after any build `scensim_world_protocol`'s and
+  `scensim_carla_world`'s locks are modified. The checks above, and the clean-tree check at the
+  landing's start, ignore a `Cargo.lock` whose only change is added `[[patch.unused]]` entries
+  (found the same day, before the guards' first real landing: they would have refused every one).
+  Any other change to a lock still counts.
+
 A push can still be refused in the moment between that fetch and the push; land_pin keeps its
 earlier message for that, naming what was pushed so far. The window is now a few seconds, not
 the gate's length.

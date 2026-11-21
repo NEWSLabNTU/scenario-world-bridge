@@ -415,3 +415,42 @@ def test_a_head_moved_after_the_build_pushes_nothing(world, monkeypatch):
     r = world.land("--onto", "feat", "E", e2)
     assert r.returncode == 1, r.stdout + r.stderr
     assert world.remote_pin("E") == world.sha["E"]
+
+
+LOCK = '[[package]]\nname = "a"\nversion = "0.1.0"\n'
+UNUSED = '\n[[patch.unused]]\nname = "rcl_interfaces"\nversion = "0.0.0"\n'
+
+
+def lock_branch(world, name="feat"):
+    """code_branch with a tracked Cargo.lock in the superproject."""
+    s = world.super
+    git(s, "fetch", "-q", "origin")
+    git(s, "checkout", "-q", "-B", name, "origin/main")
+    (s / "code.txt").write_text("uses A's new interface\n")
+    (s / "Cargo.lock").write_text(LOCK)
+    git(s, "add", "code.txt", "Cargo.lock")
+    git(s, "commit", "-q", "-m", "code with a lock")
+    git(s, "push", "-q", "origin", name)
+
+
+def test_a_build_that_adds_unused_patches_to_a_lock_still_lands(world, monkeypatch):
+    """colcon-cargo's patches make every build append [[patch.unused]] to a Cargo.lock: a build's
+    own change, before or after the gate, not a change to what was tested."""
+    e2 = world.advance("E")
+    lock_branch(world)
+    (world.super / "Cargo.lock").write_text(LOCK + UNUSED)          # an earlier build's, before
+    extra = world.work / "unused.txt"
+    extra.write_text(UNUSED.replace("rcl_interfaces", "builtin_interfaces"))
+    monkeypatch.setenv("LAND_PIN_GATE", f"cat {extra} >> Cargo.lock")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert world.remote_pin("E") == e2
+
+
+def test_a_real_change_to_a_lock_during_the_gate_is_refused(world, monkeypatch):
+    e2 = world.advance("E")
+    lock_branch(world)
+    monkeypatch.setenv("LAND_PIN_GATE", "sed -i 's/0.1.0/0.2.0/' Cargo.lock")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode == 1 and "Cargo.lock" in r.stderr, r.stdout + r.stderr
+    assert world.remote_pin("E") == world.sha["E"]

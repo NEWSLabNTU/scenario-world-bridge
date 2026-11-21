@@ -1149,6 +1149,14 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         settings["global_timeout"] = spec.timeout
     sc_rel = _rel(project, spec.scenario)
     infra, events, run_events = [], [], []
+    clock_cfg = truthmod.settings(psettings, settings)
+    if clock_cfg["mode"] == "paced" and clock_cfg["rtf"] != 1.0:
+        # a suite, item or call that sets another factor under a paced clock: testbench check
+        # sees only the testbench's, so the run is refused here, before anything starts
+        infra.append(results.Infra(
+            "scenario", f"the clock is paced, which holds simulated time to wall time, but this "
+            f"run's ssv2.global_real_time_factor is {settings['global_real_time_factor']} "
+            f"(from its suite, item or call): it must be 1"))
 
     # the scenario's entities against the stack's pilots (refused before any run directory)
     try:
@@ -1446,7 +1454,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             infra.append(results.Infra("attachment", f"attachment {r.name} (required) {why}"))
     # the run's clock, from the truth file's wall stamps: recorded in either mode; a paced run
     # behind wall time by more than its budget is an error run (time-and-ticking.md)
-    cs = truthmod.settings(psettings)
+    cs = truthmod.settings(psettings, settings)   # the run's own real-time factor
     clock_block = None
     if ssv2 is not None:
         try:

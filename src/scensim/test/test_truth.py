@@ -134,3 +134,9 @@ def test_the_clock_settings_are_checked():
         ("clock.x", "unknown key (mode, max_lag_s)"),
         ("clock.mode", "is lockstep or paced, not 'fast'"),
         ("clock.max_lag_s", "is a positive number of seconds")]
+
+
+def test_the_runs_own_real_time_factor_wins_over_the_testbenchs():
+    ps = {"clock": {"mode": "paced", "max_lag_s": 0.05}, "ssv2": {"global_real_time_factor": 1}}
+    assert truth.settings(ps)["rtf"] == 1.0
+    assert truth.settings(ps, {"global_real_time_factor": 2.0})["rtf"] == 2.0

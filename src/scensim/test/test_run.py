@@ -1703,3 +1703,44 @@ def test_the_clock_is_recorded_and_a_paced_run_behind_its_budget_is_an_error(
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=10)
+
+
+@pytest.mark.parametrize("clock,verdict", [(None, "passed"), ("{mode: paced, max_lag_s: 0.05}", "error")])
+def test_a_suites_real_time_factor_is_the_clocks(where, maps_hub, monkeypatch, clock, verdict):
+    """A suite at global_real_time_factor 2: a lockstep run's lag is measured at 2 (a world
+    twice as fast as wall time is on time), and a paced testbench refuses the run."""
+    import gap_trace as gt
+    lines = [{"type": "episode", "schema": 2, "episode": 1, "start_unix": 0.0,
+              "npc_motion": "tracked", "map": "Town01", "step_time": 0.1}]
+    for k in range(4):   # 0.1 s of simulated time per frame, 50 ms of wall time apart
+        lines.append({"type": "frame", "frame": k + 1, "sim_time": 0.1 * (k + 1),
+                      "sim_time_ns": 10**12 + 10**8 * (k + 1), "wall_ns": 5 * 10**7 * k,
+                      "entities": {}})
+    lines.append({"type": "end", "frame": 4, "sim_time": 0.4, "frames": 4, "dropped_frames": 0,
+                  "complete": True})
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    monkeypatch.setattr(run.truthmod, "load",
+                        lambda run_dir: [gt.load_trace([json.dumps(x) for x in lines])])
+    d = make(where)
+    if clock:
+        tb = d / "testbench.yaml"
+        tb.write_text(tb.read_text() + f"clock: {clock}\n")
+    (d / "suites").mkdir(exist_ok=True)
+    (d / "suites" / "fast.yaml").write_text(
+        "scenarios: [scenarios/three_pilots.xosc]\nssv2: {global_real_time_factor: 2.0}\n")
+    p, proc = start_stack(d)
+    try:
+        run.main(["suites/fast.yaml", "--project", str(d)], out=io.StringIO())
+        run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+        res = json.loads((run_dir / "result.json").read_text())
+        assert res["verdict"] == verdict, res["reason"]
+        if verdict == "error":
+            assert res["error"]["kind"] == "scenario", res["error"]
+            assert "global_real_time_factor is 2.0" in res["reason"]
+        else:
+            ck = res["clock"]
+            assert ck["global_real_time_factor"] == 2.0
+            assert ck["lag_s"]["max"] == pytest.approx(0.0, abs=1e-9)
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)

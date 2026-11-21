@@ -181,6 +181,8 @@ class Core(unittest.TestCase):
         loop = ecu_batch.load_batch(Scalar, {}, {}, [1])
         with self.assertRaisesRegex(ecu_batch.BatchError, "has no batched form"):
             core.BatchRun(c, StraightWorld(), PointMass(1), loop)
+        run = core.BatchRun(c, StraightWorld(), PointMass(1), loop, allow_loop=True)
+        self.assertTrue(run.looped)
 
 
 if __name__ == "__main__":

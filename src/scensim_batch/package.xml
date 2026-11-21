@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>scensim_batch</name>
+  <version>0.1.0</version>
+  <description>
+    The batch executor (roadmap 092 K2): a scenario in the compilable subset, run over N slots
+    on tensors. Today: the batched default behaviour of SSv2's vehicles (torch), with no
+    simulator; the Isaac Lab environment follows.
+  </description>
+  <maintainer email="maintainer@example.com">Maintainer</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>python3-numpy</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

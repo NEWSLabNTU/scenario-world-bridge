@@ -79,6 +79,7 @@ def authored_maps(project, settings: dict) -> list:
 
 
 _SKIPPED = {}  # project -> why the map check did not run, for ``notes``
+_NOTES = {}    # project -> the map check's notes (refusing nothing: an unsourced friction, W14)
 
 
 def map_findings(project, settings: dict, host: dict, ws=None) -> list:
@@ -87,6 +88,7 @@ def map_findings(project, settings: dict, host: dict, ws=None) -> list:
     ``notes`` says the check was skipped and why."""
     project = Path(project)
     _SKIPPED.pop(str(project), None)
+    _NOTES.pop(str(project), None)
     maps = authored_maps(project, settings)
     if not maps:
         return []
@@ -127,13 +129,16 @@ def map_findings(project, settings: dict, host: dict, ws=None) -> list:
         for p in res.get("problems") or []:
             out.append(Finding(where, p, "fix the stage in Isaac's editor (design "
                                "roboracer-indoor-twin.md 3)", refused=True))
+        for n in res.get("notes") or []:
+            _NOTES.setdefault(str(project), []).append(f"{where}: {n}")
     return out
 
 
 def notes(project) -> list:
-    """Why the map check was skipped, when it was (after ``map_findings``)."""
+    """Why the map check was skipped, when it was, and its notes (after ``map_findings``):
+    an authored friction with no ``scensim:source`` (roadmap 091 W14), and the like."""
     why = _SKIPPED.get(str(Path(project)))
-    return [why] if why else []
+    return ([why] if why else []) + list(_NOTES.get(str(Path(project)), []))
 
 
 def provenance(project, rec: dict):

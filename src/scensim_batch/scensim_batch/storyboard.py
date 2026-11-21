@@ -45,7 +45,7 @@ IMPLEMENTED = frozenset("""
 AbsoluteTargetSpeed RelativeTargetSpeed SpeedAction TeleportAction
 LaneChangeAction AbsoluteTargetLane RelativeTargetLane
 AccelerationCondition CollisionCondition DistanceCondition ParameterCondition
-ReachPositionCondition RelativeDistanceCondition RelativeSpeedCondition
+ReachPositionCondition RelativeDistanceCondition RelativeSpeedCondition TimeHeadwayCondition
 SimulationTimeCondition SpeedCondition StandStillCondition StoryboardElementStateCondition
 WorldPosition LanePosition RelativeWorldPosition RelativeObjectPosition
 exitSuccess exitFailure :
@@ -934,6 +934,22 @@ class _Compiler:
                 ctx.col("x", e) - px, ctx.col("y", e) - py), tol, here)
         if tag in ("RelativeDistanceCondition", "DistanceCondition"):
             return self.distance(c, here, rule)
+        if tag == "TimeHeadwayCondition":
+            # SSv2's evaluateTimeHeadway(entityRef, triggering): the triggering entity in the
+            # reference's frame; behind it (x <= 0), -x over the triggering entity's speed (NaN,
+            # 0 / 0, as +inf); ahead, NaN. freespace and alongRoute are read and not used.
+            ref = i.index(c.get("entityRef"), here)
+            value = P.floats(c.get("value"), here + "@value")
+
+            def headway(ctx, e, ref=ref):
+                dx = ctx.col("x", e) - ctx.col("x", ref)
+                dy = ctx.col("y", e) - ctx.col("y", ref)
+                h = ctx.col("yaw", ref)
+                x = torch.cos(h) * dx + torch.sin(h) * dy
+                hw = (-x) / ctx.col("v", e)
+                hw = torch.where(torch.isnan(hw), torch.full_like(hw, math.inf), hw)
+                return torch.where(x <= 0, hw, torch.full_like(hw, math.nan))
+            return lambda ctx, e: compare(rule, headway(ctx, e), value, here)
         if tag == "CollisionCondition":
             return self.collision(c, here)
         raise _pending(here, tag)

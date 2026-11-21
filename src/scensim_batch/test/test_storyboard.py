@@ -579,6 +579,39 @@ class LaneChange(unittest.TestCase):
         self.assertEqual(v.refusals[0]["construct"], "LaneChangeAction on the ego")
 
 
+@unittest.skipIf(torch is None, "no torch or no sim_vehicle_ecu")
+class TimeHeadway(unittest.TestCase):
+    def test_ssv2s_headway_behind_the_reference_only(self):
+        """evaluateTimeHeadway(ref, e): e in ref's frame, -x / v_e when behind, NaN ahead."""
+        from scensim_batch import compile as C, core
+        cond = ('<StartTrigger><ConditionGroup><Condition name="h" delay="0" conditionEdge="none">'
+                '<ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef '
+                'entityRef="ego"/></TriggeringEntities><EntityCondition><TimeHeadwayCondition '
+                'entityRef="lead" value="1.5" freespace="true" alongRoute="true" rule="lessThan"/>'
+                '</EntityCondition></ByEntityCondition></Condition></ConditionGroup></StartTrigger>')
+        p = case(story(event("e", exit_("exitSuccess"), cond)))
+        recs = [{"values": {"ego_speed": 20.0}}, {"values": {"ego_speed": 5.0}}]
+        c = C.compile_scenario(p, recs, StraightWorld(), provides=NIGHT)
+        ego, lead = c.index("ego"), c.index("lead")
+        c.y[:, ego] = 3.5
+        run = core.BatchRun(c, StraightWorld(), PointMass(2), ecu_batch.load_batch(Accel, {}, {},
+                            [1, 1]), route_length=2000.0)
+        run.reset()
+        first = {}
+        for k in range(200):
+            obs = run.step(cmds(2, 0.0), DT)
+            for s, o in enumerate(run.outcome()):
+                if o == "success" and s not in first:
+                    gap = float(obs["x"][s, lead] - obs["x"][s, ego])
+                    first[s] = (gap, float(obs["v"][s, ego]))
+        # slot 0 (20 m/s) closes in: the first frame its headway is under 1.5 s, judged the
+        # tick before on the then-state; slot 1 (5 m/s) never gets that close
+        self.assertIn(0, first)
+        self.assertNotIn(1, first)
+        gap, v = first[0]
+        self.assertLess(gap / v, 1.5 + 0.2)
+
+
 class Rows(unittest.TestCase):
     """The checker (S2's table) and the executor never disagree silently (133): every batch
     row and batch command is either run by the executor or pending, never both, and the

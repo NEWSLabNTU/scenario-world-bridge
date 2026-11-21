@@ -440,15 +440,20 @@ sample:                                     # or a list of these
 A record's run is `<scenario>_s<index>_r0`. SSv2 gets the record's values as override
 parameters, derived values included. The seeds go where something reads a seed:
 
-- each `lifetime: run` pilot's `{seed}` is the record's seed for its entity;
+- each `lifetime: run` pilot's `{seed}` is the record's seed for its entity. A stack pilot was
+  started before the run, with the stack's seed, so the record's is not applied to it.
+  `result.json`'s `sample.pilot_seeds` gives the seed each pilot ran with, and `sample.unbound`
+  names each one not applied;
 - the scenario's seed is the parameter `scensim_seed`, when the scenario declares it;
 - the world's seed is recorded only. No world server takes one yet (issue 092).
 
 The run writes `sample.json`: the record bound to what ran it, with a new id.
 
 - **`world`** is `{name, hash}`. On Isaac the hash is the authored stage's (`stage:sha256:...`).
-  A CARLA town has no content hash, so the hash is `carla-<version>:<town>:lanelet2:sha256:...`,
-  from the map's lanelet2 file.
+  A CARLA town has no content hash, so the hash is `carla-<version>:<town>:map:sha256:...`. It is
+  a digest of the map directory's files the stack reads: `lanelet2_map.osm` and `carla/**`, as
+  sorted `relpath sha256` lines. The `carla/` part (traffic lights, say) changes the world without
+  touching the lanelet.
 - **`car`** is the ego's vehicle and its `spec_hash`. When the stack names no spec_hash, there
   is no `car`, and `result.json`'s `sample.unbound` says so.
 
@@ -471,7 +476,9 @@ original by record and compares their outcomes:
 - the end: SSv2's JUnit failure or error, else the first collision, `stuck`, `route_complete` or
   `stack.error` event, else success.
 
-It prints the pairs, what differs, and the share that agree; `--json` also writes them.
+It prints the pairs, what differs, and the share that agree; `--json` also writes them. A pair
+where either run has a pilot that did not get the record's seed is marked "seeds not applied":
+its two runs are not the same sample, so a difference there is not a fidelity gap.
 
 ### Run settings
 

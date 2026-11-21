@@ -1387,6 +1387,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         bound, notes = sampledmod.bind(spec.sample, rec, prov, pilots)
         (run_dir / sampledmod.RECORD_FILE).write_text(json.dumps(bound, indent=2) + "\n")
         sample_block = sampledmod.summary(spec.sample, bound)
+        applied, seed_notes = sampledmod.applied_seeds(spec.sample, pilots)
+        sample_block["pilot_seeds"] = applied   # what each pilot ran with
+        notes += seed_notes
         if notes:
             sample_block["unbound"] = notes
         if spec.replay_of is not None:

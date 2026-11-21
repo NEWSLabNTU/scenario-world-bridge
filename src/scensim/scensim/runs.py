@@ -574,12 +574,16 @@ def cmd_fidelity(args, out):
     rows = [[p["record"][:12], p["original"], p["replay"],
              "{verdict}/{contact}/{end}".format(**p["original_outcome"]),
              "{verdict}/{contact}/{end}".format(**p["replay_outcome"]),
-             ",".join(p["differs"]) or "same"] for p in rep["pairs"]]
+             (",".join(p["differs"]) or "same")
+             + (" (seeds not applied)" if p["seeds_not_applied"] else "")] for p in rep["pairs"]]
     table([["record", "original", "replay", "original (verdict/contact/end)", "replay",
             "differs"]] + rows, out)
     share = "n/a" if rep["share"] is None else f"{rep['share']:.2f}"
     out.write(f"fidelity: {rep['agree']} of {rep['total']} replays reached the original's "
               f"outcome ({share})\n")
+    if rep["with_seeds_not_applied"]:
+        out.write(f"{rep['with_seeds_not_applied']} pair(s) ran a pilot without the record's seed "
+                  f"(a stack pilot): their runs are not the same sample\n")
     for k in rep["unpaired_replays"]:
         out.write(f"unpaired: a replay of {k[:12]} whose original is not among these runs\n")
     if args.json:

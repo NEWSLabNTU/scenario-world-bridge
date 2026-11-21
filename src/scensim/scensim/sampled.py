@@ -79,8 +79,11 @@ def draw(value, resolve, where):
             batch = sampler.draw(n=s.get("n"), seed=s.get("seed"))
         except (ss.SpecError, ss.SamplingError, ValueError) as e:
             raise SampleRefused(f"{at}: {e}") from None
-        for r in batch.records:   # the sampler names the scenario as it found it, from dist
-            out.append((r, Path(r["scenario"]["path"]).resolve()))
+        for r in batch.records:
+            # the sampler names the scenario as it opened it, dist.parent / ScenarioFile, so
+            # absolute here (dist is); a relative one is the distribution's, not the cwd's
+            sc = Path(r["scenario"]["path"])
+            out.append((r, (sc if sc.is_absolute() else dist.parent / sc).resolve()))
     return out
 
 
@@ -115,10 +118,25 @@ def _file_sha256(p: Path):
     return h.hexdigest()
 
 
+def map_digest(map_dir: Path):
+    """sha256 over the map directory's files the stack reads (lanelet2_map.osm and carla/**):
+    each `relpath sha256` line, sorted. The carla/ part changes the world without touching the
+    lanelet (traffic_lights.yaml: issue 073's junction 861), so it counts. None without a
+    lanelet2 file."""
+    map_dir = Path(map_dir)
+    if not (map_dir / "lanelet2_map.osm").is_file():
+        return None
+    files = [map_dir / "lanelet2_map.osm"]
+    if (map_dir / "carla").is_dir():
+        files += [f for f in (map_dir / "carla").rglob("*") if f.is_file()]
+    lines = sorted(f"{f.relative_to(map_dir).as_posix()} {_file_sha256(f)}" for f in files)
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
+
+
 def world_of(rec: dict, prov: dict):
     """`{name, hash}` of the world a run used. Isaac: the authored stage's record (091 W15).
-    CARLA: a town has no content hash, so its map's lanelet2 file stands for it, with the
-    simulator's version."""
+    CARLA: a town has no content hash, so the map directory's digest (map_digest) stands for
+    it, with the simulator's version."""
     name = str(rec.get("map") or "")
     stage = (prov or {}).get("stage") or {}
     if isinstance(stage, dict) and isinstance(stage.get("sha256"), str):
@@ -126,13 +144,11 @@ def world_of(rec: dict, prov: dict):
                 "hash": f"stage:sha256:{stage['sha256']}"}
     sim = str(rec.get("simulator") or "unknown")
     version = ((prov or {}).get("carla") or {}).get("version")
-    lanelet = None
     mp = rec.get("map_path")
-    if mp and (Path(mp) / "lanelet2_map.osm").is_file():
-        lanelet = _file_sha256(Path(mp) / "lanelet2_map.osm")
+    digest = map_digest(mp) if mp else None
     tag = f"{sim}-{version}" if version else sim
     return {"name": name or "unknown",
-            "hash": f"{tag}:{name}:" + (f"lanelet2:sha256:{lanelet}" if lanelet else "unhashed")}
+            "hash": f"{tag}:{name}:" + (f"map:sha256:{digest}" if digest else "unhashed")}
 
 
 def car_of(rec: dict, pilots):
@@ -146,9 +162,29 @@ def car_of(rec: dict, pilots):
     return {"name": ego["vehicle"], "spec_hash": h}
 
 
+def applied_seeds(record, pilots):
+    """`({entity: seed}, notes)`: the seed each pilot ran with. A `lifetime: run` pilot gets
+    the record's; a stack pilot was started before the run, with the stack's seed (0 unless
+    its spec gives one), and the record's for it is not applied."""
+    want = (record.get("seeds") or {}).get("pilots") or {}
+    out, notes = {}, []
+    for p in pilots:
+        e = p.get("entity")
+        if p.get("lifetime") == "run":
+            out[e] = want.get(e)
+            continue
+        have = p.get("seed", 0)
+        out[e] = have
+        if e in want and want[e] != have:
+            notes.append(f"pilot {e}: a stack pilot, its seed {want[e]} not applied; it ran "
+                         f"with the stack's ({have})")
+    return out, notes
+
+
 def bind(record, rec, prov, pilots):
     """`(bound record, notes)`: the record with world and car filled and its id recomputed;
-    notes say what could not be bound."""
+    notes say what could not be bound. The record keeps the seeds drawn (what a replay asks
+    for); which reached the pilots is applied_seeds'."""
     ss, _ = _sampler()
     out = {k: v for k, v in record.items() if k not in ("id", "world", "car")}
     notes = []
@@ -275,6 +311,14 @@ def _key(run_dir: Path):
     return (rep.get("of") or s.get("drawn_id")), bool(rep)
 
 
+def _unapplied(run_dir):
+    try:
+        r = json.loads((Path(run_dir) / "result.json").read_text())
+    except (OSError, ValueError):
+        return []
+    return [n for n in (r.get("sample") or {}).get("unbound") or [] if n.startswith("pilot ")]
+
+
 def fidelity(dirs):
     """Pair each original with its replays by record and compare outcomes. Returns
     `{pairs: [...], agree, total, share}`."""
@@ -291,9 +335,14 @@ def fidelity(dirs):
             for rd in reps:
                 b = outcome(rd)
                 diff = [f for f in ("verdict", "contact", "end") if a[f] != b[f]]
+                # a seed the record names that did not reach a pilot: the two runs are not
+                # the same sample, so a difference is not a fidelity gap
+                unapplied = _unapplied(o) + _unapplied(rd)
                 pairs.append({"record": k, "original": Path(o).name, "replay": Path(rd).name,
-                              "original_outcome": a, "replay_outcome": b, "differs": diff})
+                              "original_outcome": a, "replay_outcome": b, "differs": diff,
+                              "seeds_not_applied": unapplied})
     agree = sum(not p["differs"] for p in pairs)
     return {"pairs": pairs, "agree": agree, "total": len(pairs),
+            "with_seeds_not_applied": sum(bool(p["seeds_not_applied"]) for p in pairs),
             "share": (agree / len(pairs)) if pairs else None,
             "unpaired_replays": sorted(k for k in replays if k not in originals)}

@@ -131,6 +131,15 @@ def test_a_scenario_without_a_category_is_refused_by_the_sampler(where, maps_hub
         run.expand(suite(d, n=1, seed=1), d)
 
 
+def test_a_stack_pilots_seed_is_named_as_not_applied():
+    rec = {"seeds": {"pilots": {"ego": 5, "follower": 6}}}
+    pilots = [{"entity": "ego", "lifetime": "stack"}, {"entity": "follower", "lifetime": "run"}]
+    applied, notes = sampled.applied_seeds(rec, pilots)
+    assert applied == {"ego": 0, "follower": 6}
+    assert notes == ["pilot ego: a stack pilot, its seed 5 not applied; it ran with the "
+                     "stack's (0)"]
+
+
 def test_pilot_seed_is_the_records_for_its_entity():
     rec = {"seeds": {"pilots": {"follower": 77}}}
     assert sampled.pilot_seed(rec, "follower", 5) == 77
@@ -138,12 +147,17 @@ def test_pilot_seed_is_the_records_for_its_entity():
     assert sampled.pilot_seed(None, "follower", 5) == 5
 
 
-def test_world_of_a_carla_town_hashes_its_lanelet2_map(tmp_path):
+def test_world_of_a_carla_town_hashes_its_map_directory(tmp_path):
     (tmp_path / "lanelet2_map.osm").write_text("<osm/>")
-    w = sampled.world_of({"simulator": "carla", "map": "Town01", "map_path": str(tmp_path)},
-                         {"carla": {"version": "0.9.16"}})
+    (tmp_path / "carla").mkdir()
+    (tmp_path / "carla" / "traffic_lights.yaml").write_text("861: green\n")
+    rec = {"simulator": "carla", "map": "Town01", "map_path": str(tmp_path)}
+    w = sampled.world_of(rec, {"carla": {"version": "0.9.16"}})
     assert w["name"] == "Town01"
-    assert w["hash"].startswith("carla-0.9.16:Town01:lanelet2:sha256:")
+    assert w["hash"].startswith("carla-0.9.16:Town01:map:sha256:")
+    # the carla/ part changes the world without touching the lanelet
+    (tmp_path / "carla" / "traffic_lights.yaml").write_text("861: red\n")
+    assert sampled.world_of(rec, {"carla": {"version": "0.9.16"}})["hash"] != w["hash"]
     w = sampled.world_of({"simulator": "isaac", "map": "haruna"},
                          {"stage": {"root": "haruna", "sha256": "ab" * 32}})
     assert w == {"name": "haruna", "hash": "stage:sha256:" + "ab" * 32}

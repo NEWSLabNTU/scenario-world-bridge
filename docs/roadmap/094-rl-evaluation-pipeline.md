@@ -51,6 +51,28 @@ Fairness rules, for every comparison:
   (geometry, mass, wheels, actuators), and any value stock lacks is named, not invented;
 - runs alternated between sides, not all of one then all of the other.
 
+### An exclusive GPU (found 2026-11-21, 241)
+
+A benchmark needs a GPU no other process is using. Idle CPUs are not enough. On 241, another
+user's training job held GPU0 at 100 %. A one-element kernel plus a device synchronisation
+then took 2.32 ms at the median, against 0.008 ms on a free GPU, because every synchronising
+call waits for the other context's time slice. Isaac Lab's articulation step makes several
+synchronising tensor calls per physics substep: the actuators' `set_dof_actuation_forces`,
+`set_dof_position_targets` and `set_dof_velocity_targets`, the joint-state reads, and the
+events' root writes. Probed at 256 envs, these took 2.3 to 4.6 ms each, `sim.step` 13 ms and
+`env.step` 155 ms. The drift task ran at about 180 ms per env step, flat from 64 to 1024 envs
+(about 310 samples/s at 64), roughly 100 times slower than it should. On the same GPU at the
+same time, Isaac Lab's Cartpole (`Isaac-Cartpole-Direct`, `scripts/benchmarks/training.py`)
+still made 86,374 samples/s at 4096 envs, because it makes few such calls. py-spy put 74 % of
+the drift run in `env.step`, 38 % in the actuator setters alone. The physics was on the GPU
+throughout: `sim.device` cuda:0, PhysX, warp arrays on cuda:0.
+
+So the harness's launcher (`wheeledlab_bench.launch`) probes the kernel-plus-sync latency
+before a run, and refuses above 0.05 ms unless `--allow-shared` is given, which marks the run
+as a smoke. It records the probe in the run's settings and, every few iterations, in the CSV
+(`sync_p50_ms`), beside the host's load and the GPU's other processes. The probe can pass on
+a GPU whose other user is busy only in bursts, so a measurement also gives `--require-idle`.
+
 ## Measures
 
 The same on both sides, from one harness (P0):
@@ -69,12 +91,39 @@ The same on both sides, from one harness (P0):
 
 Every number names its hardware, driver, releases and seeds.
 
+### P1's pass bar (scensim's, fixed before training)
+
+The paper (arXiv 2502.07380v2, CoRL 2025) reports no result in simulation: no learning
+curve, seed count or spread for the drift task. Its numbers are the real car's: controlled
+slip up to 58 deg, about 1.6 m/s on average, and full laps without spinning out, trained with
+1024 envs for 5000 epochs on one RTX 3080. The bar below is therefore ours, set from those
+numbers. `bench/p1/eval_drift.py` in the fork computes it.
+
+A trained checkpoint runs deterministically for 30 s of sim time in 32 envs, on the run's
+own training env config with the out-of-bounds termination (and its reward term) off.
+Upstream's play config is not used, because its reset term passes `dist_noise`, which the
+reset function does not take, so it does not build. Per env, the script measures:
+
+- laps: the unwrapped angle of the car about the oval's centre, over 2 pi;
+- off track: the task's own termination test, at any step;
+- spin-out: slip above 100 deg or travel clockwise along the track, for 0.5 s, above
+  0.5 m/s;
+- peak controlled slip: while on track, not spun out, moving counter-clockwise with v_x above
+  0.5 m/s;
+- mean speed.
+
+A seed passes when at least 90 % of envs complete 3 laps with neither off-track nor spin-out,
+the median peak controlled slip is at least 40 deg, and the mean speed is at least 1.2 m/s.
+P1 passes when at least 4 of 5 seeds pass. The learning-efficiency threshold is the first
+evaluated iteration at which a seed passes. The checkpoint for the record is one trained on
+Isaac Lab 3.0.0 and Isaac Sim 6.2.
+
 ## Steps
 
 | Step | What | Owner | Status |
 |---|---|---|---|
-| P0 | The measurement harness: stage timers around the environment step and the runner's phases, GPU memory, and the learning curve, written to one CSV schema; applied unchanged to stock and to ours. Its own overhead measured and reported | 241 | open |
-| P1 | Stock: the MuSHR drift task (rsl_rl PPO, 1024 environments, the paper's headline task), ported (the NEWSLabNTU fork, branch `isaaclab-3.0`, upstream's base commit named), trained to its published result over 5 seeds; the pass bar fixed from the paper before training. F1TENTH drift afterwards as an extra | 241 | open |
+| P0 | The measurement harness: stage timers around the environment step and the runner's phases, GPU memory, and the learning curve, written to one CSV schema; applied unchanged to stock and to ours. Its own overhead measured and reported | 241 | in progress: `bench/wheeledlab_bench` on the fork's `isaaclab-3.0` (7ea2873), a pip package with no WheeledLab import; hooks Isaac Lab's manager-based env and rsl_rl's PPO by class; refuses a time-sliced GPU. Overhead not yet measured on an exclusive GPU |
+| P1 | Stock: the MuSHR drift task (rsl_rl PPO, 1024 environments, the paper's headline task), ported (the NEWSLabNTU fork, branch `isaaclab-3.0`, upstream's base commit named), trained to its published result over 5 seeds; the pass bar fixed from the paper before training. F1TENTH drift afterwards as an extra | 241 | in progress: ported on upstream a5017ce (5a6861c, c98aa20), trains on Isaac Lab 3.0.0 / Isaac Sim 6.2; `WHEELEDLAB_ENABLE_CAMERAS=0` measures it without upstream's forced cameras (c3f286b); pass bar above. Seeds and sweep wait for an exclusive GPU |
 | P2 | Ours, the same task: a MuSHR spec from stock's asset, the field, the drift episode as a compiled scenario with sampled starts, the control component, truth, through K2's environment; stock's rewards and PPO settings. Trained over 5 seeds | | open |
 | P3 | The comparison: throughput by stage, learning efficiency and cross-evaluation, stock (ported) and ours, with every difference in cost explained by stage | | open |
 | P4 | A driving task from the case studies (for example the lead car braking, or a walker crossing) on Town01's Isaac stage, with a CaRL-style reward and the other road users on the batched behaviour. Its stock side is a hand-written Isaac Lab environment of the same task, in Isaac Lab's own style; both measured as in P3 | | open |

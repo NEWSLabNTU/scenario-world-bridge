@@ -238,7 +238,17 @@ It needs no simulator. Its layers are those of
    - **Unweighted:** a Wilson interval. With no failures, its upper end is the bound, close to
      the rule of three.
    - **Drawn from a proposal:** the self-normalised estimate from the log weights (section 5),
-     with a Wilson interval on the effective count `(Σw)² / Σw²`, marked approximate.
+     with the delta-method interval `p ± 1.96 sqrt(Σ w²(f − p)²) / Σw`, marked approximate.
+     **It can under-cover.** On a rare-event test (the N(0, 1) tail beyond 2, p = 0.023, drawn
+     from N(2, 1)) its 95 % interval covered the truth about 89 % of the time at 50 to 1000
+     draws, and 93.5 % at 5000: the estimate is biased high by O(1/n) and its standard error is
+     low at small n. It is the estimator's real spread, though. A Wilson interval on Kish's
+     effective count `(Σw)² / Σw²` was about 8 times wider and always covered, because that
+     count assumes the weights are unrelated to failure, and a proposal aimed at failures makes
+     them strongly related. The effective count stays in the report as a diagnostic. With no
+     failures the delta variance is 0, so the interval falls back to a Wilson bound on the
+     effective count, which is conservative; the report names the method it used
+     (`interval_method`).
    - **Mixed:** a cell that mixes weighted and unweighted runs, or several proposals or bases,
      gets no rate, and says why. They are not blended.
 

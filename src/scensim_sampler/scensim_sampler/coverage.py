@@ -180,10 +180,21 @@ def _rate(rows, failure):
     lw = [float(r["log_weight"]) for r, _ in rows]
     top = max(lw)
     w = [math.exp(x - top) for x in lw]   # in log space: a small weight does not underflow
+    f = [1.0 if _failed(o, failure) else 0.0 for _, o in rows]
     sw, sw2 = sum(w), sum(x * x for x in w)
-    p = sum(wi for wi, (_, o) in zip(w, rows) if _failed(o, failure)) / sw
-    n_eff = sw * sw / sw2
-    return {"n": n, "failures": k, "rate": p, "interval": wilson(p * n_eff, n_eff),
+    p = sum(wi * fi for wi, fi in zip(w, f)) / sw
+    n_eff = sw * sw / sw2   # Kish: a diagnostic of the weights, not the interval's count
+    if k == 0:
+        # nothing seen: the delta variance is 0; Wilson on n_eff, conservative, as the bound
+        interval, method = wilson(0.0, n_eff), "wilson-kish (no failures: an upper bound)"
+    else:
+        # the delta-method variance of the self-normalised estimate, sum w^2 (f-p)^2 / (sum w)^2:
+        # the estimator's real spread (Kish's n_eff ignores that a rare-event proposal ties w to
+        # f, and gave intervals ~8x too wide; 243). It can under-cover at small n: measured
+        # 0.89-0.93 for 50-5000 draws on an N(0,1) tail from N(2,1) (sample-record.md, 8)
+        se = math.sqrt(sum(wi * wi * (fi - p) ** 2 for wi, fi in zip(w, f))) / sw
+        interval, method = (max(0.0, p - Z * se), min(1.0, p + Z * se)), "delta (normal)"
+    return {"n": n, "failures": k, "rate": p, "interval": interval, "interval_method": method,
             "weighted": True, "n_eff": n_eff,
             "proposal": next(iter(props))[0], "approximate": True}
 

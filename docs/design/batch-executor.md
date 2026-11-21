@@ -135,3 +135,38 @@ install without changing it.
 - **Running it** needs `OMNI_KIT_ACCEPT_EULA=YES` and the NVIDIA Vulkan ICD, as aib's
   `isaac_env.sh` sets for the same install.
 
+## 5. The engine backends (K2.2): A, the PhysX vehicle; B, an articulation car
+
+Two backends behind core.BatchRun's contract, named, not hidden (133, C):
+
+- **A, `physx_vehicle`**: N copies of aib's PhysX vehicle, the same car, tire model and
+  physics as seats (aib's `Vehicle.actuate`: the actuation from a component stepped outside
+  it). It is K2.4's agreement path: a batch run on it can be checked against a seats run.
+  Isaac Sim 6.1's physics tensor API has no vehicle view (articulation, rigid-body, deformable
+  and contact views only), so its writes and wheel-state reads are per car: `vectorised =
+  False`, and a throughput bench refuses it.
+- **B, an articulation car**: a body of the spec (roadmap 083 `bodies:`, `isaaclab-articulation`,
+  from `effective(spec, body)`), wheels as joints, stepped as tensors. Its tyre and contact model
+  differ from PhysX's vehicle one, so its gap to A is a named body difference. It is the
+  throughput path (K2.5), and the side comparable with WheeledLab (094), which also drives an
+  articulation car; A is what seats fidelity costs.
+
+**A measured** (139, 2026-11-21; contended: other users' jobs held the GPU at 96-98 % and 12.3
+GB, so the timings are an upper bound, to measure again in a clean window). The smoke
+(`scripts/smoke_physx_vehicle.py`): N cars on a ground plane, 150 N m on each wheel, 4 s at
+240 Hz.
+
+| N | pass | ms per step | per car | of it: actuate | PhysX step | sample |
+|---|---|---|---|---|---|---|
+| 1 | yes | 1.4 | 1381 µs | | | |
+| 4 | yes | 4.6 | 1156 µs | | | |
+| 16 | yes | 9.8 (10.4) | 612 (609) µs | 51 | 143 | 414 |
+| 64 | yes | 38.1 | 596 (593) µs | 51 | 139 | 403 |
+
+Pass means every car moved as one: the same distance to 0.08 mm (float32 at the grid's
+offsets) and the same speed (3.267 m/s). Peak GPU memory, every user's: 15.4 GB of 32.
+Reading the cars back (`Vehicle.sample`: a pose and a tensor-view velocity per car, four wheel
+states) is two thirds of the cost. A rigid-body view over all the cars would batch the pose
+and velocity; the wheel states stay per car. At about 0.6 ms per car, A is for agreement at
+small N (K2.4), not for training.
+

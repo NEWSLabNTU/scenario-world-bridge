@@ -65,9 +65,11 @@ Two differences are by construction:
 - **The front entity's box is projected per corner** onto the path, where SSv2 measures the
   box's distance to the spline by bisection. They agree for boxes aligned with the lane.
 
-Not ported yet, so a route with them is refused by the compile step: traffic lights and stop
-lines, crossing and conflicting entities, yield and right of way, lane changes, moving
-backward, and trajectories. Each is a later row.
+Not ported yet: the tree's StopAtTrafficLight, StopAtStopLine, StopAtCrossingEntity, Yield and
+MoveBackward, FollowLane's right-of-way check, LaneChange and FollowPolylineTrajectory. The
+compile step refuses a scenario whose default-behaviour vehicles would need one of them (a
+route over a stop line or an active signal, a crossing, a lane change): these are the gaps,
+each a later row.
 
 SSv2's planner exceeds its own jerk limit on arrival: it caps the acceleration at
 (target − v)/dt, so the step that reaches the target drops the acceleration at once (45 m/s³

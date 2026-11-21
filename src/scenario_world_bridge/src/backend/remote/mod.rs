@@ -1603,8 +1603,19 @@ impl SimBackend for RemoteBackend {
             NpcMotion::Tracked => "tracked",
             NpcMotion::Kinematic => "kinematic",
         };
-        self.gap_trace
-            .begin_episode(self.episode, motion, contact_report::now_unix());
+        // The map's name: its directory's (SSv2's map path is `<map dir>/lanelet2_map.osm`).
+        let map_name = Path::new(&episode.lanelet2_map_path)
+            .parent()
+            .and_then(|d| d.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.gap_trace.begin_episode(
+            self.episode,
+            motion,
+            contact_report::now_unix(),
+            &map_name,
+            episode.step_time,
+        );
         tracing::info!(
             "Initialized on {} (step {} s = {} physics step(s) of {:.6} s)",
             self.sim(),
@@ -1657,17 +1668,19 @@ impl SimBackend for RemoteBackend {
         self.sim_time = step.sim_time;
         self.server_frame = step.frame;
         let origin = self.map_origin;
-        let mut trace_states: BTreeMap<u32, (gap_trace::Pose6, Option<[f64; 3]>)> = BTreeMap::new();
+        // Per handle: the pose, and the world server's velocity (linear, angular) when it sent it.
+        type Measured = Option<([f64; 3], [f64; 3])>;
+        let mut trace_states: BTreeMap<u32, (gap_trace::Pose6, Measured)> = BTreeMap::new();
         for state in &step.states {
             let Some(pose) = state.pose.as_ref() else {
                 continue;
             };
             let now = state_pose6(pose, origin);
-            let velocity = state
-                .twist
-                .as_ref()
-                .and_then(|t| t.linear)
-                .map(|v| [v.x, v.y, v.z]);
+            let velocity = state.twist.as_ref().and_then(|t| {
+                let l = t.linear?;
+                let a = t.angular.unwrap_or_default();
+                Some(([l.x, l.y, l.z], [a.x, a.y, a.z]))
+            });
             trace_states.insert(state.handle, (now, velocity));
             let Some(name) = self.names.get(&state.handle) else {
                 continue;
@@ -1690,21 +1703,39 @@ impl SimBackend for RemoteBackend {
             entity.pose = to_map(pose, origin);
             entity.pose6 = now;
             if let (Some(t), Some(v)) = (entity.tracked.as_mut(), velocity) {
-                t.velocity = v;
+                t.velocity = v.0;
             }
         }
         self.record_contacts(&step.contacts);
         if self.gap_trace.recording() {
-            let by_id: BTreeMap<u32, (gap_trace::Pose6, [f64; 3])> = self
+            let by_id: BTreeMap<u32, gap_trace::SimState> = self
                 .entities
                 .values()
                 .filter_map(|e| {
-                    let (p, v) = trace_states.get(&e.handle)?;
-                    Some((e.sim_id, (*p, v.unwrap_or(e.motion.velocity))))
+                    let (pose, measured) = trace_states.get(&e.handle)?;
+                    let (velocity, angular_velocity) =
+                        measured.unwrap_or((e.motion.velocity, [0.0, 0.0, e.motion.yaw_rate]));
+                    Some((
+                        e.sim_id,
+                        gap_trace::SimState {
+                            pose: *pose,
+                            velocity,
+                            angular_velocity,
+                            measured: measured.is_some(),
+                        },
+                    ))
                 })
                 .collect();
+            // The time SSv2 is told (below): the server's, else the bridge's own.
+            let sim_time_ns = Some(if step.sim_time_ns != 0 {
+                step.sim_time_ns
+            } else {
+                (self.sim_time * 1e9).round() as i64
+            });
             self.gap_trace
-                .emit_staged_at(self.frame, Some(step.frame), |id| by_id.get(&id).copied());
+                .emit_staged_at(self.frame, Some(step.frame), sim_time_ns, |id| {
+                    by_id.get(&id).copied()
+                });
         }
         Ok(if step.sim_time_ns != 0 {
             step.sim_time_ns
@@ -1894,7 +1925,7 @@ impl SimBackend for RemoteBackend {
             wire::request::Request::Spawn(wire::Spawn {
                 name: name.clone(),
                 kind: kind as i32,
-                subtype,
+                subtype: subtype.clone(),
                 box_center: v3(center),
                 box_dimensions: v3(dims),
                 pose: Some(to_world(&pose, self.map_origin)),
@@ -1983,18 +2014,30 @@ impl SimBackend for RemoteBackend {
                 [v.x, v.y, v.z]
             };
             let offset = vec(body.origin_offset);
+            let role = if entity_type == EntityType::Ego {
+                gap_trace::Role::Ego
+            } else if agent {
+                gap_trace::Role::Agent
+            } else if autopilot {
+                gap_trace::Role::Autopilot
+            } else {
+                gap_trace::Role::Scenario
+            };
             self.gap_trace.entity(gap_trace::EntityHeader {
                 frame: self.frame,
                 name: name.clone(),
+                index: 0, // the recorder assigns it
+                role,
                 kind: trace_kind(entity_type),
+                subtype: subtype.clone(),
                 declared: gap_trace::DeclaredBox {
                     center: vec(body.declared_center),
                     dimensions: vec(body.declared_dimensions),
                 },
                 origin_offset: [offset[0], offset[1], body.origin_yaw],
-                actor_id: sim_id,
-                blueprint: body.model.clone(),
-                blueprint_box: body.has_box.then(|| gap_trace::BlueprintBox {
+                sim_id,
+                asset: body.model.clone(),
+                asset_box: body.has_box.then(|| gap_trace::AssetBox {
                     location: vec(body.box_location),
                     extent: vec(body.box_extent),
                 }),
@@ -2263,7 +2306,7 @@ impl SimBackend for RemoteBackend {
             if let (Some(pose), Some(entity)) = (reported.pose.as_ref(), self.entities.get(&name)) {
                 staged.push(gap_trace::StagedEntity {
                     name: name.clone(),
-                    actor_id: entity.sim_id,
+                    sim_id: entity.sim_id,
                     ssv2: pose6(pose),
                     contact_hold: flags.0,
                     kinematic: flags.1,
@@ -2472,6 +2515,15 @@ impl SimBackend for RemoteBackend {
             return Ok(());
         }
         tracing::debug!("{} signal colour(s) changed", changed.len());
+        if self.gap_trace.recording() {
+            let sim_time_ns = (self.sim_time * 1e9).round() as i64;
+            for c in &changed {
+                let colour = wire::Colour::try_from(c.colour)
+                    .map_or("unknown".to_string(), |c| c.as_str_name().to_lowercase());
+                self.gap_trace
+                    .signal(self.frame, sim_time_ns, &c.opendrive_id, &colour);
+            }
+        }
         self.call(
             "SetSignals",
             wire::request::Request::SetSignals(wire::SetSignals { states: changed }),

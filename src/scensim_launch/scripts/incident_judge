@@ -128,10 +128,10 @@ def speed(state):
 
 def box(trace, name, state):
     h = trace.entities[name]
-    if state.carla is None or h.blueprint_box is None:
+    if state.sim_pose is None or h.asset_box is None:
         return None
-    p = gg.Pose2D(state.carla.x, state.carla.y, state.carla.yaw)
-    return gg.carla_box(p, h.blueprint_box.location, h.blueprint_box.extent)
+    p = gg.Pose2D(state.sim_pose.x, state.sim_pose.y, state.sim_pose.yaw)
+    return gg.carla_box(p, h.asset_box.location, h.asset_box.extent)
 
 
 def front_point(b):
@@ -148,21 +148,21 @@ class Run:
         last = {}  # actor -> (t, x, y) of its previous frame
         for f in trace.frames:
             ego = f.entities.get("ego")
-            if ego is None or ego.carla is None:
+            if ego is None or ego.sim_pose is None:
                 continue
             others = {}
             for a in self.actors:
                 s = f.entities.get(a)
-                if s is not None and s.carla is not None and not s.spawn:
+                if s is not None and s.sim_pose is not None and not s.spawn:
                     v = speed(s)
                     prev = last.get(a)
                     if s.kinematic and prev is not None and f.sim_time > prev[0]:
                         # a kinematic body (032's blocked fallback) reports no velocity: it is
                         # teleported to SSv2's pose each frame, so its speed is the pose change
-                        v = math.dist(prev[1:], (s.carla.x, s.carla.y)) / (f.sim_time - prev[0])
-                    last[a] = (f.sim_time, s.carla.x, s.carla.y)
+                        v = math.dist(prev[1:], (s.sim_pose.x, s.sim_pose.y)) / (f.sim_time - prev[0])
+                    last[a] = (f.sim_time, s.sim_pose.x, s.sim_pose.y)
                     others[a] = (box(trace, a, s), v)
-            self.rows.append((f.sim_time, speed(ego), box(trace, "ego", ego), others, (ego.carla.x, ego.carla.y)))
+            self.rows.append((f.sim_time, speed(ego), box(trace, "ego", ego), others, (ego.sim_pose.x, ego.sim_pose.y)))
 
     def t(self, event):
         ts = self.done.get(event)

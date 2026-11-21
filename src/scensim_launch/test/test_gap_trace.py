@@ -151,18 +151,18 @@ class ValidTrace(unittest.TestCase):
         self.assertEqual(truck.kind, "vehicle")
         self.assertEqual(truck.declared.dimensions, (12.0, 2.5, 3.0))
         self.assertEqual(truck.origin_offset, gt.OriginOffset(4.0, 0.0, 0.0))
-        self.assertEqual(truck.blueprint_box.extent, (2.35, 1.05, 0.72))
-        self.assertIsNone(trace.entities["barrier"].blueprint_box)
+        self.assertEqual(truck.asset_box.extent, (2.35, 1.05, 0.72))
+        self.assertIsNone(trace.entities["barrier"].asset_box)
         self.assertEqual([f.frame for f in trace.frames], [0, 1])
         ego0 = trace.frames[0].entities["ego"]
         self.assertIsInstance(ego0.ssv2, gt.Pose6)
-        self.assertEqual(ego0.carla.x, 1.5)
+        self.assertEqual(ego0.sim_pose.x, 1.5)
         self.assertTrue(ego0.spawn)
         self.assertFalse(ego0.contact_hold)
         truck1 = trace.frames[1].entities["truck"]
         self.assertTrue(truck1.contact_hold)
         self.assertEqual(truck1.velocity, (4.0, 0.0, 0.0))
-        self.assertIsNone(trace.frames[1].entities["barrier"].carla)
+        self.assertIsNone(trace.frames[1].entities["barrier"].sim_pose)
         self.assertEqual(len(trace.contacts), 2)
         self.assertEqual(trace.contacts[1].other_kind, "static")
         self.assertIsNone(trace.contacts[1].other_id)
@@ -170,7 +170,7 @@ class ValidTrace(unittest.TestCase):
 
     def test_round_trips(self):
         trace = gt.load_trace(lines(SAMPLE))
-        out = [gt.to_json(r) for r in trace.records()]
+        out = [gt.to_json(r, trace.episode.schema) for r in trace.records()]
         self.assertEqual(out, [json.loads(line) for line in lines(SAMPLE)])
         self.assertEqual(gt.load_trace(gt.dumps(trace).splitlines()), trace)
 
@@ -192,7 +192,7 @@ class ValidTrace(unittest.TestCase):
         self.assertEqual(trace.contacts[1].subject, "truck")
         self.assertIsNone(trace.contacts[0].subject)
         self.assertEqual(gt.load_trace(gt.dumps(trace).splitlines()), trace)
-        self.assertNotIn("subject", gt.to_json(trace.contacts[0]))
+        self.assertNotIn("subject", gt.to_json(trace.contacts[0], 1))
         # null reads as absent.
         trace = gt.load_trace(mutate(7, lambda r: r.update(subject=None)))
         self.assertIsNone(trace.contacts[1].subject)
@@ -201,11 +201,11 @@ class ValidTrace(unittest.TestCase):
         # Roadmap 032 N2: the CARLA frame of the snapshot behind a frame line, so a contact's
         # carla_frame can be checked against its label. Optional under schema 1 (SAMPLE has
         # none), and written back only when present.
-        self.assertIsNone(gt.load_trace(lines(SAMPLE)).frames[1].carla_frame)
+        self.assertIsNone(gt.load_trace(lines(SAMPLE)).frames[1].sim_frame)
         trace = gt.load_trace(mutate(5, lambda r: r.update(carla_frame=5021)))
-        self.assertEqual(trace.frames[1].carla_frame, 5021)
-        self.assertEqual(gt.to_json(trace.frames[1])["carla_frame"], 5021)
-        self.assertNotIn("carla_frame", gt.to_json(trace.frames[0]))
+        self.assertEqual(trace.frames[1].sim_frame, 5021)
+        self.assertEqual(gt.to_json(trace.frames[1], 1)["carla_frame"], 5021)
+        self.assertNotIn("carla_frame", gt.to_json(trace.frames[0], 1))
         self.assertEqual(gt.load_trace(gt.dumps(trace).splitlines()), trace)
 
     def test_omitted_flags_are_empty(self):
@@ -234,7 +234,9 @@ class ValidTrace(unittest.TestCase):
     def test_respawn_replaces_the_header(self):
         again = dict(TRUCK, frame=1, actor_id=250)
         trace = gt.load_trace(lines([EPISODE, EGO, TRUCK, FRAME0, again, END]))
-        self.assertEqual(trace.entities["truck"].actor_id, 250)
+        self.assertEqual(trace.entities["truck"].sim_id, 250)
+        # Schema 1 has no index: an entity's is its header's position.
+        self.assertEqual(trace.entities["truck"].index, 2)
 
 
 def mutate(index, change):
@@ -273,8 +275,8 @@ class MalformedTrace(unittest.TestCase):
         self.assertTraceError(lines(SAMPLE[1:]), 1, "type")
 
     def test_unsupported_schema(self):
-        err = self.assertTraceError(mutate(0, lambda r: r.update(schema=2)), 1, "schema")
-        self.assertIn("2", str(err))
+        err = self.assertTraceError(mutate(0, lambda r: r.update(schema=3)), 1, "schema")
+        self.assertIn("3", str(err))
 
     def test_second_episode(self):
         text = lines(SAMPLE)
@@ -385,3 +387,92 @@ class MalformedTrace(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --- schema 2 (docs/design/truth-stream.md): the same trace, neutral names and additions ---
+
+RENAME = {"carla": "sim_pose", "carla_frame": "sim_frame", "actor_id": "sim_id",
+          "blueprint": "asset", "blueprint_box": "asset_box"}
+
+
+def to_v2(records):
+    """SAMPLE as the bridge writes it at schema 2."""
+    out, index = [], 0
+    for r in copy.deepcopy(records):
+        r = {RENAME.get(k, k): v for k, v in r.items()}
+        if r["type"] == "episode":
+            r.update(schema=2, map="Town01", step_time=0.05)
+        elif r["type"] == "entity":
+            r.update(index=index, role="ego" if r["kind"] == "ego" else "scenario",
+                     subtype="car")
+            index += 1
+        elif r["type"] == "frame":
+            r["sim_time_ns"] = 1_000_000_000_000 + round(r["sim_time"] * 1e9)
+            for e in r["entities"].values():
+                e["sim_pose"] = e.pop("carla")
+                moving = e["sim_pose"] is not None
+                e["angular_velocity"] = [0.0, 0.0, 0.1] if moving else None
+                e["velocity_source"] = "measured" if moving else None
+        out.append(r)
+    return out
+
+
+SAMPLE2 = to_v2(SAMPLE)
+SIGNAL = {"type": "signal", "frame": 1, "sim_time_ns": 1_000_050_000_000,
+          "opendrive_id": "12", "colour": "red"}
+
+
+class SchemaTwo(unittest.TestCase):
+    def test_reads_neutral_names_and_additions(self):
+        trace = gt.load_trace(lines(SAMPLE2[:-1] + [SIGNAL, SAMPLE2[-1]]))
+        self.assertEqual(trace.episode.schema, 2)
+        self.assertEqual((trace.episode.map, trace.episode.step_time), ("Town01", 0.05))
+        truck = trace.entities["truck"]
+        self.assertEqual((truck.sim_id, truck.asset, truck.index, truck.role, truck.subtype),
+                         (212, "vehicle.tesla.model3", 1, "scenario", "car"))
+        self.assertEqual(truck.asset_box.extent, (2.35, 1.05, 0.72))
+        ego0 = trace.frames[0].entities["ego"]
+        self.assertEqual(ego0.sim_pose.x, 1.5)
+        self.assertEqual(ego0.angular_velocity, (0.0, 0.0, 0.1))
+        self.assertEqual(ego0.velocity_source, "measured")
+        barrier = trace.frames[1].entities["barrier"]
+        self.assertIsNone(barrier.sim_pose)
+        self.assertIsNone(barrier.velocity_source)
+        self.assertEqual(trace.frames[1].sim_time_ns, 1_000_050_000_000)
+        self.assertEqual(trace.contacts[0].sim_frame, 5021)
+        self.assertEqual(trace.signals, [gt.Signal(1, 1_000_050_000_000, "12", "red")])
+
+    def test_round_trips(self):
+        trace = gt.load_trace(lines(SAMPLE2))
+        self.assertEqual([gt.to_json(r) for r in trace.records()], SAMPLE2)
+        self.assertEqual(gt.load_trace(gt.dumps(trace).splitlines()), trace)
+
+    def test_same_trace_either_schema(self):
+        one, two = gt.load_trace(lines(SAMPLE)), gt.load_trace(lines(SAMPLE2))
+        self.assertEqual([f.entities["truck"].sim_pose for f in one.frames],
+                         [f.entities["truck"].sim_pose for f in two.frames])
+        self.assertEqual([h.sim_id for h in one.headers], [h.sim_id for h in two.headers])
+
+    def test_schema_1_names_are_refused_in_schema_2(self):
+        bad = copy.deepcopy(SAMPLE2)
+        bad[1]["actor_id"] = bad[1].pop("sim_id")
+        with self.assertRaises(gt.TraceError) as e:
+            gt.load_trace(lines(bad))
+        self.assertEqual(e.exception.field, "sim_id")
+
+    def test_a_signal_in_schema_1_is_unknown(self):
+        with self.assertRaises(gt.TraceError) as e:
+            gt.load_trace(lines(SAMPLE[:-1] + [SIGNAL, SAMPLE[-1]]))
+        self.assertEqual(e.exception.field, "type")
+
+    def test_velocity_source_is_a_closed_set(self):
+        bad = copy.deepcopy(SAMPLE2)
+        bad[3]["entities"]["ego"]["velocity_source"] = "guessed"
+        with self.assertRaises(gt.TraceError):
+            gt.load_trace(lines(bad))
+
+    def test_role_is_a_closed_set(self):
+        bad = copy.deepcopy(SAMPLE2)
+        bad[1]["role"] = "npc"
+        with self.assertRaises(gt.TraceError):
+            gt.load_trace(lines(bad))

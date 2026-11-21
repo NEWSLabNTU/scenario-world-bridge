@@ -72,11 +72,14 @@ class RunResult:
     # and a replay's original and target; absent from other runs' results
     sample: dict = None
     replay: dict = None
+    # 093 D7 gap 1, additive: the run's bound knobs, what was sent, the world's read-back
+    # (scensim.knobs.compare); absent from runs whose scenario binds none
+    knobs: dict = None
     schema: str = SCHEMA
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
-        for k in ("sample", "replay"):
+        for k in ("sample", "replay", "knobs"):
             if d.get(k) is None:
                 d.pop(k)
         return {"schema": d.pop("schema"), **d}
@@ -118,7 +121,7 @@ class RunResult:
 # --- validation -----------------------------------------------------------------------------
 
 _TOP = ("schema", "run_id", "verdict", "reason", "scenario", "ssv2", "events", "metrics",
-        "pilots", "provenance", "sample", "replay")
+        "pilots", "provenance", "sample", "replay", "knobs")
 _REQUIRED = ("schema", "run_id", "verdict")
 
 
@@ -219,6 +222,12 @@ def problems(d) -> list:
         for k in ("weight", "log_weight"):
             if not _is_num(sm.get(k)):
                 out.append(f"sample.{k}: expected a number")
+    if "knobs" in d:
+        kb = obj("knobs")
+        if not isinstance(kb.get("ok"), bool):
+            out.append("knobs.ok: expected a boolean (every bound knob applied as recorded)")
+        if not isinstance(kb.get("knobs"), dict):
+            out.append("knobs.knobs: expected an object, {knob: {value, applied, ok}}")
     if "replay" in d:
         rp = obj("replay")
         if not (isinstance(rp.get("of"), str) and len(rp["of"]) == 64):

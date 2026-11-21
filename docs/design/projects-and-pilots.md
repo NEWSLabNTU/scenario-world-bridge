@@ -248,6 +248,37 @@ server yet), and fails the stack (exit 2, the message in `stack.json`'s `error`)
 600 s. A world server restarted later keeps the preset (the bridge's argument) but not the
 parameters. Isaac has no weather service, so `world.weather` is refused on Isaac.
 
+`world.knobs` says what each world knob's values mean on this world (093 D7 gap 1;
+scenario-description.md section 3; a world.yaml may carry it later): a value maps to weather
+parameters (the world server's names, through `set_weather`) and/or a named surface map, with
+an optional friction `mu`, or `physics: none` for a visual-only value. A scenario binds a knob
+to a parameter (`<Property name="scensim.knob.surface" value="$surface"/>`); before each run the
+runner sends the stack's weather baseline merged with the run's knobs' parameters (every run
+absolute, none inherits another's), reads them back with `get_weather`, and records the result
+in `result.json`'s `knobs` (`scensim.knobs`). A knob the world lacks, a value it does not
+declare, a read-back that differs, or a value this simulator cannot honour makes the run an
+error run, excluded from rates:
+
+- **Isaac** has no weather service, so a value with weather parameters is refused there (its
+  scenario's EnvironmentAction sets the sky). A surface map is applied through the scenario's
+  RoadCondition and the project's ground, but not read back yet (issue 095: `unverified`).
+- **CARLA** cannot apply a surface map per run, and its wetness is visual: a value naming a
+  surface map or a friction is refused, unless it is declared `physics: none`, and then the
+  record says the friction was not applied.
+
+```yaml
+world:
+  knobs:
+    illumination:
+      values:
+        day:   {weather: {sun_altitude_angle: 60}}
+        night: {weather: {sun_altitude_angle: -30, street_lights: 100}}
+      default: day
+    surface:
+      values: {dry: {weather: {wetness: 0}, physics: none},
+               wet_look: {weather: {wetness: 80}, physics: none}}
+```
+
 `isaac.preload` names maps the world server loads at start beside the stack's first
 (`world:=<first>,<preload...>`); they join the stack's maps, and a run on one moves the
 pilots there as a CARLA switch does, where a map not loaded is refused.
@@ -567,7 +598,7 @@ window's (an upper bound on the run's); `tick_*` the same for the tick; `frame_w
 `frame_count`, `frames_over_budget`, `ticks_over_budget`. A run's last partial window is
 not logged, so a run under 200 frames has no frame metrics.
 
-`sample` and `replay` (above, "Sampled runs") were added to `swb.result/1` without a new version.
+`sample` and `replay` (above, "Sampled runs"), and `knobs` (above, `world.knobs`: per bound knob its `value`, the read-back `applied`, `ok`, and `ok` over all, `sent`, `notes`), were added to `swb.result/1` without a new version.
 Only a sampled run or a replay has them, and the readers of results are scensim's own, changed
 with the validator in the same commit.
 

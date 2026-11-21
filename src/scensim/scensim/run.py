@@ -59,7 +59,7 @@ from scensim import budget as budgetmod, config, judges as judgesmod, project as
 from scensim import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
-from scensim import sampled as sampledmod, stage as stagemod
+from scensim import knobs as knobsmod, sampled as sampledmod, stage as stagemod
 from scensim import simulator as simmod, testbenches
 from scensim.findings import ros_args
 
@@ -692,6 +692,7 @@ class Context:
     turn: object = None               # the stack's run lock while this process runs (take_turn)
     lost_probe: object = None         # callable(rec, entities) -> {entity: why} (tests; G32)
     end_episodes: object = None       # callable(rec, entities, verdict, reason, run_id) (tests; G57)
+    apply_knobs: object = None        # callable(rec, spec, psettings) -> (knobs, why) (tests; D7)
     pilots_broken: str = None         # the pilots did not come back after a crash (079 step 5)
     testbench: dict = None            # {name, workspace}: the testbench run (081 step 3)
 
@@ -1059,6 +1060,59 @@ def wait_ssv2(proc, limit: float, rec: dict, entities, probe=lost_goals) -> tupl
             return None, lost
 
 
+def _ros_call(rec, argv, timeout=20.0):
+    try:
+        p = subprocess.run(argv, env=stackmod.ros_env(rec, rec["domains"]["scenario"]),
+                           capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return "", str(e) or "no answer"
+    return p.stdout, ""
+
+
+def apply_knobs(rec, spec, psettings, call=_ros_call):
+    """`(result.json knobs or None, why the run cannot go on or "")` for a run's bound knobs:
+    the testbench's weather baseline merged with the knobs' parameters, sent absolutely through
+    the bridge's set_weather, then read back with get_weather and compared."""
+    try:
+        bound = knobsmod.bound(spec.scenario, spec.parameters)
+    except ValueError as e:
+        return None, f"knobs: {e}"
+    if not bound:
+        return None, ""
+    world = (psettings.get("world") or {})
+    baseline = ((rec.get("weather") or {}).get("parameters")
+                or (world.get("weather") or {}).get("parameters") or {})
+    try:
+        plan = knobsmod.plan(world.get("knobs"), bound, rec.get("simulator") or "", baseline)
+    except knobsmod.KnobError as e:
+        return {"ok": False, "knobs": {k: {"value": v, "ok": False} for k, v in bound.items()},
+                "refused": str(e)}, f"knobs: {e}"
+    read = {}
+    if plan["weather"]:
+        out, err = call(rec, worldmod.weather_argv(plan["weather"]))
+        ok, msg = worldmod.weather_answer(out)
+        if not ok:
+            why = msg or err or "no answer"
+            return ({"ok": False, "knobs": {k: {"value": v, "ok": False} for k, v in bound.items()},
+                     "sent": plan["weather"], "error": why},
+                    f"knobs: the bridge's set_weather refused or did not answer: {why}")
+        out, err = call(rec, knobsmod.get_weather_argv())
+        read = knobsmod.weather_read(out)
+        if read is None:
+            return ({"ok": False, "knobs": {k: {"value": v, "ok": False} for k, v in bound.items()},
+                     "sent": plan["weather"], "error": err or "get_weather did not answer"},
+                    "knobs: the world's weather could not be read back (get_weather)")
+    block = knobsmod.compare(bound, world.get("knobs"), plan["weather"], read)
+    block["sent"] = plan["weather"]
+    if plan["notes"]:
+        block["notes"] = plan["notes"]
+    if not block["ok"]:
+        bad = [k for k, e in block["knobs"].items() if not e["ok"]]
+        return block, (f"knobs: the world did not apply {', '.join(bad)} as the run asked "
+                       f"(sent {plan['weather']}, read back {read})")
+    return block, ""
+
+
 def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult:
     """One run, end to end, into its own run directory."""
     take_turn(ctx)
@@ -1180,6 +1234,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     if capture in ("full", "debug"):
         samples = [host_sample()]
 
+    knob_block = None
     procs, recorders = [], []
     run_procs = {}   # entity -> its launch process, for a run's own pilots
     ssv2 = None
@@ -1266,6 +1321,16 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         episodes = episodesmod.Mark.take(rec.get("episodes") or {})
         t_start = time.time()
         load_start = results.host_load()   # issue 046: every run records its host's load
+        # the scenario's bound knobs, applied to the world before it starts and read back
+        # (093 D7 gap 1): a knob the world cannot honour, or a read-back that differs from
+        # the run's value, makes it an error run
+        if not infra and sc is not None:
+            knob_block, why_not = (ctx.apply_knobs or apply_knobs)(rec, spec, psettings)
+            if knob_block is not None:
+                run_events.append({"t_wall": time.time(), "event": "knobs.applied",
+                                   "ok": knob_block["ok"]})
+            if why_not:
+                infra.append(why_not)
         if not infra:
             wants = judgesmod.needed(config.project_settings(project).get("judges"))
             for name, domain, rargv in recordmod.plan(run_dir, capture, pilots,
@@ -1409,7 +1474,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         pilots={p["entity"]: {"kind": p["kind"], "vehicle": p.get("vehicle"),
                               "inputs": p.get("inputs") or [],
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
-        provenance=prov, sample=sample_block, replay=replay_block)
+        provenance=prov, sample=sample_block, replay=replay_block, knobs=knob_block)
     result.write(run_dir / "result.json")
     judge_list = config.project_settings(project).get("judges")
     judged = judgesmod.run_all(judge_list, run_dir, project, verdict)

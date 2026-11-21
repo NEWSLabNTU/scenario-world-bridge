@@ -35,7 +35,7 @@ from pathlib import Path
 from scensim import config, own_world
 
 WORLD_KEYS = ("weather", "npc_motion", "contact_report_dir", "config_file", "world_config_file",
-              own_world.KEY)
+              own_world.KEY, "knobs")
 ISAAC_KEYS = ("ego", "render", "follow", "physics_hz", "preload", "wheels_topic", "wheel_query")
 WHEEL_QUERIES = ("raycast", "sweep")
 NPC_MOTIONS = ("tracked", "kinematic")
@@ -112,6 +112,9 @@ def problems(settings: dict, simulator: str, project: Path = None) -> list:
                         "EnvironmentAction sets the sky, fog and rain"))
         elif k == "weather":
             out += weather_problems(v)
+        elif k == "knobs":
+            from scensim import knobs as knobsmod   # noqa: PLC0415
+            out += knobsmod.problems(v, "world.knobs")
         elif k == "npc_motion" and v not in NPC_MOTIONS:
             out.append(("world.npc_motion", f"{v!r} is not one of {', '.join(NPC_MOTIONS)}"))
         elif k == "contact_report_dir":

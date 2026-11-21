@@ -342,3 +342,65 @@ def test_onto_dry_run_names_the_branch_and_the_gate(world, monkeypatch):
     assert r.returncode == 0 and "== onto feat" in r.stdout and "LAND_PIN_GATE (just test)" in r.stdout, \
         r.stdout + r.stderr
     assert "dry run: nothing changed" in r.stdout and world.remote_pin("A") == world.sha["A"]
+
+
+# --- guards (issue 096): the gate tests what lands, and a moved main pushes nothing ----------------------
+
+def test_a_checkout_changed_while_the_gate_ran_pushes_nothing(world, monkeypatch):
+    e2 = world.advance("E")
+    code_branch(world)
+    # the gate's own run switches the checkout (139's case: a survey command in the same tree)
+    monkeypatch.setenv("LAND_PIN_GATE", "git checkout -q --detach origin/main")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode == 1 and "changed while the gate ran" in r.stderr and ".: " in r.stderr, \
+        r.stdout + r.stderr
+    assert world.remote_pin("E") == world.sha["E"]
+    # or edits a tracked file in it
+    git(world.super, "checkout", "-q", "feat")
+    monkeypatch.setenv("LAND_PIN_GATE", "echo x >> code.txt")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode == 1 and "changed while the gate ran" in r.stderr and "code.txt" in r.stderr, \
+        r.stdout + r.stderr
+    assert world.remote_pin("E") == world.sha["E"]
+
+
+def test_an_uncommitted_change_before_the_gate_is_refused(world, monkeypatch):
+    e2 = world.advance("E")
+    code_branch(world)
+    (world.super / "code.txt").write_text("edited, not committed\n")
+    monkeypatch.setenv("LAND_PIN_GATE", "true")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode in (1, 2) and world.remote_pin("E") == world.sha["E"], r.stdout + r.stderr
+
+
+def other_lands_on(world, name):
+    """A shell line that lands a commit on `name`'s origin/main from another clone."""
+    d = world.work / f"{name}-other"
+    if not d.exists():
+        run("git", "clone", "-q", world.url(name), str(d))
+    return f"cd {d} && git pull -q --rebase origin main && git commit -q --allow-empty -m mid && git push -q origin main"
+
+
+def test_a_main_that_moves_during_the_landing_pushes_nothing(world, monkeypatch):
+    """The gate passes, but someone landed meanwhile: no component is pushed, so there is no
+    partial landing (components moved, this repository's pins refused)."""
+    a2 = world.advance("A")
+    code_branch(world)
+    c_main = git(world.origin / "C.git", "rev-parse", "main")
+    monkeypatch.setenv("LAND_PIN_GATE", other_lands_on(world, "super"))
+    r = world.land("--onto", "feat", "A", a2)
+    assert r.returncode == 3 and "origin/main moved during the landing" in r.stderr, r.stdout + r.stderr
+    assert git(world.origin / "C.git", "rev-parse", "main") == c_main   # C's bump not pushed
+    assert world.remote_pin("A") == world.sha["A"]
+
+
+def test_a_component_main_that_moves_pushes_nothing(world, monkeypatch):
+    a2 = world.advance("A")
+    code_branch(world)
+    d_main = git(world.origin / "D.git", "rev-parse", "main")
+    c_main = git(world.origin / "C.git", "rev-parse", "main")
+    monkeypatch.setenv("LAND_PIN_GATE", other_lands_on(world, "E"))   # the last in the cascade
+    r = world.land("--onto", "feat", "A", a2)
+    assert r.returncode == 3 and "E's origin/main moved" in r.stderr, r.stdout + r.stderr
+    assert git(world.origin / "C.git", "rev-parse", "main") == c_main  # nothing before E pushed either
+    assert git(world.origin / "D.git", "rev-parse", "main") == d_main

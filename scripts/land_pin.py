@@ -33,6 +33,12 @@ keeps scripts/check_pins.py green on main (scripts/land_pin.sh runs this):
    when the cascade makes new component commits, whose shas are new each run), or else
    the command in LAND_PIN_GATE (a shell line, run in this checkout at the tip, with the components' new
    commits in place) runs, and must exit 0. Without either it is refused. Nothing is pushed before that.
+6. Guards (issue 096): the checkout's HEAD, the landing components' commits and a clean tree are
+   recorded before LAND_PIN_GATE runs and compared after it; any change (the checkout switched or
+   edited while the gate ran) refuses the push, since the gate then tested something else. Just
+   before pushing, origin/main here and each new component's origin/main are fetched again; if
+   any moved past what the landing built on, nothing is pushed (exit 3), so a moved main never
+   leaves components pushed and this repository's pins refused.
 
 Plain fast-forward pushes of rebased mains, never forced. --dry-run prints the cascade and touches
 nothing. LAND_PIN_TRAILER, when set, is appended to each commit message (the session's attribution).
@@ -63,6 +69,20 @@ def pin(repo_dir, rev, path):
     """The gitlink at `path` in `rev` of the repository at repo_dir, or None."""
     out = git("ls-tree", rev, path, cwd=repo_dir, check=False)
     return out.split()[2] if out else None
+
+
+def checkout_state(src, components) -> dict:
+    """This checkout's HEAD, each landing component's checked-out commit, and what is uncommitted
+    in tracked files (here or in those components): compared before and after a gate."""
+    heads = {".": git("rev-parse", "HEAD")}
+    for c in components:
+        heads[f"src/{c}"] = git("rev-parse", "HEAD", cwd=src / c, check=False)
+    dirty = [f"src/{c}: {line}" for c in components
+             for line in git("status", "--porcelain", "--untracked-files=no",
+                             "--ignore-submodules=all", cwd=src / c, check=False).splitlines()]
+    dirty += [line for line in git("status", "--porcelain", "--untracked-files=no",
+                                   "--ignore-submodules=all").splitlines()]
+    return {"heads": heads, "dirty": dirty}
 
 
 def options(argv):
@@ -276,9 +296,38 @@ def main(argv):
             return 1
     elif onto:
         print(f"== gate: {os.environ['LAND_PIN_GATE']}")
+        # what the gate is about to test: anything that moves under it (a checkout switched, a
+        # file edited mid-run) means it tested something else, and nothing is pushed (issue 096)
+        before = checkout_state(src, landing)
+        if before["dirty"]:
+            print("the checkout has uncommitted changes before the gate: nothing pushed\n  "
+                  + "\n  ".join(before["dirty"]), file=sys.stderr)
+            return 1
         if subprocess.run(os.environ["LAND_PIN_GATE"], shell=True, cwd=ROOT).returncode:
             print("the gate failed: nothing pushed (the local commits stay for a look)", file=sys.stderr)
             return 1
+        after = checkout_state(src, landing)
+        if after != before:
+            moved = [k for k in sorted(set(before["heads"]) | set(after["heads"]))
+                     if before["heads"].get(k) != after["heads"].get(k)]
+            print("the checkout changed while the gate ran, so the gate tested something else: "
+                  "nothing pushed\n  " + "\n  ".join(
+                      [f"{k}: {short(before['heads'].get(k))} -> {short(after['heads'].get(k))}"
+                       for k in moved] + after["dirty"]), file=sys.stderr)
+            return 1
+    # a main that moved since the landing began would leave the components pushed and this
+    # repository's pins refused, a partial landing: look again just before pushing (issue 096)
+    git("fetch", "-q", "origin")
+    if not ok("merge-base", "--is-ancestor", "origin/main", "HEAD"):
+        print("origin/main moved during the landing (" + git("log", "-1", "--format=%h %s", "origin/main")
+              + "): nothing pushed; rebase and land again", file=sys.stderr)
+        return 3
+    for c in new:  # and each component's main, so no component is pushed when a later one would fail
+        git("fetch", "-q", "origin", cwd=src / c)
+        if not ok("merge-base", "--is-ancestor", "origin/main", "main", cwd=src / c):
+            print(f"{c}'s origin/main moved during the landing: nothing pushed; land again",
+                  file=sys.stderr)
+            return 3
     for c in new:  # dependency order: a component's deps are on their remotes before it is
         r = subprocess.run(["git", "-C", str(src / c), "push", "-q", "origin", "main"])
         if r.returncode:

@@ -1107,6 +1107,38 @@ def test_a_run_pilot_stuck_on_a_lost_load_reply_fails_the_run_fast(where, maps_h
             "/planning/behavior_planning_container (its reply to the launch's load_node was lost") in r.reason
 
 
+def test_a_run_pilot_whose_launch_exits_fails_the_run_at_once(where, maps_hub):
+    """Issue 089: acb_bridge's required exit on a CARLA version mismatch ended the pilot's launch,
+    and each run waited out the ready timeout (24 runs x 1800 s). Now the run ends `error` at
+    once, naming the pilot, the exit code and the first error line of its console."""
+    d = make(where, RUN_PILOT)
+    p, proc = start_stack(d, ready=lambda x: ["false"] if x["entity"] == "follower" else ["true"])
+    deadline = time.time() + 20
+    while json.loads(p.stack_json.read_text()).get("state") != "ready" and time.time() < deadline:
+        time.sleep(0.05)
+    exits = ("import sys\n"
+             "print('[INFO] [launch]: All log files can be found below /x')\n"
+             "print('[acb_bridge-1] [ERROR] [1795.0] [acb_bridge]: CARLA version mismatch: "
+             "built for 0.9.16, server 0.10.0')\n"
+             "print('[ERROR] [acb_bridge-1]: process has died [pid 7, exit code 3, cmd ...]')\n"
+             "sys.exit(3)\n")
+
+    def pilot_cmd(rec, pilot, entry, log_dir):
+        return [sys.executable, "-c", exits]
+    try:
+        t = time.time()
+        r = api.run_one(d, "scenarios/three_pilots.xosc",
+                        {"parameters": {"policy": "push"}, "scenario_command": fake(where),
+                         "pilot_command": pilot_cmd})
+        assert time.time() - t < 30   # not the readiness timeout
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+    assert r.verdict == "error"
+    assert ("pilot follower is not coming up: its launch exited (code 3) before it was ready: "
+            "[acb_bridge-1] [ERROR] [1795.0] [acb_bridge]: CARLA version mismatch") in r.reason
+
+
 def test_crash_watch_counts_only_new_lines(tmp_path):
     log = tmp_path / "console.log"
     log.write_text("x [node:/a] Exited with code 1 (crash 9 since last healthy run)\n")
@@ -1544,3 +1576,16 @@ def test_the_stack_check_finds_a_suites_pkg_scenario(tmp_path, monkeypatch):
     files, found = projectmod.collect_scenarios(tb)
     assert files == [xosc]
     assert [(f.host, "package not_built is not installed" in f.what) for f in found] == [(True, True)]
+
+
+def test_a_stopped_stack_with_an_error_is_refused_at_once(tmp_path):
+    """089: the keeper gave up on a pilot; the run says why now, not at --wait's deadline."""
+    rec = {"stack_id": "s1", "state": "stopped", "error": "pilot ego is not coming up: x",
+           "fingerprint": {}, "proc": str(tmp_path / "proc")}
+    import unittest.mock as m
+    with m.patch.object(stack, "fingerprint_diff", lambda *a, **k: []), \
+            m.patch.object(stack, "fingerprint", lambda *a, **k: {}):
+        t = time.time()
+        with pytest.raises(run.Refused, match="the stack s1 stopped: pilot ego is not coming up: x"):
+            run.check_stack(rec, tmp_path, wait=600)
+        assert time.time() - t < 2

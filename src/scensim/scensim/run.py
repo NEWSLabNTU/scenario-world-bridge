@@ -352,6 +352,10 @@ def check_stack(rec: dict, project: Path, wait: float = 0.0, reread=None) -> dic
         sys.stderr.write(f"warning  {n}\n")
     deadline = time.time() + wait
     while rec.get("state") != stackmod.READY:
+        if rec.get("state") == stackmod.STOPPED and rec.get("error"):
+            # the keeper gave up (issue 089: a pilot that ends before it is ready, every
+            # time): said now, not at the deadline
+            raise Refused(f"the stack {rec.get('stack_id')} stopped: {rec['error']}")
         if time.time() >= deadline:
             waiting = [p["entity"] for p in rec.get("pilots", [])
                        if p.get("lifetime", "stack") == "stack" and not p.get("ready_at")]
@@ -1136,6 +1140,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         samples = [host_sample()]
 
     procs, recorders = [], []
+    run_procs = {}   # entity -> its launch process, for a run's own pilots
     ssv2 = None
     crashed = []   # pilots whose process crashed during the run
     load_start = load_end = None
@@ -1146,6 +1151,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
             if argv:
                 procs.append(_start(argv, stackmod.ros_env(rec, p["domain"]),
                                     log_dir / "console.log", cwd=str(project)))
+                run_procs[p["entity"]] = procs[-1]
                 run_events.append({"t_wall": time.time(), "event": "pilot.start",
                                    "entity": p["entity"]})
         # every pilot ready (none waited for when the stack already failed the run); a pilot
@@ -1177,6 +1183,14 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                     waiting.remove(p)
                     infra.append(f"pilot {p['entity']} is not coming up: its launch is stuck loading "
                                  f"composables into {stalled} (see {watches[p['entity']].path})")
+                    continue
+                # its launch has exited (issue 089: acb_bridge's required exit on a CARLA
+                # version mismatch ended the launch, and the run waited out the ready timeout)
+                code = run_procs[p["entity"]].poll() if p["entity"] in run_procs else None
+                if code is not None:
+                    waiting.remove(p)
+                    infra.append(f"pilot {p['entity']} is not coming up: "
+                                 f"{stackmod.exited_why(watches[p['entity']].path, code)}")
                     continue
                 if stackmod.check_ready(p.get("ready"), stackmod.ros_env(rec, p["domain"]),
                                         why=why[p["entity"]]):

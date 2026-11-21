@@ -213,10 +213,66 @@ returns a `scensim_sampler.plugins.Plugin`:
 
 Deterministic plug-ins (t-wise rows) go first, so later ones may condition on their factors.
 
-## 8. What is not here yet
+## 8. Coverage
+
+`scensim-sample coverage <runs | outcomes.jsonl> [--catalogue c.yaml] [--failure
+verdict|contact|either] [-t N] [--json coverage.json]` reports what a set of sampled runs
+covers. `scensim runs coverage` runs the same over a testbench's runs. It reads sample records
+with their outcomes:
+
+- **scensim's runs:** `sample.json` and `result.json`;
+- **any other runs:** a JSONL of `{record, outcome: {failed, contact, error,
+  seeds_not_applied}}`.
+
+It needs no simulator. Its layers are those of
+[survey-vehicle-risk-taxonomy.md](survey-vehicle-risk-taxonomy.md), section 4.
+
+1. **Categories.** Each catalogue category is covered or not, with its runs, and the uncovered
+   ones are named. It also lists categories that are run but not in the catalogue, and the
+   families R1 to R8 that have no category at all.
+2. **Conditions.** Per category: the t-wise coverage of its cell attributes' levels (covered
+   t-tuples of all), each missing tuple, and each run whose cell lies outside the declared
+   levels. Without a catalogue, the levels are the ones observed, and the report says so.
+3. **Criticality.** Per category and cell: runs, errors, judged runs, failures, and the failure
+   rate with a 95 % interval.
+   - **Unweighted:** a Wilson interval. With no failures, its upper end is the bound, close to
+     the rule of three.
+   - **Drawn from a proposal:** the self-normalised estimate from the log weights (section 5),
+     with a Wilson interval on the effective count `(Σw)² / Σw²`, marked approximate.
+   - **Mixed:** a cell that mixes weighted and unweighted runs, or several proposals or bases,
+     gets no rate, and says why. They are not blended.
+
+Some runs are counted apart and listed, never pooled into the rates:
+
+- **Errors.**
+- **Runs with seeds not applied** (`result.json`'s `sample.unbound`): they are not the sample
+  their record names.
+- **Replays:** each is the same sample again.
+
+**The catalogue** is the study's own declaration of what it means to cover:
+
+```yaml
+catalogue: 1
+categories: [R2.walker_crossing.dart_out, R1.rear_end.lead_brakes]
+cells: {R2.walker_crossing.dart_out: {illumination: [day, night], surface: [dry, wet]}}
+t: 2
+exposure: {R2.walker_crossing.dart_out: 0.12, R1.rear_end.lead_brakes: 0.29}   # optional
+```
+
+**`exposure`** gives each category's weight, from crash or exposure frequencies for the study's
+region. Only when it is given does the report add an overall rate, `Σ e_c r_c / Σ e_c`, with an
+approximate interval. The rate is refused when a weighted category has no rate. The weights are
+the study's input, not scensim's. Whose statistics to use (a country's crash typology, say) is
+the study's choice, and the report prints no overall number without one.
+
+`coverage.json` has the schema `scensim.coverage/1`: the three layers, as printed, with every
+missing tuple. Failure clusters, the reference driver's classes (avoidable or not) and the
+sample density near a boundary are not here yet. Each needs a judge or a metric that the runs do
+not record yet.
+
+## 9. What is not here yet
 
 - **Adaptive search (purpose B).** `search` is reserved for it.
-- **The coverage report.** It groups records by category and cell.
 - **Binding `world` and `car`.** The executors do this (roadmap 092 K2, K3).
 - **More than one fitted base per scenario.** A version 1 record names one, and the sampler
   refuses two.

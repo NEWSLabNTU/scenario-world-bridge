@@ -280,6 +280,7 @@ test:
     # The user docs keep their rules: links resolve, no `just`, no banned punctuation, every
     # tutorial in the tutorial format (roadmap 076 B6)
     python3 scripts/check_docs.py
+    python3 scripts/check_package_xml.py
     # SSv2's protos in scensim_world_protocol are the fork's (roadmap 051)
     # no pytest plugins: ROS's launch_testing hook would import scripts/test_phase1.py, a
     # live ZMQ client (pyzmq, the runtime's protobuf), and fail where those differ (swb 139)

@@ -77,6 +77,7 @@ WEATHER_DEADLINE = 600.0  # s of attempts after the simulator is up before the s
 RESPAWN_DELAY = 5.0   # as stack.launch.py's nested launches
 STOP_GRACE = 20.0     # SIGINT, then SIGTERM, then SIGKILL
 LOAD_RESTARTS = 2     # restarts of a pilot whose start did not load its composables (088, 064)
+EXITS_UNREADY = 2     # a pilot ending this often before it was ready fails the stack (089)
 
 # kind -> its launch under scensim_launch's launch/pilots/ (stack.launch.py's PILOT_KINDS)
 PILOT_FILES = {"autoware": "autoware.launch.xml", "carla_basic": "carla_basic.launch.py",
@@ -1288,6 +1289,40 @@ def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):
         fh.close()
 
 
+# The first line of a pilot's console that says what went wrong (issue 089): an error or fatal
+# log line, a Python traceback's last line, or a launch's own failure; the launch's "process has
+# died" lines come last, as they only repeat that something did.
+_ERROR_LINE = re.compile(r"\[(?:ERROR|FATAL)\]|\bError\b|\berror:|^\w*(?:Error|Exception): |\bpanicked at\b")
+_DIED_LINE = re.compile(r"process has died|\bexited with code\b")
+
+
+def first_error(path, offset=0):
+    """The console's first line (from byte ``offset``) that names an error, None if none."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(offset)
+            text = timelinemod._ANSI.sub("", f.read().decode("utf-8", "replace"))
+    except OSError:
+        return None
+    died = None
+    for line in text.splitlines():
+        line = line.strip()
+        if not _ERROR_LINE.search(line):
+            continue
+        if _DIED_LINE.search(line):
+            died = died or line
+            continue
+        return line[:300]
+    return died[:300] if died else None
+
+
+def exited_why(console, code, offset=0):
+    """Why a pilot is not coming up when its launch process has ended with ``code``."""
+    err = first_error(console, offset)
+    return (f"its launch exited (code {code}) before it was ready"
+            + (f": {err}" if err else "") + f" (see {console})")
+
+
 def stop_processes(procs, grace=STOP_GRACE):
     """SIGINT to every process group, then SIGTERM, then SIGKILL, waiting for all at once.
     A group is stopped when none of it is left, not when its leader exits: `ros2 launch`
@@ -1425,6 +1460,7 @@ class Pilots:
         self.due = {}     # entity -> wall time of its (re)start
         self.started = {}  # entity -> wall time its running process started
         self.offset = {}   # entity -> its console's size when it last started (issue 088)
+        self.failed = None  # why the stack cannot come up: a pilot that keeps ending unready (089)
 
     @staticmethod
     def stack_pilots(rec):
@@ -1507,6 +1543,20 @@ class Pilots:
             p["pid"] = None
             p["restarts"] = int(p.get("restarts") or 0) + 1
             event(self.stack_dir, "pilot.exit", entity=entity, code=code)
+            if not p.get("ready_at"):
+                # ended before it was ever ready on this start (issue 089): a launch that
+                # exits on its own (a CARLA version mismatch) does so again on every respawn
+                p["exits_unready"] = int(p.get("exits_unready") or 0) + 1
+                if p["exits_unready"] >= EXITS_UNREADY:
+                    self.due.pop(entity, None)
+                    console = Path(rec["proc"]) / f"pilot-{entity}" / "console.log"
+                    self.failed = (f"pilot {entity} is not coming up: "
+                                   + exited_why(console, code, self.offset.get(entity, 0))
+                                   + f"; it ended {p['exits_unready']} times before it was ready")
+                    event(self.stack_dir, "pilot.failed", entity=entity, code=code,
+                          error=self.failed)
+                    changed = True
+                    continue
             print(f"scensim stack: pilot {entity} ended ({code}); respawn in "
                   f"{self.respawn_delay:.0f} s", flush=True)
             changed = True
@@ -1937,6 +1987,11 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                 next_check = 0.0
             if pilots.supervise(rec):
                 write_json(path, rec)
+            if pilots.failed:
+                rec["error"] = pilots.failed
+                print(f"scensim stack: {pilots.failed}", file=sys.stderr, flush=True)
+                code = 2
+                break
             waiting = _waiting(rec)
             if waiting and pilots_on and time.time() >= next_check:
                 for p in waiting:
@@ -1969,6 +2024,7 @@ def keep(stack_dir, poll=5.0, once=False, pilot_command=None,
                     if check_ready(p.get("ready"), ros_env(rec, p["domain"])):
                         p["ready_at"] = iso_now()
                         p["load_restarts"] = 0  # a later start that fails to load gets its own
+                        p["exits_unready"] = 0
                         event(stack_dir, "pilot.ready", entity=p["entity"], map=rec.get("map"))
                         print(f"scensim stack: pilot {p['entity']} ready on {rec.get('map')}",
                               flush=True)

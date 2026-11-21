@@ -1293,3 +1293,51 @@ def test_a_start_that_never_loads_is_restarted_twice_then_left_not_ready(where, 
     missing = [e for e in events if e["event"] == "pilot.missing"]
     assert len(missing) == 1 and missing[0]["composables"].startswith(
         "(stalled) /planning/behavior_planning_container (its reply")
+
+
+def test_a_stack_pilot_that_ends_before_it_is_ready_fails_the_stack(where, maps_hub):
+    """Issue 089 at stack start: a launch that exits on its own (a CARLA version mismatch) did so
+    again on every respawn, and the stack waited out its ready timeout. After EXITS_UNREADY ends
+    before it was ready, the keeper stops, naming the pilot, its exit code and its error."""
+    import sys
+    d = make(where)
+    p = stack.plan(project_arg=str(d), map_name="Town01")
+    for x in p.record["pilots"]:
+        x["ready"] = ["false"] if x["entity"] == "ego" else ["true"]
+    stack.write_plan(p)
+    exits = ("import sys; print('[acb_bridge-1] [ERROR] [1795.0] [acb_bridge]: CARLA version "
+             "mismatch: built for 0.9.16, server 0.10.0'); print('[ERROR] [acb_bridge-1]: process "
+             "has died [pid 7, exit code 3]'); sys.exit(3)")
+    starts = []
+
+    def cmd(rec, pilot, entry, log_dir):
+        if pilot["entity"] != "ego":
+            return fake_pilot(rec, pilot, entry, log_dir)
+        starts.append(1)
+        return [sys.executable, "-c", exits]
+    t = time.time()
+    assert stack.keep(p.stack_dir, poll=0.05, once=True, pilot_command=cmd, respawn_delay=0.1,
+                      once_timeout=30) == 2
+    assert time.time() - t < 20 and len(starts) == stack.EXITS_UNREADY
+    rec = json.loads(p.stack_json.read_text())
+    assert rec["state"] == "stopped"
+    assert rec["error"].startswith("pilot ego is not coming up: its launch exited (code 3) before "
+                                   "it was ready: [acb_bridge-1] [ERROR] [1795.0] [acb_bridge]: "
+                                   "CARLA version mismatch")
+    assert rec["error"].endswith(f"it ended {stack.EXITS_UNREADY} times before it was ready")
+    events = [json.loads(x)["event"] for x in (p.stack_dir / "events.jsonl").read_text().splitlines()]
+    assert "pilot.failed" in events
+
+
+def test_first_error_skips_the_died_lines_unless_alone(tmp_path):
+    log = tmp_path / "console.log"
+    log.write_text("[INFO] [launch]: All log files can be found below /x\n"
+                   "[ERROR] [acb_bridge-1]: process has died [pid 7, exit code 3]\n"
+                   "Traceback (most recent call last):\n"
+                   "RuntimeError: no CARLA on port 2610\n")
+    assert stack.first_error(log) == "RuntimeError: no CARLA on port 2610"
+    log.write_text("[ERROR] [x-1]: process has died [pid 7, exit code 1]\n")
+    assert stack.first_error(log) == "[ERROR] [x-1]: process has died [pid 7, exit code 1]"
+    log.write_text("all quiet\n")
+    assert stack.first_error(log) is None and stack.first_error(tmp_path / "none") is None
+    assert stack.exited_why(log, 3) == f"its launch exited (code 3) before it was ready (see {log})"

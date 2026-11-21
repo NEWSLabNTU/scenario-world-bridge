@@ -9,12 +9,16 @@
 # venv lacks, constrained to the versions already there. Nothing in <isaac-venv> changes: no
 # isaacsim, torch or warp. `pip check` runs at the end and its output is kept.
 #
-# The tag: v3.0.0-EA, chosen on purpose. Isaac Lab v3.0.0 (GA) pins isaacsim==6.2.0.0; this
-# overlay is for an Isaac Sim 6.1.0.0 install, which v3.0.0-EA pins (with torch 2.11.0). Move to
-# GA when the Isaac Sim install moves to 6.2.
+# The tag: v3.0.0, the release, which pins isaacsim==6.2.0.0, torch 2.11.0 and warp-lang 1.17.0
+# (roadmap 095). Its packages are a uv workspace of pyproject.toml members (no setup.py); each is
+# installed editable as before, and the root pyproject (isaaclab-dev) still lists every
+# third-party dependency the members need. The Isaac venv's own versions win (constraints):
+# isaacsim 6.2.0.0 brings its own warp-lang, which `pip check` then reports against the 1.17.0 pin.
+# For an Isaac Sim 6.1.0.0 install: ISAACLAB_TAG=v3.0.0-EA
+# ISAACLAB_COMMIT=ae37b028ea415c91ea2bc32609efcd759ed2b974 (092 K2.0).
 set -euo pipefail
-ISAACLAB_TAG=${ISAACLAB_TAG:-v3.0.0-EA}
-ISAACLAB_COMMIT=${ISAACLAB_COMMIT:-ae37b028ea415c91ea2bc32609efcd759ed2b974}
+ISAACLAB_TAG=${ISAACLAB_TAG:-v3.0.0}
+ISAACLAB_COMMIT=${ISAACLAB_COMMIT:-e3f7d9ff1f5d7f8280de3ece9000b7117f66bcf4}
 PACKAGES=(isaaclab isaaclab_physx isaaclab_newton isaaclab_contrib isaaclab_assets
           isaaclab_tasks isaaclab_rl)
 

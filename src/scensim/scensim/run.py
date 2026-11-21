@@ -1077,13 +1077,27 @@ def apply_knobs(rec, spec, psettings, call=_ros_call):
         bound = knobsmod.bound(spec.scenario, spec.parameters)
     except ValueError as e:
         return None, f"knobs: {e}"
-    if not bound:
-        return None, ""
     world = (psettings.get("world") or {})
+    # with knobs declared, every run sends the baseline, bound knobs or not: the world server
+    # keeps its weather across runs and world loads, so a run without knobs would otherwise run
+    # in the last knobbed run's (243)
+    if not bound and not world.get("knobs"):
+        return None, ""
     baseline = ((rec.get("weather") or {}).get("parameters")
                 or (world.get("weather") or {}).get("parameters") or {})
     try:
         plan = knobsmod.plan(world.get("knobs"), bound, rec.get("simulator") or "", baseline)
+        # a weather knob and an EnvironmentAction that sets weather in the same scenario: the
+        # action would override the knob during the run, after its read-back (243)
+        env = knobsmod.environment_weather(spec.scenario) if plan["weather"] and bound else []
+        knobbed = [k for k in bound if ((world.get("knobs") or {}).get(k) or {}).get(
+            "values", {}).get(bound[k], {}) and (world["knobs"][k]["values"][bound[k]] or {}).get(
+            "weather")]
+        if env and knobbed:
+            raise knobsmod.KnobError(
+                f"knob {', '.join(knobbed)} sets weather, and the scenario's EnvironmentAction "
+                f"sets {', '.join(env)} during the run, which would override it after its "
+                "read-back: drop one of the two")
     except knobsmod.KnobError as e:
         return {"ok": False, "knobs": {k: {"value": v, "ok": False} for k, v in bound.items()},
                 "refused": str(e)}, f"knobs: {e}"
@@ -1104,10 +1118,16 @@ def apply_knobs(rec, spec, psettings, call=_ros_call):
                     "knobs: the world's weather could not be read back (get_weather)")
     block = knobsmod.compare(bound, world.get("knobs"), plan["weather"], read)
     block["sent"] = plan["weather"]
+    # the baseline too: a run with no bound knob still runs in the weather it sent
+    off = sorted(p for p, v in plan["weather"].items()
+                 if read.get(p) is None or abs(float(read[p]) - float(v)) > knobsmod.TOLERANCE)
+    if off:
+        block["ok"] = False
+        block["baseline_not_applied"] = off
     if plan["notes"]:
         block["notes"] = plan["notes"]
     if not block["ok"]:
-        bad = [k for k, e in block["knobs"].items() if not e["ok"]]
+        bad = [k for k, e in block["knobs"].items() if not e["ok"]] + off
         return block, (f"knobs: the world did not apply {', '.join(bad)} as the run asked "
                        f"(sent {plan['weather']}, read back {read})")
     return block, ""

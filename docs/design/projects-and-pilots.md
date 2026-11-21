@@ -253,9 +253,15 @@ scenario-description.md section 3; a world.yaml may carry it later): a value map
 parameters (the world server's names, through `set_weather`) and/or a named surface map, with
 an optional friction `mu`, or `physics: none` for a visual-only value. A scenario binds a knob
 to a parameter (`<Property name="scensim.knob.surface" value="$surface"/>`); before each run the
-runner sends the stack's weather baseline merged with the run's knobs' parameters (every run
-absolute, none inherits another's), reads them back with `get_weather`, and records the result
-in `result.json`'s `knobs` (`scensim.knobs`). A knob the world lacks, a value it does not
+runner sends the stack's weather baseline merged with the run's knobs' parameters, reads them
+back with `get_weather`, and records the result in `result.json`'s `knobs` (`scensim.knobs`).
+Once `world.knobs` is declared, every run sends and checks the baseline, bound knobs or not:
+the world server keeps its weather across runs and world loads, so a run without knobs would
+otherwise run in the last knobbed run's. A scenario that binds a weather knob and also sets
+weather in an EnvironmentAction (Weather, TimeOfDay, Sun, Fog, ...; the bridge forwards them
+to the world during the run, after the read-back) is refused by name. The coverage report
+groups runs by the knob values applied; a surface map not read back (issue 095) is its own
+cell, `<value> (unverified)`. A knob the world lacks, a value it does not
 declare, a read-back that differs, or a value this simulator cannot honour makes the run an
 error run, excluded from rates:
 

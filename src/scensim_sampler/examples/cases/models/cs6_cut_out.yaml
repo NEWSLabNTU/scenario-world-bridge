@@ -9,7 +9,7 @@ header:
   licence: CC0-1.0
 knobs: {speed_limit: 33.3}
 variables:
-  - {name: world.illumination, categorical: {day: 0.75, night: 0.25}}
+  - {name: illumination, categorical: {day: 0.75, night: 0.25}}
   - {name: stopped_kind, categorical: {car: 0.7, truck: 0.2, motorbike: 0.1}}
   - name: ego_speed
     normal: {mean: 28.0, sd: 3.0}
@@ -31,5 +31,5 @@ constraints:
   - "ego_speed <= 1.2 * speed_limit"
   - "reveal_m < 600 - lead_s"                  # the stopped car (s = 600) is ahead of the lead
 cell:
-  illumination: {parameter: world.illumination}
+  illumination: {parameter: illumination}
   stopped_kind: {parameter: stopped_kind}

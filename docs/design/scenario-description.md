@@ -263,13 +263,14 @@ and a car stopped in the ego's lane appears ahead.
 | `reveal_time` | how far ahead of the stopped car the lead leaves, in seconds at its speed | lognormal, 2.0 s | the stopped car is ahead of the lead |
 | `lc_time` | the lead's lane change duration | normal, 3.0 s | |
 | `stopped_kind` | car, truck or motorbike | categorical | |
-| `world.illumination` | day or night (see gap 1) | categorical | |
+| `illumination` | day or night, bound to the world's knob by `scensim.knob.illumination` (gap 1) | categorical | |
 
 `ego_headway_m`, `lead_s` and `reveal_m` are derived (`ego_speed × reveal_time` is the trigger
 as a distance, CS1's rule). The lead's lane change starts on a freespace
 `RelativeDistanceCondition` to the stopped car; the lead is blind (SSv2's `isBlind`), so its
 default behaviour does not brake for the stopped car first; the stopped car is held at speed 0
-by its Init `SpeedAction`; its `vehicleCategory` is `$stopped_kind`.
+by its Init `SpeedAction`; its `vehicleCategory` is `$stopped_kind`. Its records carry the
+bound value (`illumination: night` where the cell says night), which the runner applies.
 
 **Sample record** (abridged): `category: R1.lead_cut_out.stopped_vehicle`, `cell:
 {illumination: day, stopped_kind: car}`, `values: {ego_speed: 32.97, time_headway: 1.88,
@@ -281,7 +282,7 @@ lead_s]`, seeds for the scenario, the world and each entity.
 | Target | What it becomes |
 |---|---|
 | seats (SSv2) | the concrete scenario; the stopped car's category picks the simulator's model (a truck's box for a truck) |
-| batch | compiles if the slot has a camera (illumination) and a batched form of SSv2's default traffic behaviour (the lead and the stopped car); the lane change is a precomputed lateral profile, the trigger a vectorised distance. A per-slot category needs per-slot assets (gap 6) |
+| batch | compiles if a batched form of SSv2's default traffic behaviour (the lead and the stopped car) exists, and, once the checker reads knob bindings, if the slot has a camera (illumination); the lane change is a precomputed lateral profile, the trigger a vectorised distance. A per-slot category needs per-slot assets (gap 6) |
 
 ### CS7. A cyclist overtaken at an intersection exit, low sun ahead (R2 × R4)
 
@@ -297,65 +298,96 @@ the sun low ahead. In some runs the cyclist swerves out (a drain, a door) as the
 | `rel_azimuth`, `sun_elevation` | the sun against the exit's heading, its height | normal 0 rad, uniform 0.03 to 0.35 rad | |
 | `swerve_p`, `swerve_gap`, `swerve_time` | whether, when and how fast the cyclist swerves 0.8 m out | 30 %, lognormal 8 m, normal 1.2 s | peak lateral acceleration at most 3 m/s² |
 
-Derived: `sun_azimuth` (the exit's heading plus `rel_azimuth`), `swerve_offset`, `swerve_acc`,
-and the cell values `glare` (into the sun or not) and `swerve`. The sun is set in Init by an
-`EnvironmentAction` (`Sun`, `TimeOfDay`); the swerve is a `LaneOffsetAction` started by a freespace
-`RelativeDistanceCondition` from the ego.
+Derived: `sun_azimuth` (the exit's heading plus `rel_azimuth`), `swerve_offset`, and the cell
+values `glare` (into the sun or not) and `swerve`; `swerve_acc`, the swerve's peak lateral
+acceleration, is an intermediate the constraint reads. The sun is set in Init by an
+`EnvironmentAction` (`Sun`, `TimeOfDay`). The swerve is a `LaneChangeAction` into the cyclist's
+own lane (`RelativeTargetLane` 0) ending at `targetLaneOffset = $swerve_offset`, over
+`swerve_time`, started by a freespace `RelativeDistanceCondition` from the ego. The first draft
+used a `LaneOffsetAction`, which SSv2 does not implement (gap 8); whether SSv2 accepts a lane
+change into the entity's own lane is still to be seen on seats.
 
 **Sample record** (abridged): `category: R2.cyclist.overtaken_at_exit`, `cell: {glare: low_sun,
 swerve: yes}`, `values: {ego_speed: 10.06, cyclist_speed: 4.17, rel_azimuth: 0.71,
-sun_elevation: 0.31, swerve_gap: 7.14, swerve_acc: 2.3, ...}`; of 20 draws, 5 were into the sun
-and 4 rejected by the lateral acceleration bound.
+sun_elevation: 0.31, swerve_gap: 7.14, swerve_time: 1.48, ...}`; of 20 draws, 5 were into the sun,
+and 4 more were rejected by the lateral acceleration bound.
 
 **Compiled.**
 
 | Target | What it becomes |
 |---|---|
 | seats (SSv2) | the concrete scenario; the world server sets the sun's azimuth and altitude (CARLA's weather parameters) |
-| batch | refused today: the checker does not list `LaneOffsetAction`'s dynamics and target, although the table lists the action as batch (gap 8). Once fixed: a per-slot lateral profile, the sun conditional on a camera and a renderer that sets it per slot. Glare matters only to a camera pilot |
+| batch | compiles if a batched form of SSv2's default behaviour exists (the cyclist) and the slot has a camera (`TimeOfDay`, `Sun`); the swerve is a per-slot lateral profile. Glare matters only to a camera pilot |
 
-### What the drafts lacked
+### What the drafts lacked, and the rules proposed
 
 D7's exit, "expressible with no construct the drafts lack", is **not met**. Both scenarios are
-written, but with workarounds where the drafts have no construct. In order of consequence:
+written, but with workarounds where the drafts had no construct. In order of consequence, each
+with the rule this note now proposes:
 
-1. **Sampled conditions do not reach the world.** A drawn knob value (`illumination`) lands in
-   the record's cell, but nothing binds it to the scenario's `world.illumination`: a model
-   variable cannot be named `world.illumination`, and the sampler has no other path. A record
-   whose cell says night runs in daylight. CS1's example has the same flaw (its illumination and
-   surface only label the cell), so a coverage report grouped by those cells would be grouped by
-   labels the world never applied. D2 and D4 need one rule binding a drawn variable to a knob,
-   and the sampler (092 K1) needs to apply it.
+1. **Sampled conditions did not reach the world.** A drawn knob value (`illumination`) landed in
+   the record's cell, but nothing bound it to the scenario's `world.illumination`, so a record
+   whose cell said night ran in daylight; CS1's example had the same flaw. *Rule:* section 3's
+   binding (`scensim.knob.<name>`, the applied value read back into `result.json`) and section
+   7's computed cells. CS6 now binds `illumination` that way.
 2. **Latent base variables.** A natural base is often written in quantities the scenario does
-   not use directly (time headway, reveal time), which only derived values read. The sampler
-   refuses a drawn variable that is not a scenario parameter, so both scenarios declare such
-   variables as parameters their storyboard never reads. D4 should allow a variable marked
-   latent: recorded, not bound.
+   not use directly (a time headway, a reveal time), which only derived values read. The sampler
+   refused a drawn variable that is not a scenario parameter, so both scenarios declare such
+   variables as parameters their storyboard never reads. *Rule:* a model variable may be marked
+   `latent: true`. It is drawn and recorded in the record's `values` (so a replay draws nothing),
+   it may feed derived values, constraints and the cell, and it is never bound to the scenario;
+   a latent variable with the name of a scenario parameter is refused.
 3. **Optional entities.** "The lane the lead moves into is occupied in 20 % of runs" needs an
    entity that exists in some samples only. OpenSCENARIO's entity set is fixed, and
-   `AddEntityAction` is seats only. CS6 dropped the variable; the workaround is an entity always
-   present and placed out of the way when absent.
-4. **A stopped vehicle.** OpenSCENARIO has no parked or broken-down vehicle. A vehicle without a
-   controller is SSv2's default traffic behaviour, so the checker conditions the scenario on a
-   batched traffic model even for a car that never moves, and without its Init `SpeedAction` of
-   0 the car would drive off. The subset should classify a vehicle held at 0 with no later
-   motion as a static prop.
+   `AddEntityAction` is seats only. *Rule:* an entity may carry the property `scensim.present` =
+   `$<boolean parameter>`. Where false, the compiler places it nowhere: on seats it is not
+   spawned (its actions and the conditions that name it are dropped, and the run's
+   `resolved.yaml` says so); in a batch it is a masked slot entity, which every vectorised
+   condition skips. A condition that names an absent entity is false, never an error.
+4. **A stopped vehicle.** OpenSCENARIO has no parked or broken-down vehicle; a vehicle without a
+   controller is SSv2's default traffic behaviour, so the checker conditioned a scenario on a
+   batched traffic model for a car that never moves, and without its Init `SpeedAction` of 0 the
+   car would drive off. *Rule:* a vehicle whose controller has the property `scensim.static =
+   true` stands where it was placed for the whole run (speed 0, no behaviour), and is a static
+   prop in a batch, with a vehicle's class and box. The checker classifies it batch; any motion
+   action on it is refused.
 5. **A blind entity.** SSv2's `isBlind` controller property (the entity ignores others) is what
-   makes a scripted cut-out keep its speed. Neither the drafts nor the subset name it; the
-   checker treats it as the default controller. In a batch it is 092 K2.1's `see_around` off.
+   makes a scripted cut-out keep its speed. *Rule:* the subset lists `isBlind`. A vehicle that is
+   blind and has only lane-following and scripted motion needs the lane-following part of the
+   default behaviour and nothing that reads other entities (092 K2.1's `see_around` off), which
+   the checker states as its condition instead of the whole traffic model.
 6. **A per-sample entity class.** `vehicleCategory="$stopped_kind"` works in the sampler and in
-   SSv2, but the subset does not classify it. A batch needs per-slot assets, or one asset with
-   a per-slot box.
+   SSv2, but the subset did not classify it. *Rule:* a parameter in an entity's category or model
+   is conditional in a batch on per-slot assets, and the checker names the parameter and its
+   values. On seats it is the simulator's model for that category, chosen per run.
 7. **The world's geometry in derived values.** The sun's azimuth relative to the road needs the
-   exit lane's heading, a property of a lane anchor. The drafts give the sampler knobs, not
-   anchors, so CS7 uses a knob (`exit_heading`) as a stand-in. Anchors should expose their
-   geometry (heading, length) to derived expressions.
-8. **A checker gap:** `LaneOffsetAction` is listed as batch, but its `LaneOffsetActionDynamics`
-   and `LaneOffsetTarget` are refused as unlisted (092 S2).
-9. **Smaller points.** OpenSCENARIO's lane offset takes a peak lateral acceleration, not a
+   exit lane's heading, a property of a lane anchor; the drafts gave the sampler knobs, not
+   anchors, so CS7 uses a knob (`exit_heading`) as a stand-in. *Rule:* a world's anchors expose
+   read-only attributes to derived expressions and constraints, as `anchor.<name>.<attribute>`:
+   a lane's `heading` (at a given `s`, `anchor.exit_n.heading(s)`), `length` and `speed_limit`,
+   a conflict point's `x` and `y`. The sampler reads them from the world's `world.yaml`, and the
+   record names the world it read them from.
+
+Two smaller points have their place elsewhere:
+
+8. **The description needed a construct SSv2 does not implement.** CS7's first draft swerved
+   with a `LaneOffsetAction`, the natural OpenSCENARIO construct, which the subset listed as
+   batch. SSv2's own support table lists it as unimplemented (with
+   `RelativeTargetLaneOffset`, `RelativeLanePosition` and `TraveledDistanceCondition`), so the
+   scenario would not have run on seats either, and no batch run could ever have been checked
+   against one. 092 S2's checker now refuses those constructs by name, as a class of their own,
+   and keeps every batch row a construct SSv2 runs. *Rule:* a scenario construct counts as
+   expressible only if SSv2 runs it; the drafts' examples and the case studies are checked by
+   `scensim-sample compilable`, which refuses the unimplemented.
+9. **Small points.** OpenSCENARIO's lane offset takes a peak lateral acceleration, not a
    duration, so a swerve time becomes a derived acceleration (the derived-parameter rule covers
    it). `Sun` is absolute, so a sun relative to the ego's heading depends on point 7.
-   `scensim-sample check` on a missing file ends in a traceback rather than a named error.
+   `scensim-sample check` on a missing file ended in a traceback (fixed in 092 S2's branch: it
+   names the file).
+
+One question for section 7's rule: CS7's cell attributes (`glare`, `swerve`) are derived values,
+computed from drawn ones, which the rule as written (a bound knob or a declared parameter) would
+refuse. They are computed, not labelled, so the rule should admit a derived value too.
 
 ## 3. The world interface (D2)
 

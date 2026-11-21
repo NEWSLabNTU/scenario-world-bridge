@@ -61,7 +61,7 @@ Then generalise the cross-cutting designs from them.
 | D4 | Sampling in the description: base, constraints, proposal, search; the sample record's fields (feeds 092 S1) | 133 | open |
 | D5 | The compilable subset, drafted from the case studies (feeds 092 S2) | 133 | open |
 | D6 | Coverage tagging: category ids and cells in the scenario | 133 | open |
-| D7 | Review: the drafts checked against two more case studies not used to write them | swb 243 | done 2026-11-21: CS6 (a cut-out reveals a stopped car, R1) and CS7 (a cyclist overtaken at an intersection exit under low sun, R2 × R4), scenario-description.md section 2a and `src/scensim_sampler/examples/cases/cs6_*`, `cs7_*`; the exit is not met: nine constructs or rules the drafts lack, first among them that sampled knob values never reach the world |
+| D7 | Review: the drafts checked against two more case studies not used to write them | swb 243 | gaps found; exit not met (2026-11-21): CS6 (a cut-out reveals a stopped car, R1) and CS7 (a cyclist overtaken at an intersection exit under low sun, R2 × R4), scenario-description.md section 2a, `src/scensim_sampler/examples/cases/cs6_*`, `cs7_*`. Gaps: (1) sampled knobs did not reach the world (rule: sections 3 and 7, 139 builds it); (2) latent variables; (3) optional entities; (4) a static vehicle; (5) isBlind; (6) a per-sample entity class; (7) anchor geometry in derived values; each with a proposed rule in 2a; (8) the description needed a construct SSv2 does not implement (LaneOffsetAction; S2's checker now refuses the unimplemented, and CS7 swerves by a lane change); (9) small points |
 
 ## Exit
 

@@ -19,7 +19,6 @@
     <ParameterDeclaration name="swerve_offset" parameterType="double" value="-0.3"/>
     <ParameterDeclaration name="swerve_gap" parameterType="double" value="9"/>
     <ParameterDeclaration name="swerve_time" parameterType="double" value="1.2"/>
-    <ParameterDeclaration name="swerve_acc" parameterType="double" value="1.4"/>
     <ParameterDeclaration name="sun_azimuth" parameterType="double" value="1.6"/>
     <ParameterDeclaration name="sun_elevation" parameterType="double" value="0.12"/>
     <!-- the base's own variables, which only derived values read (declared so records keep them) -->
@@ -64,10 +63,14 @@
       <ManeuverGroup name="swerve" maximumExecutionCount="1">
         <Actors selectTriggeringEntities="false"><EntityRef entityRef="cyclist"/></Actors>
         <Maneuver name="swerve"><Event name="swerve" priority="override" maximumExecutionCount="1">
-          <Action name="swerve"><PrivateAction><LateralAction><LaneOffsetAction continuous="false">
-            <LaneOffsetActionDynamics dynamicsShape="sinusoidal" maxLateralAcc="$swerve_acc"/>
-            <LaneOffsetTarget><AbsoluteTargetLaneOffset value="$swerve_offset"/></LaneOffsetTarget>
-          </LaneOffsetAction></LateralAction></PrivateAction></Action>
+          <!-- the swerve: a lane change into its own lane (relative target 0) ending at
+               swerve_offset. SSv2 implements neither LaneOffsetAction nor
+               RelativeTargetLaneOffset; it reads LaneChangeAction's targetLaneOffset -->
+          <Action name="swerve"><PrivateAction><LateralAction>
+            <LaneChangeAction targetLaneOffset="$swerve_offset">
+              <LaneChangeActionDynamics dynamicsShape="sinusoidal" value="$swerve_time" dynamicsDimension="time"/>
+              <LaneChangeTarget><RelativeTargetLane entityRef="cyclist" value="0"/></LaneChangeTarget>
+            </LaneChangeAction></LateralAction></PrivateAction></Action>
           <!-- the ego closes to swerve_gap behind the cyclist -->
           <StartTrigger><ConditionGroup><Condition name="close" delay="0" conditionEdge="rising">
             <ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any">

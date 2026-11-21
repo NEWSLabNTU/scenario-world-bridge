@@ -362,7 +362,7 @@ with the rule this note now proposes:
    values. On seats it is the simulator's model for that category, chosen per run.
 7. **The world's geometry in derived values.** The sun's azimuth relative to the road needs the
    exit lane's heading, a property of a lane anchor; the drafts gave the sampler knobs, not
-   anchors, so CS7 uses a knob (`exit_heading`) as a stand-in. *Rule:* a world's anchors expose
+   anchors, so CS7 declares a parameter held constant (`exit_heading`) as a stand-in. *Rule:* a world's anchors expose
    read-only attributes to derived expressions and constraints, as `anchor.<name>.<attribute>`:
    a lane's `heading` (at a given `s`, `anchor.exit_n.heading(s)`), `length` and `speed_limit`,
    a conflict point's `x` and `y`. The sampler reads them from the world's `world.yaml`, and the

@@ -41,7 +41,8 @@ def request_motion(kind, commands):
 
 class BatchRun:
     def __init__(self, compiled, world, backend, component, route_length=300.0,
-                 points=61, speed_limit=None, allow_loop=False):
+                 points=61, speed_limit=None, allow_loop=False, start_frames=0,
+                 step_time=None):
         """`allow_loop`: accept a LoopBatch component (one Python step per slot), for checking
         a component before it has a batched form; never for a throughput number, and the run
         says so (`self.looped`)."""
@@ -71,6 +72,19 @@ class BatchRun:
         self.job = torch.zeros(compiled.n, nd, dtype=torch.int8)    # SSv2's LINEAR_ACCELERATION
         self.job_target = torch.zeros(compiled.n, nd, dtype=torch.float64)
         self.obs = None
+        self.route = sbmod.RouteGoal(self)
+        # SSv2's scenario time is A(S + k) - A(S): A the frames' step summed in a double from
+        # the node's start, S the frames before startNpcLogic (SimulationClock; the fork's
+        # clock_source:=simulator moves ROS time only). S differs from seats run to seats run;
+        # a replay that must hit a SimulationTime boundary on the same frame passes its S.
+        if start_frames and step_time is None:
+            raise ValueError("start_frames needs the step_time it counts")
+        a0 = 0.0
+        for _ in range(int(start_frames)):
+            a0 += step_time
+        self.a0 = a0
+        self.clock = torch.full((compiled.n,), a0, dtype=torch.float64)    # A
+        self.clock0 = self.clock.clone()                                    # A(S)
 
     # --- reset ----------------------------------------------------------------------------
 
@@ -85,20 +99,30 @@ class BatchRun:
         if self.defaults:
             self._reset_vehicles(mask)
             self.job = torch.where(mask[:, None], torch.zeros_like(self.job), self.job)
+        self.clock = torch.where(mask, torch.full_like(self.clock, self.a0), self.clock)
+        self.clock0 = torch.where(mask, torch.full_like(self.clock0, self.a0), self.clock0)
         self.ctx.t = torch.where(mask, torch.zeros_like(self.ctx.t), self.ctx.t)
         self.ctx.standstill = torch.where(mask[:, None], torch.zeros_like(self.ctx.standstill),
                                           self.ctx.standstill)
         if self.storyboard is not None:
             self.storyboard.reset(mask)
         # the storyboard's first evaluation, at time 0, before the first update (SSv2's order)
+        prev = self.obs
         self.obs = self._observe(self.backend.state(), None)
         self.ctx.obs = self.obs
+        self.route.reset(mask)
+        if self.c.goal_waypoints:
+            self.route.set(mask, self.c.goal_waypoints)
         self._tick(mask)
+        if prev is not None:      # the other slots keep this step's observation (and events)
+            self.obs = _merge(prev, self.obs, mask)
+            self.ctx.obs = self.obs
         return self.obs
 
     def _tick(self, mask=None):
         sb = self.storyboard
         if sb is None:
+            self.obs["route"] = self.route.update(self.obs)
             return
         if mask is not None:
             keep = sb.outcome.clone()
@@ -107,6 +131,7 @@ class BatchRun:
             sb.outcome = torch.where(mask, sb.outcome, keep)
         else:
             sb.tick(self.ctx)
+        self.obs["route"] = self.route.update(self.obs)
         self.obs["outcome"] = sb.outcome.clone()
         self.obs["storyboard_complete"] = sb.complete.clone()
         self.obs["storyboard_stopped"] = sb.stopped.clone()
@@ -216,7 +241,8 @@ class BatchRun:
         self._post_update()
         live = (self.storyboard.outcome == 0 if self.storyboard is not None
                 else torch.ones(self.c.n, dtype=torch.bool))
-        self.ctx.t = torch.where(live, self.ctx.t + dt, self.ctx.t)
+        self.clock = torch.where(live, self.clock + dt, self.clock)
+        self.ctx.t = self.clock - self.clock0
         self.ctx.update(self.obs, dt)
         self._tick()
         return self.obs
@@ -240,6 +266,20 @@ class BatchRun:
             d = self.defaults
             x[:, d], y[:, d], yaw[:, d], v[:, d] = nx, ny, nyaw, self.vehicles.v
         return {"x": x, "y": y, "yaw": yaw, "v": v, "ego": st}
+
+
+
+def _merge(old, new, mask):
+    """`new` for the slots in `mask`, `old` for the others: tensors whose first dimension is
+    the slots, recursively through dicts; anything else is `new`'s."""
+    if isinstance(new, dict):
+        return {k: (_merge(old[k], v, mask) if isinstance(old, dict) and k in old else v)
+                for k, v in new.items()}
+    if (torch.is_tensor(new) and torch.is_tensor(old) and new.shape == old.shape
+            and new.dim() >= 1 and new.shape[0] == mask.shape[0]):
+        m = mask.reshape(-1, *([1] * (new.dim() - 1)))
+        return torch.where(m, new, old)
+    return new
 
 
 _ = np

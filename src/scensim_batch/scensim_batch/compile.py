@@ -56,6 +56,7 @@ class Compiled:
     verdict: object = None
     seeds: list = field(default_factory=list)
     storyboard: object = None        # storyboard.Storyboard (K2.3)
+    goal_waypoints: list = None      # the ego's Init routing: [(x, y, yaw) [N]], the route goal
     records: list = field(default_factory=list)
 
     def index(self, name):
@@ -176,6 +177,7 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
     x, y, yaw, speed = z.clone(), z.clone(), z.clone(), z.clone()
     placed = torch.zeros(n, e, dtype=torch.bool)
     speed_set = torch.zeros(n, e, dtype=torch.bool)
+    goal = None
 
     for pr in root.findall("Storyboard/Init/Actions/Private"):
         ref = pr.get("entityRef")
@@ -195,6 +197,19 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
                 speed_set[:, i] = True
             elif pa.find("ControllerAction") is not None:
                 continue   # the ego's pilot: the batch's policy (subset.check said so)
+            elif pa.find("RoutingAction") is not None:
+                from . import storyboard as sbmod
+                ra = next(iter(pa.find("RoutingAction")))
+                if ra.tag not in sbmod.EGO_GOAL or entities[i].role != "ego":
+                    raise CompileError(f"{where}: RoutingAction/{ra.tag} on {ref!r} (batch "
+                                       "executor pending)")
+                # the policy's task: the slot's route goal (Init positions may be relative)
+                try:
+                    goal = sbmod.routing_waypoints(
+                        ra, f"{where}/RoutingAction/{ra.tag}",
+                        lambda p_, w_: _position(p_, w_, P, world, names, x, y, yaw, placed))
+                except sbmod.StoryboardError as err:
+                    raise CompileError(str(err)) from None
             else:
                 tag = next(iter(pa), None)
                 raise CompileError(f"{where}: {getattr(tag, 'tag', 'empty')} in Init "
@@ -216,7 +231,8 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
         raise CompileError(str(e)) from None
     to = (lambda t: t.to(device))
     return Compiled(str(spath), n, entities, params, to(x), to(y), to(yaw), to(speed),
-                    placed.to(device), speed_set.to(device), v, seeds, story, list(records))
+                    placed.to(device), speed_set.to(device), v, seeds, storyboard=story,
+                    records=list(records), goal_waypoints=goal)
 
 
 class _StoryInfo:

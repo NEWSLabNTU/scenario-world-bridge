@@ -1,7 +1,7 @@
 # 088: An Autoware start hangs, not fails, when a load_node response is lost
 
 **Severity**: low so far. It was seen once, and the rerun passed. A stack that never becomes ready waits
-out the whole ready timeout (1800 s under T3) before anything says why. **Status**: fixed (scensim), under both launchers: `ros2 launch`, where it happened, and play_launch. **Found**:
+out the whole ready timeout (1800 s under T3) before anything says why. **Status**: fixed (scensim), under both launchers: `ros2 launch`, where it happened, and play_launch. Upstream, play_launch 0.41.2 (on PyPI) fixes it for play_launch (#0103): a composable with no reply, ComponentEvent or ListNodes answer within `composable_node_loading.load_total_budget_secs` (600 s by default) fails as `container-busy: unresponsive for 600s while loading <name>`, logged LOAD_FAILED and named in STARTUP_SUMMARY, and nothing is resent. scensim's guard stays as the faster backstop, and the minimum play_launch version is unchanged. **Found**:
 2026-11-20, by 241, in the T3 Isaac suites for issue 086 (`isaac_rough_road` rough, its first
 start).
 

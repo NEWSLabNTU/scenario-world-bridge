@@ -231,5 +231,25 @@ class Inputs(unittest.TestCase):
                          [(True, False), (False, True)])
 
 
+    def test_error_runs_are_counted_by_kind(self):
+        d = Path(tempfile.mkdtemp())
+        r = Sampler.from_file(EXAMPLES / "walker_dartout_dist.xosc").draw(n=4).records
+        results = ({"verdict": "error", "error": {"kind": "clock_lag", "message": "behind"}},
+                   {"verdict": "error", "error": {"kind": "clock_lag", "message": "behind"}},
+                   {"verdict": "error"},                                   # before error.kind
+                   {"verdict": "passed"})
+        for i, res in enumerate(results):
+            rd = d / f"run{i}"
+            (rd / "contacts").mkdir(parents=True)
+            (rd / "sample.json").write_text(json.dumps(r[i]))
+            (rd / "result.json").write_text(json.dumps(dict(res, sample={"unbound": []})))
+        items = cov.outcomes_from_runs([d])
+        self.assertEqual([o["error_kind"] for _, o in items], ["clock_lag", "clock_lag", "unknown", None])
+        rep = cov.report(items)
+        self.assertEqual(rep["errors"], 3)
+        self.assertEqual(rep["errors_by_kind"], {"clock_lag": 2, "unknown": 1})
+        self.assertIn("errors by kind: clock_lag 2, unknown 1", cov.format_report(rep))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -145,6 +145,9 @@ class Frame:
     # tick; roadmap 032 N2): absent in older traces.
     sim_frame: object = None
     sim_time_ns: object = None  # schema 2, when known
+    # the bridge's monotonic clock when the world's state arrived, ns since the episode
+    # began (schema 2, from 092 K4's paced clock): absent in older traces
+    wall_ns: object = None
 
 
 @dataclass(frozen=True)
@@ -395,8 +398,11 @@ def _frame(ln, known):
     sim_time_ns = o.get("sim_time_ns") if ln.schema >= 2 else None
     if sim_time_ns is not None:
         sim_time_ns = ln.int_(o, "sim_time_ns", minimum=0)
+    wall_ns = o.get("wall_ns") if ln.schema >= 2 else None
+    if wall_ns is not None:
+        wall_ns = ln.int_(o, "wall_ns", minimum=0)
     return Frame(frame=frame, sim_time=sim_time, entities=states, sim_frame=sim_frame,
-                 sim_time_ns=sim_time_ns)
+                 sim_time_ns=sim_time_ns, wall_ns=wall_ns)
 
 
 def _contact(ln):
@@ -606,7 +612,8 @@ def to_json(record, schema=SCHEMA):
             "sim_time": record.sim_time,
         } | ({"sim_time_ns": record.sim_time_ns}
              if two and record.sim_time_ns is not None else {}) | (
-            {} if record.sim_frame is None else {k["sim_frame"]: record.sim_frame}) | {
+            {} if record.sim_frame is None else {k["sim_frame"]: record.sim_frame}) | (
+            {"wall_ns": record.wall_ns} if two and record.wall_ns is not None else {}) | {
             "entities": entities,
         }
     if isinstance(record, Contact):

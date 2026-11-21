@@ -150,8 +150,8 @@ clock: {mode: paced, max_lag_s: 0.05}    # default: {mode: lockstep}
 lag_k = (wall_k - wall_0) - (sim_k - sim_0) / global_real_time_factor
 ```
 
-positive when the world is behind wall time. `wall_k` is the bridge's monotonic clock when it
-answers SSv2's frame `k`, recorded in the truth file's `frame` line as `wall_ns` (schema 2,
+positive when the world is behind wall time. `wall_k` is the bridge's monotonic clock when the
+world's state for frame `k` arrived (ns since the episode began), recorded in the truth file's `frame` line as `wall_ns` (schema 2,
 additive; a reader of an older file finds it absent). The bridge measures it, so the same holds
 on CARLA and Isaac. The runner reads it back after the run (`scensim.truth`), and `result.json`
 records, in both modes:

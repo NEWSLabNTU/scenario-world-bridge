@@ -240,6 +240,7 @@ def test_a_world_that_did_not_apply_a_knob_gives_an_error_run(knob_stack, where)
     assert "knobs: the world did not apply illumination" in r.reason
     assert r.knobs["ok"] is False
     assert r.knobs["knobs"]["illumination"]["applied"]["sun_altitude_angle"] == 12.5
+    assert r.error["kind"] == "knob_mismatch", r.error   # counted by kind (092 K4)
 
 
 # --- 243's review: the baseline every run, EnvironmentAction overlap, unverified cells ------

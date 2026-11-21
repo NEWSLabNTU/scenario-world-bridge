@@ -1650,6 +1650,56 @@ def test_a_required_attachment_that_dies_makes_the_run_an_error(where, maps_hub,
         assert "attachment netsim (required) ended before the run did" in res["reason"] or any(
             "attachment netsim" in e["message"] for e in res["events"])
         assert res["attachments"]["netsim"]["ended_early"]
+        assert res["error"]["kind"] == "attachment", res["error"]   # counted by kind (092 K4)
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+
+
+# --- the clock (roadmap 092 K4): recorded in either mode, judged when paced -----------------
+
+def _trace_with_lag(lag_ms):
+    """A schema 2 trace: four frames, 50 ms of simulated time apart, the last lag_ms late."""
+    import gap_trace as gt
+    lines = [{"type": "episode", "schema": 2, "episode": 1, "start_unix": 0.0,
+              "npc_motion": "tracked", "map": "Town01", "step_time": 0.05}]
+    for k in range(4):
+        lines.append({"type": "frame", "frame": k + 1, "sim_time": 0.05 * (k + 1),
+                      "sim_time_ns": 10**12 + 5 * 10**7 * (k + 1),
+                      "wall_ns": 5 * 10**7 * k + (lag_ms * 10**6 if k == 3 else 0),
+                      "entities": {}})
+    lines.append({"type": "end", "frame": 4, "sim_time": 0.2, "frames": 4, "dropped_frames": 0,
+                  "complete": True})
+    return [gt.load_trace([json.dumps(x) for x in lines])]
+
+
+@pytest.mark.parametrize("clock,lag_ms,verdict", [
+    (None, 120, "passed"),                                    # lockstep: recorded only
+    ("{mode: paced, max_lag_s: 0.05}", 20, "passed"),
+    ("{mode: paced, max_lag_s: 0.05}", 120, "error"),
+])
+def test_the_clock_is_recorded_and_a_paced_run_behind_its_budget_is_an_error(
+        where, maps_hub, monkeypatch, clock, lag_ms, verdict):
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    monkeypatch.setattr(run.truthmod, "load", lambda run_dir: _trace_with_lag(lag_ms))
+    d = make(where)
+    if clock:
+        tb = d / "testbench.yaml"
+        tb.write_text(tb.read_text() + f"clock: {clock}\n")
+    p, proc = start_stack(d)
+    try:
+        run.main(["scenarios/three_pilots.xosc", "--project", str(d)], out=io.StringIO())
+        run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+        res = json.loads((run_dir / "result.json").read_text())
+        assert res["verdict"] == verdict, res["reason"]
+        ck = res["clock"]
+        assert ck["mode"] == ("paced" if clock else "lockstep") and ck["frames"] == 4
+        assert ck["lag_s"]["max"] == pytest.approx(lag_ms / 1000)
+        if verdict == "error":
+            assert res["error"]["kind"] == "clock_lag", res["error"]
+            assert "120 ms behind wall time, beyond its 50 ms budget" in res["reason"]
+        else:
+            assert "error" not in res
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=10)

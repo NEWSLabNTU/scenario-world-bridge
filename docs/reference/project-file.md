@@ -467,6 +467,21 @@ for its runs, a suite item's (`scenarios: [{path: ..., ssv2: {...}}]`) for that 
 waits for none, and the scenario must not use autonomy actions (`RoutingAction` and the
 like). A standing ego on Isaac is the usual case.
 
+### The clock
+
+```yaml
+clock: {mode: paced, max_lag_s: 0.05}   # default: {mode: lockstep}
+```
+
+SSv2 steps the world on a wall-clock timer, so a run that keeps up runs in real time; a step
+that takes longer delays the rest of the run. `lockstep` (the default) lets it: simulated time
+advances one step per SSv2 frame however long the step takes, and each run records how far
+behind wall time it fell (`result.json`'s `clock`). `paced` is for a stack that runs in wall
+time, such as one on its target board: the world is held to wall time, never hurried to catch
+up, and a run that falls more than `max_lag_s` seconds behind is an error run, since the stack
+saw a slower world than it was built for. `paced` needs `ssv2.global_real_time_factor: 1` and the
+truth file (`logging.gap_trace` not false); `testbench check` refuses it otherwise.
+
 ## Suites
 
 A suite is a YAML file in the testbench, given to `scensim run`:

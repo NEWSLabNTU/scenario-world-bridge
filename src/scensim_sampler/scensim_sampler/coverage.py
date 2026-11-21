@@ -109,6 +109,7 @@ def outcomes_from_jsonl(path):
         out.append((row["record"], {"failed": bool(o.get("failed")),
                                     "contact": bool(o.get("contact")),
                                     "error": bool(o.get("error")),
+                                    "error_kind": o.get("error_kind") if o.get("error") else None,
                                     "seeds_not_applied": bool(o.get("seeds_not_applied")),
                                     "run": o.get("run") or f"{Path(path).name}:{i + 1}"}))
     return out
@@ -159,6 +160,10 @@ def outcomes_from_runs(paths):
             rec = dict(rec, cell={a: applied(a, v) for a, v in rec["cell"].items()})
         out.append((rec, {"failed": r.get("verdict") == "failed", "contact": _contact(d),
                           "error": r.get("verdict") == "error",
+                          # why, as a class (scensim's result `error.kind`, roadmap 092 K4);
+                          # a result from before it names none
+                          "error_kind": ((r.get("error") or {}).get("kind") or "unknown")
+                          if r.get("verdict") == "error" else None,
                           "seeds_not_applied": any(n.startswith("pilot ") for n in notes),
                           "replay": bool(r.get("replay")), "run": d.name}))
     return out
@@ -303,6 +308,8 @@ def report(items, catalogue=None, failure="verdict", t=None):
            "catalogue": (catalogue or {}).get("path"),
            "records": len(items), "replays": replays,
            "errors": sum(o["error"] for _, o in items),
+           # the error runs by why (clock_lag, knob_mismatch, attachment, stack, ...)
+           "errors_by_kind": _by_kind(items),
            "seeds_not_applied": sum(o["seeds_not_applied"] and not o["error"]
                                     for _, o in items),
            "layer1": layer1, "layer2": l2, "layer3": l3}
@@ -356,11 +363,23 @@ def _table(rows):
     return ["  ".join(str(c).ljust(w) for c, w in zip(r, widths)).rstrip() for r in rows]
 
 
+def _by_kind(items) -> dict:
+    out = {}
+    for _, o in items:
+        if o["error"]:
+            k = o.get("error_kind") or "unknown"
+            out[k] = out.get(k, 0) + 1
+    return dict(sorted(out.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
 def format_report(rep):
     lines = [f"coverage: {rep['records']} records, {rep['errors']} errors, "
              f"{rep['seeds_not_applied']} with seeds not applied; failure = {rep['failure']}"
              + (f"; {len(rep['replays'])} replays left out (the same samples again)"
                 if rep["replays"] else "")]
+    if rep.get("errors_by_kind"):
+        lines.append("  errors by kind: " + ", ".join(f"{k} {n}"
+                                                       for k, n in rep["errors_by_kind"].items()))
     l1 = rep["layer1"]
     lines.append("")
     lines.append("1. categories" + ("" if l1["from_catalogue"] else

@@ -592,6 +592,20 @@ def cmd_fidelity(args, out):
     return EXIT_OK
 
 
+def cmd_coverage(args, out):
+    """The coverage report (scensim_sampler.coverage) over the testbench's runs, or the given."""
+    try:
+        from scensim_sampler import cli as samplecli  # noqa: PLC0415
+    except ImportError:
+        raise Refused("runs coverage needs scensim_sampler (just build)") from None
+    dirs = args.dirs or [str(runs_root(args))]
+    argv = ["coverage", *dirs, "--failure", args.failure]
+    for flag, v in (("--catalogue", args.catalogue), ("-t", args.t), ("--json", args.json)):
+        if v is not None:
+            argv += [flag, str(v)]
+    return samplecli.main(argv)
+
+
 # --- main -----------------------------------------------------------------------------------
 
 def parser():
@@ -623,6 +637,13 @@ def parser():
                                         "contact and end?")
     p.add_argument("dirs", nargs="+", help="runs, or directories of runs (originals and replays)")
     p.add_argument("--json", help="also write the pairs here")
+    p = sub.add_parser("coverage", parents=[common],
+                       help="categories, conditions and failure rates of the sampled runs")
+    p.add_argument("dirs", nargs="*", help="runs or directories of runs (default: the project's)")
+    p.add_argument("--catalogue", help="the study's categories, cell levels, t and exposure")
+    p.add_argument("--failure", choices=("verdict", "contact", "either"), default="verdict")
+    p.add_argument("-t", type=int, help="t of the condition coverage")
+    p.add_argument("--json", help="also write coverage.json here")
     return ap
 
 
@@ -639,7 +660,8 @@ def main(argv=None, out=None) -> int:
         args.testbench = args.tb
     try:
         return {"list": cmd_list, "show": cmd_show, "why": cmd_why, "prune": cmd_prune,
-                "summary": cmd_summary, "fidelity": cmd_fidelity}[args.cmd](args, out)
+                "summary": cmd_summary, "fidelity": cmd_fidelity,
+                "coverage": cmd_coverage}[args.cmd](args, out)
     except Refused as e:
         sys.stderr.write(f"runs: {e}\n")
         return EXIT_REFUSED

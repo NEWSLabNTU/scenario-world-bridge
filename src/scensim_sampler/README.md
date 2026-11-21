@@ -79,6 +79,13 @@ The annotated example is `examples/walker_dartout/models/walker_dartout.yaml`. I
 - **Expressions.** Arithmetic, comparisons, `and`/`or`/`not`, `a if c else b`, `in` over a
   literal list, and a few math functions. They are parsed and walked, never passed to `eval`.
 
+## Coverage
+
+`scensim-sample coverage runs/ --catalogue catalogue.yaml --json coverage.json`: which
+categories have runs, the t-wise coverage of their conditions, and the failure rate per category
+and cell, with its interval (self-normalised for runs drawn from a proposal). The catalogue and
+its optional `exposure:` weights are the study's own; see the spec, section 8.
+
 ## Weights
 
 A record drawn from a proposal carries `weight = base / proposal` and its logarithm

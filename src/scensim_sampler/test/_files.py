@@ -19,6 +19,8 @@ SCENARIO = """<?xml version="1.0"?>
     <ParameterDeclaration name="lanes" parameterType="unsignedInt" value="2"/>
     <ParameterDeclaration name="kind" parameterType="string" value="car"/>
     <ParameterDeclaration name="wet" parameterType="boolean" value="false"/>
+    <ParameterDeclaration name="surface" parameterType="string" value="dry"/>
+    <ParameterDeclaration name="light" parameterType="string" value="day"/>
   </ParameterDeclarations>
   <Entities><ScenarioObject name="ego"/><ScenarioObject name="lead"/></Entities>
   <Storyboard/>

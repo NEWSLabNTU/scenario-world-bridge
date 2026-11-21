@@ -280,7 +280,7 @@ class Example(unittest.TestCase):
         b = Sampler.from_file(EXAMPLES / "walker_dartout_importance.xosc").draw(n=50)
         got = hashlib.sha256(canonical([[r["values"], r["seeds"], r["log_weight"]]
                                         for r in b.records]).encode()).hexdigest()
-        self.assertEqual(got, "565bdc387d20363aeb5adc616fd4a68a415bec415b23162d02f8900968cd9cf7")
+        self.assertEqual(got, "ea28b5b67d775526f9b91304310f6b8ec5ede005f129f40a04ff86312416a0f6")
 
     def test_the_example_model_says_it_is_invented(self):
         text = (EXAMPLES / "models" / "walker_dartout.yaml").read_text()

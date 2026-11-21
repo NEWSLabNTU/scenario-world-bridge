@@ -139,10 +139,41 @@ class Layers(unittest.TestCase):
         self.assertAlmostEqual(r["rate"], truth, delta=0.004)
         self.assertLess(r["interval"][0], truth)
         self.assertGreater(r["interval"][1], truth)
+        self.assertEqual(r["interval_method"], "delta (normal)")
+        # the interval is the estimator's spread, not Kish's (8x too wide here; 243)
+        self.assertLess(r["interval"][1] - r["interval"][0], 0.02)
         # tiny weights: log space, no underflow
         tiny = [(rec(proposal="q", log_weight=-900.0 + w), o) for (rr, o), w in
                 zip(items, lw)]
         self.assertAlmostEqual(cov.report(tiny, self.CAT)["layer3"][0]["rate"], r["rate"], 12)
+
+    def test_the_weighted_intervals_coverage_is_as_the_spec_says(self):
+        """200 repetitions of 1000 draws: the delta interval covers the N(0,1) tail about 90 %
+        of the time (nominal 95 %; the spec says it can under-cover), and is about as wide as
+        the estimator's real spread, where Kish's n_eff made it 8x wider."""
+        rng = np.random.default_rng(11)
+        truth = 0.5 * math.erfc(2 / math.sqrt(2))
+        hit, widths, est = 0, [], []
+        for _ in range(200):
+            x = rng.normal(2.0, 1.0, 1000)
+            lw = (-0.5 * x ** 2) - (-0.5 * (x - 2.0) ** 2)
+            items = [(rec(proposal="q", log_weight=float(w)), out(failed=bool(v > 2)))
+                     for v, w in zip(x, lw)]
+            r = cov.report(items, self.CAT)["layer3"][0]
+            lo, hi = r["interval"]
+            hit += lo <= truth <= hi
+            widths.append(hi - lo)
+            est.append(r["rate"])
+        self.assertGreater(hit / 200, 0.85)
+        self.assertLess(np.mean(widths), 6 * np.std(est))   # ~2 x 1.96 sd, not 8x that
+
+    def test_no_failures_under_weights_gives_a_conservative_upper_bound(self):
+        items = [(rec(proposal="q", log_weight=-float(i % 3)), out()) for i in range(50)]
+        r = cov.report(items, self.CAT)["layer3"][0]
+        self.assertEqual(r["rate"], 0.0)
+        self.assertAlmostEqual(r["interval"][0], 0.0, 12)
+        self.assertGreater(r["interval"][1], 0.0)
+        self.assertIn("upper bound", r["interval_method"])
 
     def test_an_overall_rate_only_with_exposure_and_refused_when_a_category_has_none(self):
         items = ([(rec(), out(failed=i < 2, run=f"a{i}")) for i in range(10)]

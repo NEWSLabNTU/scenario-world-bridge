@@ -173,10 +173,18 @@ small N (K2.4), not for training.
 **A is CPU physics by nature.** PhysX's vehicle constraints are not GPU-compatible: Isaac
 Lab's direct-GPU pipeline refuses them ("non-GPU compatible PxConstraint") and the CPU velocity
 setters A's reset uses. The environment (`env.py`) therefore runs A with `device="cpu"`, as
-aib's runner does, with scene queries on (`enable_scene_query_support=True`: a PhysX vehicle
-finds the ground by raycasting each wheel, and Isaac Lab turns them off by default; without
-them the env smoke's steer and wheel spin reached PhysX but every wheel was off the ground,
-tire force 0), and without Fabric (`use_fabric=False`, as aib writes the wheels' torques and
-steer as USD attributes). `scripts/smoke_env.py` asserts all of it from PhysX's read-back. Only B runs on the GPU pipeline; 094's rate comparisons with stock
+aib's runner does, with scene queries on. Engine A needs exactly two settings beyond Isaac Lab's defaults:
+
+- `device="cpu"`: PhysX's vehicle constraints are not GPU-compatible (above);
+- `enable_scene_query_support=True`: a PhysX vehicle finds the ground by raycasting each
+  wheel, and Isaac Lab turns scene queries off by default. Without them the env smoke's
+  steer (0.051/0.049 rad for 0.05) and wheel spin reached PhysX but every wheel was off the
+  ground, tire force 0, and every ego coasted to rest on its body.
+
+Fabric is not one of them: with scene queries on, `use_fabric` True and False gave the same
+run to the last digit (egos 5-8 m/s to 7-10 m/s in 2 s, about 480 N per tire), so it stays
+Isaac Lab's default. `scripts/smoke_env.py` asserts the read-back from PhysX (wheels on the
+ground, front ones steered, tires pushing, egos sped up) and exits non-zero otherwise;
+`--fabric on|off` overrides the setting. Only B runs on the GPU pipeline; 094's rate comparisons with stock
 are B's.
 

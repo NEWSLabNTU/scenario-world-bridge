@@ -7,9 +7,11 @@ header:
   version: "0"
   licence: CC0-1.0
 # exit_heading stands in for the exit lane's heading (rad, world frame), a property of the world's
-# lane anchor, which the drafts give the sampler no way to read; speed_limit is a knob
-knobs: {speed_limit: 13.9, exit_heading: 1.5708}
+# lane anchor (anchor.exit_n.heading, not yet readable): a declared parameter, held constant, so
+# the cell may read it (section 7); speed_limit is a knob
+knobs: {speed_limit: 13.9}
 variables:
+  - {name: exit_heading, constant: 1.5708}
   - name: ego_speed
     normal: {mean: 10.5, sd: 1.5}
     range: [5.0, 16.0]

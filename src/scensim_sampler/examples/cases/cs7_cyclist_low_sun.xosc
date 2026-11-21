@@ -21,6 +21,8 @@
     <ParameterDeclaration name="swerve_time" parameterType="double" value="1.2"/>
     <ParameterDeclaration name="sun_azimuth" parameterType="double" value="1.6"/>
     <ParameterDeclaration name="sun_elevation" parameterType="double" value="0.12"/>
+    <!-- the exit lane's heading, a stand-in for anchor.exit_n.heading (scenario-description.md 2a, gap 7) -->
+    <ParameterDeclaration name="exit_heading" parameterType="double" value="1.5708"/>
     <!-- the base's own variables, which only derived values read (declared so records keep them) -->
     <ParameterDeclaration name="rel_azimuth" parameterType="double" value="0.0"/>
     <ParameterDeclaration name="swerve_p" parameterType="double" value="0.5"/>

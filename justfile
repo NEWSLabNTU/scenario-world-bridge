@@ -301,6 +301,15 @@ test:
     # system and workspace packages only: a user-site numpy 2.x (pip --user) breaks the system
     # scipy 1.8 these tests import (numpy.core.multiarray failed to import; swb 243)
     PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test
+    # The same suite in Isaac's own Python, where the world server runs (issue 090): when
+    # ISAAC_ROOT (a host setting) names an install, in a clean environment (isaac_env.sh: no
+    # system Humble in it); otherwise said, and skipped
+    if [ -n "${ISAAC_ROOT:-}" ] && [ -e "$ISAAC_ROOT/venv/bin/activate" ]; then
+        env -i HOME="$HOME" USER="$USER" PATH=/usr/bin:/bin ISAAC_ROOT="$ISAAC_ROOT" bash -c \
+            'source src/scensim_isaac_world/scripts/isaac_env.sh && PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test'
+    else
+        echo "skipped: scensim_isaac_world's suite in Isaac's Python (ISAAC_ROOT${ISAAC_ROOT:+=$ISAAC_ROOT} names no Isaac Sim install)"
+    fi
     # The Autoware profile's settings (autoware_sim_vehicle)
     python3 -m pytest -q src/autoware_sim_vehicle/test
     # Scenario cars come from sim_vehicle_spec's catalog (roadmap 051); every other vehicle

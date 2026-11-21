@@ -1341,3 +1341,28 @@ def test_first_error_skips_the_died_lines_unless_alone(tmp_path):
     log.write_text("all quiet\n")
     assert stack.first_error(log) is None and stack.first_error(tmp_path / "none") is None
     assert stack.exited_why(log, 3) == f"its launch exited (code 3) before it was ready (see {log})"
+
+
+def test_first_error_reads_the_node_err_play_launch_points_to(tmp_path):
+    """089 on 243's console (2026-11-20, s5 v10 g5.5 r0; its lines and acb's err as found): under
+    play_launch the level has no brackets, and acb's reason is only in the node's err, which the
+    console's "ERROR Check <dir>" points to."""
+    node = tmp_path / "2026-11-20_19-39-34" / "node" / "acb_bridge"
+    node.mkdir(parents=True)
+    (node / "err").write_text(
+        "[INFO] connecting to CARLA at localhost:2000\n"
+        'Error: ConfigError("CARLA version mismatch: the server is 1.0 but this binary was built '
+        'for CARLA 0.9.16 (carla 0.15.1, feature carla-0916)")\n')
+    log = tmp_path / "console.log"
+    log.write_text(
+        "2026-11-20T11:39:34.120000Z  INFO Step 1/3: Parsing launch file...\n"
+        "2026-11-20T11:39:51.590277Z ERROR [node:/acb_bridge] Exited with code 1\n"
+        f"2026-11-20T11:39:51.590290Z ERROR Check {node}\n"
+        "2026-11-20T11:40:07.001000Z  INFO Shutting down\n")
+    assert stack.first_error(log) == (
+        'acb_bridge exited 1: Error: ConfigError("CARLA version mismatch: the server is 1.0 but '
+        'this binary was built for CARLA 0.9.16 (carla 0.15.1, feature carla-0916)")')
+    assert stack.exited_why(log, 1).startswith(
+        "its launch exited (code 1) before it was ready: acb_bridge exited 1: Error: ConfigError(")
+    (node / "err").unlink()   # no err: the console's own exit line, the Check line skipped
+    assert stack.first_error(log) == "2026-11-20T11:39:51.590277Z ERROR [node:/acb_bridge] Exited with code 1"

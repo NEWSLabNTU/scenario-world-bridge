@@ -1290,24 +1290,57 @@ def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):
 
 
 # The first line of a pilot's console that says what went wrong (issue 089): an error or fatal
-# log line, a Python traceback's last line, or a launch's own failure; the launch's "process has
-# died" lines come last, as they only repeat that something did.
-_ERROR_LINE = re.compile(r"\[(?:ERROR|FATAL)\]|\bError\b|\berror:|^\w*(?:Error|Exception): |\bpanicked at\b")
-_DIED_LINE = re.compile(r"process has died|\bexited with code\b")
+# log line (ros2 launch's "[ERROR]", play_launch's "<time>Z ERROR "), a Python traceback's last
+# line, a panic; the "process has died" and "Exited with code" lines come last, as they only
+# repeat that something did. play_launch names the node that exited and where its own log is
+# ("ERROR [node:/acb_bridge] Exited with code 1", then "ERROR Check <dir>"): the reason is in
+# <dir>/err (acb_bridge's "Error: ConfigError(CARLA version mismatch ...)"), not the console.
+_ERROR_LINE = re.compile(r"\[(?:ERROR|FATAL)\]|\dZ\s+(?:ERROR|FATAL)\s|\bError\b|\berror:"
+                         r"|^\w*(?:Error|Exception): |\bpanicked at\b")
+_DIED_LINE = re.compile(r"process has died|exited with code", re.I)
+_PL_NODE_EXIT = re.compile(r"\[node:/?([^\]]+)\] Exited with code (-?\d+)")
+_PL_CHECK = re.compile(r"\dZ\s+ERROR\s+Check (\S+)\s*$")
+_ERR_LINE = re.compile(r"^(?:Error\b|\w*(?:Error|Exception): )|\[(?:ERROR|FATAL)\]|\bpanicked at\b|"
+                       r"\bERROR\b")
+
+
+def _node_err(node_dir):
+    """The first line of a play_launch node's own err log that names an error, None if none."""
+    try:
+        text = timelinemod._ANSI.sub("", (Path(node_dir) / "err").read_text(errors="replace"))
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if _ERR_LINE.search(line.strip()):
+            return line.strip()[:300]
+    return None
 
 
 def first_error(path, offset=0):
-    """The console's first line (from byte ``offset``) that names an error, None if none."""
+    """What the console (from byte ``offset``) says went wrong, None if nothing: for a node
+    play_launch saw exit, "<node> exited <code>: <its err's first error line>"; else the first
+    line that names an error, the died/exited lines only when nothing better is there."""
     try:
         with open(path, "rb") as f:
             f.seek(offset)
             text = timelinemod._ANSI.sub("", f.read().decode("utf-8", "replace"))
     except OSError:
         return None
+    lines = [line.strip() for line in text.splitlines()]
+    for i, line in enumerate(lines):
+        m = _PL_NODE_EXIT.search(line)
+        if not m:
+            continue
+        for nxt in lines[i + 1:i + 4]:
+            c = _PL_CHECK.search(nxt)
+            if c:
+                err = _node_err(c.group(1))
+                if err:
+                    return f"{m.group(1)} exited {m.group(2)}: {err}"
+                break
     died = None
-    for line in text.splitlines():
-        line = line.strip()
-        if not _ERROR_LINE.search(line):
+    for line in lines:
+        if not _ERROR_LINE.search(line) or _PL_CHECK.search(line):
             continue
         if _DIED_LINE.search(line):
             died = died or line

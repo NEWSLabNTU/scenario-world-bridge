@@ -20,9 +20,11 @@ An element the table does not list is refused as "not in the compilable subset".
 grows by decision, not by default. Containers (Story, Act, ManeuverGroup, Event,
 ConditionGroup, Position, the dynamics and target elements) compile when their contents do.
 
-**"batch" is a claim.** No row has run in a batch executor yet. Each row stays a claim until
-K2's adapter runs the construct and compares it against seats on the same sample. That
-comparison, row by row, is K2's acceptance.
+**"batch" is a claim.** Each row stays a claim until K2's adapter runs the construct and
+compares it against seats on the same sample. That comparison, row by row, is K2's acceptance.
+A batch row the executor does not run yet is **executor pending** (section 8): the checker
+lists it as a condition the batch does not meet, so it never says "compiles" for what the
+executor refuses.
 
 ## 2. The table
 
@@ -174,6 +176,14 @@ No element in the examples is unlisted. The test checks this, so a new SSv2 elem
 a failing test, not as a silent refusal. These counts are a measurement, not a target, and the
 test does not fix them.
 
+Re-measured with executor pending (2026-11-21, K2.3): `--ego policy` still compiles 58, but
+12 unconditionally (was 18) and 46 only if the slot provides more (was 40): 33 of the 58 use a
+pending row, 6 of them nothing else. By row, in how many scenarios: AcquirePositionAction 39
+(mostly the ego's goal), FollowTrajectoryAction 8, LaneChangeAction 4, TrafficSignalStateAction
+and TrafficSignalControllerAction 3 each, AbsoluteTargetLane, RelativeTargetLane,
+RelativeClearanceCondition and AssignRouteAction 2 each, RoadCondition, SpeedProfileAction and
+TimeHeadwayCondition 1 each. `--ego seats` does not move (41, 12, 29, 42).
+
 ## 7. Gaps
 
 - **Knob profiles.** CS5's fog ramps over a stretch of road. A batch needs the knob as a
@@ -188,3 +198,33 @@ test does not fix them.
   is not checked: if SSv2's follower still stops for an entity ahead, the model is needed. A
   later refinement may make such an entity batch.
 - **Storyboard complexity.** No bound for now (133, 2026-11-21); D7 revisits it.
+
+## 8. Executor pending
+
+The "batch" rows and commands the batch executor (`scensim_batch`, K2.3's compiled storyboard)
+does not run yet. A scenario using one gets the condition "`<row>`: batch executor pending",
+which the executor never meets, so `scensim_batch.compile` refuses it by name.
+`scensim_sampler.subset.EXECUTOR_PENDING` holds them; `scensim_batch.storyboard.IMPLEMENTED`
+holds the rows it runs. A test (`scensim_batch/test/test_storyboard.py`, `Rows`) requires
+every batch row and command in exactly one of the two, and every pending one named here, so
+running a row means moving it from one set to the other.
+
+| Pending | What it waits for |
+|---|---|
+| `AcquirePositionAction`, `AssignRouteAction` | routes on the world adapter's map, per slot |
+| `FollowTrajectoryAction` | a trajectory follower per slot |
+| `LaneChangeAction`, `AbsoluteTargetLane`, `RelativeTargetLane` | a lateral profile on the lane graph |
+| `SpeedProfileAction` | a speed profile per slot |
+| `TimeHeadwayCondition`, `RelativeClearanceCondition` | headway and clearance along the route |
+| `TrafficSignalStateAction`, `TrafficSignalControllerAction` | signal phases per slot |
+| `RoadCondition` | friction as a per-slot material on the engine |
+| `scensim.fault` | the fault as a per-slot mask on the observation |
+
+Inside an implemented row, some attribute forms are refused by name too, as "... (batch
+executor pending)" from `scensim_batch.compile`: a freespace distance, a routing algorithm, a
+lane coordinate system on a world adapter without `lane_st`, a speed, acceleration or relative
+speed condition with a `direction`, a continuous RelativeTargetSpeed, a SpeedAction on the ego
+or on a prop, a story-time TeleportAction, an event priority `skip` (SSv2 leaves it
+unimplemented), `selectTriggeringEntities`, a StoryboardElementState other than the standby,
+running and complete states and the start, end and stop transitions.
+

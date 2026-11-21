@@ -26,9 +26,13 @@ from .record import CATEGORY, FAMILIES
 SCHEMA = "scensim.coverage/1"
 FAILURE = ("verdict", "contact", "either")
 Z = 1.959963984540054   # 95 %
-# the weighted (delta-method) interval's coverage of its nominal 95 %, as measured on a
-# rare-event test (sample-record.md, section 8; test_coverage holds it): printed with it
-DELTA_COVERAGE = "~90 % measured coverage at nominal 95 %"
+# the weighted (delta-method) interval's coverage of its nominal 95 %, as measured on
+# rare-event tests (sample-record.md, section 8, the table; test_coverage holds one): 0.93 to
+# 0.94 with light weights, falling as the weights get heavier, 0.61 at the worst. Printed with
+# the interval, and each weighted cell shows n_eff/n; under HEAVY every measured case covered
+# 0.90 or less
+DELTA_COVERAGE = "0.61-0.94 measured at nominal 95 %, lower with heavier weights"
+HEAVY = 0.1   # n_eff / n below this: "heavy weights, likely under-covers"
 MISSING_SHOWN = 20
 
 
@@ -199,7 +203,8 @@ def _rate(rows, failure):
         interval = (max(0.0, p - Z * se), min(1.0, p + Z * se))
         method = f"delta (normal; approximate, {DELTA_COVERAGE})"
     return {"n": n, "failures": k, "rate": p, "interval": interval, "interval_method": method,
-            "weighted": True, "n_eff": n_eff,
+            "weighted": True, "n_eff": n_eff, "n_eff_share": n_eff / n,
+            "heavy_weights": n_eff / n < HEAVY,
             "proposal": next(iter(props))[0], "approximate": True}
 
 
@@ -375,9 +380,10 @@ def format_report(rep):
     for x in rep["layer3"]:
         cell = ",".join(f"{k}={v}" for k, v in x["cell"].items()) or "-"
         note = x.get("refused") or (
-            f"weighted, n_eff {x['n_eff']:.1f}; interval approximate"
-            + (" (an upper bound)" if "upper bound" in x.get("interval_method", "") else
-               f" ({DELTA_COVERAGE})") if x.get("weighted") else "")
+            f"weighted, n_eff/n {x['n_eff_share']:.2f}"
+            + ("; an upper bound" if "upper bound" in x.get("interval_method", "") else
+               "; heavy weights: likely under-covers" if x.get("heavy_weights") else "")
+            if x.get("weighted") else "")
         if x["seeds_not_applied"]:
             note = (note + "; " if note else "") + f"{len(x['seeds_not_applied'])} seeds not applied"
         if x["errors"]:

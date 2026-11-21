@@ -139,9 +139,12 @@ class Layers(unittest.TestCase):
         self.assertAlmostEqual(r["rate"], truth, delta=0.004)
         self.assertLess(r["interval"][0], truth)
         self.assertGreater(r["interval"][1], truth)
-        self.assertTrue(r["interval_method"].startswith("delta (normal; approximate, ~90 %"))
-        self.assertIn("~90 % measured coverage at nominal 95 %",
-                      cov.format_report(cov.report(items, self.CAT)))
+        self.assertIn("0.61-0.94 measured at nominal 95 %", r["interval_method"])
+        text = cov.format_report(cov.report(items, self.CAT))
+        self.assertIn("0.61-0.94 measured at nominal 95 %, lower with heavier weights", text)
+        # N(2, 1) for this tail: n_eff/n about 0.05, measured coverage 0.90: flagged
+        self.assertTrue(r["heavy_weights"])
+        self.assertIn("heavy weights: likely under-covers", text)
         # the interval is the estimator's spread, not Kish's (8x too wide here; 243)
         self.assertLess(r["interval"][1] - r["interval"][0], 0.02)
         # tiny weights: log space, no underflow
@@ -166,7 +169,8 @@ class Layers(unittest.TestCase):
             hit += lo <= truth <= hi
             widths.append(hi - lo)
             est.append(r["rate"])
-        # the label says ~90 %: a change that worsens it below 0.85 fails here (seeded: 0.94)
+        # this case's measured coverage is 0.90 (2000 repetitions; this seeded 200 give 0.94,
+        # +-0.03 of sampling noise): a change that worsens it below 0.85 fails here
         self.assertGreater(hit / 200, 0.85)
         self.assertLess(np.mean(widths), 6 * np.std(est))   # ~2 x 1.96 sd, not 8x that
 

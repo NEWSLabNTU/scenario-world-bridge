@@ -239,16 +239,35 @@ It needs no simulator. Its layers are those of
      the rule of three.
    - **Drawn from a proposal:** the self-normalised estimate from the log weights (section 5),
      with the delta-method interval `p ± 1.96 sqrt(Σ w²(f − p)²) / Σw`, marked approximate.
-     **It can under-cover.** On a rare-event test (the N(0, 1) tail beyond 2, p = 0.023, drawn
-     from N(2, 1)) its 95 % interval covered the truth about 89 % of the time at 50 to 1000
-     draws, and 93.5 % at 5000: the estimate is biased high by O(1/n) and its standard error is
-     low at small n. It is the estimator's real spread, though. A Wilson interval on Kish's
-     effective count `(Σw)² / Σw²` was about 8 times wider and always covered, because that
-     count assumes the weights are unrelated to failure, and a proposal aimed at failures makes
-     them strongly related. The effective count stays in the report as a diagnostic. With no
-     failures the delta variance is 0, so the interval falls back to a Wilson bound on the
-     effective count, which is conservative; the report names the method it used
-     (`interval_method`). The report prints the weighted interval as approximate, with the coverage measured here ("~90 % measured coverage at nominal 95 %"), never as a plain 95 % interval, and a test repeats the measurement so a change that worsens it fails.
+     **It under-covers, more as the weights get heavier.** The coverage of its nominal 95 %,
+     measured on a normal tail (the base N(0, 1), failure beyond a threshold) drawn from normal
+     proposals, at n = 200 and 1000, 2000 repetitions each:
+
+     | Truth p | Proposal | n_eff / n | Coverage |
+     |---|---|---|---|
+     | 0.0228 | N(0, 1), the base itself | 1.0 | 0.94, 0.93 |
+     | 0.0228 | N(1.5, 1) | 0.18, 0.14 | 0.93, 0.94 |
+     | 0.0228 | N(2, 1) | 0.09, 0.05 | 0.89, 0.90 |
+     | 0.0228 | N(2.5, 1) | 0.05, 0.02 | 0.82, 0.83 |
+     | 0.0013 | N(3, 1) | 0.04, 0.01 | 0.77, 0.74 |
+     | 0.0228 | N(2, 0.7), narrower than the base | 0.07, 0.03 | 0.65, 0.61 |
+
+     There are two reasons. The self-normalised estimate is biased by O(1/n), and its standard
+     error comes out low when a few weights dominate. The worst case is a proposal narrower than
+     the base, whose weights have no finite variance; avoid one.
+
+     The report therefore prints the interval as approximate, with the range measured here
+     ("0.61-0.94 measured at nominal 95 %, lower with heavier weights"), never as a plain 95 %
+     interval. Each weighted cell shows its `n_eff / n`. Below 0.1, where every case measured
+     covered 0.90 or less, the cell says "heavy weights: likely under-covers". The test suite
+     repeats the N(2, 1) case, so a change that worsens it fails.
+
+     The delta interval is still the estimator's real spread. A Wilson interval on Kish's
+     effective count `(Σw)² / Σw²` was about 8 times wider and always covered: that count
+     assumes the weights are unrelated to failure, and a proposal aimed at failures makes them
+     strongly related. With no failures the delta variance is 0, and the interval falls back to
+     a Wilson bound on the effective count, which is conservative. The report names the method
+     it used (`interval_method`).
    - **Mixed:** a cell that mixes weighted and unweighted runs, or several proposals or bases,
      gets no rate, and says why. They are not blended.
 

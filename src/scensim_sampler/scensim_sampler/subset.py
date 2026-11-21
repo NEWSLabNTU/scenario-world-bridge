@@ -20,6 +20,7 @@ Reads .xosc, and SSv2's YAML scenario format (read as the same XML tree). A
 ParameterValueDistribution is read through to its ScenarioFile: a distribution changes values,
 not constructs.
 """
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -102,8 +103,6 @@ TABLE = {
     "Rule": (SEATS, "modifies a parameter mid-run"),
     "ParameterSetAction": (SEATS, "sets a parameter mid-run"),
     "ParameterModifyAction": (SEATS, "modifies a parameter mid-run"),
-    "UserDefinedValueCondition": (SEATS, "reads a value from outside the scenario (a ROS topic, "
-                                         "an autopilot's state)"),
     "ControllerAction": (SEATS, "swaps or overrides a pilot mid-run"),
     "AssignControllerAction": (SEATS, "assigns a pilot mid-run"),
     "OverrideControllerValueAction": (SEATS, "overrides an external pilot's pedals or steering"),
@@ -333,6 +332,18 @@ def _walk(el, where, v, in_init, entity):
                                                 "exitSuccess, exitFailure and scensim.fault "
                                                 "compile"))
         v.add(cls, here, f"CustomCommandAction {t or '(empty)'}", reason)
+        return
+    if tag == "UserDefinedValueCondition":
+        name = (el.get("name") or "").strip()
+        if re.match(r"^RelativeHeadingCondition\s*\(", name):
+            v.add(BATCH, here, f"UserDefinedValueCondition {name}",
+                  "SSv2 computes it from the entity's pose against its lane: per slot")
+        elif name.startswith("/"):
+            v.add(SEATS, here, f"UserDefinedValueCondition {name}",
+                  "reads a ROS topic, outside the scenario")
+        else:
+            v.add(SEATS, here, f"UserDefinedValueCondition {name or '(empty)'}",
+                  "reads an autopilot's state (e.g. <entity>.currentState), outside the scenario")
         return
     if tag in STRUCTURE:
         pass

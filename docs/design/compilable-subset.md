@@ -37,6 +37,7 @@ comparison, row by row, is K2's acceptance.
 | the world knob `world.zone_layout`; a MiscObject | a prop set, instanced per slot |
 | Distance, RelativeDistance, RelativeClearance, ReachPosition, SimulationTime, TimeHeadway, Speed, RelativeSpeed, Acceleration, StandStill and TraveledDistance conditions | vectorised per slot |
 | CollisionCondition | contact per slot |
+| UserDefinedValueCondition `RelativeHeadingCondition(<entity>)` or `(<entity>, <lane>, <s>)`, matched by the function-call form | SSv2 computes it from the entity's pose against its lane, nothing from outside: a heading per slot |
 | StoryboardElementStateCondition; any number of Stories, Acts, Events and ConditionGroups; `maximumExecutionCount`; StopTrigger | the storyboard's state machine per slot, as masks |
 | ParameterCondition; a ParameterAction in Init | a parameter fixed for the slot |
 | TrafficSignalStateAction, TrafficSignalControllerAction | a per-slot signal state |
@@ -58,7 +59,7 @@ comparison, row by row, is K2's acceptance.
 | Precipitation | the slot has a camera or lidar model with precipitation per slot |
 | Wind | a wind force model per slot |
 | an ObjectController with `model = scensim.behaviour:<name>` | the model has a batched form |
-| a vehicle or pedestrian with no controller (SSv2's default) | a batched model of SSv2's default traffic behaviour: lane following, stopping for obstacles |
+| a vehicle or pedestrian with no controller (SSv2's default) | a batched model of SSv2's default behaviour: its behaviour tree follows the lane at the target speed its SpeedActions set, and stops for an entity ahead |
 | any other `world.<knob>` | the world supports the knob per slot |
 
 **seats**
@@ -69,7 +70,7 @@ comparison, row by row, is K2's acceptance.
 | ParameterAction, ParameterSetAction, ParameterModifyAction after Init | a slot's parameters are fixed |
 | ControllerAction, AssignControllerAction, ActivateControllerAction, OverrideControllerValueAction (and its Brake, Throttle, Clutch, Gear, ParkingBrake, SteeringWheel) after Init | they swap or override a pilot mid-run |
 | VisibilityAction | it changes what an external pilot's sensors see |
-| UserDefinedValueCondition | it reads a value from outside the scenario, such as a ROS topic or an autopilot's state |
+| UserDefinedValueCondition naming an autopilot's state (`<entity>.currentState`, `.currentEmergencyState`, `.currentMinimumRiskManeuverState.*`, `.currentTurnIndicatorsState`) or a ROS topic (`/path`) | it reads a value from outside the scenario |
 | every other CustomCommandAction (SSv2's FaultInjectionAction, V2ITrafficSignalStateAction, RequestToCooperateCommandAction, a shell command) | it runs as a process on seats |
 | a controller `agent`, or a `pilot` property, on a non-ego entity | an external pilot does not run in a batch |
 | more than one ego | a batch has one policy per slot |
@@ -145,11 +146,14 @@ The 25 refusals (`--ego policy`), by first construct:
 | First construct | Scenarios |
 |---|---|
 | a CustomCommandAction other than the batch ones (V2I signals, FaultInjection, RequestToCooperate, the interpreter's own test commands, shell echoes) | 11 |
-| UserDefinedValueCondition: SSv2's `RelativeHeadingCondition(...)` (3), the autopilot's `ego.currentState` (3), a ROS topic (2) | 8 |
+| UserDefinedValueCondition: the autopilot's `ego.currentMinimumRiskManeuverState.state` (3), `ego.currentState` (3), a ROS topic (2) | 8 |
 | ControllerAction after Init | 2 |
 | ParameterAction after Init | 2 |
 | TimeToCollisionCondition (derived) | 1 |
 | AddEntityAction | 1 |
+
+`RelativeHeadingCondition(...)` compiles (a batch row), but the three examples that use it also
+read `ego.currentMinimumRiskManeuverState.state` first, so the counts do not move.
 
 No element in the examples is unlisted. The test checks this, so a new SSv2 element shows up as
 a failing test, not as a silent refusal. These counts are a measurement, not a target, and the
@@ -161,9 +165,11 @@ test does not fix them.
   profile along time or route position (scenario-description.md CS5). The checker accepts the
   EnvironmentAction but cannot see the ramp.
 - **SSv2's default behaviour.** Almost every example has an entity driven by SSv2's default
-  behaviour, so a batched model of it (lane following, stopping for obstacles, and the
-  behaviour tree's other states) decides most of what compiles. It is K2's largest item.
-- **UserDefinedValueCondition.** It is refused as a whole. SSv2's built-in
-  `RelativeHeadingCondition(...)` reads only the scenario's own state, so it could compile once
-  a row is written for it. D7 decides. The autopilot's state and ROS topics stay seats.
+  behaviour, so a batched model of it decides most of what compiles: lane following at the
+  target speed, stopping for an entity ahead, and the behaviour tree's other states. It is K2's
+  largest item.
+- **A fully scripted entity.** An entity whose every motion is a FollowTrajectoryAction need
+  not wait on the default-behaviour model, if the trajectory follower ignores obstacles. That
+  is not checked: if SSv2's follower still stops for an entity ahead, the model is needed. A
+  later refinement may make such an entity batch.
 - **Storyboard complexity.** No bound for now (133, 2026-11-21); D7 revisits it.

@@ -127,9 +127,13 @@ class Rows(unittest.TestCase):
             with self.subTest(construct):
                 v = self.refused(construct, action=action)
                 self.assertEqual(v.refusals[0]["class"], "seats")
-        self.refused("UserDefinedValueCondition",
-                     condition="<ByValueCondition><UserDefinedValueCondition name='ego.currentState'"
-                               " value='ARRIVED' rule='equalTo'/></ByValueCondition>")
+        udvc = ("<ByValueCondition><UserDefinedValueCondition name='{}' value='1' "
+                "rule='equalTo'/></ByValueCondition>")
+        for name in ("ego.currentState", "/count_up"):
+            self.refused(f"UserDefinedValueCondition {name}", condition=udvc.format(name))
+        with tempfile.TemporaryDirectory() as d:   # SSv2's built-in function: per slot
+            for name in ("RelativeHeadingCondition(ego)", "RelativeHeadingCondition(ego, 34507, 50)"):
+                self.assertTrue(subset.check(scenario(d, condition=udvc.format(name))).compiles)
 
     def test_a_parameter_set_before_the_run_is_fixed_for_the_slot(self):
         init = ("<GlobalAction><ParameterAction parameterRef='p'><SetAction value='1'/>"
@@ -152,6 +156,12 @@ class Rows(unittest.TestCase):
                 "</PrivateAction></Private>")
         ent2 = "<ScenarioObject name='npc'><Vehicle name='c'/></ScenarioObject>"
         self.refused("2 egos (ego, npc)", entities=ent2, init=init)
+        # an external agent pilot assigned to a non-ego in Init stays seats
+        agent = ("<Private entityRef='npc'><PrivateAction><ControllerAction><AssignControllerAction>"
+                 "<Controller name='agent'/></AssignControllerAction></ControllerAction>"
+                 "</PrivateAction></Private>")
+        self.assertEqual(self.refused("ControllerAction", entities=ent2, init=agent)
+                         .refusals[0]["class"], "seats")
         self.assertEqual(v.refusals[0]["class"], "seats")
 
     def test_an_unlisted_element_is_refused_not_admitted(self):

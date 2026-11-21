@@ -416,3 +416,46 @@ def axle_tires_of(fit_values, base_lat_stiff_max_load=None):
                       "tire_friction": round(mf / PEAK_PER_FRICTION, 4)},
             "rear": {"lat_stiff_value": round(cr / SLOPE_PER_LAT_STIFF, 4),
                      "tire_friction": round(mr / PEAK_PER_FRICTION, 4)}}
+
+
+# --- the stage intervals (W10's drift rule) ---------------------------------------------------
+
+# A stage's resolution: the interval is never narrower than this half-width. The latency's is
+# the component stage's grid step after its refinement (1 ms); the rest are continuous.
+INTERVAL_FLOOR = {"component.latency": 0.001}
+SECTIONS = ("vehicle", "component")
+
+
+def flatten(fitted):
+    """{dotted name: value} of a fit's vehicle and component parameters."""
+    out = {}
+
+    def walk(prefix, d):
+        for k, v in d.items():
+            if isinstance(v, dict):
+                walk(f"{prefix}{k}.", v)
+            elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                out[f"{prefix}{k}"] = float(v)
+    for s in SECTIONS:
+        walk(f"{s}.", fitted.get(s) or {})
+    return out
+
+
+def intervals(full, leave_one_out, lower=None):
+    """{name: [low, high]}: the full fit's estimate plus or minus twice the jackknife's standard
+    error over the leave-one-out fits, at least INTERVAL_FLOOR. A name in `lower` (a friction the
+    logs do not identify) is bounded below only: [bound, None]."""
+    lower = lower or {}
+    out = {}
+    n = len(leave_one_out)
+    for name, est in full.items():
+        if name in lower:
+            out[name] = [float(lower[name]), None]
+            continue
+        vals = np.array([f[name] for f in leave_one_out if name in f], dtype=float)
+        if n < 2 or len(vals) < n:
+            continue
+        se = math.sqrt((n - 1) / n * float(np.sum((vals - vals.mean()) ** 2)))
+        half = max(2.0 * se, INTERVAL_FLOOR.get(name, 0.0))
+        out[name] = [round(est - half, 6), round(est + half, 6)]
+    return out

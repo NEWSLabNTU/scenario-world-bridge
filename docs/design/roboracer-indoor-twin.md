@@ -290,7 +290,9 @@ directory holds a minimal one: one lane loop along the track, which
 `python -m scensim_isaac_world.loop` generates from a centreline the user draws (a CSV of x, y
 in the map frame, or a `BasisCurves` prim of the stage), with the lane's width and driving
 direction as arguments. Its latitudes and longitudes are synthetic, a TransverseMercator at the
-origin 0, 0 as on the CARLA towns, and the map's header says so. A RoboRacer stack's own occupancy map
+origin 0, 0 as on the CARLA towns, and the map's header says so. It also writes a flat point
+cloud of the lane (`pointcloud_map.pcd`), since SSv2's map loader refuses a map directory with
+none; it is not a localisation map. A RoboRacer stack's own occupancy map
 (`map.pgm` and `.yaml`) is the user's and is not scensim's concern.
 
 ### 3.2 What scensim reads, and what it may set

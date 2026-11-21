@@ -118,6 +118,53 @@ SSv2 frame   step_time = realtime_factor / global_frame_rate   (0.05 s at 20 Hz)
 - **Control** from Autoware is applied by acb when it arrives and takes effect at the next
   tick, so a command waits at most one CARLA tick (50 ms).
 
+## Lockstep and paced (roadmap 092 K4)
+
+SSv2 already paces itself. Its interpreter steps the storyboard on a wall timer of
+`1 / frame_rate` seconds (`create_wall_timer`), and each step advances simulated time by
+`step_time = global_real_time_factor / frame_rate`. With a factor of 1 a run that keeps up runs
+in wall time; a step that takes longer than its period delays the next one, and the timer does
+not catch up, so the delay stays. Nothing records it today.
+
+A stack on a target board (`ml-training-interface.md`, the board in the loop) runs in wall time,
+so for it that delay is the measurement that matters: a world that falls 100 ms behind the
+board's clock gives it stale state. Two modes, in `testbench.yaml`:
+
+```yaml
+clock: {mode: paced, max_lag_s: 0.05}    # default: {mode: lockstep}
+```
+
+- **lockstep** (the default, today's behaviour): simulated time advances one step per SSv2
+  frame, however long the step takes, and `global_real_time_factor` may be anything. The lag is
+  recorded, never judged.
+- **paced**: simulated time is held to wall time. It requires `global_real_time_factor: 1`
+  (`testbench check` refuses another). The world is never run ahead of wall time, and is not
+  hurried to catch up when it falls behind: a burst of fast steps would compress simulated
+  time against the board's clock, which is worse than a lag. A run whose lag exceeds
+  `max_lag_s` is an error run, excluded from rates, with the lag in its reason: its verdict
+  says nothing about the stack, since the stack saw a slower world than it was built for.
+
+**The lag** of frame `k`, from the scenario's first frame `0`, in wall seconds:
+
+```
+lag_k = (wall_k - wall_0) - (sim_k - sim_0) / global_real_time_factor
+```
+
+positive when the world is behind wall time. `wall_k` is the bridge's monotonic clock when it
+answers SSv2's frame `k`, recorded in the truth file's `frame` line as `wall_ns` (schema 2,
+additive; a reader of an older file finds it absent). The bridge measures it, so the same holds
+on CARLA and Isaac. The runner reads it back after the run (`scensim.truth`), and `result.json`
+records, in both modes:
+
+```yaml
+clock: {mode: paced, max_lag_s: 0.05, frames: 400,
+        lag_s: {max: 0.031, p50: 0.004, p99: 0.022, final: 0.012}, frames_over: 0, ok: true}
+```
+
+`ok` is false, and a paced run an error run, when any frame's lag exceeds `max_lag_s`; a
+lockstep run's `ok` is always true. A run with no truth file (`logging.gap_trace: false`)
+cannot be paced, and `testbench check` refuses that combination.
+
 ## Episodes and vehicle stacks
 
 An **episode** is one simulator world: on CARLA, one world id, from its load until the next

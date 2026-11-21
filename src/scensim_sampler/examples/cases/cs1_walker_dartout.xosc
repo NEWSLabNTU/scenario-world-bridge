@@ -16,15 +16,15 @@
   <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
   <Entities>
     <ScenarioObject name="ego">
-      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <Vehicle name="car" vehicleCategory="car"><BoundingBox><Center x="1.4" y="0" z="0.8"/><Dimensions length="4.7" width="1.9" height="1.5"/></BoundingBox><Properties/></Vehicle>
       <ObjectController><Controller name="ego"><Properties>
         <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
     </ScenarioObject>
     <ScenarioObject name="van">
-      <MiscObject name="van" miscObjectCategory="obstacle" mass="2000"><Properties/></MiscObject>
+      <MiscObject name="van" miscObjectCategory="obstacle" mass="2000"><BoundingBox><Center x="0" y="0" z="1.1"/><Dimensions length="5.2" width="2.0" height="2.2"/></BoundingBox><Properties/></MiscObject>
     </ScenarioObject>
     <ScenarioObject name="walker">
-      <Pedestrian name="walker" pedestrianCategory="pedestrian" mass="60"><Properties/></Pedestrian>
+      <Pedestrian name="walker" pedestrianCategory="pedestrian" mass="60"><BoundingBox><Center x="0" y="0" z="0.9"/><Dimensions length="0.4" width="0.5" height="1.8"/></BoundingBox><Properties/></Pedestrian>
       <ObjectController><Controller name="walker_model"><Properties>
         <Property name="model" value="scensim.behaviour:gap_acceptance_walker"/>
         <Property name="speed" value="$walk_speed"/>

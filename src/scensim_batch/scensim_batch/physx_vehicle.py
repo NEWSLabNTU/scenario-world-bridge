@@ -42,6 +42,7 @@ class PhysxVehicleBackend:
                                      ground_clearance=rig.ground_clearance))
             self.states.append(State())
         self.act = None
+        self.timing = {"actuate": 0.0, "physics": 0.0, "sample": 0.0, "steps": 0}
 
     # --- the contract ------------------------------------------------------------------------
 
@@ -74,15 +75,25 @@ class PhysxVehicleBackend:
     def advance(self, dt):
         from sim_vehicle_ecu.signals import Actuation
 
+        import time
         a = self.act
         drive, brake = np.asarray(a["drive"]), np.asarray(a["brake"])
         angle = np.asarray(a["tire_angle"])
+        t0 = time.perf_counter()
         for i, (car, st) in enumerate(zip(self.cars, self.states)):
             car.actuate(Actuation(tuple(drive[i].tolist()), tuple(brake[i].tolist()),
                                   float(angle[i]), None), dt, st)
+        t1 = time.perf_counter()
         self.world.step(render=False)
+        t2 = time.perf_counter()
         for car, st in zip(self.cars, self.states):
             car.sample(self.physx, dt, st)
+        t3 = time.perf_counter()
+        tm = self.timing   # where a step's time goes (K2.5's split)
+        tm["actuate"] += t1 - t0
+        tm["physics"] += t2 - t1
+        tm["sample"] += t3 - t2
+        tm["steps"] += 1
 
     def state(self):
         n = self.n

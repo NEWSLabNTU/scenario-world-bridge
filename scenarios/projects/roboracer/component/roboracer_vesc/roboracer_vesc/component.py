@@ -72,12 +72,16 @@ class RoboRacerVescBatch:
     driven = (True,) * 4  # the Slash 4x4: the centre gear drives both axles
     truth = ()
     array_api, dtype = "numpy", np.float64
+    per_slot_params = True   # every param an array [N]: a fit's candidates, a varied car
 
     def __init__(self, vehicle: dict, params: dict, seeds):
         unknown = set(params) - set(DEFAULTS)
         if unknown:
             raise ValueError(f"unknown params {sorted(unknown)}; known: {sorted(DEFAULTS)}")
-        self.p = {**DEFAULTS, **{k: float(v) for k, v in params.items()}}
+        n = len(seeds)
+        # each param per car, [N]: a number (one car's, or every car's) or an array [N]
+        self.p = {k: np.broadcast_to(np.asarray(params.get(k, d), dtype=np.float64), (n,)).copy()
+                  for k, d in DEFAULTS.items()}
         g = vehicle["geometry"]
         self.r = float(g["wheel_radius"])
         self.max_steer = float(g["max_steer_angle"])
@@ -136,11 +140,10 @@ class RoboRacerVescBatch:
         if not new.any():
             return
         arrived = self.t - np.where(np.isinf(age), 0.0, age)
-        delay = np.full(self.n, self.p["latency"])
-        if self.p["latency_jitter"] > 0:
-            for i in np.flatnonzero(new):   # each car's own generator, in its own order
-                delay[i] = max(0.0, self.p["latency"] + self.rngs[i].gauss(
-                    0.0, self.p["latency_jitter"]))
+        delay = self.p["latency"].copy()
+        lat, jit = self.p["latency"], self.p["latency_jitter"]
+        for i in np.flatnonzero(new & (jit > 0)):   # each car's own generator, in its order
+            delay[i] = max(0.0, float(lat[i]) + self.rngs[i].gauss(0.0, float(jit[i])))
         idx = np.flatnonzero(new)
         if np.any(self.size[idx] >= QUEUE):
             raise RuntimeError(f"roboracer_vesc: more than {QUEUE} commands pending in a car")
@@ -186,7 +189,7 @@ class RoboRacerVescBatch:
         speed = ~released & (mode == SPEED)
         integral = np.where(speed, self.integral + err * dt, self.integral)
         # anti-windup: the integral holds what keeps the output within the limit
-        imax = p["current_max"] / max(p["speed_ki"], 1e-12)
+        imax = p["current_max"] / np.maximum(p["speed_ki"], 1e-12)
         integral = np.where(speed, np.maximum(-imax, np.minimum(imax, integral)), integral)
         self.integral = np.where(released, 0.0, integral)
         emf = motor * p["kt"]  # V: the back-EMF, kt w
@@ -212,7 +215,7 @@ class RoboRacerVescBatch:
         duty = (motor * p["kt"] + current * p["resistance"]) / p["battery"]
         telemetry = {"erpm": erpm, "current_motor": current,
                      "duty": np.maximum(-1.0, np.minimum(1.0, duty)),
-                     "voltage_input": np.full(self.n, p["battery"]),
+                     "voltage_input": p["battery"].copy(),
                      "tachometer": np.floor(self.tachometer).astype(np.int64)}
         self.debug = {"erpm": erpm, "current": current, "brake_current": brake_current,
                       "mode": mode}
@@ -222,16 +225,16 @@ class RoboRacerVescBatch:
 
 class RoboRacerVesc(ecu_batch.ScalarOf):
     """The single car: the batch at one slot. The constructor is (car, params, seed), as
-    before; `p`, `gear`, `r` and `debug` read the one car's."""
+    before; `p`, `gear`, `r` and `debug` read the one car's, as floats."""
     batch = RoboRacerVescBatch
 
     @property
     def p(self):
-        return self._b.p
+        return {k: float(v[0]) for k, v in self._b.p.items()}
 
     @property
     def gear(self):
-        return self._b.gear
+        return float(self._b.gear[0])
 
     @property
     def r(self):

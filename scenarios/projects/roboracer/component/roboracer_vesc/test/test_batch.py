@@ -106,3 +106,24 @@ def test_the_single_car_keeps_its_interface():
 def test_the_batch_is_its_own_class_and_refuses_nothing_a_single_car_takes():
     b = RoboRacerVescBatch(CAR, {}, [1, 2])
     assert B.check_batch(b) is b
+
+
+def test_per_car_params_equal_reference_cars_each_with_its_own():
+    """Per-car params (sim_vehicle_ecu's list of N dicts): a fit's candidate sets, or a varied
+    car. Car i is the reference car built with dict i."""
+    rng = random.Random(4)
+    n = 12
+    per = [{"speed_kp": rng.uniform(0.002, 0.008), "speed_ki": rng.uniform(0.005, 0.02),
+            "kt": rng.uniform(0.002, 0.004), "latency": rng.choice([0.0, 0.01, 0.03]),
+            "latency_jitter": rng.choice([0.0, 0.005]), "servo_rate": rng.uniform(2, 8),
+            "erpm_per_mps": rng.uniform(4000, 5000)} for _ in range(n)]
+    seeds = [3 * i for i in range(n)]
+    b = B.load_batch(RoboRacerVesc, CAR, per, seeds)
+    refs = [ReferenceVesc(CAR, p, s) for p, s in zip(per, seeds)]
+    for cmds, sens, resets in sequence(n, 1200, seed=77):
+        act = b.step_batch(B.commands_to_batch("vesc", cmds), B.sensors_to_batch(sens), DT)
+        for i, g in enumerate(B.batch_to_actuations(B.checked_batch(act, n))):
+            w = refs[i].step(cmds[i], sens[i], DT)
+            assert same(g, w), (i, g, w)
+    one = RoboRacerVesc(CAR, per[0], 0)
+    assert one.p["speed_kp"] == per[0]["speed_kp"] and isinstance(one.gear, float)

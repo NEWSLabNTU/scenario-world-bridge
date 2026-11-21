@@ -24,6 +24,7 @@ The Hub is reached through huggingface_hub when it is installed and the host set
 ``hub_url`` is the public Hub; otherwise over plain HTTPS (urllib), against ``hub_url``.
 """
 import argparse
+import fcntl
 import fnmatch
 import hashlib
 import json
@@ -505,25 +506,105 @@ def _set_tree_mode(root: Path, writable: bool):
         os.chmod(d, 0o755 if writable else 0o555)
 
 
-class _Store:
-    """Adds complete files to one commit's directory; reseals it on the way out."""
+LOCKS_DIR = "locks"
+LOCK_WAIT = 3600.0     # s a fetch waits for another one using the same commit (issue 093)
+LOCK_POLL = 1.0
 
-    def __init__(self, hub, cache, repo, commit):
-        self.hub, self.repo, self.commit = hub, repo, commit
-        self.dir = commit_dir(cache, repo, commit)
-        self.tmp_root = Path(cache) / "tmp"
+
+def _lock_path(cache, repo, commit) -> Path:
+    return Path(cache) / LOCKS_DIR / f"{repo.replace('/', '__')}@{commit}.lock"
+
+
+def _holder(path: Path) -> str:
+    try:
+        h = json.loads(path.read_text() or "{}")
+    except (OSError, ValueError):
+        return "another fetch"
+    since = time.strftime("%H:%M:%S", time.localtime(h.get("since", 0)))
+    return f"pid {h.get('pid')} ({h.get('project') or 'no project'}, since {since})"
+
+
+class CommitLock:
+    """An exclusive flock on one commit's directory in the cache, held while a fetch may
+    write into it, prune removes it, or its modes change (issue 093). A second holder waits,
+    saying once who holds it, up to ``wait`` s (then AssetError naming the holder); ``wait=0``:
+    refuse at once. The kernel drops the lock when its process dies, so a killed fetch blocks
+    nothing."""
+
+    def __init__(self, cache, repo, commit, project=None, wait=None, out=None):
+        self.path = _lock_path(cache, repo, commit)
+        self.what = f"{repo}@{commit[:12]}"
+        self.project, self.out = project, out
+        self.wait = LOCK_WAIT if wait is None else wait
+        self.fd = None
 
     def __enter__(self):
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.tmp_root.mkdir(parents=True, exist_ok=True)
-        _set_tree_mode(self.dir, True)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        deadline, said = time.monotonic() + self.wait, False
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                who = _holder(self.path)
+                if time.monotonic() >= deadline:
+                    os.close(fd)
+                    raise AssetError(f"{self.what}: {who} is fetching it"
+                                     + (f"; waited {self.wait:.0f} s" if self.wait else "")
+                                     + " (fix: let it finish, then fetch again)") from None
+                if not said and self.out is not None:
+                    self.out(f"{self.what}: waiting for {who}, which is fetching it")
+                    said = True
+                time.sleep(LOCK_POLL)
+        os.ftruncate(fd, 0)
+        os.pwrite(fd, json.dumps({"pid": os.getpid(), "project": self.project,
+                                  "since": time.time()}).encode(), 0)
+        self.fd = fd
         return self
 
     def __exit__(self, *exc):
-        _set_tree_mode(self.dir, False)
+        if self.fd is not None:
+            os.ftruncate(self.fd, 0)
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
+            os.close(self.fd)
+            self.fd = None
+
+
+class _Store:
+    """Adds complete files to one commit's directory, under its CommitLock: the tree is made
+    writable at the first file added and sealed again on the way out, by the one fetch that
+    holds the lock (issue 093: an unlocked exit sealed the tree under another fetch's feet).
+    A store that adds nothing leaves the modes alone."""
+
+    def __init__(self, hub, cache, repo, commit, project=None, out=None, wait=None):
+        self.hub, self.repo, self.commit = hub, repo, commit
+        self.dir = commit_dir(cache, repo, commit)
+        self.tmp_root = Path(cache) / "tmp"
+        self.lock = CommitLock(cache, repo, commit, project=project, wait=wait, out=out)
+        self.opened = False
+
+    def __enter__(self):
+        self.lock.__enter__()
+        self.dir.mkdir(parents=True, exist_ok=True)
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if self.opened:
+                _set_tree_mode(self.dir, False)
+        finally:
+            self.lock.__exit__(*exc)
+
+    def _open(self):
+        if not self.opened:
+            self.tmp_root.mkdir(parents=True, exist_ok=True)
+            _set_tree_mode(self.dir, True)
+            self.opened = True
 
     def add(self, rel, want=None) -> str:
         """Download ``rel``; check it against ``want`` (hex); returns its sha256 (hex)."""
+        self._open()
         tmpd = Path(tempfile.mkdtemp(dir=self.tmp_root))
         try:
             part = self.hub.download(self.repo, self.commit, rel, tmpd)
@@ -548,7 +629,7 @@ def _differs(path: Path, cdir: Path) -> AssetError:
 
 
 def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, verify=False,
-                  lock_only=False):
+                  lock_only=False, project=None, out=None, wait=None):
     """``(lock entry, what changed or None)`` for one dataset. ``verify``: hash every file
     already in the cache (otherwise only what its record says changed, G35). ``lock_only``:
     the entry only, for a dataset the host keeps a copy of (issue 076): a file the manifest
@@ -571,7 +652,7 @@ def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, veri
                 ver.save()
         if not missing:
             return entry, (f"{len(files)} file(s) hashed, as locked" if verify else None)
-        with _Store(hub, cache, spec.repo, entry["commit"]) as store:
+        with _Store(hub, cache, spec.repo, entry["commit"], project, out, wait) as store:
             for f in missing:
                 want = files[f].split(":", 1)[-1]
                 store.add(f, want)
@@ -592,7 +673,7 @@ def fetch_dataset(hub, cache, spec: DatasetSpec, entry: dict, update=False, veri
     new = 0
     files = {}
     ver = Verified(cache, spec.repo, info.commit, force=verify)
-    with _Store(hub, cache, spec.repo, info.commit) as store:
+    with _Store(hub, cache, spec.repo, info.commit, project, out, wait) as store:
         manifest = {}
         name = next((m for m in MANIFESTS if m in info.files), None)
         if name:
@@ -775,7 +856,7 @@ def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dic
                     hub = make_hub(settings)
                 entry, what = fetch_dataset(hub, cache, spec,
                                             old.get("datasets", {}).get(spec.name), update,
-                                            lock_only=True)
+                                            lock_only=True, project=str(project), out=out)
             except AssetError as e:   # not on the Hub (a private one), or the Hub unreachable
                 if spec.name in old.get("datasets", {}):
                     lock["datasets"][spec.name] = old["datasets"][spec.name]
@@ -793,7 +874,7 @@ def fetch(project: Path, update=False, hub=None, out=print, verify=False) -> dic
         if hub is None:
             hub = make_hub(settings)
         entry, what = fetch_dataset(hub, cache, spec, old.get("datasets", {}).get(spec.name),
-                                    update, verify)
+                                    update, verify, project=str(project), out=out)
         lock["datasets"][spec.name] = entry
         out(f"{spec.name}: {what or 'unchanged'}")
     for spec in paths:
@@ -836,16 +917,23 @@ def _projects(cache) -> list:
         return []
 
 
+def _write_projects(cache: Path, projects):
+    fd, tmp = tempfile.mkstemp(dir=cache, prefix=PROJECTS_FILE + ".")
+    with os.fdopen(fd, "w") as f:
+        f.write(json.dumps(sorted(projects), indent=1) + "\n")
+    os.replace(tmp, cache / PROJECTS_FILE)
+
+
 def register(cache, project: Path):
-    """Record ``project`` as a user of the cache (for ``prune``)."""
+    """Record ``project`` as a user of the cache (for ``prune``), under the cache's lock: two
+    fetches registering at once both stay recorded."""
     cache = Path(cache)
-    known = _projects(cache)
     me = str(Path(project).resolve())
-    if me not in known:
-        cache.mkdir(parents=True, exist_ok=True)
-        tmp = cache / (PROJECTS_FILE + ".tmp")
-        tmp.write_text(json.dumps(sorted(known + [me]), indent=1) + "\n")
-        tmp.replace(cache / PROJECTS_FILE)
+    cache.mkdir(parents=True, exist_ok=True)
+    with CommitLock(cache, "cache", PROJECTS_FILE):
+        known = _projects(cache)
+        if me not in known:
+            _write_projects(cache, known + [me])
 
 
 def _tree_size(root: Path) -> int:
@@ -876,23 +964,30 @@ def prune(cache, dry_run=False, out=print) -> list:
         repo = f"{cdir.parent.parent.name}/{cdir.parent.name}"
         if (repo, cdir.name) in used:
             continue
+        try:   # a commit a fetch is writing now is in use, whatever the locks say
+            busy = CommitLock(cache, repo, cdir.name, wait=0)
+            busy.__enter__()
+        except AssetError as e:
+            out(f"kept {repo}@{cdir.name[:12]}: {e}")
+            continue
         size = _tree_size(cdir)
         freed += size
         removed.append(cdir)
         out(f"{'would remove' if dry_run else 'removed'} {repo}@{cdir.name[:12]} "
             f"({size / 1024 ** 2:.1f} MB)")
-        if not dry_run:
-            _set_tree_mode(cdir, True)
-            for f in cdir.rglob("*"):
-                if f.is_file() and not f.is_symlink():
-                    os.chmod(f, 0o644)
-            shutil.rmtree(cdir)
-            (cache / VERIFIED_DIR / repo / f"{cdir.name}.json").unlink(missing_ok=True)
-    if not dry_run:
-        tmp = cache / (PROJECTS_FILE + ".tmp")
-        if cache.is_dir():
-            tmp.write_text(json.dumps(sorted(alive), indent=1) + "\n")
-            tmp.replace(cache / PROJECTS_FILE)
+        try:
+            if not dry_run:
+                _set_tree_mode(cdir, True)
+                for f in cdir.rglob("*"):
+                    if f.is_file() and not f.is_symlink():
+                        os.chmod(f, 0o644)
+                shutil.rmtree(cdir)
+                (cache / VERIFIED_DIR / repo / f"{cdir.name}.json").unlink(missing_ok=True)
+        finally:
+            busy.__exit__()
+    if not dry_run and cache.is_dir():
+        with CommitLock(cache, "cache", PROJECTS_FILE):
+            _write_projects(cache, alive)
     out(f"{'would free' if dry_run else 'freed'} {freed / 1024 ** 2:.1f} MB; "
         f"{len(alive)} project(s) keep {len(used)} commit(s)")
     return removed

@@ -89,6 +89,13 @@ pub struct WorldFile {
     pub ground_paths: Vec<String>,
     /// Where the world's origin sits in the map frame, m.
     pub map_origin: [f64; 3],
+    /// The world server's, not the bridge's (roadmap 091 W13, design roboracer-indoor-twin.md
+    /// 3.1): an authored stage, whose own ground attributes the world server reads. Accepted
+    /// here so the bridge does not refuse an authored map's world file; otherwise unused.
+    pub authored: bool,
+    /// The world server's, not the bridge's (roadmap 091 W14): the map's evidence files (the
+    /// raw scan), hashed into the run's record. Accepted, unused, as `authored`.
+    pub evidence: Vec<String>,
 }
 
 impl WorldFile {

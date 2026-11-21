@@ -111,7 +111,9 @@ class Core(unittest.TestCase):
         return c, core.BatchRun(c, StraightWorld(), PointMass(c.n), comp)
 
     def test_the_lead_drives_its_init_speed_and_the_ego_its_component(self):
-        recs = [{"values": {"ego_speed": 20.0, "lead_speed": 22.0}}, {"values": {"ego_speed": 10.0}}]
+        # the onset beyond the run: the storyboard's brake never fires (test_storyboard has it)
+        recs = [{"values": {"ego_speed": 20.0, "lead_speed": 22.0, "onset_s": 5000.0}},
+                {"values": {"ego_speed": 10.0, "onset_s": 5000.0}}]
         c, run = self.run_of(recs)
         c.y[:, c.index("ego")] = 3.5   # the next lane: the point mass would drive through the lead
         run.route_length = 1000.0

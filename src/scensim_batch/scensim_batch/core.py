@@ -62,6 +62,15 @@ class BatchRun:
         self.speed_limit = speed_limit
         self.vehicles = None
         self.first = None
+        self.storyboard = compiled.storyboard
+        from . import storyboard as sbmod
+        self._sb = sbmod
+        self.ctx = sbmod.Context(self)
+        self.ctx.storyboard = self.storyboard
+        nd = len(self.defaults)
+        self.job = torch.zeros(compiled.n, nd, dtype=torch.int8)    # SSv2's LINEAR_ACCELERATION
+        self.job_target = torch.zeros(compiled.n, nd, dtype=torch.float64)
+        self.obs = None
 
     # --- reset ----------------------------------------------------------------------------
 
@@ -75,6 +84,64 @@ class BatchRun:
         self.first = mask.clone() if self.first is None else (self.first | mask)
         if self.defaults:
             self._reset_vehicles(mask)
+            self.job = torch.where(mask[:, None], torch.zeros_like(self.job), self.job)
+        self.ctx.t = torch.where(mask, torch.zeros_like(self.ctx.t), self.ctx.t)
+        self.ctx.standstill = torch.where(mask[:, None], torch.zeros_like(self.ctx.standstill),
+                                          self.ctx.standstill)
+        if self.storyboard is not None:
+            self.storyboard.reset(mask)
+        # the storyboard's first evaluation, at time 0, before the first update (SSv2's order)
+        self.obs = self._observe(self.backend.state(), None)
+        self.ctx.obs = self.obs
+        self._tick(mask)
+        return self.obs
+
+    def _tick(self, mask=None):
+        sb = self.storyboard
+        if sb is None:
+            return
+        if mask is not None:
+            keep = sb.outcome.clone()
+            sb.outcome = torch.where(mask, sb.outcome, torch.full_like(sb.outcome, -1))
+            sb.tick(self.ctx)
+            sb.outcome = torch.where(mask, sb.outcome, keep)
+        else:
+            sb.tick(self.ctx)
+        self.obs["outcome"] = sb.outcome.clone()
+        self.obs["storyboard_complete"] = sb.complete.clone()
+        self.obs["storyboard_stopped"] = sb.stopped.clone()
+
+    def outcome(self):
+        """Each slot's outcome (storyboard.OUTCOMES): running, success or failure (an exit
+        action). A slot whose storyboard completed or stopped is still running, as in SSv2
+        (`storyboard.complete`, `storyboard.stopped`)."""
+        sb = self.storyboard
+        if sb is None:
+            return ["running"] * self.c.n
+        return [self._sb.OUTCOMES[int(k)] for k in sb.outcome]
+
+    def limit_jobs(self, up, down, target):
+        """A linear SpeedAction's acceleration (up) or deceleration (down) limit, held until
+        the speed passes the target (SSv2's job, POST_UPDATE), then reset."""
+        self.job = torch.where(up, torch.ones_like(self.job), torch.where(
+            down, torch.full_like(self.job, 2), self.job))
+        self.job_target = torch.where(up | down, target, self.job_target)
+
+    def _post_update(self):
+        veh = self.vehicles
+        if veh is None or not bool((self.job != 0).any()):
+            return
+        done = (((self.job == 1) & (veh.v >= self.job_target))
+                | ((self.job == 2) & (veh.v <= self.job_target)))
+        if bool(done.any()):
+            self._reset_constraints(done)
+            self.job = torch.where(done, torch.zeros_like(self.job), self.job)
+
+    def _reset_constraints(self, m):
+        veh = self.vehicles
+        for k, val in npc.DEFAULT_CONSTRAINTS.items():
+            setattr(veh.c, k, torch.where(m, torch.full_like(getattr(veh.c, k), val),
+                                          getattr(veh.c, k)))
 
     def _reset_vehicles(self, mask):
         c, d = self.c, self.defaults
@@ -99,6 +166,7 @@ class BatchRun:
         old = self.vehicles
         for name in ("s", "v", "a", "jerk", "target", "length", "width", "speed_limit"):
             setattr(old, name, torch.where(m, getattr(fresh, name), getattr(old, name)))
+        self._reset_constraints(m)
         old.routes.points = torch.where(m[..., None, None], fresh.routes.points, old.routes.points)
         old.routes = npc.Routes(old.routes.points)
 
@@ -141,9 +209,20 @@ class BatchRun:
         return act
 
     def after_physics(self, dt):
-        """After one physics step: the ego read back, SSv2's default vehicles moved. Returns
-        the observation: the ego's state and every entity's pose [N, E] (x, y, yaw, v)."""
-        st = self.backend.state()
+        """After one physics step: the ego read back, SSv2's default vehicles moved, the
+        storyboard evaluated at the new time. Returns the observation: the ego's state, every
+        entity's pose [N, E] (x, y, yaw, v) and each slot's outcome."""
+        self.obs = self._observe(self.backend.state(), dt)
+        self._post_update()
+        live = (self.storyboard.outcome == 0 if self.storyboard is not None
+                else torch.ones(self.c.n, dtype=torch.bool))
+        self.ctx.t = torch.where(live, self.ctx.t + dt, self.ctx.t)
+        self.ctx.update(self.obs, dt)
+        self._tick()
+        return self.obs
+
+    def _observe(self, st, dt):
+        """Every entity's pose; with `dt`, SSv2's default vehicles moved by it first."""
         c = self.c
         x, y, yaw = c.x.clone(), c.y.clone(), c.yaw.clone()
         v = torch.zeros_like(x)
@@ -156,7 +235,8 @@ class BatchRun:
             others = {"x": x[:, others_idx], "y": y[:, others_idx], "yaw": yaw[:, others_idx],
                       "v": v[:, others_idx], "length": ego_len.expand(c.n, -1),
                       "width": ego_wid.expand(c.n, -1)}
-            nx, ny, nyaw = self.vehicles.step(dt, others)
+            nx, ny, nyaw = (self.vehicles.step(dt, others) if dt is not None
+                            else self.vehicles.poses())
             d = self.defaults
             x[:, d], y[:, d], yaw[:, d], v[:, d] = nx, ny, nyaw, self.vehicles.v
         return {"x": x, "y": y, "yaw": yaw, "v": v, "ego": st}

@@ -480,7 +480,9 @@ behind wall time it fell (`result.json`'s `clock`). `paced` is for a stack that 
 time, such as one on its target board: the world is held to wall time, never hurried to catch
 up, and a run that falls more than `max_lag_s` seconds behind is an error run, since the stack
 saw a slower world than it was built for. `paced` needs `ssv2.global_real_time_factor: 1` and the
-truth file (`logging.gap_trace` not false); `testbench check` refuses it otherwise.
+truth file (`logging.gap_trace` not false); `testbench check` refuses it otherwise. The lag is
+measured at the factor the run ran at, a suite's or an item's when it sets one; under a paced
+clock such a run is an error run (`scenario`), since its factor must be 1 too.
 
 ## Suites
 

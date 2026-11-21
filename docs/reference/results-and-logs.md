@@ -135,7 +135,8 @@ class a report can count (`scensim runs coverage` lists the error runs by kind).
 
 `clock` is the run's clock ([`clock:`](project-file.md#the-clock)): its `mode`, the frames
 measured, and their lag behind wall time in seconds, `lag_s: {max, p50, p99, final}`, with
-`frames_over` (frames beyond `max_lag_s`) and `ok`. A lockstep run records its lag and is
+`frames_over` (frames beyond `max_lag_s`) and `ok`, and the run's `global_real_time_factor`
+when it is not 1. A lockstep run records its lag and is
 always `ok`; a paced run over its budget is not, and is an error run (`clock_lag`). It is
 absent when the truth file has no wall stamps (`logging.gap_trace: false`).
 

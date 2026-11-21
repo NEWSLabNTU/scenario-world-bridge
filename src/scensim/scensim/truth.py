@@ -124,10 +124,13 @@ def lags(trace, rtf=1.0) -> list:
     return out
 
 
-def settings(project_settings) -> dict:
-    """testbench.yaml's ``clock`` with its defaults: {mode, max_lag_s, rtf}."""
+def settings(project_settings, ssv2=None) -> dict:
+    """testbench.yaml's ``clock`` with its defaults: {mode, max_lag_s, rtf}. ``ssv2`` is the
+    run's own SSv2 settings (testbench, suite, item and call merged, scensim.ssv2.merge), whose
+    real-time factor is the one the run ran at; without it, the testbench's."""
     c = (project_settings or {}).get("clock") or {}
-    ssv2 = (project_settings or {}).get("ssv2") or {}
+    if ssv2 is None:
+        ssv2 = (project_settings or {}).get("ssv2") or {}
     return {"mode": c.get("mode", "lockstep"), "max_lag_s": c.get("max_lag_s"),
             "rtf": float(ssv2.get("global_real_time_factor", 1.0) or 1.0)}
 

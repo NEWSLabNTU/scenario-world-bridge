@@ -53,7 +53,8 @@ def main(argv=None):
                    for i in range(a.n)]
     cfg.world_factory = StraightWorld
     cfg.rig = rig
-    cfg.vehicle = yaml.safe_load(Path(a.vehicle).read_text())
+    # the rig's spec: the car as the rig resolved it (its body), what its component calibrates on
+    cfg.vehicle = rig.spec if a.vehicle == "rig" else yaml.safe_load(Path(a.vehicle).read_text())
     cfg.component = "ideal"
     cfg.allow_loop = True
     cfg.provides = ("world knob illumination=night",)

@@ -23,6 +23,22 @@ import torch
 from . import npc
 
 
+def request_motion(kind, commands):
+    """`(velocity [N], gear [N])` of the requests, as aib's Vehicle.apply takes them for the
+    sticky-tire release: Autoware's velocity and gear; Ackermann's speed (0 when stale) and its
+    sign's gear; a VESC's 0 and drive (what moves it is the component's alone)."""
+    from sim_vehicle_ecu.signals import GEAR_DRIVE, GEAR_REVERSE
+    n = len(next(iter(commands.values())))
+    if kind == "autoware":
+        valid = commands.get("valid", np.ones(n, bool))
+        return (np.where(valid, commands["velocity"], 0.0),
+                np.where(valid, commands["gear"], GEAR_DRIVE).astype(np.int64))
+    if kind == "ackermann":
+        v = np.where(np.isinf(commands["age"]), 0.0, commands["speed"])
+        return v, np.where(v < 0, GEAR_REVERSE, GEAR_DRIVE).astype(np.int64)
+    return np.zeros(n), np.full(n, GEAR_DRIVE, dtype=np.int64)
+
+
 class BatchRun:
     def __init__(self, compiled, world, backend, component, route_length=300.0,
                  points=61, speed_limit=None, allow_loop=False):
@@ -120,7 +136,8 @@ class BatchRun:
         act = self._ecu.checked_batch(
             self.component.step_batch(commands, self._sensors(st), dt), self.c.n, "ego component")
         self.first = torch.zeros_like(self.first)
-        self.backend.apply(act)
+        velocity, gear = request_motion(self.component.commands, commands)
+        self.backend.apply(act, velocity=velocity, gear=gear)
         return act
 
     def after_physics(self, dt):

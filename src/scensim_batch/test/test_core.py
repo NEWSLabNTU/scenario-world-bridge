@@ -51,7 +51,7 @@ class PointMass:
             setattr(self, name, torch.where(mask, val, getattr(self, name)))
         self.ax = torch.where(mask, torch.zeros_like(self.ax), self.ax)
 
-    def apply(self, act):
+    def apply(self, act, velocity=None, gear=None):
         drive = torch.as_tensor(act["drive"]).sum(-1)
         brake = torch.as_tensor(act["brake"]).sum(-1)
         self.force = (drive - brake * torch.sign(self.v)) / RADIUS
@@ -188,3 +188,19 @@ class Core(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 _ = math
+
+
+@unittest.skipIf(torch is None, "no torch or no sim_vehicle_ecu")
+class RequestMotion(unittest.TestCase):
+    def test_the_requests_velocity_and_gear_reach_the_sticky_release(self):
+        """As aib's Vehicle.apply derives them: without them the release holds a car whose
+        request is to stop (K2.2's env smoke: every ego braked to rest)."""
+        from scensim_batch.core import request_motion
+        v, g = request_motion("autoware", cmds(2, 1.0) | {"velocity": np.array([20.0, 0.0]),
+                                                           "gear": np.array([2, 20])})
+        self.assertEqual((v.tolist(), g.tolist()), ([20.0, 0.0], [2, 20]))
+        v, g = request_motion("ackermann", {"speed": np.array([-2.0, 3.0]),
+                                            "age": np.array([0.0, np.inf])})
+        self.assertEqual((v.tolist(), g.tolist()), ([-2.0, 0.0], [20, 2]))
+        v, g = request_motion("vesc", {"value": np.array([1.0])})
+        self.assertEqual((v.tolist(), g.tolist()), ([0.0], [2]))

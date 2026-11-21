@@ -21,6 +21,8 @@ def main(argv=None):
     ap.add_argument("--vehicle", required=True, help="the car's spec (sim_vehicle_spec)")
     ap.add_argument("--n", type=int, default=4)
     ap.add_argument("--steps", type=int, default=120)
+    ap.add_argument("--fabric", choices=("default", "on", "off"), default="default",
+                    help="override the env's use_fabric")
     a = ap.parse_args(argv)
 
     from isaaclab.app import AppLauncher
@@ -59,6 +61,10 @@ def main(argv=None):
     cfg.allow_loop = True
     cfg.provides = ("world knob illumination=night",)
     cfg.scene.num_envs = a.n
+    if a.fabric != "default":
+        cfg.sim.use_fabric = a.fabric == "on"
+    print(json.dumps({"use_fabric": cfg.sim.use_fabric,
+                      "scene_queries": cfg.sim.enable_scene_query_support}), flush=True)
     env = ScensimEnv(cfg)
     env.reset()
     act = torch.zeros(a.n, 3)

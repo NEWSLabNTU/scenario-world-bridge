@@ -272,7 +272,7 @@ The arrays are the scalar types' fields, struct of arrays, with the slot first:
 | commands, `autoware` | `acceleration`, `velocity`, `tire_angle`, `gear` [N]; `valid` [N]: False where the scalar form gets None (before the first command) |
 | commands, `ackermann` | `speed`, `acceleration`, `jerk`, `steering_angle`, `steering_angle_velocity`, `age` [N] |
 | commands, `vesc` | `motor` [N], an index into `MOTOR_MODES` (-1 for no command); `value` [N]; `servo` [N], NaN for no command; `age` [N] |
-| sensors | `wheel_speeds` [N, 4]; `yaw_rate`, `accel_x`, `accel_y` [N]; `valid` [N]: False where the scalar form gets None (the first step after a reset); `truth`: {declared name: [N] or [N, k]} |
+| sensors | `wheel_speeds` [N, 4]; `yaw_rate`, `accel_x`, `accel_y` [N]; `valid` [N]: False where the scalar form gets None (the first step after a reset); `truth`: {declared name: [N] or [N, k]}; `truth_valid`: {declared name: [N]}, False where a slot's reading lacks that name (not available yet) |
 | actuation | `drive`, `brake` [N, 4]; `tire_angle` [N]; `telemetry` {key: [N]}, optional |
 
 The rules:
@@ -284,13 +284,23 @@ The rules:
   slot i draws what the single car draws. `random.Random` per slot does this; one numpy
   generator over all slots does not.
 - **Truth.** Declared truth is per slot, as in 2.4, and the same check applies. Every declared
-  input has its array whether or not a slot has a reading (zeros where `valid` is False).
+  input has its array whether or not a slot has it. Where `valid` or `truth_valid[name]` is
+  False, its zeros are not a reading, and the scalar form's truth dict lacks the name.
 - **The shape contract for later backends.** Torch and Warp keep these keys and shapes. A batch
   declares `array_api` ("numpy" now) and `dtype` (float64 now).
-- **Bit for bit.** A batched form equals N scalar steps exactly only when both compute with
-  `+ - * /`, sqrt, min, max, clip, where and comparisons. numpy's `exp`, `log`, `tanh` and
-  `arctan2` may use its own vector kernels, which can differ from Python's `math` in the last
-  bit. A batched form that needs one says so, or computes it per slot with `math`.
+- **Bit for bit.** A batched form equals N scalar steps exactly only when both compute
+  elementwise with `+ - * /`, sqrt, min, max, clip, where and comparisons. Two things differ in
+  the last bit:
+  - numpy's `exp`, `log`, `tanh` and `arctan2`, which may use numpy's own vector kernels, not
+    Python's `math`;
+  - reductions. `np.sum` and `np.mean` add pairwise, ((a + b) + (c + d)); a scalar loop adds
+    ((a + b) + c) + d. Python 3.12's built-in `sum()` of floats is compensated (Neumaier), and
+    differs from both: on 20,000 random sums of four wheels it differed from the loop in 6,562.
+    3.10's does not.
+
+  So a reduction (a sum, a mean or a dot over the wheels) is written out in one order in both
+  forms, never `np.sum` or `sum()`. A batched form that needs a transcendental says so, or
+  computes it per slot with `math`.
 - **No batched form.** `load_batch(name, ...)` gives the component's `batch` class when it
   declares one. Otherwise it gives `LoopBatch`: N instances, each stepped by `step`. That is
   correct but slow (one Python step per slot) and flagged `vectorised = False`, with

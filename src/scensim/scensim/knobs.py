@@ -51,6 +51,22 @@ def bound(scenario: Path, parameters: dict) -> dict:
     return out
 
 
+WEATHER_ELEMENTS = ("Weather", "TimeOfDay", "Sun", "Fog", "Precipitation", "Wind")
+
+
+def environment_weather(scenario: Path) -> list:
+    """The weather a scenario's EnvironmentActions set during the run (the bridge forwards
+    Weather and TimeOfDay to the world): the element names found, empty when none."""
+    from scensim_sampler.subset import read
+    root, _ = read(scenario)
+    found = []
+    for env in root.iter("EnvironmentAction"):
+        for tag in WEATHER_ELEMENTS:
+            if env.find(f".//{tag}") is not None and tag not in found:
+                found.append(tag)
+    return found
+
+
 def problems(world_knobs: dict, where="world.knobs") -> list:
     """The testbench's knob declarations, checked: (where, message) pairs."""
     out = []

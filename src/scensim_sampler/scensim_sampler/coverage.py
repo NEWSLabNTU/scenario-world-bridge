@@ -147,8 +147,16 @@ def outcomes_from_runs(paths):
         # run's knobs report applied; a run whose knobs did not apply is an error run already
         kb = r.get("knobs") or {}
         if kb.get("ok") and isinstance(rec.get("cell"), dict):
-            rec = dict(rec, cell={a: (kb["knobs"][a]["value"] if a in kb.get("knobs", {})
-                                      else v) for a, v in rec["cell"].items()})
+            def applied(a, v):
+                e = (kb.get("knobs") or {}).get(a)
+                if e is None:
+                    return v
+                # a knob applied but not read back (issue 095) is its own cell, named so, until
+                # the world reports it: not grouped with the confirmed ones (243)
+                if (e.get("surface_map") or {}).get("read") == "unverified":
+                    return f"{e['value']} (unverified)"
+                return e["value"]
+            rec = dict(rec, cell={a: applied(a, v) for a, v in rec["cell"].items()})
         out.append((rec, {"failed": r.get("verdict") == "failed", "contact": _contact(d),
                           "error": r.get("verdict") == "error",
                           "seeds_not_applied": any(n.startswith("pilot ") for n in notes),

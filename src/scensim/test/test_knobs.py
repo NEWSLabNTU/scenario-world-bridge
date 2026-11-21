@@ -240,3 +240,63 @@ def test_a_world_that_did_not_apply_a_knob_gives_an_error_run(knob_stack, where)
     assert "knobs: the world did not apply illumination" in r.reason
     assert r.knobs["ok"] is False
     assert r.knobs["knobs"]["illumination"]["applied"]["sun_altitude_angle"] == 12.5
+
+
+# --- 243's review: the baseline every run, EnvironmentAction overlap, unverified cells ------
+
+class _Spec:
+    def __init__(self, scenario, parameters=None):
+        self.scenario, self.parameters = scenario, parameters or {}
+
+
+PLAIN = """<?xml version="1.0"?><OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="t" description="t"/>
+  <ParameterDeclarations/><Entities/><Storyboard/></OpenSCENARIO>"""
+
+
+def test_a_run_without_knobs_still_sends_and_checks_the_baseline(tmp_path):
+    knobbed, plain = tmp_path / "k.xosc", tmp_path / "p.xosc"
+    knobbed.write_text(SCEN)
+    plain.write_text(PLAIN)
+    rec = {"simulator": "carla", "weather": {"parameters": {"sun_altitude_angle": 45.0,
+                                                            "wetness": 0.0}}}
+    ps = {"world": {"knobs": {k: v for k, v in WORLD.items() if k == "illumination"}}}
+    ps["world"]["knobs"]["surface"] = {"values": {"dry": {"physics": "none"}}}
+    bridge = Bridge()
+    a, why = run.apply_knobs(rec, _Spec(knobbed, {"light": "night"}), ps, call=bridge)
+    assert a["ok"] and not why and bridge.weather["sun_altitude_angle"] == -30.0
+    b, why = run.apply_knobs(rec, _Spec(plain), ps, call=bridge)
+    assert b["ok"] and not why and b["knobs"] == {}
+    assert bridge.sent[-1] == {"sun_altitude_angle": 45.0, "wetness": 0.0}   # back to the day
+    # a world that keeps the night anyway fails the plain run
+    stuck = Bridge(drop="sun_altitude_angle")
+    b, why = run.apply_knobs(rec, _Spec(plain), ps, call=stuck)
+    assert not b["ok"] and b["baseline_not_applied"] == ["sun_altitude_angle"] and why
+    # no knobs declared and none bound: nothing is sent
+    assert run.apply_knobs(rec, _Spec(plain), {"world": {}}, call=bridge) == (None, "")
+
+
+def test_a_weather_knob_and_an_environment_action_setting_weather_are_refused(tmp_path):
+    p = tmp_path / "s.xosc"
+    p.write_text(SCEN.replace("<Entities/><Storyboard/>", "<Entities/><Storyboard><Init><Actions>"
+                              "<GlobalAction><EnvironmentAction><Environment name='e'>"
+                              "<TimeOfDay animation='false' dateTime='2026-11-21T07:00:00'/>"
+                              "</Environment></EnvironmentAction></GlobalAction></Actions></Init>"
+                              "</Storyboard>"))
+    ps = {"world": {"knobs": WORLD}}
+    blk, why = run.apply_knobs({"simulator": "carla"}, _Spec(p, {"light": "night", "road": "wet_look"}),
+                               ps, call=Bridge())
+    assert not blk["ok"] and "EnvironmentAction sets TimeOfDay" in why
+
+
+def test_an_unverified_surface_is_its_own_cell_in_the_coverage(tmp_path):
+    from scensim_sampler import coverage
+    rd = tmp_path / "r1"
+    rd.mkdir()
+    rec = {"cell": {"surface": "wet"}, "category": "c", "values": {}}
+    (rd / "sample.json").write_text(json.dumps(rec))
+    (rd / "result.json").write_text(json.dumps({
+        "verdict": "passed", "knobs": {"ok": True, "knobs": {"surface": {
+            "value": "wet", "ok": True, "surface_map": {"sent": "wet", "read": "unverified"}}}}}))
+    [(r, o)] = coverage.outcomes_from_runs([tmp_path])
+    assert r["cell"] == {"surface": "wet (unverified)"}

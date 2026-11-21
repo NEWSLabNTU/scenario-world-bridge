@@ -168,6 +168,9 @@ def main(argv=None):
     except (SpecError, SamplingError, ExprError, plugins.PluginError, ValueError) as e:
         print(f"scensim-sample: {e}", file=sys.stderr)
         return 2
+    except OSError as e:   # a file that is not there, or not readable
+        print(f"scensim-sample: {e.filename or ''}: {e.strerror or e}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

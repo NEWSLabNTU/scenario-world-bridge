@@ -14,6 +14,7 @@ table is `scensim_sampler/subset.py`, and the checker is `scensim-sample compila
 | derived | compiles once rewritten; the refusal names the rewrite |
 | conditional | compiles when the slot provides something (a camera and a renderer for weather, a batched form of a behaviour model); the verdict lists each condition |
 | seats | never batches; the refusal gives the reason |
+| unimplemented | SSv2 does not implement it, so it runs on neither: no seats run executes it, and no batch run of it could be checked against one (K2's acceptance) |
 
 An element the table does not list is refused as "not in the compilable subset". The table
 grows by decision, not by default. Containers (Story, Act, ManeuverGroup, Event,
@@ -29,13 +30,13 @@ comparison, row by row, is K2's acceptance.
 
 | Constructs | How |
 |---|---|
-| TeleportAction; WorldPosition, LanePosition, RelativeWorldPosition, RelativeObjectPosition, RelativeLanePosition | a per-slot reset pose; lane positions resolved on the world's map once per slot |
+| TeleportAction; WorldPosition, LanePosition, RelativeWorldPosition, RelativeObjectPosition | a per-slot reset pose; lane positions resolved on the world's map once per slot |
 | SpeedAction (step, linear, cubic; absolute or relative target), SpeedProfileAction | a speed profile per slot |
-| LaneChangeAction, LaneOffsetAction | a lateral profile per slot |
+| LaneChangeAction | a lateral profile per slot |
 | FollowTrajectoryAction, AssignRouteAction, AcquirePositionAction | precomputed per slot on the world's map |
 | RoadCondition; the world knob `world.surface` | friction as a per-slot material |
 | the world knob `world.zone_layout`; a MiscObject | a prop set, instanced per slot |
-| Distance, RelativeDistance, RelativeClearance, ReachPosition, SimulationTime, TimeHeadway, Speed, RelativeSpeed, Acceleration, StandStill and TraveledDistance conditions | vectorised per slot |
+| Distance, RelativeDistance, RelativeClearance, ReachPosition, SimulationTime, TimeHeadway, Speed, RelativeSpeed, Acceleration, and StandStill conditions | vectorised per slot |
 | CollisionCondition | contact per slot |
 | UserDefinedValueCondition `RelativeHeadingCondition(<entity>)` or `(<entity>, <lane>, <s>)`, matched by the function-call form | SSv2 computes it from the entity's pose against its lane, nothing from outside: a heading per slot |
 | StoryboardElementStateCondition; any number of Stories, Acts, Events and ConditionGroups; `maximumExecutionCount`; StopTrigger | the storyboard's state machine per slot, as masks |
@@ -61,6 +62,16 @@ comparison, row by row, is K2's acceptance.
 | an ObjectController with `model = scensim.behaviour:<name>` | the model has a batched form |
 | a vehicle or pedestrian with no controller (SSv2's default) | a batched model of SSv2's default behaviour: its behaviour tree follows the lane at the target speed its SpeedActions set, and stops for an entity ahead |
 | any other `world.<knob>` | the world supports the knob per slot |
+
+**unimplemented** (SSv2's support table says so; refused by name)
+
+| Constructs |
+|---|
+| LaneOffsetAction (and its LaneOffsetActionDynamics, LaneOffsetTarget, AbsoluteTargetLaneOffset, RelativeTargetLaneOffset); RelativeLanePosition; TraveledDistanceCondition |
+
+These three were batch rows until 243's D7 review (093) found LaneOffsetAction's children
+refused; checking every row against SSv2's table then found all three unimplemented there. The
+check is now a rule: a batch or conditional row must be a construct SSv2 runs.
 
 **seats**
 

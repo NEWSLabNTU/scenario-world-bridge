@@ -37,6 +37,10 @@ The world server runs in this venv, so a user's broken `road_detail.yaml` is rep
 
 ## Fix (when taken)
 
-The missing modules: skip the tests where the module is absent (`unittest.skipIf` on the
+The real gap: the world server runs in Isaac's Python, and no gate tests it there. The fix is a
+`just test` lane that runs this suite in Isaac's venv when `ISAAC_ROOT` is set, and skips with a
+printed note when it is not; it goes in after the thirteen below are fixed.
+
+For the thirteen: the missing modules, skip the tests where the module is absent (`unittest.skipIf` on the
 import, as the pxr tests do), or add the modules to the venv's setup. The messages: format the
 values as Python scalars (`float(v)`, `str(v)`, or `{v:g}`) where `road_record` builds them.

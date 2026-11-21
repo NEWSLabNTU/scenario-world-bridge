@@ -314,6 +314,9 @@ Two rules follow from this:
 
 ## 6. The compilable subset (D5, first draft)
 
+Superseded by [compilable-subset.md](compilable-subset.md) (092 S2), which gives the table
+every construct SSv2 supports, a checker, and the count on SSv2's examples. The first draft:
+
 | Construct | Batch | Note |
 |---|---|---|
 | Init: TeleportAction, initial speeds | yes | per-slot reset |

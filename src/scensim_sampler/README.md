@@ -86,6 +86,16 @@ categories have runs, the t-wise coverage of their conditions, and the failure r
 and cell, with its interval (self-normalised for runs drawn from a proposal). The catalogue and
 its optional `exposure:` weights are the study's own; see the spec, section 8.
 
+## Does it compile for a batch?
+
+`scensim-sample compilable scenario.xosc` says whether a batch executor can run the scenario
+per slot, or names the first construct that it cannot run, with its XML path. It reads `.xosc`,
+SSv2's YAML scenario format, and a distribution file, which it reads through to its scenario.
+The ego is taken as the batch's policy, and the verdict says so; `--ego seats` refuses it
+instead. The table and its reasons are in
+[docs/design/compilable-subset.md](../../docs/design/compilable-subset.md), and the five case
+studies are under `examples/cases/`.
+
 ## Weights
 
 A record drawn from a proposal carries `weight = base / proposal` and its logarithm

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CS5 of docs/design/scenario-description.md: fog rolls in mid-route. Values invented; an example for
+     `scensim-sample compilable` (docs/design/compilable-subset.md), not a tuned scenario. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="fog rolls in mid-route"/>
+  <ParameterDeclarations>
+    <ParameterDeclaration name="ego_speed" parameterType="double" value="16"/>
+    <ParameterDeclaration name="fog_start" parameterType="double" value="200"/>
+    <ParameterDeclaration name="fog_ramp" parameterType="double" value="100"/>
+    <ParameterDeclaration name="visibility_min" parameterType="double" value="80"/>
+  </ParameterDeclarations>
+  <CatalogLocations/>
+  <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <ObjectController><Controller name="ego"><Properties>
+        <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
+    </ScenarioObject>
+
+  </Entities>
+  <Storyboard>
+    <Init><Actions>
+      <Private entityRef="ego"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="34513" s="5" offset="0"/></Position></TeleportAction></PrivateAction>
+        <PrivateAction><LongitudinalAction><SpeedAction>
+          <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
+          <SpeedActionTarget><AbsoluteTargetSpeed value="$ego_speed"/></SpeedActionTarget>
+        </SpeedAction></LongitudinalAction></PrivateAction></Private>
+
+    </Actions></Init>
+    <Story name="main"><Act name="act">
+      <ManeuverGroup name="fog" maximumExecutionCount="1">
+        <Actors selectTriggeringEntities="false"><EntityRef entityRef="ego"/></Actors>
+        <Maneuver name="fog"><Event name="fog" priority="override" maximumExecutionCount="1">
+          <Action name="fog"><GlobalAction><EnvironmentAction><Environment name="fog">
+            <TimeOfDay animation="false" dateTime="2026-11-21T14:00:00"/>
+            <Weather><Fog visualRange="$visibility_min"/></Weather>
+            <RoadCondition frictionScaleFactor="1.0"/>
+          </Environment></EnvironmentAction></GlobalAction></Action>
+          <StartTrigger><ConditionGroup><Condition name="fog" delay="0" conditionEdge="rising">
+            <ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any">
+              <EntityRef entityRef="ego"/></TriggeringEntities><EntityCondition>
+              <ReachPositionCondition tolerance="1"><Position>
+                <LanePosition roadId="" laneId="34513" s="$fog_start" offset="0"/></Position></ReachPositionCondition>
+            </EntityCondition></ByEntityCondition>
+          </Condition></ConditionGroup></StartTrigger>
+        </Event></Maneuver>
+      </ManeuverGroup>
+      <StartTrigger><ConditionGroup><Condition name="t0" delay="0" conditionEdge="none">
+        <ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan"/></ByValueCondition>
+      </Condition></ConditionGroup></StartTrigger>
+    </Act></Story>
+    <StopTrigger><ConditionGroup><Condition name="end" delay="0" conditionEdge="none">
+      <ByValueCondition><SimulationTimeCondition value="30" rule="greaterThan"/></ByValueCondition>
+    </Condition></ConditionGroup></StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

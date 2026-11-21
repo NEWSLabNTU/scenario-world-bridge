@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CS4 of docs/design/scenario-description.md: a lidar drops out during a cut-in. Values invented; an example for
+     `scensim-sample compilable` (docs/design/compilable-subset.md), not a tuned scenario. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="a lidar drops out during a cut-in"/>
+  <ParameterDeclarations>
+    <ParameterDeclaration name="ego_speed" parameterType="double" value="20"/>
+    <ParameterDeclaration name="cutter_speed" parameterType="double" value="18"/>
+    <ParameterDeclaration name="gap" parameterType="double" value="12"/>
+    <ParameterDeclaration name="lateral_time" parameterType="double" value="2.5"/>
+    <ParameterDeclaration name="fault_sensor" parameterType="string" value="lidar_top"/>
+    <ParameterDeclaration name="fault_duration" parameterType="double" value="1.5"/>
+  </ParameterDeclarations>
+  <CatalogLocations/>
+  <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <ObjectController><Controller name="ego"><Properties>
+        <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
+    </ScenarioObject>
+    <ScenarioObject name="cutter">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+    </ScenarioObject>
+  </Entities>
+  <Storyboard>
+    <Init><Actions>
+      <Private entityRef="ego"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="34513" s="5" offset="0"/></Position></TeleportAction></PrivateAction>
+        <PrivateAction><LongitudinalAction><SpeedAction>
+          <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
+          <SpeedActionTarget><AbsoluteTargetSpeed value="$ego_speed"/></SpeedActionTarget>
+        </SpeedAction></LongitudinalAction></PrivateAction></Private>
+      <Private entityRef="cutter"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="34510" s="30" offset="0"/></Position></TeleportAction></PrivateAction></Private>
+    </Actions></Init>
+    <Story name="main"><Act name="act">
+      <ManeuverGroup name="cut_in" maximumExecutionCount="1">
+        <Actors selectTriggeringEntities="false"><EntityRef entityRef="cutter"/></Actors>
+        <Maneuver name="cut_in"><Event name="cut_in" priority="override" maximumExecutionCount="1">
+          <Action name="cut_in"><PrivateAction><LateralAction><LaneChangeAction>
+            <LaneChangeActionDynamics dynamicsShape="sinusoidal" value="$lateral_time" dynamicsDimension="time"/>
+            <LaneChangeTarget><AbsoluteTargetLane value="34513"/></LaneChangeTarget>
+          </LaneChangeAction></LateralAction></PrivateAction></Action>
+          <StartTrigger><ConditionGroup><Condition name="cut_in" delay="0" conditionEdge="rising">
+            <ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any">
+              <EntityRef entityRef="cutter"/></TriggeringEntities><EntityCondition>
+              <RelativeDistanceCondition entityRef="ego" relativeDistanceType="longitudinal"
+                  coordinateSystem="lane" freespace="false" value="$gap" rule="lessThan"/>
+            </EntityCondition></ByEntityCondition>
+          </Condition></ConditionGroup></StartTrigger>
+        </Event></Maneuver>
+      </ManeuverGroup>
+      <ManeuverGroup name="fault" maximumExecutionCount="1">
+        <Actors selectTriggeringEntities="false"><EntityRef entityRef="ego"/></Actors>
+        <Maneuver name="fault"><Event name="fault" priority="override" maximumExecutionCount="1">
+          <Action name="fault"><UserDefinedAction><CustomCommandAction type="scensim.fault">
+            sensor_dropout entity=ego sensor=$fault_sensor duration=$fault_duration
+          </CustomCommandAction></UserDefinedAction></Action>
+          <StartTrigger><ConditionGroup><Condition name="fault" delay="0" conditionEdge="rising">
+            <ByValueCondition><StoryboardElementStateCondition storyboardElementType="action"
+                storyboardElementRef="cut_in" state="startTransition"/></ByValueCondition>
+          </Condition></ConditionGroup></StartTrigger>
+        </Event></Maneuver>
+      </ManeuverGroup>
+      <StartTrigger><ConditionGroup><Condition name="t0" delay="0" conditionEdge="none">
+        <ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan"/></ByValueCondition>
+      </Condition></ConditionGroup></StartTrigger>
+    </Act></Story>
+    <StopTrigger><ConditionGroup><Condition name="end" delay="0" conditionEdge="none">
+      <ByValueCondition><SimulationTimeCondition value="30" rule="greaterThan"/></ByValueCondition>
+    </Condition></ConditionGroup></StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

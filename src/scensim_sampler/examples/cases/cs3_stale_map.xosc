@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CS3 of docs/design/scenario-description.md: a lane closed in the world, open in the pilot's map. Values invented; an example for
+     `scensim-sample compilable` (docs/design/compilable-subset.md), not a tuned scenario. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="a lane closed in the world, open in the pilot's map"/>
+  <ParameterDeclarations>
+    <ParameterDeclaration name="ego_speed" parameterType="double" value="12"/>
+    <ParameterDeclaration name="world.zone_layout" parameterType="string" value="works_lane2"/>
+    <ParameterDeclaration name="pilot.map_variant" parameterType="string" value="before_works"/>
+  </ParameterDeclarations>
+  <CatalogLocations/>
+  <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <ObjectController><Controller name="ego"><Properties>
+        <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
+    </ScenarioObject>
+
+  </Entities>
+  <Storyboard>
+    <Init><Actions>
+      <Private entityRef="ego"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="34513" s="5" offset="0"/></Position></TeleportAction></PrivateAction>
+        <PrivateAction><LongitudinalAction><SpeedAction>
+          <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
+          <SpeedActionTarget><AbsoluteTargetSpeed value="$ego_speed"/></SpeedActionTarget>
+        </SpeedAction></LongitudinalAction></PrivateAction></Private>
+
+    </Actions></Init>
+    <Story name="main"><Act name="act">
+      <ManeuverGroup name="approach" maximumExecutionCount="1">
+        <Actors selectTriggeringEntities="false"><EntityRef entityRef="ego"/></Actors>
+        <Maneuver name="approach"><Event name="approach" priority="override" maximumExecutionCount="1">
+          <Action name="approach"><PrivateAction><LongitudinalAction><SpeedAction>
+            <SpeedActionDynamics dynamicsShape="linear" value="1" dynamicsDimension="rate"/>
+            <SpeedActionTarget><AbsoluteTargetSpeed value="$ego_speed"/></SpeedActionTarget>
+          </SpeedAction></LongitudinalAction></PrivateAction></Action>
+          <StartTrigger><ConditionGroup><Condition name="approach" delay="0" conditionEdge="rising">
+            <ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any">
+              <EntityRef entityRef="ego"/></TriggeringEntities><EntityCondition>
+              <ReachPositionCondition tolerance="1"><Position>
+                <LanePosition roadId="" laneId="34513" s="60" offset="0"/></Position></ReachPositionCondition>
+            </EntityCondition></ByEntityCondition>
+          </Condition></ConditionGroup></StartTrigger>
+        </Event></Maneuver>
+      </ManeuverGroup>
+      <StartTrigger><ConditionGroup><Condition name="t0" delay="0" conditionEdge="none">
+        <ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan"/></ByValueCondition>
+      </Condition></ConditionGroup></StartTrigger>
+    </Act></Story>
+    <StopTrigger><ConditionGroup><Condition name="end" delay="0" conditionEdge="none">
+      <ByValueCondition><SimulationTimeCondition value="30" rule="greaterThan"/></ByValueCondition>
+    </Condition></ConditionGroup></StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

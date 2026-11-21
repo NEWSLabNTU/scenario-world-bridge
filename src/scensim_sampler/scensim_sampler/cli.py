@@ -89,6 +89,30 @@ def coverage_cmd(a):
     return 0
 
 
+def compilable_cmd(a):
+    """Exit 0 when every scenario compiles for a batch, 1 when one is refused."""
+    from . import subset
+    verdicts = [subset.check(f, ego=a.ego) for f in a.scenarios]
+    for v in verdicts:
+        print(f"{v.path}: {v.line()}")
+        if a.all:
+            for r in v.refusals[1:]:
+                fix = f"; fix: {r['fix']}" if r["fix"] else ""
+                print(f"  also refused: {r['construct']} at {r['at']} ({r['reason']}{fix})")
+    if len(verdicts) > 1:
+        s = subset.summary(verdicts)
+        print(f"{s['compile']} of {s['scenarios']} compile ({s['compile_unconditionally']} "
+              f"unconditionally, {s['conditional']} if the slot provides more), "
+              f"{s['refused']} refused")
+    if a.json:
+        with open(a.json, "w") as f:
+            json.dump({"format": "scensim.compilable/1", "ego": a.ego,
+                       "scenarios": [v.to_dict() for v in verdicts],
+                       "summary": subset.summary(verdicts)}, f, indent=2)
+            f.write("\n")
+    return 0 if all(v.compiles for v in verdicts) else 1
+
+
 def list_plugins(a):
     for name, target in sorted(plugins.known().items()):
         print(f"{plugins.PREFIX}{name}  {target}")
@@ -126,6 +150,16 @@ def main(argv=None):
                                         "catalogue's, else 2)")
     v.add_argument("--json", help="also write the report here (scensim.coverage/1)")
     v.set_defaults(func=coverage_cmd)
+    k = sub.add_parser("compilable", help="whether a scenario compiles for a batch executor, "
+                                          "or the first construct that does not")
+    k.add_argument("scenarios", nargs="+", help=".xosc, SSv2's YAML scenario format, or a "
+                                                "distribution (read through to its scenario)")
+    k.add_argument("--ego", choices=("policy", "seats"), default="policy",
+                   help="policy (default): the ego is replaced by the batch's policy; seats: "
+                        "an ego driven by an autopilot is refused")
+    k.add_argument("--all", action="store_true", help="list every refusal, not only the first")
+    k.add_argument("--json", help="also write the verdicts here (scensim.compilable/1)")
+    k.set_defaults(func=compilable_cmd)
     p = sub.add_parser("plugins", help="the sampler plug-ins found")
     p.set_defaults(func=list_plugins)
     a = ap.parse_args(argv)

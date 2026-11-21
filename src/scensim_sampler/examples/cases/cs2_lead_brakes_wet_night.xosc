@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CS2 of docs/design/scenario-description.md: the lead car brakes in a curve on a wet road at night. Values invented; an example for
+     `scensim-sample compilable` (docs/design/compilable-subset.md), not a tuned scenario. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="the lead car brakes in a curve on a wet road at night"/>
+  <ParameterDeclarations>
+    <ParameterDeclaration name="ego_speed" parameterType="double" value="22"/>
+    <ParameterDeclaration name="lead_speed" parameterType="double" value="22"/>
+    <ParameterDeclaration name="headway" parameterType="double" value="1.4"/>
+    <ParameterDeclaration name="decel" parameterType="double" value="6.5"/>
+    <ParameterDeclaration name="onset_s" parameterType="double" value="120"/>
+    <ParameterDeclaration name="world.surface" parameterType="string" value="wet"/>
+    <ParameterDeclaration name="world.illumination" parameterType="string" value="night"/>
+  </ParameterDeclarations>
+  <CatalogLocations/>
+  <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <ObjectController><Controller name="ego"><Properties>
+        <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
+    </ScenarioObject>
+    <ScenarioObject name="lead">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+    </ScenarioObject>
+  </Entities>
+  <Storyboard>
+    <Init><Actions>
+      <Private entityRef="ego"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="34513" s="5" offset="0"/></Position></TeleportAction></PrivateAction>
+        <PrivateAction><LongitudinalAction><SpeedAction>
+          <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
+          <SpeedActionTarget><AbsoluteTargetSpeed value="$ego_speed"/></SpeedActionTarget>
+        </SpeedAction></LongitudinalAction></PrivateAction></Private>
+      <Private entityRef="lead"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="34513" s="36" offset="0"/></Position></TeleportAction></PrivateAction></Private>
+    </Actions></Init>
+    <Story name="main"><Act name="act">
+      <ManeuverGroup name="brake" maximumExecutionCount="1">
+        <Actors selectTriggeringEntities="false"><EntityRef entityRef="lead"/></Actors>
+        <Maneuver name="brake"><Event name="brake" priority="override" maximumExecutionCount="1">
+          <Action name="brake"><PrivateAction><LongitudinalAction><SpeedAction>
+            <SpeedActionDynamics dynamicsShape="linear" value="-$decel" dynamicsDimension="rate"/>
+            <SpeedActionTarget><AbsoluteTargetSpeed value="0"/></SpeedActionTarget>
+          </SpeedAction></LongitudinalAction></PrivateAction></Action>
+          <StartTrigger><ConditionGroup><Condition name="brake" delay="0" conditionEdge="rising">
+            <ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any">
+              <EntityRef entityRef="lead"/></TriggeringEntities><EntityCondition>
+              <ReachPositionCondition tolerance="1"><Position>
+                <LanePosition roadId="" laneId="34513" s="$onset_s" offset="0"/></Position></ReachPositionCondition>
+            </EntityCondition></ByEntityCondition>
+          </Condition></ConditionGroup></StartTrigger>
+        </Event></Maneuver>
+      </ManeuverGroup>
+      <StartTrigger><ConditionGroup><Condition name="t0" delay="0" conditionEdge="none">
+        <ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan"/></ByValueCondition>
+      </Condition></ConditionGroup></StartTrigger>
+    </Act></Story>
+    <StopTrigger><ConditionGroup><Condition name="end" delay="0" conditionEdge="none">
+      <ByValueCondition><SimulationTimeCondition value="30" rule="greaterThan"/></ByValueCondition>
+    </Condition></ConditionGroup></StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

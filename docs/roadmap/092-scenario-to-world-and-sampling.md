@@ -29,15 +29,15 @@ scenario must express for each, three layers of coverage and realism per family.
 
 ## Work items
 
-From the design's section 10; none started.
+From the design's section 10.
 
 | Item | What | Kind | Depends on | Owner | Status |
 |---|---|---|---|---|---|
-| S1 | The sample record: schema, hashing, checker | spec | none | | open |
+| S1 | The sample record: schema, hashing, checker | spec | none | swb 139 | taken (plan to 133) |
 | S2 | The compilable subset of OpenSCENARIO | spec | the compiler study | | open |
 | S3 | The batched control component (`step_batch`) | spec | 091 | | open |
 | S4 | The stage record (091 W15) and the truth stream's content | spec | 091 W15 | | open |
-| K1 | The sampler (pure Python) | component | S1 | | open |
+| K1 | The sampler (pure Python) | component | S1 | swb 139 | taken (plan to 133) |
 | K2 | The Isaac Lab adapter, with `scensim bench` | component | S1, S2, S3, 091 W5 | | open |
 | K3 | Replay of a sample record on seats, fidelity measured | component | S1, K1 | | open |
 | K4 | The truth stream, judge and attachment hooks, the paced clock | components | S4 | | open |

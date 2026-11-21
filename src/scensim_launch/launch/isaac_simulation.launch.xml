@@ -27,6 +27,7 @@
   <arg name="npc_motion" default=""/>
   <arg name="weather" default=""/>
   <arg name="gap_trace_dir" default=""/>
+  <arg name="truth_topic" default="false"/>
   <arg name="contact_report_dir" default=""/>
   <arg name="vehicle_catalogs" default="" description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
 
@@ -42,6 +43,7 @@
     <arg name="npc_motion" value="$(var npc_motion)"/>
     <arg name="weather" value="$(var weather)"/>
     <arg name="gap_trace_dir" value="$(var gap_trace_dir)"/>
+    <arg name="truth_topic" value="$(var truth_topic)"/>
     <arg name="contact_report_dir" value="$(var contact_report_dir)"/>
     <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
   </include>

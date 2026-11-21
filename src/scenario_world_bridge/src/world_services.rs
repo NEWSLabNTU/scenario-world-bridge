@@ -4,6 +4,9 @@
 //!   /scenario_world_bridge/get_weather  scensim_interfaces/srv/GetWeather
 //!   /scenario_world_bridge/load_map     scensim_interfaces/srv/LoadMap (roadmap 077)
 //!
+//! and, with `truth_topic:=true`, the truth stream's publishers (roadmap 092 K4,
+//! [`crate::truth_topic`]), which the world-owning thread publishes on.
+//!
 //! The weather is a preset or parameters by name, passed through to the world server, whose
 //! names they are (CARLA's: its presets and `WeatherParameters` fields). `load_map` loads a
 //! map's world between scenarios, as an `Initialize` would (a stack's keeper calls it on a
@@ -26,11 +29,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::channel::oneshot;
-use rclrs::CreateBasicExecutor;
+use rclrs::{CreateBasicExecutor, IntoPrimitiveOptions};
 use scensim_interfaces::srv::get_weather::{GetWeather_Request, GetWeather_Response};
 use scensim_interfaces::srv::load_map::{LoadMap_Request, LoadMap_Response};
 use scensim_interfaces::srv::set_weather::{SetWeather_Request, SetWeather_Response};
 
+use scensim_interfaces::msg::{TruthEntities, TruthFrame};
+
+use crate::truth_topic::{self, TruthTopic};
 use crate::weather::{self, WeatherRequest};
 
 pub const SET_WEATHER: &str = "~/set_weather";
@@ -92,10 +98,11 @@ fn fields(reply: &WeatherReply) -> (String, Vec<String>, Vec<f64>) {
 pub fn start(
     shutdown: Arc<AtomicBool>,
     config_file: &std::path::Path,
-) -> eyre::Result<mpsc::Receiver<WorldCommand>> {
+    truth: bool,
+) -> eyre::Result<(mpsc::Receiver<WorldCommand>, Option<TruthTopic>)> {
     let config_file: Arc<str> = config_file.display().to_string().into();
     let (tx, rx) = mpsc::channel();
-    let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
+    let (ready_tx, ready_rx) = mpsc::channel::<Result<Option<TruthTopic>, String>>();
     std::thread::Builder::new()
         .name("ros_node".into())
         .spawn(move || {
@@ -133,12 +140,30 @@ pub fn start(
                         move |req: LoadMap_Request| load_map(tx.clone(), req),
                     )?
                 };
-                Ok((executor, (node, config_param), set, get, load))
+                // The truth topics (roadmap 092 K4): created here, published from the
+                // world-owning thread.
+                let truth = if truth {
+                    let frames = node.create_publisher::<TruthFrame>(
+                        truth_topic::FRAME_TOPIC
+                            .keep_last(truth_topic::FRAME_DEPTH)
+                            .reliable(),
+                    )?;
+                    let entities = node.create_publisher::<TruthEntities>(
+                        truth_topic::ENTITIES_TOPIC
+                            .keep_last(1)
+                            .reliable()
+                            .transient_local(),
+                    )?;
+                    Some(TruthTopic::new(frames, entities))
+                } else {
+                    None
+                };
+                Ok((executor, (node, config_param), set, get, load, truth))
             })();
             let (mut executor, _node, _set, _get, _load) = match setup {
-                Ok(s) => {
-                    let _ = ready_tx.send(Ok(()));
-                    s
+                Ok((executor, node, set, get, load, truth)) => {
+                    let _ = ready_tx.send(Ok(truth));
+                    (executor, node, set, get, load)
                 }
                 Err(e) => {
                     let _ = ready_tx.send(Err(e.to_string()));
@@ -150,9 +175,16 @@ pub fn start(
             }
         })?;
     match ready_rx.recv() {
-        Ok(Ok(())) => {
+        Ok(Ok(truth)) => {
             tracing::info!("ROS node up: serving {SET_WEATHER}, {GET_WEATHER}, {LOAD_MAP}");
-            Ok(rx)
+            if truth.is_some() {
+                tracing::info!(
+                    "Truth topics on: {} and {} (latched)",
+                    truth_topic::FRAME_TOPIC,
+                    truth_topic::ENTITIES_TOPIC
+                );
+            }
+            Ok((rx, truth))
         }
         Ok(Err(e)) => Err(eyre::eyre!("ROS node: {e}")),
         Err(_) => Err(eyre::eyre!("ROS node thread ended before starting")),

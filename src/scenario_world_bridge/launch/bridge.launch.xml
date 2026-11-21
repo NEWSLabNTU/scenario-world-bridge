@@ -45,6 +45,8 @@
        description="where each ego run's contacts are written for physical_verdict (roadmap 021); 'off' disables; empty keeps the config file's (default ~/.ros/scensim/contacts)"/>
   <arg name="vehicle_catalogs" default=""
        description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
+  <arg name="truth_topic" default="false"
+       description="true: publish the truth stream on /scensim/truth and /scensim/truth/entities (latched), roadmap 092 K4"/>
   <arg name="state_dir" default=""
        description="the stack's state directory: a map's signal table is read from &lt;state_dir&gt;/&lt;map dir name&gt;/ before the map directory, where the CARLA world server with the same state_dir writes it; empty (the default) = the map directory only (roadmap 076 A9)"/>
 
@@ -65,5 +67,6 @@
     <param name="gap_trace_dir" value="$(var gap_trace_dir)"/>
     <param name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
     <param name="state_dir" value="$(var state_dir)"/>
+    <param name="truth_topic" value="$(var truth_topic)"/>
   </node>
 </launch>

@@ -57,10 +57,12 @@ AUTOWARE_PROFILES = ("stock", "scensim")
 INPUTS = ("sensors", "map", "ground_truth")
 LEVELS = ("result", "standard", "full", "debug")
 VERDICTS = ("passed", "failed", "error")
-LOGGING_KEYS = ("capture", "keep", "budget", "topics", "gap_trace")
+LOGGING_KEYS = ("capture", "keep", "budget", "topics", "gap_trace", "truth_topic")
 # logging keys the stack acts on, so testbench.yaml's only (a suite runs against a stack as it is)
 STACK_LOGGING = {"gap_trace": "the stack records the gap trace for every run or none: "
-                              "logging.gap_trace: true in testbench.yaml, then restart the stack"}
+                              "logging.gap_trace: true in testbench.yaml, then restart the stack",
+                 "truth_topic": "the stack's bridge publishes /scensim/truth for every run or none: "
+                                "logging.truth_topic: true in testbench.yaml, then restart the stack"}
 # designed, not built: refused by name rather than accepted and ignored
 LOGGING_NOT_YET = {"levels": "per-process ROS log levels are not built yet; give a pilot its"
                              " own (e.g. args: {log_level: warn}) where its launch takes one",
@@ -497,8 +499,9 @@ def _check_logging(file, where, lg, stack=False) -> list:
     if lg.get("capture") is not None and lg["capture"] not in LEVELS:
         out.append(Finding(file, f"{where}.capture: {lg['capture']} is not a level",
                            f"one of {', '.join(LEVELS)}"))
-    if stack and lg.get("gap_trace") is not None and not isinstance(lg["gap_trace"], bool):
-        out.append(Finding(file, f"{where}.gap_trace: {lg['gap_trace']!r} is not true or false"))
+    for key in ("gap_trace", "truth_topic"):
+        if stack and lg.get(key) is not None and not isinstance(lg[key], bool):
+            out.append(Finding(file, f"{where}.{key}: {lg[key]!r} is not true or false"))
     for msg in recordmod.topics_problems(lg.get("topics")):
         out.append(Finding(file, f"{where}.{msg}", "topics: [/localization/kinematic_state]"))
     for msg in budgetmod.problems(lg.get("budget")):

@@ -709,6 +709,8 @@ pub struct RemoteBackend {
     /// When the idle check first went unanswered, in the current run of failures.
     unanswered_since: Option<Instant>,
     gap_trace: GapTrace,
+    /// The live truth stream, when the stack asked for it (roadmap 092 K4).
+    truth: Option<crate::truth_topic::TruthTopic>,
     contact_dir: Option<PathBuf>,
     ego_run: Option<EgoRun>,
     /// The agent relay connection for `agent` entities, started at the first such spawn.
@@ -732,6 +734,7 @@ impl RemoteBackend {
             request_timeout: Duration::from_secs(config.world.request_timeout_seconds.max(1)),
             load_timeout: Duration::from_secs(config.world.load_timeout_seconds.max(1)),
             gap_trace: GapTrace::new(config.gap_trace_dir()),
+            truth: None,
             contact_dir: config.contact_report_dir(),
             config,
             server,
@@ -775,6 +778,16 @@ impl RemoteBackend {
     /// The stack's state directory (`state_dir`): signal tables are read from it first.
     pub fn set_state_dir(&mut self, state_dir: Option<PathBuf>) {
         self.state_dir = state_dir;
+    }
+
+    /// Publish the truth stream on `truth`'s topics (roadmap 092 K4).
+    pub fn set_truth(&mut self, truth: crate::truth_topic::TruthTopic) {
+        self.truth = Some(truth);
+    }
+
+    /// Whether each step's reply must carry every body's state: for the truth file or topic.
+    fn truth_wanted(&self) -> bool {
+        self.gap_trace.recording() || self.truth.is_some()
     }
 
     fn offers(&self, c: wire::Capability) -> bool {
@@ -1036,6 +1049,15 @@ impl RemoteBackend {
             let subject = (Some(c.handle) != ego)
                 .then(|| self.names.get(&c.handle).cloned())
                 .flatten();
+            if let Some(t) = self.truth.as_mut() {
+                t.state.contact(scensim_interfaces::msg::TruthContact {
+                    name: self.names.get(&c.handle).cloned().unwrap_or_default(),
+                    other: name.clone().unwrap_or_default(),
+                    other_sim_id: c.other_sim_id,
+                    other_type: other_type.clone(),
+                    impulse: c.impulse.max(0.0),
+                });
+            }
             // The contact hold of a bridge-tracked NPC touching the ego, seen from either side.
             for (npc, other) in [(c.handle, c.other), (c.other, c.handle)] {
                 if Some(other) != ego || npc == 0 {
@@ -1616,6 +1638,12 @@ impl SimBackend for RemoteBackend {
             &map_name,
             episode.step_time,
         );
+        if let Some(t) = self.truth.as_mut() {
+            let msg = t
+                .state
+                .begin_episode(self.episode, &map_name, episode.step_time);
+            t.publish_entities(msg);
+        }
         tracing::info!(
             "Initialized on {} (step {} s = {} physics step(s) of {:.6} s)",
             self.sim(),
@@ -1641,8 +1669,7 @@ impl SimBackend for RemoteBackend {
                 dt: self.dt,
                 render: self.config.world.render,
                 current_simulation_time,
-                want_states: self.gap_trace.recording()
-                    || !self.offers(wire::Capability::ReadsBack),
+                want_states: self.truth_wanted() || !self.offers(wire::Capability::ReadsBack),
             }),
             self.request_timeout,
         );
@@ -1707,7 +1734,7 @@ impl SimBackend for RemoteBackend {
             }
         }
         self.record_contacts(&step.contacts);
-        if self.gap_trace.recording() {
+        if self.truth_wanted() {
             let by_id: BTreeMap<u32, gap_trace::SimState> = self
                 .entities
                 .values()
@@ -1732,10 +1759,21 @@ impl SimBackend for RemoteBackend {
             } else {
                 (self.sim_time * 1e9).round() as i64
             });
-            self.gap_trace
-                .emit_staged_at(self.frame, Some(step.frame), sim_time_ns, |id| {
-                    by_id.get(&id).copied()
-                });
+            if self.gap_trace.recording() {
+                self.gap_trace
+                    .emit_staged_at(self.frame, Some(step.frame), sim_time_ns, |id| {
+                        by_id.get(&id).copied()
+                    });
+            }
+            if let Some(t) = self.truth.as_mut() {
+                let msg = t.state.frame(
+                    self.frame,
+                    sim_time_ns.unwrap_or_default(),
+                    step.frame,
+                    |id| by_id.get(&id).copied(),
+                );
+                t.publish_frame(msg);
+            }
         }
         Ok(if step.sim_time_ns != 0 {
             step.sim_time_ns
@@ -2043,6 +2081,38 @@ impl SimBackend for RemoteBackend {
                 }),
             });
         }
+        if let Some(t) = self.truth.as_mut() {
+            let vec = |v: Option<wire::Vec3>| {
+                let v = v.unwrap_or_default();
+                [v.x, v.y, v.z]
+            };
+            let offset = vec(body.origin_offset);
+            let role = if entity_type == EntityType::Ego {
+                gap_trace::Role::Ego
+            } else if agent {
+                gap_trace::Role::Agent
+            } else if autopilot {
+                gap_trace::Role::Autopilot
+            } else {
+                gap_trace::Role::Scenario
+            };
+            let msg = t.state.spawn(scensim_interfaces::msg::TruthEntity {
+                name: name.clone(),
+                index: 0, // the stream assigns it
+                role: role.as_str().into(),
+                kind: trace_kind(entity_type).as_str().into(),
+                subtype: subtype.clone(),
+                sim_id,
+                asset: body.model.clone(),
+                declared_center: vec(body.declared_center),
+                declared_dimensions: vec(body.declared_dimensions),
+                origin_offset: [offset[0], offset[1], body.origin_yaw],
+                has_asset_box: body.has_box,
+                asset_box_location: vec(body.box_location),
+                asset_box_extent: vec(body.box_extent),
+            });
+            t.publish_entities(msg);
+        }
         if entity_type == EntityType::Ego {
             self.finish_ego_run(true);
             self.ego_run = Some(EgoRun {
@@ -2091,6 +2161,11 @@ impl SimBackend for RemoteBackend {
         )?;
         let entity = self.entities.remove(name).expect("looked up above");
         self.names.remove(&handle);
+        if let Some(t) = self.truth.as_mut() {
+            if let Some(msg) = t.state.despawn(name) {
+                t.publish_entities(msg);
+            }
+        }
         self.pending.remove(&handle);
         if let Some(stats) = entity.tracked.map(|t| t.stats).or(entity.server_stats) {
             self.tracking_done.insert(name.to_string(), stats);
@@ -2515,13 +2590,16 @@ impl SimBackend for RemoteBackend {
             return Ok(());
         }
         tracing::debug!("{} signal colour(s) changed", changed.len());
-        if self.gap_trace.recording() {
+        if self.truth_wanted() {
             let sim_time_ns = (self.sim_time * 1e9).round() as i64;
             for c in &changed {
                 let colour = wire::Colour::try_from(c.colour)
                     .map_or("unknown".to_string(), |c| c.as_str_name().to_lowercase());
                 self.gap_trace
                     .signal(self.frame, sim_time_ns, &c.opendrive_id, &colour);
+                if let Some(t) = self.truth.as_mut() {
+                    t.state.signal(&c.opendrive_id, &colour);
+                }
             }
         }
         self.call(

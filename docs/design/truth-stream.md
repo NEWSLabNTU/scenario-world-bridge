@@ -28,8 +28,9 @@ simulator-agnostic: CARLA's and Isaac's world servers answer the same messages.
   like any other episode file, so a suite can drop it for passed runs.
 - **The live topic.** `/scensim/truth` in the scenario domain, `scensim_interfaces/msg/
   TruthFrame`, reliable, keep last 10, one message per SSv2 step. The bridge publishes it when
-  the testbench asks (`logging.truth_topic: true`, or any `attachments:`), for readers that act
-  during the run: an attachment's mobility model, a live judge, a renderer.
+  the testbench asks (`logging.truth_topic: true`; the bridge's `truth_topic:=true`), for
+  readers that act during the run: an attachment's mobility model, a live judge, a renderer.
+  An attachment will turn it on too, once attachments are built.
 
 A frame carries the world after SSv2 step `k`'s tick. The file writes frame `k`'s line one
 request later, when it pairs SSv2's intent with the world (the gap trace's staging); the
@@ -66,11 +67,15 @@ Signals are events, not repeated every frame: a reader keeps the last state per 
 
 ## 4. The topic
 
-`TruthFrame` carries one frame: `frame`, `sim_time_ns`, `episode`, and arrays aligned by entity
-`index`: `names`, `poses` (six values each, as the file's), `twists`, `velocity_measured`, plus the step's contacts and any
-signal changes. Entity metadata (role, class, boxes, ids) does not repeat per frame: it is
+`TruthFrame` carries one frame: `episode`, `frame`, `sim_time_ns`, `sim_frame`, and one row per
+entity alive, in spawn order: `index` (its slot), `names`, `present` (the simulator had the body),
+and flat row-major arrays `poses` (six values a row, as the file's), `velocities` and
+`angular_velocities` (three a row), `velocity_measured`; then the contacts and signal changes
+since the previous frame (`TruthContact`, `TruthSignal`). Flat arrays reshape into an `[N, 6]` or
+`[N, 3]` tensor without a copy per row. Entity metadata (role, class, boxes, ids) does not repeat per frame: it is
 latched on `/scensim/truth/entities` (`TruthEntities`, transient local), republished at each
-spawn and despawn, with the episode's map. The file comes first in K4; the topic follows it.
+spawn and despawn, with the episode's map and step time. A reader that joins late gets the
+current entities at once.
 
 ## 5. Shaped for tensors
 

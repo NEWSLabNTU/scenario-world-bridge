@@ -1387,3 +1387,16 @@ def test_first_error_finds_the_node_err_beside_the_console(tmp_path):
                    "on_exit=Shutdown: shutting down the launch\n")
     assert stack.first_error(log).startswith('acb_bridge exited 1: Error: ConfigError("CARLA version '
                                              'mismatch')
+
+
+def test_logging_truth_topic_turns_the_bridges_topic_on(where, maps_hub):
+    # Roadmap 092 K4: /scensim/truth, from the bridge, when the testbench asks for it.
+    d = make(where)
+    p = stack.plan(project_arg=str(d))
+    assert "truth_topic" not in stack._named(p.launch_args["side_args"])
+    (d / "testbench.yaml").write_text(MULTI + "logging: {truth_topic: true}\n")
+    p = stack.plan(project_arg=str(d))
+    assert stack._named(p.launch_args["side_args"])["truth_topic"] == "true"
+    # scensim's name: a developer's side_args cannot set it
+    with pytest.raises(stack.StackRefused, match="truth_topic:= is scensim's"):
+        stack.plan(project_arg=str(d), stack_args={"side_args": "truth_topic:=true"})

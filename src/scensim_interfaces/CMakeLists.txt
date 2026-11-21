@@ -8,6 +8,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/SetWeather.srv"
   "srv/GetWeather.srv"
   "srv/LoadMap.srv"
+  "msg/TruthEntity.msg"
+  "msg/TruthEntities.msg"
+  "msg/TruthContact.msg"
+  "msg/TruthSignal.msg"
+  "msg/TruthFrame.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)

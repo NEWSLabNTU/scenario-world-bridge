@@ -151,6 +151,37 @@ class Routes:
         return s0 + tj * segl, sign * dist.gather(-1, j[..., None]).squeeze(-1)
 
 
+def hermite_pose(coef, u):
+    """HermiteCurve::getPose(u) at the normalized parameter u [...]: the point and the yaw of
+    the tangent (coef [..., 4, 2]: a, b, c, d per axis)."""
+    a, b, c, d = coef[..., 0, :], coef[..., 1, :], coef[..., 2, :], coef[..., 3, :]
+    u_ = u[..., None]
+    p = a * u_ ** 3 + b * u_ ** 2 + c * u_ + d
+    t = 3 * a * u_ * u_ + 2 * b * u_ + c
+    return p[..., 0], p[..., 1], torch.atan2(t[..., 1], t[..., 0])
+
+
+def hermite_coefficients(p0, p1, v0, v1):
+    """HermiteCurve(start, goal, start_vec, goal_vec): (a, b, c, d) [..., 4, 2]."""
+    a = 2 * p0 - 2 * p1 + v0 + v1
+    b = -3 * p0 + 3 * p1 - 2 * v0 - v1
+    return torch.stack([a, b, v0, p0], -2)
+
+
+def hermite_length(coef, num_points=100):
+    """HermiteCurve::getLength(100): the tangent's norm at i/100, i = 0..99, times 1/100, summed
+    in that order (z is 0 here)."""
+    a, b, c = coef[..., 0, :], coef[..., 1, :], coef[..., 2, :]
+    ds = 1.0 / num_points
+    ret = torch.zeros(coef.shape[:-2], dtype=coef.dtype, device=coef.device)
+    for i in range(num_points):
+        s = i * ds
+        dx = (3 * s * s) * a[..., 0] + 2 * s * b[..., 0] + c[..., 0]
+        dy = (3 * s * s) * a[..., 1] + 2 * s * b[..., 1] + c[..., 1]
+        ret = ret + torch.sqrt(dx * dx + dy * dy) * ds
+    return ret
+
+
 def box_corners(x, y, yaw, length, width):
     """The four corners [..., 4, 2] of boxes centred at (x, y)."""
     c, s = torch.cos(yaw), torch.sin(yaw)
@@ -182,13 +213,56 @@ class DefaultVehicles:
         self.see_around = (torch.ones_like(self.active) if see_around is None else see_around)
         self.target = torch.full_like(s0, math.nan)   # NaN: no SpeedAction yet
         self.mode = torch.zeros_like(s0, dtype=torch.int8)   # 0 follow lane, 1 follow front
+        # SSv2's LaneChange (behavior_tree_plugin LaneChangeAction, FORCE policy): a Hermite
+        # curve per vehicle, its coefficients (a, b, c, d) x and y [N, E, 4, 2], its length
+        # (HermiteCurve::getLength(100)), the arc travelled along it, the velocity forced on it,
+        # and the target lanelet and s where it ends (lane_change.py builds it)
+        z = torch.zeros_like(s0)
+        self.lc = torch.zeros_like(self.active)
+        self.lc_coef = torch.zeros(*s0.shape, 4, 2, dtype=s0.dtype, device=s0.device)
+        self.lc_len, self.lc_s, self.lc_v, self.lc_to_s = z.clone(), z.clone(), z.clone(), z.clone()
+        self.lc_to_lane = [[None] * s0.shape[1] for _ in range(s0.shape[0])]
+        self.world, self.route_length, self.route_points = None, 300.0, 61
 
     def set_target_speed(self, speed, mask):
         """A SpeedAction with a step to its target: mask [N, E]."""
         self.target = torch.where(mask, speed, self.target)
 
     def poses(self):
-        return self.routes.pose(self.s)
+        x, y, yaw = self.routes.pose(self.s)
+        if bool(self.lc.any()):
+            cx, cy, cyaw = hermite_pose(self.lc_coef, self.lc_s / torch.where(
+                self.lc_len > 0, self.lc_len, torch.ones_like(self.lc_len)))
+            x, y, yaw = (torch.where(self.lc, cx, x), torch.where(self.lc, cy, y),
+                         torch.where(self.lc, cyaw, yaw))
+        return x, y, yaw
+
+    def _lane_change_step(self, dt):
+        """LaneChangeAction::doAction under FORCE: the speed is the forced one, the
+        acceleration 0, the curve's arc advanced by it; past the curve's end the vehicle is put
+        on the target lanelet at s = (overshoot) + target s, offset 0, with a route from there."""
+        m = self.lc & self.active
+        if not bool(m.any()):
+            return
+        self.v = torch.where(m, self.lc_v, self.v)
+        self.a = torch.where(m, torch.zeros_like(self.a), self.a)
+        self.jerk = torch.where(m, torch.zeros_like(self.jerk), self.jerk)
+        self.lc_s = torch.where(m, self.lc_s + self.lc_v * dt, self.lc_s)
+        done = m & (self.lc_s >= self.lc_len)
+        if not bool(done.any()):
+            return
+        pts = self.routes.points.clone()
+        for k, d in torch.nonzero(done).tolist():
+            lane = self.lc_to_lane[k][d]
+            s_new = float(self.lc_s[k, d] - self.lc_len[k, d] + self.lc_to_s[k, d])
+            px, py, ph = self.world.lane_pose([lane], torch.tensor([s_new], dtype=torch.float64),
+                                              torch.zeros(1, dtype=torch.float64))
+            px, py, ph = (torch.as_tensor(q, dtype=torch.float64).reshape(1) for q in (px, py, ph))
+            route = self.world.route(px, py, ph, self.route_length, pts.shape[-2])   # [1, P, 2]
+            pts[k, d] = torch.as_tensor(route, dtype=pts.dtype).reshape(pts.shape[-2], 2)
+            self.s[k, d] = 0.0
+        self.routes = Routes(pts)
+        self.lc = self.lc & ~done
 
     def front(self, others=None):
         """Distance to the front entity on each vehicle's path, inf where none: SSv2's
@@ -260,7 +334,8 @@ class DefaultVehicles:
         local = torch.where(follow, requested, target)
         v1, a1, j1 = dynamic_states(local, self.c, self.v, self.a, dt)
         ds = (v1 + self.v) / 2.0 * dt
-        on = self.active
+        on = self.active & ~self.lc      # a lane-changing vehicle runs LaneChange instead
+        self._lane_change_step(dt)
         self.s = torch.where(on, self.s + ds, self.s)
         self.v, self.a, self.jerk = (torch.where(on, v1, self.v), torch.where(on, a1, self.a),
                                      torch.where(on, j1, self.jerk))

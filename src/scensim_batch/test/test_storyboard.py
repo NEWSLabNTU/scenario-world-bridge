@@ -248,14 +248,16 @@ class Episodes(unittest.TestCase):
 
     def test_what_the_executor_does_not_run_is_refused_by_name(self):
         from scensim_batch import compile as C
-        with self.assertRaisesRegex(C.CompileError, "LaneChangeAction.*executor pending"):
+        with self.assertRaisesRegex(C.CompileError, "scensim.fault: batch executor pending"):
             C.compile_scenario(CASES / "cs4_lidar_dropout_cutin.xosc", [{"values": {}}],
                                StraightWorld(), provides=NIGHT)
-        # and the checker says so too, as a condition the executor does not meet
+        # and the checker says so too, as a condition the executor does not meet; the lane
+        # change itself runs now
         from scensim_sampler import subset
         v = subset.check(CASES / "cs4_lidar_dropout_cutin.xosc")
-        self.assertTrue(any(c.startswith("LaneChangeAction: batch executor pending")
-                            for c in v.conditions), v.conditions)
+        self.assertTrue(any(c.startswith("CustomCommandAction scensim.fault: batch executor "
+                                         "pending") for c in v.conditions), v.conditions)
+        self.assertFalse(any("LaneChangeAction" in c for c in v.conditions), v.conditions)
         # an attribute form it does not run, inside an implemented row
         p = case(story(event("e", speed(5.0, "linear", "rate", "1"),
                              '<StartTrigger><ConditionGroup><Condition name="d" delay="0" '
@@ -461,6 +463,120 @@ class ScenarioTime(unittest.TestCase):
         firsts = {s: next(k for k in range(1, 40) if self.ssv2(s, k) > 1.0) for s in range(40)}
         self.assertEqual(set(firsts.values()) - {20, 21}, set())
         self.assertGreater(len(set(firsts.values())), 1, firsts)
+
+
+def ssv2_hermite_length(p0, p1, v0, v1, n=100):
+    """HermiteCurve(start, goal, start_vec, goal_vec).getLength(100), scalar, as written."""
+    ax, bx, cx = 2 * p0[0] - 2 * p1[0] + v0[0] + v1[0], -3 * p0[0] + 3 * p1[0] - 2 * v0[0] - v1[0], v0[0]
+    ay, by, cy = 2 * p0[1] - 2 * p1[1] + v0[1] + v1[1], -3 * p0[1] + 3 * p1[1] - 2 * v0[1] - v1[1], v0[1]
+    ds, ret = 1.0 / n, 0.0
+    for i in range(n):
+        s = i * ds
+        xd = (3 * s * s) * ax + 2 * s * bx + cx
+        yd = (3 * s * s) * ay + 2 * s * by + cy
+        ret = ret + (xd * xd + yd * yd) ** 0.5 * ds
+    return ret
+
+
+def lane_change(target='<AbsoluteTargetLane value="34513"/>', shape="sinusoidal", dim="time",
+                value="$lc_t"):
+    return ('<PrivateAction><LateralAction><LaneChangeAction><LaneChangeActionDynamics '
+            f'dynamicsShape="{shape}" value="{value}" dynamicsDimension="{dim}"/>'
+            f'<LaneChangeTarget>{target}</LaneChangeTarget></LaneChangeAction></LateralAction>'
+            '</PrivateAction>')
+
+
+@unittest.skipIf(torch is None, "no torch or no sim_vehicle_ecu")
+class LaneChange(unittest.TestCase):
+    """SSv2's LaneChangeAction (FORCE): the Hermite curve, its forced speed, the end."""
+
+    def build(self, action, recs, start=1.0):
+        from scensim_batch import compile as C, core
+        p = case(story(event("lc", action, time_trigger(start))),
+                 params='<ParameterDeclaration name="lc_t" parameterType="double" value="3"/>')
+        # the lead one lane to the left (34514, y = 3.5), cutting back into 34513
+        text = p.read_text()
+        i = text.index('<Private entityRef="lead">')
+        p.write_text(text[:i] + text[i:].replace('laneId="34513"', 'laneId="34514"', 1))
+        c = C.compile_scenario(p, recs, StraightWorld(), provides=NIGHT)
+        c.y[:, c.index("ego")] = -7.0        # the ego two lanes away
+        comp = ecu_batch.load_batch(Accel, {}, {}, [1] * len(recs))
+        return c, core.BatchRun(c, StraightWorld(), PointMass(c.n), comp, route_length=2000.0)
+
+    def run_until(self, run, c, seconds):
+        lead = c.index("lead")
+        ys, vs = [], []
+        for _ in range(int(round(seconds / DT))):
+            obs = run.step(cmds(c.n, 0.0), DT)
+            ys.append(obs["y"][:, lead].clone())
+            vs.append(obs["v"][:, lead].clone())
+        return torch.stack(ys), torch.stack(vs)
+
+    def test_a_timed_cut_in_takes_its_time_per_slot_and_ends_on_the_target_lane(self):
+        recs = [{"values": {"lc_t": 3.0}}, {"values": {"lc_t": 5.0}}]
+        c, run = self.build(lane_change(), recs)
+        run.reset()
+        ys, vs = self.run_until(run, c, 12.0)
+        veh = run.vehicles
+        for k, T in enumerate((3.0, 5.0)):
+            moving = torch.nonzero((ys[:, k] < 3.5 - 1e-9) & (ys[:, k] > 1e-9)).flatten()
+            first, last = int(moving[0]), int(moving[-1])
+            # FORCE: the curve's length at length / T, so it ends ceil(T / dt) steps in
+            self.assertLessEqual(abs((last - first + 2) * DT - T), DT + 1e-9, (k, first, last))
+            self.assertEqual(float(ys[-1, k]), 0.0)                 # on 34513, offset 0
+            during = vs[first + 1:last, k]
+            self.assertTrue(bool(((during - during[0]).abs() < 1e-12).all()))
+        self.assertFalse(bool(veh.lc.any()))
+        # the event (and its action) completed the tick it started, as in SSv2
+        ev = run.storyboard.by_name("event", "lc")
+        from scensim_batch.storyboard import COMPLETE
+        self.assertTrue(bool((run.storyboard.state[id(ev)] == COMPLETE).all()))
+
+    def test_the_curve_and_its_length_are_ssv2s(self):
+        c, run = self.build(lane_change(), [{"values": {"lc_t": 4.0}}], start=0.5)
+        run.reset()
+        lead = c.index("lead")
+        for _ in range(int(round(0.6 / DT))):
+            run.step(cmds(1, 0.0), DT)
+        veh = run.vehicles
+        self.assertTrue(bool(veh.lc[0, 0]))
+        # from the lead's pose at the start, 20 m along to the crossing of lane 34513
+        coef = veh.lc_coef[0, 0]
+        p0 = coef[3].tolist()
+        goal = (p0[0] + 20.0, 0.0)
+        size = ((goal[0] - p0[0]) ** 2 + (goal[1] - p0[1]) ** 2) ** 0.5 * 0.5
+        want = ssv2_hermite_length(p0, goal, (size, 0.0), (size, 0.0))
+        self.assertAlmostEqual(float(veh.lc_len[0, 0]), want, places=12)
+        self.assertAlmostEqual(float(veh.lc_v[0, 0]), want / 4.0, places=12)
+        self.assertEqual(p0[1], 3.5)
+        _ = lead
+
+    def test_a_linear_change_by_distance_keeps_the_speed_on_the_chord(self):
+        c, run = self.build(lane_change(shape="linear", dim="distance", value="30"),
+                            [{"values": {}}])
+        run.reset()
+        self.run_until(run, c, 1.0)
+        veh = run.vehicles
+        v_before = float(veh.v[0, 0])
+        ys, vs = self.run_until(run, c, 0.1)
+        self.assertTrue(bool(veh.lc[0, 0]))
+        self.assertAlmostEqual(float(veh.lc_len[0, 0]), (30.0 ** 2 + 3.5 ** 2) ** 0.5, places=9)
+        self.assertAlmostEqual(float(vs[-1, 0]), v_before, places=9)
+
+    def test_a_relative_target_counts_lanes_from_its_entity(self):
+        target = '<RelativeTargetLane entityRef="lead" value="-1"/>'
+        c, run = self.build(lane_change(target=target), [{"values": {"lc_t": 2.0}}])
+        run.reset()
+        self.run_until(run, c, 6.0)
+        self.assertEqual(run.vehicles.lc_to_lane[0][0], 34513)
+
+    def test_the_egos_lane_change_is_refused_under_policy(self):
+        from scensim_sampler import subset
+        st = story(event("e", lane_change(), time_trigger(1))).replace(
+            '<EntityRef entityRef="lead"/></Actors>', '<EntityRef entityRef="ego"/></Actors>')
+        v = subset.check(case(st))
+        self.assertFalse(v.compiles)
+        self.assertEqual(v.refusals[0]["construct"], "LaneChangeAction on the ego")
 
 
 class Rows(unittest.TestCase):

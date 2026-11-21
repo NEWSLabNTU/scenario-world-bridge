@@ -43,6 +43,7 @@ from . import npc
 
 IMPLEMENTED = frozenset("""
 AbsoluteTargetSpeed RelativeTargetSpeed SpeedAction TeleportAction
+LaneChangeAction AbsoluteTargetLane RelativeTargetLane
 AccelerationCondition CollisionCondition DistanceCondition ParameterCondition
 ReachPositionCondition RelativeDistanceCondition RelativeSpeedCondition
 SimulationTimeCondition SpeedCondition StandStillCondition StoryboardElementStateCondition
@@ -437,6 +438,96 @@ class GoalAction(Instant):
         sb.ctx.run.route.set(go, self.waypoints)
 
 
+DEFAULT_LANECHANGE_DISTANCE = 20.0   # lane_change::Parameter::default_lanechange_distance
+
+
+class LaneChangeAction(Action):
+    """SSv2's LaneChangeAction on default vehicles. The interpreter maps the dynamics shape
+    linear to LINEAR and every other (cubic, sinusoidal, step) to CUBIC, the dimension rate to
+    LATERAL_VELOCITY, time to TIME, distance to LONGITUDINAL_DISTANCE, the policy FORCE. It is
+    accomplished as it starts: SSv2 reads the actor's current behaviour (lane_change or not)
+    from the behaviour tree's last tick, which ran before the request, so the latch is set at
+    once while the vehicle goes on changing lanes.
+
+    The geometry is route::laneChangeTrajectory's, through the world adapter (each map query by
+    name, docs: batch-executor.md section 6): the along pose at the dimension's distance (20 m
+    but for a distance dimension), the target centreline's crossing between offsets +5 and -5
+    there, the goal on the target lanelet at that s and the target offset, a Hermite curve with
+    tangents of half the start-to-goal distance (CUBIC: the start heading and the target
+    lanelet's tangent; LINEAR: the chord), and the forced speed: length / T (time), length /
+    (lateral offset / rate) (rate), the current speed (distance), clamped to [0, target speed]
+    when a SpeedAction set one."""
+
+    def __init__(self, n, actors, names, shape, dimension, value, target):
+        super().__init__(n)
+        self.actors, self.names = actors, names
+        self.shape = "LINEAR" if shape == "linear" else "CUBIC"
+        self.dimension = {"rate": "LATERAL_VELOCITY", "time": "TIME",
+                          "distance": "LONGITUDINAL_DISTANCE"}[dimension]
+        self.value, self.target = value, target       # target(ctx, k, lane) -> (lane, offset)
+
+    def start(self, sb, go):
+        super().start(sb, go)
+        run = sb.ctx.run
+        veh, world = run.vehicles, run.world
+        for k in torch.nonzero(go).flatten().tolist():
+            for d in self.actors:
+                x, y, h = (float(t[k, d]) for t in veh.poses())
+                lp = world.lanelet_pose(x, y, h)
+                if lp is None:
+                    continue     # BT FAILURE: not on a lanelet; the request stays unmet
+                lane, s0, off0 = lp
+                to = self.target(sb.ctx, k, lane)
+                if to is None or not world.can_change_lane(lane, to[0]):
+                    continue
+                self._begin(run, veh, world, k, d, (lane, s0, off0), to, float(self.value[k]))
+        self.done = self.done | go        # accomplished at once, as in SSv2
+
+    def _begin(self, run, veh, world, k, d, frm, to, value):
+        lane, s0, off0 = frm
+        to_lane, to_off = to
+        dist = value if self.dimension == "LONGITUDINAL_DISTANCE" else DEFAULT_LANECHANGE_DISTANCE
+        a_lane, a_s = world.along_lanelet(lane, s0, dist)
+        pt = lambda ln, s_, o: tuple(float(q) for q in world.lane_pose(   # noqa: E731
+            [ln], torch.tensor([s_], dtype=torch.float64), torch.tensor([o], dtype=torch.float64)))
+        left = pt(a_lane, a_s, off0 + 5.0)[:2]
+        right = pt(a_lane, a_s, off0 - 5.0)[:2]
+        to_s = world.collision_s(to_lane, left, right)
+        if to_s is None:
+            return
+        fx, fy, fh = pt(lane, s0, off0)
+        gx, gy, gh = pt(to_lane, to_s, to_off)
+        size = math.hypot(gx - fx, gy - fy) * 0.5
+        if self.shape == "CUBIC":
+            v0 = (size * math.cos(fh), size * math.sin(fh))
+            tx, ty = world.tangent(to_lane, to_s)
+            v1 = (tx * size, ty * size)
+        else:
+            v0 = (gx - fx, gy - fy)
+            v1 = v0
+        t64 = lambda q: torch.tensor(q, dtype=torch.float64)               # noqa: E731
+        coef = npc.hermite_coefficients(t64((fx, fy)), t64((gx, gy)), t64(v0), t64(v1))
+        length = float(npc.hermite_length(coef))
+        if self.dimension == "TIME":
+            v = length / value
+        elif self.dimension == "LATERAL_VELOCITY":
+            # the goal's lateral offset from the along pose at the default distance
+            b_lane, b_s = world.along_lanelet(lane, s0, DEFAULT_LANECHANGE_DISTANCE)
+            bx, by, bh = pt(b_lane, b_s, off0)
+            lat = abs(-math.sin(bh) * (gx - bx) + math.cos(bh) * (gy - by))
+            v = length / (lat / value)
+        else:
+            v = float(veh.v[k, d])
+        tgt = float(veh.target[k, d])
+        if not math.isnan(tgt):
+            v = min(max(v, 0.0), tgt)
+        veh.lc[k, d] = True
+        veh.lc_coef[k, d] = coef
+        veh.lc_len[k, d], veh.lc_s[k, d], veh.lc_v[k, d] = length, 0.0, v
+        veh.lc_to_s[k, d] = to_s
+        veh.lc_to_lane[k][d] = to_lane
+
+
 class SpeedAction(Action):
     """SSv2's SpeedAction on default vehicles (`actors`: their columns in BatchRun.vehicles)."""
 
@@ -619,6 +710,10 @@ class _Compiler:
                                                     + kind, story=True))
             raise _pending(here, f"RoutingAction/{kind}" + (" on the ego" if kind ==
                                                             "FollowTrajectoryAction" else ""))
+        lc = p.find("LateralAction/LaneChangeAction")
+        if lc is not None:
+            return self.lane_change(lc, here + "/PrivateAction/LateralAction/LaneChangeAction",
+                                    actors)
         sp = p.find("LongitudinalAction/SpeedAction")
         if sp is not None:
             return self.speed_action(sp, here + "/PrivateAction/LongitudinalAction/SpeedAction",
@@ -627,6 +722,57 @@ class _Compiler:
         inner = next(iter(first), None) if first is not None else None
         raise _pending(here, "/".join(x.tag for x in (first, inner) if x is not None)
                        + " in the story")
+
+    def lane_change(self, el, here, actors):
+        i, P = self.i, self.i.P
+        cols = []
+        for a in actors:
+            idx = i.index(a, here)
+            role = i.entities[idx].role
+            if role != "default":
+                raise _pending(here, f"a LaneChangeAction on {a!r}, a {role} entity (it acts "
+                                     "on SSv2's default vehicles)")
+            cols.append(i.defaults.index(idx))
+        d = el.find("LaneChangeActionDynamics")
+        if d is None:
+            raise StoryboardError(f"{here}: no LaneChangeActionDynamics")
+        shape, dim = d.get("dynamicsShape"), d.get("dynamicsDimension")
+        if dim not in ("rate", "time", "distance"):
+            raise StoryboardError(f"{here}: dynamicsDimension {dim!r}")
+        value = P.floats(d.get("value"), here + "/LaneChangeActionDynamics@value")
+        offset = P.floats(el.get("targetLaneOffset") or "0", here + "@targetLaneOffset")
+        t = el.find("LaneChangeTarget")
+        ab = t.find("AbsoluteTargetLane") if t is not None else None
+        rel = t.find("RelativeTargetLane") if t is not None else None
+        if ab is not None:
+            lanes = P.value(ab.get("value"), here + "/.../AbsoluteTargetLane@value")
+            target = lambda ctx, k, lane: (int(float(lanes[k])), float(offset[k]))  # noqa: E731
+        elif rel is not None:
+            ref = rel.get("entityRef")
+            ref_i = i.index(ref, here)
+            shift = P.floats(rel.get("value"), here + "/.../RelativeTargetLane@value")
+
+            def target(ctx, k, lane, ref_i=ref_i, shift=shift):
+                run = ctx.run
+                rx, ry, rh = (float(ctx.col(q, ref_i)[k]) for q in ("x", "y", "yaw"))
+                lp = run.world.lanelet_pose(rx, ry, rh)
+                if lp is None:
+                    raise StoryboardError(f"{here}: {ref!r} is not on a lanelet")
+                n_ = int(shift[k])
+                to = run.world.adjacent_lane(lp[0], "left" if n_ > 0 else "right", abs(n_)) \
+                    if n_ != 0 else lp[0]
+                if to is None:
+                    raise StoryboardError(f"{here}: no lane {n_:+d} from {ref!r}'s lanelet")
+                return int(to), float(offset[k])
+        else:
+            raise StoryboardError(f"{here}: no LaneChangeTarget")
+        for need in ("lanelet_pose", "can_change_lane", "along_lanelet", "collision_s",
+                     "tangent", "adjacent_lane"):
+            if not hasattr(i.world, need):
+                raise _pending(here, f"a world adapter without {need} (lane changes read the "
+                                     "lanelet map)")
+        names = [i.entities[i.defaults[c]].name for c in cols]
+        return LaneChangeAction(self.n, cols, names, shape, dim, value, target)
 
     def speed_action(self, el, here, actors):
         i, P = self.i, self.i.P

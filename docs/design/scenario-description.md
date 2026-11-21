@@ -269,8 +269,16 @@ maps:
 
 Rules:
 
-- **Scenario parameters named `world.<knob>`** bind to knobs. `pilot.<name>` parameters reach
-  pilots through the existing `{param:}` substitution.
+- **A knob is bound by a property, not by a parameter's name.** The scenario declares a plain
+  parameter (`surface`, a name the sampler's models can use) and binds it in its `FileHeader`
+  `Properties`: `<Property name="scensim.knob.surface" value="$surface"/>`. The sampler draws
+  the parameter like any other; the runner reads the binding and applies the value to the
+  world. `pilot.<name>` parameters reach pilots through the existing `{param:}` substitution.
+- **A sampled knob value must reach the world, and the record says what was applied.** The
+  runner sends each bound knob's value to the world before the run (weather and light through
+  the world server's weather call, surfaces through the per-scenario surfaces). The world reads
+  the applied value back, and `result.json` records it under `knobs`. A run whose applied
+  value differs from its record's is an error run, excluded from rates.
 - **Knobs carry physical values** (μ, visibility), so the sampler can apply constraints (CS2).
 - **A knob with `profile: true`** accepts a value along time or route position (CS5).
 - **The world's map and the pilot's maps are separate entries** (CS3).
@@ -347,7 +355,13 @@ A scenario carries its category id, and each cell's attributes, in its `FileHead
 </FileHeader>
 ```
 
-The sampler fills each run's cell from the sampled knob values. The coverage report groups
+A cell's attributes are computed, never labelled. Each attribute named in
+`scensim.cell_attributes` must be a bound knob or a declared scenario parameter. The sampler
+computes the record's cell from the record's values through those bindings, and the coverage
+report groups by the values the world applied (`result.json`'s `knobs`). `testbench check` and
+`scensim-sample check` refuse a cell attribute that is neither a bound knob nor a parameter,
+so no cell can claim a condition the world never set (found in D7: a drawn `illumination`
+labelled the cell while the run stayed in daylight). The coverage report groups
 records by category and cell. The category ids follow the taxonomy
 ([survey-vehicle-risk-taxonomy.md](survey-vehicle-risk-taxonomy.md)) as `R<family>.<category>.<subtype>`.
 

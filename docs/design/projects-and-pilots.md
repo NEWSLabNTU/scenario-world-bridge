@@ -40,7 +40,8 @@ All in the ament_python package `scensim`; the stack is a launch file in `scensi
 | `ros2 run scensim seat take <n>\|auto`, `show`, `release`, `env <group>` | seats |
 | `play_launch launch scensim_launch scensim.launch.xml [project:=] [seat:=] [simulator_start:=] ...` | the stack |
 | `ros2 run scensim run <scenario.xosc\|suite.yaml> [--repeat N] [--shard i/n] [--resume] [--logs L] [--start-stack\|--stop-stack]` | runs and suites against the stack |
-| `ros2 run scensim runs list\|show\|why\|prune\|summary` | results and logs |
+| `ros2 run scensim run --replay <run dir\|record> [--index i]` | a sample record again, the same values and seeds (below, "Sampled runs") |
+| `ros2 run scensim runs list\|show\|why\|prune\|summary\|fidelity` | results and logs; `fidelity`: replays against their originals |
 
 Exit codes (`run`, `project check`, `assets check`): 0 success, 1 a scenario failed or a
 check found a problem, 2 an infrastructure error, 3 refused (wrong stack, missing asset,
@@ -421,6 +422,57 @@ Pilots receive per-run values by substitution in their `args`/`run`: `{run_dir}`
 A `scenarios:` item may be a mapping, `{path: <file or directory>, ssv2: {...}}`: run
 settings for that item's runs.
 
+### Sampled runs
+
+`sample:` draws sample records with scensim_sampler (`src/scensim_sampler`; the record is
+[sample-record.md](sample-record.md)) and makes one run of each. It sits beside the other keys
+and changes none of them:
+
+```yaml
+sample:                                     # or a list of these
+  distribution: scenarios/walker_dist.xosc  # a ParameterValueDistribution (its scenario
+  n: 20                                     #   needs scensim.category in its FileHeader)
+  seed: 7                                   # the run seed (default: the file's randomSeed)
+  proposal: scenarios/near_ttc_short.yaml   # optional: drawn from it, weighted
+  knobs: {speed_limit: 13.9}                # optional: world knobs the constraints read
+```
+
+A record's run is `<scenario>_s<index>_r0`. SSv2 gets the record's values as override
+parameters, derived values included. The seeds go where something reads a seed:
+
+- each `lifetime: run` pilot's `{seed}` is the record's seed for its entity;
+- the scenario's seed is the parameter `scensim_seed`, when the scenario declares it;
+- the world's seed is recorded only. No world server takes one yet (issue 092).
+
+The run writes `sample.json`: the record bound to what ran it, with a new id.
+
+- **`world`** is `{name, hash}`. On Isaac the hash is the authored stage's (`stage:sha256:...`).
+  A CARLA town has no content hash, so the hash is `carla-<version>:<town>:lanelet2:sha256:...`,
+  from the map's lanelet2 file.
+- **`car`** is the ego's vehicle and its `spec_hash`. When the stack names no spec_hash, there
+  is no `car`, and `result.json`'s `sample.unbound` says so.
+
+`result.json` gets a `sample` block: the bound and the drawn id, the index, the run seed, the
+category and cell, the base, the proposal and the weight. `sample.json` is kept at every
+`keep` level.
+
+**Replay.** `scensim run --replay <run dir | record.json | record.yaml | records.jsonl --index
+i>` runs one record again, with the same values and seeds, as `<scenario>_s<index>_replay`. A
+bound record is unbound first, and its world and car are bound again from the stack that
+replays it. A scenario file whose sha256 differs from the record's is refused, naming both. The
+result gets a `replay` block: the original record's id (`of`), its run (`of_run`, null for a
+record file), and the target (simulator, version, stack, seat, world).
+
+**Fidelity.** `scensim runs fidelity <runs or directories of runs>` pairs each replay with its
+original by record and compares their outcomes:
+
+- the verdict;
+- contact: whether `contacts/` names a contact of the ego;
+- the end: SSv2's JUnit failure or error, else the first collision, `stuck`, `route_complete` or
+  `stack.error` event, else success.
+
+It prints the pairs, what differs, and the share that agree; `--json` also writes them.
+
 ### Run settings
 
 `ssv2:` (`scensim.ssv2`) is what a run hands `scenario.launch.xml` besides the scenario:
@@ -508,6 +560,10 @@ window's (an upper bound on the run's); `tick_*` the same for the tick; `frame_w
 `frame_count`, `frames_over_budget`, `ticks_over_budget`. A run's last partial window is
 not logged, so a run under 200 frames has no frame metrics.
 
+`sample` and `replay` (above, "Sampled runs") were added to `swb.result/1` without a new version.
+Only a sampled run or a replay has them, and the readers of results are scensim's own, changed
+with the validator in the same commit.
+
 Event types (fixed names): `collision.vehicle`, `collision.pedestrian`, `collision.static`,
 `red_light`, `off_lane`, `stuck`, `route_complete`, `pilot.restart`, `stack.error`. The verdict
 is `error` when the run cannot be judged for the stack's fault (a world server or bridge
@@ -545,7 +601,7 @@ stays SSv2's, and the scoring stays with the judges.
 ```
 <logs>/<project name>/
   stacks/<stack id>/stack.json  events.jsonl  proc/<group>/<process>.log
-  runs/<run id>/   result.json resolved.yaml junit.xml timeline.jsonl
+  runs/<run id>/   result.json resolved.yaml junit.xml timeline.jsonl   sample.json (sampled)
                    logs/<group>/<process>.log   record/   host.json
                    gap_trace/<time>_<episode>.jsonl   contacts/<time>_e<episode>.json
 ```

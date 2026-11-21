@@ -59,7 +59,7 @@ from scensim import budget as budgetmod, config, judges as judgesmod, project as
 from scensim import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
-from scensim import stage as stagemod
+from scensim import sampled as sampledmod, stage as stagemod
 from scensim import simulator as simmod, testbenches
 from scensim.findings import ros_args
 
@@ -99,10 +99,16 @@ class RunSpec:
     distribution: bool = False
     timeout: float = None
     ssv2: dict = field(default_factory=dict)   # the suite's and its item's (scensim.ssv2)
+    sample: dict = None      # its sample record, as drawn (scensim.sampled; roadmap 092 K3)
+    replay_of: str = None    # a replay: the run it replays, or None for a record file
 
     @property
     def key(self) -> str:
         parts = [_token(self.scenario.stem)]
+        if self.sample is not None:   # a record's values are many and long: its index names it
+            idx = self.sample["sampler"]["index"]
+            return f"{parts[0]}_s{idx}" + ("_replay" if self.replay_of is not None
+                                           else f"_r{self.repetition}")
         parts += [f"{_token(k)}-{_token(v)}" for k, v in self.parameters.items()]
         return "_".join(parts) + f"_r{self.repetition}"
 
@@ -200,8 +206,8 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None,
     own_ssv2 = {}
     dists = suite.get("distribution") or []
     dists = [dists] if isinstance(dists, str) else list(dists)
-    if not listed and not dists:
-        raise Refused(f"{target}: no scenarios: or distribution:")
+    if not listed and not dists and not suite.get("sample"):
+        raise Refused(f"{target}: no scenarios:, distribution: or sample:")
     files = []
     for item, own in items:
         p = _resolve(item, project, base)
@@ -248,7 +254,38 @@ def expand(target: Path, project: Path, repeat: int = None, params: dict = None,
             specs.append(RunSpec(p, {}, k, _seed(seed, k),
                                  _expect_for(expect, project, p), pilot_args, logging,
                                  distribution=True, ssv2=ssv2mod.merge(suite.get("ssv2"))))
+    if suite.get("sample"):
+        # roadmap 092 K3: one run per sample record, its values and seeds the record's
+        try:
+            drawn = sampledmod.draw(suite["sample"], lambda x: _resolve(x, project, base),
+                                    str(target))
+        except sampledmod.SampleRefused as e:
+            raise Refused(str(e)) from None
+        for record, scenario in drawn:
+            specs.append(sample_spec(record, scenario, expect=_expect_for(expect, project,
+                                                                         scenario),
+                                     pilot_args=pilot_args, logging=logging,
+                                     ssv2=ssv2mod.merge(suite.get("ssv2"))))
     return specs, suite
+
+
+def sample_spec(record, scenario: Path, replay_of=None, **kw) -> "RunSpec":
+    """The run of one sample record: its values as SSv2's parameters, its seeds."""
+    return RunSpec(scenario, sampledmod.parameters(record, scenario),
+                   0, record["sampler"]["run_seed"],
+                   sample=record, replay_of=replay_of, **kw)
+
+
+def replay_specs(target: str, index, project: Path) -> list:
+    """``--replay``: the one run of a record (a run directory's, or a record file's)."""
+    try:
+        record, of_run = sampledmod.load_record(target, index)
+        if record.get("world") or record.get("car"):
+            record = sampledmod.unbound(record)
+        scenario = sampledmod.replay_scenario(record, project)
+    except sampledmod.SampleRefused as e:
+        raise Refused(str(e)) from None
+    return [sample_spec(record, scenario, replay_of=of_run or "")]
 
 
 def _seed(seed, k):
@@ -1099,13 +1136,15 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     for p in pilots:
         if p.get("lifetime") != "run":
             continue
+        # a sample record's pilot seed for this entity (roadmap 092 K3), else the run's
+        p_sub = dict(sub, seed=sampledmod.pilot_seed(spec.sample, p["entity"], sub["seed"]))
         b = stackmod.Bound(p["entity"], p.get("key") or p["entity"], dict(p.get("spec") or {}),
                            p["domain"])
         extra = (spec.pilot_args or {}).get(p["entity"]) or {}
         if extra:
             b.spec["args"] = {**(b.spec.get("args") or {}), **extra}
         try:
-            entry = stackmod.pilot_entry(b, project, sub)
+            entry = stackmod.pilot_entry(b, project, p_sub)
         except stackmod.StackRefused as e:
             shutil.rmtree(run_dir, ignore_errors=True)
             raise Refused(str(e)) from None
@@ -1121,7 +1160,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                      "sha256": results.file_sha256(spec.scenario),
                      "parameters": spec.parameters, "repetition": spec.repetition,
                      "seed": spec.seed, "distribution": spec.distribution,
-                     "expect": spec.expect},
+                     "expect": spec.expect,
+                     **({"sample": spec.sample["id"]} if spec.sample else {}),
+                     **({"replay_of": spec.replay_of} if spec.replay_of is not None else {})},
         "stack": {k: rec.get(k) for k in ("stack_id", "simulator", "map", "seat", "domains",
                                            "ports", "fingerprint")},
         "pilots": {p["entity"]: {"kind": p["kind"], "lifetime": p.get("lifetime", "stack"),
@@ -1340,6 +1381,20 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         prov["world_server"] = world_server
     if ctx.testbench:
         prov["testbench"] = dict(ctx.testbench)   # its name and workspace (081 step 3)
+    sample_block = replay_block = None
+    if spec.sample is not None:
+        # the record bound to what ran it: world and car, a new id (roadmap 092 K3)
+        bound, notes = sampledmod.bind(spec.sample, rec, prov, pilots)
+        (run_dir / sampledmod.RECORD_FILE).write_text(json.dumps(bound, indent=2) + "\n")
+        sample_block = sampledmod.summary(spec.sample, bound)
+        if notes:
+            sample_block["unbound"] = notes
+        if spec.replay_of is not None:
+            replay_block = {"of": spec.sample["id"], "of_run": spec.replay_of or None,
+                            "target": {"simulator": rec.get("simulator"),
+                                       "version": (prov.get("carla") or {}).get("version"),
+                                       "stack_id": rec.get("stack_id"), "seat": rec.get("seat"),
+                                       "world": bound["world"]}}
     result = results.RunResult(
         run_id=run_id, verdict=verdict, reason=reason,
         scenario={"file": sc_rel, "sha256": resolved["scenario"]["sha256"],
@@ -1351,7 +1406,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         pilots={p["entity"]: {"kind": p["kind"], "vehicle": p.get("vehicle"),
                               "inputs": p.get("inputs") or [],
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
-        provenance=prov)
+        provenance=prov, sample=sample_block, replay=replay_block)
     result.write(run_dir / "result.json")
     judge_list = config.project_settings(project).get("judges")
     judged = judgesmod.run_all(judge_list, run_dir, project, verdict)
@@ -1553,7 +1608,11 @@ def main(argv=None, out=None, stack_command=None) -> int:
         prog="scensim run",
         description="Run a testbench, one of its suites or scenarios, on its stack (started when "
                     "none serves it, and left up).")
-    ap.add_argument("target", help="<testbench> (its default suite), <testbench>/<suite>, "
+    ap.add_argument("--replay", metavar="RUN_DIR|RECORD",
+                    help="run a sample record again, same values and seeds: a sampled run's "
+                         "directory, or a record file (.json, .yaml, .jsonl with --index)")
+    ap.add_argument("--index", type=int, help="with --replay of a .jsonl: which record (0-based)")
+    ap.add_argument("target", nargs="?", help="<testbench> (its default suite), <testbench>/<suite>, "
                                    "<testbench>/<path>, or a scenario, suite or directory path")
     ap.add_argument("--repeat", type=int, help="repetitions (a suite's repetitions: otherwise)")
     ap.add_argument("--seeds", metavar="A-B",
@@ -1599,6 +1658,20 @@ def main(argv=None, out=None, stack_command=None) -> int:
         sys.stderr.write("scensim run: --repeat must be at least 1\n")
         return EXIT_REFUSED
     args.seed = None
+    if args.replay:
+        clash = [f for f, v in (("a target", args.target), ("--repeat", args.repeat),
+                                ("--seeds", args.seeds), ("--param", args.param),
+                                ("--seats", args.seats), ("--shard", args.shard)) if v]
+        if clash:
+            sys.stderr.write(f"scensim run: refused: --replay runs the record as it is; drop "
+                             f"{', '.join(clash)}\n")
+            return EXIT_REFUSED
+    elif args.target is None:
+        sys.stderr.write("scensim run: refused: a target (or --replay)\n")
+        return EXIT_REFUSED
+    elif args.index is not None:
+        sys.stderr.write("scensim run: refused: --index is for --replay\n")
+        return EXIT_REFUSED
     if args.seeds is not None:
         try:
             if args.repeat is not None:
@@ -1760,7 +1833,7 @@ def _main(args, out, stack_command=None) -> int:
     ctx = None
     try:
         _seats_flags(args)
-        tbinfo = resolve_target(args)
+        tbinfo = resolve_target(args) if not args.replay else None   # a replay names its file
         if tbinfo is not None:
             # a testbench's stack is started when none serves it, and left up (081 step 3)
             args.start_stack = True
@@ -1771,8 +1844,9 @@ def _main(args, out, stack_command=None) -> int:
             early = None   # context() refuses it, in its own words
         first_map = None
         if early is not None:
-            early_specs = expand(Path(args.target), early, args.repeat,
-                                 _parse_params(args.param), args.seed)[0]
+            early_specs = (replay_specs(args.replay, args.index, early) if args.replay else
+                           expand(Path(args.target), early, args.repeat,
+                                  _parse_params(args.param), args.seed)[0])
             check_scenarios(early, early_specs,
                             testbench=early.name if testbenches.is_work_dir(early) else None)
             first_map = next((m for m in (scenario_map(s.scenario) for s in early_specs) if m),
@@ -1787,9 +1861,13 @@ def _main(args, out, stack_command=None) -> int:
                       stack_timeout=args.stack_timeout, ready_timeout=args.ready_timeout,
                       out=out, map_name=first_map)
         ctx.testbench = tbinfo
-        target = Path(args.target)
-        specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param),
-                              args.seed)
+        if args.replay:
+            specs, suite = replay_specs(args.replay, args.index, ctx.project), None
+            target = specs[0].scenario
+        else:
+            target = Path(args.target)
+            specs, suite = expand(target, ctx.project, args.repeat, _parse_params(args.param),
+                                  args.seed)
         if args.timeout:
             for s in specs:
                 s.timeout = args.timeout

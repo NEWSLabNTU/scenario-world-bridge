@@ -67,7 +67,7 @@ LOGGING_NOT_YET = {"levels": "per-process ROS log levels are not built yet; give
                    "debug": "DEBUG on named groups is not built yet; capture: debug records"
                             " every topic"}
 SUITE_KEYS = ("scenarios", "parameters", "cases", "distribution", "repetitions", "seed",
-              "expect", "retry", "pilot_args", "logging", "ssv2")
+              "expect", "retry", "pilot_args", "logging", "ssv2", "sample")
 SUITE_ITEM_KEYS = ("path", "ssv2")  # a scenarios: item as a mapping
 EXTERNAL_CONTROLLERS = ("agent", "autoware")
 MAPS_PREFIX = "$(env SCENSIM_MAPS)/"

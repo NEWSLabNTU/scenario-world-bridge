@@ -68,10 +68,17 @@ class RunResult:
     metrics: dict = dataclasses.field(default_factory=dict)
     pilots: dict = dataclasses.field(default_factory=dict)
     provenance: dict = dataclasses.field(default_factory=dict)
+    # roadmap 092 K3, additive in swb.result/1: a sampled run's record (sample.json beside it)
+    # and a replay's original and target; absent from other runs' results
+    sample: dict = None
+    replay: dict = None
     schema: str = SCHEMA
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
+        for k in ("sample", "replay"):
+            if d.get(k) is None:
+                d.pop(k)
         return {"schema": d.pop("schema"), **d}
 
     def to_json(self, indent=2) -> str:
@@ -111,7 +118,7 @@ class RunResult:
 # --- validation -----------------------------------------------------------------------------
 
 _TOP = ("schema", "run_id", "verdict", "reason", "scenario", "ssv2", "events", "metrics",
-        "pilots", "provenance")
+        "pilots", "provenance", "sample", "replay")
 _REQUIRED = ("schema", "run_id", "verdict")
 
 
@@ -202,6 +209,24 @@ def problems(d) -> list:
             out.append(f"pilots.{name}.kind: expected a string")
 
     obj("provenance")
+    if "sample" in d:
+        sm = obj("sample")
+        for k in ("id", "drawn_id"):
+            if not (isinstance(sm.get(k), str) and len(sm[k]) == 64):
+                out.append(f"sample.{k}: expected a sha256 (64 hex digits)")
+        if not (_is_int(sm.get("index")) and sm["index"] >= 0):
+            out.append("sample.index: expected an integer >= 0")
+        for k in ("weight", "log_weight"):
+            if not _is_num(sm.get(k)):
+                out.append(f"sample.{k}: expected a number")
+    if "replay" in d:
+        rp = obj("replay")
+        if not (isinstance(rp.get("of"), str) and len(rp["of"]) == 64):
+            out.append("replay.of: expected the replayed record's id (64 hex digits)")
+        if rp.get("of_run") is not None and not isinstance(rp["of_run"], str):
+            out.append("replay.of_run: expected a run id or null")
+        if not isinstance(rp.get("target"), dict):
+            out.append("replay.target: expected an object")
     return out
 
 

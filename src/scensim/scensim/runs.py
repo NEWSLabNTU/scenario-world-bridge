@@ -23,7 +23,7 @@ EXIT_OK, EXIT_FAILED, EXIT_INFRA, EXIT_REFUSED = 0, 1, 2, 3
 LEVELS = ("result", "standard", "full", "debug")
 LEVEL_KEEPS = {
     "result": {"result.json", "resolved.yaml", "junit.xml", "timeline.jsonl", "judges",
-               "contacts"},
+               "contacts", "sample.json"},   # sample.json: what --replay runs (092 K3)
     "standard": {"logs", "gap_trace", "context.jsonl"},
     "full": {"record", "host.json"},
     "debug": None,  # everything
@@ -556,6 +556,38 @@ def cmd_summary(args, out):
     return EXIT_OK
 
 
+def cmd_fidelity(args, out):
+    """Replay fidelity (roadmap 092 K3): each replay against its original, by record."""
+    from scensim import sampled  # noqa: PLC0415
+    dirs = []
+    for d in args.dirs:
+        p = Path(d).expanduser()
+        if (p / "result.json").is_file():
+            dirs.append(p)
+        elif p.is_dir():
+            dirs += [c for c in sorted(p.iterdir()) if (c / "result.json").is_file()]
+        else:
+            raise Refused(f"{p}: not a run or a directory of runs")
+    if not dirs:
+        raise NoRuns(" ".join(args.dirs))
+    rep = sampled.fidelity(dirs)
+    rows = [[p["record"][:12], p["original"], p["replay"],
+             "{verdict}/{contact}/{end}".format(**p["original_outcome"]),
+             "{verdict}/{contact}/{end}".format(**p["replay_outcome"]),
+             ",".join(p["differs"]) or "same"] for p in rep["pairs"]]
+    table([["record", "original", "replay", "original (verdict/contact/end)", "replay",
+            "differs"]] + rows, out)
+    share = "n/a" if rep["share"] is None else f"{rep['share']:.2f}"
+    out.write(f"fidelity: {rep['agree']} of {rep['total']} replays reached the original's "
+              f"outcome ({share})\n")
+    for k in rep["unpaired_replays"]:
+        out.write(f"unpaired: a replay of {k[:12]} whose original is not among these runs\n")
+    if args.json:
+        Path(args.json).write_text(json.dumps(rep, indent=2) + "\n")
+        out.write(f"{args.json}\n")
+    return EXIT_OK
+
+
 # --- main -----------------------------------------------------------------------------------
 
 def parser():
@@ -583,6 +615,10 @@ def parser():
     p.add_argument("--dry-run", action="store_true", help="print what would go")
     p = sub.add_parser("summary", parents=[common], help="summary.csv and a merged junit.xml")
     p.add_argument("dir", nargs="?", help="a directory of runs (default: the project's)")
+    p = sub.add_parser("fidelity", help="replays against their originals: the same verdict, "
+                                        "contact and end?")
+    p.add_argument("dirs", nargs="+", help="runs, or directories of runs (originals and replays)")
+    p.add_argument("--json", help="also write the pairs here")
     return ap
 
 
@@ -599,7 +635,7 @@ def main(argv=None, out=None) -> int:
         args.testbench = args.tb
     try:
         return {"list": cmd_list, "show": cmd_show, "why": cmd_why, "prune": cmd_prune,
-                "summary": cmd_summary}[args.cmd](args, out)
+                "summary": cmd_summary, "fidelity": cmd_fidelity}[args.cmd](args, out)
     except Refused as e:
         sys.stderr.write(f"runs: {e}\n")
         return EXIT_REFUSED

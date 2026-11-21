@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NEWSLabNTU/scensim/blob/main/src/scensim_sampler/scensim_sampler/schema/sample-record-1.json",
+  "title": "scensim sample record, version 1",
+  "description": "One drawn scenario: what it is, enough to run it again on any executor and to audit a rate computed from many. The spec is docs/design/sample-record.md; rules a schema cannot state (the id is the hash of the record, weight = exp(log_weight), weight 1 without a proposal, the record against its scenario) are the checker's (scensim-sample check).",
+  "type": "object",
+  "required": [
+    "record",
+    "id",
+    "scenario",
+    "distribution",
+    "category",
+    "cell",
+    "values",
+    "derived",
+    "seeds",
+    "base",
+    "proposal",
+    "weight",
+    "log_weight",
+    "search",
+    "sampler"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "record": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "scenario": {
+      "type": "object",
+      "required": [
+        "sha256"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "distribution": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "category": {
+      "type": "string",
+      "pattern": "^R[1-8]\\.[a-z0-9_]+\\.[a-z0-9_]+$"
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "values": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      }
+    },
+    "derived": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "seeds": {
+      "type": "object",
+      "required": [
+        "scenario",
+        "world",
+        "pilots"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "world": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "pilots": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      }
+    },
+    "base": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "proposal": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "weight": {
+      "type": "number",
+      "minimum": 0
+    },
+    "log_weight": {
+      "type": "number"
+    },
+    "search": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "id",
+            "generation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "world": {
+      "type": "object",
+      "required": [
+        "name",
+        "hash"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hash": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "car": {
+      "type": "object",
+      "required": [
+        "name",
+        "spec_hash"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spec_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "sampler": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "plugins",
+        "run_seed",
+        "index"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "run_seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

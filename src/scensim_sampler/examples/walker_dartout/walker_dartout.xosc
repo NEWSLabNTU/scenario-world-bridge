@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CS1 of docs/design/scenario-description.md: a walker darts out from behind a parked van.
+     Only what the sampler reads is here: the header's category and cell attributes, the
+     parameters and the entities. The storyboard is a stub; this file is an example for the
+     sampler, not a scenario that runs. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="walker dart-out from a parked van (example for scensim_sampler)">
+    <Properties>
+      <Property name="scensim.category" value="R2.walker_crossing.dart_out"/>
+      <Property name="scensim.cell_attributes" value="illumination,surface,occluder"/>
+      <Property name="scensim.cell.occluder" value="van"/>
+    </Properties>
+  </FileHeader>
+  <ParameterDeclarations>
+    <ParameterDeclaration name="ego_speed" parameterType="double" value="8.3"/>
+    <ParameterDeclaration name="van_offset" parameterType="double" value="2.0"/>
+    <ParameterDeclaration name="walker_type" parameterType="string" value="adult"/>
+    <ParameterDeclaration name="walk_speed" parameterType="double" value="1.4"/>
+    <ParameterDeclaration name="ttc_entry" parameterType="double" value="2.5"/>
+    <ParameterDeclaration name="behaviour" parameterType="string" value="steady"/>
+    <ParameterDeclaration name="trigger_distance" parameterType="double" value="20.75"/>
+  </ParameterDeclarations>
+  <CatalogLocations/>
+  <RoadNetwork/>
+  <Entities>
+    <ScenarioObject name="ego"/>
+    <ScenarioObject name="van"/>
+    <ScenarioObject name="walker"/>
+  </Entities>
+  <Storyboard>
+    <Init><Actions/></Init>
+    <StopTrigger/>
+  </Storyboard>
+</OpenSCENARIO>

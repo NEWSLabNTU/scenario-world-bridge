@@ -293,6 +293,8 @@ test:
     python3 -m pytest -q src/scensim/test
     # The agent SDK and protocol, and the relay against it (roadmap 030)
     python3 -m pytest -q src/scensim_agent/test src/scenario_agent_relay/test
+    # The sampler (scensim_sampler): pure Python, no ROS
+    python3 -m pytest -q src/scensim_sampler/test
     # The conflict-zone protocol's library: unit and property tests (roadmap 078 I2)
     python3 -m pytest -q src/czp/test
     # The world server shell, on a fake world (roadmaps 037, 046; protobuf only), and the Isaac
@@ -301,14 +303,15 @@ test:
     # system and workspace packages only: a user-site numpy 2.x (pip --user) breaks the system
     # scipy 1.8 these tests import (numpy.core.multiarray failed to import; swb 243)
     PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test
-    # The same suite in Isaac's own Python, where the world server runs (issue 090): when
+    # The same suite in Isaac's own Python, where the world server runs (issue 090), and the
+    # sampler's (numpy 2 there; a seed gives the same bits in both): when
     # ISAAC_ROOT (a host setting) names an install, in a clean environment (isaac_env.sh: no
     # system Humble in it); otherwise said, and skipped
     if [ -n "${ISAAC_ROOT:-}" ] && [ -e "$ISAAC_ROOT/venv/bin/activate" ]; then
         env -i HOME="$HOME" USER="$USER" PATH=/usr/bin:/bin ISAAC_ROOT="$ISAAC_ROOT" bash -c \
-            'source src/scensim_isaac_world/scripts/isaac_env.sh && PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test'
+            'source src/scensim_isaac_world/scripts/isaac_env.sh && PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test && PYTHONNOUSERSITE=1 PYTHONPATH=src/scensim_sampler python3 -m unittest discover -s src/scensim_sampler/test'
     else
-        echo "skipped: scensim_isaac_world's suite in Isaac's Python (ISAAC_ROOT${ISAAC_ROOT:+=$ISAAC_ROOT} names no Isaac Sim install)"
+        echo "skipped: scensim_isaac_world's and scensim_sampler's suites in Isaac's Python (ISAAC_ROOT${ISAAC_ROOT:+=$ISAAC_ROOT} names no Isaac Sim install)"
     fi
     # The Autoware profile's settings (autoware_sim_vehicle)
     python3 -m pytest -q src/autoware_sim_vehicle/test

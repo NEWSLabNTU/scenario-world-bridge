@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The same parameters from OpenSCENARIO's own distributions, each independent of the others
+     (what the realism rules call the baseline to avoid: walking speed no longer depends on who
+     walks). For comparison, and to show the standard elements. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="walker dart-out: independent standard distributions"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="walker_dartout.xosc"/>
+    <Stochastic numberOfTestRuns="20" randomSeed="7">
+      <StochasticDistribution parameterName="ego_speed">
+        <NormalDistribution expectedValue="8.3" variance="2.25">
+          <Range lowerLimit="0.0" upperLimit="16.7"/>
+        </NormalDistribution>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="van_offset">
+        <UniformDistribution><Range lowerLimit="0.5" upperLimit="4.0"/></UniformDistribution>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="walker_type">
+        <ProbabilityDistributionSet>
+          <Element value="adult" weight="0.6"/>
+          <Element value="child" weight="0.25"/>
+          <Element value="runner" weight="0.15"/>
+        </ProbabilityDistributionSet>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="walk_speed">
+        <LogNormalDistribution expectedValue="1.5" variance="0.16"/>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="ttc_entry">
+        <Histogram>
+          <Bin weight="1"><Range lowerLimit="0.5" upperLimit="1.5"/></Bin>
+          <Bin weight="3"><Range lowerLimit="1.5" upperLimit="3.0"/></Bin>
+          <Bin weight="2"><Range lowerLimit="3.0" upperLimit="5.0"/></Bin>
+        </Histogram>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="behaviour">
+        <ProbabilityDistributionSet>
+          <Element value="steady" weight="0.7"/>
+          <Element value="hesitate" weight="0.2"/>
+          <Element value="run" weight="0.1"/>
+        </ProbabilityDistributionSet>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="illumination">
+        <ProbabilityDistributionSet>
+          <Element value="day" weight="0.7"/>
+          <Element value="night" weight="0.3"/>
+        </ProbabilityDistributionSet>
+      </StochasticDistribution>
+      <StochasticDistribution parameterName="surface">
+        <ProbabilityDistributionSet>
+          <Element value="dry" weight="0.8"/>
+          <Element value="wet" weight="0.2"/>
+        </ProbabilityDistributionSet>
+      </StochasticDistribution>
+    </Stochastic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>

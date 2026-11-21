@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The distribution of CS1: one joint model gives every parameter (written under one of
+     them; naming it under the others too changes nothing). -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="walker dart-out: the joint model"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="walker_dartout.xosc"/>
+    <Stochastic numberOfTestRuns="100" randomSeed="41">
+      <StochasticDistribution parameterName="ttc_entry">
+        <UserDefinedDistribution type="scensim.sampler:joint">models/walker_dartout.yaml</UserDefinedDistribution>
+      </StochasticDistribution>
+    </Stochastic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>

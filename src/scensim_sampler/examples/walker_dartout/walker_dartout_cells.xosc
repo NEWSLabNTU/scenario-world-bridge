@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Condition coverage: every pair of (illumination, surface, walker_type, behaviour) levels
+     in at least one row, crossed with a sweep of the time to conflict. Deterministic. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="walker dart-out: pairwise cells x ttc sweep"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="walker_dartout.xosc"/>
+    <Deterministic>
+      <DeterministicSingleParameterDistribution parameterName="illumination">
+        <UserDefinedDistribution type="scensim.sampler:twise">
+t: 2
+factors:
+  illumination: [day, dusk, night]
+  surface: [dry, wet, icy]
+  walker_type: [adult, child, runner]
+  behaviour: [steady, hesitate, run]
+        </UserDefinedDistribution>
+      </DeterministicSingleParameterDistribution>
+      <DeterministicSingleParameterDistribution parameterName="ttc_entry">
+        <DistributionRange stepWidth="0.5"><Range lowerLimit="1.0" upperLimit="3.0"/></DistributionRange>
+      </DeterministicSingleParameterDistribution>
+      <DeterministicMultiParameterDistribution>
+        <ValueSetDistribution>
+          <ParameterValueSet>
+            <ParameterAssignment parameterRef="ego_speed" value="8.3"/>
+            <ParameterAssignment parameterRef="walk_speed" value="1.4"/>
+          </ParameterValueSet>
+        </ValueSetDistribution>
+      </DeterministicMultiParameterDistribution>
+    </Deterministic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>

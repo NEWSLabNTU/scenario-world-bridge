@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose A (a rate): draw near the critical region, each sample weighted base / proposal.
+     The same as walker_dartout_dist.xosc drawn with the proposal option (proposals/near_ttc_short.yaml). -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="walker dart-out: short times to conflict, weighted"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="walker_dartout.xosc"/>
+    <Stochastic numberOfTestRuns="100" randomSeed="41">
+      <StochasticDistribution parameterName="ttc_entry">
+        <UserDefinedDistribution type="scensim.sampler:importance">proposals/near_ttc_short.yaml</UserDefinedDistribution>
+      </StochasticDistribution>
+    </Stochastic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>

@@ -1,0 +1,9 @@
+# Purpose A: concentrate draws where the time to conflict is short. Only ttc_entry changes;
+# every other variable is drawn as the base draws it.
+proposal: 1
+name: near_ttc_short
+base: ../models/walker_dartout.yaml
+variables:
+  - name: ttc_entry
+    lognormal: {mean: 1.2, sd: 0.5}
+    range: [0.3, 8.0]

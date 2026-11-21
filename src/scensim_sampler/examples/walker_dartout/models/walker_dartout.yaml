@@ -1,0 +1,44 @@
+# The joint model of CS1. INVENTED FOR ILLUSTRATION, NOT FITTED FROM DATA: the numbers below
+# are plausible guesses, chosen to show the format. A fitted model replaces them and names its
+# dataset, version and licence in the header.
+model: 1
+header:
+  name: walker_dartout
+  dataset: "none: invented for illustration, not fitted from data"
+  version: "0"
+  licence: CC0-1.0
+knobs: {speed_limit: 13.9}          # a world knob's default (m/s); --knob speed_limit=... overrides
+variables:
+  - {name: illumination, categorical: {day: 0.7, night: 0.3}}
+  - {name: surface, categorical: {dry: 0.8, wet: 0.2}}
+  - {name: walker_type, categorical: {adult: 0.6, child: 0.25, runner: 0.15}}
+  - name: walk_speed            # who walks sets how fast
+    given: walker_type
+    cases:
+      adult: {normal: {mean: 1.4, sd: 0.2}, range: [0.6, 2.4]}
+      child: {normal: {mean: 1.6, sd: 0.3}, range: [0.6, 3.0]}
+      runner: {lognormal: {mean: 3.2, sd: 0.5}, range: [1.8, 6.0]}
+  - name: behaviour
+    given: walker_type
+    cases:
+      adult: {categorical: {steady: 0.75, hesitate: 0.2, run: 0.05}}
+      child: {categorical: {steady: 0.5, hesitate: 0.2, run: 0.3}}
+      runner: {categorical: {steady: 0.9, hesitate: 0.05, run: 0.05}}
+  - names: [ego_speed, van_offset]   # speed and where the van stands, drawn together
+    mixture:
+      - {weight: 0.7, mean: [8.3, 2.0], cov: [[1.6, 0.2], [0.2, 0.5]]}
+      - {weight: 0.3, mean: [11.0, 3.0], cov: [[2.5, 0.0], [0.0, 0.8]]}
+  - name: ttc_entry             # the gap the walker accepts, shorter for a child, at night
+    lognormal:
+      mean: "(2.6 if walker_type == 'adult' else 2.0) * (0.85 if illumination == 'night' else 1.0)"
+      sd: 0.8
+    range: [0.3, 8.0]
+derived:
+  trigger_distance: "ego_speed * ttc_entry"   # the start trigger as a distance (CS1's gap)
+constraints:
+  - "ego_speed <= 1.2 * speed_limit"          # speed_limit: a world knob
+  - "van_offset > 0.5"
+  - "ttc_entry > 0"
+cell:
+  illumination: {parameter: illumination}
+  surface: {parameter: surface}

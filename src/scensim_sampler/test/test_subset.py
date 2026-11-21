@@ -135,6 +135,18 @@ class Rows(unittest.TestCase):
             for name in ("RelativeHeadingCondition(ego)", "RelativeHeadingCondition(ego, 34507, 50)"):
                 self.assertTrue(subset.check(scenario(d, condition=udvc.format(name))).compiles)
 
+    def test_a_knob_bound_by_property_is_a_world_knob(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = scenario(d, params="<ParameterDeclaration name='light' parameterType='string' "
+                                   "value='night'/>")
+            p.write_text(p.read_text().replace(
+                "<OpenSCENARIO>", "<OpenSCENARIO><FileHeader><Properties><Property "
+                "name='scensim.knob.illumination' value='$light'/></Properties></FileHeader>", 1))
+            v = subset.check(p)
+        self.assertTrue(v.compiles)
+        self.assertTrue(any(c.startswith("world knob illumination (bound to $light): a slot "
+                                         "camera") for c in v.conditions), v.conditions)
+
     def test_a_parameter_set_before_the_run_is_fixed_for_the_slot(self):
         init = ("<GlobalAction><ParameterAction parameterRef='p'><SetAction value='1'/>"
                 "</ParameterAction></GlobalAction>")

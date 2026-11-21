@@ -98,9 +98,14 @@ def _read(path):
     return root, hashlib.sha256(data).hexdigest()
 
 
+KNOB = "scensim.knob."
+
+
 class Scenario:
     """A scenario file: `parameters` {name: (type, default)}, `properties` (FileHeader),
-    `category`, `cell_attributes`, `entities`, `sha256`."""
+    `category`, `cell_attributes`, `knobs` {knob: parameter} (FileHeader `scensim.knob.<name>
+    = $<parameter>`: the world knob that parameter's value is applied to), `entities`,
+    `sha256`."""
 
     def __init__(self, path):
         self.path = Path(path)
@@ -123,7 +128,72 @@ class Scenario:
         self.cell_attributes = [a.strip() for a in attrs.split(",") if a.strip()]
         self.entities = [o.get("name") for o in root.findall("Entities/ScenarioObject")
                          if o.get("name")]
+        self.knobs = {}
+        for k, v in self.properties.items():
+            if not k or not k.startswith(KNOB):
+                continue
+            knob, v = k[len(KNOB):], (v or "").strip()
+            if not knob or not v.startswith("$") or v[1:] not in self.parameters:
+                raise SpecError(f"{path}: FileHeader {k} = {v!r}: a knob is bound to a declared "
+                                "parameter, as $<name> (scenario-description.md section 3)")
+            self.knobs[knob] = v[1:]
         self.is_distribution = root.find("ParameterValueDistribution") is not None
+
+    def cell_source(self, attribute, derived_ok=()):
+        """Where a cell attribute's value comes from: ("knob", parameter), ("parameter", name),
+        ("fixed", value) (FileHeader scensim.cell.<attribute>: the scenario itself fixes it),
+        ("derived", name) (a derived value whose expression reads only parameters and such
+        derived values, transitively: `derived_ok`; section 7), or None: then it would only
+        label the cell, and is refused."""
+        if attribute in self.knobs:
+            return ("knob", self.knobs[attribute])
+        if attribute in self.parameters:
+            return ("parameter", attribute)
+        fixed = self.properties.get("scensim.cell." + attribute)
+        if fixed is not None:
+            return ("fixed", fixed)
+        if attribute in derived_ok:
+            return ("derived", attribute)
+        return None
+
+    def derived_ok(self, expressions):
+        """Of `expressions` {derived name: the names its expression reads}, those whose names
+        are all declared parameters (a bound knob is one) or such derived values, transitively:
+        what a cell may be computed from (section 7). A derived value that reads a latent
+        variable (drawn but not a parameter), or one that does, is not."""
+        ok, changed = set(), True
+        while changed:
+            changed = False
+            for name, reads in expressions.items():
+                if name not in ok and all(r in self.parameters or r in ok for r in reads):
+                    ok.add(name)
+                    changed = True
+        return ok
+
+    def cell_problems(self, derived_ok=()):
+        """A cell attribute that is neither a bound knob, a declared parameter nor fixed by the
+        scenario: it would label a condition the world never set (093 D7)."""
+        return [f"cell attribute {a!r} is neither a bound knob (scensim.knob.{a}), a declared "
+                f"parameter nor fixed (scensim.cell.{a}): it would only label the cell"
+                for a in self.cell_attributes if self.cell_source(a, derived_ok) is None]
+
+    def cell_of(self, values, derived=None, derived_ok=()):
+        """The cell computed from a record's values (each parameter's value, else its declared
+        default) and derived values, through the bindings."""
+        out = {}
+        for a in self.cell_attributes:
+            src = self.cell_source(a, derived_ok)
+            if src is None:
+                raise SpecError(f"{self.path.name}: {self.cell_problems(derived_ok)[0]}")
+            kind, ref = src
+            if kind == "fixed":
+                out[a] = ref
+            elif kind == "derived":
+                out[a] = (derived or {})[ref]
+            else:
+                v = values.get(ref, self.parameters[ref][1])
+                out[a] = self.cast(ref, v) if not isinstance(v, (int, float, bool)) else v
+        return out
 
     def fixed_cell(self):
         """Cell values the scenario fixes: FileHeader `scensim.cell.<attribute>`."""

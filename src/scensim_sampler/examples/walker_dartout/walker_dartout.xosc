@@ -10,6 +10,11 @@
       <Property name="scensim.category" value="R2.walker_crossing.dart_out"/>
       <Property name="scensim.cell_attributes" value="illumination,surface,occluder"/>
       <Property name="scensim.cell.occluder" value="van"/>
+      <!-- the world knobs the sampled parameters are applied to (scenario-description.md 3):
+           the runner sends them to the world before the run, and the cell is computed from
+           them, never labelled -->
+      <Property name="scensim.knob.illumination" value="$illumination"/>
+      <Property name="scensim.knob.surface" value="$surface"/>
     </Properties>
   </FileHeader>
   <ParameterDeclarations>
@@ -20,6 +25,8 @@
     <ParameterDeclaration name="ttc_entry" parameterType="double" value="2.5"/>
     <ParameterDeclaration name="behaviour" parameterType="string" value="steady"/>
     <ParameterDeclaration name="trigger_distance" parameterType="double" value="20.75"/>
+    <ParameterDeclaration name="illumination" parameterType="string" value="day"/>
+    <ParameterDeclaration name="surface" parameterType="string" value="dry"/>
   </ParameterDeclarations>
   <CatalogLocations/>
   <RoadNetwork/>

@@ -36,6 +36,11 @@ class Plugin:
     proposal = None        # {"id", "sha256"}: the proposal it draws from instead, if any
     knobs = {}             # world knobs' defaults it brings (the sampler's override them)
 
+    def derived_reads(self):
+        """{derived name: the names its expression reads}: what a cell computed from a derived
+        value may depend on is checked against this (scenario-description.md section 7)."""
+        return {}
+
     def draw(self, rng, index, values):
         rows = self.rows()
         return dict(rows[index % len(rows)])

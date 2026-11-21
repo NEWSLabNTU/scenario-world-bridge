@@ -29,6 +29,9 @@ class ModelPlugin(Plugin):
     def derived(self, values):
         return self.model.eval_derived(values)
 
+    def derived_reads(self):
+        return {k: set(e.names) for k, e in self.model.derived.items()}
+
     def violations(self, values):
         return self.model.violations(values)
 

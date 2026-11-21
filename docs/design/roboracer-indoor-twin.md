@@ -268,9 +268,29 @@ The car comes from the spec and rig as today. A prim with `PhysxVehicleAPI` in t
 refused by name, since two cars would collide on spawn. A stage in other units or Y up is
 refused with the fix (reference it from a Z-up metre stage), not converted silently.
 
+A scanned field is layered. The root stage sublayers a visual layer (Isaac's NuRec Gaussian
+splats, or a mesh made from the scan) and a physics layer of colliders authored in Isaac's editor
+(floor, walls, cones). The physics layer is required, since splats and a scan mesh have no
+collision; the map check refuses an authored stage with no collider. The raw scan is evidence,
+not part of the stage: `world.yaml` lists it, with any other measurement files, relative to the
+map directory, and the run's record hashes each one (3.4):
+
+```yaml
+evidence: [scan/field.e57, scan/tilt_tests.csv]
+```
+
+A measured attribute names its source on its prim: `scensim:source`, a note (`"tilt test,
+2026-11-21, 12 trials"`) or an asset path to the measurement's file, which the record hashes.
+The record lists every physics material's frictions and restitution and every body's mass with
+its source; an authored floor friction with no source is a note in the map check, not a
+refusal.
+
 SSv2 needs a lanelet2 map even when every entity is placed by `WorldPosition`. The map
-directory holds a minimal one: one lane loop along the track, which step 4 generates from a
-centreline the user draws or the stage's floor outline. A RoboRacer stack's own occupancy map
+directory holds a minimal one: one lane loop along the track, which
+`python -m scensim_isaac_world.loop` generates from a centreline the user draws (a CSV of x, y
+in the map frame, or a `BasisCurves` prim of the stage), with the lane's width and driving
+direction as arguments. Its latitudes and longitudes are synthetic, a TransverseMercator at the
+origin 0, 0 as on the CARLA towns, and the map's header says so. A RoboRacer stack's own occupancy map
 (`map.pgm` and `.yaml`) is the user's and is not scensim's concern.
 
 ### 3.2 What scensim reads, and what it may set

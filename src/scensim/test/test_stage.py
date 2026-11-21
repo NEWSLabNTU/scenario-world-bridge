@@ -65,6 +65,18 @@ def test_problems_refuse_naming_the_map(tmp_path, monkeypatch):
     assert stage.notes(tmp_path) == []
 
 
+def test_notes_are_said_not_refused(tmp_path, monkeypatch):
+    _map(tmp_path, "lab")
+    monkeypatch.setattr(stage, "pxr_python", lambda host, env: ("py", ["py"]))
+    out = {"map": "lab", "authored": True, "stage": "x", "problems": [],
+           "notes": ["/field/Looks/floor: dynamicFriction 0.7 has no scensim:source"]}
+    monkeypatch.setattr(stage.subprocess, "run", lambda cmd, **kw: subprocess.CompletedProcess(
+        cmd, 0, json.dumps(out) + "\n", ""))
+    assert stage.map_findings(tmp_path, {}, {}, ws=_ws(tmp_path)) == []
+    [note] = stage.notes(tmp_path)
+    assert note.startswith("assets/maps/lab/isaac/world.yaml: ") and "scensim:source" in note
+
+
 def test_a_crashed_check_refuses(tmp_path, monkeypatch):
     _map(tmp_path, "lab")
     monkeypatch.setattr(stage, "pxr_python", lambda host, env: ("py", ["py"]))

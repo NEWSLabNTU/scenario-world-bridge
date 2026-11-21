@@ -99,6 +99,11 @@ distance would remove the loop: the distance from (v, a) to 0 is fixed per const
 a table over (v, a), or computing it only when a front candidate lies within the horizon,
 bounds it (a gap, for K2.5).
 
+**A route ends.** A vehicle's route is a fixed length of centreline from where Init places it
+(`BatchRun(route_length=)`, 300 m by default). Past its end the vehicle holds the end pose, and
+entities beyond it project onto the end, where SSv2 would continue along the following
+lanelets. The world adapter's routes must cover the episode (K2.3).
+
 ## 3. Isaac Lab as an overlay (K2.0)
 
 `scripts/isaaclab_overlay.sh <isaac-venv> <dest>` installs Isaac Lab beside an Isaac Sim pip

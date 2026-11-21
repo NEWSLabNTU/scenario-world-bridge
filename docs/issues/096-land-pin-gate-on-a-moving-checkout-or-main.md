@@ -29,6 +29,11 @@ Two gaps, both in what land_pin assumed between building the landing and pushing
   fast-forwards to the landing's tip, or any new component's `origin/main` no longer
   fast-forwards to its new commit, nothing is pushed, exit 3, with the moved main named. The
   check runs for every landing, with `--onto` or without.
+- **What is pushed is what was built, by SHA.** Once the landing's tip passes `check_pins`,
+  land_pin records it and each new component commit. It pushes those SHAs (`<sha>:main`), not
+  `HEAD` or a branch, and refuses, exit 1, if HEAD here or a component's `main` is anything else
+  at push time. The same day a landing by hand pushed an ungated commit, because a failed
+  `git checkout` left another commit as HEAD; this rule makes that impossible here.
 
 A push can still be refused in the moment between that fetch and the push; land_pin keeps its
 earlier message for that, naming what was pushed so far. The window is now a few seconds, not
@@ -36,9 +41,10 @@ the gate's length.
 
 ## Tests
 
-`scripts/test_land_pin.py` has four new cases:
+`scripts/test_land_pin.py` has five new cases:
 
 - a gate that switches the checkout, and one that edits a tracked file: refused, nothing pushed;
 - an uncommitted change before the gate: refused;
 - `origin/main` moved by another clone during the gate: exit 3, and no component pushed;
-- the last component's main moved during the gate: exit 3, and no earlier component pushed either.
+- the last component's main moved during the gate: exit 3, and no earlier component pushed either;
+- HEAD moved after the build (an amended commit, tree unchanged): refused, nothing pushed.

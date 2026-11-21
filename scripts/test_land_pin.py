@@ -404,3 +404,14 @@ def test_a_component_main_that_moves_pushes_nothing(world, monkeypatch):
     assert r.returncode == 3 and "E's origin/main moved" in r.stderr, r.stdout + r.stderr
     assert git(world.origin / "C.git", "rev-parse", "main") == c_main  # nothing before E pushed either
     assert git(world.origin / "D.git", "rev-parse", "main") == d_main
+
+
+def test_a_head_moved_after_the_build_pushes_nothing(world, monkeypatch):
+    """The gate leaves HEAD elsewhere (with the tree unchanged, as a commit amended): the
+    landing pushes the commits it built or nothing."""
+    e2 = world.advance("E")
+    code_branch(world)
+    monkeypatch.setenv("LAND_PIN_GATE", "git commit -q --amend --no-edit --allow-empty -m moved")
+    r = world.land("--onto", "feat", "E", e2)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert world.remote_pin("E") == world.sha["E"]

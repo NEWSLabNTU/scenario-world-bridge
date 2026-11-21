@@ -38,7 +38,9 @@ keeps scripts/check_pins.py green on main (scripts/land_pin.sh runs this):
    edited while the gate ran) refuses the push, since the gate then tested something else. Just
    before pushing, origin/main here and each new component's origin/main are fetched again; if
    any moved past what the landing built on, nothing is pushed (exit 3), so a moved main never
-   leaves components pushed and this repository's pins refused.
+   leaves components pushed and this repository's pins refused. The commits pushed are the
+   ones built, by SHA: if HEAD here or a component's main is anything else at push time,
+   nothing is pushed.
 
 Plain fast-forward pushes of rebased mains, never forced. --dry-run prints the cascade and touches
 nothing. LAND_PIN_TRAILER, when set, is appended to each commit message (the session's attribution).
@@ -287,6 +289,9 @@ def main(argv):
     if subprocess.run([sys.executable, "scripts/check_pins.py"], cwd=ROOT).returncode:
         print("check_pins failed: nothing pushed (the local commits stay for a look)", file=sys.stderr)
         return 1
+    # the landing as built: these exact commits, and only they, are pushed (issue 096)
+    built = {".": git("rev-parse", "HEAD")}
+    built.update({c: git("rev-parse", "main", cwd=src / c) for c in new})
     if onto and gated:  # the gate passed on this content (5)
         full = git("rev-parse", "-q", "--verify", f"{gated}^{{commit}}", check=False)
         tree = git("rev-parse", "HEAD^{tree}")
@@ -328,13 +333,20 @@ def main(argv):
             print(f"{c}'s origin/main moved during the landing: nothing pushed; land again",
                   file=sys.stderr)
             return 3
+    now = {".": git("rev-parse", "HEAD")}
+    now.update({c: git("rev-parse", "main", cwd=src / c) for c in new})
+    if now != built:
+        print("what would be pushed is not the landing as built: nothing pushed\n  " + "\n  ".join(
+            f"{k}: built {short(built[k])}, now {short(now[k])}" for k in built if now[k] != built[k]),
+            file=sys.stderr)
+        return 1
     for c in new:  # dependency order: a component's deps are on their remotes before it is
-        r = subprocess.run(["git", "-C", str(src / c), "push", "-q", "origin", "main"])
+        r = subprocess.run(["git", "-C", str(src / c), "push", "-q", "origin", f"{built[c]}:main"])
         if r.returncode:
             print(f"push of {c} failed (its main moved?): stopped before this repository's pins; pushed so "
                   f"far: {new[:new.index(c)] or 'none'}. Rerun to cascade again.", file=sys.stderr)
             return 3
-    git("push", "-q", "origin", "HEAD:main", capture=False)
+    git("push", "-q", "origin", f"{built['.']}:main", capture=False)
     print(git("log", "--oneline", "-1"))
     return 0
 

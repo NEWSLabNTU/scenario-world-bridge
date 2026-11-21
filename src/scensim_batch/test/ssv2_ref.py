@@ -53,3 +53,18 @@ def local_target(target, v, a, jerk, length, d_front, v_front, dt, c=C, see_arou
     stable = stop + length + 5.0
     requested = 0.0 if d_front <= stop else (v_front + 2.0 if d_front >= stable else v_front)
     return clamp(requested, 0.0, target)
+
+
+def front_distance(ds, gap_len_self, len_other, corner_laterals, width_self):
+    """splineDistanceToBoundingBox for a box ahead on a straight path: None when the bumper gap
+    is negative; the gap plus half the own length when a corner is within half the own width
+    of the path (distanceToSpline), or else when the path crosses the box
+    (getCollisionPointIn2D: corners on both sides); else None."""
+    gap = ds - gap_len_self / 2 - len_other / 2
+    if gap < 0:
+        return None
+    if min(abs(d) for d in corner_laterals) <= width_self / 2:
+        return gap + gap_len_self / 2
+    if min(corner_laterals) <= 0 <= max(corner_laterals):
+        return gap + gap_len_self / 2
+    return None

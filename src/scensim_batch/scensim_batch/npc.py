@@ -79,10 +79,13 @@ def dynamic_states(target, c, v, a, dt):
     return v1, a1, jerk
 
 
-def running_distance(target, c, v, a, jerk, dt, max_steps=100000):
+def running_distance(target, c, v, a, jerk, dt, max_steps=100000, active=None):
     """The distance to reach `target` (getRunningDistance): the planner stepped until every
-    vehicle is within 0.01 m/s of it, each vehicle stopping its sum when it is."""
+    vehicle is within 0.01 m/s of it, each vehicle stopping its sum when it is. An inactive
+    vehicle (padding, `active` False) counts as done from the start."""
     done = (target - v).abs() <= TWIST_TOLERANCE
+    if active is not None:
+        done = done | ~active
     out = torch.zeros_like(v)
     for _ in range(max_steps):
         if bool(done.all()):
@@ -125,7 +128,8 @@ class Routes:
         return xy[..., 0], xy[..., 1], yaw
 
     def project(self, xy):
-        """Points [N, E, K, 2] onto each vehicle's own route: `(s, lateral distance)` [N, E, K]."""
+        """Points [N, E, K, 2] onto each vehicle's own route: `(s, signed lateral distance)`
+        [N, E, K], left of the route positive."""
         a, b = self.points[..., :-1, :], self.points[..., 1:, :]          # [N, E, P-1, 2]
         ab = b - a
         L2 = (ab * ab).sum(-1).clamp_min(1e-18)
@@ -138,7 +142,13 @@ class Routes:
         s0 = self.s[..., :-1][..., None, :].expand_as(dist).gather(-1, j[..., None]).squeeze(-1)
         segl = L2.sqrt()[..., None, :].expand_as(dist).gather(-1, j[..., None]).squeeze(-1)
         tj = t.gather(-1, j[..., None]).squeeze(-1)
-        return s0 + tj * segl, dist.gather(-1, j[..., None]).squeeze(-1)
+        abx = ab[..., 0][..., None, :].expand_as(dist).gather(-1, j[..., None]).squeeze(-1)
+        aby = ab[..., 1][..., None, :].expand_as(dist).gather(-1, j[..., None]).squeeze(-1)
+        fx = foot[..., 0].gather(-1, j[..., None]).squeeze(-1)
+        fy = foot[..., 1].gather(-1, j[..., None]).squeeze(-1)
+        cross = abx * (xy[..., 1] - fy) - aby * (xy[..., 0] - fx)
+        sign = torch.where(cross < 0, -torch.ones_like(cross), torch.ones_like(cross))
+        return s0 + tj * segl, sign * dist.gather(-1, j[..., None]).squeeze(-1)
 
 
 def box_corners(x, y, yaw, length, width):
@@ -208,17 +218,24 @@ class DefaultVehicles:
         centre = torch.stack([X, Y], -1)[:, None].expand(n, e, k, 2)
         s_other, _ = self.routes.project(centre)
         corners = box_corners(X, Y, YAW, LEN, WID)               # [N, K, 4, 2]
-        cs, cd = self.routes.project(corners[:, None].expand(n, e, k, 4, 2).reshape(n, e, k * 4, 2))
-        lateral = cd.reshape(n, e, k, 4).min(-1).values
+        _, cd = self.routes.project(corners[:, None].expand(n, e, k, 4, 2).reshape(n, e, k * 4, 2))
+        cd = cd.reshape(n, e, k, 4)
+        # SSv2 sees the other when a corner is within half its own width of the path
+        # (distanceToSpline), or else when the path crosses the box (getCollisionPointIn2D):
+        # corners on both sides, a truck wider than the car centred on its path
+        lateral = cd.abs().min(-1).values
+        straddles = (cd.max(-1).values >= 0) & (cd.min(-1).values <= 0)
         horizon = torch.clamp(self.v * 5.0, 20.0, 50.0)
         stop = running_distance(torch.zeros_like(self.v), self.c, self.v, self.a, self.jerk,
-                                self.dt)
+                                self.dt, active=self.active)
         horizon = torch.maximum(horizon, stop)
         ds = s_other - self.s[:, :, None]
         gap = ds - self.length[:, :, None] / 2 - LEN[:, None, :] / 2
         dist = gap + self.length[:, :, None] / 2     # SSv2 adds half its own length back
         ok = (ACT[:, None, :] & self.active[:, :, None] & ~self_mask & in_cone & (ds > 0)
-              & (gap >= 0) & (lateral <= self.width[:, :, None] / 2)
+              # a negative gap (already overlapping) is no front entity in SSv2 either
+              # (splineDistanceToBoundingBox returns none): contact is the collision's
+              & (gap >= 0) & ((lateral <= self.width[:, :, None] / 2) | straddles)
               & (ds <= horizon[:, :, None] + LEN[:, None, :]))
         dist = torch.where(ok, dist, torch.full_like(dist, math.inf))
         best, idx = dist.min(-1)

@@ -1,0 +1,35 @@
+# The joint model of CS6. INVENTED FOR ILLUSTRATION, NOT FITTED FROM DATA: plausible guesses that
+# show the format. A fitted model (highway naturalistic data, say) replaces them and names its
+# dataset, version and licence in the header.
+model: 1
+header:
+  name: cs6_cut_out
+  dataset: "none: invented for illustration, not fitted from data"
+  version: "0"
+  licence: CC0-1.0
+knobs: {speed_limit: 33.3}
+variables:
+  - {name: world.illumination, categorical: {day: 0.75, night: 0.25}}
+  - {name: stopped_kind, categorical: {car: 0.7, truck: 0.2, motorbike: 0.1}}
+  - name: ego_speed
+    normal: {mean: 28.0, sd: 3.0}
+    range: [16.0, 40.0]
+  - name: time_headway          # the ego's gap to the lead, s
+    lognormal: {mean: 1.6, sd: 0.5}
+    range: [0.6, 4.0]
+  - name: reveal_time           # how far ahead of the stopped car the lead leaves, s at its speed
+    lognormal: {mean: 2.0, sd: 0.7}
+    range: [0.5, 6.0]
+  - name: lc_time
+    normal: {mean: 3.0, sd: 0.8}
+    range: [1.2, 6.0]
+derived:
+  ego_headway_m: "ego_speed * time_headway"
+  reveal_m: "ego_speed * reveal_time"          # the trigger as a distance (CS1's rule)
+  lead_s: "5 + ego_speed * time_headway"
+constraints:
+  - "ego_speed <= 1.2 * speed_limit"
+  - "reveal_m < 600 - lead_s"                  # the stopped car (s = 600) is ahead of the lead
+cell:
+  illumination: {parameter: world.illumination}
+  stopped_kind: {parameter: stopped_kind}

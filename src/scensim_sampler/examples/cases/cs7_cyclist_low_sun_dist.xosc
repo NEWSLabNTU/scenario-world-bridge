@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The distribution of CS7: one joint model gives every parameter. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="cyclist overtaken under low sun: the joint model"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="cs7_cyclist_low_sun.xosc"/>
+    <Stochastic numberOfTestRuns="100" randomSeed="71">
+      <StochasticDistribution parameterName="swerve_gap">
+        <UserDefinedDistribution type="scensim.sampler:joint">models/cs7_cyclist.yaml</UserDefinedDistribution>
+      </StochasticDistribution>
+    </Stochastic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>

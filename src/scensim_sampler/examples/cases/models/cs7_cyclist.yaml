@@ -1,0 +1,51 @@
+# The joint model of CS7. INVENTED FOR ILLUSTRATION, NOT FITTED FROM DATA: plausible guesses that
+# show the format. A fitted model replaces them and names its dataset, version and licence.
+model: 1
+header:
+  name: cs7_cyclist
+  dataset: "none: invented for illustration, not fitted from data"
+  version: "0"
+  licence: CC0-1.0
+# exit_heading stands in for the exit lane's heading (rad, world frame), a property of the world's
+# lane anchor, which the drafts give the sampler no way to read; speed_limit is a knob
+knobs: {speed_limit: 13.9, exit_heading: 1.5708}
+variables:
+  - name: ego_speed
+    normal: {mean: 10.5, sd: 1.5}
+    range: [5.0, 16.0]
+  - name: cyclist_speed
+    lognormal: {mean: 5.0, sd: 1.2}
+    range: [2.0, 9.0]
+  - name: cyclist_s
+    uniform: {low: 5.0, high: 25.0}
+  - name: kerb_offset           # left of the lane centre is positive; the kerb is to the right
+    normal: {mean: -1.1, sd: 0.2}
+    range: [-1.6, -0.6]
+  - name: rel_azimuth           # the sun's azimuth against the exit's heading, rad
+    normal: {mean: 0.0, sd: 0.5}
+    range: [-1.57, 1.57]
+  - name: sun_elevation         # rad above the horizon: low sun only
+    uniform: {low: 0.03, high: 0.35}
+  - name: swerve_p              # whether the cyclist swerves at all
+    uniform: {low: 0.0, high: 1.0}
+  - name: swerve_gap
+    lognormal: {mean: 8.0, sd: 3.0}
+    range: [2.0, 25.0]
+  - name: swerve_time
+    normal: {mean: 1.2, sd: 0.3}
+    range: [0.5, 2.5]
+derived:
+  sun_azimuth: "exit_heading + rel_azimuth"
+  swerve_offset: "(kerb_offset + 0.8) if swerve_p < 0.3 else kerb_offset"   # 30 % swerve 0.8 m out
+  glare: "'into_sun' if abs(rel_azimuth) < 0.35 and sun_elevation < 0.2 else 'low_sun'"
+  swerve: "'yes' if swerve_p < 0.3 else 'no'"
+  # OpenSCENARIO's lane offset has no duration, only a peak lateral acceleration: a sinusoidal
+  # move of d metres in T seconds peaks at 2 pi d / T^2 (0 for no swerve: nothing moves)
+  swerve_acc: "max(2 * 3.14159 * abs(swerve_offset - kerb_offset) / (swerve_time * swerve_time), 0.01)"
+constraints:
+  - "ego_speed <= 1.2 * speed_limit"
+  - "ego_speed > cyclist_speed + 1.0"            # an overtake
+  - "swerve_acc <= 3.0"                          # a cyclist's swerve, not a fall
+cell:
+  glare: {parameter: glare}
+  swerve: {parameter: swerve}

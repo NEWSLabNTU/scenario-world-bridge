@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The distribution of CS6: one joint model gives every parameter. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="cut-out reveals a stopped car: the joint model"/>
+  <ParameterValueDistribution>
+    <ScenarioFile filepath="cs6_cut_out_stopped_car.xosc"/>
+    <Stochastic numberOfTestRuns="100" randomSeed="61">
+      <StochasticDistribution parameterName="reveal_m">
+        <UserDefinedDistribution type="scensim.sampler:joint">models/cs6_cut_out.yaml</UserDefinedDistribution>
+      </StochasticDistribution>
+    </Stochastic>
+  </ParameterValueDistribution>
+</OpenSCENARIO>

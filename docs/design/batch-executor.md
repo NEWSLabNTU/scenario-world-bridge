@@ -188,6 +188,54 @@ ground, front ones steered, tires pushing, egos sped up) and exits non-zero othe
 `--fabric on|off` overrides the setting. Only B runs on the GPU pipeline; 094's rate comparisons with stock
 are B's.
 
+**B, `articulation`** (K2.2b): the car from sim_vehicle_spec's neutral body file,
+`generated/<car>/articulation[_<body>].yaml` (sim_vehicle_spec.articulation, on `effective(spec,
+body)`; no simulator in it), which `scensim_batch.articulation` turns into a USD stage
+(`write_usd`, pxr only) and an Isaac Lab `ArticulationCfg` (`articulation_cfg`: the joints'
+drives as actuators, self-collisions off). The chassis hangs on four prismatic suspension joints;
+the front corners steer on revolute joints; the wheels spin on revolute joints. The actuation is
+the component's (`drive`, `brake` [N, 4], `tire_angle` [N]), as A takes it, written as joint
+targets in one call per step (`vectorised = True`). `apply_joints` bypasses the component
+(steer and spin targets straight to the joints: 094 P2's second measurement, and the only way
+into a velocity spin drive, an RC car's).
+
+What makes B a different car from A (and seats), each named here and in the body file's
+`choices:`:
+
+| | A (seats' PhysX vehicle) | B (articulation) |
+|---|---|---|
+| tyre | PhysX's tire model: slip curves, load sensitivity | a rigid cylinder in Coulomb contact, `tires.friction` per axle times the ground's; no slip curve, no load sensitivity |
+| drivetrain | PhysX's, the component's torques per wheel | none: the component's torques straight on the spin joints |
+| brake | PhysX's wheel brake | an explicit torque with stiction: full torque while the wheel turns, never reversing it, holding it at rest; what turns with the wheel (the wheel alone, or its share of the car when gripping) estimated from the step before |
+| steer | PhysX's wheel steer angle, set | a stiff position drive per front wheel (the front tyre's largest scrub torque moves it 1 mrad), Ackermann angles from the bicycle angle |
+| suspension | PhysX's sprung masses | a prismatic spring-damper per corner (the spec's ride frequency and damping), preloaded to rest at design height |
+| masses | PhysX's vehicle | the chassis box plus 0.8/0.1/0.1 (rear 0.9/0.1) of `wheels.mass` per corner at the hubs; the whole car's centre of mass the spec's |
+| physics | CPU only | CPU or GPU pipeline |
+
+**B measured** (139, 2026-11-21; contended: other users held the GPU at 97 % and 11.5-14 GB, so
+the timings are an upper bound). `scripts/smoke_articulation.py`, tesla_model3 (carla-0.9.16
+body), ground friction 1.0, 240 Hz: 400 N m on each rear wheel for 4 s, then 1500 N m of brake
+on every wheel to a stop, then a constant 0.15 rad bicycle angle at about 4 m/s for 8 s.
+
+| device | N | straight: v after 4 s | brake: decel | steer (FL, FR): target / read back | circle radius / bicycle L/tan | ms per step |
+|---|---|---|---|---|---|---|
+| cpu | 1 | 4.794 m/s | 8.28 m/s² | 0.1565, 0.1440 / 0.1546, 0.1435 | 20.22 / 19.88 m | 0.62 |
+| cuda:0 | 4 | 4.795 m/s (x 9.593-9.595 m) | 8.22 m/s² | 0.1565, 0.1440 / 0.1554, 0.1427 | 20.03 / 19.88 m (spread 0.03) | 45.8 |
+
+Every check passes on both pipelines: the cars moved as one, straight (|y| < 1 mm), with the
+driven wheels' torque read back from the actuators (400 N m) and rolling at v/r to 0.2 %; they
+stopped; the steer joints reached their Ackermann targets to 2 mrad; and the turn is 1-2 %
+wider than the bicycle's at 0.85 m/s² of lateral acceleration. The straight-line speed is the
+torque's (800 N m at r 0.37 on 1760 kg and four wheels' inertia: 1.20 m/s², 4.80 m/s in 4 s).
+Two defaults changed on the way, both from this smoke: the steer drive (a 10 Hz drive on the
+knuckle's inertia let the outer wheel lag 0.037 rad: a 27 m circle for 20) and the brake (a
+clamp to what stops the wheel alone left a slow tail near standstill: 4.75 m/s² for 9).
+
+The GPU step is not a throughput number: N = 4 on a GPU at 97 % from other users, and the
+backend reads the state back to the CPU every step (BatchRun's contract is CPU tensors). K2.5
+measures B's throughput in an exclusive window, with the actuation and read-back kept on the
+device.
+
 ## 6. The compiled storyboard and the truth export (K2.3)
 
 `scensim_batch.storyboard` compiles a scenario's Story, Act, ManeuverGroup, Maneuver, Event and

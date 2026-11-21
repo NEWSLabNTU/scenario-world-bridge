@@ -27,6 +27,7 @@ from pathlib import Path
 import yaml
 
 BATCH, DERIVED, CONDITIONAL, SEATS = "batch", "derived", "conditional", "seats"
+UNIMPLEMENTED = "unimplemented"   # SSv2 does not implement it: it runs nowhere here
 
 # containers and data: they hold the constructs, and compile when their contents do
 STRUCTURE = set("""
@@ -50,7 +51,6 @@ TABLE = {
     "LanePosition": (BATCH, "resolved on the world's map once per slot"),
     "RelativeWorldPosition": (BATCH, PER_SLOT),
     "RelativeObjectPosition": (BATCH, PER_SLOT),
-    "RelativeLanePosition": (BATCH, "resolved on the world's map once per slot"),
     # motion
     "SpeedAction": (BATCH, "a speed profile per slot (step, linear, cubic)"),
     "AbsoluteTargetSpeed": (BATCH, PER_SLOT),
@@ -59,7 +59,6 @@ TABLE = {
     "LaneChangeAction": (BATCH, "a lateral profile per slot"),
     "AbsoluteTargetLane": (BATCH, PER_SLOT),
     "RelativeTargetLane": (BATCH, PER_SLOT),
-    "LaneOffsetAction": (BATCH, "a lateral profile per slot"),
     "FollowTrajectoryAction": (BATCH, "precomputed per slot"),
     "AssignRouteAction": (BATCH, "a route precomputed per slot on the world's map"),
     "AcquirePositionAction": (BATCH, "a route precomputed per slot on the world's map"),
@@ -75,7 +74,6 @@ TABLE = {
     "RelativeSpeedCondition": (BATCH, PER_SLOT),
     "AccelerationCondition": (BATCH, PER_SLOT),
     "StandStillCondition": (BATCH, PER_SLOT),
-    "TraveledDistanceCondition": (BATCH, PER_SLOT),
     "CollisionCondition": (BATCH, "contact per slot"),
     "StoryboardElementStateCondition": (BATCH, "the storyboard's state machine per slot"),
     "ParameterCondition": (BATCH, "a parameter fixed for the slot (no mid-run set)"),
@@ -111,6 +109,15 @@ TABLE = {
 }
 for _t in ("Brake", "Throttle", "Clutch", "Gear", "ParkingBrake", "SteeringWheel"):
     TABLE[_t] = (SEATS, "overrides an external pilot's controls")
+
+# What SSv2's support table lists as unimplemented: no seats run can execute it, so none can check
+# a batch run of it either (K2's acceptance). Refused by name, for both.
+NOT_IN_SSV2 = ("SSv2 does not implement it (its OpenSCENARIO support table), so no seats run "
+               "executes it and no batch run of it can be checked against one")
+for _t in ("LaneOffsetAction", "LaneOffsetActionDynamics", "LaneOffsetTarget",
+           "AbsoluteTargetLaneOffset", "RelativeTargetLaneOffset", "RelativeLanePosition",
+           "TraveledDistanceCondition"):
+    TABLE[_t] = (UNIMPLEMENTED, NOT_IN_SSV2)
 
 # CustomCommandAction types
 COMMANDS = {
@@ -188,7 +195,7 @@ class Verdict:
 
     def add(self, cls, where, what, reason, fix=None):
         self.counts[cls] = self.counts.get(cls, 0) + 1
-        if cls in (SEATS, DERIVED, "unlisted"):
+        if cls in (SEATS, DERIVED, UNIMPLEMENTED, "unlisted"):
             self.refusals.append({"class": cls, "construct": what, "at": where,
                                   "reason": reason, "fix": fix})
         elif cls == CONDITIONAL:
@@ -354,7 +361,7 @@ def _walk(el, where, v, in_init, entity):
         if init and tag in ("ParameterAction", "SetAction", "ParameterSetAction"):
             cls, reason = BATCH, "set before the run: fixed for the slot"
         v.add(cls, here, tag, reason, fix)
-        if cls in (SEATS, DERIVED):
+        if cls in (SEATS, DERIVED, UNIMPLEMENTED):
             return   # its contents are its own
     else:
         v.add("unlisted", here, tag, "not in the compilable subset (docs/design/"

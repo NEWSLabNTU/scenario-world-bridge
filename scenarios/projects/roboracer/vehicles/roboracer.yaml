@@ -97,5 +97,23 @@ isaac:
 sensor_kit:
   mount: {x: 0.2, y: 0.0, z: 0.12, roll: 0.0, pitch: 0.0, yaw: 0.0}
 
-# sensors: the planar lidar (UST-10LX class) comes with roadmap 091 W19 (sim_vehicle_spec's
-# laser_scan fields); an IMU and the VESC's telemetry follow the vehicle interface's profile.
+# The planar lidar, a Hokuyo UST-10LX class scanner (roadmap 091 W19's laser_scan fields), where
+# f1tenth_system's bringup puts it: its static transform base_link -> laser is (0.27, 0, 0.11),
+# the kit's mount plus this one. The IMU and the VESC's telemetry follow the vehicle interface's
+# profile (vesc), not this list.
+sensors:
+  laser:
+    type: lidar
+    message: laser_scan
+    link: laser_link
+    frame: laser                # urg_node's frame_id, f1tenth_system's static transform's child
+    topic: /scan
+    mount: {x: 0.07, y: 0.0, z: -0.01, roll: 0.0, pitch: 0.0, yaw: 0.0}
+    channels: 1
+    vertical_fov: [0.0, 0.0]
+    horizontal_fov: 270.0       # deg
+    beams: 1081                 # urg_node's count, both ends included: 0.25 deg steps
+    rate_hz: 40.0
+    range: 10.0                 # m
+    min_range: 0.06             # m
+    isaac: {enabled: true}

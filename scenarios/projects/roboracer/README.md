@@ -5,8 +5,9 @@ which a user's indoor twin starts from. Today it holds the car; the field (W13 t
 stack (W18 to W20) join it as their work items land.
 
 - `vehicles/roboracer.yaml`: the car's spec (sim_vehicle_spec, version 2). Its numbers are the
-  class's published values (f1tenth_gym's vehicle parameters), not a measured car. The planar
-  lidar comes with W19.
+  class's published values (f1tenth_gym's vehicle parameters), not a measured car. Its planar
+  lidar is a Hokuyo UST-10LX class scanner on `/scan` (270 deg, 1081 beams, 10 m, 40 Hz), in
+  frame `laser` at f1tenth_system's own base_link -> laser transform (0.27, 0, 0.11).
 - `tools/smallcar.py`: open-loop tests of the car on Isaac at a chosen physics rate, no ROS:
   rest, launch, cruise at 3 m/s, braking from 3 m/s, full lock at 1.5 and 4 m/s, and in their
   own lanes 10 mm cleats, a push on a wall and a cone hit; the design note's M5 and M6, and

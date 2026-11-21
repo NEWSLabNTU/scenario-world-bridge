@@ -76,6 +76,8 @@ A task in your own testbench, starting from a working stack:
 - [Record a demo](how-to/record-a-demo.md): windows, a screencast, rosbags
 - [Drive a course on Isaac Sim](how-to/drive-a-course-on-isaac.md): the Mount Haruna road
   from another dataset
+- [A RoboRacer indoor twin](how-to/build-an-indoor-twin.md): a small car on an indoor field,
+  measured, built and checked against the real car
 
 ## Reference
 

@@ -1366,3 +1366,17 @@ def test_first_error_reads_the_node_err_play_launch_points_to(tmp_path):
         "its launch exited (code 1) before it was ready: acb_bridge exited 1: Error: ConfigError(")
     (node / "err").unlink()   # no err: the console's own exit line, the Check line skipped
     assert stack.first_error(log) == "2026-11-20T11:39:51.590277Z ERROR [node:/acb_bridge] Exited with code 1"
+
+
+def test_first_error_finds_the_node_err_beside_the_console(tmp_path):
+    """The on_exit=Shutdown form (243's write-up of 089) has no Check line: the node's err is
+    play_launch's, beside the console (logs/pilot-ego/<stamp>/node/acb_bridge/err)."""
+    node = tmp_path / "2026-11-20_19-39-51" / "node" / "acb_bridge"
+    node.mkdir(parents=True)
+    (node / "err").write_text('Error: ConfigError("CARLA version mismatch: the server is 1.0 but this '
+                              'binary was built for CARLA 0.9.16. ...")\n')
+    log = tmp_path / "console.log"
+    log.write_text("2026-11-20T11:39:51.6Z  INFO [node:/acb_bridge] exited (code 1) and was declared "
+                   "on_exit=Shutdown: shutting down the launch\n")
+    assert stack.first_error(log).startswith('acb_bridge exited 1: Error: ConfigError("CARLA version '
+                                             'mismatch')

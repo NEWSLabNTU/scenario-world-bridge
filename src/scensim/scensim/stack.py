@@ -1298,7 +1298,7 @@ def start_process(argv, env, log: Path, cwd=None, die_with_parent=False):
 _ERROR_LINE = re.compile(r"\[(?:ERROR|FATAL)\]|\dZ\s+(?:ERROR|FATAL)\s|\bError\b|\berror:"
                          r"|^\w*(?:Error|Exception): |\bpanicked at\b")
 _DIED_LINE = re.compile(r"process has died|exited with code", re.I)
-_PL_NODE_EXIT = re.compile(r"\[node:/?([^\]]+)\] Exited with code (-?\d+)")
+_PL_NODE_EXIT = re.compile(r"\[node:/?([^\]]+)\] (?:Exited with code |exited \(code )(-?\d+)")
 _PL_CHECK = re.compile(r"\dZ\s+ERROR\s+Check (\S+)\s*$")
 _ERR_LINE = re.compile(r"^(?:Error\b|\w*(?:Error|Exception): )|\[(?:ERROR|FATAL)\]|\bpanicked at\b|"
                        r"\bERROR\b")
@@ -1331,13 +1331,16 @@ def first_error(path, offset=0):
         m = _PL_NODE_EXIT.search(line)
         if not m:
             continue
-        for nxt in lines[i + 1:i + 4]:
-            c = _PL_CHECK.search(nxt)
-            if c:
-                err = _node_err(c.group(1))
-                if err:
-                    return f"{m.group(1)} exited {m.group(2)}: {err}"
-                break
+        node_dir = next((c.group(1) for c in map(_PL_CHECK.search, lines[i + 1:i + 4]) if c), None)
+        if node_dir is None:
+            # "exited (code N) and was declared on_exit=Shutdown" comes with no Check line: the
+            # node's log is play_launch's, beside the console (<stamp>/node/<name>/)
+            dirs = sorted(Path(path).parent.glob(f"*/node/{m.group(1).replace('/', '_')}"),
+                          key=lambda d: d.stat().st_mtime)
+            node_dir = dirs[-1] if dirs else None
+        err = _node_err(node_dir) if node_dir else None
+        if err:
+            return f"{m.group(1)} exited {m.group(2)}: {err}"
     died = None
     for line in lines:
         if not _ERROR_LINE.search(line) or _PL_CHECK.search(line):

@@ -263,6 +263,12 @@ test:
     #!/usr/bin/env bash
     set -e
     source install/setup.bash
+    # numpy per Python lane, so a host-dependent import failure shows its cause at once
+    for lane in "" PYTHONNOUSERSITE=1; do env $lane python3 -c 'import sys; v = "no numpy"
+    try:
+        import numpy; v = f"{numpy.__version__} {numpy.__file__}"
+    except Exception as e: v = f"numpy fails: {e}"
+    print("numpy (python3" + (", no user site" if sys.flags.no_user_site else "") + "):", v)'; done
     # CARLA_DIR (a host setting, .env) is CARLA's install; carla-sys would take it for a
     # CARLA source tree to build from, and the build fails.
     unset CARLA_DIR
@@ -294,14 +300,16 @@ test:
     python3 -m pytest -q src/scensim/test
     # The RoboRacer example's pure parts: the stand-in component, the protocol, the harness's
     # quantities and bands, the fit's stages, the recovery check (roadmap 091 W23, W10)
-    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scenarios/projects/roboracer/test scenarios/projects/roboracer/component/roboracer_vesc/test
+    # Without the user site, as scensim_isaac_world's step: their scipy and torch are the system's,
+    # which a numpy 2 in ~/.local breaks at import ("cannot import name 'Inf'", "_ARRAY_API")
+    PYTHONNOUSERSITE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scenarios/projects/roboracer/test scenarios/projects/roboracer/component/roboracer_vesc/test
     # The agent SDK and protocol, and the relay against it (roadmap 030)
     python3 -m pytest -q src/scensim_agent/test src/scenario_agent_relay/test
     # The sampler (scensim_sampler): pure Python, no ROS
     python3 -m pytest -q src/scensim_sampler/test
     # The batch executor (scensim_batch, 092 K2): SSv2's default vehicle behaviour in torch,
     # against SSv2's logic transcribed; skipped where torch is absent
-    python3 -m pytest -q src/scensim_batch/test
+    PYTHONNOUSERSITE=1 python3 -m pytest -q src/scensim_batch/test
     # The conflict-zone protocol's library: unit and property tests (roadmap 078 I2)
     python3 -m pytest -q src/czp/test
     # The world server shell, on a fake world (roadmaps 037, 046; protobuf only), and the Isaac
@@ -316,7 +324,7 @@ test:
     # system Humble in it); otherwise said, and skipped
     if [ -n "${ISAAC_ROOT:-}" ] && [ -e "$ISAAC_ROOT/venv/bin/activate" ]; then
         env -i HOME="$HOME" USER="$USER" PATH=/usr/bin:/bin ISAAC_ROOT="$ISAAC_ROOT" bash -c \
-            'source src/scensim_isaac_world/scripts/isaac_env.sh && PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test && PYTHONNOUSERSITE=1 PYTHONPATH=src/scensim_sampler python3 -m unittest discover -s src/scensim_sampler/test && PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_batch/test'
+            'source src/scensim_isaac_world/scripts/isaac_env.sh && PYTHONNOUSERSITE=1 python3 -c "import numpy; print(\"numpy (Isaac):\", numpy.__version__, numpy.__file__)" ; PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_isaac_world/test && PYTHONNOUSERSITE=1 PYTHONPATH=src/scensim_sampler python3 -m unittest discover -s src/scensim_sampler/test && PYTHONNOUSERSITE=1 python3 -m unittest discover -s src/scensim_batch/test'
     else
         echo "skipped: scensim_isaac_world's, scensim_sampler's and scensim_batch's suites in Isaac's Python (ISAAC_ROOT${ISAAC_ROOT:+=$ISAAC_ROOT} names no Isaac Sim install)"
     fi

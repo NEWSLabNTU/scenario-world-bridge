@@ -49,6 +49,9 @@ SimulationTimeCondition SpeedCondition StandStillCondition StoryboardElementStat
 WorldPosition LanePosition RelativeWorldPosition RelativeObjectPosition
 exitSuccess exitFailure :
 """.split())
+# the ego's routing, compiled into the slot's route goal (the policy's task), not executed;
+# another entity's routing is executor pending (scensim_sampler.subset.EGO_GOAL)
+EGO_GOAL = frozenset(("AcquirePositionAction", "AssignRouteAction"))
 
 EPS = 2.220446049250313e-16          # std::numeric_limits<double>::epsilon()
 REACHED = 0.01                       # LongitudinalSpeedPlanner::isTargetSpeedReached's tolerance
@@ -418,6 +421,19 @@ class Exit(Instant):
         sb.end_slot(go, self.outcome)
 
 
+class GoalAction(Instant):
+    """The ego's AcquirePositionAction or AssignRouteAction: the slot's route goal from now
+    (BatchRun.route), for the policy; it ends as it starts."""
+
+    def __init__(self, n, waypoints):
+        super().__init__(n)
+        self.waypoints = waypoints          # [(x [N], y [N], yaw [N])]
+
+    def start(self, sb, go):
+        super().start(sb, go)
+        sb.ctx.run.route.set(go, self.waypoints)
+
+
 class SpeedAction(Action):
     """SSv2's SpeedAction on default vehicles (`actors`: their columns in BatchRun.vehicles)."""
 
@@ -591,6 +607,15 @@ class _Compiler:
         p = el.find("PrivateAction")
         if p is None:
             raise _pending(here, next(iter(el)).tag if len(el) else "an empty Action")
+        ra = p.find("RoutingAction")
+        if ra is not None:
+            kind = next(iter(ra)).tag
+            if kind in EGO_GOAL and actors and all(
+                    self.i.entities[self.i.index(a, here)].role == "ego" for a in actors):
+                return GoalAction(n, self.waypoints(next(iter(ra)), here + "/RoutingAction/"
+                                                    + kind, story=True))
+            raise _pending(here, f"RoutingAction/{kind}" + (" on the ego" if kind ==
+                                                            "FollowTrajectoryAction" else ""))
         sp = p.find("LongitudinalAction/SpeedAction")
         if sp is not None:
             return self.speed_action(sp, here + "/PrivateAction/LongitudinalAction/SpeedAction",
@@ -638,6 +663,18 @@ class _Compiler:
         else:
             raise StoryboardError(f"{here}: no SpeedActionTarget")
         return SpeedAction(self.n, cols, actors, shape, dim, value, target)
+
+    def position(self, pos, where):
+        """A story-time position: world or lane coordinates. One relative to an entity would be
+        resolved at compile time against the entity's Init pose, not where it is when the
+        condition or action runs: refused."""
+        if pos is not None and next(iter(pos), None) is not None and \
+                next(iter(pos)).tag.startswith("Relative"):
+            raise _pending(where, f"a {next(iter(pos)).tag} at story time")
+        return self.i.position(pos, where)
+
+    def waypoints(self, el, where, story):
+        return routing_waypoints(el, where, self.position if story else self.i.position)
 
     # triggers and conditions
     def trigger(self, el, where):
@@ -743,7 +780,7 @@ class _Compiler:
             return lambda ctx, e: compare("greaterThan", ctx.standstill[:, e], dur, here)
         if tag == "ReachPositionCondition":
             tol = P.floats(c.get("tolerance"), here + "@tolerance")
-            px, py, _ = i.position(c.find("Position"), here + "/Position")
+            px, py, _ = self.position(c.find("Position"), here + "/Position")
             return lambda ctx, e: compare("lessThan", torch.hypot(
                 ctx.col("x", e) - px, ctx.col("y", e) - py), tol, here)
         if tag in ("RelativeDistanceCondition", "DistanceCondition"):
@@ -767,7 +804,7 @@ class _Compiler:
         else:
             if kind != "euclidianDistance" and kind != "cartesianDistance":
                 raise _pending(here, f"a DistanceCondition by {kind}")
-            px, py, _ = i.position(c.find("Position"), here + "/Position")
+            px, py, _ = self.position(c.find("Position"), here + "/Position")
             other = lambda ctx: (px, py)                                    # noqa: E731
         if kind in ("euclidianDistance", "cartesianDistance"):
             def euclid(ctx, e):
@@ -818,6 +855,92 @@ class _Compiler:
                     hit = hit | overlap(ctx, e, t)
             return hit
         return fn
+
+
+def routing_waypoints(el, where, position):
+    """An AcquirePositionAction's position or an AssignRouteAction's waypoints, each
+    `(x, y, yaw)` [N] through `position(pos_el, where)`."""
+    if el.tag == "AcquirePositionAction":
+        return [position(el.find("Position"), where + "/Position")]
+    if el.find("CatalogReference") is not None:
+        raise _pending(where, "a Route from a catalog")
+    wps = el.findall("Route/Waypoint")
+    if not wps:
+        raise StoryboardError(f"{where}: a Route without Waypoints")
+    return [position(w.find("Position"), f"{where}/Route/Waypoint[{k + 1}]/Position")
+            for k, w in enumerate(wps)]
+
+
+class RouteGoal:
+    """The slot's route goal (the ego's routing, the policy's task): the route polyline
+    [N, P, 2] from where the ego was when it was given to the goal, the goal pose [N, 3], and per
+    step the ego's progress along it, the distance left, the distance to the goal and whether
+    it has been reached (within `tolerance`, latched). The route is the world adapter's
+    (`route_through(x, y, waypoints [N, W, 2], points)`) when it has one, else the chords
+    through the waypoints."""
+
+    def __init__(self, run, points=128, tolerance=1.0):
+        n = run.c.n
+        self.run, self.p, self.tolerance = run, points, tolerance
+        z = torch.zeros(n, dtype=torch.float64)
+        self.has = torch.zeros(n, dtype=torch.bool)
+        self.reached = torch.zeros(n, dtype=torch.bool)
+        self.points = torch.zeros(n, points, 2, dtype=torch.float64)
+        self.goal = torch.zeros(n, 3, dtype=torch.float64)
+        self.progress, self.remaining, self.to_goal = z.clone(), z.clone(), z.clone()
+
+    def reset(self, mask):
+        self.has = self.has & ~mask
+        self.reached = self.reached & ~mask
+
+    def set(self, mask, waypoints):
+        if not bool(mask.any()):
+            return
+        run = self.run
+        obs = run.obs
+        e = run.ego
+        x0 = obs["x"][:, e] if obs is not None else run.c.x[:, e]
+        y0 = obs["y"][:, e] if obs is not None else run.c.y[:, e]
+        wp = torch.stack([torch.stack([w[0], w[1]], -1) for w in waypoints], 1)   # [N, W, 2]
+        through = getattr(run.world, "route_through", None)
+        if through is not None:
+            pts = torch.as_tensor(through(x0, y0, wp, self.p), dtype=torch.float64)
+        else:
+            pts = _resample(torch.cat([torch.stack([x0, y0], -1)[:, None], wp], 1), self.p)
+        self.points = torch.where(mask[:, None, None], pts, self.points)
+        last = waypoints[-1]
+        g = torch.stack([last[0], last[1], last[2]], -1)
+        self.goal = torch.where(mask[:, None], g, self.goal)
+        self.has = self.has | mask
+        self.reached = self.reached & ~mask
+
+    def update(self, obs):
+        """The ego's progress, from the observation; returns the route's block of it."""
+        e = self.run.ego
+        x, y = obs["x"][:, e], obs["y"][:, e]
+        r = npc.Routes(self.points[:, None])
+        s, _ = r.project(torch.stack([x, y], -1)[:, None, None])
+        s = s[:, 0, 0]
+        self.progress = torch.where(self.has, s, torch.zeros_like(s))
+        self.remaining = torch.where(self.has, r.length[:, 0] - s, torch.zeros_like(s))
+        self.to_goal = torch.where(self.has, torch.hypot(self.goal[:, 0] - x, self.goal[:, 1] - y),
+                                   torch.zeros_like(s))
+        now = self.has & ~self.reached & (self.to_goal <= self.tolerance)
+        self.reached = self.reached | now
+        return {"has_goal": self.has.clone(), "points": self.points, "goal": self.goal,
+                "progress": self.progress, "remaining": self.remaining,
+                "to_goal": self.to_goal, "goal_reached": self.reached.clone(),
+                "goal_reached_now": now}
+
+
+def _resample(poly, p):
+    """A polyline [N, K, 2] as `p` points evenly spaced along its arc length [N, P, 2]."""
+    n = poly.shape[0]
+    pts = poly[:, None].expand(n, p, *poly.shape[1:])        # one route per sample point
+    r = npc.Routes(pts)
+    want = torch.linspace(0, 1, p, dtype=torch.float64)[None] * r.length[:, :1]
+    x, y, _ = r.pose(want)
+    return torch.stack([x, y], -1)
 
 
 def _num(text):

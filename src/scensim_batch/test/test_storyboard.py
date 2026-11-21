@@ -293,6 +293,166 @@ class Episodes(unittest.TestCase):
             self.assertEqual(t0.contacts, [])
 
 
+def acquire(entity_s):
+    return ('<PrivateAction><RoutingAction><AcquirePositionAction><Position><LanePosition '
+            f'roadId="" laneId="34513" s="{entity_s}" offset="0"/></Position>'
+            '</AcquirePositionAction></RoutingAction></PrivateAction>')
+
+
+def with_init(path, entity, actions):
+    text = Path(path).read_text().replace(f'<Private entityRef="{entity}">',
+                                          f'<Private entityRef="{entity}">{actions}', 1)
+    Path(path).write_text(text)
+    return path
+
+
+@unittest.skipIf(torch is None, "no torch or no sim_vehicle_ecu")
+class RouteGoal(unittest.TestCase):
+    """The ego's routing under --ego policy: the policy's task, the slot's route goal (133)."""
+
+    def build(self, path, recs):
+        from scensim_batch import compile as C, core
+        c = C.compile_scenario(path, recs, StraightWorld(), provides=NIGHT)
+        c.y[:, c.index("ego")] = 3.5
+        comp = ecu_batch.load_batch(Accel, {}, {}, [1] * len(recs))
+        return c, core.BatchRun(c, StraightWorld(), PointMass(c.n), comp, route_length=2000.0)
+
+    def test_an_init_acquire_position_is_each_slots_route_goal_with_progress(self):
+        p = with_init(case(story(event("e", exit_(":"), time_trigger(100)))), "ego",
+                      acquire("$goal_s"))
+        p.write_text(p.read_text().replace("</ParameterDeclarations>", '<ParameterDeclaration '
+                     'name="goal_s" parameterType="double" value="80"/></ParameterDeclarations>'))
+        recs = [{"values": {"goal_s": 80.0, "ego_speed": 10.0}},
+                {"values": {"goal_s": 150.0, "ego_speed": 10.0}}]
+        c, run = self.build(p, recs)
+        obs = run.reset()
+        r = obs["route"]
+        self.assertTrue(bool(r["has_goal"].all()))
+        self.assertEqual(r["goal"][:, 0].tolist(), [80.0, 150.0])
+        # the chord from the ego (5, 3.5) to the goal (80, 0)
+        self.assertAlmostEqual(float(r["remaining"][0]), (75.0 ** 2 + 3.5 ** 2) ** 0.5, places=6)
+        reached_at = {}
+        for k in range(200):
+            obs = run.step(cmds(2, 0.0), DT)           # 10 m/s, no acceleration
+            r = obs["route"]
+            if k == 39:    # 2 s in, 20 m along: the progress is the ego's projection on the chord
+                ex, ey = float(obs["x"][0, c.index("ego")]), 3.5
+                ux, uy = 75.0, -3.5
+                along = ((ex - 5.0) * ux + (ey - 3.5) * uy) / (ux ** 2 + uy ** 2) ** 0.5
+                self.assertAlmostEqual(float(r["progress"][0]), along, delta=1e-6)
+            for s in range(2):
+                if bool(r["goal_reached_now"][s]):
+                    self.assertNotIn(s, reached_at)    # fires once
+                    reached_at[s] = float(obs["x"][s, c.index("ego")])
+        # reached within the tolerance (1 m) of the goal; the ego's lateral offset (3.5 m)
+        # keeps slot 0 from it until the goal is checked in the ego's lane: hence lane y = 3.5
+        self.assertEqual(sorted(reached_at), [])       # 3.5 m beside the goal: never within 1 m
+        self.assertAlmostEqual(float(r["remaining"][0]), 0.0, delta=1e-6)   # past the route's end
+
+    def test_reached_latches_in_the_goals_lane(self):
+        p = with_init(case(story(event("e", exit_(":"), time_trigger(100)))), "ego", acquire(60))
+        c, run = self.build(p, [{"values": {"ego_speed": 10.0}}])
+        c.y[:, c.index("ego")] = 0.0                    # in the goal's lane
+        c.y[:, c.index("lead")] = 7.0                   # the lead out of the way
+        run.reset()
+        hits = []
+        for k in range(120):
+            obs = run.step(cmds(1, 0.0), DT)
+            if bool(obs["route"]["goal_reached_now"][0]):
+                hits.append(float(obs["x"][0, c.index("ego")]))
+        self.assertEqual(len(hits), 1)
+        self.assertLessEqual(abs(hits[0] - 60.0), 1.0)
+        self.assertTrue(bool(obs["route"]["goal_reached"][0]))      # latched past the goal
+
+    def test_a_story_assign_route_gives_the_goal_when_its_event_starts(self):
+        route = ('<PrivateAction><RoutingAction><AssignRouteAction><Route name="r" closed="false">'
+                 '<Waypoint routeStrategy="shortest"><Position><WorldPosition x="40" y="10"/>'
+                 '</Position></Waypoint><Waypoint routeStrategy="shortest"><Position>'
+                 '<WorldPosition x="90" y="10" h="0"/></Position></Waypoint></Route>'
+                 '</AssignRouteAction></RoutingAction></PrivateAction>')
+        st = story(event("go", route, time_trigger(1.0))).replace(
+            '<EntityRef entityRef="lead"/></Actors>', '<EntityRef entityRef="ego"/></Actors>')
+        c, run = self.build(case(st), [{"values": {}}])
+        obs = run.reset()
+        self.assertFalse(bool(obs["route"]["has_goal"][0]))
+        for _ in range(25):
+            obs = run.step(cmds(1, 0.0), DT)
+        r = obs["route"]
+        self.assertTrue(bool(r["has_goal"][0]))
+        self.assertEqual(r["goal"][0].tolist(), [90.0, 10.0, 0.0])
+        # the chord route passes through the first waypoint
+        d = (r["points"][0] - torch.tensor([40.0, 10.0], dtype=torch.float64)).norm(dim=-1)
+        self.assertLess(float(d.min()), 1.0)
+
+    def test_the_checker_and_compile_agree_on_who_is_routed(self):
+        from scensim_batch import compile as C
+        from scensim_sampler import subset
+        ego = with_init(case(story(event("e", exit_(":"), time_trigger(1)))), "ego", acquire(60))
+        v = subset.check(ego)
+        self.assertTrue(v.compiles)
+        self.assertFalse(any("AcquirePositionAction" in x for x in v.conditions), v.conditions)
+        npc_ = with_init(case(story(event("e", exit_(":"), time_trigger(1)))), "lead", acquire(60))
+        v = subset.check(npc_)
+        self.assertTrue(any(x.startswith("AcquirePositionAction: batch executor pending")
+                            for x in v.conditions), v.conditions)
+        with self.assertRaisesRegex(C.CompileError, "AcquirePositionAction: batch executor pending"):
+            C.compile_scenario(npc_, [{"values": {}}], StraightWorld(), provides=NIGHT)
+        traj = ('<PrivateAction><RoutingAction><FollowTrajectoryAction><TrajectoryRef/>'
+                '</FollowTrajectoryAction></RoutingAction></PrivateAction>')
+        st = story(event("t", traj, time_trigger(1))).replace(
+            '<EntityRef entityRef="lead"/></Actors>', '<EntityRef entityRef="ego"/></Actors>')
+        v = subset.check(case(st))
+        self.assertFalse(v.compiles)
+        self.assertEqual(v.refusals[0]["construct"], "FollowTrajectoryAction on the ego")
+        self.assertIn("overriding the batch's policy", v.refusals[0]["reason"])
+
+    def test_a_story_time_position_relative_to_an_entity_is_refused(self):
+        from scensim_batch import compile as C
+        cond = ('<StartTrigger><ConditionGroup><Condition name="r" delay="0" conditionEdge="rising">'
+                '<ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any"><EntityRef '
+                'entityRef="ego"/></TriggeringEntities><EntityCondition><ReachPositionCondition '
+                'tolerance="1"><Position><RelativeObjectPosition entityRef="lead" dx="-5" dy="0"/>'
+                '</Position></ReachPositionCondition></EntityCondition></ByEntityCondition>'
+                '</Condition></ConditionGroup></StartTrigger>')
+        with self.assertRaisesRegex(C.CompileError, "RelativeObjectPosition at story time"):
+            C.compile_scenario(case(story(event("e", exit_(":"), cond))), [{"values": {}}],
+                               StraightWorld(), provides=NIGHT)
+
+
+@unittest.skipIf(torch is None, "no torch or no sim_vehicle_ecu")
+class ScenarioTime(unittest.TestCase):
+    """SSv2's scenario time (SimulationClock, also in the fork under clock_source:=simulator,
+    which moves ROS time only): A(S + k) - A(S), A the step summed in a double."""
+
+    def ssv2(self, s, k, dt=DT):
+        a = 0.0
+        for _ in range(s):
+            a += dt
+        a_s = a
+        for _ in range(k):
+            a += dt
+        return a - a_s
+
+    def test_the_batch_time_is_ssv2s_for_any_start_frame(self):
+        from scensim_batch import compile as C, core
+        for s in (0, 1, 7, 113):
+            c = C.compile_scenario(case(story(event("e", exit_(":"), time_trigger(100)))),
+                                   [{"values": {}}], StraightWorld(), provides=NIGHT)
+            run = core.BatchRun(c, StraightWorld(), PointMass(1),
+                                ecu_batch.load_batch(Accel, {}, {}, [1]), start_frames=s,
+                                step_time=DT)
+            run.reset()
+            for k in range(1, 61):
+                run.step(cmds(1, 0.0), DT)
+                self.assertEqual(float(run.ctx.t[0]), self.ssv2(s, k), (s, k))
+
+    def test_which_frame_passes_a_boundary_depends_on_the_start_frame(self):
+        # what K2.4 has to carry from a seats run: t > 1 is first true at frame 20 or 21
+        firsts = {s: next(k for k in range(1, 40) if self.ssv2(s, k) > 1.0) for s in range(40)}
+        self.assertEqual(set(firsts.values()) - {20, 21}, set())
+        self.assertGreater(len(set(firsts.values())), 1, firsts)
+
+
 class Rows(unittest.TestCase):
     """The checker (S2's table) and the executor never disagree silently (133): every batch
     row and batch command is either run by the executor or pending, never both, and the
@@ -309,6 +469,10 @@ class Rows(unittest.TestCase):
         self.assertEqual(sorted(rows - IMPLEMENTED - subset.EXECUTOR_PENDING), [])
         self.assertEqual(sorted(IMPLEMENTED & subset.EXECUTOR_PENDING), [])
         self.assertEqual(sorted((IMPLEMENTED | subset.EXECUTOR_PENDING) - rows), [])
+        # the ego's routing is the policy's goal; another entity's is still pending
+        from scensim_batch.storyboard import EGO_GOAL
+        self.assertEqual(EGO_GOAL, subset.EGO_GOAL)
+        self.assertTrue(EGO_GOAL <= subset.EXECUTOR_PENDING)
         text = DOCS.read_text()
         section = re.split(r"^## (?:\d+\. )?Executor pending$", text, maxsplit=1, flags=re.M)
         self.assertEqual(len(section), 2, "compilable-subset.md has no 'Executor pending' section")

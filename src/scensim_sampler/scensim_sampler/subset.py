@@ -132,6 +132,16 @@ SpeedProfileAction TimeHeadwayCondition TrafficSignalControllerAction
 TrafficSignalStateAction scensim.fault
 """.split())
 
+# The ego's routing under --ego policy is the policy's task, not an action the batch executes:
+# scensim_batch compiles it into the slot's route goal (the route, the goal pose, progress and
+# goal reached in the observation), so it is not pending for the ego (133). Another entity's
+# routing executes, and is pending. The ego's FollowTrajectoryAction would drive the ego,
+# overriding the policy: refused.
+EGO_GOAL = frozenset(("AcquirePositionAction", "AssignRouteAction"))
+EGO_GOAL_REASON = "the policy's task: the slot's route goal (route, goal pose, progress)"
+EGO_TRAJECTORY_REASON = ("it drives the ego along a trajectory, overriding the batch's policy; "
+                         "run it on seats, or give the policy the route instead")
+
 # CustomCommandAction types
 COMMANDS = {
     "exitSuccess": (BATCH, "the slot's end, success"),
@@ -350,6 +360,10 @@ def _walk(el, where, v, in_init, entity):
     here = where if el.tag == "Storyboard" else f"{where}/{_step(el)}"
     init = in_init or el.tag == "Init"
     entity = el.get("entityRef") if el.tag == "Private" else entity
+    if el.tag == "ManeuverGroup":     # its actions' actors
+        entity = tuple(r.get("entityRef") for r in el.findall("Actors/EntityRef"))
+    on_ego = (bool(entity) and v.ego_mode == "policy"
+              and all(e in v.egos for e in ((entity,) if isinstance(entity, str) else entity)))
     tag = el.tag
     if init and tag == "ControllerAction":
         _init_controller(el, here, v, entity)
@@ -384,6 +398,14 @@ def _walk(el, where, v, in_init, entity):
         fix = entry[2] if len(entry) > 2 else None
         if init and tag in ("ParameterAction", "SetAction", "ParameterSetAction"):
             cls, reason = BATCH, "set before the run: fixed for the slot"
+        if on_ego and tag in EGO_GOAL:
+            v.add(BATCH, here, f"{tag} (the ego)", EGO_GOAL_REASON)
+            for child in el:
+                _walk(child, here, v, init, entity)
+            return
+        if on_ego and tag == "FollowTrajectoryAction":
+            v.add(SEATS, here, f"{tag} on the ego", EGO_TRAJECTORY_REASON)
+            return
         v.add(cls, here, tag, reason, fix)
         if cls == BATCH and tag in EXECUTOR_PENDING:
             v.add(CONDITIONAL, here, tag, EXECUTOR_PENDING_REASON)

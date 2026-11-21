@@ -51,6 +51,13 @@ Fairness rules, for every comparison:
   (geometry, mass, wheels, actuators), and any value stock lacks is named, not invented;
 - runs alternated between sides, not all of one then all of the other.
 
+Which engine "ours" runs on shapes every rate comparison (092 K2.2, batch-executor.md section
+5). Engine A, N copies of aib's PhysX vehicle (seats' car), is CPU physics by nature: PhysX's
+vehicle constraints are not GPU-compatible, and its direct-GPU pipeline refuses them. Only
+engine B, an articulation car like WheeledLab's, runs on the GPU pipeline. So a throughput
+comparison with stock is B against stock; A is reported as what seats fidelity costs, never
+as ours' rate.
+
 ## Measures
 
 The same on both sides, from one harness (P0):

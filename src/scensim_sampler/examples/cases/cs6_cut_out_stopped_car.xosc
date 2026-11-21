@@ -8,6 +8,8 @@
     <Properties>
       <Property name="scensim.category" value="R1.lead_cut_out.stopped_vehicle"/>
       <Property name="scensim.cell_attributes" value="illumination,stopped_kind"/>
+      <!-- the knob is bound by property (scenario-description.md section 3) -->
+      <Property name="scensim.knob.illumination" value="$illumination"/>
     </Properties>
   </FileHeader>
   <ParameterDeclarations>
@@ -23,7 +25,7 @@
     <ParameterDeclaration name="ego_s" parameterType="double" value="5"/>
     <ParameterDeclaration name="lead_s" parameterType="double" value="45"/>
     <ParameterDeclaration name="stopped_kind" parameterType="string" value="car"/>
-    <ParameterDeclaration name="world.illumination" parameterType="string" value="day"/>
+    <ParameterDeclaration name="illumination" parameterType="string" value="day"/>
   </ParameterDeclarations>
   <CatalogLocations/>
   <RoadNetwork><LogicFile filepath="maps/highway_3lane"/></RoadNetwork>

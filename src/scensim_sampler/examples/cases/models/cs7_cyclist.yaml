@@ -39,8 +39,8 @@ derived:
   swerve_offset: "(kerb_offset + 0.8) if swerve_p < 0.3 else kerb_offset"   # 30 % swerve 0.8 m out
   glare: "'into_sun' if abs(rel_azimuth) < 0.35 and sun_elevation < 0.2 else 'low_sun'"
   swerve: "'yes' if swerve_p < 0.3 else 'no'"
-  # OpenSCENARIO's lane offset has no duration, only a peak lateral acceleration: a sinusoidal
-  # move of d metres in T seconds peaks at 2 pi d / T^2 (0 for no swerve: nothing moves)
+  # the swerve's peak lateral acceleration (a sinusoidal move of d metres in T seconds peaks at
+  # 2 pi d / T^2), an intermediate the constraint reads
   swerve_acc: "max(2 * 3.14159 * abs(swerve_offset - kerb_offset) / (swerve_time * swerve_time), 0.01)"
 constraints:
   - "ego_speed <= 1.2 * speed_limit"

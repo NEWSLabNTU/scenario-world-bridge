@@ -48,8 +48,8 @@ class ScensimEnvCfg(DirectRLEnvCfg):
     # queries on: a PhysX vehicle finds the ground by raycasting each wheel, and Isaac Lab turns
     # them off by default; without them every wheel was off the ground (K2.2's env smoke: the
     # steer and the wheel spin reached PhysX, the tire force stayed 0, every ego coasted to
-    # rest on its body). No Fabric: aib writes the wheels' torques and steer as USD attributes.
-    sim: SimulationCfg = SimulationCfg(dt=1 / 240, device="cpu", use_fabric=False,
+    # rest on its body). Fabric stays Isaac Lab's default: on and off measured the same.
+    sim: SimulationCfg = SimulationCfg(dt=1 / 240, device="cpu",
                                        enable_scene_query_support=True)
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=200.0,
                                                      replicate_physics=False)

@@ -42,7 +42,7 @@
   node(enclose: ((0, 0.95), <acb>, <cs>, <cw>), stroke: grp, inset: 6pt, name: <carla>),
 
   // ── Isaac Sim ────────────────────────────────────────────────────────────────
-  title((1, 0.95), [Isaac Sim 6.1 process]),
+  title((1, 0.95), [Isaac Sim 6.2 process]),
   b((2, 1.5), [*aib* vehicle interface (EgoRos) \ control_cmd → by-wire request \
     status and sensors (lidar, \ camera, IMU, GNSS)], aib, <aib>),
   b((3, 1.5), [*swb_isaac_world* (or aib.runner) \ lockstep 0.05 s; each 1/60 s \ substep:

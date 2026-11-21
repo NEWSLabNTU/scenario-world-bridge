@@ -49,7 +49,7 @@ scensim  ── SSv2 handlers, entity table, episode clock, gap trace, contacts 
    ├── CarlaBackend  ── carla-rust ──▶ CARLA server ──▶ acb_bridge per ego ──▶ domain k
    └── IsaacBackend  ── scensim world protocol (ZMQ + protobuf, localhost)
                           ▼
-              Isaac Sim 6.1 world server (standalone Python app, owns the loop)
+              Isaac Sim 6.2 world server (standalone Python app, owns the loop)
                  ├── stage: world USD, entity prims, ego vehicles (PhysX vehicle)
                  ├── lockstep: Step(n) = n physics steps + one render, then reply
                  └── vehicle bridge per ego: ROS 2 context on domain k

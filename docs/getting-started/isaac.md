@@ -1,7 +1,7 @@
 # Getting started on Isaac Sim
 
-Isaac Sim 6.1 installed and found by scensim. The install took 6 minutes on one host
-(2026-11-16), mostly downloads; the long download is Tutorial 6's USD assets. Do
+Isaac Sim 6.2 installed and found by scensim. The install (6.1, measured 2026-11-16) took 6
+minutes on one host, mostly downloads; the long download is Tutorial 6's USD assets. Do
 [Install](install.md) first. The Isaac tutorials (6 and 7) start from here; the CARLA
 tutorials before them are worth doing first, since everything but the simulator works the
 same.
@@ -35,7 +35,7 @@ system's Python). Choose where it goes and run the installer:
 ```bash
 export ISAAC_ROOT=~/isaac-sim
 $(ros2 pkg prefix --share scensim_isaac_world)/scripts/install_isaac.sh
-# ends: isaacsim 6.1.0.0, INSTALL-DONE
+# ends: isaacsim 6.2.0.0, torch 2.11.0+cu128 torchvision 0.26.0+cu128, INSTALL-DONE
 ```
 
 ## Tell scensim where it is

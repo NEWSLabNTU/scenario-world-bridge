@@ -112,7 +112,7 @@ def findings(host: dict, prefixes=None) -> list:
     r = root(host)
     if not r:
         return [Finding("host settings", "isaac.root is not set (nor ISAAC_ROOT): an Isaac "
-                        "project needs Isaac Sim 6.1's install, and there is no default",
+                        "project needs Isaac Sim 6.2's install, and there is no default",
                         HOST_FIX, refused=True)]
     missing = [n for n in INSTALL if not (Path(r) / n).exists()]
     if missing:

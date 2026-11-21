@@ -874,7 +874,7 @@ isaac_display := env_var_or_default("ISAAC_DISPLAY", ":8")
 
 # Isaac Sim smoke test: version, start time, step time (headless; DISPLAY set = windowed)
 isaac-check:
-    @[ -n "{{isaac_root}}" ] || { echo "isaac-check: ISAAC_ROOT is not set: Isaac Sim 6.1's pip install; set it in .env (no default, 077 G75)" >&2; exit 2; }
+    @[ -n "{{isaac_root}}" ] || { echo "isaac-check: ISAAC_ROOT is not set: Isaac Sim 6.2's pip install; set it in .env (no default, 077 G75)" >&2; exit 2; }
     ISAAC_ROOT={{isaac_root}} "{{justfile_directory()}}/src/scensim_isaac_world/spikes/run_spike.sh" fastrtps {{isaac_root}}/logs/isaac-check.log "{{justfile_directory()}}/src/scensim_isaac_world/spikes/smoke.py"; grep SMOKE {{isaac_root}}/logs/isaac-check.log
 
 # The Isaac Sim world server (roadmaps 037, 038, 046), supervised (043):

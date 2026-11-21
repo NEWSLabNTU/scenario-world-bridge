@@ -75,7 +75,7 @@ flowchart LR
     end
     CARLA["CARLA server"]
     WS["world server<br/>src/isaac_world (Python)"]
-    Isaac["Isaac Sim 6.1"]
+    Isaac["Isaac Sim 6.2"]
     acb["acb_bridge"]
     aib["aib (imported)"]
     AW["Autoware ego"]

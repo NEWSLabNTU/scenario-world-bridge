@@ -59,10 +59,13 @@ def test_plan_multi_pilot(where, maps_hub):
     assert a["sim_args"] == f"state_dir:={d / 'state'} vehicle_physics:={physics}"
     assert p.record["pilot_contract"]["carla_physics"] == str(physics)
     assert p.record["pilot_contract"]["carla_physics_mode"] == "verify"
-    contacts = where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "episodes" / "contacts"
-    # each run's contact reports: the bridge writes them under the stack, the run moves them
-    assert a["side_args"] == f"state_dir:={d / 'state'} contact_report_dir:={contacts}"
-    assert p.record["episodes"] == {"gap_trace": None, "contacts": str(contacts)}
+    episodes = where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "episodes"
+    contacts, trace = episodes / "contacts", episodes / "gap_trace"
+    # each run's contact reports and truth file (the gap trace, on by default since 092 S4):
+    # the bridge writes them under the stack, the run moves them
+    assert a["side_args"] == (f"state_dir:={d / 'state'} gap_trace_dir:={trace} "
+                              f"contact_report_dir:={contacts}")
+    assert p.record["episodes"] == {"gap_trace": str(trace), "contacts": str(contacts)}
     assert a["log_dir"] == str(where["tmp"] / "logs" / "proj" / "stacks" / p.stack_id / "proc")
     pilots = p.record["pilot_entries"]
     assert [(x["entity"], x["kind"], x["domain"]) for x in pilots] == [
@@ -221,7 +224,8 @@ def test_isaac_plan(where, maps_hub):
     assert p.launch_args["sim"] == "isaac"
     assert p.launch_args["sim_args"] == (f"world:={d / 'assets' / 'maps' / 'Town01'} ego:=default"
                                          f" state_dir:={d / 'state'}")
-    assert p.launch_args["side_args"].startswith(f"state_dir:={d / 'state'} contact_report_dir:=")
+    assert p.launch_args["side_args"].startswith(f"state_dir:={d / 'state'} gap_trace_dir:=")
+    assert " contact_report_dir:=" in p.launch_args["side_args"]
 
 
 def test_fingerprint_diff_names_parts(where, maps_hub):
@@ -682,15 +686,18 @@ def test_world_reaches_the_side_beside_swbs(where, maps_hub):
         with pytest.raises(stack.StackRefused, match=f"{name}:= is scensim's"):
             stack.plan(project_arg=str(d), stack_args=args)
     # contact_report_dir of the user's: theirs, not collected per run
-    (d / "testbench.yaml").write_text(MULTI + "world: {contact_report_dir: off}\n")
+    (d / "testbench.yaml").write_text(MULTI + "world: {contact_report_dir: off}\n"
+                                      "logging: {gap_trace: false}\n")
     p = stack.plan(project_arg=str(d))
     assert stack._named(p.launch_args["side_args"])["contact_report_dir"] == "off"
+    # logging.gap_trace: false turns the truth file off
     assert p.record["episodes"] == {"gap_trace": None, "contacts": None}
+    assert "gap_trace_dir" not in stack._named(p.launch_args["side_args"])
 
 
 def test_a_judge_that_needs_the_trace_turns_it_on(where, maps_hub):
     d = make(where)
-    (d / "testbench.yaml").write_text(MULTI + "judges:\n  - {name: gap, run: [python3, -m, scensim.gap,"
+    (d / "testbench.yaml").write_text(MULTI + "logging: {gap_trace: false}\njudges:\n  - {name: gap, run: [python3, -m, scensim.gap,"
                                 " oracle], needs: [gap_trace]}\n")
     p = stack.plan(project_arg=str(d))
     assert p.record["episodes"]["gap_trace"].endswith("episodes/gap_trace")

@@ -174,22 +174,22 @@ def read_back_entities(trace, kinds):
         moving, matched, first, last = 0, 0, None, None
         for f in trace.frames:
             s = f.entities.get(name)
-            if s is None or s.carla is None:
+            if s is None or s.sim_pose is None:
                 prev = None
                 continue
             if prev is not None:
-                step = math.hypot(s.carla.x - prev.x, s.carla.y - prev.y)
+                step = math.hypot(s.sim_pose.x - prev.x, s.sim_pose.y - prev.y)
                 if step >= READ_BACK_STEP:
                     p = s.ssv2
                     e = gg.actor_pose_from_entity(gg.Pose2D(p.x, p.y, p.yaw), o.x, o.y, o.yaw)
                     to_prev = math.hypot(e.x - prev.x, e.y - prev.y)
-                    to_now = math.hypot(e.x - s.carla.x, e.y - s.carla.y)
+                    to_now = math.hypot(e.x - s.sim_pose.x, e.y - s.sim_pose.y)
                     moving += 1
                     if to_prev <= READ_BACK_MATCH * step and to_prev < to_now:
                         matched += 1
                     first = f.frame if first is None else first
                     last = f.frame
-            prev = s.carla
+            prev = s.sim_pose
         if moving >= READ_BACK_MIN_FRAMES and matched >= READ_BACK_FRACTION * moving:
             out[name] = (matched / moving, moving, first, last)
     return out
@@ -214,10 +214,10 @@ def ssv2_body(header, s):
 
 
 def carla_body(header, s):
-    bp = header.blueprint_box
-    if s.carla is None or bp is None:
+    bp = header.asset_box
+    if s.sim_pose is None or bp is None:
         return None
-    p = s.carla
+    p = s.sim_pose
     box = gg.carla_box(gg.Pose2D(p.x, p.y, p.yaw), bp.location, bp.extent)
     return _body(box, (p.z, bp.location[2], 2.0 * bp.extent[2]))
 
@@ -292,7 +292,7 @@ def analyze(trace, tol=None, junit=None):
     ssv2_overlap = {}  # frozenset({a, b}) -> set of frames
     g3_rows = {}  # name -> [(index, frame, sim_time, status, xy, yaw, z)]
     margins = {}
-    ego_by_id = {h.actor_id: h.name for h in trace.headers if h.kind == "ego"}
+    ego_by_id = {h.sim_id: h.name for h in trace.headers if h.kind == "ego"}
     contact_frames = {}  # frozenset({ego, other}) -> frames with a recorded contact
     for c in trace.contacts:
         other = c.name if c.name in kinds else None
@@ -407,10 +407,10 @@ def analyze(trace, tol=None, junit=None):
         "last_frame": frames[-1].frame if frames else None,
         "dropped_frames": end.dropped_frames if end is not None else None,
         "contacts": len(trace.contacts),
-        "entities": {h.name: {"kind": h.kind, "blueprint": h.blueprint,
+        "entities": {h.name: {"kind": h.kind, "blueprint": h.asset,
                               "declared": list(h.declared.dimensions),
-                              "blueprint_size": None if h.blueprint_box is None else
-                              [_r(2.0 * e) for e in h.blueprint_box.extent]}
+                              "blueprint_size": None if h.asset_box is None else
+                              [_r(2.0 * e) for e in h.asset_box.extent]}
                      for h in trace.entities.values()},
         "tolerances": asdict(tol),
         "verdict": None if junit is None else junit[0],
@@ -476,11 +476,11 @@ def _g1(pairs, egos, kinds):
 def _g2(trace, egos, kinds, order, ssv2_overlap, tol):
     ego_by_id, name_by_id = {}, {}
     for h in trace.headers:
-        name_by_id[h.actor_id] = h.name
+        name_by_id[h.sim_id] = h.name
         if h.kind == "ego":
-            ego_by_id[h.actor_id] = h.name
+            ego_by_id[h.sim_id] = h.name
     unseen = {}  # (side, label) -> [contact]; a pair of two NPCs keyed in header order
-    for c in sorted(trace.contacts, key=lambda c: (c.frame, c.carla_frame)):
+    for c in sorted(trace.contacts, key=lambda c: (c.frame, c.sim_frame)):
         ego = ego_by_id.get(c.ego_id) or (egos[0] if egos else "ego")
         # A tracked NPC's own sensor (032 step 5). Its contacts with the ego are the ego
         # sensor's to report -- the same contact, seen twice -- so they are not counted here.
@@ -516,7 +516,7 @@ def _g2(trace, egos, kinds, order, ssv2_overlap, tol):
                 "G2", [side, label], [c.frame for c in g], len(g),
                 {"max_impulse": _r(max(c.impulse for c in g)), "other_kind": g[0].other_kind,
                  "other_type": g[0].other_type, "other_id": g[0].other_id,
-                 "carla_frames": [g[0].carla_frame, g[-1].carla_frame],
+                 "carla_frames": [g[0].sim_frame, g[-1].sim_frame],
                  "sim_time": [_r(g[0].sim_time), _r(g[-1].sim_time)]},
                 priority="high" if g[0].ego_side else "low"))
     out.sort(key=lambda f: (f["priority"] != "high", f["frames"][0]))
@@ -526,19 +526,19 @@ def _g2(trace, egos, kinds, order, ssv2_overlap, tol):
 def _g3(header, s, tol):
     """(status, xy, yaw, z) of one entity state: status is "missed", "spawn",
     "contact_hold", "kinematic", "beyond" or "ok"."""
-    if s.carla is None:
+    if s.sim_pose is None:
         return "missed", None, None, None
     o = header.origin_offset
     p = s.ssv2
     expected = gg.actor_pose_from_entity(gg.Pose2D(p.x, p.y, p.yaw), o.x, o.y, o.yaw)
-    xy, yaw = gg.pose_error(expected, gg.Pose2D(s.carla.x, s.carla.y, s.carla.yaw))
-    bp = header.blueprint_box
+    xy, yaw = gg.pose_error(expected, gg.Pose2D(s.sim_pose.x, s.sim_pose.y, s.sim_pose.yaw))
+    bp = header.asset_box
     if bp is not None:
         ssv2_bottom = p.z + header.declared.center[2] - header.declared.dimensions[2] / 2.0
-        carla_bottom = s.carla.z + bp.location[2] - bp.extent[2]
+        carla_bottom = s.sim_pose.z + bp.location[2] - bp.extent[2]
         dz = abs(carla_bottom - ssv2_bottom)
     else:
-        dz = abs(s.carla.z - p.z)
+        dz = abs(s.sim_pose.z - p.z)
     beyond = xy > tol.pos or yaw > math.radians(tol.yaw_deg) or dz > tol.z
     if not beyond:
         return "ok", xy, yaw, dz

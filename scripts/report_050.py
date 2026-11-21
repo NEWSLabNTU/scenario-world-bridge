@@ -79,33 +79,33 @@ def pair_gaps(trace):
             eh = headers.get(ego)
             if es is None or eh is None:
                 continue
-            if es.carla is not None:
-                xy = (es.carla.x, es.carla.y)
+            if es.sim_pose is not None:
+                xy = (es.sim_pose.x, es.sim_pose.y)
                 if last is not None:
                     driven += math.dist(xy, last)
                 last = xy
             ebox_s = gg.ssv2_box(pose2d(es.ssv2), eh.declared.center, eh.declared.dimensions)
             ebox_c = None
-            if es.carla is not None and eh.blueprint_box is not None:
-                ebox_c = gg.carla_box(pose2d(es.carla), eh.blueprint_box.location,
-                                      eh.blueprint_box.extent)
+            if es.sim_pose is not None and eh.asset_box is not None:
+                ebox_c = gg.carla_box(pose2d(es.sim_pose), eh.asset_box.location,
+                                      eh.asset_box.extent)
             for name, st in frame.entities.items():
                 if name == ego or name not in headers:
                     continue
                 h = headers[name]
                 g = gaps.setdefault(name, {"ssv2_min": None, "ssv2_at": None,
                                            "carla_min": None, "kind": h.kind,
-                                           "blueprint": h.blueprint})
+                                           "blueprint": h.asset})
                 if all(d > 0 for d in h.declared.dimensions[:2]):
                     d = gg.signed_distance(
                         ebox_s, gg.ssv2_box(pose2d(st.ssv2), h.declared.center,
                                             h.declared.dimensions))
                     if g["ssv2_min"] is None or d < g["ssv2_min"]:
                         g["ssv2_min"], g["ssv2_at"] = d, round(frame.sim_time, 2)
-                if ebox_c is not None and st.carla is not None and h.blueprint_box is not None:
+                if ebox_c is not None and st.sim_pose is not None and h.asset_box is not None:
                     d = gg.signed_distance(
-                        ebox_c, gg.carla_box(pose2d(st.carla), h.blueprint_box.location,
-                                             h.blueprint_box.extent))
+                        ebox_c, gg.carla_box(pose2d(st.sim_pose), h.asset_box.location,
+                                             h.asset_box.extent))
                     if g["carla_min"] is None or d < g["carla_min"]:
                         g["carla_min"] = d
     return gaps, driven

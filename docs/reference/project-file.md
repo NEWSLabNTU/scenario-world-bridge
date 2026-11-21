@@ -217,7 +217,7 @@ pilot](../how-to/your-autopilot.md).
 | `keep` | per verdict, the level kept once the verdict is known: `{passed: result, failed: full, error: full}` (default); a verdict it does not name keeps everything. A run that failed or ended in error, a run a judge found `failed` or `error`, and a run with a contact of the ego keep everything, whatever `keep` says. The files the judges read (their `reads`) are kept wherever the logs are, `standard` and up |
 | `budget` | `{per_run: 2GB, total: 200GB}`: refuse a run or suite that cannot fit on the log disk |
 | `topics` | the topics `full` records, instead of the key topics |
-| `gap_trace` | `true`: the bridge records its gap trace (both worlds, frame by frame) for every run, into the run's `gap_trace/`; default `false`. `testbench.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
+| `gap_trace` | the run's truth file: the bridge records its gap trace (SSv2's world and the simulator's, frame by frame; [the truth stream](../design/truth-stream.md)) for every run, into the run's `gap_trace/`; default `true`, `false` turns it off. `testbench.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
 
 `scensim run --capture <level>` records one run at that level and keeps it whatever
 the verdict. What each level keeps: [Results and logs](results-and-logs.md).

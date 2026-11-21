@@ -184,6 +184,7 @@ class BatchRun:
         # an Init SpeedAction is the target too (a step to it, held); without one SSv2 drives
         # at the route's speed limit
         fresh.set_target_speed(c.speed[:, d], c.speed_set[:, d])
+        fresh.world, fresh.route_length = self.world, self.route_length
         if self.vehicles is None:
             self.vehicles = fresh
             return
@@ -194,6 +195,9 @@ class BatchRun:
         self._reset_constraints(m)
         old.routes.points = torch.where(m[..., None, None], fresh.routes.points, old.routes.points)
         old.routes = npc.Routes(old.routes.points)
+        old.lc = old.lc & ~m         # a reset slot's lane changes end with it
+        for k in torch.nonzero(mask).flatten().tolist():
+            old.lc_to_lane[k] = [None] * len(old.lc_to_lane[k])
 
     # --- step -----------------------------------------------------------------------------
 

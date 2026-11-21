@@ -37,6 +37,33 @@ class StraightWorld:
     def speed_limit(self, x, y):
         return 30.0
 
+    # the map queries a lane change makes (storyboard.LaneChangeAction): lanelet 34513 + k is
+    # the lane at y = 3.5 k, its s the x; its centreline sampled every metre, so SSv2's spline
+    # tangent there is (1, 0)
+    def lanelet_pose(self, x, y, yaw):
+        k = round(y / 3.5)
+        return 34513 + k, x, y - 3.5 * k
+
+    def along_lanelet(self, lane, s, distance):
+        return lane, s + distance
+
+    def can_change_lane(self, frm, to):
+        return True
+
+    def adjacent_lane(self, lane, direction, shift):
+        return lane + shift if direction == "left" else lane - shift
+
+    def collision_s(self, lane, p0, p1):
+        yl = 3.5 * (lane - 34513)
+        a, b = p0[1] - yl, p1[1] - yl
+        if a * b > 0 or a == b:
+            return None
+        f = a / (a - b)
+        return p0[0] + f * (p1[0] - p0[0])
+
+    def tangent(self, lane, s):
+        return 1.0, 0.0
+
 
 class PointMass:
     """The engine's stand-in: a point mass along its heading, wheels at one radius."""

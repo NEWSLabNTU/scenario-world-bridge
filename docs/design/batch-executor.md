@@ -237,6 +237,26 @@ the goal, and `goal_reached` (within 1 m, latched) with its onset `goal_reached_
 FollowTrajectoryAction would drive the ego over the policy: refused (seats). Another entity's
 routing executes, and is executor pending.
 
+**Lane changes** (`storyboard.LaneChangeAction`, `npc.DefaultVehicles`) are SSv2's
+LaneChangeAction under its FORCE policy, the only one the interpreter sets: the shape linear
+is LINEAR and every other (cubic, sinusoidal, step) CUBIC; the dimension time, rate and
+distance are TIME, LATERAL_VELOCITY and LONGITUDINAL_DISTANCE. At the action's start the curve
+is `route::laneChangeTrajectory`'s: the pose 20 m along the lanelet (the distance for a
+distance dimension), the target centreline's crossing between offsets +5 and -5 there, the
+goal at that s and the target offset, a Hermite curve with tangents of half the start-to-goal
+distance (CUBIC: the start heading and the target lanelet's spline tangent; LINEAR: the
+chord), its length `HermiteCurve::getLength(100)` as written. The vehicle then moves at the
+forced speed (length / T; length / (lateral offset / rate); the current speed), clamped by a
+SpeedAction's target, along the curve at u = s / length, and past its end is put on the target
+lanelet at the overshoot plus the target s, offset 0, with a route from there. The action is
+accomplished as it starts, as in SSv2, whose check reads the behaviour tree's last tick, which
+ran before the request. The ego's LaneChangeAction would steer the ego: refused under `--ego
+policy`. The map queries are the world adapter's: `lanelet_pose(x, y, yaw)`,
+`adjacent_lane(lane, direction, shift)`, `can_change_lane(from, to)`,
+`along_lanelet(lane, s, distance)`, `collision_s(lane, p0, p1)` and `tangent(lane, s)`; on a
+real map they must be SSv2's (its Catmull-Rom centreline spline, whose tangent is a raw
+derivative, not a unit vector), which K2.4 checks on Town01.
+
 **In Isaac Lab** (`env.py`) the step's world is made in `_get_dones`, the first hook after the
 physics in DirectRLEnv.step (dones, rewards, resets, observations, in both Isaac Lab 2 and
 3.0.0-EA): the last substep read back, the default vehicles moved, the storyboard ticked; so

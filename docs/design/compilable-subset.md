@@ -184,6 +184,14 @@ and TrafficSignalControllerAction 3 each, AbsoluteTargetLane, RelativeTargetLane
 RelativeClearanceCondition and AssignRouteAction 2 each, RoadCondition, SpeedProfileAction and
 TimeHeadwayCondition 1 each. `--ego seats` does not move (41, 12, 29, 42).
 
+Re-measured after the ego's route goal and LaneChangeAction (2026-11-21, K2.3): `--ego policy`
+compiles 56 (the ego's FollowTrajectoryAction is now refused: it would override the policy,
+2 examples), 14 unconditionally, 42 only if the slot provides more; 18 of the 56 use a pending
+row: AcquirePositionAction 8 (other entities' goals), FollowTrajectoryAction 6,
+TrafficSignalStateAction and TrafficSignalControllerAction 3 each, RelativeClearanceCondition
+2, RoadCondition, SpeedProfileAction and TimeHeadwayCondition 1 each. `--ego seats` does not
+move.
+
 ## 7. Gaps
 
 - **Knob profiles.** CS5's fog ramps over a stretch of road. A batch needs the knob as a
@@ -213,7 +221,6 @@ running a row means moving it from one set to the other.
 |---|---|
 | `AcquirePositionAction`, `AssignRouteAction` | routes on the world adapter's map, per slot |
 | `FollowTrajectoryAction` | a trajectory follower per slot |
-| `LaneChangeAction`, `AbsoluteTargetLane`, `RelativeTargetLane` | a lateral profile on the lane graph |
 | `SpeedProfileAction` | a speed profile per slot |
 | `TimeHeadwayCondition`, `RelativeClearanceCondition` | headway and clearance along the route |
 | `TrafficSignalStateAction`, `TrafficSignalControllerAction` | signal phases per slot |

@@ -126,8 +126,8 @@ for _t in ("LaneOffsetAction", "LaneOffsetActionDynamics", "LaneOffsetTarget",
 # IMPLEMENTED) to every "batch" row and command, with none in both.
 EXECUTOR_PENDING_REASON = "batch executor pending (scensim_batch does not run it yet)"
 EXECUTOR_PENDING = frozenset("""
-AbsoluteTargetLane AcquirePositionAction AssignRouteAction FollowTrajectoryAction
-LaneChangeAction RelativeClearanceCondition RelativeTargetLane RoadCondition
+AcquirePositionAction AssignRouteAction FollowTrajectoryAction RelativeClearanceCondition
+RoadCondition
 SpeedProfileAction TimeHeadwayCondition TrafficSignalControllerAction
 TrafficSignalStateAction scensim.fault
 """.split())
@@ -141,6 +141,10 @@ EGO_GOAL = frozenset(("AcquirePositionAction", "AssignRouteAction"))
 EGO_GOAL_REASON = "the policy's task: the slot's route goal (route, goal pose, progress)"
 EGO_TRAJECTORY_REASON = ("it drives the ego along a trajectory, overriding the batch's policy; "
                          "run it on seats, or give the policy the route instead")
+# actions that drive the ego themselves, overriding the policy: refused under --ego policy
+EGO_OVERRIDES = {"FollowTrajectoryAction": EGO_TRAJECTORY_REASON,
+                 "LaneChangeAction": ("it steers the ego into another lane, overriding the "
+                                      "batch's policy; run it on seats")}
 
 # CustomCommandAction types
 COMMANDS = {
@@ -403,8 +407,8 @@ def _walk(el, where, v, in_init, entity):
             for child in el:
                 _walk(child, here, v, init, entity)
             return
-        if on_ego and tag == "FollowTrajectoryAction":
-            v.add(SEATS, here, f"{tag} on the ego", EGO_TRAJECTORY_REASON)
+        if on_ego and tag in EGO_OVERRIDES:
+            v.add(SEATS, here, f"{tag} on the ego", EGO_OVERRIDES[tag])
             return
         v.add(cls, here, tag, reason, fix)
         if cls == BATCH and tag in EXECUTOR_PENDING:

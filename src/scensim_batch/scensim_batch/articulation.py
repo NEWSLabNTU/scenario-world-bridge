@@ -37,6 +37,8 @@ import math
 import torch
 
 CORNERS = ("front_left", "front_right", "rear_left", "rear_right")   # the component's FL FR RL RR
+GRIP_LOAD = 0.1      # of a corner's static load: below it, the tyre carries nothing
+GRIP_SLIP = 0.5      # m/s between the tread and the hub: above it, the tyre slides
 JOINT_KINDS = ("suspension", "steer", "spin")
 
 
@@ -93,6 +95,10 @@ class ArticulationModel:
                                    device=device)
         self._omega = self._tau = self._dt = None     # the step before (spin_efforts)
         self._I = None                                 # each wheel's effective inertia
+        self.suspension_k = torch.tensor(
+            [j[f"{c}_suspension"]["drive"]["stiffness"] for c in CORNERS], **f64)
+        self.static_load = self.suspension_k * -self.suspension_target
+        self.hub_y = torch.tensor([j[f"{c}_spin"]["origin"][1] for c in CORNERS], **f64)
         self.car_share = sum(float(l["mass"]) for l in links.values()) / 4
         self._known = torch.zeros(n, 1, dtype=torch.bool, device=device)
 
@@ -109,7 +115,19 @@ class ArticulationModel:
         # atan2 with a positive denominator keeps the sign of d; clip again (the inner wheel)
         return torch.stack([left, right], -1).clamp(-self.max_steer, self.max_steer)
 
-    def spin_efforts(self, drive, brake, omega, dt):
+    def grip(self, suspension_q, omega, hub_speed):
+        """[N, 4] bool: whether each tyre carries the car, so its share of the car turns with
+        the wheel: loaded (the suspension's spring force, k (q - target), above GRIP_LOAD of
+        its static load; no contact sensor needed) and rolling, not sliding (|omega r -
+        hub_speed| under GRIP_SLIP m/s). `hub_speed` [N, 4] is each hub's speed along the car's
+        x (243's review of K2.2b: a wheel lifting or locking under the brake)."""
+        f64 = dict(dtype=torch.float64, device=self.device)
+        q = torch.as_tensor(suspension_q, **f64)
+        load = self.suspension_k * (q - self.suspension_target)
+        slip = (torch.as_tensor(omega, **f64) * self.r - torch.as_tensor(hub_speed, **f64)).abs()
+        return (load > GRIP_LOAD * self.static_load) & (slip < GRIP_SLIP)
+
+    def spin_efforts(self, drive, brake, omega, dt, grip=None):
         """[N, 4] spin joint torques for one physics step: the drive plus each wheel's brake.
         The brake is Coulomb friction with stiction: the torque that would bring the wheel to
         rest within `dt`, clipped to the brake's own torque. So it opposes the spin at full
@@ -119,8 +137,10 @@ class ArticulationModel:
         effective inertia is estimated from the step before (the torque applied then over the
         wheel's angular acceleration since), between the wheel's own and the wheel's plus a
         quarter of the car's reflected through its radius; before any estimate, the wheel's
-        own (so a lifted wheel is never reversed). Call once per physics step; `reset`
-        forgets a slot's step before."""
+        own (so a lifted wheel is never reversed). `grip` [N, 4] (self.grip): a wheel whose
+        tyre does not carry the car is braked on its own inertia, whatever the estimate, so a
+        wheel that lifts or slides mid-brake is not reversed by the step before's. Call once
+        per physics step; `reset` forgets a slot's step before."""
         if self.spin_type != "effort":
             raise ValueError(f"{self.doc['name']}: the spin joints are {self.spin_type} drives: "
                              "give joint targets (apply_joints), not the component's torques")
@@ -137,7 +157,10 @@ class ArticulationModel:
             ok = self._known & (self._tau.abs() > 1.0) & (alpha * self._tau > 0)
             est = (self._tau / torch.where(ok, alpha, torch.ones_like(alpha)))
             self._I = torch.where(ok, est.clamp(lo, hi), self._I)
-        hold = -(self._I * omega / dt + drive)          # what brings the wheel to rest
+        I_now = self._I if grip is None else torch.where(
+            torch.as_tensor(grip, dtype=torch.bool, device=self.device), self._I, lo.expand_as(
+                self._I))
+        hold = -(I_now * omega / dt + drive)            # what brings the wheel to rest
         tau = (drive + torch.maximum(torch.minimum(hold, brake), -brake)).clamp(
             -self.spin_limit, self.spin_limit)
         self._omega, self._tau, self._dt = omega.clone(), tau.clone(), dt
@@ -408,7 +431,13 @@ class ArticulationBackend:
         else:
             steer = m.steer_targets(self.act["tire_angle"])
             omega = a.data.joint_vel.torch[:, self.spin_ids].detach().cpu().double()
-            spin = m.spin_efforts(self.act["drive"], self.act["brake"], omega, dt)
+            q = a.data.joint_pos.torch[:, self.sus_ids].detach().cpu().double()
+            st = self.state()
+            # each hub's speed along the car's x: v - yaw_rate y (the steer's cosine ignored:
+            # a steered wheel reads as sliding sooner, which only brakes it on its own inertia)
+            hub = st["v"][:, None] - st["yaw_rate"][:, None] * m.hub_y
+            spin = m.spin_efforts(self.act["drive"], self.act["brake"], omega, dt,
+                                  grip=m.grip(q, omega, hub))
         pos_t[:, self.steer_ids] = steer
         a.set_joint_position_target_index(target=self._dev(pos_t))
         if m.spin_type == "velocity":

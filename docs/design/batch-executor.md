@@ -206,7 +206,7 @@ What makes B a different car from A (and seats), each named here and in the body
 |---|---|---|
 | tyre | PhysX's tire model: slip curves, load sensitivity | a rigid cylinder in Coulomb contact, `tires.friction` per axle times the ground's; no slip curve, no load sensitivity |
 | drivetrain | PhysX's, the component's torques per wheel | none: the component's torques straight on the spin joints |
-| brake | PhysX's wheel brake | an explicit torque with stiction: full torque while the wheel turns, never reversing it, holding it at rest; what turns with the wheel (the wheel alone, or its share of the car when gripping) estimated from the step before |
+| brake | PhysX's wheel brake | an explicit torque with stiction: full torque while the wheel turns, never reversing it, holding it at rest; what turns with the wheel (its share of the car when gripping) estimated from the step before, and the wheel alone whenever its tyre carries no load (the suspension's spring force) or slides (243) |
 | steer | PhysX's wheel steer angle, set | a stiff position drive per front wheel (the front tyre's largest scrub torque moves it 1 mrad), Ackermann angles from the bicycle angle |
 | suspension | PhysX's sprung masses | a prismatic spring-damper per corner (the spec's ride frequency and damping), preloaded to rest at design height |
 | masses | PhysX's vehicle | the chassis box plus 0.8/0.1/0.1 (rear 0.9/0.1) of `wheels.mass` per corner at the hubs; the whole car's centre of mass the spec's |

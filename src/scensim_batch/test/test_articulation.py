@@ -108,6 +108,48 @@ class ModelTest(unittest.TestCase):
         w = self._roll(440.0, 0.0, 200.0, 50, drive=300.0)      # a smaller brake: it moves
         self.assertGreater(w[-1, 0].item(), 0.0)
 
+    def _lift_mid_brake(self, use_grip):
+        """243's case: braked while gripping (the estimate the car's), then the tyre leaves the
+        road at about 0.3 rad/s; the wheel's speed per step after that."""
+        r, I = self.m.r, self.m.spin_I
+        omega = torch.full((3, 4), 5.0 / r, dtype=torch.float64)
+        B = torch.full((3, 4), 3000.0)
+        grip = torch.ones(3, 4, dtype=torch.bool)
+        while omega[0, 0] > 0.4:                          # gripping
+            tau = self.m.spin_efforts(torch.zeros(3, 4), B, omega, DT,
+                                      grip=grip if use_grip else None)
+            omega = omega + tau / (I + 440.0 * r * r) * DT
+        self.assertGreater(self.m._I[0, 0].item(), 10 * I[0].item())
+        out = []
+        for _ in range(5):                                # lifted: the wheel alone
+            tau = self.m.spin_efforts(torch.zeros(3, 4), B, omega, DT,
+                                      grip=~grip if use_grip else None)
+            omega = omega + tau / I * DT
+            out.append(omega[0, 0].item())
+        return out
+
+    def test_a_wheel_that_lifts_mid_brake_is_not_reversed(self):
+        w = self._lift_mid_brake(True)
+        self.assertTrue(all(x >= -1e-9 for x in w), w)
+        self.assertLess(abs(w[-1]), 1e-9)
+
+    def test_without_grip_the_lift_reverses_it(self):
+        """What the grip check is for: on the estimate alone the wheel reverses for a step."""
+        self.assertLess(min(self._lift_mid_brake(False)), -1.0)
+
+    def test_grip_from_load_and_slip(self):
+        sus_t = self.m.suspension_target
+        r = self.m.r
+        q = torch.zeros(3, 4, dtype=torch.float64)       # at design height: loaded
+        q[1] = sus_t - 0.002                              # drooped past the free length: lifted
+        omega = torch.full((3, 4), 10.0, dtype=torch.float64)
+        hub = torch.full((3, 4), 10.0 * r, dtype=torch.float64)
+        hub[2, 0] = 10.0 * r + 2.0                        # one wheel sliding
+        g = self.m.grip(q, omega, hub)
+        self.assertTrue(g[0].all())
+        self.assertFalse(g[1].any())
+        self.assertEqual(g[2].tolist(), [False, True, True, True])
+
     def test_reset_forgets_the_step_before(self):
         self._roll(440.0, 5.0, 1500.0, 3)
         self.m.reset(torch.tensor([True, False, False]))
@@ -219,6 +261,10 @@ class _Data:
     @property
     def joint_vel(self):
         return _Proxy(self.a.jvel)
+
+    @property
+    def joint_pos(self):
+        return _Proxy(self.a.jpos)
 
 
 class FakeArticulation:

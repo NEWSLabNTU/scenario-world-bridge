@@ -173,8 +173,10 @@ small N (K2.4), not for training.
 **A is CPU physics by nature.** PhysX's vehicle constraints are not GPU-compatible: Isaac
 Lab's direct-GPU pipeline refuses them ("non-GPU compatible PxConstraint") and the CPU velocity
 setters A's reset uses. The environment (`env.py`) therefore runs A with `device="cpu"`, as
-aib's runner does, and without Fabric (`use_fabric=False`): aib writes each wheel's torques
-and steer angle as USD attributes, which reach PhysX only through USD change notices, and
-Fabric turns those off. Only B runs on the GPU pipeline; 094's rate comparisons with stock
+aib's runner does, with scene queries on (`enable_scene_query_support=True`: a PhysX vehicle
+finds the ground by raycasting each wheel, and Isaac Lab turns them off by default; without
+them the env smoke's steer and wheel spin reached PhysX but every wheel was off the ground,
+tire force 0), and without Fabric (`use_fabric=False`, as aib writes the wheels' torques and
+steer as USD attributes). `scripts/smoke_env.py` asserts all of it from PhysX's read-back. Only B runs on the GPU pipeline; 094's rate comparisons with stock
 are B's.
 

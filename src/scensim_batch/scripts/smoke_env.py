@@ -64,6 +64,8 @@ def main(argv=None):
     act = torch.zeros(a.n, 3)
     act[:, 0] = 1.0     # acceleration, m/s^2
     act[:, 1] = 20.0    # velocity limit
+    act[:, 2] = 0.05    # a small steer, so PhysX's read-back tells applied from not applied
+    env.backend.trace_steps = 20
     v0 = None
     for k in range(a.steps):
         obs, *_ = env.step(act)
@@ -76,6 +78,21 @@ def main(argv=None):
            "ego_sped_up": bool((sc["ego"]["v"] > v0 + 0.5).all()),
            "lead_moved": bool((sc["x"][:, lead] > 36.5).all())}
     print(json.dumps(out), flush=True)
+    for k, row in enumerate(env.backend.trace):
+        print(json.dumps({"trace": k, **{key: ([x if isinstance(x, bool) else round(x, 3)
+                                               for x in v] if isinstance(v, list)
+                                              else round(v, 4)) for key, v in row.items()}}),
+              flush=True)
+    # the actuation reached PhysX, read from PhysX: the front wheels steered toward the asked
+    # angle, and the driven wheels pushed forward (K2.2: Fabric once dropped it silently)
+    tr = env.backend.trace[-1]
+    front = [abs(x) for x in tr["steer"][:2]]
+    reached = (all(tr["on_ground"]) and min(front) > 0.5 * abs(tr["asked_tire_angle"])
+               and max(tr["tire_fx"]) > 0.0 and out["ego_sped_up"])
+    print(json.dumps({"actuation_reached_physx": reached}), flush=True)
+    if not reached:
+        raise SystemExit("the actuation did not reach PhysX (wheels on the ground, steer, tire "
+                         "force or speed)")
     env.close()
     app.close()
 

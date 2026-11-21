@@ -614,3 +614,107 @@ def test_the_check_warns_of_hf_2_with_old_brotli(host, maps_hub, monkeypatch):
     assert assets.hub_findings(p, {"assets": []}) == []     # nothing to fetch
     monkeypatch.setattr(assets, "brotli_problem", lambda *a: None)
     assert assets.hub_findings(p, settings) == []
+
+
+# --- issue 093: two fetches into one cache ---------------------------------------------------
+
+def _two_projects(host):
+    """Project a fetches the maps from the Hub; project b names the same commit through a
+    host copy of the dataset (its own .scensim/local.yaml), as in issue 093."""
+    a = host["tmp"] / "a"
+    a.mkdir()
+    (a / "testbench.yaml").write_text(MAP_PROJECT)
+    b = host["tmp"] / "b"
+    b.mkdir()
+    (b / "testbench.yaml").write_text(MAP_PROJECT)
+    copy = host["tmp"] / "nas" / "maps"
+    for rel, text in TOWN.items():
+        (copy / rel).parent.mkdir(parents=True, exist_ok=True)
+        (copy / rel).write_text(text)
+    (b / ".scensim").mkdir()
+    (b / ".scensim" / "local.yaml").write_text(
+        yaml.safe_dump({"datasets": {"carla-town-autoware-maps": str(copy)}}))
+    return a, b
+
+
+def test_a_second_fetch_waits_for_the_first_and_never_seals_under_it(host, maps_hub,
+                                                                   monkeypatch):
+    """Issue 093: a's download pauses after its first file while b (a host copy of the same
+    commit, writing nothing) runs. Before the fix b's exit sealed the commit's tree 0555 and
+    a's next file failed with PermissionError; now b waits on a's lock, says who holds it,
+    and finds the files a fetched."""
+    import threading
+    a, b = _two_projects(host)
+    monkeypatch.setattr(assets, "LOCK_POLL", 0.05, raising=False)
+    a_paused, b_done = threading.Event(), threading.Event()
+    real = assets.HttpHub.download
+    calls = {"a": 0}
+
+    def download(self, repo, commit, rel, dest):
+        if threading.current_thread().name == "a":
+            calls["a"] += 1
+            if calls["a"] == 1:
+                a_paused.set()
+                b_done.wait(1.5)   # b runs meanwhile; with the lock it cannot finish first
+        return real(self, repo, commit, rel, dest)
+    monkeypatch.setattr(assets.HttpHub, "download", download)
+
+    errors, out_a, out_b = [], [], []
+
+    def run(name, p, out):
+        try:
+            assets.fetch(p, out=out.append)
+        except Exception as e:   # noqa: BLE001 - the test reports it
+            errors.append((name, e))
+        finally:
+            if name == "b":
+                b_done.set()
+    ta = threading.Thread(target=run, args=("a", a, out_a), name="a")
+    ta.start()
+    assert a_paused.wait(5)
+    tb = threading.Thread(target=run, args=("b", b, out_b), name="b")
+    tb.start()
+    ta.join(20)
+    tb.join(20)
+    assert errors == []
+    assert calls["a"] >= 3                     # a fetched its files after the pause
+    assert any("waiting for pid" in line and "fetching it" in line for line in out_b), out_b
+    commit = maps_hub.repos[MAPS]["refs"]["tags"]["v1"]
+    cdir = host["cache"] / "datasets" / MAPS / commit
+    assert (cdir / "Town01" / "lanelet2_map.osm").read_text() == "<osm town01/>"
+    modes = {oct(d.stat().st_mode & 0o777) for d in [cdir] + [x for x in cdir.rglob("*")
+                                                              if x.is_dir()]}
+    assert modes == {"0o555"}                  # sealed, once, by the last holder
+    assert lock(a)["datasets"]["carla-town-autoware-maps"]["commit"] == commit
+    assert lock(b)["datasets"]["carla-town-autoware-maps"]["commit"] == commit
+    # both projects are recorded as the cache's users (register under its lock)
+    assert {Path(x).name for x in assets._projects(host["cache"])} == {"a", "b"}
+
+
+def test_a_held_commit_is_refused_naming_the_holder_and_kept_by_prune(host, maps_hub):
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    with assets.CommitLock(host["cache"], MAPS, commit, project="/elsewhere/holder"):
+        with pytest.raises(assets.AssetError, match=r"pid \d+ \(/elsewhere/holder, since "
+                                                    r".*\) is fetching it"):
+            with assets.CommitLock(host["cache"], MAPS, commit, wait=0):
+                pass
+        (p / "testbench.yaml").write_text("simulator: carla\npilots: {ego: {kind: autoware}}\n")
+        assets.fetch(p, out=lambda s: None)    # the lock no longer names the commit
+        out = []
+        assert assets.prune(host["cache"], out=out.append) == []
+        assert any(line.startswith(f"kept {MAPS}@{commit[:12]}") for line in out), out
+    assert assets.prune(host["cache"], out=lambda s: None) != []   # free now: removed
+
+
+def test_a_store_that_adds_nothing_leaves_the_modes_alone(host, maps_hub):
+    p = project(host["tmp"], MAP_PROJECT)
+    assets.fetch(p, out=lambda s: None)
+    commit = lock(p)["datasets"]["carla-town-autoware-maps"]["commit"]
+    cdir = host["cache"] / "datasets" / MAPS / commit
+    os.chmod(cdir, 0o755)   # as if a fetch were mid-way
+    with assets._Store(None, host["cache"], MAPS, commit):
+        pass
+    assert oct(cdir.stat().st_mode & 0o777) == "0o755"
+    os.chmod(cdir, 0o555)

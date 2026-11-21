@@ -1,8 +1,7 @@
 # 093: Two asset fetches into one cache break the first
 
 **Severity**: medium. A long download dies part-way whenever another fetch of the same dataset
-commit runs beside it, from any project on the host. **Status**: open; diagnosis only, the fix
-is to be assigned. **Found**: 2026-11-21, swb 243, roadmap 091 W17's exit run.
+commit runs beside it, from any project on the host. **Status**: fixed (scensim, swb 139). **Found**: 2026-11-21, swb 243, roadmap 091 W17's exit run.
 
 ## What happens
 
@@ -47,3 +46,36 @@ The traceback above, in the first fetch's log; the second fetch's output at the 
 (`carla-0.9.16-isaac-usd: the host's copy /mnt/disk1/carla-usd, 2131 file(s)` then `locked as
 the Hub has it, 38347e26ab35: 9706 file(s), 0 downloaded`); and `_Store.__exit__` in the code.
 Not reproduced deliberately.
+
+## Fix
+
+A fetch now holds an exclusive `flock` on the commit it writes, for as long as it may write:
+`assets.CommitLock`, on `<cache>/locks/<repo>@<commit>.lock`. A second fetch of that commit
+waits, and says once who holds it:
+
+```
+jerry73204/carla-0.9.16-isaac-usd@38347e26ab35: waiting for pid 4711 (/home/u/proj, since 11:42:07), which is fetching it
+```
+
+After an hour (`LOCK_WAIT`) it refuses, naming the holder. Once the first fetch is done, the
+second finds its files in place and downloads nothing. The kernel drops the lock when its
+process dies, so a killed fetch leaves nothing that blocks.
+
+`_Store` makes the tree writable only when it adds its first file, and seals it again on the
+way out. Only the one fetch that holds the lock does either. A store that adds nothing, such as
+a `lock_only` fetch of a host copy, leaves the modes alone.
+
+Two more writers of the cache now take a lock too:
+
+- `prune` takes each commit's lock without waiting, and keeps a commit that a fetch holds
+  ("kept ...: ... is fetching it").
+- `register` (projects.json) writes under the cache's own lock, through a unique temporary
+  file. Before, two fetches registering at once could both write `projects.json.tmp`, and one
+  project would be lost.
+
+The test is `test_a_second_fetch_waits_for_the_first_and_never_seals_under_it`. It runs
+fetch a, from the Hub, paused after its first file, beside fetch b, through a host copy of the
+same commit, as in the report. Against the old code it fails with the reported `PermissionError`
+on a's next file. Against the new code b waits, then a finishes, the tree is sealed `0555`, and
+both projects are registered. Two more tests cover the refusal naming the holder, `prune`
+keeping a held commit, and a store that adds nothing.

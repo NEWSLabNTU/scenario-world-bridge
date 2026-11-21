@@ -21,7 +21,7 @@ import yaml
 
 from scensim import assets, autoware_side, budget as budgetmod, config, ground as groundmod
 from scensim import isaac as isaacmod
-from scensim import judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
+from scensim import attachments as attachmentsmod, judges as judgesmod, tools as toolsmod, vehicles as vehiclesmod
 from scensim import overlays as overlaysmod, profile as profilemod, record as recordmod
 from scensim import ssv2 as ssv2mod, world as worldmod
 from scensim import component as componentmod
@@ -36,7 +36,7 @@ RENAMES = {"gitignore": ".gitignore"}
 NOT_COPIED = ("assets", "state", "runs", ".scensim", ".swb", "play_log")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
-            "world", "isaac", "carla", "ssv2", "default")
+            "attachments", "world", "isaac", "carla", "ssv2", "default")
 REQUIRED = ("simulator", "pilots", "assets")
 SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
@@ -422,6 +422,10 @@ def check_schema(settings: dict) -> list:
     for where, msg in judgesmod.problems(settings.get("judges")):
         out.append(Finding(pf, f"{where}: {msg}",
                            "judges: [{name: comfort, run: [python3, -m, my_judges.comfort]}]"))
+    for where, msg in attachmentsmod.problems(settings.get("attachments"),
+                                              sim if isinstance(sim, str) else None):
+        out.append(Finding(pf, f"{where}: {msg}",
+                           "attachments: [{name: netsim, run: [python3, -m, my_v2x.mobility]}]"))
     out += _check_logging(pf, "logging", settings.get("logging"), stack=True)
     for where, msg in worldmod.problems(settings, sim if isinstance(sim, str) else ""):
         out.append(Finding(pf, f"{where}: {msg}"))

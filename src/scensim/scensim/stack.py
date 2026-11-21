@@ -61,7 +61,7 @@ from scensim import episodes as episodesmod, judges as judgesmod, simulator as s
 from scensim import own_world
 from scensim import overlays as overlaysmod, vehicles as vehiclesmod, world as worldmod
 from scensim import launcher as launchermod, timeline as timelinemod, tools as toolsmod
-from scensim import autoware as autowaremod
+from scensim import attachments as attachmentsmod, autoware as autowaremod
 from scensim import component as componentmod
 from scensim.config import ConfigError
 
@@ -888,9 +888,17 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     side = {"state_dir": str(project / "state")}
     if episode_dirs[episodesmod.GAP_TRACE]:
         side["gap_trace_dir"] = episode_dirs[episodesmod.GAP_TRACE]
-    # the live truth stream (roadmap 092 K4): /scensim/truth from the bridge, for every run
-    if (psettings.get("logging") or {}).get("truth_topic"):
+    # the live truth stream (roadmap 092 K4): /scensim/truth from the bridge, for every run,
+    # when the testbench asks or has attachments, which read it
+    attached = psettings.get("attachments") or []
+    if (psettings.get("logging") or {}).get("truth_topic") or attached:
         side["truth_topic"] = "true"
+    # an attachment in lockstep follows the world's ticks: the CARLA world server's tick gate,
+    # on the seat's SSv2 port + TICK_GATE_OFFSET (UDP), set through its environment
+    tick_gate = None
+    if attachmentsmod.lockstep(attached) and sim == "carla":
+        tick_gate = f"127.0.0.1:{s.ssv2_port + seatmod.TICK_GATE_OFFSET}"
+        env["SCENSIM_TICK_GATE"] = tick_gate
     if episode_dirs[episodesmod.CONTACTS]:
         side["contact_report_dir"] = episode_dirs[episodesmod.CONTACTS]
     side.update(worldmod.side_args(project, world))
@@ -1066,6 +1074,7 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
         "maps": maps,
         "preload": preload,
         "episodes": episode_dirs,
+        **({"tick_gate": tick_gate} if tick_gate else {}),
         "weather": ({"parameters": worldmod.weather_parameters(world), "state": WEATHER_PENDING}
                     if worldmod.weather_parameters(world) else None),
         "simulator_start": carla_run["owner"] if carla_run else simmod.WORLD_SERVER,

@@ -1400,3 +1400,16 @@ def test_logging_truth_topic_turns_the_bridges_topic_on(where, maps_hub):
     # scensim's name: a developer's side_args cannot set it
     with pytest.raises(stack.StackRefused, match="truth_topic:= is scensim's"):
         stack.plan(project_arg=str(d), stack_args={"side_args": "truth_topic:=true"})
+
+
+def test_a_lockstep_attachment_turns_carlas_tick_gate_on(where, maps_hub):
+    d = make(where)
+    (d / "testbench.yaml").write_text(MULTI + "attachments:\n  - {name: ns3, run: [ns3-gw], lockstep: true}\n")
+    p = stack.plan(project_arg=str(d))
+    gate = f"127.0.0.1:{p.seat.ssv2_port + 6}"
+    assert p.env["SCENSIM_TICK_GATE"] == gate and p.record["tick_gate"] == gate
+    assert stack._named(p.launch_args["side_args"])["truth_topic"] == "true"
+    # without lockstep: the topic, no gate
+    (d / "testbench.yaml").write_text(MULTI + "attachments:\n  - {name: ns3, run: [ns3-gw]}\n")
+    p = stack.plan(project_arg=str(d))
+    assert "SCENSIM_TICK_GATE" not in p.env and "tick_gate" not in p.record

@@ -24,7 +24,7 @@ LEVELS = ("result", "standard", "full", "debug")
 LEVEL_KEEPS = {
     "result": {"result.json", "resolved.yaml", "junit.xml", "timeline.jsonl", "judges",
                "contacts", "sample.json"},   # sample.json: what --replay runs (092 K3)
-    "standard": {"logs", "gap_trace", "context.jsonl"},
+    "standard": {"logs", "gap_trace", "context.jsonl", "attachments"},   # attachments: 092 K4
     "full": {"record", "host.json"},
     "debug": None,  # everything
 }

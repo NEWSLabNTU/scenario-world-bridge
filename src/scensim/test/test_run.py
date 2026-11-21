@@ -1589,3 +1589,67 @@ def test_a_stopped_stack_with_an_error_is_refused_at_once(tmp_path):
         with pytest.raises(run.Refused, match="the stack s1 stopped: pilot ego is not coming up: x"):
             run.check_stack(rec, tmp_path, wait=600)
         assert time.time() - t < 2
+
+
+ATTACHED = JUDGED.replace(
+    "judges:\n  - {name: gap, version: \"2\", run: [python3, judge.py]}\n",
+    "attachments:\n  - {name: netsim, run: [python3, netsim.py]}\n").replace(
+    "logging: {keep: {passed: result}, budget: {per_run: 1KB}}", "logging: {keep: {passed: standard}}")
+
+NETSIM = """import json, os, signal, sys, time
+d = os.environ["SCENSIM_ATTACHMENT_DIR"]
+json.dump({k: os.environ[k] for k in os.environ if k.startswith("SCENSIM_")},
+          open(os.path.join(d, "seen.json"), "w"))
+if os.environ.get("NETSIM_DIE"):
+    sys.exit(4)
+signal.signal(signal.SIGINT, lambda *a: sys.exit(0))
+while True:
+    time.sleep(0.05)
+"""
+
+
+def test_an_attachment_runs_with_the_run_and_is_recorded(where, maps_hub, monkeypatch):
+    """Roadmap 092 K4: an attachment starts per run with its environment, is stopped after
+    SSv2, and is recorded in result.json; it does not change the verdict."""
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    d = make(where, ATTACHED)
+    (d / "netsim.py").write_text(NETSIM)
+    p, proc = start_stack(d)
+    # attachments read the truth topic: the stack turns it on
+    assert stack._named(p.launch_args["side_args"])["truth_topic"] == "true"
+    try:
+        assert run.main(["scenarios/three_pilots.xosc", "--project", str(d)], out=io.StringIO()) == 0
+        run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+        res = json.loads((run_dir / "result.json").read_text())
+        assert res["verdict"] == "passed"
+        a = res["attachments"]["netsim"]
+        assert a["exit"] == 0 and not a["ended_early"] and not a["required"]
+        seen = json.loads((run_dir / "attachments" / "netsim" / "seen.json").read_text())
+        assert seen["SCENSIM_RUN_DIR"] == str(run_dir)
+        assert json.loads(seen["SCENSIM_ROLES"])["ego"] == "ego"
+        assert "SCENSIM_TICK_GATE" not in seen
+        events = [e["event"] for e in timeline.read(run_dir / "timeline.jsonl")]
+        assert "attachment.start" in events and "attachment.stop" in events
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)
+
+
+def test_a_required_attachment_that_dies_makes_the_run_an_error(where, maps_hub, monkeypatch):
+    monkeypatch.setattr(run, "scenario_argv", fake(where))
+    monkeypatch.setenv("NETSIM_DIE", "1")
+    d = make(where, ATTACHED.replace("run: [python3, netsim.py]}",
+                                     "run: [python3, netsim.py], required: true}"))
+    (d / "netsim.py").write_text(NETSIM)
+    p, proc = start_stack(d)
+    try:
+        run.main(["scenarios/three_pilots.xosc", "--project", str(d)], out=io.StringIO())
+        run_dir = next((where["tmp"] / "logs" / "proj" / "runs").iterdir())
+        res = json.loads((run_dir / "result.json").read_text())
+        assert res["verdict"] == "error", res["reason"]
+        assert "attachment netsim (required) ended before the run did" in res["reason"] or any(
+            "attachment netsim" in e["message"] for e in res["events"])
+        assert res["attachments"]["netsim"]["ended_early"]
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.wait(timeout=10)

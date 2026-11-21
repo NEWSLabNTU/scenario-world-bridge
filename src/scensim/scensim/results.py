@@ -72,11 +72,13 @@ class RunResult:
     # and a replay's original and target; absent from other runs' results
     sample: dict = None
     replay: dict = None
+    # roadmap 092 K4, additive: each attachment's start, stop and exit (scensim.attachments)
+    attachments: dict = None
     schema: str = SCHEMA
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
-        for k in ("sample", "replay"):
+        for k in ("sample", "replay", "attachments"):
             if d.get(k) is None:
                 d.pop(k)
         return {"schema": d.pop("schema"), **d}
@@ -118,7 +120,7 @@ class RunResult:
 # --- validation -----------------------------------------------------------------------------
 
 _TOP = ("schema", "run_id", "verdict", "reason", "scenario", "ssv2", "events", "metrics",
-        "pilots", "provenance", "sample", "replay")
+        "pilots", "provenance", "sample", "replay", "attachments")
 _REQUIRED = ("schema", "run_id", "verdict")
 
 

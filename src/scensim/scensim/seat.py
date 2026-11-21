@@ -5,7 +5,7 @@ docs/design/projects-and-pilots.md, "Seats". Seat ``n`` of a table:
 - scenario domain ``domains.base + domains.stride * n``, pilot domains the next
   ``domains.stride - 1``;
 - SSv2 port ``ports.base + ports.stride * n``, its sensor-release sockets +1, +2, the relay
-  +5, the world server +36;
+  +5, the world server +36, the tick gate +6 (UDP, when an attachment is in lockstep);
 - web UI ``web.base + web.stride * n`` (+0 the stack, +1 the run's scenario);
 - GPU ``gpus[n]``, or the host settings' ``gpu:``.
 
@@ -35,6 +35,7 @@ from scensim.config import ConfigError
 MAX_DOMAIN = 57          # the localhost Cyclone profile's DomainGain 1000 (ports <= 65535)
 RELEASE_OFFSETS = (1, 2)
 RELAY_OFFSET = 5
+TICK_GATE_OFFSET = 6   # UDP: the CARLA world server's tick gate, for lockstep attachments
 WORLD_OFFSET = 36
 PORT_BLOCK = WORLD_OFFSET + 1   # ports a seat uses: SSv2 +0 .. world server +36
 WEB_BLOCK = 2                   # web UI: +0 stack, +1 the run's scenario

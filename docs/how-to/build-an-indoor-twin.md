@@ -56,7 +56,9 @@ refused, naming the layer.
 it with a tilt test. Fix a tyre, or the car with its wheels locked, on a board covered with
 the floor's surface, or on a hinged section of the floor itself. Raise the board slowly until
 the tyre slips, and read the angle θ. The peak friction is tan θ. Repeat it five times per
-floor zone, and take the mean if the spread is within your angle's resolution.
+floor zone, and take the mean if the spread is within your angle's resolution. A wider spread
+usually means a wet or dusty patch, or a tyre that is not at room temperature: find it, and
+repeat the trials.
 
 Measure it a second way, with the car (M6 in the protocol below): drive a circle and raise the
 speed slowly until the car slides. The lateral acceleration at the slide, divided by g, is the
@@ -127,7 +129,9 @@ the sha256 of every layer, asset and evidence file and one hash over them all, t
 attributes with their sources, and any value the run replaced. Large files are hashed once and
 then recognised by their size and modification time.
 
-Finally, compare the simulated lidar with real scans taken at known poses. A tool for this
+Finally, compare the simulated lidar with real scans taken at known poses. The planar lidar
+publishes one revolution per frame, so keep the frame rate below the scanner's: a 40 Hz scanner
+at 20 Hz frames gives 20 Hz scans, and at or above its rate the scans split. A tool for this
 comparison is planned; until then, overlay the two scans yourself and look for walls that do
 not coincide.
 
@@ -167,8 +171,13 @@ bands below.
 
 ### Car physics
 
-Fit the tyre and suspension values in the spec to M5 and M6, and choose the physics rate. Then
-run M1 to M6 in the twin and compare each quantity with the bands. A fitting tool and a
+Fit the tyre and suspension values in the spec to M5 and M6: per axle, `tires.front` and
+`tires.rear`, and the body's contact with walls, `body.contact` (restitution, friction and
+combine mode). Isaac applies them all; a CARLA testbench applies no `body.contact` and records
+it as not applied. As a starting point, 240 Hz with the TGS solver held a 1/10 car's wheels
+against a wall and kept the results stable, while below 200 Hz they slipped; a suspension near
+5 Hz behaved, and a softer one sat on its stops. Then run M1 to M6 in the twin and compare each
+quantity with the bands. A fitting tool and a
 comparison harness are planned; until then, run the manoeuvres as scenarios and compare the
 values yourself.
 
@@ -190,8 +199,11 @@ for its quantity and condition and is never averaged with the others.
 
 ### Your stack
 
-Run your stack against the twin at the `vesc` level, as it runs on the real car, and drive the
-five laps of M7. The laps are compared with the real laps by the same bands.
+Run your stack against the twin at the `vesc` level, as it runs on the real car: set the
+pilot's `vehicle_interface: vesc` (or `ackermann`, for a stack that publishes `/drive`). The
+`vesc` level needs your workspace's `vesc_msgs` built for Isaac's Python, once per host
+([The project file](../reference/project-file.md#the-vehicle-interface)). Then drive the five
+laps of M7. The laps are compared with the real laps by the same bands.
 
 ### A twin release
 

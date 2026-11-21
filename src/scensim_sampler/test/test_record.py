@@ -48,6 +48,15 @@ class Checker(unittest.TestCase):
         changed["values"]["ego_speed"] += 1
         self.assertIn("id: not the hash of this record", " ".join(check(changed)))
 
+    def test_a_value_named_path_is_part_of_the_id(self):
+        r = good()
+        a, b = copy.deepcopy(r), copy.deepcopy(r)
+        a["values"]["path"], b["values"]["path"] = "north", "south"
+        self.assertNotEqual(record_id(a), record_id(b))
+        c = copy.deepcopy(r)
+        c["sampler"]["env"] = {"python": "3.99", "numpy": "9", "platform": "x"}
+        self.assertEqual(record_id(c), r["id"])  # the host is not identity
+
     def assert_problem(self, r, text, **kw):
         problems = check(rehash(r), **kw)
         self.assertTrue(any(text in p for p in problems), f"{text!r} not in {problems}")

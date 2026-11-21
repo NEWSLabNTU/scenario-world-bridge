@@ -4,8 +4,13 @@ Its content is the proposal file's path. The proposal names its base model (`bas
 to the proposal) and replaces some of the base's variables, each by the same name (or group of
 names), with the same discreteness; the rest are drawn as the base draws them. The base's
 derived values, constraints and cell apply. The record carries both files' hashes and the
-weight, with its logarithm (a small weight underflows a float). The weights are not
-normalised: a rate is estimated self-normalised, sum(w * f) / sum(w)."""
+weight, with its logarithm (a small weight underflows a float).
+
+The weights are not normalised, and must not be used unnormalised. A draw where the base's
+density is 0 is drawn again, which truncates the proposal to the base's support, and
+constraints truncate both: each changes a density by a constant, and the constants are not
+computed. They cancel in the self-normalised estimate sum(w * f) / sum(w), which is unbiased
+as n grows; a plain mean(w * f), for a rare-event probability say, is biased by them."""
 import math
 from pathlib import Path
 

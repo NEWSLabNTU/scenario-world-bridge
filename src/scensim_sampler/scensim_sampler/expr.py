@@ -18,9 +18,9 @@ FUNCTIONS = {
 CONSTANTS = {"pi": math.pi, "g": 9.80665, "true": True, "false": False}
 
 BINARY = {
-    ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+    ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: lambda a, b: _mul(a, b),
     ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
+    ast.Pow: lambda a, b: _pow(a, b),
 }
 UNARY = {ast.UAdd: operator.pos, ast.USub: operator.neg, ast.Not: operator.not_}
 COMPARE = {
@@ -32,6 +32,26 @@ COMPARE = {
 
 class ExprError(ValueError):
     pass
+
+
+MAX_EXPONENT = 1000   # an integer power above it is refused (10**10**10 would never finish)
+MAX_STRING = 10000    # a string * n longer than this is refused
+
+
+def _pow(a, b):
+    if isinstance(a, int) and isinstance(b, int) and not isinstance(a, bool):
+        if abs(b) > MAX_EXPONENT:
+            raise ExprError(f"an integer power with exponent {b} (at most {MAX_EXPONENT})")
+        return a ** b
+    return math.pow(a, b)  # floats: OverflowError, named, rather than a hang
+
+
+def _mul(a, b):
+    for s, n in ((a, b), (b, a)):
+        if isinstance(s, (str, tuple)) and isinstance(n, int) and len(s) * n > MAX_STRING:
+            raise ExprError(f"a {type(s).__name__} repeated {n} times (at most {MAX_STRING} "
+                            f"long)")
+    return a * b
 
 
 class Expr:

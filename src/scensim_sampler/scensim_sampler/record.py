@@ -39,19 +39,21 @@ def canonical(value):
                       allow_nan=False)
 
 
-def _strip_paths(v):
-    if isinstance(v, dict):
-        return {k: _strip_paths(x) for k, x in v.items() if k != "path"}
-    if isinstance(v, list):
-        return [_strip_paths(x) for x in v]
-    return v
+FILE_REFS = ("scenario", "distribution")  # {path, sha256}: the path is not identity
 
 
 def record_id(rec):
-    """sha256 of the canonical record without its id and without any `path` (where a file was
-    is not what it was: its sha256 is)."""
+    """sha256 of the canonical record without its id, without the `path` of the scenario and
+    the distribution file (where a file was is not what it was: its sha256 is), and without
+    sampler.env (the host that drew it is not what was drawn). Nothing else is left out: a
+    parameter or knob named `path` is a value like any other."""
     body = {k: v for k, v in rec.items() if k != "id"}
-    return hashlib.sha256(canonical(_strip_paths(body)).encode()).hexdigest()
+    for k in FILE_REFS:
+        if isinstance(body.get(k), dict):
+            body[k] = {x: y for x, y in body[k].items() if x != "path"}
+    if isinstance(body.get("sampler"), dict):
+        body["sampler"] = {x: y for x, y in body["sampler"].items() if x != "env"}
+    return hashlib.sha256(canonical(body).encode()).hexdigest()
 
 
 def _scalar(v):
@@ -201,7 +203,7 @@ def check(rec, scenario=None, bound=False):
             out.append("car.spec_hash: 64 lowercase hex digits (sim_vehicle_spec's spec_hash)")
     if "sampler" in rec:
         s = rec["sampler"]
-        keys = {"name", "version", "plugins", "run_seed", "index"}
+        keys = {"name", "version", "plugins", "run_seed", "index", "env"}
         if not isinstance(s, dict) or set(s) != keys:
             out.append(f"sampler: {{{', '.join(sorted(keys))}}}")
         else:
@@ -213,6 +215,10 @@ def check(rec, scenario=None, bound=False):
             for k in ("run_seed", "index"):
                 if isinstance(s[k], bool) or not isinstance(s[k], int) or s[k] < 0:
                     out.append(f"sampler.{k}: an integer >= 0")
+            env = s["env"]
+            if (not isinstance(env, dict) or set(env) != {"python", "numpy", "platform"}
+                    or not all(isinstance(x, str) for x in env.values())):
+                out.append("sampler.env: {python, numpy, platform}, strings")
     if scenario is not None:
         out += against(rec, scenario)
     return out

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/NEWSLabNTU/scensim/blob/main/src/scensim_sampler/scensim_sampler/schema/sample-record-1.json",
   "title": "scensim sample record, version 1",
-  "description": "One drawn scenario: what it is, enough to run it again on any executor and to audit a rate computed from many. The spec is docs/design/sample-record.md; rules a schema cannot state (the id is the hash of the record, weight = exp(log_weight), weight 1 without a proposal, the record against its scenario) are the checker's (scensim-sample check).",
+  "description": "One drawn scenario: what it is, enough to run it again on any executor and to audit a rate computed from many. The spec is docs/design/sample-record.md; rules a schema cannot state (the id is the hash of the record without the files' paths and sampler.env, weight = exp(log_weight), weight 1 without a proposal, the record against its scenario) are the checker's (scensim-sample check).",
   "type": "object",
   "required": [
     "record",
@@ -252,7 +252,8 @@
         "version",
         "plugins",
         "run_seed",
-        "index"
+        "index",
+        "env"
       ],
       "additionalProperties": false,
       "properties": {
@@ -275,6 +276,27 @@
         "index": {
           "type": "integer",
           "minimum": 0
+        },
+        "env": {
+          "type": "object",
+          "required": [
+            "python",
+            "numpy",
+            "platform"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "python": {
+              "type": "string"
+            },
+            "numpy": {
+              "type": "string"
+            },
+            "platform": {
+              "type": "string"
+            }
+          },
+          "description": "the host's versions, to trace a record that does not redraw the same; not part of the id"
         }
       }
     }

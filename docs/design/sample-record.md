@@ -35,7 +35,7 @@ search: null
 world: {name: town_street, hash: "stage:sha256:..."}               # optional until bound
 car: {name: tesla_model3, spec_hash: 9c1d...}                      # optional until bound
 sampler: {name: scensim_sampler, version: 0.1.0, plugins: [importance], run_seed: 41,
-          index: 12}
+          index: 12, env: {python: 3.10.12, numpy: 1.21.5, platform: Linux-x86_64}}
 ```
 
 | Field | Type | Meaning |
@@ -56,13 +56,14 @@ sampler: {name: scensim_sampler, version: 0.1.0, plugins: [importance], run_seed
 | `search` | `{id, generation}` or null | the adaptive search that proposed it (purpose B); reserved, the sampler writes null |
 | `world` | `{name, hash}` | the world it ran in. Written by the executor that binds it (the field is optional in a drawn record, required by `check --bound`) |
 | `car` | `{name, spec_hash}` | the car spec it ran with, by `sim_vehicle_spec`'s `spec_hash`; bound as `world` is |
-| `sampler` | `{name, version, plugins, run_seed, index}` | what drew it: the plug-ins in order, the run's seed, and the sample's index in the run |
+| `sampler` | `{name, version, plugins, run_seed, index, env}` | what drew it: the plug-ins in order, the run's seed, the sample's index in the run, and `env` `{python, numpy, platform}`, the host's versions, to trace a record that does not redraw the same (numpy's streams may change between versions; libm may differ in the last bit) |
 
 ## 2. Identity
 
-`id` is the SHA-256 (lowercase hex) of the record's canonical form, taken without `id` and
-without every key named `path` at any depth. Where a file was is not what it was; its `sha256`
-is. The canonical form is JSON with keys sorted, no spaces (`,` and `:` as separators), ASCII
+`id` is the SHA-256 (lowercase hex) of the record's canonical form, taken without `id`, without
+`scenario.path` and `distribution.path`, and without `sampler.env`. Where a file was is not what
+it was (its `sha256` is), and the host that drew a sample is not what was drawn. Nothing else is
+left out: a parameter named `path` is a value like any other. The canonical form is JSON with keys sorted, no spaces (`,` and `:` as separators), ASCII
 only, and no NaN or infinity. In Python:
 
 ```python
@@ -116,7 +117,9 @@ where f_i is 1 for a failure and 0 otherwise, per cell. Three reasons:
 - **Log weights.** Sum them in log space (log-sum-exp); a product of small densities underflows.
 
 A draw where the base's density is 0 (outside its range, say) is rejected, not recorded with
-weight 0.
+weight 0. That truncates the proposal to the base's support, which is a constant factor and
+cancels as above. **Do not use the weights unnormalised.** A plain mean of w_i f_i, for a
+rare-event probability say, is biased by these constants.
 
 ## 6. The model file and the proposal file
 
@@ -166,6 +169,9 @@ be an expression of earlier values.
 - `abs min max round sqrt exp log floor ceil sin cos tan atan2 int float str`;
 - the constants `pi` and `g`;
 - names: the values drawn so far, the derived values, and the world knobs.
+
+An integer power with an exponent above 1000, or a string repeated past 10,000 characters, is
+refused, so a typo cannot hang the sampler; a float power that overflows is an error.
 
 **A variable a scenario does not declare** may be one of its cell attributes, which the record
 puts under `cell`. A derived value that is neither a parameter nor a cell attribute is an

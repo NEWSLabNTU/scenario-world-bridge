@@ -11,6 +11,7 @@ therefore the same whichever other samples are drawn, and a record names S and i
 """
 import itertools
 import math
+import platform
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,10 @@ from .plugins.importance import Importance
 from .plugins.joint import Joint
 from .xosc import Distribution, Scenario
 
+# What drew it, for tracing a record that does not reproduce: numpy's Generator streams may
+# change between versions (NEP 19), and libm may differ in the last bit between hosts
+ENV = {"python": platform.python_version(), "numpy": np.__version__,
+       "platform": f"{platform.system()}-{platform.machine()}"}
 MAX_REJECTS = 1000  # per sample: draws refused by constraints or outside the base's support
 
 
@@ -160,7 +165,7 @@ class Sampler:
             "search": None,
             "sampler": {"name": "scensim_sampler", "version": __version__,
                         "plugins": [p.name for p in self.plugins], "run_seed": int(run_seed),
-                        "index": int(index)},
+                        "index": int(index), "env": ENV},
         }
         rec["id"] = R.record_id(rec)
         return {k: rec[k] for k in R.KEYS if k in rec}

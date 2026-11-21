@@ -34,6 +34,16 @@ class Expressions(unittest.TestCase):
             with self.assertRaises(ExprError, msg=text):
                 Expr(text)
 
+    def test_a_runaway_power_or_repetition_is_refused_not_computed(self):
+        with self.assertRaisesRegex(ExprError, "exponent 10000000000"):
+            Expr("10 ** 10 ** 10")({})
+        with self.assertRaisesRegex(ExprError, "OverflowError"):
+            Expr("10.0 ** 1000")({})
+        with self.assertRaisesRegex(ExprError, "repeated 10000000000 times"):
+            Expr("'x' * 10 ** 10")({})
+        self.assertEqual(Expr("2 ** 10 + len_ * 0")({"len_": 1}), 1024)
+        self.assertEqual(Expr("'ab' * 2")({}), "abab")
+
     def test_an_unknown_name_lists_the_known_ones(self):
         with self.assertRaisesRegex(ExprError, r"speed is not known here \(known: a, b\)"):
             Expr("speed * 2")({"a": 1, "b": 2})

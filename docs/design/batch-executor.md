@@ -10,7 +10,7 @@ and 5a). It lives in `src/scensim_batch`. This note grows with its milestones:
 | K2.0 | Isaac Lab v3.0.0-EA as an overlay on Isaac Sim 6.1 (section 3); its Cartpole benchmark on 139 as a 5a reference row | installed; benchmark waits for a free GPU |
 | K2.1 | SSv2's default vehicle behaviour, batched in torch (section 2) | in progress |
 | K2.2 | The environment: a DirectRLEnv from a compiled scenario and sample records, the ego from aib's rig, the control component through `step_batch`, resets per slot | open |
-| K2.3 | The compiled storyboard (conditions, actions) and the truth export (truth-stream.md, schema 2) | open |
+| K2.3 | The compiled storyboard (conditions, actions) and the truth export (truth-stream.md, schema 2) (section 6) | in progress: the state machine, 10 conditions, SpeedAction and the exits, truth per slot; the rest executor pending |
 | K2.4 | Agreement: each "batch" row of the subset on seats and in batch, on the same sample (Town01) | open |
 | K2.5 | `scensim bench`: throughput at N = 256 and 1024 against a hand-written Isaac Lab environment (the RoboRacer indoor field) | open |
 
@@ -183,4 +183,47 @@ Isaac Lab's default. `scripts/smoke_env.py` asserts the read-back from PhysX (wh
 ground, front ones steered, tires pushing, egos sped up) and exits non-zero otherwise;
 `--fabric on|off` overrides the setting. Only B runs on the GPU pipeline; 094's rate comparisons with stock
 are B's.
+
+## 6. The compiled storyboard and the truth export (K2.3)
+
+`scensim_batch.storyboard` compiles a scenario's Story, Act, ManeuverGroup, Maneuver, Event and
+Action elements into one state machine over N slots, every element's state an [N] tensor, and
+ports SSv2's interpreter where it and the OpenSCENARIO text differ (its module docstring lists
+each point):
+
+- `StoryboardElement::evaluate`: an element's stop trigger first, then standby, start, running,
+  end (back to standby while executions remain), complete, re-dispatched within one tick; a
+  stop transition overrides and evaluates every child. An overriding Event overrides every
+  event of its maneuver, itself included (its stopTransition fires), and restarts its actions.
+- `Condition::update_condition`: each evaluation appends (time, value); the value used is the
+  newest entry at least `delay` old; an edge compares it with the one before. A start trigger
+  appends only while its element is in standby. The test checks the batched form against a
+  line-by-line scalar port on random per-slot sequences, masks and delays.
+- The rules: equalTo within machine epsilon, notEqualTo exact; standstill |v| <= epsilon; a
+  lane-coordinate distance signed; a StoryboardElementStateCondition latched once seen.
+- SpeedAction on SSv2's default vehicles, as `EntityBase::requestSpeedChange` does it: step
+  sets target and speed; linear (cubic and sinusoidal map to linear in SSv2) sets the
+  acceleration and the acceleration or deceleration limit to the rate until the speed passes
+  the target, then resets the limits; a time dimension takes the rate (target - v) / T; a
+  distance dimension sets only the target.
+- The end: exitSuccess and exitFailure end their slot (Isaac Lab's `terminated`). A storyboard
+  that completes or is stopped ends nothing, as in SSv2, where only the test runner's timeout
+  ends such a run; the environment's episode length plays that role (`truncated`).
+
+The storyboard ticks at reset (time 0) and after every step, on the state the step left, the
+time summed step by step as SSv2 sums it. Ten conditions, SpeedAction and the exit commands
+run; every other batch row is executor pending (compilable-subset.md section 8), which the
+checker and `compile` both name.
+
+**Truth** (`scensim_batch.truth.TruthRecorder`): every step's entity states per slot, written
+per slot and episode as `slot_<k>_ep<e>/truth.jsonl`, a schema-2 truth file that
+`scensim_launch/scripts/gap_trace.py` reads, with `sample.json` (the slot's record: the replay
+on seats) and `outcome.json` (how the episode ended, the storyboard's state, the seed). The
+ego's values are the engine's (`measured`); the default vehicles' and props' are the batch's
+(`derived`, `kinematic`); contacts are the ego's box overlaps at onset, impulse unknown.
+
+Measured on CS2 at two samples (onset 60 m at 6.5 m/s^2, 90 m at 3 m/s^2, point-mass engine):
+each lead brakes in the tick after it is within 1 m of its own onset, never beyond its rate,
+stops at exactly 0 m/s, and gets SSv2's default deceleration limit back; the stop trigger
+completes both storyboards at 30 s.
 

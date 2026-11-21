@@ -141,8 +141,14 @@ class ScensimEnv(DirectRLEnv):
         return torch.zeros(self.num_envs, device=self.device)
 
     def _get_dones(self):
+        """Terminated: the storyboard's exitSuccess or exitFailure (extras['scensim']
+        ['outcome']: 1 success, 2 failure); truncated: the episode length, which is SSv2's
+        test runner timeout's role. A slot whose storyboard completed or stopped without an
+        exit runs on to it, as on seats."""
         timeout = self.episode_length_buf >= self.max_episode_length - 1
-        return torch.zeros_like(timeout), timeout
+        out = self.run.storyboard.outcome if self.run.storyboard is not None else None
+        term = (out != 0).to(timeout.device) if out is not None else torch.zeros_like(timeout)
+        return term, timeout
 
     def _reset_idx(self, env_ids):
         super()._reset_idx(env_ids)

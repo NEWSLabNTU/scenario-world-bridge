@@ -37,6 +37,8 @@ class Entity:
     length: float
     width: float
     height: float
+    cx: float = 0.0    # the box's centre in the entity's frame (BoundingBox/Center)
+    cy: float = 0.0
 
 
 @dataclass
@@ -53,6 +55,8 @@ class Compiled:
     speed_set: torch.Tensor = None   # [N, E] bool: an Init SpeedAction set its speed
     verdict: object = None
     seeds: list = field(default_factory=list)
+    storyboard: object = None        # storyboard.Storyboard (K2.3)
+    records: list = field(default_factory=list)
 
     def index(self, name):
         return [e.name for e in self.entities].index(name)
@@ -81,6 +85,12 @@ class _Params:
         text = text.strip()
         if text.startswith("${"):
             raise CompileError(f"{where}: expression {text!r} (not compiled yet)")
+        if text.startswith("-$"):          # a negated parameter, as SSv2 reads it (CS2's -$decel)
+            vals = self.value(text[1:], where)
+            nums = [_number(v) for v in vals]
+            if any(v is None for v in nums):
+                raise CompileError(f"{where}: {text!r} negates a parameter that is not a number")
+            return [repr(-v) for v in nums]
         if text.startswith("$"):
             name = text[1:]
             if name in self.cache:
@@ -110,7 +120,10 @@ def _box(obj, where):
         if obj.find("CatalogReference") is not None:
             raise CompileError(f"{where}: an entity from a catalog (not compiled yet)")
         raise CompileError(f"{where}: no BoundingBox")
-    return tuple(float(dims.get(k)) for k in ("length", "width", "height"))
+    centre = obj.find(".//BoundingBox/Center")
+    cx, cy = ((float(centre.get("x", 0)), float(centre.get("y", 0))) if centre is not None
+              else (0.0, 0.0))
+    return tuple(float(dims.get(k)) for k in ("length", "width", "height")) + (cx, cy)
 
 
 def _kind(obj):
@@ -146,7 +159,7 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
         kind = _kind(obj)
         if kind is None:
             raise CompileError(f"{where}: neither Vehicle, Pedestrian nor MiscObject")
-        length, width, height = _box(obj, where)
+        length, width, height, cx, cy = _box(obj, where)
         if name in v.egos:
             role = "ego"
         elif kind == "misc":
@@ -156,7 +169,7 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
         else:
             raise CompileError(f"{where}: a {kind} with a controller or behaviour model "
                                "(not compiled yet)")
-        entities.append(Entity(name, role, kind, length, width, height))
+        entities.append(Entity(name, role, kind, length, width, height, cx, cy))
     names = [e.name for e in entities]
     e = len(entities)
     z = torch.zeros(n, e, dtype=torch.float64)
@@ -194,9 +207,36 @@ def compile_scenario(path, records, world, provides=(), device="cpu"):
                         if ptype in ("double", "int", "unsignedInt", "unsignedShort")
                         and all(t is not None for t in nums) else list(vals))
     seeds = [(r.get("seeds") or {}).get("scenario") for r in records]
+    from . import storyboard as sbmod
+    info = _StoryInfo(n, P, entities, world, names, x, y, yaw, placed)
+    sb_el = root.find("Storyboard")
+    try:
+        story = sbmod.compile_storyboard(sb_el, info) if sb_el is not None else None
+    except sbmod.StoryboardError as e:
+        raise CompileError(str(e)) from None
     to = (lambda t: t.to(device))
     return Compiled(str(spath), n, entities, params, to(x), to(y), to(yaw), to(speed),
-                    placed.to(device), speed_set.to(device), v, seeds)
+                    placed.to(device), speed_set.to(device), v, seeds, story, list(records))
+
+
+class _StoryInfo:
+    """What the storyboard's compile reads: the slots, parameters, entities, map."""
+
+    def __init__(self, n, P, entities, world, names, x, y, yaw, placed):
+        self.n, self.P, self.entities, self.world = n, P, entities, world
+        self.names, self.x, self.y, self.yaw, self.placed = names, x, y, yaw, placed
+        self.defaults = [i for i, e in enumerate(entities) if e.role == "default"]
+
+    def index(self, name, where):
+        if name not in self.names:
+            raise CompileError(f"{where}: no entity {name!r}")
+        return self.names.index(name)
+
+    def position(self, pos, where):
+        if pos is None:
+            raise CompileError(f"{where}: missing")
+        return _position(pos, where, self.P, self.world, self.names, self.x, self.y, self.yaw,
+                         self.placed)
 
 
 def _position(pos, where, P, world, names, x, y, yaw, placed):

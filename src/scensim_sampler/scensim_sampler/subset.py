@@ -119,6 +119,19 @@ for _t in ("LaneOffsetAction", "LaneOffsetActionDynamics", "LaneOffsetTarget",
            "TraveledDistanceCondition"):
     TABLE[_t] = (UNIMPLEMENTED, NOT_IN_SSV2)
 
+# "batch" constructs the batch executor (scensim_batch, roadmap 092 K2) does not run yet: a
+# scenario using one compiles only if the executor provides it, which it does not, so
+# scensim_batch's compile refuses it by name rather than the checker passing what the executor
+# refuses. scensim_batch's tests hold this set and the executor's implemented set (storyboard.py
+# IMPLEMENTED) to every "batch" row and command, with none in both.
+EXECUTOR_PENDING_REASON = "batch executor pending (scensim_batch does not run it yet)"
+EXECUTOR_PENDING = frozenset("""
+AbsoluteTargetLane AcquirePositionAction AssignRouteAction FollowTrajectoryAction
+LaneChangeAction RelativeClearanceCondition RelativeTargetLane RoadCondition
+SpeedProfileAction TimeHeadwayCondition TrafficSignalControllerAction
+TrafficSignalStateAction scensim.fault
+""".split())
+
 # CustomCommandAction types
 COMMANDS = {
     "exitSuccess": (BATCH, "the slot's end, success"),
@@ -348,6 +361,8 @@ def _walk(el, where, v, in_init, entity):
                                                 "exitSuccess, exitFailure and scensim.fault "
                                                 "compile"))
         v.add(cls, here, f"CustomCommandAction {t or '(empty)'}", reason)
+        if cls == BATCH and key in EXECUTOR_PENDING:
+            v.add(CONDITIONAL, here, f"CustomCommandAction {key}", EXECUTOR_PENDING_REASON)
         return
     if tag == "UserDefinedValueCondition":
         name = (el.get("name") or "").strip()
@@ -370,6 +385,8 @@ def _walk(el, where, v, in_init, entity):
         if init and tag in ("ParameterAction", "SetAction", "ParameterSetAction"):
             cls, reason = BATCH, "set before the run: fixed for the slot"
         v.add(cls, here, tag, reason, fix)
+        if cls == BATCH and tag in EXECUTOR_PENDING:
+            v.add(CONDITIONAL, here, tag, EXECUTOR_PENDING_REASON)
         if cls in (SEATS, DERIVED, UNIMPLEMENTED):
             return   # its contents are its own
     else:

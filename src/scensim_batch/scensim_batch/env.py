@@ -117,42 +117,55 @@ class ScensimEnv(DirectRLEnv):
 
     def _apply_action(self):
         dt = self.physics_dt
-        if self.stepped:          # the step before this one: the cars read back
+        if self.stepped:          # the substep before this one: the cars read back
             self.backend.sample(dt)
         self.run.before_physics(self.commands, dt)
         self.backend.actuate(dt)
         self.stepped = True
 
-    def _get_observations(self):
-        dt = self.physics_dt
+    # Isaac Lab's step after the physics (DirectRLEnv.step, v2 and v3.0.0-EA alike):
+    # _get_dones, _get_rewards, _reset_idx(the done slots), _get_observations. The step's
+    # world (the last substep read back, SSv2's default vehicles moved, the storyboard ticked)
+    # is made in the first of them, so dones, rewards and observations all read this step,
+    # and a reset slot's observation is its reset's (BatchRun.reset), the others untouched
+    # (243's review of K2.2: they were a step late, and reset slots ran a step ahead).
+
+    def _get_dones(self):
         if self.stepped:
-            self.backend.sample(dt)
+            self.backend.sample(self.physics_dt)
             self.stepped = False
         self.obs = self.run.after_physics(self.step_dt)
+        self.extras["scensim"] = self.obs
+        return self.dones()
+
+    def _get_rewards(self):
+        return self.rewards()
+
+    def _get_observations(self):
+        self.obs = self.run.obs
+        self.extras["scensim"] = self.obs
         ego = self.obs["ego"]
         o = torch.stack([ego["v"], ego["yaw_rate"], ego["accel_x"], ego["accel_y"],
                          ego["x"], ego["y"], torch.cos(ego["yaw"]), torch.sin(ego["yaw"])], -1)
-        self.extras["scensim"] = self.obs
         return {"policy": o.to(self.device, torch.float32)}
-
-    # --- the user's ---------------------------------------------------------------------------
-
-    def _get_rewards(self):
-        return torch.zeros(self.num_envs, device=self.device)
-
-    def _get_dones(self):
-        """Terminated: the storyboard's exitSuccess or exitFailure (extras['scensim']
-        ['outcome']: 1 success, 2 failure); truncated: the episode length, which is SSv2's
-        test runner timeout's role. A slot whose storyboard completed or stopped without an
-        exit runs on to it, as on seats."""
-        timeout = self.episode_length_buf >= self.max_episode_length - 1
-        out = self.run.storyboard.outcome if self.run.storyboard is not None else None
-        term = (out != 0).to(timeout.device) if out is not None else torch.zeros_like(timeout)
-        return term, timeout
 
     def _reset_idx(self, env_ids):
         super()._reset_idx(env_ids)
         mask = torch.zeros(self.num_envs, dtype=torch.bool)
         mask[torch.as_tensor(env_ids, dtype=torch.long).cpu()] = True
-        self.run.reset(mask)
-        self.stepped = False
+        self.run.reset(mask)      # merges: the other slots' observation stays this step's
+
+    # --- the user's: override these (self.obs is this step's) ----------------------------------
+
+    def rewards(self):
+        return torch.zeros(self.num_envs, device=self.device)
+
+    def dones(self):
+        """Terminated: the storyboard's exitSuccess or exitFailure (self.obs['outcome']: 1
+        success, 2 failure); truncated: the episode length, which is SSv2's test runner
+        timeout's role. A slot whose storyboard completed or stopped without an exit runs on
+        to it, as on seats."""
+        timeout = self.episode_length_buf >= self.max_episode_length - 1
+        out = self.obs.get("outcome") if self.obs is not None else None
+        term = (out != 0).to(timeout.device) if out is not None else torch.zeros_like(timeout)
+        return term, timeout

@@ -214,8 +214,29 @@ each point):
   that completes or is stopped ends nothing, as in SSv2, where only the test runner's timeout
   ends such a run; the environment's episode length plays that role (`truncated`).
 
-The storyboard ticks at reset (time 0) and after every step, on the state the step left, the
-time summed step by step as SSv2 sums it. Ten conditions, SpeedAction and the exit commands
+The storyboard ticks at reset (time 0) and after every step, on the state the step left.
+
+**Scenario time** is SSv2's `SimulationClock::getCurrentScenarioTime`: A(S + k) - A(S), A the
+step (`realtime_factor / frame_rate`) summed in a double from the node's start, S the frames
+before `startNpcLogic`. The fork's `clock_source:=simulator` moves ROS time onto the world's
+integer `sim_time_ns` and leaves scenario time as it is, so a SimulationTimeCondition on seats
+reads the summed double. Which frame first passes a boundary depends on S (t > 1 at 0.05 s:
+frame 20 or 21), and S differs between seats runs; `BatchRun(start_frames=S, step_time=dt)`
+reproduces a given run's, and K2.4's seats comparison has to carry it from the run.
+
+**The route goal.** Under `--ego policy` the ego's AcquirePositionAction and AssignRouteAction
+(Init or story) are the policy's task, not actions to execute (133): the slot's
+`obs["route"]` holds the route polyline (the world adapter's `route_through`, else the chords
+through the waypoints), the goal pose, the ego's progress along it, the distance left and to
+the goal, and `goal_reached` (within 1 m, latched) with its onset `goal_reached_now`. The ego's
+FollowTrajectoryAction would drive the ego over the policy: refused (seats). Another entity's
+routing executes, and is executor pending.
+
+**In Isaac Lab** (`env.py`) the step's world is made in `_get_dones`, the first hook after the
+physics in DirectRLEnv.step (dones, rewards, resets, observations, in both Isaac Lab 2 and
+3.0.0-EA): the last substep read back, the default vehicles moved, the storyboard ticked; so
+dones, rewards and observations read the same step, and `BatchRun.reset` merges a reset slot's
+observation in without touching the others'. Users override `rewards()` and `dones()`. Ten conditions, SpeedAction and the exit commands
 run; every other batch row is executor pending (compilable-subset.md section 8), which the
 checker and `compile` both name.
 

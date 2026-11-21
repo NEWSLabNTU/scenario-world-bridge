@@ -23,7 +23,7 @@ simulator-agnostic: CARLA's and Isaac's world servers answer the same messages.
 
 - **The per-run file.** The gap trace's JSON Lines file, schema 2: one file per episode, in the
   run's `gap_trace/` directory (`results-and-logs.md`), written by the bridge's writer thread.
-  Schema 2 only adds to schema 1, so the gap oracle reads it unchanged. It is recorded by
+  The gap trace is the run's truth file; it keeps its name, which judges use. It is recorded by
   default (`logging.gap_trace` defaults to true from K4), and follows the run's keep levels
   like any other episode file, so a suite can drop it for passed runs.
 - **The live topic.** `/scensim/truth` in the scenario domain, `scensim_interfaces/msg/
@@ -41,20 +41,26 @@ frame is the same.
 Every line is one JSON object with a `type`. Units are SI; poses are in the map frame (the
 world frame moved by `map_origin`) as `[x, y, z, roll, pitch, yaw]`, metres and radians.
 
-| type | when | fields (schema 1, then schema 2's additions) |
+| type | when | fields (schema 2) |
 |---|---|---|
-| `episode` | first line | `schema` (2), `episode`, `start_unix`, `npc_motion`; **added**: `map` (the map's name), `world_hash` (the stage's sha256 on Isaac, `provenance.stage`; the map files' digest on CARLA), `step_time` (s) |
-| `entity` | at each spawn | `frame`, `name`, `kind`, `declared {center, dimensions}`, `origin_offset [x, y, yaw]`, `actor_id`, `blueprint`, `blueprint_box`; **added**: `index` (stable per episode, see 5), `role` (`ego`, `npc`, or `pilot:<entity>`), `subtype` (SSv2's: car, truck, pedestrian, ...) |
-| `frame` | each SSv2 step | `frame`, `sim_time`, `carla_frame`, `entities {name: state}`; **added**: `sim_time_ns` |
-| `contact` | each contact | `frame`, `carla_frame`, `sim_time`, `ego_id`, `subject`, `other_id`, `name`, `other_type`, `other_kind`, `impulse` |
-| `signal` | **added**: each change | `frame`, `sim_time_ns`, `opendrive_id`, `state` (the `SignalState` the bridge set) |
+| `episode` | first line | `schema` (2), `episode`, `start_unix`, `npc_motion`, `map` (the map's name), `world_hash` (the stage's sha256 on Isaac, `provenance.stage`; the map files' digest on CARLA), `step_time` (s) |
+| `entity` | at each spawn | `frame`, `name`, `index` (stable per episode, see 5), `role` (`ego`, `npc`, or `pilot:<entity>`), `kind`, `subtype` (SSv2's: car, truck, pedestrian, ...), `declared {center, dimensions}`, `origin_offset [x, y, yaw]`, `sim_id`, `asset`, `asset_box` |
+| `frame` | each SSv2 step | `frame`, `sim_time`, `sim_time_ns`, `sim_frame`, `entities {name: state}` |
+| `contact` | each contact | `frame`, `sim_frame`, `sim_time`, `ego_id`, `subject`, `other_id`, `name`, `other_type`, `other_kind`, `impulse` |
+| `signal` | each change | `frame`, `sim_time_ns`, `opendrive_id`, `state` (the `SignalState` the bridge set) |
 | `end` | last line | `frame`, `sim_time`, `frames`, `dropped_frames`, `complete` |
 
-An entity's state in a frame: `ssv2` (SSv2's pose), `carla` (the simulator's pose: the truth;
-the name predates other simulators and means the simulator's pose on any of them), `velocity
-[vx, vy, vz]`, `flags` (`spawn`, `contact_hold`, `kinematic`); **added**: `angular_velocity [wx, wy, wz]` and `velocity_source`
+An entity's state in a frame: `ssv2` (SSv2's pose), `sim_pose` (the simulator's pose: the
+truth), `velocity [vx, vy, vz]`, `angular_velocity [wx, wy, wz]`, `velocity_source`
 (`measured` when the world server sent it, `derived` when the bridge differenced two poses,
-for a kinematic body on a server that does not measure it).
+for a kinematic body on a server that does not measure it), and `flags` (`spawn`,
+`contact_hold`, `kinematic`).
+
+Schema 2 names the simulator's values neutrally. Schema 1 (CARLA only) named them `carla`
+(`sim_pose`), `carla_frame` (`sim_frame`), `actor_id` (`sim_id`), `blueprint` (`asset`) and
+`blueprint_box` (`asset_box`), and lacked `index`, `role`, `subtype`, `sim_time_ns`,
+`angular_velocity`, `velocity_source`, the `episode` line's map fields and the `signal` lines.
+A reader takes the names of the file's `schema`: versioned reading of a versioned format.
 
 Signals are events, not repeated every frame: a reader keeps the last state per signal.
 
@@ -101,6 +107,7 @@ both simulators; the budget is 1 ms per step.
 
 ## 8. Readers
 
-`scensim_launch/scripts/gap_trace.py` reads both schemas; schema 2's fields are absent from a
-schema 1 file and read as unknown. The topic's readers subscribe in the scenario domain with
+`scensim_launch/scripts/gap_trace.py` reads both schemas, by the `episode` line's `schema`:
+schema 1's names in a schema 1 file, schema 2's in a schema 2 file, and schema 2's additions
+as unknown in a schema 1 file. The gap oracle reads through it, so it reads both. The topic's readers subscribe in the scenario domain with
 the stack's DDS settings (`domains-and-dds.md`).

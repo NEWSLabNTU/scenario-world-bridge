@@ -3,8 +3,10 @@
 Move every host's Isaac stack from Isaac Sim 6.1.0 and Isaac Lab v3.0.0-EA to Isaac Sim 6.2
 and the Isaac Lab 3.0.0 release, and port WheeledLab to it.
 
-**Status**: planned 2026-11-21 (user: "Move our hosts to Isaac Sim 6.2 and Isaac Lab 3.0
-final. Port WheelLab too").
+**Status**: in progress 2026-11-21 (user: "Move our hosts to Isaac Sim 6.2 and Isaac Lab 3.0
+final. Port WheelLab too"; then "switch to Isaac Sim 6.2 on all agents. Remove old 6.1 and
+5.0": each host switches once its checks pass, then removes its 6.1 and 5.x stacks and the
+early-access overlay, 118 after its running W10 fit ends).
 
 **Why**: Isaac Lab v3.0.0 (released 2026-10-19) pins isaacsim 6.2.0.0, so 092's K2 pinned
 the early-access tag that matches 6.1. One stack for Isaac Sim, Isaac Lab, aib, the Isaac

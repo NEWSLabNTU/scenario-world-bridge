@@ -38,7 +38,7 @@ go = _load("gap_oracle")
 # step 2-3 tests: a 4.5 m declared car whose CARLA body is a Model 3 (4.7 x 2.1), and a
 # declared 12 m truck whose CARLA body is the same Model 3.
 
-MODEL3 = gt.BlueprintBox(location=(0.0, 0.0, 0.72), extent=(2.35, 1.05, 0.72))
+MODEL3 = gt.AssetBox(location=(0.0, 0.0, 0.72), extent=(2.35, 1.05, 0.72))
 
 
 def header(name, kind, center, dims, actor_id, bp=MODEL3, blueprint="vehicle.tesla.model3",
@@ -49,9 +49,9 @@ def header(name, kind, center, dims, actor_id, bp=MODEL3, blueprint="vehicle.tes
         kind=kind,
         declared=gt.DeclaredBox(center=tuple(center), dimensions=tuple(dims)),
         origin_offset=gt.OriginOffset(center[0], center[1], offset_yaw),
-        actor_id=actor_id,
-        blueprint=blueprint,
-        blueprint_box=bp,
+        sim_id=actor_id,
+        asset=blueprint,
+        asset_box=bp,
     )
 
 
@@ -61,7 +61,7 @@ CAR = header("car", "vehicle", (1.5, 0.0, 0.9), (4.5, 2.1, 1.8), 213)
 # A declared 2.0 m motorbike whose CARLA body is still the Model 3 (the pre-022 body).
 BIKE = header("bike", "vehicle", (0.6, 0.0, 0.75), (2.0, 0.8, 1.5), 214)
 WALKER = header("walker", "pedestrian", (0.0, 0.0, 0.9), (0.6, 0.6, 1.8), 215,
-                bp=gt.BlueprintBox(location=(0.0, 0.0, 0.0), extent=(0.19, 0.19, 0.93)),
+                bp=gt.AssetBox(location=(0.0, 0.0, 0.0), extent=(0.19, 0.19, 0.93)),
                 blueprint="walker.pedestrian.0001")
 HEADERS = {h.name: h for h in (EGO, TRUCK, CAR, BIKE, WALKER)}
 
@@ -73,15 +73,15 @@ def state(name, x, y=0.0, yaw=0.0, z=0.0, *, dx=0.0, dy=0.0, dyaw=0.0, dz=0.0,
     h = HEADERS[name]
     ssv2 = gt.Pose6(x, y, z, 0.0, 0.0, yaw)
     if not carla:
-        return gt.EntityState(ssv2=ssv2, carla=None, velocity=None, flags=tuple(flags))
+        return gt.EntityState(ssv2=ssv2, sim_pose=None, velocity=None, flags=tuple(flags))
     o = h.origin_offset
     ax = x + o.x * math.cos(yaw) - o.y * math.sin(yaw) + dx
     ay = y + o.x * math.sin(yaw) + o.y * math.cos(yaw) + dy
     # Same ground: the CARLA box bottom where SSv2's is.
     ssv2_bottom = z + h.declared.center[2] - h.declared.dimensions[2] / 2.0
-    az = ssv2_bottom - (h.blueprint_box.location[2] - h.blueprint_box.extent[2]) + dz
+    az = ssv2_bottom - (h.asset_box.location[2] - h.asset_box.extent[2]) + dz
     pose = gt.Pose6(ax, ay, az, 0.0, 0.0, yaw + o.yaw + dyaw)
-    return gt.EntityState(ssv2=ssv2, carla=pose, velocity=(0.0, 0.0, 0.0), flags=tuple(flags))
+    return gt.EntityState(ssv2=ssv2, sim_pose=pose, velocity=(0.0, 0.0, 0.0), flags=tuple(flags))
 
 
 def frame(n, *states):
@@ -92,16 +92,16 @@ def frame(n, *states):
 def contact(n, other=None, kind=None, impulse=500.0, ego_id=211, subject=None):
     """A contact the ego's sensor saw, or with `subject` the named NPC's own (032)."""
     if kind == "unknown":
-        return gt.Contact(frame=n, carla_frame=1000 + n, sim_time=n * 0.05, ego_id=ego_id,
+        return gt.Contact(frame=n, sim_frame=1000 + n, sim_time=n * 0.05, ego_id=ego_id,
                           other_id=999, name=None, other_type="vehicle.audi.tt",
                           other_kind="unknown", impulse=impulse, subject=subject)
     if other is None:
-        return gt.Contact(frame=n, carla_frame=1000 + n, sim_time=n * 0.05, ego_id=ego_id,
+        return gt.Contact(frame=n, sim_frame=1000 + n, sim_time=n * 0.05, ego_id=ego_id,
                           other_id=None, name=None, other_type="static.pole",
                           other_kind="static", impulse=impulse, subject=subject)
     h = HEADERS[other]
-    return gt.Contact(frame=n, carla_frame=1000 + n, sim_time=n * 0.05, ego_id=ego_id,
-                      other_id=h.actor_id, name=other, other_type=h.blueprint,
+    return gt.Contact(frame=n, sim_frame=1000 + n, sim_time=n * 0.05, ego_id=ego_id,
+                      other_id=h.sim_id, name=other, other_type=h.asset,
                       other_kind=h.kind, impulse=impulse, subject=subject)
 
 
@@ -462,7 +462,7 @@ class G3PoseDivergence(unittest.TestCase):
         frames = [frame(i, ("ego", state("ego", 50.0)), ("walker", state("walker", 0.0)))
                   for i in range(1, 6)]
         t = make_trace(["ego", "walker"], frames)
-        self.assertGreater(t.frames[0].entities["walker"].carla.z, 0.9)
+        self.assertGreater(t.frames[0].entities["walker"].sim_pose.z, 0.9)
         self.assertEqual(checks(run(t), "G3"), [])
 
     def test_tolerances_are_flags(self):

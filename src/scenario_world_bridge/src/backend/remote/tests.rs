@@ -1388,3 +1388,78 @@ fn a_map_loaded_between_scenarios_is_a_world_load_and_no_episode() {
     .unwrap();
     assert_eq!(b.episode, 2);
 }
+
+/// Roadmap 092 S4: the run's truth file at schema 2, as the bridge writes it from a world
+/// server's replies (docs/design/truth-stream.md).
+#[test]
+fn the_truth_file_is_schema_2_from_the_servers_replies() {
+    let dir = std::env::temp_dir().join(format!("scensim-truth-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut config = BridgeConfig {
+        npc_motion: NpcMotion::Kinematic,
+        gap_trace_dir: dir.display().to_string(),
+        ..Default::default()
+    };
+    config.world.endpoint = server(honest());
+    config.world.request_timeout_seconds = 1;
+    config.contact_report_dir = Some(contact_report::OFF.to_string());
+    config.agent_relay = "tcp://127.0.0.1:9".into();
+    let shutdown = AtomicBool::new(false);
+    let mut b = connect(config, &shutdown).unwrap().expect("connected");
+    b.initialize(&episode()).unwrap();
+    b.spawn(&vehicle("ego", Driver::Ego, 0.0)).unwrap();
+    b.spawn(&vehicle("npc", Driver::Scenario, -10.0)).unwrap();
+    for frame in 1..=3 {
+        b.update_entity_status(batch(vec![
+            status("ego", 0.0),
+            status("npc", -10.0 + frame as f64),
+        ]));
+        b.update_frame(0.05 * frame as f64).unwrap();
+    }
+    drop(b);
+    let path = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.extension().is_some_and(|x| x == "jsonl"))
+        .expect("a trace file");
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(&path)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let _ = std::fs::remove_dir_all(&dir);
+    let of = |t: &str| lines.iter().filter(|l| l["type"] == t).collect::<Vec<_>>();
+    let ep = of("episode")[0];
+    assert_eq!(ep["schema"], 2);
+    assert_eq!(ep["map"], "Town01");
+    assert_eq!(ep["step_time"], 0.05);
+    let ents = of("entity");
+    assert_eq!(
+        ents.iter()
+            .map(|e| (
+                e["name"].as_str().unwrap(),
+                e["index"].as_u64().unwrap(),
+                e["role"].as_str().unwrap()
+            ))
+            .collect::<Vec<_>>(),
+        [("ego", 0, "ego"), ("npc", 1, "scenario")]
+    );
+    assert!(ents
+        .iter()
+        .all(|e| e["subtype"] == "car" && e.get("sim_id").is_some()));
+    assert!(ents
+        .iter()
+        .all(|e| e.get("actor_id").is_none() && e.get("blueprint").is_none()));
+    let frames = of("frame");
+    assert!(!frames.is_empty());
+    for f in &frames {
+        assert!(f["sim_time_ns"].as_i64().is_some(), "{f}");
+        for (name, s) in f["entities"].as_object().unwrap() {
+            assert!(s.get("carla").is_none(), "{name}: {s}");
+            if !s["sim_pose"].is_null() {
+                assert!(["measured", "derived"].contains(&s["velocity_source"].as_str().unwrap()));
+                assert_eq!(s["angular_velocity"].as_array().unwrap().len(), 3);
+            }
+        }
+    }
+}

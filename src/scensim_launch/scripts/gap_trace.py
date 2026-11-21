@@ -1,5 +1,6 @@
-"""Reader for the bridge's gap trace (roadmap 024; schema in docs/design/gap-campaign.md,
-appendix "Gap trace format").
+"""Reader for the bridge's gap trace, the run's truth file (roadmap 024; schema 2 in
+docs/design/truth-stream.md, schema 1 in docs/design/gap-campaign.md, appendix "Gap trace
+format").
 
 Library module, not an executable: `gap_oracle` and the tests import it from this
 directory. Pure Python, stdlib only.
@@ -11,6 +12,12 @@ directory. Pure Python, stdlib only.
 `iter_records` streams typed records and validates them as it goes; `load_trace` collects
 them into a `Trace`. Any malformed line raises `TraceError`, which names the source, the
 line number and the field. `to_json` / `dumps` write records back in the same format.
+
+Each file is read by its schema (the `episode` line's): schema 1 named the simulator's values
+after CARLA (`carla`, `carla_frame`, `actor_id`, `blueprint`, `blueprint_box`), schema 2 names
+them neutrally (`sim_pose`, `sim_frame`, `sim_id`, `asset`, `asset_box`). The records here use
+schema 2's names for both; schema 2's additions are None in a schema 1 trace (an entity's
+`index` is its header's position).
 """
 
 import json
@@ -18,7 +25,17 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-SCHEMA = 1
+SCHEMA = 2
+SCHEMAS = (1, 2)
+# The file's key for each value, per schema.
+KEYS = {
+    1: {"sim_pose": "carla", "sim_frame": "carla_frame", "sim_id": "actor_id",
+        "asset": "blueprint", "asset_box": "blueprint_box"},
+    2: {"sim_pose": "sim_pose", "sim_frame": "sim_frame", "sim_id": "sim_id",
+        "asset": "asset", "asset_box": "asset_box"},
+}
+ROLES = ("ego", "scenario", "autopilot", "agent")
+VELOCITY_SOURCES = ("measured", "derived")
 
 ENTITY_KINDS = ("ego", "vehicle", "pedestrian", "misc_object")
 CONTACT_KINDS = ("ego", "vehicle", "pedestrian", "misc_object", "static", "unknown")
@@ -46,6 +63,8 @@ class Episode:
     episode: int
     start_unix: float
     npc_motion: str
+    map: object = None  # schema 2: the map's name
+    step_time: object = None  # schema 2: s
 
 
 @dataclass(frozen=True)
@@ -55,9 +74,9 @@ class DeclaredBox:
 
 
 @dataclass(frozen=True)
-class BlueprintBox:
-    location: tuple  # (x, y, z) m, actor frame (ROS-handed)
-    extent: tuple  # half sizes (x, y, z) m, actor frame
+class AssetBox:
+    location: tuple  # (x, y, z) m, body frame (ROS-handed)
+    extent: tuple  # half sizes (x, y, z) m, body frame
 
 
 @dataclass(frozen=True)
@@ -74,9 +93,12 @@ class EntityHeader:
     kind: str
     declared: DeclaredBox
     origin_offset: OriginOffset
-    actor_id: int
-    blueprint: str
-    blueprint_box: object  # BlueprintBox, or None when CARLA's box could not be recovered
+    sim_id: int
+    asset: str
+    asset_box: object  # AssetBox, or None when the simulator's box could not be recovered
+    index: int = 0  # the entity's slot in the episode (schema 1: the header's position)
+    role: object = None  # schema 2: one of ROLES
+    subtype: object = None  # schema 2: SSv2's subtype
 
 
 @dataclass(frozen=True)
@@ -94,9 +116,11 @@ class Pose6:
 @dataclass(frozen=True)
 class EntityState:
     ssv2: Pose6
-    carla: object  # Pose6, or None when the actor was not in CARLA's snapshot
-    velocity: object  # (vx, vy, vz) m/s, or None with `carla`
+    sim_pose: object  # Pose6, or None when the body was not in the simulator's snapshot
+    velocity: object  # (vx, vy, vz) m/s, or None with `sim_pose`
     flags: tuple = ()
+    angular_velocity: object = None  # schema 2: (wx, wy, wz) rad/s, or None with `sim_pose`
+    velocity_source: object = None  # schema 2: one of VELOCITY_SOURCES, or None
 
     @property
     def spawn(self):
@@ -117,15 +141,16 @@ class Frame:
     frame: int
     sim_time: float
     entities: dict  # name -> EntityState
-    # CARLA frame of the snapshot CARLA's half was read from (the frame's last tick). Added
-    # under schema 1 (roadmap 032 N2): absent in older traces.
-    carla_frame: object = None
+    # Simulator frame of the snapshot the simulator's half was read from (the frame's last
+    # tick; roadmap 032 N2): absent in older traces.
+    sim_frame: object = None
+    sim_time_ns: object = None  # schema 2, when known
 
 
 @dataclass(frozen=True)
 class Contact:
     frame: int
-    carla_frame: int
+    sim_frame: int
     sim_time: float
     ego_id: int
     other_id: object  # int, or None for the static world
@@ -141,6 +166,17 @@ class Contact:
     def ego_side(self):
         """Seen by the ego's sensor (the contacts 021's report and G4 are about)."""
         return self.subject is None
+
+
+@dataclass(frozen=True)
+class Signal:
+    """Schema 2: a signal's colour changed (the bridge set it). Events, not repeated per
+    frame: a reader keeps the last colour per signal."""
+
+    frame: int
+    sim_time_ns: int
+    opendrive_id: str
+    colour: str
 
 
 @dataclass(frozen=True)
@@ -160,20 +196,25 @@ class Trace:
     contacts: list = field(default_factory=list)
     end: object = None  # End, or None for a trace cut short (require_end=False)
     headers: list = field(default_factory=list)  # every EntityHeader, in order
+    signals: list = field(default_factory=list)  # Signal, in order (schema 2)
 
     def records(self):
         """All records in an order that reads back to the same trace."""
         yield self.episode
         headers = list(self.headers)
         contacts = list(self.contacts)
+        signals = list(self.signals)
         for frame in self.frames:
             while headers and headers[0].frame <= frame.frame:
                 yield headers.pop(0)
             while contacts and contacts[0].frame < frame.frame:
                 yield contacts.pop(0)
+            while signals and signals[0].frame < frame.frame:
+                yield signals.pop(0)
             yield frame
         yield from headers
         yield from contacts
+        yield from signals
         if self.end is not None:
             yield self.end
 
@@ -184,8 +225,10 @@ class Trace:
 class _Line:
     """One parsed line, with checks that raise TraceError naming it."""
 
-    def __init__(self, source, number, obj):
+    def __init__(self, source, number, obj, schema=SCHEMA):
         self.source, self.number, self.obj = source, number, obj
+        self.keys = KEYS[schema]
+        self.schema = schema
 
     def error(self, field, message):
         return TraceError(self.source, self.number, field, message)
@@ -250,24 +293,30 @@ class _Line:
 def _episode(ln):
     o = ln.obj
     schema = ln.int_(o, "schema")
-    if schema != SCHEMA:
-        raise ln.error("schema", f"unsupported schema {schema} (this reader reads {SCHEMA})")
+    if schema not in SCHEMAS:
+        raise ln.error("schema", f"unsupported schema {schema} (this reader reads "
+                                 f"{', '.join(map(str, SCHEMAS))})")
+    two = schema >= 2
     return Episode(
         schema=schema,
         episode=ln.int_(o, "episode", minimum=0),
         start_unix=ln.num(o, "start_unix"),
         npc_motion=ln.str_(o, "npc_motion", choices=NPC_MOTIONS),
+        map=ln.str_(o, "map") if two else None,
+        step_time=ln.num(o, "step_time", minimum=0.0) if two else None,
     )
 
 
-def _entity(ln):
-    o = ln.obj
+def _entity(ln, position):
+    o, k = ln.obj, ln.keys
+    two = ln.schema >= 2
     declared = ln.get(o, "declared", "declared")
-    bp = ln.get(o, "blueprint_box", "blueprint_box")
+    box_key = k["asset_box"]
+    bp = ln.get(o, box_key, box_key)
     if bp is not None:
-        bp = BlueprintBox(
-            location=ln.vec(bp, "location", "blueprint_box.location", 3),
-            extent=ln.vec(bp, "extent", "blueprint_box.extent", 3, minimum=0.0),
+        bp = AssetBox(
+            location=ln.vec(bp, "location", f"{box_key}.location", 3),
+            extent=ln.vec(bp, "extent", f"{box_key}.extent", 3, minimum=0.0),
         )
     offset = ln.vec(o, "origin_offset", "origin_offset", 3)
     name = ln.str_(o, "name")
@@ -282,9 +331,12 @@ def _entity(ln):
             dimensions=ln.vec(declared, "dimensions", "declared.dimensions", 3, minimum=0.0),
         ),
         origin_offset=OriginOffset(*offset),
-        actor_id=ln.int_(o, "actor_id", minimum=0),
-        blueprint=ln.str_(o, "blueprint"),
-        blueprint_box=bp,
+        sim_id=ln.int_(o, k["sim_id"], minimum=0),
+        asset=ln.str_(o, k["asset"]),
+        asset_box=bp,
+        index=ln.int_(o, "index", minimum=0) if two else position,
+        role=ln.str_(o, "role", choices=ROLES) if two else None,
+        subtype=ln.str_(o, "subtype") if two else None,
     )
 
 
@@ -293,23 +345,35 @@ def _state(ln, name, s):
     if not isinstance(s, dict):
         raise ln.error(path, f"expected an object, got {s!r}")
     ssv2 = Pose6(*ln.vec(s, "ssv2", f"{path}.ssv2", 6))
-    carla = ln.get(s, "carla", f"{path}.carla")
+    pk = ln.keys["sim_pose"]
+    sim_pose = ln.get(s, pk, f"{path}.{pk}")
     velocity = ln.get(s, "velocity", f"{path}.velocity")
-    if carla is None:
-        if velocity is not None:
-            raise ln.error(f"{path}.velocity", "must be null when carla is null")
+    angular = source = None
+    two = ln.schema >= 2
+    if two:
+        angular = ln.get(s, "angular_velocity", f"{path}.angular_velocity")
+        source = ln.get(s, "velocity_source", f"{path}.velocity_source")
+    if sim_pose is None:
+        for key, v in (("velocity", velocity), ("angular_velocity", angular),
+                       ("velocity_source", source)):
+            if v is not None:
+                raise ln.error(f"{path}.{key}", f"must be null when {pk} is null")
     else:
-        carla = Pose6(*ln.vector(carla, f"{path}.carla", 6))
+        sim_pose = Pose6(*ln.vector(sim_pose, f"{path}.{pk}", 6))
         if velocity is None:
-            raise ln.error(f"{path}.velocity", "missing while carla is set")
+            raise ln.error(f"{path}.velocity", f"missing while {pk} is set")
         velocity = ln.vector(velocity, f"{path}.velocity", 3)
+        if two:
+            angular = ln.vector(angular, f"{path}.angular_velocity", 3)
+            source = ln.string(source, f"{path}.velocity_source", VELOCITY_SOURCES)
     flags = s.get("flags", [])
     if not isinstance(flags, list):
         raise ln.error(f"{path}.flags", f"expected a list, got {flags!r}")
     for f in flags:
         if f not in FLAGS:
             raise ln.error(f"{path}.flags", f"unknown flag {f!r} (known: {', '.join(FLAGS)})")
-    return EntityState(ssv2=ssv2, carla=carla, velocity=velocity, flags=tuple(flags))
+    return EntityState(ssv2=ssv2, sim_pose=sim_pose, velocity=velocity, flags=tuple(flags),
+                       angular_velocity=angular, velocity_source=source)
 
 
 def _frame(ln, known):
@@ -324,10 +388,15 @@ def _frame(ln, known):
         if name not in known:
             raise ln.error(f"entities.{name}", "no entity record declares this name")
         states[name] = _state(ln, name, s)
-    carla_frame = o.get("carla_frame")
-    if carla_frame is not None:
-        carla_frame = ln.int_(o, "carla_frame", minimum=0)
-    return Frame(frame=frame, sim_time=sim_time, entities=states, carla_frame=carla_frame)
+    fk = ln.keys["sim_frame"]
+    sim_frame = o.get(fk)
+    if sim_frame is not None:
+        sim_frame = ln.int_(o, fk, minimum=0)
+    sim_time_ns = o.get("sim_time_ns") if ln.schema >= 2 else None
+    if sim_time_ns is not None:
+        sim_time_ns = ln.int_(o, "sim_time_ns", minimum=0)
+    return Frame(frame=frame, sim_time=sim_time, entities=states, sim_frame=sim_frame,
+                 sim_time_ns=sim_time_ns)
 
 
 def _contact(ln):
@@ -349,7 +418,7 @@ def _contact(ln):
             raise ln.error("subject", "empty")
     return Contact(
         frame=ln.int_(o, "frame", minimum=0),
-        carla_frame=ln.int_(o, "carla_frame", minimum=0),
+        sim_frame=ln.int_(o, ln.keys["sim_frame"], minimum=0),
         sim_time=ln.num(o, "sim_time", minimum=0.0),
         ego_id=ln.int_(o, "ego_id", minimum=0),
         other_id=other_id,
@@ -358,6 +427,16 @@ def _contact(ln):
         other_kind=kind,
         impulse=ln.num(o, "impulse", minimum=0.0),
         subject=subject,
+    )
+
+
+def _signal(ln):
+    o = ln.obj
+    return Signal(
+        frame=ln.int_(o, "frame", minimum=0),
+        sim_time_ns=ln.int_(o, "sim_time_ns", minimum=0),
+        opendrive_id=ln.str_(o, "opendrive_id"),
+        colour=ln.str_(o, "colour"),
     )
 
 
@@ -384,6 +463,8 @@ def iter_records(source, require_end=True):
     """Typed records of a trace, validated in order. `source` is a path or lines of text."""
     name, text = _lines(source)
     known = set()
+    schema = SCHEMA
+    headers = 0
     last_frame = None
     seen_episode = seen_end = False
     number = 0
@@ -396,7 +477,7 @@ def iter_records(source, require_end=True):
             raise TraceError(name, number, None, f"not JSON: {e}") from None
         if not isinstance(obj, dict):
             raise TraceError(name, number, None, f"expected a JSON object, got {raw[:40]!r}")
-        ln = _Line(name, number, obj)
+        ln = _Line(name, number, obj, schema)
         kind = ln.str_(obj, "type")
         if seen_end:
             raise ln.error("type", f"{kind!r} record after the end record")
@@ -406,9 +487,12 @@ def iter_records(source, require_end=True):
             if seen_episode:
                 raise ln.error("type", "a second episode record (one episode per file)")
             seen_episode = True
-            yield _episode(ln)
+            episode = _episode(ln)
+            schema = episode.schema
+            yield episode
         elif kind == "entity":
-            header = _entity(ln)
+            header = _entity(ln, headers)
+            headers += 1
             known.add(header.name)
             yield header
         elif kind == "frame":
@@ -419,12 +503,15 @@ def iter_records(source, require_end=True):
             yield frame
         elif kind == "contact":
             yield _contact(ln)
+        elif kind == "signal" and schema >= 2:
+            yield _signal(ln)
         elif kind == "end":
             seen_end = True
             yield _end(ln)
         else:
             raise ln.error(
-                "type", f"unknown record type {kind!r} (episode, entity, frame, contact, end)"
+                "type", f"unknown record type {kind!r} (episode, entity, frame, contact, "
+                        f"{'signal, ' if schema >= 2 else ''}end)"
             )
     if not seen_episode:
         raise TraceError(name, number + 1, "type", "no episode record: the trace is empty")
@@ -445,6 +532,8 @@ def load_trace(source, require_end=True):
             trace.frames.append(r)
         elif isinstance(r, Contact):
             trace.contacts.append(r)
+        elif isinstance(r, Signal):
+            trace.signals.append(r)
         elif isinstance(r, End):
             trace.end = r
     return trace
@@ -457,23 +546,30 @@ def _pose(p):
     return None if p is None else [p.x, p.y, p.z, p.roll, p.pitch, p.yaw]
 
 
-def to_json(record):
-    """The JSON object of one record, as the bridge writes it."""
+def to_json(record, schema=SCHEMA):
+    """The JSON object of one record, as the bridge writes it in `schema`."""
+    k = KEYS[schema]
+    two = schema >= 2
     if isinstance(record, Episode):
-        return {
+        out = {
             "type": "episode",
             "schema": record.schema,
             "episode": record.episode,
             "start_unix": record.start_unix,
             "npc_motion": record.npc_motion,
         }
+        if two:
+            out |= {"map": record.map, "step_time": record.step_time}
+        return out
     if isinstance(record, EntityHeader):
-        bp = record.blueprint_box
+        bp = record.asset_box
         return {
             "type": "entity",
             "frame": record.frame,
             "name": record.name,
+        } | ({"index": record.index, "role": record.role} if two else {}) | {
             "kind": record.kind,
+        } | ({"subtype": record.subtype} if two else {}) | {
             "declared": {
                 "center": list(record.declared.center),
                 "dimensions": list(record.declared.dimensions),
@@ -483,9 +579,9 @@ def to_json(record):
                 record.origin_offset.y,
                 record.origin_offset.yaw,
             ],
-            "actor_id": record.actor_id,
-            "blueprint": record.blueprint,
-            "blueprint_box": None
+            k["sim_id"]: record.sim_id,
+            k["asset"]: record.asset,
+            k["asset_box"]: None
             if bp is None
             else {"location": list(bp.location), "extent": list(bp.extent)},
         }
@@ -494,9 +590,13 @@ def to_json(record):
         for name, s in record.entities.items():
             e = {
                 "ssv2": _pose(s.ssv2),
-                "carla": _pose(s.carla),
+                k["sim_pose"]: _pose(s.sim_pose),
                 "velocity": None if s.velocity is None else list(s.velocity),
             }
+            if two:
+                e["angular_velocity"] = (None if s.angular_velocity is None
+                                         else list(s.angular_velocity))
+                e["velocity_source"] = s.velocity_source
             if s.flags:
                 e["flags"] = list(s.flags)
             entities[name] = e
@@ -504,14 +604,16 @@ def to_json(record):
             "type": "frame",
             "frame": record.frame,
             "sim_time": record.sim_time,
-        } | ({} if record.carla_frame is None else {"carla_frame": record.carla_frame}) | {
+        } | ({"sim_time_ns": record.sim_time_ns}
+             if two and record.sim_time_ns is not None else {}) | (
+            {} if record.sim_frame is None else {k["sim_frame"]: record.sim_frame}) | {
             "entities": entities,
         }
     if isinstance(record, Contact):
         return {
             "type": "contact",
             "frame": record.frame,
-            "carla_frame": record.carla_frame,
+            k["sim_frame"]: record.sim_frame,
             "sim_time": record.sim_time,
             "ego_id": record.ego_id,
             "other_id": record.other_id,
@@ -520,6 +622,14 @@ def to_json(record):
             "other_kind": record.other_kind,
             "impulse": record.impulse,
         } | ({} if record.subject is None else {"subject": record.subject})
+    if isinstance(record, Signal):
+        return {
+            "type": "signal",
+            "frame": record.frame,
+            "sim_time_ns": record.sim_time_ns,
+            "opendrive_id": record.opendrive_id,
+            "colour": record.colour,
+        }
     if isinstance(record, End):
         return {
             "type": "end",
@@ -534,4 +644,5 @@ def to_json(record):
 
 def dumps(trace):
     """A whole trace as JSON Lines text."""
-    return "".join(json.dumps(to_json(r)) + "\n" for r in trace.records())
+    schema = trace.episode.schema
+    return "".join(json.dumps(to_json(r, schema)) + "\n" for r in trace.records())

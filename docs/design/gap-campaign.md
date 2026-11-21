@@ -150,6 +150,10 @@ and is useful on its own.
 
 ## Appendix: gap trace format
 
+This appendix is schema 1, which the bridge wrote until 2026-11-21. Schema 2, the run's truth
+file, is [truth-stream.md](truth-stream.md): the same records with the simulator's values under
+neutral names, and additions. The reader reads both, by each file's `schema`.
+
 The per-episode record the bridge writes and the oracle reads
 ([024](../roadmap/024-gap-trace-and-oracle.md)): JSON Lines, one file per `Initialize`,
 `<gap_trace_dir>/<UTC time>_<episode>.jsonl`, one JSON object per line, each with a `type`.

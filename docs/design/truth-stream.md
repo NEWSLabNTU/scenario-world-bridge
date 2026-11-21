@@ -43,11 +43,11 @@ world frame moved by `map_origin`) as `[x, y, z, roll, pitch, yaw]`, metres and 
 
 | type | when | fields (schema 2) |
 |---|---|---|
-| `episode` | first line | `schema` (2), `episode`, `start_unix`, `npc_motion`, `map` (the map's name), `world_hash` (the stage's sha256 on Isaac, `provenance.stage`; the map files' digest on CARLA), `step_time` (s) |
-| `entity` | at each spawn | `frame`, `name`, `index` (stable per episode, see 5), `role` (`ego`, `npc`, or `pilot:<entity>`), `kind`, `subtype` (SSv2's: car, truck, pedestrian, ...), `declared {center, dimensions}`, `origin_offset [x, y, yaw]`, `sim_id`, `asset`, `asset_box` |
-| `frame` | each SSv2 step | `frame`, `sim_time`, `sim_time_ns`, `sim_frame`, `entities {name: state}` |
+| `episode` | first line | `schema` (2), `episode`, `start_unix`, `npc_motion`, `map` (the map directory's name), `step_time` (s); the world's identity (the stage's hashes on Isaac) is the run's `result.json` `provenance`, beside the file |
+| `entity` | at each spawn | `frame`, `name`, `index` (stable per episode, see 5), `role` (`ego`, `scenario`, `autopilot` or `agent`: who drives it), `kind`, `subtype` (SSv2's: car, truck, pedestrian, ...), `declared {center, dimensions}`, `origin_offset [x, y, yaw]`, `sim_id`, `asset`, `asset_box` |
+| `frame` | each SSv2 step | `frame`, `sim_time`, `sim_time_ns` (the time SSv2 is told: the world server's, else the bridge's), `sim_frame`, `entities {name: state}` |
 | `contact` | each contact | `frame`, `sim_frame`, `sim_time`, `ego_id`, `subject`, `other_id`, `name`, `other_type`, `other_kind`, `impulse` |
-| `signal` | each change | `frame`, `sim_time_ns`, `opendrive_id`, `state` (the `SignalState` the bridge set) |
+| `signal` | each change | `frame`, `sim_time_ns`, `opendrive_id`, `colour` (`off`, `red`, `amber`, `green`: what the bridge set) |
 | `end` | last line | `frame`, `sim_time`, `frames`, `dropped_frames`, `complete` |
 
 An entity's state in a frame: `ssv2` (SSv2's pose), `sim_pose` (the simulator's pose: the
@@ -70,7 +70,7 @@ Signals are events, not repeated every frame: a reader keeps the last state per 
 `index`: `names`, `poses` (six values each, as the file's), `twists`, `velocity_measured`, plus the step's contacts and any
 signal changes. Entity metadata (role, class, boxes, ids) does not repeat per frame: it is
 latched on `/scensim/truth/entities` (`TruthEntities`, transient local), republished at each
-spawn and despawn, with the episode's map identity.
+spawn and despawn, with the episode's map. The file comes first in K4; the topic follows it.
 
 ## 5. Shaped for tensors
 
@@ -79,7 +79,7 @@ field has a fixed shape and a fixed name, usable as a tensor key: `pose [6]`, `v
 `angular_velocity [3]`, `velocity_source` as a boolean, the box `[3]`. An entity's `index` is
 its slot: assigned at spawn, never reused in an episode, so a despawned entity's slot stays
 empty rather than shifting the others. No per-entity free-form map is part of the schema;
-`flags` is a closed set of names (schema 1's), which a batch reads as booleans.
+`flags`, `role` and `velocity_source` are closed sets, which a batch reads as booleans or small integers.
 
 ## 6. Absent by design
 

@@ -53,6 +53,7 @@ def main(argv=None):
         for _ in range(10):   # warm
             be.apply(act)
             be.advance(a.dt)
+        be.timing = {"actuate": 0.0, "physics": 0.0, "sample": 0.0, "steps": 0}
         t0 = time.perf_counter()
         for _ in range(steps):
             be.apply(act)
@@ -62,7 +63,9 @@ def main(argv=None):
         x = st["x"].numpy()
         rows.append({"n": n, "ms_per_step": per_step * 1e3, "us_per_car": per_step * 1e6 / n,
                      "x_min": float(x.min()), "x_max": float(x.max()),
-                     "v_mean": float(st["v"].numpy().mean())})
+                     "v_mean": float(st["v"].numpy().mean()),
+                     **{f"us_per_car_{k}": be.timing[k] / be.timing["steps"] * 1e6 / n
+                        for k in ("actuate", "physics", "sample")}})
         print(json.dumps(rows[-1]), flush=True)
         world.stop()
         world.clear_instance()

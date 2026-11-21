@@ -34,7 +34,7 @@ From the design's section 10.
 | Item | What | Kind | Depends on | Owner | Status |
 |---|---|---|---|---|---|
 | S1 | The sample record: schema, hashing, checker ([sample-record.md](../design/sample-record.md)) | spec | none | swb 139 | done (scensim_sampler) |
-| S2 | The compilable subset of OpenSCENARIO | spec | the compiler study | | open |
+| S2 | The compilable subset of OpenSCENARIO | spec | the compiler study | swb 139 | taken (plan to 133) |
 | S3 | The batched control component (`step_batch`; roboracer-indoor-twin.md 2.6, sim_vehicle_ecu.batch) | spec | 091 | swb 139 | done (sim_vehicle_ecu d575758); follow-ups: `ideal`/`ev` vectorised (they run as LoopBatch, flagged), and the roboracer stand-in VESC (091 W23) converted to the array form once W23 lands, with 118 |
 | S4 | The stage record (091 W15) and the truth stream's content | spec | 091 W15 | | open |
 | K1 | The sampler (pure Python): `src/scensim_sampler`, `scensim-sample` | component | S1 | swb 139 | done (`scensim-sample`) |

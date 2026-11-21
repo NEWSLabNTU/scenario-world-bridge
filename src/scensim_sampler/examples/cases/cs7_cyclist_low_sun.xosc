@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CS7 of docs/design/scenario-description.md (a fresh case study, 093 D7): leaving an
+     intersection, the ego overtakes a cyclist riding near the kerb, with the sun low ahead; the
+     cyclist swerves out (a drain, a door) as the ego closes. Values invented; an example for
+     `scensim-sample compilable` (docs/design/compilable-subset.md), not a tuned scenario. -->
+<OpenSCENARIO>
+  <FileHeader revMajor="1" revMinor="3" date="2026-11-21T00:00:00" author="scensim"
+              description="a cyclist overtaken at an intersection exit, low sun ahead">
+    <Properties>
+      <Property name="scensim.category" value="R2.cyclist.overtaken_at_exit"/>
+      <Property name="scensim.cell_attributes" value="glare,swerve"/>
+    </Properties>
+  </FileHeader>
+  <ParameterDeclarations>
+    <ParameterDeclaration name="ego_speed" parameterType="double" value="11"/>
+    <ParameterDeclaration name="cyclist_speed" parameterType="double" value="5"/>
+    <ParameterDeclaration name="cyclist_s" parameterType="double" value="12"/>
+    <ParameterDeclaration name="kerb_offset" parameterType="double" value="-1.1"/>
+    <ParameterDeclaration name="swerve_offset" parameterType="double" value="-0.3"/>
+    <ParameterDeclaration name="swerve_gap" parameterType="double" value="9"/>
+    <ParameterDeclaration name="swerve_time" parameterType="double" value="1.2"/>
+    <ParameterDeclaration name="swerve_acc" parameterType="double" value="1.4"/>
+    <ParameterDeclaration name="sun_azimuth" parameterType="double" value="1.6"/>
+    <ParameterDeclaration name="sun_elevation" parameterType="double" value="0.12"/>
+    <!-- the base's own variables, which only derived values read (declared so records keep them) -->
+    <ParameterDeclaration name="rel_azimuth" parameterType="double" value="0.0"/>
+    <ParameterDeclaration name="swerve_p" parameterType="double" value="0.5"/>
+  </ParameterDeclarations>
+  <CatalogLocations/>
+  <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
+  <Entities>
+    <ScenarioObject name="ego">
+      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <ObjectController><Controller name="ego"><Properties>
+        <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
+    </ScenarioObject>
+    <ScenarioObject name="cyclist">
+      <Vehicle name="bike" vehicleCategory="bicycle"><Properties/></Vehicle>
+    </ScenarioObject>
+  </Entities>
+  <Storyboard>
+    <Init><Actions>
+      <!-- the sun, absolute (the world frame): azimuth is the exit lane's heading plus
+           rel_azimuth, derived by the sampler from a knob that stands in for the lane's heading -->
+      <GlobalAction><EnvironmentAction><Environment name="low_sun">
+        <TimeOfDay animation="false" dateTime="2026-11-21T16:30:00"/>
+        <Weather><Sun azimuth="$sun_azimuth" elevation="$sun_elevation" illuminance="60000"/></Weather>
+        <RoadCondition frictionScaleFactor="1.0"/>
+      </Environment></EnvironmentAction></GlobalAction>
+      <Private entityRef="ego"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="approach_n" s="10" offset="0"/></Position></TeleportAction></PrivateAction>
+        <PrivateAction><LongitudinalAction><SpeedAction>
+          <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
+          <SpeedActionTarget><AbsoluteTargetSpeed value="$ego_speed"/></SpeedActionTarget>
+        </SpeedAction></LongitudinalAction></PrivateAction></Private>
+      <Private entityRef="cyclist"><PrivateAction><TeleportAction><Position>
+        <LanePosition roadId="" laneId="exit_n" s="$cyclist_s" offset="$kerb_offset"/></Position></TeleportAction></PrivateAction>
+        <PrivateAction><LongitudinalAction><SpeedAction>
+          <SpeedActionDynamics dynamicsShape="step" value="0" dynamicsDimension="time"/>
+          <SpeedActionTarget><AbsoluteTargetSpeed value="$cyclist_speed"/></SpeedActionTarget>
+        </SpeedAction></LongitudinalAction></PrivateAction></Private>
+    </Actions></Init>
+    <Story name="main"><Act name="act">
+      <ManeuverGroup name="swerve" maximumExecutionCount="1">
+        <Actors selectTriggeringEntities="false"><EntityRef entityRef="cyclist"/></Actors>
+        <Maneuver name="swerve"><Event name="swerve" priority="override" maximumExecutionCount="1">
+          <Action name="swerve"><PrivateAction><LateralAction><LaneOffsetAction continuous="false">
+            <LaneOffsetActionDynamics dynamicsShape="sinusoidal" maxLateralAcc="$swerve_acc"/>
+            <LaneOffsetTarget><AbsoluteTargetLaneOffset value="$swerve_offset"/></LaneOffsetTarget>
+          </LaneOffsetAction></LateralAction></PrivateAction></Action>
+          <!-- the ego closes to swerve_gap behind the cyclist -->
+          <StartTrigger><ConditionGroup><Condition name="close" delay="0" conditionEdge="rising">
+            <ByEntityCondition><TriggeringEntities triggeringEntitiesRule="any">
+              <EntityRef entityRef="ego"/></TriggeringEntities><EntityCondition>
+              <RelativeDistanceCondition entityRef="cyclist" relativeDistanceType="longitudinal"
+                  coordinateSystem="entity" freespace="true" value="$swerve_gap" rule="lessThan"/>
+            </EntityCondition></ByEntityCondition>
+          </Condition></ConditionGroup></StartTrigger>
+        </Event></Maneuver>
+      </ManeuverGroup>
+      <StartTrigger><ConditionGroup><Condition name="t0" delay="0" conditionEdge="none">
+        <ByValueCondition><SimulationTimeCondition value="0" rule="greaterThan"/></ByValueCondition>
+      </Condition></ConditionGroup></StartTrigger>
+    </Act></Story>
+    <StopTrigger><ConditionGroup><Condition name="end" delay="0" conditionEdge="none">
+      <ByValueCondition><SimulationTimeCondition value="25" rule="greaterThan"/></ByValueCondition>
+    </Condition></ConditionGroup></StopTrigger>
+  </Storyboard>
+</OpenSCENARIO>

@@ -170,3 +170,11 @@ states) is two thirds of the cost. A rigid-body view over all the cars would bat
 and velocity; the wheel states stay per car. At about 0.6 ms per car, A is for agreement at
 small N (K2.4), not for training.
 
+**A is CPU physics by nature.** PhysX's vehicle constraints are not GPU-compatible: Isaac
+Lab's direct-GPU pipeline refuses them ("non-GPU compatible PxConstraint") and the CPU velocity
+setters A's reset uses. The environment (`env.py`) therefore runs A with `device="cpu"`, as
+aib's runner does, and without Fabric (`use_fabric=False`): aib writes each wheel's torques
+and steer angle as USD attributes, which reach PhysX only through USD change notices, and
+Fabric turns those off. Only B runs on the GPU pipeline; 094's rate comparisons with stock
+are B's.
+

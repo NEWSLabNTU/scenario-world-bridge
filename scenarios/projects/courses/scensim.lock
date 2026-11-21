@@ -3,7 +3,7 @@ version: 1
 datasets:
   haruna-tsukuba-courses:
     repo: jerry73204/haruna-tsukuba-courses
-    commit: fff4cb0b55481626a9cde42c57ae0288a3fe5b9a
+    commit: b12857ee0f59a211df95e2671c739a6fffef624b
     take:
     - haruna
     - tsukuba
@@ -11,7 +11,7 @@ datasets:
       haruna/course/centreline.jpg: sha256:f5414a726addc91f2ece3155f54b7474e18fb2b50f99839edf353367a8927ade
       haruna/course/centreline.json: sha256:03817ed1575505ea50313d6f3732b019c8948880a6b1d18e29bf29a759a89bb6
       haruna/course/centreline.npz: sha256:0198f20a41d453059e41ea5937d86e5198333a5aa595a3f10ca1a71a236e498a
-      haruna/course/drift_points.yaml: sha256:501b6714a2290b2c7981f645257391aa5ef44f6ba51f7720a1577545df7fcd9c
+      haruna/course/drift_points.yaml: sha256:b72c465c8cddf882b9d4dd8b31349e345fa4793f232fe906d6ef1d939db753b2
       haruna/course/maps.json: sha256:88b7960641de70c14ccf9e407767dee52b40a789f79e0090253e006dda2c2f93
       haruna/course/meshes.npz: sha256:2caba7a4ee93259a2f7169d7754dc5587a4c309f6b0f779539fd9eed8f752a0b
       haruna/course/photo.jpg: sha256:fff64ba42db5783b0dd127c55309145ad66efd623ecfb2dd7c67ac7d6e2e152c
@@ -167,12 +167,12 @@ datasets:
       haruna/raw/jobs.txt: sha256:41a5171984ff9c852dc29468fa3f521343b9de5ced06bac66716df719b01bdf0
       haruna/raw/osm.json: sha256:9f21be6c0d4aa0dd7aceb2d62841ec22389e4696cf77f9f9191e03290f64557f
       haruna/raw/road.json: sha256:8f43d1c62f535a95ee9d4bb70bca9a19dec80458e2081d613a828d969fd41ff1
-      haruna/scenarios/haruna_down.xosc: sha256:2fba8e5502789ff860d367ecd189de5c9330ddbc75fc75e45eab719e88db9e50
-      haruna/surfaces.yaml: sha256:3beb527c1fd04dbc7065079e86788b10f948840aee49a809318bc04aa802f2c6
+      haruna/scenarios/haruna_down.xosc: sha256:6e824a0e7cb6648ba411a01f4f272030339d825799a460f873e8669a4d7e0e72
+      haruna/surfaces.yaml: sha256:f242c75bbc9602192820553709af2896f5f66bf013aeabb4a204d85fe4a6aae6
       tsukuba/course/centreline.jpg: sha256:aeab0244728ac004e6148536fbe2d3b0f9901aff9405a992b38a5bdd6810f51d
       tsukuba/course/centreline.json: sha256:5c2816e770148aea1221532785bd3c2ce7890470be3e6992c739569a8b21b76a
       tsukuba/course/centreline.npz: sha256:297c16825466d130371a657974ed4b2d258f15fa1196bde04a2198bd22eb5c5c
-      tsukuba/course/drift_points.yaml: sha256:b5769c81dfa3a0b002e9d5e3e58a6a10b96b7c4ab9f78ed790b3c9675a7fcdb3
+      tsukuba/course/drift_points.yaml: sha256:15574899c21d2ee3ebae267fff1454e4271db6152d4edf1635f1988962da63eb
       tsukuba/course/maps.json: sha256:b958fa85e94db36cc842231053c9cca319c4d3322ce42780ec81ba07d271b3f1
       tsukuba/course/meshes.npz: sha256:d8b4693822458f07b5c471e33cafadea96b18a738baee493545ad7242edf5ee4
       tsukuba/course/photo.jpg: sha256:36f6facd20c7a9f97c752933ce7f0727dacff815d81ee8376d54eeb54023948d
@@ -186,8 +186,8 @@ datasets:
       tsukuba/map_projector_info.yaml: sha256:47d341721d6945f5cb65f10100392e9fccbad233f11b9f89a31a59786488677c
       tsukuba/pointcloud_map.pcd: sha256:8112a0c5767073b90035fc4c0285183292a19329b033cee40a35879d2c4ce571
       tsukuba/raw/road.json: sha256:51d82d6e18a8ac61d9f3f29f1e242225c1544c4d30e7b15ba9f97a26dc59fea0
-      tsukuba/scenarios/tsukuba_lap.xosc: sha256:4e0c668dfacd8d9ee2b9076910d088bef545338f0fe58a7d81514c053062cdde
-      tsukuba/surfaces.yaml: sha256:3beb527c1fd04dbc7065079e86788b10f948840aee49a809318bc04aa802f2c6
+      tsukuba/scenarios/tsukuba_lap.xosc: sha256:dfea8660ca2ac11211cc10f28a2b21de610bb69f4fa38b868361749b97314b48
+      tsukuba/surfaces.yaml: sha256:f242c75bbc9602192820553709af2896f5f66bf013aeabb4a204d85fe4a6aae6
   carla-0.9.16-isaac-usd:
     repo: jerry73204/carla-0.9.16-isaac-usd
     commit: 38347e26ab35c223492235de06234b614430f664

@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+tsukuba_lap.xosc,,0,,passed,nvtl=passed,333.095

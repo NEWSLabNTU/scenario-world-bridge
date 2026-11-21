@@ -1,0 +1,2 @@
+scenario,params,repetition,seed,verdict,judges,duration
+haruna_down.xosc,,0,,passed,nvtl=passed,312.628

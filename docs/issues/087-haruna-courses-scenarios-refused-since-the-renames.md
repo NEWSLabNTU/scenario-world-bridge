@@ -1,8 +1,8 @@
 # 087: The courses project's scenarios are refused, since the renames
 
 **Severity**: medium. The Haruna and Tsukuba course runs cannot start, and no regression run notices,
-because `courses` is not in the T3 manifest. **Status**: the generator is fixed (scensim_isaac_world 310df6c). The dataset revision with the
-regenerated scenarios is staged, not yet published, and the project's lock moves when it is. **Found**: 2026-11-21, by 241, rerunning
+because `courses` is not in the T3 manifest. **Status**: fixed. The generator is fixed in scensim_isaac_world 310df6c, the dataset is
+republished as b12857ee (tag v2026.11.2), and the courses project locks it. **Found**: 2026-11-21, by 241, rerunning
 haruna_down for issue 086.
 
 ## What happens
@@ -72,11 +72,15 @@ change:
 The README says so, and renames the generator and its repository. `scensim project check`
 passes on the regenerated scenarios and refuses fff4cb0b's.
 
-The staged revision, with the README, `NOTICE.md` and `.gitattributes`, is on 241 at
-`/var/tmp/aeon/087/stage/rev/`. The changed files and the diffs against fff4cb0b are in the NAS's
-`home/087-haruna-tsukuba-courses-staged/`.
+Before publishing, the staged revision drove through the courses project path, on scensim
+3e9a9d3f, as a host-local copy of the dataset (`datasets:` in the host settings):
+- haruna_down passed, NVTL p05 3.117, 1473.3 m;
+- tsukuba_lap passed, NVTL p05 3.218, 2104.1 m.
 
-To do once it is published:
-- move `scenarios/projects/courses/scensim.lock` to the new revision;
-- sync `docs/roadmap/080-study/dataset-cards/haruna-tsukuba-courses.md` with its README;
-- add `courses` to `scenarios/t3.yaml`.
+It was published on 2026-11-21 as b12857ee on main (tag v2026.11.2). The commit holds only the seven
+changed files: the six above and the README. A fresh `scensim assets fetch --update --verify` moved
+`scenarios/projects/courses/scensim.lock` from fff4cb0b to b12857ee. The six files' hashes changed
+and no other's did, and the fetched tree is byte-identical to the staged one.
+`docs/roadmap/080-study/dataset-cards/haruna-tsukuba-courses.md` is now the published README.
+`courses` (haruna, tsukuba) is in `scenarios/t3.yaml`, with references recorded on the published
+revision.

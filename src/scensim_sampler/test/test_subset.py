@@ -135,6 +135,33 @@ class Rows(unittest.TestCase):
             for name in ("RelativeHeadingCondition(ego)", "RelativeHeadingCondition(ego, 34507, 50)"):
                 self.assertTrue(subset.check(scenario(d, condition=udvc.format(name))).compiles)
 
+    def test_what_ssv2_does_not_implement_is_refused_for_both(self):
+        offset = ("<PrivateAction><LateralAction><LaneOffsetAction continuous='false'>"
+                  "<LaneOffsetActionDynamics dynamicsShape='sinusoidal' maxLateralAcc='1'/>"
+                  "<LaneOffsetTarget><AbsoluteTargetLaneOffset value='1'/></LaneOffsetTarget>"
+                  "</LaneOffsetAction></LateralAction></PrivateAction>")
+        v = self.refused("LaneOffsetAction", action=offset)
+        self.assertEqual(v.refusals[0]["class"], "unimplemented")
+        self.assertIn("SSv2 does not implement it", v.refusals[0]["reason"])
+        self.refused("TraveledDistanceCondition", condition=(
+            "<ByEntityCondition><TriggeringEntities triggeringEntitiesRule='any'><EntityRef "
+            "entityRef='ego'/></TriggeringEntities><EntityCondition><TraveledDistanceCondition "
+            "value='5'/></EntityCondition></ByEntityCondition>"))
+
+    def test_every_batch_and_conditional_row_is_a_construct_ssv2_runs(self):
+        doc = SSV2 / "docs/developer_guide/OpenSCENARIOSupport.md"
+        if not doc.is_file():
+            self.skipTest("no scenario_simulator_v2 submodule")
+        import re
+        sup = {}
+        for line in doc.read_text().splitlines():
+            m = re.match(r"^\| (\w+)\s+\| ([^|]+?)\s+\|", line)
+            if m:
+                sup[m.group(1)] = m.group(2)
+        bad = [k for k, (cls, *_) in subset.TABLE.items()
+               if cls in ("batch", "conditional") and "unimplemented" in sup.get(k, "")]
+        self.assertEqual(bad, [])
+
     def test_a_parameter_set_before_the_run_is_fixed_for_the_slot(self):
         init = ("<GlobalAction><ParameterAction parameterRef='p'><SetAction value='1'/>"
                 "</ParameterAction></GlobalAction>")

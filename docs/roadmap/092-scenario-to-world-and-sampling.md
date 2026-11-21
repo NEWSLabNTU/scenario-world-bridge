@@ -33,11 +33,11 @@ From the design's section 10.
 
 | Item | What | Kind | Depends on | Owner | Status |
 |---|---|---|---|---|---|
-| S1 | The sample record: schema, hashing, checker ([sample-record.md](../design/sample-record.md)) | spec | none | swb 139 | in review |
+| S1 | The sample record: schema, hashing, checker ([sample-record.md](../design/sample-record.md)) | spec | none | swb 139 | done (scensim_sampler) |
 | S2 | The compilable subset of OpenSCENARIO | spec | the compiler study | | open |
 | S3 | The batched control component (`step_batch`) | spec | 091 | | open |
 | S4 | The stage record (091 W15) and the truth stream's content | spec | 091 W15 | | open |
-| K1 | The sampler (pure Python): `src/scensim_sampler`, `scensim-sample` | component | S1 | swb 139 | in review |
+| K1 | The sampler (pure Python): `src/scensim_sampler`, `scensim-sample` | component | S1 | swb 139 | done (`scensim-sample`) |
 | K2 | The Isaac Lab adapter, with `scensim bench` | component | S1, S2, S3, 091 W5 | | open |
 | K3 | Replay of a sample record on seats, fidelity measured | component | S1, K1 | | open |
 | K4 | The truth stream, judge and attachment hooks, the paced clock | components | S4 | | open |

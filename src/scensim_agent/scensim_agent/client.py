@@ -55,6 +55,7 @@ class Client:
         self._stop = threading.Event()
         self._sock = None
         self._send_lock = threading.Lock()
+        self._state_lock = threading.RLock()  # a state built and sent, or state then reply (091)
         self._wake = threading.Event()
         self._commands = queue.Queue()
         self._last = None  # (name, args, status, text, finished_at) of the last command
@@ -114,8 +115,11 @@ class Client:
             self._sock.sendall(data)
 
     def push_state(self):
-        message = self.agent.state_message()
-        self._send(message)
+        # built and sent under one lock (issue 091): a state the push loop built before a
+        # command ran must not reach the relay after the command's own state, ahead of its reply
+        with self._state_lock:
+            message = self.agent.state_message()
+            self._send(message)
         if message["phase"] != self._last_phase:
             detail = message.get("detail")
             self.log.info(f"phase {self._last_phase} -> {message['phase']}"
@@ -183,8 +187,12 @@ class Client:
             if self._sock is not sock:
                 continue  # the connection the command came on is gone; nobody waits
             try:
-                self.push_state()  # state first: the relay answers with what it shows
-                self._send(P.reply(message["id"], status, text))
+                # state first: the relay answers with what it shows. Under the state lock, so
+                # no state the push loop built before this command lands between the two
+                # (issue 091: "stop: STOPPED before the reply -- phase IDLE" under load)
+                with self._state_lock:
+                    self.push_state()
+                    self._send(P.reply(message["id"], status, text))
             except OSError:
                 pass
 

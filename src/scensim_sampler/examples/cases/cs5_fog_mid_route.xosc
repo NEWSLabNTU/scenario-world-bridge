@@ -14,7 +14,7 @@
   <RoadNetwork><LogicFile filepath="maps/town_street"/></RoadNetwork>
   <Entities>
     <ScenarioObject name="ego">
-      <Vehicle name="car" vehicleCategory="car"><Properties/></Vehicle>
+      <Vehicle name="car" vehicleCategory="car"><BoundingBox><Center x="1.4" y="0" z="0.8"/><Dimensions length="4.7" width="1.9" height="1.5"/></BoundingBox><Properties/></Vehicle>
       <ObjectController><Controller name="ego"><Properties>
         <Property name="isEgo" value="true"/></Properties></Controller></ObjectController>
     </ScenarioObject>

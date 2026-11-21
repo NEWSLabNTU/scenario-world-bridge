@@ -166,6 +166,10 @@ The 25 refusals (`--ego policy`), by first construct:
 `RelativeHeadingCondition(...)` compiles (a batch row), but the three examples that use it also
 read `ego.currentMinimumRiskManeuverState.state` first, so the counts do not move.
 
+Re-measured after the unimplemented class (2026-11-21): the same counts, since no SSv2 example
+uses LaneOffsetAction, RelativeLanePosition or TraveledDistanceCondition (its examples run
+only what it implements).
+
 No element in the examples is unlisted. The test checks this, so a new SSv2 element shows up as
 a failing test, not as a silent refusal. These counts are a measurement, not a target, and the
 test does not fix them.

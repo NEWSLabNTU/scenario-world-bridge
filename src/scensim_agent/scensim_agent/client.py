@@ -120,11 +120,11 @@ class Client:
         with self._state_lock:
             message = self.agent.state_message()
             self._send(message)
-        if message["phase"] != self._last_phase:
-            detail = message.get("detail")
-            self.log.info(f"phase {self._last_phase} -> {message['phase']}"
-                          + (f" ({detail})" if detail else ""))
-            self._last_phase = message["phase"]
+            if message["phase"] != self._last_phase:  # one log line per transition
+                detail = message.get("detail")
+                self.log.info(f"phase {self._last_phase} -> {message['phase']}"
+                              + (f" ({detail})" if detail else ""))
+                self._last_phase = message["phase"]
 
     def _session(self):
         sock = socket.create_connection((self.host, self.port), timeout=5.0)

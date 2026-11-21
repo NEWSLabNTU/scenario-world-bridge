@@ -14,8 +14,9 @@
 # import one another (isaaclab imports isaaclab_ov, for one): every member under source/ is
 # installed editable, and the third-party dependencies are the root pyproject's (isaaclab-dev)
 # and the members' (isaaclab_ov's ovstage is only there). The Isaac venv's own versions win
-# (constraints): isaacsim 6.2.0.0 brings its own warp-lang, which `pip check` then reports
-# against the 1.17.0 pin. Isaac Lab's own sources take torch and torchvision from the cu130
+# (constraints): isaacsim 6.2.0.0 brings warp-lang 1.20.0.dev where Isaac Lab pins 1.17.0; it
+# is kept, and `pip check` does not flag it (nothing the overlay installs requires 1.17.0),
+# so the mismatch is watched in roadmap 095, not reported here. Isaac Lab's own sources take torch and torchvision from the cu130
 # index; the Isaac venv has the cu128 builds (install_isaac.sh), which win here too.
 # For an Isaac Sim 6.1.0.0 install: ISAACLAB_TAG=v3.0.0-EA
 # ISAACLAB_COMMIT=ae37b028ea415c91ea2bc32609efcd759ed2b974 (092 K2.0).

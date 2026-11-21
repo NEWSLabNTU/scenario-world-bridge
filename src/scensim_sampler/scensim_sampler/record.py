@@ -237,6 +237,25 @@ def against(rec, scenario):
     if isinstance(cell, dict) and set(cell) != set(scenario.cell_attributes):
         out.append(f"cell: has {', '.join(sorted(cell)) or 'nothing'}; the scenario's cell "
                    f"attributes are {', '.join(scenario.cell_attributes) or 'none'}")
+    # the cell is computed, never labelled (093 D7): each attribute a bound knob, a parameter,
+    # fixed by the scenario, or a derived value the record names (its expression is the
+    # model's, checked when drawing); and its value the one the record's values give
+    if isinstance(cell, dict) and isinstance(rec.get("values"), dict):
+        derived = set(rec.get("derived") or [])
+        for a in scenario.cell_attributes:
+            src = scenario.cell_source(a, derived)
+            if src is None:
+                out.append(f"cell.{a}: neither a bound knob (scensim.knob.{a}), a declared "
+                           f"parameter, fixed by the scenario nor a derived value: it would "
+                           f"only label the cell")
+            elif src[0] in ("knob", "parameter") and a in cell:
+                ref = src[1]
+                want = rec["values"].get(ref, scenario.parameters[ref][1])
+                if str(cell[a]) != str(want):
+                    out.append(f"cell.{a}: {cell[a]!r}, but {ref} is {want!r} "
+                               f"({'the knob it binds' if src[0] == 'knob' else 'its value'})")
+            elif src[0] == "fixed" and a in cell and str(cell[a]) != str(src[1]):
+                out.append(f"cell.{a}: {cell[a]!r}, the scenario fixes {src[1]!r}")
     values = rec.get("values")
     if isinstance(values, dict):
         from .xosc import cast  # noqa: PLC0415 - xosc imports plug-ins; the record does not

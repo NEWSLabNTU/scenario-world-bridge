@@ -48,6 +48,12 @@ class Sampler:
         self.scenario, self.plugins = scenario, list(plugins)
         self.distribution, self.stochastic = distribution, stochastic
         self.runs, self.seed = runs, seed
+        reads = {}
+        for p in self.plugins:
+            reads.update(p.derived_reads())
+        # the derived values a cell may be computed from: reading only parameters (a bound knob
+        # is one) and such values, transitively (scenario-description.md section 7)
+        self.derived_ok = scenario.derived_ok(reads)
         self.knobs = {}
         for p in self.plugins:
             self.knobs.update(p.knobs)
@@ -131,19 +137,23 @@ class Sampler:
         for k, v in drawn.items():
             if k in sc.parameters:
                 params[k] = sc.cast(k, v)
-            elif k in sc.cell_attributes:
-                cell[k] = v
             elif k in derived:
                 continue  # an intermediate the constraints or the cell read; not recorded
+            elif k in sc.cell_attributes:
+                raise SpecError(f"{k} is drawn and names a cell attribute, but {sc.path.name} "
+                                f"declares no parameter {k}: it would only label the cell, the "
+                                f"world would never get it; fix: declare it and bind it "
+                                f"(scensim.knob.<name> = ${k})")
             else:
                 raise SpecError(f"{k} is drawn, and it is neither a parameter of "
                                 f"{sc.path.name} nor one of its cell attributes")
-        missing = [a for a in sc.cell_attributes if a not in cell]
-        if missing:
-            raise SpecError(f"cell attributes {', '.join(missing)} have no value: draw them, "
-                            f"map them in the model's cell, or fix them in the scenario's "
-                            f"FileHeader (scensim.cell.<attribute>)")
-        cell = {a: _plain(cell[a]) for a in sc.cell_attributes}
+        # the cell is computed from the values through the scenario's bindings (a bound knob, a
+        # parameter, or what the scenario fixes), never labelled (093 D7)
+        problems = sc.cell_problems(self.derived_ok)
+        if problems:
+            raise SpecError(f"{sc.path.name}: " + "; ".join(problems))
+        dvals = {k: drawn[k] for k in derived if k in drawn}
+        cell = {a: _plain(v) for a, v in sc.cell_of(params, dvals, self.derived_ok).items()}
         _, scen_ss, world_ss, pilot_ss = streams
         pilots = pilot_ss.generate_state(max(1, len(sc.entities)))
         weight = math.exp(log_w) if self.proposal is not None else 1.0

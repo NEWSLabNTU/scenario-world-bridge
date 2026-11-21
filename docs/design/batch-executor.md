@@ -104,14 +104,18 @@ bounds it (a gap, for K2.5).
 `scripts/isaaclab_overlay.sh <isaac-venv> <dest>` installs Isaac Lab beside an Isaac Sim pip
 install without changing it.
 
-- **The tag: v3.0.0-EA** (ae37b028, 2026-09-16), chosen on purpose. v3.0.0 GA (2026-10-19)
-  pins `isaacsim==6.2.0.0`. The host's Isaac Sim is 6.1.0.0, which v3.0.0-EA pins, with torch
-  2.11.0, the version that install has. Follow-up: move to GA when the Isaac Sim install moves
-  to 6.2 (092's K2 row).
+- **The tag: v3.0.0** (e3f7d9ff), on Isaac Sim 6.2.0.0, which it pins (roadmap 095). Until
+  then it was v3.0.0-EA (ae37b028) on Isaac Sim 6.1.0.0, which that tag pins; the script
+  still takes it by `ISAACLAB_TAG` and `ISAACLAB_COMMIT`. 3.0.0's packages are a uv workspace
+  whose members import one another (isaaclab imports isaaclab_ov): every member under
+  `source/` is installed, and the dependencies are the root pyproject's and the members'.
+  Watched: the isaacsim 6.2.0.0 wheel brings warp-lang 1.20.0.dev, Isaac Lab pins 1.17.0;
+  the Isaac venv's is kept.
 - **How it works.** It makes a venv of its own under `<dest>`, which sees the Isaac venv's
   packages through a `.pth` file. Isaac Lab's packages are installed editable from a checkout
-  at the tag, without dependencies: isaaclab, isaaclab_physx, isaaclab_newton,
-  isaaclab_contrib, isaaclab_assets, isaaclab_tasks and isaaclab_rl. Then it installs only the
+  at the tag, without dependencies (under v3.0.0-EA: isaaclab, isaaclab_physx,
+  isaaclab_newton, isaaclab_contrib, isaaclab_assets, isaaclab_tasks and isaaclab_rl; under
+  v3.0.0 every workspace member, 14). Then it installs only the
   third-party packages that the Isaac venv lacks, constrained to the Isaac venv's own versions
   (27 on 139: gymnasium, rsl-rl-lib, hydra-core, onnx, transformers, open3d, and others).
 - **What it leaves alone.** torch, isaacsim and warp stay the Isaac venv's. Its warp is

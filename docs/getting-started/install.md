@@ -25,7 +25,7 @@ release.
 |---|---|
 | Ubuntu and ROS 2 | Ubuntu 22.04 with ROS 2 Humble from apt ([install](https://docs.ros.org/en/humble/Installation.html)), or Ubuntu 24.04 with ROS 2 Jazzy from apt ([install](https://docs.ros.org/en/jazzy/Installation.html)) for the simulation side only |
 | An autopilot | Autoware, for example 1.5.0 from its binary packages under `/opt/autoware/1.5.0`, or a workspace of your own; the releases the car's packages support are in [Connect your Autoware](../how-to/connect-autoware.md#supported-autoware-releases) ([install](https://autowarefoundation.github.io/autoware-documentation/main/installation/)) |
-| A simulator | CARLA 0.9.16 ([next page](carla.md)), or Isaac Sim 6.1 ([Isaac Sim](isaac.md)) |
+| A simulator | CARLA 0.9.16 ([next page](carla.md)), or Isaac Sim 6.2 ([Isaac Sim](isaac.md)) |
 | A GPU | an NVIDIA card with room for both: on one host CARLA on Town01 held about 2.0 to 2.5 GB of video memory, one Autoware about 1 to 2 GB |
 | Network | PyPI and GitHub (the install), Hugging Face (the maps, later) |
 

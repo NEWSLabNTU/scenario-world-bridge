@@ -64,7 +64,7 @@
   edge(<bp>, <vi>, "<|-|>", stroke: (dash: "dashed")),
 
   // ── Isaac world server ───────────────────────────────────────────────────────
-  title((2, 3.4), [Isaac world server (Isaac Sim 6.1, py3.12)]),
+  title((2, 3.4), [Isaac world server (Isaac Sim 6.2, py3.12)]),
   b((2, 4), [*Lockstep* 0.05 s = 3 × 1/60 PhysX \ /clock (wall offset)], done, <ls>),
   b((3, 4), [*World*: CARLA town USD + colliders \ reload on map change], s1, <wd>),
   b((4, 4), [*Signal lamps* from SetSignals], s2, <sg>),

@@ -105,7 +105,7 @@ with:
 
 | Component | Options and tested versions |
 |---|---|
-| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is fixed at build time, see [Supported and not supported](docs/reference/limits.md#platform)), or Isaac Sim 6.1 (pip install) |
+| Simulator | [CARLA 0.9.16](https://carla.readthedocs.io/en/0.9.16/start_quickstart/) (the packaged release; the version is fixed at build time, see [Supported and not supported](docs/reference/limits.md#platform)), or Isaac Sim 6.2 (pip install) |
 | Autopilot | [Autoware](https://autowarefoundation.github.io/autoware-documentation/main/installation/) (tested with 1.5.0, binary packages or a build; scensim provides the car's launch files and configuration), CARLA's BasicAgent, a simple pilot on the ground truth, or a launch file or program of one's own |
 | Hardware | an NVIDIA GPU that runs the simulator beside the autopilot. Isaac Sim: an RTX GPU with 24 GB and 64 GB of RAM |
 

@@ -33,7 +33,7 @@ The sections below list every page, in the order a new user reads them.
 - [Install](getting-started/install.md): the workspace, the environment file, the host
   settings file
 - [On CARLA](getting-started/carla.md): CARLA 0.9.16, running and found
-- [On Isaac Sim](getting-started/isaac.md): Isaac Sim 6.1, installed and found
+- [On Isaac Sim](getting-started/isaac.md): Isaac Sim 6.2, installed and found
 
 ## Tutorials
 

@@ -48,6 +48,11 @@ Read-only, each host through its own session. Fast disk means NVMe (`lsblk` ROTA
 6.1; it states no minimum. Omniverse validates the Linux branches R620 (620.70.06), R595
 (595.58.03) and R580 (580.95.05). 243 and 139 are on R580. 118 (R615) and 241 (R610) are on
 branches NVIDIA does not list, and both run 6.1; per the rules they are reported, not changed.
+What 6.2 enforces is its Kit's own `isaacsim/kit/driver-requirements.json` (read from the
+installed 6.2.0.0 on 243). On Linux the RTX renderer refuses a driver below 550.90.07, from 570.0
+to 570.169 and from 575.0 to 575.64 (by driver category), and recommends 580.95.05. All four
+hosts' drivers (580.105.08, 610.57.04, 615.71.09) are outside every refused range, so 6.2
+starts on each; 118 and 241 are only off the recommended branch.
 
 **Isaac Lab 3.0.0.** The tag `v3.0.0` is commit `e3f7d9ff1f5d7f8280de3ece9000b7117f66bcf4`
 (the early-access tag was `ae37b028`). Its dependencies are pinned once, in the root

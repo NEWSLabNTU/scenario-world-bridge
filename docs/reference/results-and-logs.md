@@ -34,6 +34,7 @@ every stack pilot is). A run refuses a stack whose fingerprint is not the testbe
 | `junit.xml` | result | SSv2's verdict as JUnit |
 | `timeline.jsonl` | result | one event per line, by wall time (below) |
 | `judges/<name>.json` | result | each judge's record |
+| `attachments/<name>/` | standard | each attachment's console and what it wrote ([attachments](project-file.md#attachments)) |
 | `contacts/` | result | the bridge's contact report for each ego run of the scenario (CARLA's collision sensor), unless `world.contact_report_dir` is set |
 | `gap_trace/` | standard | unless `logging.gap_trace: false`: the run's truth file, the bridge's gap trace for each episode of the run (SSv2's world and the simulator's, frame by frame; [the truth stream](../design/truth-stream.md)), and the gap judges' findings beside it |
 | `context.jsonl` | standard | with a judge that `needs: [context]`: SSv2's storyboard state changes, one per line (`sim`, `element`, `from`, `to`) |

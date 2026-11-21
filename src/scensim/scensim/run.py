@@ -59,7 +59,7 @@ from scensim import budget as budgetmod, config, judges as judgesmod, project as
 from scensim import record as recordmod, runs as runsmod, slices, stack as stackmod, timeline
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
-from scensim import sampled as sampledmod, stage as stagemod
+from scensim import attachments as attachmentsmod, sampled as sampledmod, stage as stagemod
 from scensim import simulator as simmod, testbenches
 from scensim.findings import ros_args
 
@@ -1181,6 +1181,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         samples = [host_sample()]
 
     procs, recorders = [], []
+    attached = []   # the run's attachments (scensim.attachments)
     run_procs = {}   # entity -> its launch process, for a run's own pilots
     ssv2 = None
     crashed = []   # pilots whose process crashed during the run
@@ -1281,6 +1282,17 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                     run_events.append({"t_wall": time.time(), "event": "record.error",
                                        "name": name, "message": str(e)})
             env = stackmod.ros_env(rec, rec["domains"]["scenario"])
+            # the run's attachments (roadmap 092 K4): before SSv2, so they see its first frame
+            for a in (config.project_settings(project).get("attachments") or []):
+                r = attachmentsmod.start(
+                    a, attachmentsmod.env_for(
+                        a, env, run_dir, spec.seed,
+                        attachmentsmod.roles(sc.entities if sc is not None else [], pilots),
+                        rec.get("tick_gate")),
+                    run_dir, project)
+                attached.append(r)
+                run_events.append({"t_wall": time.time(), "event": "attachment.start",
+                                   "name": r.name, **({"error": r.error} if r.error else {})})
             # from before SSv2 starts: a crash as the scenario begins is the run's too
             crashes = {p["entity"]: RunCrashWatch(pilot_console(rec, p, logs)) for p in pilots}
             try:
@@ -1316,6 +1328,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         # is closed before its topics go away
         if ssv2 is not None and ssv2.poll() is None:
             _stop(ssv2)
+        # the attachments after SSv2 (they read the stream to its end), before the recorders
+        for r in attached:
+            attachmentsmod.stop(r)
+            run_events.append({"t_wall": time.time(), "event": "attachment.stop",
+                               "name": r.name, "exit": r.code, "ended_early": r.early})
         stackmod.stop_processes(recorders)
         for proc in procs:
             _stop(proc)
@@ -1332,6 +1349,11 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     junit = run_dir / "junit.xml"
     if junit_src.is_file():
         shutil.copyfile(junit_src, junit)
+    # a required attachment that failed makes the run an error run (rates leave it out)
+    for r in attached:
+        why = r.failed() if r.a.get("required") else ""
+        if why:
+            infra.append(f"attachment {r.name} (required) {why}")
     verdict, reason = results.verdict_from(
         junit if junit.is_file() else None, infra,
         hint="" if junit.is_file() else results.ssv2_hint(logs / "scenario"))
@@ -1409,7 +1431,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         pilots={p["entity"]: {"kind": p["kind"], "vehicle": p.get("vehicle"),
                               "inputs": p.get("inputs") or [],
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
-        provenance=prov, sample=sample_block, replay=replay_block)
+        provenance=prov, sample=sample_block, replay=replay_block,
+        attachments={r.name: r.record() for r in attached} or None)
     result.write(run_dir / "result.json")
     judge_list = config.project_settings(project).get("judges")
     judged = judgesmod.run_all(judge_list, run_dir, project, verdict)

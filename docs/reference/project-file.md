@@ -22,6 +22,7 @@ vehicles: [vehicles/my_car.yaml]        # own cars: specs (sim_vehicle_spec form
 ground: {}                              # Isaac: per map, surface files
 logging: {capture: standard, keep: {passed: result, failed: full, error: full}}
 judges: []                              # programs over each finished run
+attachments: []                         # processes tied to each run (truth stream)
 world: {}                               # weather, NPC motion, the bridge's config
 carla: {}                               # CARLA: its quality and arguments
 isaac: {}                               # Isaac: the world server's options
@@ -278,6 +279,59 @@ directory). `--incident auto` takes the incident's number from the scenario's na
 (`town01_i3_red_light.xosc` is incident 3), so one judge serves a suite of incidents; a number
 works too. No trace, no storyboard log, or an incident without a row in `incident_judge`'s
 table (i8 has none yet) is `error`, never `passed`.
+
+A judge of your own reads the run's truth through `scensim.truth`: `truth.load(run_dir)` gives
+each episode's trace (the gap trace, either schema, with schema 2's names), and
+`truth.boxes(trace, frame)` each entity's declared box at the simulator's pose
+([the truth stream](../design/truth-stream.md)). A reference judge measures the ego's closest
+approach to any other entity, box to box:
+
+```yaml
+judges:
+  - name: closest
+    run: [python3, -m, scensim.truth, closest, --min-gap, "0.5"]
+```
+
+It is `failed` when the gap between the ego's declared box and another entity's, both placed
+where the simulator had them, goes below `--min-gap` metres (negative is overlap; default 0),
+naming the entity, frame and time; no truth file is `error`.
+
+### Attachments
+
+An attachment is a process tied to each run that reads the truth stream: a network simulator's
+mobility feed, a live judge, a renderer. `testbench.yaml` only, since the stack serves it.
+
+```yaml
+attachments:
+  - name: netsim                        # attachments/netsim/ in each run directory
+    run: [python3, -m, my_v2x.mobility]
+    lockstep: false                     # true: it follows the world's ticks (CARLA)
+    required: false                     # true: its failure makes the run an error run
+    stop_timeout: 10                    # s between SIGINT and SIGTERM at the run's end
+```
+
+Each starts once the run's pilots are ready, before SSv2, and stops after SSv2 ends, before the
+judges, as one process group. It runs in the project directory, in the scenario domain, with:
+
+| Variable | Value |
+|---|---|
+| `SCENSIM_RUN_DIR` | the run directory |
+| `SCENSIM_ATTACHMENT_DIR` | `attachments/<name>/` in it, for what it writes (kept from `standard`) |
+| `SCENSIM_RUN_SEED` | the run's seed |
+| `SCENSIM_ROLES` | JSON: each scenario entity to `ego`, its pilot's kind, or `scenario` |
+| `SCENSIM_TRUTH_TOPIC` | `/scensim/truth`; `/scensim/truth/entities` is latched beside it |
+| `SCENSIM_TICK_GATE` | with `lockstep: true`: the world server's tick gate, `host:port` |
+
+Any attachment turns the stack's truth topic on. `lockstep: true` also turns on the CARLA world
+server's tick gate, on the seat's SSv2 port + 6 (UDP); the attachment joins it as a follower
+(`HELLO`, then `DONE <frame>` after each frame, `BYE`) and each tick waits for it, at most 1 s.
+Isaac's world server has no gate yet, so `testbench check` refuses `lockstep` there. The only
+lifetime is the run's.
+
+`result.json` records each attachment under `attachments`: start and stop times, exit code, and
+whether it ended before the run did. An attachment never changes the run's verdict, unless it is
+`required`: then one that ends early or exits other than 0 when stopped makes the run an `error`
+run, which rates leave out.
 
 ## World
 

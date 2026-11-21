@@ -47,6 +47,7 @@ nothing. LAND_PIN_TRAILER, when set, is appended to each commit message (the ses
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -73,17 +74,40 @@ def pin(repo_dir, rev, path):
     return out.split()[2] if out else None
 
 
+# What a build adds to a Cargo.lock on this workspace's hosts and nothing else: colcon-cargo
+# patches the ROS crates in, and cargo records the ones a crate does not use (issue 096)
+_BUILD_ONLY_LOCK = re.compile(r'(\[\[patch\.unused\]\]|name = "[^"]*"|version = "[^"]*"|)')
+
+
+def _build_only(cwd, line) -> bool:
+    """Whether a dirty `git status` line is a build's own: a Cargo.lock whose only change is
+    added `[[patch.unused]]` entries."""
+    path = line[3:]
+    if line[:2] != " M" or Path(path).name != "Cargo.lock":
+        return False
+    diff = git("diff", "-U0", "--no-color", "--", path, cwd=cwd, check=False).splitlines()
+    body = [d for d in diff if d[:1] in "+-" and not d.startswith(("+++", "---"))]
+    return bool(body) and all(d.startswith("+") and _BUILD_ONLY_LOCK.fullmatch(d[1:].strip())
+                              for d in body)
+
+
+def _dirty(cwd, label="") -> list:
+    # raw, not git(): its output is stripped, and a porcelain line's first column is a space
+    out = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no",
+                          "--ignore-submodules=all"], cwd=cwd, capture_output=True,
+                         text=True).stdout
+    return [f"{label}{line}" for line in out.splitlines() if line and not _build_only(cwd, line)]
+
+
 def checkout_state(src, components) -> dict:
     """This checkout's HEAD, each landing component's checked-out commit, and what is uncommitted
-    in tracked files (here or in those components): compared before and after a gate."""
+    in tracked files (here or in those components), less what a build itself writes (a
+    Cargo.lock's unused patches): compared before and after a gate."""
     heads = {".": git("rev-parse", "HEAD")}
     for c in components:
         heads[f"src/{c}"] = git("rev-parse", "HEAD", cwd=src / c, check=False)
-    dirty = [f"src/{c}: {line}" for c in components
-             for line in git("status", "--porcelain", "--untracked-files=no",
-                             "--ignore-submodules=all", cwd=src / c, check=False).splitlines()]
-    dirty += [line for line in git("status", "--porcelain", "--untracked-files=no",
-                                   "--ignore-submodules=all").splitlines()]
+    dirty = [d for c in components for d in _dirty(src / c, f"src/{c}: ")]
+    dirty += _dirty(ROOT)
     return {"heads": heads, "dirty": dirty}
 
 
@@ -143,7 +167,7 @@ def main(argv):
             return 2
 
     git("fetch", "-q", "origin")
-    if git("status", "--porcelain", "--untracked-files=no", "--ignore-submodules=all"):
+    if _dirty(ROOT):  # a build's own Cargo.lock patches aside
         print(f"{ROOT} has local changes", file=sys.stderr)
         return 2
     base = "origin/main"  # this repository's pins are read from, and committed onto, its origin/main

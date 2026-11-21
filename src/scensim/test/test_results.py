@@ -277,3 +277,34 @@ def test_provenance_git_calls_take_no_index_lock(monkeypatch, tmp_path):
     git = [a for a in seen if a and a[0] == "git" and any(w in a for w in ("status", "submodule"))]
     assert git, seen
     assert all("--no-optional-locks" in a for a in git), git
+
+
+# --- error kinds and the clock (roadmap 092 K4) ----------------------------------------------
+
+def test_an_error_run_says_its_kind():
+    assert results.error_block("passed", ["x"]) is None
+    assert results.error_block("error", [results.Infra("clock_lag", "behind")]) == {
+        "kind": "clock_lag", "message": "behind"}
+    assert results.error_block("error", ["pilot ego is not coming up"])["kind"] == "pilot"
+    assert results.error_block("error", ["the bridge broke"])["kind"] == "stack"
+    assert results.error_block("error", [], "SSv2 wrote no JUnit")["kind"] == "ssv2"
+    with pytest.raises(ValueError):
+        results.Infra("weather", "x")
+    import copy
+    c = copy.deepcopy(results.Infra("attachment", "netsim died"))
+    assert (c, c.kind) == ("netsim died", "attachment")
+
+
+def test_error_and_clock_are_validated():
+    ok = RunResult("r", "error", error={"kind": "clock_lag", "message": "m"},
+                   clock={"mode": "paced", "frames": 3, "frames_over": 1, "ok": False,
+                          "lag_s": {"max": 0.1, "p50": 0.0, "p99": 0.1, "final": 0.1}})
+    assert RunResult.from_json(ok.to_json()) == ok
+    assert "error" not in RunResult("r", "passed").to_dict()
+    with pytest.raises(ResultError):
+        RunResult("r", "passed", error={"kind": "clock_lag", "message": "m"}).to_json()
+    with pytest.raises(ResultError):
+        RunResult("r", "error", error={"kind": "weather", "message": "m"}).to_json()
+    with pytest.raises(ResultError):
+        RunResult("r", "passed", clock={"mode": "fast", "ok": True, "frames": 1,
+                                        "lag_s": {}}).to_json()

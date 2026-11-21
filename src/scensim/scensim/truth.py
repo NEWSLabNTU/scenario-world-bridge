@@ -21,6 +21,9 @@ pose with the entity's origin offset taken back off), so the gap is the clearanc
 boxes SSv2 judges collisions with, where the simulator put them. Its verdict is ``failed`` when
 that gap goes below ``--min-gap`` (metres; negative is penetration), naming the entity, frame and
 time. It prints one JSON object (scensim.judges).
+
+``truth.clock(traces, mode, max_lag_s, rtf)`` is the run's clock record (time-and-ticking.md,
+lockstep and paced): each frame's lag behind wall time, from the bridge's ``wall_ns``.
 """
 import argparse
 import importlib.util
@@ -101,6 +104,84 @@ def closest(traces) -> dict:
                         best = {"gap": d, "ego": ego, "entity": name, "frame": f.frame,
                                 "sim_time": f.sim_time, "episode": t.episode.episode}
     return best
+
+
+CLOCK_MODES = ("lockstep", "paced")
+
+
+def lags(trace, rtf=1.0) -> list:
+    """Each frame's lag behind wall time, seconds, from the trace's first frame that has a wall
+    stamp: ``(wall_k - wall_0) - (sim_k - sim_0) / rtf``, positive when the world is behind.
+    Frames without ``wall_ns`` (a trace written before it existed) are skipped."""
+    out, base = [], None
+    for f in trace.frames:
+        if f.wall_ns is None:
+            continue
+        sim = f.sim_time_ns if f.sim_time_ns is not None else round(f.sim_time * 1e9)
+        if base is None:
+            base = (f.wall_ns, sim)
+        out.append(((f.wall_ns - base[0]) - (sim - base[1]) / rtf) / 1e9)
+    return out
+
+
+def settings(project_settings) -> dict:
+    """testbench.yaml's ``clock`` with its defaults: {mode, max_lag_s, rtf}."""
+    c = (project_settings or {}).get("clock") or {}
+    ssv2 = (project_settings or {}).get("ssv2") or {}
+    return {"mode": c.get("mode", "lockstep"), "max_lag_s": c.get("max_lag_s"),
+            "rtf": float(ssv2.get("global_real_time_factor", 1.0) or 1.0)}
+
+
+def problems(project_settings) -> list:
+    """testbench.yaml's ``clock``, checked: (where, message) pairs."""
+    ps = project_settings or {}
+    c = ps.get("clock")
+    if c is None:
+        return []
+    if not isinstance(c, dict):
+        return [("clock", "is {mode: lockstep|paced, max_lag_s: seconds}")]
+    out = [(f"clock.{k}", "unknown key (mode, max_lag_s)") for k in c if k not in ("mode", "max_lag_s")]
+    mode = c.get("mode", "lockstep")
+    if mode not in CLOCK_MODES:
+        out.append(("clock.mode", f"is lockstep or paced, not {mode!r}"))
+    lag = c.get("max_lag_s")
+    if lag is not None and not (isinstance(lag, (int, float)) and not isinstance(lag, bool)
+                                and lag > 0 and math.isfinite(lag)):
+        out.append(("clock.max_lag_s", "is a positive number of seconds"))
+    if mode == "paced":
+        if lag is None:
+            out.append(("clock.max_lag_s", "a paced clock needs its budget, seconds of lag"))
+        rtf = ((ps.get("ssv2") or {}).get("global_real_time_factor", 1.0))
+        if rtf != 1 and rtf != 1.0:
+            out.append(("clock.mode", f"paced holds simulated time to wall time, so "
+                                      f"ssv2.global_real_time_factor must be 1, not {rtf}"))
+        if ((ps.get("logging") or {}).get("gap_trace")) is False:
+            out.append(("clock.mode", "paced measures its lag from the truth file: "
+                                      "logging.gap_trace: false cannot be paced"))
+    return out
+
+
+def _rank(sorted_xs, q):
+    return sorted_xs[min(len(sorted_xs) - 1, max(0, math.ceil(q * len(sorted_xs)) - 1))]
+
+
+def clock(traces, mode="lockstep", max_lag_s=None, rtf=1.0) -> dict:
+    """The result's ``clock``, or None when no frame has a wall stamp. ``ok`` is false only in
+    paced mode, when a frame's lag exceeds ``max_lag_s``; a lockstep run's lag is a record."""
+    xs = [x for t in traces for x in lags(t, rtf)]
+    if not xs:
+        return None
+    srt = sorted(xs)
+    over = sum(x > max_lag_s for x in xs) if max_lag_s is not None else 0
+    out = {"mode": mode, "frames": len(xs),
+           "lag_s": {"max": round(srt[-1], 6), "p50": round(_rank(srt, 0.5), 6),
+                     "p99": round(_rank(srt, 0.99), 6), "final": round(xs[-1], 6)},
+           "frames_over": over, "ok": not (mode == "paced" and over > 0)}
+    if max_lag_s is not None:
+        out["max_lag_s"] = max_lag_s
+    if rtf != 1.0:
+        out["global_real_time_factor"] = rtf
+    return out
 
 
 def _closest(args) -> int:

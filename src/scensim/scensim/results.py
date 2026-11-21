@@ -31,6 +31,44 @@ STUCK = "stuck"
 ROUTE_COMPLETE = "route_complete"
 PILOT_RESTART = "pilot.restart"
 STACK_ERROR = "stack.error"
+
+# Why an error run is one, as a class a report can count (roadmap 092 K4): `error.kind` in the
+# result. `stack`: the stack's side (a world server or bridge error, SSv2 not starting or not
+# ending); `pilot`: a pilot never ready or lost; `ssv2`: SSv2 reported an error, or wrote no
+# usable JUnit; `scenario`: the scenario cannot be read or run here; `knob_refused`,
+# `knob_mismatch`: a bound knob the world cannot honour, or one whose read-back differs
+# (093 D7); `attachment`: a required attachment failed; `clock_lag`: a paced run fell behind
+# wall time by more than its budget.
+ERROR_KINDS = ("stack", "pilot", "ssv2", "scenario", "knob_refused", "knob_mismatch",
+               "attachment", "clock_lag")
+
+
+class Infra(str):
+    """An infrastructure error message that knows its kind (ERROR_KINDS); a plain str in the
+    runner's error list is `pilot` when it names one ("pilot <entity> ..."), else `stack`."""
+
+    def __new__(cls, kind: str, message: str):
+        if kind not in ERROR_KINDS:
+            raise ValueError(f"error kind {kind!r} is not one of {', '.join(ERROR_KINDS)}")
+        o = super().__new__(cls, message)
+        o.kind = kind
+        return o
+
+    def __reduce__(self):  # copies and pickles keep the kind (dataclasses.asdict deep-copies)
+        return (Infra, (self.kind, str(self)))
+
+
+def error_block(verdict, infra_errors=(), reason="") -> dict:
+    """The result's `error` for an error run, {kind, message}, or None for any other: the
+    first infrastructure error decides (as in verdict_from), else SSv2's side."""
+    if verdict != ERROR:
+        return None
+    infra = [e for e in (infra_errors or ()) if e]
+    if infra:
+        first = infra[0]
+        kind = getattr(first, "kind", None) or ("pilot" if first.startswith("pilot ") else "stack")
+        return {"kind": kind, "message": _one_line(first)}
+    return {"kind": "ssv2", "message": reason}
 EVENT_TYPES = (COLLISION_VEHICLE, COLLISION_PEDESTRIAN, COLLISION_STATIC, RED_LIGHT, OFF_LANE,
                STUCK, ROUTE_COMPLETE, PILOT_RESTART, STACK_ERROR)
 
@@ -77,11 +115,15 @@ class RunResult:
     # 093 D7 gap 1, additive: the run's bound knobs, what was sent, the world's read-back
     # (scensim.knobs.compare); absent from runs whose scenario binds none
     knobs: dict = None
+    # roadmap 092 K4, additive: an error run's class and message (error_block), and the run's
+    # clock: its mode and its lag against wall time (scensim.truth.clock); absent when unknown
+    error: dict = None
+    clock: dict = None
     schema: str = SCHEMA
 
     def to_dict(self) -> dict:
         d = dataclasses.asdict(self)
-        for k in ("sample", "replay", "attachments", "knobs"):
+        for k in ("sample", "replay", "attachments", "knobs", "error", "clock"):
             if d.get(k) is None:
                 d.pop(k)
         return {"schema": d.pop("schema"), **d}
@@ -123,7 +165,7 @@ class RunResult:
 # --- validation -----------------------------------------------------------------------------
 
 _TOP = ("schema", "run_id", "verdict", "reason", "scenario", "ssv2", "events", "metrics",
-        "pilots", "provenance", "sample", "replay", "attachments", "knobs")
+        "pilots", "provenance", "sample", "replay", "attachments", "knobs", "error", "clock")
 _REQUIRED = ("schema", "run_id", "verdict")
 
 
@@ -230,6 +272,26 @@ def problems(d) -> list:
             out.append("knobs.ok: expected a boolean (every bound knob applied as recorded)")
         if not isinstance(kb.get("knobs"), dict):
             out.append("knobs.knobs: expected an object, {knob: {value, applied, ok}}")
+    if "error" in d:
+        er = obj("error")
+        if er.get("kind") not in ERROR_KINDS:
+            out.append(f"error.kind: expected one of {', '.join(ERROR_KINDS)}")
+        if not isinstance(er.get("message"), str):
+            out.append("error.message: expected a string")
+        if d.get("verdict") != ERROR:
+            out.append("error: only an error run has one")
+    if "clock" in d:
+        ck = obj("clock")
+        if ck.get("mode") not in ("lockstep", "paced"):
+            out.append("clock.mode: expected lockstep or paced")
+        if not isinstance(ck.get("ok"), bool):
+            out.append("clock.ok: expected a boolean (the lag within max_lag_s)")
+        if not _is_int(ck.get("frames")):
+            out.append("clock.frames: expected an integer")
+        lag = ck.get("lag_s")
+        if not (isinstance(lag, dict) and all(_is_num(lag.get(k))
+                                              for k in ("max", "p50", "p99", "final"))):
+            out.append("clock.lag_s: expected {max, p50, p99, final}, seconds")
     if "replay" in d:
         rp = obj("replay")
         if not (isinstance(rp.get("of"), str) and len(rp["of"]) == 64):

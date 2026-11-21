@@ -120,6 +120,25 @@ metrics are those reports':
 The last frames of a run, fewer than 200, are in no report, so a run shorter than one
 report has no frame metrics (they are absent, not zero).
 
+`error` is present on an error run only: `{"kind": ..., "message": ...}`, the first cause as a
+class a report can count (`scensim runs coverage` lists the error runs by kind). The kinds:
+
+| `kind` | the run is an error run because |
+|---|---|
+| `stack` | the stack's side failed: a world server or bridge error |
+| `pilot` | a pilot never became ready, or was lost during the run |
+| `ssv2` | SSv2 did not start or end, reported an error, or wrote no usable JUnit |
+| `scenario` | the scenario cannot be read or run here |
+| `knob_refused`, `knob_mismatch` | a bound knob the world cannot honour, or whose read-back differs |
+| `attachment` | a required attachment failed |
+| `clock_lag` | a paced run fell behind wall time by more than its budget |
+
+`clock` is the run's clock ([`clock:`](project-file.md#the-clock)): its `mode`, the frames
+measured, and their lag behind wall time in seconds, `lag_s: {max, p50, p99, final}`, with
+`frames_over` (frames beyond `max_lag_s`) and `ok`. A lockstep run records its lag and is
+always `ok`; a paced run over its budget is not, and is an error run (`clock_lag`). It is
+absent when the truth file has no wall stamps (`logging.gap_trace: false`).
+
 ## The timeline
 
 `timeline.jsonl`: one JSON object per line, `{t_wall, t_sim, group, event, ...}`, ordered

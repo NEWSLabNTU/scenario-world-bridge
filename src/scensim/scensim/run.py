@@ -60,6 +60,7 @@ from scensim import record as recordmod, runs as runsmod, slices, stack as stack
 from scensim import episodes as episodesmod, frames as framesmod, ssv2 as ssv2mod, tools as toolsmod
 from scensim import crashloop, launcher as launchermod, signals as signalsmod, world as worldmod
 from scensim import attachments as attachmentsmod, knobs as knobsmod, sampled as sampledmod
+from scensim import truth as truthmod
 from scensim import stage as stagemod
 from scensim import simulator as simmod, testbenches
 from scensim.findings import ros_args
@@ -1154,7 +1155,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
         sc = projectmod.read_scenario(spec.scenario)
     except (ValueError, OSError) as e:
         sc = None
-        infra.append(f"the scenario cannot be read: {e}")
+        infra.append(results.Infra("scenario", f"the scenario cannot be read: {e}"))
     variants = sc.variants if sc is not None else 1
     # G53: a scenario that ends itself later than the timeout SSv2 would get gets its own
     # limit plus a margin (haruna_down: 600 s against the default 400 s)
@@ -1352,7 +1353,9 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                 run_events.append({"t_wall": time.time(), "event": "knobs.applied",
                                    "ok": knob_block["ok"]})
             if why_not:
-                infra.append(why_not)
+                kind = ("knob_refused" if knob_block is None or knob_block.get("refused")
+                        or knob_block.get("error") else "knob_mismatch")
+                infra.append(results.Infra(kind, why_not))
         if not infra:
             wants = judgesmod.needed(config.project_settings(project).get("judges"))
             for name, domain, rargv in recordmod.plan(run_dir, capture, pilots,
@@ -1385,7 +1388,7 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                 ssv2 = _start(ssv2_argv, env, logs / "scenario" / "console.log", cwd=str(project))
             except OSError as e:
                 ssv2 = None
-                infra.append(f"SSv2 did not start: {e}")
+                infra.append(results.Infra("ssv2", f"SSv2 did not start: {e}"))
             if ssv2 is not None:
                 # SSv2's global_timeout is per variant; a distribution runs them all in one go
                 limit = (spec.timeout or DEFAULT_TIMEOUT) * variants + END_MARGIN
@@ -1403,7 +1406,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                 if lost:
                     infra += [f"pilot {e}: {why}" for e, why in lost.items()]
                 elif code is None:
-                    infra.append(f"SSv2 did not end within {limit:.0f} s; stopped")
+                    infra.append(results.Infra("ssv2", f"SSv2 did not end within {limit:.0f} s; "
+                                               "stopped"))
                 run_events.append({"t_wall": time.time(), "event": "ssv2.exit", "code": code})
         t_end = time.time()
         load_end = results.host_load()
@@ -1439,13 +1443,32 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
     for r in attached:
         why = r.failed() if r.a.get("required") else ""
         if why:
-            infra.append(f"attachment {r.name} (required) {why}")
+            infra.append(results.Infra("attachment", f"attachment {r.name} (required) {why}"))
+    # the run's clock, from the truth file's wall stamps: recorded in either mode; a paced run
+    # behind wall time by more than its budget is an error run (time-and-ticking.md)
+    cs = truthmod.settings(psettings)
+    clock_block = None
+    if ssv2 is not None:
+        try:
+            clock_block = truthmod.clock(truthmod.load(run_dir), cs["mode"], cs["max_lag_s"],
+                                         cs["rtf"])
+        except Exception as e:  # noqa: BLE001 -- an unreadable trace is the judges' to report
+            run_events.append({"t_wall": time.time(), "event": "clock.unread", "why": str(e)})
+        if cs["mode"] == "paced" and clock_block is None:
+            infra.append(results.Infra("clock_lag", "the paced clock found no wall stamps in "
+                                       "the truth file, so its lag is unknown"))
+        elif clock_block is not None and not clock_block["ok"]:
+            lag = clock_block["lag_s"]["max"]
+            infra.append(results.Infra(
+                "clock_lag", f"the paced clock fell {lag * 1000:.0f} ms behind wall time, beyond "
+                f"its {cs['max_lag_s'] * 1000:.0f} ms budget ({clock_block['frames_over']} of "
+                f"{clock_block['frames']} frames over)"))
     verdict, reason = results.verdict_from(
         junit if junit.is_file() else None, infra,
         hint="" if junit.is_file() else results.ssv2_hint(logs / "scenario"))
     for msg in infra:
         events.append({"t_sim": None, "t_wall": time.time(), "type": results.STACK_ERROR,
-                       "message": msg})
+                       "message": str(msg)})
     (ctx.end_episodes or end_episodes)(rec, [p["entity"] for p in pilots], verdict, reason,
                                        run_id)
     run_events.append({"t_wall": time.time(), "event": "run.end", "verdict": verdict})
@@ -1518,7 +1541,8 @@ def run_spec(ctx: Context, spec: RunSpec, attempt: int = 0) -> results.RunResult
                               "inputs": p.get("inputs") or [],
                               "lifetime": p.get("lifetime", "stack")} for p in pilots},
         provenance=prov, sample=sample_block, replay=replay_block,
-        attachments={r.name: r.record() for r in attached} or None, knobs=knob_block)
+        attachments={r.name: r.record() for r in attached} or None, knobs=knob_block,
+        error=results.error_block(verdict, infra, reason), clock=clock_block)
     result.write(run_dir / "result.json")
     judge_list = config.project_settings(project).get("judges")
     judged = judgesmod.run_all(judge_list, run_dir, project, verdict)

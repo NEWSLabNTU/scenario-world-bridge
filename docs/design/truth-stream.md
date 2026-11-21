@@ -46,7 +46,7 @@ world frame moved by `map_origin`) as `[x, y, z, roll, pitch, yaw]`, metres and 
 |---|---|---|
 | `episode` | first line | `schema` (2), `episode`, `start_unix`, `npc_motion`, `map` (the map directory's name), `step_time` (s); the world's identity (the stage's hashes on Isaac) is the run's `result.json` `provenance`, beside the file |
 | `entity` | at each spawn | `frame`, `name`, `index` (stable per episode, see 5), `role` (`ego`, `scenario`, `autopilot` or `agent`: who drives it), `kind`, `subtype` (SSv2's: car, truck, pedestrian, ...), `declared {center, dimensions}`, `origin_offset [x, y, yaw]`, `sim_id`, `asset`, `asset_box` |
-| `frame` | each SSv2 step | `frame`, `sim_time`, `sim_time_ns` (the time SSv2 is told: the world server's, else the bridge's), `sim_frame`, `entities {name: state}` |
+| `frame` | each SSv2 step | `frame`, `sim_time`, `sim_time_ns` (the time SSv2 is told: the world server's, else the bridge's), `sim_frame`, `wall_ns` (the bridge's monotonic clock when the world's state arrived, ns since the episode began; the paced clock's lag, `time-and-ticking.md`), `entities {name: state}` |
 | `contact` | each contact | `frame`, `sim_frame`, `sim_time`, `ego_id`, `subject`, `other_id`, `name`, `other_type`, `other_kind`, `impulse` |
 | `signal` | each change | `frame`, `sim_time_ns`, `opendrive_id`, `colour` (`off`, `red`, `amber`, `green`: what the bridge set) |
 | `end` | last line | `frame`, `sim_time`, `frames`, `dropped_frames`, `complete` |

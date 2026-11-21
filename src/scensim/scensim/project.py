@@ -36,7 +36,7 @@ RENAMES = {"gitignore": ".gitignore"}
 NOT_COPIED = ("assets", "state", "runs", ".scensim", ".swb", "play_log")
 
 TOP_KEYS = ("simulator", "assets", "maps", "pilots", "vehicles", "ground", "logging", "judges",
-            "attachments", "world", "isaac", "carla", "ssv2", "default")
+            "attachments", "world", "isaac", "carla", "ssv2", "clock", "default")
 REQUIRED = ("simulator", "pilots", "assets")
 SIMULATORS = ("carla", "isaac")
 KINDS = ("autoware", "carla_basic", "simple", "launch", "command", "none")
@@ -427,6 +427,9 @@ def check_schema(settings: dict) -> list:
         out.append(Finding(pf, f"{where}: {msg}",
                            "attachments: [{name: netsim, run: [python3, -m, my_v2x.mobility]}]"))
     out += _check_logging(pf, "logging", settings.get("logging"), stack=True)
+    from scensim import truth as truthmod  # loads the gap trace reader only when called
+    for where, msg in truthmod.problems(settings):
+        out.append(Finding(pf, f"{where}: {msg}", "clock: {mode: paced, max_lag_s: 0.05}"))
     for where, msg in worldmod.problems(settings, sim if isinstance(sim, str) else ""):
         out.append(Finding(pf, f"{where}: {msg}"))
     for where, msg in ssv2mod.problems(settings.get("ssv2")):

@@ -81,3 +81,56 @@ def test_a_schema_1_trace_reads_the_same(tmp_path):
     write(tmp_path, [ep1, *ent, f, END])
     c = truth.closest(truth.load(tmp_path))
     assert math.isclose(c["gap"], 1.0, abs_tol=1e-9)
+
+
+# --- the clock (roadmap 092 K4, time-and-ticking.md lockstep and paced) --------------------
+
+def timed(walls_ms):
+    """A trace whose frame k is 50 ms of simulated time on, answered at walls_ms[k]."""
+    lines = [EP, entity("ego", "ego", 0)]
+    for k, w in enumerate(walls_ms):
+        f = frame(k + 1, {"ego": (0, 0, 0)})
+        f["wall_ns"] = int(w * 1e6)
+        lines.append(f)
+    return lines + [dict(END, frames=len(walls_ms))]
+
+
+def test_lockstep_records_the_lag_and_never_judges_it(tmp_path):
+    write(tmp_path, timed([0, 50, 130, 230]))      # the third step overran by 30 ms, never caught up
+    c = truth.clock(truth.load(tmp_path), "lockstep", None)
+    assert c["mode"] == "lockstep" and c["ok"] and c["frames"] == 4
+    assert c["lag_s"]["max"] == pytest.approx(0.08) and c["lag_s"]["final"] == pytest.approx(0.08)
+    assert c["lag_s"]["p50"] == pytest.approx(0.0)
+
+
+def test_paced_over_its_budget_is_not_ok(tmp_path):
+    write(tmp_path, timed([0, 50, 130, 230]))
+    c = truth.clock(truth.load(tmp_path), "paced", 0.05)
+    assert not c["ok"] and c["frames_over"] == 1 and c["max_lag_s"] == 0.05   # lags 0, 0, 30, 80 ms
+    assert truth.clock(truth.load(tmp_path), "paced", 0.1)["ok"]
+
+
+def test_the_lag_follows_the_real_time_factor(tmp_path):
+    write(tmp_path, timed([0, 25, 50, 75]))       # twice as fast as real time
+    assert truth.clock(truth.load(tmp_path), "lockstep", None, rtf=2.0)["lag_s"]["max"] == \
+        pytest.approx(0.0, abs=1e-9)
+    assert truth.clock(truth.load(tmp_path), "lockstep", None)["lag_s"]["final"] < 0  # ahead at 1
+
+
+def test_a_trace_without_wall_stamps_has_no_clock(tmp_path):
+    write(tmp_path, [EP, entity("ego", "ego", 0), frame(1, {"ego": (0, 0, 0)}), END])
+    assert truth.clock(truth.load(tmp_path), "paced", 0.05) is None
+
+
+def test_the_clock_settings_are_checked():
+    assert truth.problems({}) == []
+    assert truth.problems({"clock": {"mode": "lockstep"}}) == []
+    assert truth.problems({"clock": {"mode": "paced", "max_lag_s": 0.05}}) == []
+    msgs = " ".join(m for _, m in truth.problems({"clock": {"mode": "paced"},
+                                                  "ssv2": {"global_real_time_factor": 2},
+                                                  "logging": {"gap_trace": False}}))
+    assert "budget" in msgs and "must be 1" in msgs and "gap_trace: false" in msgs
+    assert truth.problems({"clock": {"mode": "fast", "max_lag_s": -1, "x": 1}}) == [
+        ("clock.x", "unknown key (mode, max_lag_s)"),
+        ("clock.mode", "is lockstep or paced, not 'fast'"),
+        ("clock.max_lag_s", "is a positive number of seconds")]

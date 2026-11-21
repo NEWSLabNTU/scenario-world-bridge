@@ -219,6 +219,16 @@ class Episodes(unittest.TestCase):
         self.assertEqual(first["e1"], first["e2"])        # the same tick, after e1's start
         self.assertEqual(float(run.vehicles.target[0, 0]), 9.0)
 
+    def test_an_instant_event_runs_all_its_executions_in_one_tick(self):
+        # an exit-free instant action under a held trigger, 100 executions: SSv2's goto
+        # re-dispatches it within one tick until its count is spent (243's review)
+        p = case(story(event("many", exit_(":"), time_trigger(0.0, "none"), count=100)))
+        c, run = self.build(p, [{"values": {}}])
+        run.reset()
+        run.step(cmds(1, 0.0), DT)
+        ev = run.storyboard.by_name("event", "many")
+        self.assertEqual(int(run.storyboard.count[id(ev)][0]), 100)
+
     def test_an_overriding_event_stops_its_running_sibling(self):
         slow = speed(0.0, "linear", "rate", "-0.5")      # takes many ticks
         p = case(story(event("long", slow, time_trigger(0.2)),

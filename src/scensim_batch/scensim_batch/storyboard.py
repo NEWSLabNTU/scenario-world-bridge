@@ -312,7 +312,9 @@ class Storyboard:
         if x.stop is not None and bool(mask.any()):
             self.override(x, x.stop.evaluate(self.ctx, mask))
         m = mask
-        for _ in range(64):         # an end re-dispatches the slots that went back to standby
+        # an end re-dispatches the slots that went back to standby: SSv2 loops as long as the
+        # element accomplishes at once, at most its executions (243); one pass more ends it
+        for _ in range(max(1, x.max_exec) + 1):
             if not bool(m.any()):
                 return
             st = self.state[id(x)]
@@ -351,7 +353,8 @@ class Storyboard:
                 self._set(x, COMPLETE, stp)
                 self._emit(x, "completeState", stp)
             m = again
-        raise StoryboardError(f"{x.kind} {x.name!r}: more than 64 executions in one tick")
+        raise StoryboardError(f"{x.kind} {x.name!r}: more than its {x.max_exec} executions in "
+                              "one tick")
 
     def _start(self, x, go):
         """startTransition, start(), runningState (and the execution counted)."""

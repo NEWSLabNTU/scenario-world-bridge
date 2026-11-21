@@ -888,6 +888,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     side = {"state_dir": str(project / "state")}
     if episode_dirs[episodesmod.GAP_TRACE]:
         side["gap_trace_dir"] = episode_dirs[episodesmod.GAP_TRACE]
+    # the live truth stream (roadmap 092 K4): /scensim/truth from the bridge, for every run
+    if (psettings.get("logging") or {}).get("truth_topic"):
+        side["truth_topic"] = "true"
     if episode_dirs[episodesmod.CONTACTS]:
         side["contact_report_dir"] = episode_dirs[episodesmod.CONTACTS]
     side.update(worldmod.side_args(project, world))

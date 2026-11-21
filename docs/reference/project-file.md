@@ -218,6 +218,7 @@ pilot](../how-to/your-autopilot.md).
 | `budget` | `{per_run: 2GB, total: 200GB}`: refuse a run or suite that cannot fit on the log disk |
 | `topics` | the topics `full` records, instead of the key topics |
 | `gap_trace` | the run's truth file: the bridge records its gap trace (SSv2's world and the simulator's, frame by frame; [the truth stream](../design/truth-stream.md)) for every run, into the run's `gap_trace/`; default `true`, `false` turns it off. `testbench.yaml` only: the stack records it for every run or for none. A judge with `needs: [gap_trace]` turns it on too |
+| `truth_topic` | `true`: the bridge publishes the truth stream live, `/scensim/truth` (each step) and `/scensim/truth/entities` (latched), in the scenario domain ([the truth stream](../design/truth-stream.md)); default `false`. `testbench.yaml` only |
 
 `scensim run --capture <level>` records one run at that level and keeps it whatever
 the verdict. What each level keeps: [Results and logs](results-and-logs.md).

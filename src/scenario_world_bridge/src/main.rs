@@ -7,6 +7,7 @@ mod backend;
 mod coordinator;
 mod frame_stats;
 mod session;
+mod truth_topic;
 mod world_services;
 mod zmq_server;
 
@@ -59,6 +60,13 @@ fn main() -> Result<()> {
         backend::remote::spec_check::listed_catalogs(&config_file, params.get("vehicle_catalogs"))?;
     let catalog = backend::remote::spec_check::load_listed(&vehicle_catalogs)?;
 
+    // The live truth stream (roadmap 092 K4): on when the stack asks for it.
+    let truth_topic = match params.get("truth_topic").map(str::trim) {
+        None | Some("") | Some("false") => false,
+        Some("true") => true,
+        Some(other) => eyre::bail!("truth_topic:={other}: expected true or false"),
+    };
+
     let state_dir = params
         .get("state_dir")
         .map(str::trim)
@@ -107,19 +115,29 @@ fn main() -> Result<()> {
     // The stack's state directory (roadmap 076 A9): a map's signal table is read from
     // <state_dir>/<map dir name>/ first, where the CARLA world server writes it.
     remote.set_state_dir(state_dir);
-    let mut backend: Box<dyn BridgeBackend> = Box::new(remote);
-    backend.before_serving();
-    let coord = coordinator::Coordinator::new(backend);
 
-    // World configuration services. Served from their own thread, applied on this one.
-    // Without them the bridge still serves SSv2, so a ROS failure is loud but not fatal.
-    let world_commands = match world_services::start(shutdown.clone(), &config_file) {
-        Ok(rx) => Some(rx),
+    // World configuration services and, when asked, the truth topics. Served from their own
+    // thread, applied (and published) on this one. Without them the bridge still serves SSv2,
+    // so a ROS failure is loud but not fatal -- except an asked-for truth topic, which an
+    // attachment depends on.
+    let world_commands = match world_services::start(shutdown.clone(), &config_file, truth_topic) {
+        Ok((rx, truth)) => {
+            if let Some(t) = truth {
+                remote.set_truth(t);
+            }
+            Some(rx)
+        }
+        Err(e) if truth_topic => {
+            return Err(e.wrap_err("truth_topic:=true, but the ROS node did not start"));
+        }
         Err(e) => {
             tracing::error!("{e:#}; weather services are unavailable");
             None
         }
     };
+    let mut backend: Box<dyn BridgeBackend> = Box::new(remote);
+    backend.before_serving();
+    let coord = coordinator::Coordinator::new(backend);
 
     let zmq_ctx = zmq::Context::new();
     let mut server = zmq_server::ZmqServer::new(&zmq_ctx, ssv2_port, coord, world_commands)?;

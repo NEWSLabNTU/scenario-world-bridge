@@ -47,6 +47,7 @@ CONTACTS_OFF = "off"
 # the plan's): name -> what to give instead
 SIDE_OWNED = {
     "state_dir": "scensim's: <project>/state",
+    "truth_topic": "logging.truth_topic: true in testbench.yaml (/scensim/truth, roadmap 092 K4)",
     "gap_trace_dir": "logging.gap_trace: true in testbench.yaml (each run's trace in "
                      "runs/<id>/gap_trace/)",
     "contact_report_dir": "world.contact_report_dir in testbench.yaml (unset: each run's in "

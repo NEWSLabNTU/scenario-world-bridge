@@ -33,6 +33,8 @@
        description="where each ego run's contacts are written for physical_verdict; 'off' disables; empty keeps the config file's (default ~/.ros/scensim/contacts)"/>
   <arg name="vehicle_catalogs" default=""
        description="vehicle catalog(s), comma- or colon-separated, the ego spec_hash check reads beside the installed sim_vehicle_spec one (a car from another repository); added to the config file key vehicle_catalogs; empty = none added"/>
+  <arg name="truth_topic" default="false"
+       description="true: the bridge publishes the truth stream on /scensim/truth (roadmap 092 K4)"/>
   <arg name="state_dir" default=""
        description="the stack's state directory: the bridge reads a map's signal table from &lt;state_dir&gt;/&lt;map dir name&gt;/ first (the CARLA world server's state_dir); empty = the map directory only"/>
 
@@ -49,6 +51,7 @@
     <arg name="gap_trace_dir" value="$(var gap_trace_dir)"/>
     <arg name="vehicle_catalogs" value="$(var vehicle_catalogs)"/>
     <arg name="state_dir" value="$(var state_dir)"/>
+    <arg name="truth_topic" value="$(var truth_topic)"/>
     <!-- Entities with controller `agent` are driven through this same relay. -->
     <arg name="agent_relay" value="tcp://localhost:$(var agent_port)"/>
   </include>

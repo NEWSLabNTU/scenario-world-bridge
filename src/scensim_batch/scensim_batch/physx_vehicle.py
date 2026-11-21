@@ -73,8 +73,14 @@ class PhysxVehicleBackend:
                         pass
             self.states[i].__init__()
 
-    def apply(self, act):
+    def apply(self, act, velocity=None, gear=None):
+        """The coming step's actuation, with each request's velocity and gear for aib's
+        sticky-tire release (core.request_motion); without them, 0 and drive, which holds a
+        car whose request is to stop."""
+        from sim_vehicle_ecu.signals import GEAR_DRIVE
         self.act = act
+        self.velocity = np.zeros(self.n) if velocity is None else np.asarray(velocity, float)
+        self.gear = (np.full(self.n, GEAR_DRIVE) if gear is None else np.asarray(gear))
 
     def advance(self, dt):
         """actuate, the world's step, sample: for a host that leaves the physics to us."""
@@ -101,7 +107,8 @@ class PhysxVehicleBackend:
         angle = np.asarray(a["tire_angle"])
         for i, (car, st) in enumerate(zip(self.cars, self.states)):
             car.actuate(Actuation(tuple(drive[i].tolist()), tuple(brake[i].tolist()),
-                                  float(angle[i]), None), dt, st)
+                                  float(angle[i]), None), dt, st,
+                        float(self.velocity[i]), int(self.gear[i]))
 
     def sample(self, dt):
         """Every car read back after a physics step."""

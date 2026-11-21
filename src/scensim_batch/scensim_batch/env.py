@@ -43,7 +43,9 @@ class ScensimEnvCfg(DirectRLEnvCfg):
     allow_loop: bool = False         # accept a LoopBatch component (checks only, never a bench)
     decimation: int = 4
     episode_length_s: float = 30.0
-    sim: SimulationCfg = SimulationCfg(dt=1 / 240)
+    # backend A's PhysX vehicles need PhysX's CPU pipeline: the direct-GPU one refuses their
+    # constraints and the CPU velocity setters (as aib's runner, which uses the CPU)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 240, device="cpu")
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=200.0,
                                                      replicate_physics=False)
     action_space: int = 3
@@ -71,7 +73,6 @@ class ScensimEnv(DirectRLEnv):
 
         cfg = self.cfg
         spawn_ground_plane("/World/ground", GroundPlaneCfg())
-        self.scene.clone_environments(copy_from_source=False)
         world = cfg.world_factory()
         self.compiled = compilemod.compile_scenario(cfg.scenario, cfg.records, world,
                                                     provides=cfg.provides)

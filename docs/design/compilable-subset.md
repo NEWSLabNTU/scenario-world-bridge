@@ -222,7 +222,7 @@ running a row means moving it from one set to the other.
 | `AcquirePositionAction`, `AssignRouteAction` | routes on the world adapter's map, per slot |
 | `FollowTrajectoryAction` | a trajectory follower per slot |
 | `SpeedProfileAction` | a speed profile per slot |
-| `TimeHeadwayCondition`, `RelativeClearanceCondition` | headway and clearance along the route |
+| `RelativeClearanceCondition` | clearance along the route |
 | `TrafficSignalStateAction`, `TrafficSignalControllerAction` | signal phases per slot |
 | `RoadCondition` | friction as a per-slot material on the engine |
 | `scensim.fault` | the fault as a per-slot mask on the observation |

@@ -128,7 +128,7 @@ EXECUTOR_PENDING_REASON = "batch executor pending (scensim_batch does not run it
 EXECUTOR_PENDING = frozenset("""
 AcquirePositionAction AssignRouteAction FollowTrajectoryAction RelativeClearanceCondition
 RoadCondition
-SpeedProfileAction TimeHeadwayCondition TrafficSignalControllerAction
+SpeedProfileAction TrafficSignalControllerAction
 TrafficSignalStateAction scensim.fault
 """.split())
 

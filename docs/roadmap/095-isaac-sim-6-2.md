@@ -3,7 +3,7 @@
 Move every host's Isaac stack from Isaac Sim 6.1.0 and Isaac Lab v3.0.0-EA to Isaac Sim 6.2
 and the Isaac Lab 3.0.0 release, and port WheeledLab to it.
 
-**Status**: in progress 2026-11-21 (user: "Move our hosts to Isaac Sim 6.2 and Isaac Lab 3.0
+**Status**: done 2026-11-21 (user: "Move our hosts to Isaac Sim 6.2 and Isaac Lab 3.0
 final. Port WheelLab too"; then "switch to Isaac Sim 6.2 on all agents. Remove old 6.1 and
 5.0": each host switches once its checks pass, then removes its 6.1 and 5.x stacks and the
 early-access overlay, 118 after its running W10 fit ends).
@@ -30,10 +30,10 @@ the release users will install.
 | Step | What | Owner | Status |
 |---|---|---|---|
 | M1 | Survey: each host's GPU, driver, disk, Isaac installs and the jobs using them; Isaac Sim 6.2's driver requirement; the exact Isaac Lab 3.0.0 tag and what it pins (torch, warp, rsl_rl) | 243 | done 2026-11-21 (section below) |
-| M2 | One host first (139): Isaac Sim 6.2 pip environment, Isaac Lab 3.0.0 from its tag (the overlay script moved to it), then aib, the Isaac world server and scensim_batch on it; every Isaac test lane, the K2 environment smoke, and one seats run (SSv2 on Isaac, an authored field) | 139 | in progress: Isaac Sim 6.2.0.0 installed beside 6.1 (`/mnt/wd/aeon/isaac-sim-6.2`, 26 GB; torch 2.11.0+cu128, sm_120); the Isaac Lab 3.0.0 overlay building; checks next, with 6.2's own Kit root (`--portable-root`) so 6.1's caches stay untouched; watched risk: the isaacsim 6.2.0.0 wheel brings warp-lang 1.20.0.dev where Isaac Lab 3.0.0 pins 1.17.0, kept (the overlay never changes the Isaac venv; the K2 smokes and the RL benchmarks will show whether it matters) |
-| M3 | Code and pins: whatever 6.2 changes in aib and scensim_isaac_world, landed with their pins; `scripts/isaaclab_overlay.sh` and the docs (getting started on Isaac, the simulator backends) name 6.2 and 3.0.0 | 139 | open |
-| M4 | The other hosts (118, 241, 243): the same environment, the same checks, then the switch | each host | open |
-| M5 | WheeledLab ported to Isaac Lab 3.0.0 on Isaac Sim 6.2 (the fork's `isaaclab-3.0` branch, retargeted from the early-access tag); 094's "stock, ported" form runs on it | 241 | open |
+| M2 | One host first (139): Isaac Sim 6.2 pip environment, Isaac Lab 3.0.0 from its tag (the overlay script moved to it), then aib, the Isaac world server and scensim_batch on it; every Isaac test lane, the K2 environment smoke, and one seats run (SSv2 on Isaac, an authored field) | 139 | done 2026-11-21: every check passed on 6.2 (Isaac lanes 367 + 89 + 8, aib 144 and its Isaac tests 95 of 97 before pytest was added, the Isaac Lab 3.0.0 overlay's 14 members, both K2 smokes, the seats run `isaac_rough_road` on Town01); 139 switched, its 6.1 stack and the early-access overlay removed. Warp brought to 1.17.0 by the pin in M3's follow-up |
+| M3 | Code and pins: whatever 6.2 changes in aib and scensim_isaac_world, landed with their pins; `scripts/isaaclab_overlay.sh` and the docs (getting started on Isaac, the simulator backends) name 6.2 and 3.0.0 | 139 | done 2026-11-21: main 940595f3 (aib f7e6175, scensim_isaac_world 6c4d7b3: the overlay script at v3.0.0 with every workspace member, the current texts), then 53f5bfa7 (warp-lang 1.17.0 and torchvision 0.26.0+cu128 pinned in the install script; the spike script resolves its paths before its cd) |
+| M4 | The other hosts (118, 241, 243): the same environment, the same checks, then the switch | each host | done 2026-11-21: 243, 241 and 118 switched after their checks (241's T3 Isaac suites passed as the reference; 118's RoboRacer aib run within 1 % of 6.1); every 6.1 stack, the spinning-disk copies, the Isaac Sim 5.x stacks and the early-access overlays removed. Check dangling links after a removal (139 found `~/.cache/warp` linked into its 6.1 root) |
+| M5 | WheeledLab ported to Isaac Lab 3.0.0 on Isaac Sim 6.2 (the fork's `isaaclab-3.0` branch, retargeted from the early-access tag); 094's "stock, ported" form runs on it | 241 | done 2026-11-21: NEWSLabNTU/WheeledLab `isaaclab-3.0` trains the drift task on Isaac Sim 6.2 and Isaac Lab 3.0.0 through 094's harness; 094 P1's benchmarks run on 243 |
 
 ## M1: the survey (2026-11-21)
 

@@ -572,10 +572,12 @@ class CommitLock:
 
 
 class _Store:
-    """Adds complete files to one commit's directory, under its CommitLock: the tree is made
-    writable at the first file added and sealed again on the way out, by the one fetch that
-    holds the lock (issue 093: an unlocked exit sealed the tree under another fetch's feet).
-    A store that adds nothing leaves the modes alone."""
+    """Adds complete files to one commit's directory. At its first add it takes the commit's
+    CommitLock and makes the tree writable; on the way out it seals the tree and unlocks, so
+    only the one fetch writing changes the modes (issue 093: an unlocked exit sealed the tree
+    under another fetch's feet). A store that adds nothing takes no lock and changes no mode:
+    it reads only complete files, renamed in whole, so a host-copy or fully cached fetch never
+    waits behind a download (243)."""
 
     def __init__(self, hub, cache, repo, commit, project=None, out=None, wait=None):
         self.hub, self.repo, self.commit = hub, repo, commit
@@ -585,33 +587,40 @@ class _Store:
         self.opened = False
 
     def __enter__(self):
-        self.lock.__enter__()
-        self.dir.mkdir(parents=True, exist_ok=True)
         return self
 
     def __exit__(self, *exc):
-        try:
-            if self.opened:
+        if self.opened:
+            try:
                 _set_tree_mode(self.dir, False)
-        finally:
-            self.lock.__exit__(*exc)
+            finally:
+                self.lock.__exit__(*exc)
+                self.opened = False
 
     def _open(self):
         if not self.opened:
+            self.lock.__enter__()
+            self.opened = True
+            self.dir.mkdir(parents=True, exist_ok=True)
             self.tmp_root.mkdir(parents=True, exist_ok=True)
             _set_tree_mode(self.dir, True)
-            self.opened = True
 
     def add(self, rel, want=None) -> str:
         """Download ``rel``; check it against ``want`` (hex); returns its sha256 (hex)."""
         self._open()
+        dest = self.dir / rel
+        if dest.is_file():   # the fetch this one waited for added it meanwhile
+            digest = sha256(dest)
+            if want and digest != want:
+                raise _differs(dest, self.dir)
+            return digest
         tmpd = Path(tempfile.mkdtemp(dir=self.tmp_root))
         try:
             part = self.hub.download(self.repo, self.commit, rel, tmpd)
             digest = sha256(part)
             if want and digest != want:
                 raise AssetError(f"{self.repo}@{self.commit[:12]}: {rel}: sha256 {digest[:16]}..."
-                                 " but the manifest says {want[:16]}... (fix: fetch again; if it"
+                                 f" but the manifest says {want[:16]}... (fix: fetch again; if it"
                                  " repeats, the dataset is damaged)")
             os.chmod(part, 0o444)
             dest = self.dir / rel

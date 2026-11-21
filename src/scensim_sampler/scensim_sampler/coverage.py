@@ -26,6 +26,9 @@ from .record import CATEGORY, FAMILIES
 SCHEMA = "scensim.coverage/1"
 FAILURE = ("verdict", "contact", "either")
 Z = 1.959963984540054   # 95 %
+# the weighted (delta-method) interval's coverage of its nominal 95 %, as measured on a
+# rare-event test (sample-record.md, section 8; test_coverage holds it): printed with it
+DELTA_COVERAGE = "~90 % measured coverage at nominal 95 %"
 MISSING_SHOWN = 20
 
 
@@ -193,7 +196,8 @@ def _rate(rows, failure):
         # f, and gave intervals ~8x too wide; 243). It can under-cover at small n: measured
         # 0.89-0.93 for 50-5000 draws on an N(0,1) tail from N(2,1) (sample-record.md, 8)
         se = math.sqrt(sum(wi * wi * (fi - p) ** 2 for wi, fi in zip(w, f))) / sw
-        interval, method = (max(0.0, p - Z * se), min(1.0, p + Z * se)), "delta (normal)"
+        interval = (max(0.0, p - Z * se), min(1.0, p + Z * se))
+        method = f"delta (normal; approximate, {DELTA_COVERAGE})"
     return {"n": n, "failures": k, "rate": p, "interval": interval, "interval_method": method,
             "weighted": True, "n_eff": n_eff,
             "proposal": next(iter(props))[0], "approximate": True}
@@ -365,12 +369,15 @@ def format_report(rep):
         for o in x["outside_levels"]:
             lines.append(f"  outside the levels: {o['run']}: {', '.join(o['outside'])}")
     lines.append("")
-    lines.append("3. criticality (95 % interval; weighted: self-normalised, approximate)")
+    lines.append("3. criticality (unweighted: Wilson 95 %; weighted: self-normalised, the "
+                 f"delta interval, approximate, {DELTA_COVERAGE})")
     rows = [["category", "cell", "runs", "judged", "failures", "rate", "interval", "note"]]
     for x in rep["layer3"]:
         cell = ",".join(f"{k}={v}" for k, v in x["cell"].items()) or "-"
-        note = x.get("refused") or (f"weighted, n_eff {x['n_eff']:.1f}" if x.get("weighted")
-                                    else "")
+        note = x.get("refused") or (
+            f"weighted, n_eff {x['n_eff']:.1f}; interval approximate"
+            + (" (an upper bound)" if "upper bound" in x.get("interval_method", "") else
+               f" ({DELTA_COVERAGE})") if x.get("weighted") else "")
         if x["seeds_not_applied"]:
             note = (note + "; " if note else "") + f"{len(x['seeds_not_applied'])} seeds not applied"
         if x["errors"]:

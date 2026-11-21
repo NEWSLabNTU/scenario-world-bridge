@@ -248,7 +248,7 @@ It needs no simulator. Its layers are those of
      them strongly related. The effective count stays in the report as a diagnostic. With no
      failures the delta variance is 0, so the interval falls back to a Wilson bound on the
      effective count, which is conservative; the report names the method it used
-     (`interval_method`).
+     (`interval_method`). The report prints the weighted interval as approximate, with the coverage measured here ("~90 % measured coverage at nominal 95 %"), never as a plain 95 % interval, and a test repeats the measurement so a change that worsens it fails.
    - **Mixed:** a cell that mixes weighted and unweighted runs, or several proposals or bases,
      gets no rate, and says why. They are not blended.
 

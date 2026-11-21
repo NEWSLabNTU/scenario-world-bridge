@@ -879,7 +879,9 @@ def plan(project_arg=None, seat_arg=None, simulator=None, map_name=None, logs=No
     # an Isaac world finds its lamps by the table CARLA's server wrote); the gap trace and
     # the contact reports go to the stack's episodes/, which each run empties into its own
     # directory (scensim.episodes: the bridge reads both directories once, at start)
-    gap_trace = bool((psettings.get("logging") or {}).get("gap_trace")) or \
+    # The gap trace is the run's truth file (roadmap 092 S4): on unless the testbench says
+    # `logging.gap_trace: false`; the run's keep levels still drop it per verdict.
+    gap_trace = bool((psettings.get("logging") or {}).get("gap_trace", True)) or \
         "gap_trace" in judgesmod.needed(psettings.get("judges"))
     contacts = worldmod.contacts_mode(world)
     episode_dirs = episodesmod.stack_dirs(stack_dir, gap_trace, contacts is None)

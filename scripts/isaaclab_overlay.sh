@@ -10,17 +10,18 @@
 # isaacsim, torch or warp. `pip check` runs at the end and its output is kept.
 #
 # The tag: v3.0.0, the release, which pins isaacsim==6.2.0.0, torch 2.11.0 and warp-lang 1.17.0
-# (roadmap 095). Its packages are a uv workspace of pyproject.toml members (no setup.py); each is
-# installed editable as before, and the root pyproject (isaaclab-dev) still lists every
-# third-party dependency the members need. The Isaac venv's own versions win (constraints):
-# isaacsim 6.2.0.0 brings its own warp-lang, which `pip check` then reports against the 1.17.0 pin.
+# (roadmap 095). Its packages are a uv workspace of pyproject.toml members (no setup.py), which
+# import one another (isaaclab imports isaaclab_ov, for one): every member under source/ is
+# installed editable, and the third-party dependencies are the root pyproject's (isaaclab-dev)
+# and the members' (isaaclab_ov's ovstage is only there). The Isaac venv's own versions win
+# (constraints): isaacsim 6.2.0.0 brings its own warp-lang, which `pip check` then reports
+# against the 1.17.0 pin. Isaac Lab's own sources take torch and torchvision from the cu130
+# index; the Isaac venv has the cu128 builds (install_isaac.sh), which win here too.
 # For an Isaac Sim 6.1.0.0 install: ISAACLAB_TAG=v3.0.0-EA
 # ISAACLAB_COMMIT=ae37b028ea415c91ea2bc32609efcd759ed2b974 (092 K2.0).
 set -euo pipefail
 ISAACLAB_TAG=${ISAACLAB_TAG:-v3.0.0}
 ISAACLAB_COMMIT=${ISAACLAB_COMMIT:-e3f7d9ff1f5d7f8280de3ece9000b7117f66bcf4}
-PACKAGES=(isaaclab isaaclab_physx isaaclab_newton isaaclab_contrib isaaclab_assets
-          isaaclab_tasks isaaclab_rl)
 
 isaac=${1:?usage: isaaclab_overlay.sh <isaac-venv> <dest>}
 dest=${2:?usage: isaaclab_overlay.sh <isaac-venv> <dest>}
@@ -45,18 +46,22 @@ echo "$isite" > "$site/isaac_venv.pth"     # after the overlay's own site-packag
 "$py" -m pip freeze 2>/dev/null > "$dest/isaac-freeze-before.txt"
 grep -v '^-e ' "$dest/isaac-freeze-before.txt" | grep '==' > "$dest/constraints.txt"
 
+# every workspace member: they import one another
+mapfile -t PACKAGES < <(cd "$dest/src/source" && for d in */; do [ -f "$d/pyproject.toml" ] && echo "${d%/}"; done)
+echo "Isaac Lab packages: ${PACKAGES[*]}"
 for p in "${PACKAGES[@]}"; do
     "$ov" -m pip install -q --no-deps --no-build-isolation -e "$dest/src/source/$p"
 done
 
 # Isaac Lab's third-party requirements the Isaac venv does not have
-"$ov" - "$dest/src/pyproject.toml" > "$dest/missing.txt" <<'EOF'
+"$ov" - "$dest/src/pyproject.toml" "$dest"/src/source/*/pyproject.toml > "$dest/missing.txt" <<'EOF'
 import re, sys, tomllib
 from importlib import metadata
 from packaging.markers import default_environment
 from packaging.requirements import Requirement
-deps = tomllib.load(open(sys.argv[1], "rb"))["project"]["dependencies"]
+deps = [d for f in sys.argv[1:] for d in tomllib.load(open(f, "rb"))["project"].get("dependencies", [])]
 env = default_environment()
+seen = set()
 for d in deps:
     r = Requirement(d)
     if r.name.lower().startswith("isaaclab") or (r.marker and not r.marker.evaluate(env)):
@@ -64,7 +69,10 @@ for d in deps:
     try:
         metadata.version(r.name)
     except metadata.PackageNotFoundError:
-        print(str(r).split(";")[0])
+        line = str(r).split(";")[0]
+        if line not in seen:
+            seen.add(line)
+            print(line)
 EOF
 if [ -s "$dest/missing.txt" ]; then
     echo "installing what the Isaac venv lacks:"; sed 's/^/  /' "$dest/missing.txt"

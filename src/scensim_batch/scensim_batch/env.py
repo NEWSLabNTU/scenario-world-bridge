@@ -44,8 +44,11 @@ class ScensimEnvCfg(DirectRLEnvCfg):
     decimation: int = 4
     episode_length_s: float = 30.0
     # backend A's PhysX vehicles need PhysX's CPU pipeline: the direct-GPU one refuses their
-    # constraints and the CPU velocity setters (as aib's runner, which uses the CPU)
-    sim: SimulationCfg = SimulationCfg(dt=1 / 240, device="cpu")
+    # constraints and the CPU velocity setters (as aib's runner, which uses the CPU). And no
+    # Fabric: aib writes each wheel's drive and brake torque and steer angle as USD attributes,
+    # which reach PhysX only through USD change notices, which Fabric turns off (K2.2's env
+    # smoke: the component asked for 186 N m per wheel and every ego coasted to rest).
+    sim: SimulationCfg = SimulationCfg(dt=1 / 240, device="cpu", use_fabric=False)
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=200.0,
                                                      replicate_physics=False)
     action_space: int = 3

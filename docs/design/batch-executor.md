@@ -195,6 +195,11 @@ each point):
   end (back to standby while executions remain), complete, re-dispatched within one tick; a
   stop transition overrides and evaluates every child. An overriding Event overrides every
   event of its maneuver, itself included (its stopTransition fires), and restarts its actions.
+  One difference no condition can see today: SSv2's ManeuverGroup::start sends every
+  maneuver to its startTransition, complete ones included, so a group's second execution
+  re-runs its (already complete) maneuvers, emitting their transitions and counting their
+  executions; the batch leaves them complete. Its state-condition latches are one-way and
+  set by the first execution, so nothing reads the difference (243).
 - `Condition::update_condition`: each evaluation appends (time, value); the value used is the
   newest entry at least `delay` old; an edge compares it with the one before. A start trigger
   appends only while its element is in standby. The test checks the batched form against a

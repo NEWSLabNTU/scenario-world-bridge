@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>roboracer_vesc</name>
+  <version>0.1.0</version>
+  <description>A stand-in RoboRacer drive unit (VESC, motor, servo) for scensim roadmap 091 W23: an example of a user's control component.</description>
+  <maintainer email="jerry73204@gmail.com">aeon</maintainer>
+  <license>Apache-2.0</license>
+  <exec_depend>sim_vehicle_ecu</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

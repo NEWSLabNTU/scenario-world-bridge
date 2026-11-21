@@ -15,6 +15,13 @@ stack (W18 to W20) join it as their work items land.
   tyres, by a steady-state single-track model (W8).
 - `tools/contact_check.py`: authored physics materials on rigid bodies against what PhysX does
   with them: drop, slide, tilt and combine-mode tests, no car (W9).
+- The synthetic stand-in for real logs, and the fitting tool (W23, W10):
+  - `protocol/`: the measurement protocol (M1 to M6 as VESC commands), the harness's
+    quantities and bands, the fit's stages, and the perturbations p1 and p2;
+  - `component/roboracer_vesc`: a stand-in drive unit, an example of a user's component;
+  - `tools/`: `twin_runs.py` (the generator), `bags.py` (the real car's rosbag2),
+    `compare_runs.py` (the harness), `fit_twin.py` and `refine_twin.py` (the fit),
+    `check_recovery.py` (the blind check), and `w23_regression.sh` (all of it, end to end).
 
 ## The refit of the full-size settings (W6)
 
@@ -86,11 +93,11 @@ default solver) at 60 to 600 Hz and PGS at 120 and 600 Hz:
   300 Hz). Whether the cone tips over (0.5 to 0.7 m) or rides on the bumper upright (3.9 m)
   turns on a tipping threshold, and the rate only moves the car across it. The cone's friction
   and the bumper's shape decide it, which is W9's.
-- **The acceleration noise.** aib takes the body's acceleration from the second difference of
-  PhysX's float32 positions over one step, so the noise grows about as the square of the rate.
-  It is 0.02 m/s^2 at 240 Hz, against an IMU's own 0.02 to 0.05, and 0.16 at 600 Hz.
-  Differencing over 1/60 s brings 600 Hz down to 0.027. The IMU and the brake module's
-  acceleration sensor both read it (reported to 133).
+- **The acceleration noise.** As measured here, aib took the body's acceleration from the
+  second difference of PhysX's float32 positions over one step, so the noise grew about as the
+  square of the rate: 0.02 m/s^2 at 240 Hz and 0.16 at 600 Hz (the table's cruise row).
+  Issue 086 (fixed, scensim ae77b585) reads PhysX's own velocities instead. At 240 Hz the
+  RoboRacer now reads 0.0025 m/s^2, as at 60 Hz, so the rate's choice carries no IMU caveat.
 - **TGS and PGS** agree on the driving tests and the cleats to 3 significant figures. Against
   the wall both are wrong at 120 Hz (slip 0.33 with TGS, -0.12 with PGS), and both hold at
   600 Hz, PGS more steadily (acceleration noise 1e-5 m/s^2, against TGS's 0.04). PGS costs 2 %
@@ -233,3 +240,95 @@ body:
 Written in the spec, that fit gives on Isaac the same M5 and M6, to the last digit, as aib's
 per-wheel setters gave in W8, and the same wall rebound as W9's hand-bound body material (0.407
 against 0.408). The runs are on the NAS under `2026 SSv2 on CARLA/2026-11-20 091 W24 contact properties check (118)`.
+
+## The synthetic stand-in for real logs (W23), and the fit (W10)
+
+No real RoboRacer has been logged yet (W22). Until then, a deliberately perturbed copy of the
+twin stands in for the real car. Its logs have the real car's format, so W22 will change the
+data and not the code: each run is a rosbag2 (sqlite3) with the real car's topics (`bags.py`'s
+table) and a `session.yaml`.
+
+**The protocol** (`protocol/protocol.yaml`) is design note 5.2's M1 to M6 as VESC commands, five
+repetitions each: 38 conditions, 190 runs, 26 minutes of driving. W23 adds M1c, a current command
+beyond any limit. Without it the drive unit's current limit is never seen: at the launch the
+wheels spin, and the speed loop never asks for full current.
+
+**The drive unit** (`component/roboracer_vesc`) is a stand-in for a user's own:
+- a VESC's speed loop, current limit, brake current, duty, and timeout;
+- a servo's gain, offset and rate;
+- a latency, and optionally a seeded jitter on it.
+
+**Blind.** The generator writes the true perturbation to a sealed directory that the fit is
+never given. Each run's session names the truth's sha256. `check_recovery.py` reads the truth
+only after the fit, and refuses logs that name another truth.
+
+**The fit** (`fit_twin.py`) runs in stages, each from the manoeuvre that shows it most directly:
+1. **the drive unit**, by replaying the logged commands and ERPM through the component and
+   matching its current: the current limit from M1c's plateau, the latency on a grid, the speed
+   loop's gains;
+2. **the mass**, from the steady holds against the coast-down: k I = (m + the wheels) a(v);
+3. **the servo's offset**, from M5's left and right circles;
+4. **each axle's tyres**, as ForzaETH identify them: each axle's slip angle from the reference's
+   sideslip, its force from v r (a_y / g over the static load, so the mass drops out);
+5. **the noise**, from steady stretches.
+
+A friction whose axle never nears its limit is reported as not identified rather than fitted.
+`refine_twin.py` then runs the twin on Isaac for each candidate (W10's long-horizon error from
+matched starts). It moves both axles' stiffness and the rear friction to fit the protocol's
+quantities.
+
+### Results (118, 2026-11-21, scensim main 3e9a9d3f)
+
+The perturbations (`protocol/perturbations/`):
+- **p1:** the mass, the tyres per axle (W8's NUC7 fit), the current limit, the speed gain, a
+  40 ms latency, the servo's offset, and motion-capture noise. All of it is in the fit's model.
+- **p2:** another car, with a 10 ms jitter on each command's 30 ms latency (the fit holds one
+  latency), and a 5 mm reference (scan matching).
+
+| | p1 | p2 |
+|---|---|---|
+| the unfitted twin: 5.3's bands passed | 38 of 110 | 48 of 110 |
+| the stage fit: bands passed | 69 of 110 | 84 of 110 |
+| the stage fit: values recovered within tolerance | 14 of 14, the rear friction not identified | 12 of 14, the rear friction not identified, the jitter not modelled |
+| refined on the twin: bands passed | **108 of 110** | 102 of 110 |
+| refined on the twin: values recovered | **15 of 15** | 10 of 15, the jitter not modelled |
+
+The tolerances are in `check_recovery.py`:
+- mass 3 %;
+- current limit 2 %;
+- speed loop gain 10 % (kp) and 20 % (ki);
+- latency and servo offset 5 ms and 0.003;
+- tyre stiffness 15 % and friction 5 %;
+- noise 25 %.
+
+p1, refined, against the truth:
+- mass -0.4 %, current limit 0.0 %, kp -3.9 %;
+- latency +2 ms, servo offset -0.0003;
+- front stiffness +8 %, front friction -1.3 %;
+- rear stiffness +15 %, rear friction +1.2 %;
+- every noise within 4 %.
+
+Its two failed bands are M1's launch traces. Wheelspin varies run to run more than the speed
+traces' band (1.5 times the noise-only spread of the repetitions) allows.
+
+What p2 shows:
+- **The jitter biases the latency** (+6 ms, just past its 5 ms tolerance), and the other stage
+  estimates hold: mass -0.9 %, current limit -0.1 %, ki -10 %, servo offset +0.0003, noise
+  within 3 %.
+- **The front friction (-15 %)** misses. p2's front tyres are grippier (0.95), and the 5 mm
+  reference blurs the sideslip they are read from.
+- **The twin in the loop then trades parameters for behaviour.** The refinement varies only
+  the tyres, so it bends them to absorb the latency's error: the bands rise from 84 to 102, but
+  the rear stiffness moves +38 % and the rear friction -28 % from the truth. Its last steps were
+  still descending (cost 0.25 at 40 evaluations).
+
+So a model mismatch shows as passing behaviour with drifting parameters, and the stage estimates
+are the better record of the car. W10 continues from here. The refinement will vary the latency
+too, anchor each parameter to its stage estimate and that estimate's uncertainty, and run for
+longer. And it will follow the drift rule (roadmap 091): report each parameter's drift between
+the stage fit and the refined fit, and flag any parameter that moves beyond its stage interval,
+so a pass with drifted tyres is not read as a good fit.
+
+The runs, the bags, the fits and the checks are on the NAS under
+`2026 SSv2 on CARLA/2026-11-21 091 W23 synthetic stand-in (118)`. `tools/w23_regression.sh`
+makes them again.

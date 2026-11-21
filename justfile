@@ -292,6 +292,9 @@ test:
     python3 -m pytest -q src/scensim_launch/test
     # the user commands (project, assets, seat, stack, run, runs), roadmap 076
     python3 -m pytest -q src/scensim/test
+    # The RoboRacer example's pure parts: the stand-in component, the protocol, the harness's
+    # quantities and bands, the fit's stages, the recovery check (roadmap 091 W23, W10)
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q scenarios/projects/roboracer/test scenarios/projects/roboracer/component/roboracer_vesc/test
     # The agent SDK and protocol, and the relay against it (roadmap 030)
     python3 -m pytest -q src/scensim_agent/test src/scenario_agent_relay/test
     # The sampler (scensim_sampler): pure Python, no ROS

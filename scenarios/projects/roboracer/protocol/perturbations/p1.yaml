@@ -1,0 +1,18 @@
+# W23 perturbation p1: the car as it might differ from its spec
+vehicle:
+  mass: 4.10
+  axle_tires:
+    front: {tire_friction: 0.6796, lat_stiff_value: 11.2725}
+    rear: {tire_friction: 1.1913, lat_stiff_value: 19.2955}
+component:
+  current_max: 35.0
+  speed_kp: 0.0060
+  latency: 0.040
+  servo_offset: 0.5404
+noise:
+  ref_pos: 0.002
+  ref_yaw: 0.003
+  imu_accel: 0.05
+  imu_gyro: 0.005
+  erpm: 30.0
+  current: 0.3

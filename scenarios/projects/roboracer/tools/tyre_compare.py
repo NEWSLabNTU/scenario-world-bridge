@@ -52,7 +52,7 @@ def run(tf, tr):
     return m5, K, six
 
 def err(ref, cand):
-    (m5r, Kr, sr), (m5c, Kc, sc) = ref, cand
+    (m5r, _, sr), (m5c, _, sc) = ref, cand
     e = []
     for k in M5:
         if m5r[k] and m5c[k]:
@@ -62,27 +62,32 @@ def err(ref, cand):
     six = [(sc[d]["ay"] - sr[d]["ay"]) / sr[d]["ay"] if sc[d] and sr[d] else 1.0 for d in (0.1, 0.2)]
     return e, six
 
-out = {}
-for name, (pf, pr, mu) in REFS.items():
-    ref = run(pacejka(*pf, mu), pacejka(*pr, mu))
-    res = {"ref": {"K": ref[1], "m6": {d: ref[2][d]["ay"] for d in ref[2]},
-                   "m5": {f"{a}_{v}": ref[0][(a, v)]["radius"] for a, v in M5 if ref[0][(a, v)]}}}
-    spec = run(physx(4.4, 1.1), physx(4.4, 1.1))
-    e, s6 = err(ref, spec)
-    res["spec"] = {"K": spec[1], "m5_err_max": max(map(abs, e)), "m6_err": s6}
-    def cost(x, shared):
-        cf, muf, cr, mur = (x[0], x[1], x[0], x[1]) if shared else x
-        if min(cf, muf, cr, mur) <= 0.1: return 1e3
-        e, s6 = err(ref, run(physx(cf, muf), physx(cr, mur)))
-        return float(np.sum(np.square(e)) + 4 * np.sum(np.square(s6)))
-    for shared, x0 in ((True, [6.0, 0.9]), (False, [6.0, 0.9, 12.0, 0.9])):
-        r = minimize(cost, x0, args=(shared,), method="Nelder-Mead", options={"xatol": 1e-3, "fatol": 1e-6, "maxiter": 400})
-        x = r.x if not shared else [r.x[0], r.x[1], r.x[0], r.x[1]]
-        cand = run(physx(x[0], x[1]), physx(x[2], x[3]))
-        e, s6 = err(ref, cand)
-        res["shared" if shared else "per_axle"] = {"front": [round(x[0], 2), round(x[1], 3)],
-            "rear": [round(x[2], 2), round(x[3], 3)], "K": cand[1],
-            "m5_err_max": max(map(abs, e)), "m5_err_rms": float(np.sqrt(np.mean(np.square(e)))), "m6_err": s6}
-    out[name] = res
-print(json.dumps(out, indent=1, default=float))
-json.dump(out, open(sys.argv[1] if len(sys.argv) > 1 else "tyre_compare.json", "w"), indent=1, default=float)
+def main():
+    out = {}
+    for name, (pf, pr, mu) in REFS.items():
+        ref = run(pacejka(*pf, mu), pacejka(*pr, mu))
+        res = {"ref": {"K": ref[1], "m6": {d: ref[2][d]["ay"] for d in ref[2]},
+                       "m5": {f"{a}_{v}": ref[0][(a, v)]["radius"] for a, v in M5 if ref[0][(a, v)]}}}
+        spec = run(physx(4.4, 1.1), physx(4.4, 1.1))
+        e, s6 = err(ref, spec)
+        res["spec"] = {"K": spec[1], "m5_err_max": max(map(abs, e)), "m6_err": s6}
+        def cost(x, shared):
+            cf, muf, cr, mur = (x[0], x[1], x[0], x[1]) if shared else x
+            if min(cf, muf, cr, mur) <= 0.1: return 1e3
+            e, s6 = err(ref, run(physx(cf, muf), physx(cr, mur)))
+            return float(np.sum(np.square(e)) + 4 * np.sum(np.square(s6)))
+        for shared, x0 in ((True, [6.0, 0.9]), (False, [6.0, 0.9, 12.0, 0.9])):
+            r = minimize(cost, x0, args=(shared,), method="Nelder-Mead", options={"xatol": 1e-3, "fatol": 1e-6, "maxiter": 400})
+            x = r.x if not shared else [r.x[0], r.x[1], r.x[0], r.x[1]]
+            cand = run(physx(x[0], x[1]), physx(x[2], x[3]))
+            e, s6 = err(ref, cand)
+            res["shared" if shared else "per_axle"] = {"front": [round(x[0], 2), round(x[1], 3)],
+                "rear": [round(x[2], 2), round(x[3], 3)], "K": cand[1],
+                "m5_err_max": max(map(abs, e)), "m5_err_rms": float(np.sqrt(np.mean(np.square(e)))), "m6_err": s6}
+        out[name] = res
+    print(json.dumps(out, indent=1, default=float))
+    json.dump(out, open(sys.argv[1] if len(sys.argv) > 1 else "tyre_compare.json", "w"), indent=1, default=float)
+
+
+if __name__ == "__main__":
+    main()

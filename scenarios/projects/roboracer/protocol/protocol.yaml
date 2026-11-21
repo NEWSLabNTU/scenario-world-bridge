@@ -1,0 +1,67 @@
+# The measurement protocol of design note 5.2 (docs/design/roboracer-indoor-twin.md), M1 to M6,
+# as the commands a car is given: scensim roadmap 091 W23. The real car runs it with a driver
+# node publishing the same VESC commands, and the synthetic stand-in runs it on the twin, so
+# their logs compare manoeuvre by manoeuvre.
+#
+# A manoeuvre is run once per condition (every combination of its `conditions`), and each run
+# is repeated `repetitions` times. Its `segments` run in order. Each segment:
+# - `t`: how long it lasts, s;
+# - `motor`: `speed` (m/s), `current` (A) or `brake` (A);
+# - `value`: in that unit, a number or a condition's name;
+# - `to`: optionally, a value to ramp to over the segment;
+# - `angle`: the bicycle tire angle, rad, + left, a number or a condition's name.
+#   `full` is the car's max_steer_angle, and `side` (+1 or -1) multiplies it.
+# `conversion` turns these into VESC commands (f1tenth's vesc.yaml): ERPM = gain x m/s + offset;
+# servo = gain x angle + offset.
+version: 1
+repetitions: 5
+command_rate_hz: 50
+conversion:
+  speed_to_erpm_gain: 4614.0
+  speed_to_erpm_offset: 0.0
+  steering_angle_to_servo_gain: -1.2135
+  steering_angle_to_servo_offset: 0.5304
+manoeuvres:
+  M1:   # speed step from rest, straight
+    conditions: {speed: [1.0, 2.0, 4.0]}
+    segments:
+      - {t: 1.0, motor: speed, value: 0.0, angle: 0.0}
+      - {t: 4.0, motor: speed, value: speed, angle: 0.0}
+      - {t: 2.0, motor: speed, value: 0.0, angle: 0.0}
+  M1c:  # the drive unit's current limit (W23's addition to 5.2): a current command beyond any
+        # limit, from rest, briefly; sensors/core's current plateaus at the limit
+    conditions: {current: [80.0]}
+    segments:
+      - {t: 0.5, motor: current, value: 0.0, angle: 0.0}
+      - {t: 0.4, motor: current, value: current, angle: 0.0}
+      - {t: 2.0, motor: brake, value: 20.0, angle: 0.0}
+  M2:   # coast-down: steady, then a neutral command
+    conditions: {speed: [2.0, 4.0]}
+    segments:
+      - {t: 4.0, motor: speed, value: speed, angle: 0.0}
+      - {t: 5.0, motor: current, value: 0.0, angle: 0.0}
+  M3:   # braking: steady, then speed 0
+    conditions: {speed: [2.0, 4.0]}
+    segments:
+      - {t: 4.0, motor: speed, value: speed, angle: 0.0}
+      - {t: 3.0, motor: speed, value: 0.0, angle: 0.0}
+  M3b:  # braking for a vesc car: steady, then a brake current
+    conditions: {speed: [2.0, 4.0], brake_current: [20.0]}
+    segments:
+      - {t: 4.0, motor: speed, value: speed, angle: 0.0}
+      - {t: 3.0, motor: brake, value: brake_current, angle: 0.0}
+  M4:   # steering step at 1 m/s: centre, full lock, centre
+    conditions: {side: [1, -1]}
+    segments:
+      - {t: 2.0, motor: speed, value: 1.0, angle: 0.0}
+      - {t: 2.0, motor: speed, value: 1.0, angle: full}
+      - {t: 2.0, motor: speed, value: 1.0, angle: 0.0}
+  M5:   # steady circles
+    conditions: {angle: [0.1, 0.2, 0.3, full], speed: [1.0, 2.0, 3.0], side: [1, -1]}
+    segments:
+      - {t: 8.0, motor: speed, value: speed, angle: angle}
+  M6:   # grip limit: on a circle, the speed raised slowly until the car slides
+    conditions: {side: [1, -1]}
+    segments:
+      - {t: 2.0, motor: speed, value: 1.0, angle: 0.2}
+      - {t: 18.0, motor: speed, value: 1.0, to: 7.0, angle: 0.2}

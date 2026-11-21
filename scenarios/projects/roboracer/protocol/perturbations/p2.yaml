@@ -1,0 +1,21 @@
+# W23 perturbation p2: another car, with what the fitter cannot model exactly. Each command's
+# latency jitters (component.latency_jitter): the fitter holds one latency. The reference is
+# scan matching's (5 mm), not motion capture's.
+vehicle:
+  mass: 3.50
+  axle_tires:
+    front: {tire_friction: 0.95, lat_stiff_value: 8.0}
+    rear: {tire_friction: 1.00, lat_stiff_value: 14.0}
+component:
+  current_max: 38.0
+  speed_ki: 0.009
+  latency: 0.030
+  latency_jitter: 0.010
+  servo_offset: 0.5254
+noise:
+  ref_pos: 0.005
+  ref_yaw: 0.005
+  imu_accel: 0.08
+  imu_gyro: 0.008
+  erpm: 40.0
+  current: 0.4

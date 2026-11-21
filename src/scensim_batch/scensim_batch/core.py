@@ -25,10 +25,14 @@ from . import npc
 
 class BatchRun:
     def __init__(self, compiled, world, backend, component, route_length=300.0,
-                 points=61, speed_limit=None):
+                 points=61, speed_limit=None, allow_loop=False):
+        """`allow_loop`: accept a LoopBatch component (one Python step per slot), for checking
+        a component before it has a batched form; never for a throughput number, and the run
+        says so (`self.looped`)."""
         from sim_vehicle_ecu import batch as ecu_batch
         self.c, self.world, self.backend = compiled, world, backend
-        self.component = ecu_batch.require_vectorised(component)
+        self.looped = not getattr(component, "vectorised", False)
+        self.component = component if allow_loop else ecu_batch.require_vectorised(component)
         self._ecu = ecu_batch
         if compiled.n != getattr(component, "n", compiled.n):
             raise ValueError(f"component has {component.n} slots, the batch {compiled.n}")
@@ -102,14 +106,26 @@ class BatchRun:
         return out
 
     def step(self, commands, dt):
-        """One step of every slot. Returns the observation: the ego's state and every
-        entity's pose [N, E] (x, y, yaw, v)."""
+        """One step of every slot, the engine stepped here: before_physics, the backend's
+        advance, after_physics. Returns after_physics' observation."""
+        self.before_physics(commands, dt)
+        self.backend.advance(dt)
+        return self.after_physics(dt)
+
+    def before_physics(self, commands, dt):
+        """The ego's component on what its sensors read, its actuation handed to the backend:
+        what a host that owns the physics loop (Isaac Lab's DirectRLEnv) calls before each
+        physics step, then steps the engine itself, then calls after_physics."""
         st = self.backend.state()
         act = self._ecu.checked_batch(
             self.component.step_batch(commands, self._sensors(st), dt), self.c.n, "ego component")
         self.first = torch.zeros_like(self.first)
         self.backend.apply(act)
-        self.backend.advance(dt)
+        return act
+
+    def after_physics(self, dt):
+        """After one physics step: the ego read back, SSv2's default vehicles moved. Returns
+        the observation: the ego's state and every entity's pose [N, E] (x, y, yaw, v)."""
         st = self.backend.state()
         c = self.c
         x, y, yaw = c.x.clone(), c.y.clone(), c.yaw.clone()

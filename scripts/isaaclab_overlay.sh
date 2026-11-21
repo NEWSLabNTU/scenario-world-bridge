@@ -36,8 +36,10 @@ site=$("$ov" -c 'import site; print(site.getsitepackages()[0])')
 isite=$("$py" -c 'import site; print(site.getsitepackages()[0])')
 echo "$isite" > "$site/isaac_venv.pth"     # after the overlay's own site-packages
 
-# the Isaac venv's versions, as constraints: what it has stays what it has
-"$py" -m pip freeze --exclude-editable 2>/dev/null | grep -v '^-e ' | grep '==' > "$dest/constraints.txt"
+# the Isaac venv's versions, as constraints: what it has stays what it has; and its whole freeze,
+# compared at the end
+"$py" -m pip freeze 2>/dev/null > "$dest/isaac-freeze-before.txt"
+grep -v '^-e ' "$dest/isaac-freeze-before.txt" | grep '==' > "$dest/constraints.txt"
 
 for p in "${PACKAGES[@]}"; do
     "$ov" -m pip install -q --no-deps --no-build-isolation -e "$dest/src/source/$p"
@@ -64,6 +66,12 @@ if [ -s "$dest/missing.txt" ]; then
     echo "installing what the Isaac venv lacks:"; sed 's/^/  /' "$dest/missing.txt"
     "$ov" -m pip install -q -c "$dest/constraints.txt" -r "$dest/missing.txt"
 fi
+"$py" -m pip freeze 2>/dev/null > "$dest/isaac-freeze-after.txt"
+if ! diff -u "$dest/isaac-freeze-before.txt" "$dest/isaac-freeze-after.txt"; then
+    echo "the Isaac venv changed (above): it must not; nothing more is done" >&2
+    exit 1
+fi
+echo "the Isaac venv is unchanged ($(wc -l < "$dest/isaac-freeze-after.txt") packages)"
 "$ov" -m pip check > "$dest/pip-check.txt" 2>&1 || true
 echo "pip check: $(wc -l < "$dest/pip-check.txt") line(s) in $dest/pip-check.txt"
-"$ov" -c 'import isaaclab, torch, isaacsim; print("isaaclab", isaaclab.__file__, "torch", torch.__version__)'
+PYTHONNOUSERSITE=1 "$ov" -c 'import isaaclab, isaaclab_tasks, torch; from isaaclab.envs import DirectRLEnv; print("isaaclab", isaaclab.__file__, "torch", torch.__version__)'

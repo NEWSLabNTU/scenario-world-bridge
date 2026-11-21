@@ -105,6 +105,8 @@ class Following(unittest.TestCase):
             car.step(DT, others)
             got.append((car.s.clone(), car.v.clone()))
             lead_s = lead_s + lead_v * DT
+        # 1e-6, not bit for bit: the cone test uses atan2, a function numpy and math may
+        # round differently in the last bit (S3's rule); an entity at exactly pi/2 could flip
         for i, c in enumerate(cases):
             want = scalar_follow(c[0], c[1], c[2], c[0] + c[3], c[4], steps)
             for k in (0, 50, 150, steps - 1):
@@ -132,6 +134,37 @@ class Following(unittest.TestCase):
             d, _, _ = car.front({"x": t([[x]]), "y": t([[y]]), "yaw": t([[0.0]]),
                                  "length": t([[4.0]]), "width": t([[1.8]]), "v": t([[0.0]])})
             self.assertEqual(math.isfinite(d.item()), seen, (x, y))
+
+    def test_the_front_distance_equals_ssv2s_for_trucks_overlaps_and_offsets(self):
+        """243's cases: a box wider than the car centred on its path (SSv2's polygon fallback
+        sees it), and a box already overlapping the bumper (SSv2 returns no distance)."""
+        routes = straight(1, 1)
+        car = npc.DefaultVehicles(routes, t([[10.0]]), t([[10.0]]), t([[4.0]]), t([[1.8]]),
+                                  t([[10.0]]))
+        car.dt = DT
+        for x, y, length, width in ((30.0, 0.0, 10.0, 2.5),    # a truck, centred
+                                    (30.0, 0.0, 12.0, 6.0),    # wider still
+                                    (30.0, 2.4, 4.0, 1.8),     # off the path
+                                    (13.0, 0.0, 4.0, 1.8),     # overlapping: gap < 0
+                                    (16.0, 0.0, 4.0, 1.8)):    # just touching: gap 2
+            d, _, _ = car.front({"x": t([[x]]), "y": t([[y]]), "yaw": t([[0.0]]),
+                                 "length": t([[length]]), "width": t([[width]]),
+                                 "v": t([[0.0]])})
+            lat = [y + width / 2, y - width / 2, y - width / 2, y + width / 2]
+            want = ref.front_distance(x - 10.0, 4.0, length, lat, 1.8)
+            got = d.item() if math.isfinite(d.item()) else None
+            if want is None:
+                self.assertIsNone(got, (x, y, length, width))
+            else:
+                self.assertAlmostEqual(got, want, places=9, msg=(x, y, length, width))
+
+    def test_an_inactive_vehicle_never_holds_the_stop_distance_loop(self):
+        routes = straight(1, 2)
+        car = npc.DefaultVehicles(routes, t([[0.0, 50.0]]), t([[10.0, math.nan]]),
+                                  torch.full((1, 2), 4.0, **F64), torch.full((1, 2), 1.8, **F64),
+                                  t([[10.0, 10.0]]), active=torch.tensor([[True, False]]))
+        car.step(DT)
+        self.assertTrue(math.isfinite(car.s[0, 0].item()))
 
     def test_vehicles_in_one_slot_see_each_other(self):
         routes = straight(1, 2)

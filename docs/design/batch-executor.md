@@ -63,7 +63,12 @@ Two differences are by construction:
   Catmull-Rom spline through the same points. Poses and headings differ by the spline's
   deviation from the chords. K2.4's agreement measures it.
 - **The front entity's box is projected per corner** onto the path, where SSv2 measures the
-  box's distance to the spline by bisection. They agree for boxes aligned with the lane.
+  box's distance to the spline by bisection (`distanceToSpline`). Like SSv2, a box counts as
+  ahead when a corner is within half the own width of the path, or else when the path crosses
+  the box (SSv2's `getCollisionPointIn2D` fallback): a truck wider than the car, centred on its
+  path, is seen. A box already overlapping the bumper (a negative gap) is no front entity, in
+  SSv2 too (`splineDistanceToBoundingBox` returns none); its contact is the collision's.
+  Both cases are pinned by a test against the reference.
 
 Not ported yet: the tree's StopAtTrafficLight, StopAtStopLine, StopAtCrossingEntity, Yield and
 MoveBackward, FollowLane's right-of-way check, LaneChange and FollowPolylineTrajectory. The
@@ -90,7 +95,9 @@ All pass in the system Python (torch 2.0) and in Isaac's (torch 2.11).
 19.8 ms per step at N = 256 and 86 ms at N = 1024, about 50 k vehicle-steps per second. The
 stop-distance loop and the corner projection (slots × vehicles × entities × 4 corners × route
 segments) dominate. The GPU number waits for an announced bench window. A closed-form stop
-distance would remove the loop.
+distance would remove the loop: the distance from (v, a) to 0 is fixed per constraint set, so
+a table over (v, a), or computing it only when a front candidate lies within the horizon,
+bounds it (a gap, for K2.5).
 
 ## 3. Isaac Lab as an overlay (K2.0)
 

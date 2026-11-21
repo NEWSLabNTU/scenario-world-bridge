@@ -7,7 +7,7 @@ and 5a). It lives in `src/scensim_batch`. This note grows with its milestones:
 
 | Milestone | What | State |
 |---|---|---|
-| K2.0 | Isaac Lab 3.0.0 installed beside Isaac Sim 6.1 (an overlay venv in /var/tmp/aeon), its Cartpole benchmark on 139 as a 5a reference row | open |
+| K2.0 | Isaac Lab v3.0.0-EA as an overlay on Isaac Sim 6.1 (section 3); its Cartpole benchmark on 139 as a 5a reference row | installed; benchmark waits for a free GPU |
 | K2.1 | SSv2's default vehicle behaviour, batched in torch (section 2) | in progress |
 | K2.2 | The environment: a DirectRLEnv from a compiled scenario and sample records, the ego from aib's rig, the control component through `step_batch`, resets per slot | open |
 | K2.3 | The compiled storyboard (conditions, actions) and the truth export (truth-stream.md, schema 2) | open |
@@ -91,3 +91,31 @@ All pass in the system Python (torch 2.0) and in Isaac's (torch 2.11).
 stop-distance loop and the corner projection (slots × vehicles × entities × 4 corners × route
 segments) dominate. The GPU number waits for an announced bench window. A closed-form stop
 distance would remove the loop.
+
+## 3. Isaac Lab as an overlay (K2.0)
+
+`scripts/isaaclab_overlay.sh <isaac-venv> <dest>` installs Isaac Lab beside an Isaac Sim pip
+install without changing it.
+
+- **The tag: v3.0.0-EA** (ae37b028, 2026-09-16), chosen on purpose. v3.0.0 GA (2026-10-19)
+  pins `isaacsim==6.2.0.0`. The host's Isaac Sim is 6.1.0.0, which v3.0.0-EA pins, with torch
+  2.11.0, the version that install has. Follow-up: move to GA when the Isaac Sim install moves
+  to 6.2 (092's K2 row).
+- **How it works.** It makes a venv of its own under `<dest>`, which sees the Isaac venv's
+  packages through a `.pth` file. Isaac Lab's packages are installed editable from a checkout
+  at the tag, without dependencies: isaaclab, isaaclab_physx, isaaclab_newton,
+  isaaclab_contrib, isaaclab_assets, isaaclab_tasks and isaaclab_rl. Then it installs only the
+  third-party packages that the Isaac venv lacks, constrained to the Isaac venv's own versions
+  (27 on 139: gymnasium, rsl-rl-lib, hydra-core, onnx, transformers, open3d, and others).
+- **What it leaves alone.** torch, isaacsim and warp stay the Isaac venv's. Its warp is
+  1.19.0.dev, where Isaac Lab asks for 1.16.0; Isaac Sim's own wins, and the benchmark will show
+  whether that matters.
+- **Measured on 139** (2026-11-21):
+  - the overlay is 1.9 GB, plus 132 MB of source, and / went from 90 to 88 GB free;
+  - the Isaac venv's `pip freeze` is identical before and after;
+  - `pip check` reports only the Isaac venv's own two pre-existing lines;
+  - `isaaclab`, `isaaclab_tasks`, `isaaclab_rl` and `DirectRLEnv` import, with torch
+    2.11.0+cu128 and warp 1.19.0.dev.
+- **Running it** needs `OMNI_KIT_ACCEPT_EULA=YES` and the NVIDIA Vulkan ICD, as aib's
+  `isaac_env.sh` sets for the same install.
+

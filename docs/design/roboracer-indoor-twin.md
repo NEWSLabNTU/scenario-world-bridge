@@ -248,6 +248,81 @@ table in `params`. So an FMU is not a second plug-in mechanism: it is a componen
 other. It needs an FMI runtime in Isaac's Python (fmpy). That is a dependency to settle when it
 is built, not in 091.
 
+### 2.6 The batched form
+
+A batched executor, such as an Isaac Lab environment (roadmap 092 K2), steps N cars of one
+component at once. The batched form is the same component over N slots, on arrays. It is
+`sim_vehicle_ecu.batch`, and numpy is imported there only:
+
+```python
+class MyCarBatch:
+    commands = "vesc"                 # as the scalar form (2.3); so are truth and driven
+    def __init__(self, vehicle: dict, params: dict, seeds: list): ...   # seeds[i]: slot i's
+    def reset_batch(self, mask): ...  # mask [N] bool: the slots to reset
+    def step_batch(self, commands, sensors, dt) -> dict: ...
+
+class MyCar(sim_vehicle_ecu.batch.ScalarOf):
+    batch = MyCarBatch                # the scalar form is the batch at N = 1: one code
+```
+
+The arrays are the scalar types' fields, struct of arrays, with the slot first:
+
+| | keys and shapes |
+|---|---|
+| commands, `autoware` | `acceleration`, `velocity`, `tire_angle`, `gear` [N]; `valid` [N]: False where the scalar form gets None (before the first command) |
+| commands, `ackermann` | `speed`, `acceleration`, `jerk`, `steering_angle`, `steering_angle_velocity`, `age` [N] |
+| commands, `vesc` | `motor` [N], an index into `MOTOR_MODES` (-1 for no command); `value` [N]; `servo` [N], NaN for no command; `age` [N] |
+| sensors | `wheel_speeds` [N, 4]; `yaw_rate`, `accel_x`, `accel_y` [N]; `valid` [N]: False where the scalar form gets None (the first step after a reset); `truth`: {declared name: [N] or [N, k]} |
+| actuation | `drive`, `brake` [N, 4]; `tire_angle` [N]; `telemetry` {key: [N]}, optional |
+
+The rules:
+
+- **One step, every slot.** `dt` is one value, the world's step. `reset_batch(mask)` resets the
+  slots marked; the first step after it has `valid` False in those slots.
+- **Per-slot seeds.** Slot i's seed is the one a single component for that car would get. A
+  batched form that draws noise keeps one generator per slot and draws in the same order, so
+  slot i draws what the single car draws. `random.Random` per slot does this; one numpy
+  generator over all slots does not.
+- **Truth.** Declared truth is per slot, as in 2.4, and the same check applies. Every declared
+  input has its array whether or not a slot has a reading (zeros where `valid` is False).
+- **The shape contract for later backends.** Torch and Warp keep these keys and shapes. A batch
+  declares `array_api` ("numpy" now) and `dtype` (float64 now).
+- **Bit for bit.** A batched form equals N scalar steps exactly only when both compute with
+  `+ - * /`, sqrt, min, max, clip, where and comparisons. numpy's `exp`, `log`, `tanh` and
+  `arctan2` may use its own vector kernels, which can differ from Python's `math` in the last
+  bit. A batched form that needs one says so, or computes it per slot with `math`.
+- **No batched form.** `load_batch(name, ...)` gives the component's `batch` class when it
+  declares one. Otherwise it gives `LoopBatch`: N instances, each stepped by `step`. That is
+  correct but slow (one Python step per slot) and flagged `vectorised = False`, with
+  `loop_of = <name>`, so an executor that needs throughput calls `require_vectorised`, which
+  refuses it by name. `ideal`, `ev` and `fmu` run as `LoopBatch` today. An FMU is N instances
+  of one unit, and a unit with `canBeInstantiatedOnlyOncePerProcess` is refused, as for two
+  cars. Vectorising `ideal` and `ev` (the onboard computers' chain, about 900 lines of branching
+  Python) is a follow-up.
+- **Checks.** `checked_batch` refuses an actuation of the wrong shape, a non-finite value or a
+  negative brake, naming the field and the slot.
+
+The timing, on newslab-server139, is for a VESC-like test car in array form (sim_vehicle_ecu's
+`test/batch_cars.py`) against the same car looped, and the shipped `ev` looped
+(`test/bench_batch.py`). Mean ms per step, system Python (Python 3.10, numpy 1.21) and Isaac's
+(3.12, 2.3):
+
+| N | batched | batched, a Python Random per slot | the same car, LoopBatch | `ev`, LoopBatch |
+|---|---|---|---|---|
+| 1 | 0.018, 0.012 | 0.016, 0.012 | 0.009, 0.006 | 0.037, 0.027 |
+| 256 | 0.017, 0.014 | 0.068, 0.051 | 1.35, 1.10 | 7.6, 5.3 |
+| 2048 | 0.030, 0.023 | 0.40, 0.32 | 12.4, 10.4 | 69, 55 |
+
+At one slot the batched form costs about twice the scalar form, because of the array overhead.
+At 256 slots it is about 80 times faster than the loop, and at 2048 about 400 times. With a
+per-slot Python generator the factors are about 20 and 30: the generator costs about 0.15 us
+per slot-step.
+
+The vectorised reference is the roboracer project's stand-in VESC component (091 W23,
+`scenarios/projects/roboracer/component`). Once W23 lands it is converted to this form, as an
+example in that project and not a shipped model: a car's control component stays the user's
+(091), and one model is kept, not two.
+
 ## 3. The USD stage as the source of truth
 
 ### 3.1 The stage and its map directory

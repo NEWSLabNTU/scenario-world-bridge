@@ -47,6 +47,8 @@ class PhysxVehicleBackend:
             self.states.append(State())
         self.act = None
         self.timing = {"actuate": 0.0, "physics": 0.0, "sample": 0.0, "steps": 0}
+        self.trace_steps = 0   # > 0: record slot 0's PhysX read-back for that many steps
+        self.trace = []
 
     # --- the contract ------------------------------------------------------------------------
 
@@ -114,6 +116,32 @@ class PhysxVehicleBackend:
         """Every car read back after a physics step."""
         for car, st in zip(self.cars, self.states):
             car.sample(self.physx, dt, st)
+        if len(self.trace) < self.trace_steps:
+            self.trace.append(self.readback(0))
+
+    def readback(self, i):
+        """Slot i after a physics step, as PhysX holds it (not USD): per wheel the steer angle,
+        the spin and the tire's longitudinal force, beside what the component asked for. PhysX
+        reports no drive or brake torque; the force and spin are their effect."""
+        from omni.physx.bindings._physx import (VEHICLE_WHEEL_STATE_IS_ON_GROUND,
+                                                VEHICLE_WHEEL_STATE_ROTATION_SPEED,
+                                                VEHICLE_WHEEL_STATE_STEER_ANGLE,
+                                                VEHICLE_WHEEL_STATE_TIRE_FORCE,
+                                                VEHICLE_WHEEL_STATE_TIRE_LONGITUDINAL_DIRECTION)
+        a = self.act
+        row = {"asked_drive": np.asarray(a["drive"])[i].tolist(),
+               "asked_brake": np.asarray(a["brake"])[i].tolist(),
+               "asked_tire_angle": float(np.asarray(a["tire_angle"])[i]),
+               "on_ground": [], "steer": [], "spin": [], "tire_fx": []}
+        for wp in self.cars[i].wheel_paths:
+            w = self.physx.get_wheel_state(wp)
+            f = w[VEHICLE_WHEEL_STATE_TIRE_FORCE]
+            d = w[VEHICLE_WHEEL_STATE_TIRE_LONGITUDINAL_DIRECTION]
+            row["on_ground"].append(bool(w[VEHICLE_WHEEL_STATE_IS_ON_GROUND]))
+            row["steer"].append(float(w[VEHICLE_WHEEL_STATE_STEER_ANGLE]))
+            row["spin"].append(float(w[VEHICLE_WHEEL_STATE_ROTATION_SPEED]))
+            row["tire_fx"].append(float(sum(float(x) * float(y) for x, y in zip(f, d))))
+        return row
 
     def state(self):
         n = self.n

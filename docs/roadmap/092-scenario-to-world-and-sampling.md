@@ -39,7 +39,7 @@ From the design's section 10.
 | S4 | The stage record (091 W15) and the truth stream's content | spec | 091 W15 | | open |
 | K1 | The sampler (pure Python): `src/scensim_sampler`, `scensim-sample` | component | S1 | swb 139 | done (`scensim-sample`) |
 | K2 | The Isaac Lab adapter, with `scensim bench` | component | S1, S2, S3, 091 W5 | | open |
-| K3 | Replay of a sample record on seats, fidelity measured | component | S1, K1 | swb 139 | taken (plan to 133) |
+| K3 | Replay of a sample record on seats, fidelity measured: `sample:`, `run --replay`, `runs fidelity` | component | S1, K1 | swb 139 | done; measured 2026-11-21 on CARLA 0.9.16 (Town01, simple pilot, 5 records + 5 replays): 5 of 5 same outcome, but all 10 passed, so the measure did not discriminate, and the ego was a stack pilot (its seed not applied); a sample that fails some of the time is still to run |
 | K4 | The truth stream, judge and attachment hooks, the paced clock | components | S4 | | open |
 | K5 | GPU transport for evaluation (NITROS first) | component | none | | open |
 | K6 | Jazzy for the whole set | all | 082 | | open |

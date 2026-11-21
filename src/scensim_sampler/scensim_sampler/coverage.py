@@ -143,6 +143,12 @@ def outcomes_from_runs(paths):
         r = json.loads((d / "result.json").read_text())
         rec = json.loads((d / "sample.json").read_text())
         notes = (r.get("sample") or {}).get("unbound") or []
+        # grouped by what the world applied (093 D7): a bound knob's cell value is the value the
+        # run's knobs report applied; a run whose knobs did not apply is an error run already
+        kb = r.get("knobs") or {}
+        if kb.get("ok") and isinstance(rec.get("cell"), dict):
+            rec = dict(rec, cell={a: (kb["knobs"][a]["value"] if a in kb.get("knobs", {})
+                                      else v) for a, v in rec["cell"].items()})
         out.append((rec, {"failed": r.get("verdict") == "failed", "contact": _contact(d),
                           "error": r.get("verdict") == "error",
                           "seeds_not_applied": any(n.startswith("pilot ") for n in notes),

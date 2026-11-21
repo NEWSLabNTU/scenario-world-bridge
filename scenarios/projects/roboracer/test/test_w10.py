@@ -53,3 +53,33 @@ def test_the_drift_rule_flags_what_left_its_interval():
     assert d[FRICTION]["outside"] is True and d[FRICTION]["change"] == pytest.approx(-0.3514)
     assert d["component.latency"]["outside"] is False
     assert d["vehicle.mass"]["outside"] is None  # no interval: reported, not judged
+
+
+def test_the_batched_replay_is_each_slots_own_replay():
+    """fit.replay_batch: (params, run) pairs as slots of the batched component, each equal to
+    that pair replayed alone, bit for bit."""
+    pytest.importorskip("sim_vehicle_ecu")
+    import numpy as np
+    import protocol as protomod
+    import yaml
+    sys.path.insert(0, str(ROOT / "component" / "roboracer_vesc"))
+    from roboracer_vesc.component import RoboRacerVesc
+    car = yaml.safe_load((ROOT / "vehicles" / "roboracer.yaml").read_text())
+    doc = protomod.load()
+    rng = np.random.default_rng(3)
+    streams = []
+    for run, length in zip(protomod.runs(doc, only=["M1", "M3b"], repetitions=1)[:2], (6.0, 4.0)):
+        ct = np.arange(0.0, length, 0.02)
+        cmds = [protomod.command(run, t, 0.36) for t in ct]
+        kt = np.arange(0.02, length, 0.02)
+        streams.append({"cmd_t": ct, "cmd_mode": np.array([protomod.MOTORS.index(c[0]) for c in cmds]),
+                        "cmd_value": np.array([c[1] for c in cmds]),
+                        "cmd_servo": np.array([c[2] for c in cmds]),
+                        "core_t": kt, "core_erpm": 4614.0 * np.clip(kt - 1.0, 0, 2)
+                        + rng.normal(0, 30, len(kt))})
+    params = [{"latency": 0.03}, {"latency": 0.05, "speed_kp": 0.006, "latency_jitter": 0.01}]
+    got = fit.replay_batch(RoboRacerVesc, car, params, streams, protomod.MOTORS)
+    for p, row in zip(params, got):
+        for st, pred in zip(streams, row):
+            alone = fit.replay_batch(RoboRacerVesc, car, [p], [st], protomod.MOTORS)[0][0]
+            assert np.array_equal(pred, alone) and len(pred) == len(st["core_t"])

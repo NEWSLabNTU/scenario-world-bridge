@@ -40,27 +40,70 @@ def _runs(runs, manoeuvres):
 def replay(component_cls, car, params, streams, motor_modes, dt=REPLAY_DT):
     """The component's motor current at each `core_t`, driven by the logged commands and the
     logged ERPM (the car's speed as the VESC measured it)."""
-    from sim_vehicle_ecu.signals import Sensors, VescCommand
+    return replay_batch(component_cls, car, [params], [streams], motor_modes, dt)[0][0]
 
-    c = component_cls(car, params, 0)
-    erpm_per_wheel = c.gear * c.p["erpm_per_motor_rad_s"]  # ERPM per wheel rad/s
-    ct, cm, cv, cs = (streams[k] for k in ("cmd_t", "cmd_mode", "cmd_value", "cmd_servo"))
-    kt, ke = streams["core_t"], streams["core_erpm"]
-    out = np.zeros_like(kt)
-    j, k, t = -1, 0, 0.0
+
+def _run_inputs(streams, motor_modes, dt):
+    """One run's per-step inputs, as the scalar replay stepped them: (step times, motor mode
+    index, value, servo, age, logged ERPM, the step each core sample is read at)."""
+    from sim_vehicle_ecu.signals import MOTOR_MODES
+    ct, cm, cv, cs = (np.asarray(streams[k], float)
+                      for k in ("cmd_t", "cmd_mode", "cmd_value", "cmd_servo"))
+    kt, ke = np.asarray(streams["core_t"], float), np.asarray(streams["core_erpm"], float)
     n = int(math.ceil(kt[-1] / dt)) + 1
-    for i in range(n):
-        t = (i + 1) * dt
-        while j + 1 < len(ct) and ct[j + 1] <= t - dt + 1e-12:
-            j += 1
-        cmd = (VescCommand(motor_modes[int(cm[j])], float(cv[j]), float(cs[j]), t - dt - ct[j])
-               if j >= 0 else VescCommand())
-        w = float(np.interp(t - dt, kt, ke)) / erpm_per_wheel
-        a = c.step(cmd, Sensors(wheel_speeds=(w,) * 4), dt)
-        while k < len(kt) and kt[k] <= t + 1e-12:
-            out[k] = a.telemetry["current_motor"]
-            k += 1
-    return out
+    t = np.arange(1, n + 1) * dt
+    before = t - dt
+    # the last command sent by the step's start: ct[j] <= t - dt + 1e-12
+    j = np.searchsorted(ct, before + 1e-12, side="right") - 1
+    some = j >= 0
+    jj = np.where(some, j, 0)
+    index = np.array([MOTOR_MODES.index(m) for m in motor_modes])
+    motor = np.where(some, index[cm[jj].astype(int)], -1)
+    value = np.where(some, cv[jj], 0.0)
+    servo = np.where(some, cs[jj], math.nan)
+    age = np.where(some, before - ct[jj], math.inf)
+    erpm = np.interp(before, kt, ke)
+    # a core sample is read after the first step whose end reaches it
+    read = np.searchsorted(t + 1e-12, kt, side="left")
+    return t, motor, value, servo, age, erpm, read
+
+
+def replay_batch(component_cls, car, params_list, streams_list, motor_modes, dt=REPLAY_DT):
+    """`replay` for every (params, run) pair at once, one slot each in the component's batched
+    form (sim_vehicle_ecu.batch; per-slot params): [[current per core_t] per run] per params.
+    Slot by slot it is the scalar replay, bit for bit."""
+    from sim_vehicle_ecu import batch as ecu_batch
+    runs = [_run_inputs(st, motor_modes, dt) for st in streams_list]
+    P, R = len(params_list), len(runs)
+    slots = [(p, r) for p in range(P) for r in range(R)]
+    # every slot names the same keys (per-slot params): a key one set leaves out is the default
+    defaults = getattr(sys.modules[component_cls.__module__], "DEFAULTS", {})
+    keys = set().union(*params_list)
+    full = [{k: pr.get(k, defaults[k]) for k in keys} for pr in params_list]
+    b = ecu_batch.load_batch(component_cls, car, [full[p] for p, _ in slots],
+                             seeds=[0] * len(slots))
+    epw = np.asarray(b.gear * b.p["erpm_per_motor_rad_s"], float) * np.ones(len(slots))
+    T = max(len(x[0]) for x in runs)
+
+    def padded(k):  # [R, T]: a run that ended repeats its last step (its outputs unread)
+        return np.stack([np.pad(x[k], (0, T - len(x[k])), mode="edge") for x in runs])
+    motor, value, servo, age, erpm = (padded(k) for k in (1, 2, 3, 4, 5))
+    ri = np.array([r for _, r in slots])
+    n = len(slots)
+    ones, zeros = np.ones(n, bool), np.zeros(n)
+    cur = np.zeros((n, T))
+    for i in range(T):
+        w = erpm[ri, i] / epw
+        out = b.step_batch(
+            {"motor": motor[ri, i].astype(np.int64), "value": value[ri, i],
+             "servo": servo[ri, i], "age": age[ri, i], "valid": ones},
+            {"wheel_speeds": np.repeat(w[:, None], 4, axis=1), "yaw_rate": zeros,
+             "accel_x": zeros, "accel_y": zeros, "valid": ones}, dt)
+        cur[:, i] = out["telemetry"]["current_motor"]
+    res = [[None] * R for _ in range(P)]
+    for s, (p, r) in enumerate(slots):
+        res[p][r] = cur[s, runs[r][6]]
+    return res
 
 
 FIT_COMPONENT = ("speed_kp", "speed_ki", "current_max", "latency")
@@ -79,10 +122,8 @@ def fit_current_max(runs, protocol_doc):
 
 
 def _replay_cost(component_cls, car, params, sel, motor_modes):
-    err = []
-    for _, st in sel:
-        pred = replay(component_cls, car, params, st, motor_modes)
-        err.append(pred - st["core_current_motor"])
+    preds = replay_batch(component_cls, car, [params], [st for _, st in sel], motor_modes)[0]
+    err = [pred - st["core_current_motor"] for pred, (_, st) in zip(preds, sel)]
     return float(np.mean(np.concatenate(err) ** 2))
 
 
